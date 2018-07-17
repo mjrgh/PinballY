@@ -262,3 +262,41 @@ speedy mapped GPU buffers for thousands of frames.  The mix is such
 that overall throughput is pretty much indistinguishable from the
 multi-threaded setup.
 
+
+5. Epilogue: why even that didn't work
+
+As it turns out, I eventually found that I had to abandon my clever
+dual-buffer scheme and switch to a very straightforward new-texture-
+per-frame system.  This final humiliating failure didn't have anything
+to do with threading.  The problem was simple resource availability,
+namely shared video memory.  The Microsoft SDK docs contain a vague
+comment about how it's "recommended" that you only create one Usage
+Dynamic texture "of each type".  That's a weird way to put it, but it
+seems that what they're getting at is that the shared video memory
+used by Usage Dynamic buffers is extremely limited, or at least can
+be; it's undoubtedly a function of your video card's capabilities.  I
+found that I was able to exhaust Usage Dynamic memory on my machine
+with two or three videos playing simultaneously.  I was right on the
+edge of the resource limit on my development machine; I could hit the
+limit on command by adjusting the number of frame buffers up or down.
+
+This on-the-edge resource usage is obviously unworkable for a release.
+So I dumped the whole scheme and returned to the slow-but-reliable
+scheme of creating a new (default usage, unshared) texture per frame.
+
+Happily, I was able to get a lot of the original speed back by
+switching from CPU-based YUV-to-RGB color space conversion in libvlc
+to GPU-based conversion in my own shader.  The final product (as of
+this writing, anyway!) asks libvlc to decode to I420, which is about
+the most efficient decoding format for most modern video codecs, as
+virtually all modern codecs used some kind of YUV color space.  The
+D3D rendering code uses a custom pixel shader to read the I420 plane
+data and turn it into RGB pixels.  This is one of those tasks that
+GPUs are particularly good at, so it takes a lot of load off of the
+CPU by not asking libvlc to do the conversion.  I420 also has the
+advantage that the CPU memory buffers are smaller, since it
+sub-samples 4:1 in the chroma planes; the reduced buffer size further
+improves our throughput by reducing the number of bytes that have to
+be moved from CPU to GPU on every frame by a factor of about 2.67.
+
+
