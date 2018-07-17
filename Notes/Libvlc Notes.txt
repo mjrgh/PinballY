@@ -1,0 +1,94 @@
+1. Updating libvlc in the git repository
+
+The project repository includes the libvlc files we include in the
+distribution, to simplify build environment setup and to ensure that
+independent builds based on the same git commit are consistent.
+
+libvlc doesn't need to be updated every time we do a release.  We can
+just stick with the last snapshot as long as desired.  It's best to
+update to a new libvlc from time to time, though, to pick up the
+latest bug fixes, security patches, and codec updates.  Updating
+regularly will also help avoid the inevitable scary-big-pile-of-work
+needed if we go too long between snapshots, as third-party libraries
+like libvlc inevitably will make changes that require some tweaks in
+the clients.  It's usually easiest to apply these tweaks incrementally
+while they're still tweaks, rather than letting so many of them
+accumulate that they amount to major revamps.
+
+Our snapshot of libvlc is simply a subset the standard VLC end-user
+distribution.  VLC doesn't provide a separate developer or SDK
+package; third-party client applications are meant to use the same
+DLLs that are distributed with the end-user binaries.  So updating our
+libvlc snapshot is a matter of downloading the latest end-user distro
+and pulling out the files that we need for our binary distribution.
+
+ONLY INCLUDE THE REQUIRED DISTRIBUTION FILES in the git repos.  The
+full VLC end-user distribution is quite large, and we simply don't
+need most of its files.  The proper procedure is:
+
+- Install the latest VLC end-user distribution
+
+- Copy the required files from your VLC install dir to your 
+  PinballY source tree, using the current source tree file set
+  as a guide to which files are required
+
+- Copy the complete trees "plugins/" and "sdk/" from the new VLC
+  distro to the repos
+
+
+
+2. How to disable hardware decoding in libvlc
+
+Add this just after creating the 'media' object:
+
+libvlc_media_add_option_(media, "--avcodec-hw=none");
+
+I tried this during testing with libvlc 3.0.1 to see if hardware
+decoding was the source of some rare, random crashes I was seeing in
+libvlc decoder threads.  The crashes were mostly due to libvlc threads
+releasing unowned Critical Section objects, and they seemed like they
+might be more likely when my own multi-threaded D3D11 code was in use,
+so I thought that conflicts with D3D11 device contexts (which aren't
+thread-safe) or some low-level DXGI resource might be the underlying
+cause.  
+
+But turning off hardware debugging in libvlc didn't help, as it turned
+out.  We obviously don't want to disable hardware acceleration if we
+don't have to, so I took this out.  I just wanted to make a note about
+it for future reference, since it took a little digging to figure out
+how to do this.
+
+(The real reason behind the crashes was indeed the multi-threaded
+D3D11 device context usage, but not in the way I expected.  The D3D11
+SDK documentation says that it's possible to use a device context
+across threads if you serialize access to the context: that is,
+coordinate the various threads, using resource locks of some kind, so
+that only one thread at a time makes a method call into the device
+context.  But the SDK docs leave it at that; they don't elaborate on
+specific practices to ensure thread safety, but just let us assume
+that we can apply standard thread-safety techniques of the sorts that
+you might apply to, say, static variables or object member variables.
+I think the real reason the docs leave this as an exercise is that no
+one at Microsoft ever tried it, because I think it's nearly impossible
+to make it work in practice.  The problem is that it turns out that
+*other* D3D11 objects can make their own *implicit* calls into the
+device context.  The one that was causing my particular sporadic crash
+turned out to be the Release() method of an ID3D11Texture2D object.  I
+came up with a nicely structured, safe way to protect all *direct*
+device context calls across threads, but when I discovered that you
+also have to protect implicit calls that happen inside other D3D11
+objects besides the device context, I gave up.  Because this means
+that it's not good enough to serialize device context calls per se;
+you have to serialize every call into every D3D11 object of every
+kind.  The bottom line is that I think it's best to ignore the SDK's
+suggestion that multi-threading is possible at all, and stick to their
+first-line advice that it's basically not, with the exception that
+resource creation calls into the ID3D11Device object are specifically
+allowed on multiple threads.)
+
+
+3.  How our libvlc video player object works
+
+See D3D11 Multithreading.txt for some details on our video player
+architecure.
+

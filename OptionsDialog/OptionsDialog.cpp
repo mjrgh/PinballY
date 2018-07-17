@@ -1,0 +1,618 @@
+// This file is part of PinballY
+// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+//
+#include "stdafx.h"
+#include "../Utilities/FileUtil.h"
+#include "../Utilities/GlobalConstants.h"
+#include "resource.h"
+#include "OptionsDialog.h"
+#include "KeyboardDialog.h"
+#include "AttractModeDialog.h"
+#include "CaptureDialog.h"
+#include "CoinsDialog.h"
+#include "DMDDialog.h"
+#include "MiscDialog.h"
+#include "PathsDialog.h"
+#include "StartupDialog.h"
+#include "StatuslineDialog.h"
+#include "SysGroupDialog.h"
+#include "SystemDialog.h"
+#include "AudioVideoDialog.h"
+
+using namespace TreePropSheet;
+
+// internal application messages
+static const UINT MsgDeleteSystemPage = WM_APP + 100;	// delete a system page: WPARAM=page ID
+
+// default start page map
+std::unordered_map<std::string, int> OptionsDialog::defaultStartPages;
+
+BEGIN_MESSAGE_MAP(OptionsDialog, CTreePropSheet)
+	ON_WM_NCLBUTTONDOWN()
+	ON_WM_LBUTTONUP()
+	ON_WM_MOUSEMOVE()
+	ON_WM_CAPTURECHANGED()
+	ON_WM_SYSCOMMAND()
+	ON_WM_INPUT()
+	ON_WM_INPUT_DEVICE_CHANGE()
+END_MESSAGE_MAP()
+
+OptionsDialog::OptionsDialog(int startPage)
+{
+	// remember the frame parent and starting page
+	this->startPage = startPage;
+
+	// set the title
+	SetTitle(_T("Options"));
+
+	// set tree mode
+	SetTreeViewMode(true, false, false);
+
+	// use our custom images
+	SetButtonImages(IDB_TREE_ARROWS, RGB(255, 255, 255), 6);
+}
+
+OptionsDialog::~OptionsDialog()
+{
+	// delete the pages
+	while (pages.size() != 0)
+	{
+		delete pages.front().page;
+		pages.erase(pages.begin());
+	}
+}
+
+void OptionsDialog::BeforeClose()
+{
+	// note the final selection
+	CPropertyPage *page = GetActivePage();
+	if (page != 0)
+	{
+		PageDesc *pageInfo = findifex(pages, [page](PageDesc &p) { return p.page == page; });
+		if (pageInfo != 0)
+			defaultStartPages[GetDialogID()] = pageInfo->id;
+	}
+}
+
+void OptionsDialog::AddPage(CPropertyPage *page, int id, const TCHAR *helpFile)
+{
+	// add it to the tree control
+	__super::AddPage(page);
+
+	// add it to our list
+	pages.emplace_back(page, id, helpFile);
+}
+
+BOOL OptionsDialog::OnInitDialog()
+{
+	// do the base class initialization
+	BOOL result = __super::OnInitDialog();
+
+	// show the Help button in the frame
+	ModifyStyleEx(0, WS_EX_CONTEXTHELP);
+
+	// adjust the tree control styles
+	CTreeCtrl *tree = GetPageTreeControl();
+	tree->ModifyStyle(TVS_HASLINES, 0);
+
+	// expand all of the top-level items
+	for (HTREEITEM ti = tree->GetRootItem();
+		ti != NULL; ti = tree->GetNextItem(ti, TVGN_NEXT))
+		tree->Expand(ti, TVE_EXPAND);
+
+	// switch to the initial page, if one was specified
+	ShowStartPage();
+
+	// done
+	return result;
+}
+
+void OptionsDialog::ShowStartPage()
+{
+	// If they want to use the default page, start on the same page 
+	// that was selected just before the same dialog was closed on its
+	// last appearance.
+	if (startPage == DefaultStartPage)
+	{
+		// See if there's an entry for this dialog in the default start 
+		// page table.  This records the last page that was active for
+		// each dialog type.
+		auto it = defaultStartPages.find(GetDialogID());
+		if (it != defaultStartPages.end())
+			startPage = it->second;
+	}
+
+	// If we didn't find an explicit start page, use the first page in
+	// the tree list.  The tree sorts by page name, so this won't 
+	// necessarily be the first page in creation order.
+	if (startPage == DefaultStartPage)
+	{
+		// get the first item as shown in the tree control
+		auto tree = GetPageTreeControl();
+		auto hItem = tree->GetRootItem();
+
+		// Find the first item with a valid page.  Some items aren't
+		// associated with pages at all, since we create page-less
+		// parent items for nested items.  E.g., there could be
+		// "Environment::Keyboard" and "Environment::Mouse", but
+		// no "Environment" page.  The tree will still have an item
+		// for "Environment", though; it just won't be associated
+		// with a page.
+		int tabPage = GetTabPageNum(hItem);
+		while (hItem != NULL && tabPage < 0)
+		{
+			hItem = tree->GetChildItem(hItem);
+			if (hItem != NULL)
+				tabPage = GetTabPageNum(hItem);
+		}
+
+		// find the page descriptor for indexed item
+		auto it = pages.begin();
+		for (int i = 0; i < tabPage && it != pages.end(); ++i, ++it);
+
+		// make this the default start page
+		if (it != pages.end())
+			this->startPage = it->id;
+	}
+
+	// Select the page, if one was specified (or we found a previous page
+	// to re-select)
+	if (startPage != DefaultStartPage)
+	{
+		// find the page matching the target ID
+		PageDesc *page = findifex(pages, [this](PageDesc &page) { return page.id == startPage; });
+		if (page != 0)
+			SetActivePage(page->page);
+	}
+}
+
+const TCHAR *OptionsDialog::GetHelpPage(CPropertyPage *dlgPage)
+{
+	PageDesc *page = findifex(pages, [dlgPage](PageDesc &page) { return page.page == dlgPage; });
+	if (page != 0 && page->helpFile != 0)
+		return page->helpFile;
+	else
+		return DefaultHelpPage();
+}
+
+BOOL OptionsDialog::OnCommand(WPARAM wParam, LPARAM lParam)
+{
+	// if it looks like one of the close buttons, note the
+	// current page before exiting
+	UINT nID = LOWORD(wParam);
+	int nCode = HIWORD(wParam);
+	HWND hWndCtrl = (HWND)lParam;
+	if (hWndCtrl != 0 && nCode == BN_CLICKED && (nID == IDOK || nID == IDCANCEL))
+		BeforeClose();
+
+	// pass it along to the base class handler
+	BOOL result = __super::OnCommand(wParam, lParam);
+
+	// On Apply, post a message to self to save the config file.  The
+	// default window proc will handle the current Apply button click
+	// message by calling OnApply in each page, which will flush their
+	// changes to the in-memory config.  That will leave the in-memory
+	// config dirty and in need of saving to the file.  But none of 
+	// that will happen until after we return from this handler, since
+	// the OnApply events are generated from the default window proc,
+	// which is called after we return.  So we have to follow up with
+	// an additional posted message, which will be processed after the
+	// current event handler finishes.  Note that "OK" will have the
+	// same effect of updating the config via the OnApply methods in
+	// the pages, but that will also dismiss the dialog, so we don't
+	// have to worry about saving the file here; we'll do a separate
+	// check for unsaved changes after the dialog exits.
+	if (nCode == BN_CLICKED && nID == ID_APPLY_NOW)
+		PostMessage(WM_COMMAND, ID_SAVE_IF_DIRTY);
+
+	// Now check if this is the "save if dirty" message we posted
+	// on a recent Apply click!
+	if (nID == ID_SAVE_IF_DIRTY)
+		ConfigManager::GetInstance()->SaveIfDirty();
+
+	// return the result from the base class handler
+	return result;
+}
+
+void OptionsDialog::OnSysCommand(UINT nID, LPARAM lParam)
+{
+	// on pressing the frame context help button, show the
+	// help section for the currently selected page
+	switch (nID)
+	{
+	case SC_CONTEXTHELP:
+		// show help for the current page
+		{
+			// get the help file for the page
+			const TCHAR *helpFile = GetHelpPage(GetActivePage());
+
+			// look in the help/ folder
+			TCHAR relPath[MAX_PATH];
+			PathCombine(relPath, _T("help"), helpFile);
+
+			// get the html file path
+			TCHAR path[MAX_PATH];
+			GetDeployedFilePath(path, relPath, _T(""));
+
+			// open the file
+			ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOW);
+		}
+
+		// Skip the standard system processing, which switches to the
+		// "?" cursor for asking for help on an individual control.  We
+		// just show help for the whole page, so we don't want to enter
+		// per-control help mode.
+		return;
+
+	case SC_CLOSE:
+		// capture the current active page before closing
+		BeforeClose();
+		break;
+	}
+
+	// inherit the default handling
+	__super::OnSysCommand(nID, lParam);
+}
+
+void OptionsDialog::OnRawInput(UINT inputCode, HRAWINPUT hRawInput)
+{
+	// process it through the input manager
+	InputManager::GetInstance()->ProcessRawInput(inputCode, hRawInput);
+
+	// do the base class work
+	__super::OnRawInput(inputCode, hRawInput);
+}
+
+void OptionsDialog::OnInputDeviceChange(USHORT what, HANDLE hDevice)
+{
+	// process it through the input manager
+	InputManager::GetInstance()->ProcessDeviceChange(what, hDevice);
+}
+
+// -----------------------------------------------------------------------
+// 
+// Main PinballY options dialog
+//
+
+
+BEGIN_MESSAGE_MAP(MainOptionsDialog, OptionsDialog)
+	ON_MESSAGE(MsgDeleteSystemPage, OnDeleteSystemPage)
+END_MESSAGE_MAP()
+
+
+MainOptionsDialog::MainOptionsDialog(int startPage)
+	: OptionsDialog(startPage)
+{
+	// Create the pages.  Note that the order of page creation doesn't
+	// affect the display order, since we sort the tree dynamically into
+	// localized collated order by page name.  That ensures that the tree 
+	// is shown in a sane order even if we rename pages, and even in a
+	// translated version.
+	AddPage(new AudioVideoDialog(IDD_AUDIO_VIDEO), AudioVideoPage, _T("AudioVideoOptions.html"));
+	AddPage(new MainKeyboardDialog(IDD_KEYS), KeysPage, _T("ButtonOptions.html"));
+	AddPage(new CaptureDialog(IDD_CAPTURE), CapturePage, _T("CaptureOptions.html"));
+	AddPage(new AttractModeDialog(IDD_ATTRACT_MODE), AttractModePage, _T("AttractModeOptions.html"));
+	AddPage(new CoinsDialog(IDD_COINS), CoinsPage, _T("CoinOptions.html"));
+	AddPage(new DMDDialog(IDD_DMD), DMDPage, _T("RealDMDOptions.html"));
+	AddPage(new MiscDialog(IDD_MISC), MiscPage, _T("MiscOptions.html"));
+	AddPage(new PathsDialog(IDD_PATHS), PathsPage, _T("PathOptions.html"));
+	AddPage(new StartupDialog(IDD_STARTUP), StartupPage, _T("StartupOptions.html"));
+	AddPage(new StatuslineDialog(IDD_STATUSLINE), StatuslinePage, _T("StatuslineOptions.html"));
+	AddPage(sysGroupDialog = new SysGroupDialog(IDD_SYSTEM_GROUP), SysGroupPage, _T("SystemOptions.html"));
+
+	// Add pages for the systems
+	auto cfg = ConfigManager::GetInstance();
+	for (int i = 1; i < PinballY::Constants::MaxSystemNum; ++i)
+	{
+		// if this system is populated in the config, add a page for it
+		if (cfg->Get(MsgFmt(_T("System%d"), i), nullptr) != nullptr)
+			AddPage(new SystemDialog(IDD_SYSTEM, i), SystemBasePage + i, _T("SystemOptions.html"));
+	}
+
+	// Set the tree panel to be wide enough for a sample system
+	// name.  We don't want to size it based on the actual widest
+	// system name, since the user could rename a system to
+	// something even longer.  Instead, use a longish name that's
+	// within the bounds of what's likely to occur in practice.
+	// If this isn't wide enough for the actual data, the tree 
+	// panel has a scrollbar, so the user can still see what's
+	// there.  But it's nicer not to have to use that in the
+	// "typical" case.
+	CDC dc;
+	dc.CreateCompatibleDC(NULL);
+	CFont font;
+	font.CreatePointFont(8, _T("MS Shell Dlg"), &dc);
+	SetTreeWidth(dc.GetTextExtent(_T("XXX(1) SamplePinballSys 10.0")).cx);
+}
+
+MainOptionsDialog::~MainOptionsDialog()
+{
+}
+
+BOOL MainOptionsDialog::OnInitDialog()
+{
+	// do the base class initialization
+	BOOL result = __super::OnInitDialog();
+
+	// If raw input isn't initialized, handle messages ourselves.
+	InputManager *im = InputManager::GetInstance();
+	if (!im->IsRawInputInitialized())
+		im->InitRawInput(m_hWnd);
+
+	// If we have any system dialog items, the system tabs will all have
+	// the same generic title from the dialog template.  We need to update
+	// them with the actual system names.
+	auto cfg = ConfigManager::GetInstance();
+	auto tabCtrl = GetTabControl();
+	auto treeCtrl = GetPageTreeControl();
+	int nPages = tabCtrl->GetItemCount();
+	for (int i = 0; i < nPages; ++i)
+	{
+		// if this is a system page, update its tab title
+		if (auto sysPage = dynamic_cast<SystemDialog*>(GetPage(i)); sysPage != nullptr)
+		{
+			// get the system name from the config
+			int sysNum = sysPage->GetSysNum();
+			auto name = cfg->Get(MsgFmt(_T("System%d"), sysNum), _T("Untitled"));
+
+			// get the old tab title
+			TCITEM ti;
+			TCHAR oldName[256];
+			ZeroMemory(&ti, sizeof(ti));
+			ti.mask = TCIF_TEXT;
+			ti.cchTextMax = countof(oldName);
+			ti.pszText = oldName;
+			tabCtrl->GetItem(i, &ti);
+
+			// Keep the part up to the "::" separator, so that we keep the
+			// localized resource text for the group name ("Systems" in the
+			// English version).  Just search for the first colon and slap
+			// in a null terminator in its place.
+			if (TCHAR *colon = _tcschr(oldName, ':'); colon != nullptr)
+				*colon = 0;
+
+			// set the new tab title
+			MsgFmt tabTitle(_T("%s::(%d) %s"), oldName, sysPage->GetSysNum(), name);
+			ti.pszText = const_cast<TCHAR*>(tabTitle.Get());
+			tabCtrl->SetItem(i, &ti);
+		}
+	}
+
+	// rebuild the tree for the newly retitled tabs
+	RefillPageTree();
+
+	// Re-show the start page.  The base class does this, but the tree
+	// rebuild loses track of it.
+	ShowStartPage();
+
+	// return the base class result
+	return result;
+}
+
+void MainOptionsDialog::OnRenameSystem(SystemDialog *sysDlg)
+{
+	// find the page in my list
+	auto cfg = ConfigManager::GetInstance();
+	auto tabCtrl = GetTabControl();
+	auto treeCtrl = GetPageTreeControl();
+	int nPages = tabCtrl->GetItemCount();
+	for (int i = 0; i < nPages; ++i)
+	{
+		// check if this is the page of interest
+		if (GetPage(i) == sysDlg)
+		{
+			// get the new system name from the dialog
+			CString newSysName;
+			sysDlg->GetDlgItemText(IDC_EDIT_SYS_NAME, newSysName);
+
+			// get the old tab title
+			TCITEM ti;
+			TCHAR oldTabName[256];
+			ZeroMemory(&ti, sizeof(ti));
+			ti.mask = TCIF_TEXT;
+			ti.cchTextMax = countof(oldTabName);
+			ti.pszText = oldTabName;
+			tabCtrl->GetItem(i, &ti);
+
+			// get out the prefix, which won't change: "System::"
+			if (TCHAR *colon = _tcschr(oldTabName, ':'); colon != nullptr)
+				*colon = 0;
+
+			// set the new tab title
+			MsgFmt newTabName(_T("%s::(%d) %s"), oldTabName, sysDlg->GetSysNum(), newSysName.GetString());
+			ti.pszText = const_cast<TCHAR*>(newTabName.Get());
+			tabCtrl->SetItem(i, &ti);
+
+			// update the tree control title - use the part after the "::"
+			const TCHAR *colon = _tcschr(newTabName.Get(), ':');
+			TVITEM tvi;
+			tvi.mask = TVIF_HANDLE | TVIF_TEXT;
+			tvi.hItem = GetPageTreeItem(i);
+			tvi.pszText = const_cast<TCHAR*>(colon != nullptr ? colon + 2 : newTabName.Get());
+			treeCtrl->SetItem(&tvi);
+
+			// no need to keep searching
+			break;
+		}
+	}
+}
+
+void MainOptionsDialog::AddNewSystem()
+{
+	// Assign a system number for the new system, by scanning for one
+	// that isn't currently used in the configuration.
+	auto cfg = ConfigManager::GetInstance();
+	for (int i = 1; i < PinballY::Constants::MaxSystemNum; ++i)
+	{
+		// if this system is populated in the config, add a page for it
+		if (cfg->Get(MsgFmt(_T("System%d"), i), nullptr) == nullptr)
+		{
+			// create the new page
+			SystemDialog *sd = new SystemDialog(IDD_SYSTEM, i, true);
+			AddPage(sd, SystemBasePage + i, _T("SystemOptions.html"));
+
+			// rebuild the tree
+			RefillPageTree();
+
+			// switch to the new page
+			SetActivePage(sd);
+
+			// set the new system's name
+			sd->SetDlgItemText(IDC_EDIT_SYS_NAME, MsgFmt(_T("New System #%d"), i));
+
+			// success
+			return;
+		}
+	}
+
+	// There are too many systems!
+	MessageBox(LoadStringT(IDS_ERR_TOO_MANY_SYSTEMS), LoadStringT(IDS_CAPTION_ERROR), MB_OK);
+}
+
+void MainOptionsDialog::DeleteSystem(SystemDialog *sysDlg)
+{
+	// Switch to the group dialog page.  This serves dual purposes:
+	// first, so that we land somewhere sensible after the page we're
+	// on gets deleted; and second, more subtly, to make sure that the
+	// group dialog page actually has an extant window object.  The
+	// property sheet container only loads pages when they're displayed,
+	// so this page might not have a window yet; and if it doesn't have
+	// a window, its "dirty" bit (which keeps track of the unsaved 
+	// change represented by the system deletion) won't stick.
+	SetActivePage(sysGroupDialog);
+
+	// queue the system for deletion in the System Group page
+	sysGroupDialog->MarkForDeletion(sysDlg);
+
+	// Post a message to self to delete the page.  We need to defer
+	// this because the UI event that triggered the deletion is coming
+	// from a button on the page to be deleted.  Deleting the page will
+	// delete the button, which we can't do here because this function
+	// call is nested inside a handler function attached to the button;
+	// deleting the button could cause problems as we unwind the stack
+	// back out of the calling handler.
+	PostMessage(MsgDeleteSystemPage, sysDlg->GetSysNum());
+}
+
+LRESULT MainOptionsDialog::OnDeleteSystemPage(WPARAM wParam, LPARAM lParam)
+{
+	// the WPARAM gives the system to be deleted - find it
+	int nPages = GetTabControl()->GetItemCount();
+	for (int i = 0; i < nPages; ++i)
+	{
+		// is this a system page?
+		if (auto sysPage = dynamic_cast<SystemDialog*>(GetPage(i)); sysPage != nullptr && sysPage->GetSysNum() == wParam)
+		{
+			// delete the page from the tab control
+			RemovePage(sysPage);
+
+			// rebuild the tree
+			RefillPageTree();
+
+			// no need to keep looking
+			break;
+		}
+	}
+
+	return 0;
+}
+
+void MainOptionsDialog::RefillPageTree()
+{
+	// do the base class rebuild
+	__super::RefillPageTree();
+
+	// find the "System" parent item, and make sure it's expanded
+	auto treeCtrl = GetPageTreeControl();
+	int nPages = GetTabControl()->GetItemCount();
+	for (int i = 0; i < nPages; ++i)
+	{
+		// is this a system page?
+		if (auto sysPage = dynamic_cast<SystemDialog*>(GetPage(i)); sysPage != nullptr)
+		{
+			// it's a system page - expand its parent item
+			treeCtrl->Expand(treeCtrl->GetParentItem(GetPageTreeItem(i)), TVE_EXPAND);
+
+			// we only need to do this for one system, since all of the systems
+			// share a common parent; so we can stop looking now
+			break;
+		}
+	}
+}
+
+bool MainOptionsDialog::TreeItemSorter(const CString &a, const CString &b)
+{
+	// compare the items in '::' chunks
+	const TCHAR *pa = a.GetString();
+	const TCHAR *pb = b.GetString();
+
+	auto GetSeg = [](const TCHAR *&p)
+	{
+		// find the end of the current segment
+		TSTRING segment;
+		if (const TCHAR *colon = _tcschr(p, ':'); colon != nullptr)
+		{
+			segment.assign(p, colon - p);
+			p = colon + 1;
+			if (*p == ':')
+				++p;
+		}
+		else
+		{
+			segment = p;
+			p += _tcslen(p);
+		}
+
+		return segment;
+	};
+	auto GetNum = [](const TSTRING &s, int &n)
+	{
+		if (const TCHAR *p = s.c_str(); *p == '(')
+		{
+			int nDigits = 0;
+			int acc = 0;
+			for (++p; _istdigit(*p); ++nDigits, ++p)
+				acc = acc*10 + (*p - '0');
+
+			if (nDigits > 0 && *p == ')')
+			{
+				n = acc;
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	for (;;)
+	{
+		// get the current segments
+		TSTRING sa = GetSeg(pa);
+		TSTRING sb = GetSeg(pb);
+
+		// if we've reached the end of both strings, they're equal
+		if (sa.length() == 0 && sb.length() == 0)
+			return false;
+
+		// if both have "(number)" prefixes, sort by the number as an
+		// integer value instead of lexically
+		int ia, ib;
+		if (GetNum(sa, ia) && GetNum(sa, ib))
+		{
+			// if the numbers differ, compare based on the numbers
+			if (ia < ib)
+				return true;
+			if (ia > ib)
+				return false;
+		}
+		else
+		{
+			// compare them lexically
+			int d = lstrcmpi(sa.c_str(), sb.c_str());
+			if (d < 0)
+				return true;
+			if (d > 0)
+				return false;
+		}
+	}
+}

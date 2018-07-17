@@ -1,0 +1,28 @@
+PinballY Release Checklist
+
+- Edit VersionHistory.txt with notes on what's new in this release
+
+- Open the solution in Visual Studio
+
+- Edit PinballY\VersionInfo.h - update the version data as needed
+
+- Select the Release | x86 configuration
+
+- Build > Clean Solution
+
+- Build > Build Solution
+
+- Close Visual Studio
+
+- Open a CMD box, CD to the root folder of the source tree
+
+- Run RELEASE.BAT
+
+- Upload PinballY-xxxxxxx.zip, PinballY-Min-xxxxxx.zip, and VersionHistory.txt
+
+- git commit -a -m "checkin message"
+
+- git push
+
+- 
+

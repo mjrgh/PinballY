@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Startup Options</h1>
+
+<p>
+   This dialog lets you customize what happens when PinballY starts up.
+</p>
+
+<h2>Run at startup</h2>
+
+<p>
+   Check this box to start PinballY automatically each time you start Windows.
+   Un-check the box to disable the automatic launch.
+</p>
+<p>
+   This option adds an entry to the list of startup programs in the
+   Windows registry.  Windows launches the programs listed there when
+   you first log in to your user account.
+</p>
+
+<h2>Wait for monitors</h2>
+
+<p>
+   This group of options lets you tell PinballY to wait for all of your
+   monitors to come online before launching.
+</p>
+<p>
+   This is useful in pin cabs that have multiple monitors (which is
+   most pin cabs!), since it lets you ensure that Windows has a chance
+   to restore your full normal desktop area before PinballY attempts to
+   position any of its windows.  In a multi-monitor setup, Windows will
+   sometimes boot up faster than the TVs, so there can be a brief period
+   during system startup where Windows is running but hasn't fully restored
+   your normal desktop area.  This sorts itself out in due course,
+   since Windows adds each TV to the desktop as it comes online,
+   but it can be problematic for a program like PinballY that
+   you launch automatically at system startup.  The snag is that Windows
+   might launch PinballY during this interval when the desktop area is
+   still incomplete.  If your window layout uses any of that missing
+   area, PinballY might not be able to restore the full layout properly.
+</p>
+<p>
+   So what you really want to do is have a way to tell Windows: "launch
+   this program at system startup, but not until all of the monitors
+   are ready."  That's exactly what the "wait for monitors" setting does.
+   It makes PinballY deliberately stop and wait until all of your
+   monitors are online.
+</p>
+<p>
+   To use this feature, check the "Wait for monitors" box, then adjust
+   the "number of monitors" and "wait time" boxes to match your system.
+   The wait time is only the maximum time limit; PinballY will stop waiting
+   as soon as all of the monitors are online if that happens before the
+   wait time limit has been reached.  The wait time is only there to make
+   sure that things don't stall for too long if you happen to boot up
+   without all of your monitors connected.  You can also always cancel
+   the wait manually if necessary, since PinballY shows a little dialog
+   box with a "Cancel" button throughout the wait.
+</p>
+
+<h2>Run command at startup/exit</h2>
+
+<p>
+   These boxes let you enter commands that PinballY will run when it
+   starts up, and just before it exits, respectively.
+</p>
+<p>
+   Use the normal Windows command line syntax here, as though you
+   were typing a command into the Windows+R "Run" box.
+   A few tips:
+</p>
+<ul>
+   <li>Specify the full drive name and folder path to the program
+      you want to run: <tt>C:\Windows\System32\Notepad.exe</tt>
+
+   <li>If the path or program name contain any spaces, be sure to
+      enclose the whole program name in double quotes:
+      <tt>"C:\Visual Pinball\vpinball.exe"</tt>
+
+   <li>To use DOS-box commands or .BAT or .CMD batch/script files,
+      use CMD.EXE:  <tt>cmd.exe /c MyBatchScript.bat</tt>
+
+   <li>If you need to run a series of commands, create a batch
+      file (.BAT) that runs the commands, and use the CMD.EXE
+      syntax above to invoke the batch script
+
+</ul>
+   
+</body>

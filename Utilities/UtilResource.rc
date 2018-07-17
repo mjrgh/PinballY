@@ -1,0 +1,98 @@
+// This file is part of PinballY
+// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+//
+#include "windows.h"
+#include "UtilResource.h"
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_WARNING             BITMAP                  "..\\Utilities\\res\\WarningIcon.bmp"
+
+IDB_ERROR               BITMAP                  "..\\Utilities\\res\\ErrorIcon.bmp"
+
+IDB_INFORMATION         BITMAP                  "..\\Utilities\\res\\InformationIcon.bmp"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_ERROR DIALOGEX 0, 0, 423, 83
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "PinballY"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Static",IDC_TXT_ERROR,50,13,366,30
+    LTEXT           "",IDC_BOTTOM_BAR,-5,57,438,25
+    LTEXT           "Technical details:",IDC_TXT_DETAILS_LABEL,50,49,364,8,NOT WS_VISIBLE
+    LTEXT           "Static",IDC_TXT_ERRDETAIL,59,59,357,11,NOT WS_VISIBLE
+    DEFPUSHBUTTON   "Close",IDOK,367,63,50,14
+    PUSHBUTTON      "Details",IDC_SHOW_DETAILS,312,63,50,14
+    CONTROL         IDB_ERROR,IDC_ERROR_ICON,"Static",SS_BITMAP,7,13,32,30
+END
+
+IDD_ERRORWITHTEXTBOX DIALOGEX 0, 0, 437, 199
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "PinballY"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "",IDC_BOTTOM_BAR,-3,172,442,25
+    DEFPUSHBUTTON   "Close",IDOK,381,179,50,14
+    LTEXT           "Static",IDC_TXT_ERROR,53,10,370,30
+    EDITTEXT        IDC_DETAILS,7,50,423,115,ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL
+    CONTROL         IDB_ERROR,IDC_ERROR_ICON,"Static",SS_BITMAP,7,10,32,30
+END
+
+IDD_MSGBOX_WITH_CHECKBOX DIALOGEX 0, 0, 423, 83
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "PinballY"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    CONTROL         IDB_ERROR,IDC_ERROR_ICON,"Static",SS_BITMAP,7,13,32,30
+    LTEXT           "Static",IDC_TXT_ERROR,50,13,366,30
+    LTEXT           "",IDC_BOTTOM_BAR,-7,58,438,29
+    CONTROL         "Check1",IDC_MESSAGE_CHECKBOX,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,66,278,10
+    DEFPUSHBUTTON   "Close",IDOK,367,64,50,14
+END
+
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE
+BEGIN
+    IDS_ERR_SYSERROR         "%s\015\012\015\012(Technical details: %s)"
+    IDS_ERRDLG_CAPTION       "Error"
+    IDS_ERR_TECHDETAILS      " (Technical details: %s)"
+    IDS_ERRLOC_BELOW         "below"  // error detail location; see ErrorHandler::GroupErrorDetailLocation()
+    IDS_ERR_LINENO           "line %d: %s"
+    IDS_ERR_OPENFILE         "Error opening file ""%s"" (%s)"
+    IDS_ERR_OPENFILENOMEM    "There's not enough available memory to read the file ""%s"" (%lu bytes required).  You might try closing other applications to free up some system memory."
+    IDS_ERR_READFILE         "An error occurred reading from file ""%s"" (%s)"
+    IDS_ERR_FILECHARSET      "File ""%s"" can't be read because it uses an unsupported character format (%s)."
+    IDS_ERR_CONFIGMKDIR      "An error occurred trying to create the folder for saving program settings (%s).  You might be low on disk space, or you might not have permission to access this folder location."
+    IDS_ERR_CONFIGWRITEDIR   "An error occurred writing to the settings file (%s).  You might be low on disk space, or you might not have permission to access this folder."
+    IDS_ERR_CONFIGWRITE      "An error occurred updating the program settings file (%s).  You might be low on disk space, or you might not have permission to access this folder."
+    IDS_CFG_COMMENT1         "# PinballY settings"
+    IDS_CFG_COMMENT2         "# PinballY program writes to this file, so don't edit it while the program is open."
+
+END
+
+
+
+// end English (US) resources
+#endif
+/////////////////////////////////////////////////////////////////////////////

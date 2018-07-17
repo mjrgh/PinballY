@@ -1,0 +1,31 @@
+- *IF* people get stuck looking for a dialog box where you type in the
+window layout numbers, and don't immediately recognize that you
+position the windows the "normal" way, add a tip popup that appears
+the first time you run (when Settings.txt doesn't exist yet)
+explaining this, and maybe with a couple of other tips, like
+right-click -> Options for settings, right-click -> Full Screen for
+full screen toggle.
+
+- Generate the high score displays for games marked as type "SS"
+(Solid State) with an alphanumeric 16-segment display font, instead of
+DMD dots.  Ideally, use photos of a System 11-era alphanumeric plasma
+display for the character images, but apply tinting to match the VPM
+DMD color setting for the game.  For "EM" (electromechanical) or "ME"
+(pure mechanical) type games, use something else suitable, like maybe
+a synthesized hand-written sticky note or index card.
+
+- Keep a "date added" field in the CSV database; fill in with the
+current date the first time the user configures a game's basic
+bibliographic information through the setup dialog.  Create a filter
+long the lines of the "last played" filter that selects games added
+within or before the last week, month, year.
+
+- Default videos: create some attractive default videos for the
+various windows (playfield, backglass, DMD, topper).  Ideally create a
+few different themes for people to choose from.
+
+- Read and use PinballX\Databases\Statistics.ini?  This contains some
+of the same information we store in our CSV database.  It might be
+nice for migration purposes to read this and use it for tables that
+aren't already in our database, so that the play statistics from PBX
+are carried over.

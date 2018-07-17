@@ -1,0 +1,38 @@
+*.psess
+*.vsp
+*.log
+*.err
+*.wrn
+*.suo
+*.sdf
+*.user
+*.aps
+*.i
+*.vspscc
+*.opensdf
+*.opendb
+*.ipch
+*.cache
+*.tlog
+*.lastbuildstate
+*.ilk
+*.VC.db
+*.bak
+*.pspimage
+.vs
+**/ipch/**
+**/bin/**
+**/Bin/**
+**/obj/**
+**/Corel Auto Preserve/**
+**/Corel Auto-Preserve/**
+**/Save/**
+**/Debug/**
+**/Derived/**
+**/Release/**
+**/Debug Unicode STL MT/
+Save/**
+Bin/**
+DirectX_LegacySdkHeaders.h
+Settings.txt
+GameStats.csv

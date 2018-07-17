@@ -1,0 +1,40 @@
+Build Environment Setup
+
+1. Visual Studio 2017
+
+I'm building using Visual Studio 2017.  As of this writing, I'm on
+15.6.1, but other nearby versions should work.
+
+
+2. DirectX SDK June 2010
+
+You also have to separately the legacy "DirectX Software Development
+Kit (June 2010)", which you can currently find here:
+
+  https://www.microsoft.com/en-us/download/details.aspx?id=6812
+
+After installing the June 2010 DX SDK, you MUST set the following
+global environment variable to its install directory:
+
+  set DXSDK_DIR=C:\DXSDK\
+
+The variable MUST include the trailing backslash.
+
+Why do you have to install the old SDK?  If you're familiar with the
+modern DirectX technologies, you're aware that there's no longer a
+separate DirectX SDK; all DirectX features are now part of the main
+Windows SDK.  Unfortunately, this integration comes at a cost: Windows
+7 is no longer fully supported in the modern DirectX technologies.  I
+want to support Windows 7 for now, though, which means that we can't
+use all of the latest DX technologies.  In particular, we can't use
+the current audio API, XAudio2.9, since it only works on Windows 10.
+We can't even use the previous version, XAudio2.8, since that only
+works on Windows 8 and later.  We have to go back to XAudio2.7 for
+Windows 7 support.  And XAudio2.7 isn't supported at all in the
+current Windows SDK.  To compile for XAudio2.7, we have to use that
+creaky old June 2010 SDK, which has to be installed separately.
+
+XAudio2.7 is the only legacy technology we depend upon, so as soon as
+we're ready to abandon Windows 7 users, we can get rid of the old
+DXSDK and go entirely with the modern Windows SDK.
+

@@ -1,0 +1,62 @@
+/* This file is part of PinballY
+   Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY */
+   
+html, body {
+    background: #ffffff;
+    color: #000000;
+}
+
+body {
+    margin: 2em 2em 3em 2em;
+}
+
+html, body, table, form {
+    font: 10pt/14pt Tahoma, sans-serif;
+}
+
+h1 {
+    font-weight: 700;
+    font-size: 140%;
+}
+h2 {
+    margin-top: 2em;
+    font-weight: 700;
+    font-size: 120%;
+}
+h3 {
+    margin-top: 1.5em;
+    font-weight: 700;
+    font-size: 110%;
+}
+h4 {
+    margin-top: 1.25em;
+    font-weight: 700;
+    font-size: 100%;
+}
+
+li {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+li.toc {
+    margin-top: 0.5ex;
+    margin-bottom: 0.5ex;
+}
+
+table {
+    margin: 2em auto;
+}
+table, td, th {
+    border: 1px solid #e0e0e0;
+    border-collapse: collapse;
+}
+td, th {
+    padding: 1ex 1em;
+}
+
+.navbar {
+    background: #f0f0f0;
+    padding: 1em 2em;
+    margin: -2em -2em 2em -2em;
+}

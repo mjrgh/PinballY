@@ -1,0 +1,35 @@
+Exposed in the Setup dialogs:
+
+Buttons.*
+WaitForMonitors
+RunAtStartup
+RunAtExit
+Capture.StartupDelay
+Capture.PlayfieldVideoTime
+Capture.BackglassVideoTime
+Capture.DMDVideoTime
+Capture.TopperVideoTime
+AttractMode.Enabled
+AttractMode.IdleTime
+AttractMode.SwitchTime
+AttractMode.StatusLine.Messages
+AttractMode.StatusLine.UpdateTime
+GameTimeout
+UpperStatus.Messages
+LowerStatus.Messages
+UpperStatus.UpdateTime
+LowerStatus.UpdateTime
+MediaPath
+TableDatabasePath
+RealDMD
+InstructionCardLocation
+ExitMenu.ExitKeyMode
+Coin[1234].Value
+PricingModel
+MaxCreditBalance
+CreditBalance
+
+
+Not exposed anywhere yet:
+
+SystemN.*

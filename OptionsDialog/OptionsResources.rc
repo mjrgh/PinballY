@@ -1,0 +1,21 @@
+#ifdef APSTUDIO_INVOKED  
+#error "This file is for hand-editing only! Please don't edit it with the Visual Studio editor."
+#endif //APSTUDIO_INVOKED 
+
+#include "Resource.h"
+#include "../Utilities/UtilResource.h"
+
+// strings
+STRINGTABLE
+BEGIN
+    IDS_REMEMBER_JOYSTICKS_WARNING """Remember device for each joystick button"" means that joystick button assignments you make from now on will be tied to individual joysticks.  This lets you assign buttons on specific devices if you have two or more joysticks in your system.\r\n\r\nIf you leave the box unchecked, new joystick button assignments will be ""generic"", meaning that they'll work for any joystick connected, rather than being tied to one specific device.  This is better if you only have one joystick or if you change joysticks from time to time.\r\n\r\nChanging this setting only affects NEW button assignments made after the change.  If you want to change any existing button assignments, update the checkbox first, then re-do the button assignments that you want to change to the new status."
+    IDS_SKIP_WARNING "Got it, skip this message from now on"
+    IDS_FACTORY_RESET_WARNING "This will reset all of your buttons to the original factory settings.  Your custom button settings will be lost.  (If you only want to undo changes you've made since opening the Options dialog, use the Cancel button at the bottom of the dialog instead.)\r\n\r\nAre you sure you want to do a full factory reset and delete all of your custom key assignments?"
+    IDS_RESET_WARNING_CAPTION "Confirm Reset"
+    IDS_CUSTOM_PRICING "Custom"
+    IDS_ERR_DUP_CMD_KEY "%s is already assigned to this command."
+    IDS_CAPTION_ERROR "Error"
+END
+
+// include the utility resources
+#include "../Utilities/UtilResource.rc"

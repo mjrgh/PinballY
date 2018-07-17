@@ -1,0 +1,143 @@
+IPDB Table List Notes
+
+The distribution includes a list of most of the real pinball tables
+ever manufactured, based on the list of tables from IPDB, aka the
+Internet Pinball Database (ipdb.org).  We use this to streamline data
+entry in the game setup dialog when adding a new table file, by
+populating pick-lists based on fuzzy matching the file name to titles
+of known tables.
+
+The table list data can be found in assets/IPDBTableList.csv.  The
+format includes each game's title plus a few other metadata items.
+This isn't a download or export of the raw database tables from IPDB,
+as they don't make that available; this is just a point-in-time
+capture of the table list as the site displays it in a browser.
+
+The file uses standard CSV formatting.  The columns are:
+
+    Name = the table's title
+
+    Manufacturer = the full manufacturer name as listed in IPDB,
+      or empty if the manufacturer is unknown
+
+    ManufacturerShort = a short version of the name for the most 
+      common manufacturers of games from the 1980s onward (e.g., 
+      "Williams" for "Williams Electronics Games, Incorporated, 
+      a subsidiary of WMS Ind., Incorporated")
+
+    Year = year of original release, in YYYY format, or empty
+      if the year is unknown
+
+    Players = number of players, or empty if unknown
+
+    Type =
+      ME for purely mechanical
+      EM for electromechanical   
+      SS for solid-state
+
+    Theme = a list of themes, delimited by " - " (space, hyphen,
+      space) sequences.  These are populated by users of IPDB on
+      an ad hoc basis, not taken from a master list of possible
+      themes, so they're idiosyncratic.
+
+Over time, it will be desirable to add new games to this list, as new
+commercial tables come onto the market and old ones that weren't
+already in IPDB are discovered.  These days, new commercial pinball
+machines are only coming onto the market at a rate of three or four
+titles per year, and IPDB is already complete enough that it's
+probably equally rare for missing old titles to be discovered, so the
+easiest way to maintain our list going forward is probably going to be
+to simply add new tables to the CSV file by hand when necessary.
+However, in case someone wants to do a new full sync with the IPDB
+data at some point, here's the procedure I used.
+
+First, you have to manually capture the game list from IPDB.  Use the
+"Alphabetical game listing" link on the "Game Lists" page.  That only
+gives you an HTML representation, so you'll have to convert this to
+something you can import into MySQL or a database of your choosing.
+One easy way to do this is to copy and paste the data into Microsoft
+Excel, which will recognize the tabular data and create a usable
+spreadsheet out of it.  From there you can use Save As to create a CSV
+file, and then import the CSV into MySQL using the LOAD DATA INFILE
+command.
+
+The reason to import the data into MySQL rather than just using the
+IPDB export directly is that you have to do a fair amount of manual
+massaging to get it into a format we can use:
+
+- Delete all entries with titles "Unknown", "Unknown (description)",
+  and "Untitled".  These IPDB entries are for unique tables in
+  individual collections, so they're not likely to re-created as
+  virtual tables and thus not useful for our purposes.
+
+- Add a column called MANUFACTURER_SHORT.  Manually go through the
+  manufacturer list and identify the common manufacturers (Williams,
+  Bally, Midway, Gottlieb, Alvin G., Stern, Atari, Jersey Jack).
+  The IPDB lists all of these with the full official business names,
+  and for the venerable manufacturers like Williams, there are many
+  variations on the official business name over the years.  To keep
+  things simple for our users, we use the MANUFACTURER_SHORT column
+  to map these to the common short names.  You can use commands
+  like UPDATE MY_IPDB_TABLE SET MANUFACTURER_SHORT = 'Williams' 
+  WHERE MANUFACTURER LIKE '%Williams%', for example.
+
+- Add a column called ALTNAME.  Manually populate this for a few
+  games where the common name and the official name differ
+  considerably.  The original example was "Avatar", whose official
+  name in IPDB is rendered as "James Cameron's Avatar".  Filenames
+  for virtual pinball re-creations aren't likely to use that full
+  version of the name, and one of the main points of this list is
+  to find likely matches based on filenames, so I added ALTNAME as
+  a way to enter names that are more likely to match filenames.
+  I also populated ALTNAME in my original set with the title
+  stripped of the "edition" suffixes common in late-model Stern
+  tables, such as "(limited edition)" or "(premium edition)".
+
+- Add a column called RELEASEYEAR.  The IPDB data doesn't have a
+  standard format for the RELEASEDATE column; the entries seem to
+  be largely idiosyncratic, but fortunately there are only about
+  five or six formats used throughout (YYYY; Month, YYYY; DD-MON-YY;
+  and a few others).  You'll have to identify all of the formats
+  in use and write UPDATE statements that populate RELEASEYEAR
+  with the year taken from each format.  For the DD-MON-YY entries,
+  note that the year is ambiguous (2000s or 1900s?), but at least
+  we're safe for the next decade or so because the earliest game 
+  using DD-MON-YY format as of this writing is in 1931.  This is 
+  going to be a problem come 2031 if anyone ever uses this format
+  for a new game - hopefully everyone has gotten the memo about
+  the Y2K problem by now and knows better.
+
+- For the THEME column, some entries in IPDB use ',' delimiters.
+  For consistency, change these to ' - ' delimiters.
+  
+
+After massaging the data, you can export it into the final CSV
+with a SELECT...INTO OUTFILE like this:
+
+select 
+ name, 
+ ifnull(altname, ''),
+ ifnull(manufacturer, ''), 
+ ifnull(manufacturer_short, ''),
+ ifnull(releaseyear, ''), 
+ ifnull(players,''), 
+ ttype, 
+ theme 
+from 
+ ipdb
+limit 
+ 0, 10000 
+into 
+ outfile 'assets/ipdbTableList.csv' 
+ fields 
+   terminated by ','
+   optionally enclosed by '"' 
+   escaped by '"' 
+ lines terminated by '\r\n'
+;
+
+After exporting the file, edit it to insert the column headers as the
+first line:
+
+Name,AltName,Manufacturer,ManufacturerShort,Year,Players,Type,Theme
+

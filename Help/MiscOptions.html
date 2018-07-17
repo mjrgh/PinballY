@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Miscellaneous Options</h1>
+
+<p>
+   <b>Instruction card popup location:</b>  Selects the window where the
+   instruction card popup will appear when you use the "Instructions"
+   command in the main menu.  If the window you select is closed when
+   you try to bring up an instruction card, the popup will appear
+   in the main playfield window instead.
+</p>
+<p>
+   Note that this doesn't affect the separate Instruction Card window,
+   which is designed to be positioned on a dedicated instruction card
+   monitor on your pin cab apron.  If you don't have a dedicated
+   monitor for that, you can just close the Instruction Card window
+   so that it doesn't take up any display space.  (To close it,
+   right-click in the window and select Close from its menu.)
+</p>
+
+<p>
+   <b>Exit menu options:</b>  The Exit menu normally pops up when
+   you press the Cancel/Escape key when no other menus or popups are showing.
+   It presents options for exiting PinballY and for a few other system
+   options that don't belong in the main "game" menu.  These options
+   let you control whether this menu is enabled and which commands
+   it includes.
+</p>
+<ul>
+   <li><b>Enable Exit menu:</b>  Check this box to enable the
+   menu.  If you un-check this box, the Cancel/Escape button will 
+   be ignored when there aren't any menus or popups displayed.
+   You can disable the Exit menu if you're running your pin cab
+   in a public setting where you don't want users to be able to
+   exit out of PinballY or access any other setup options.
+   <p>
+      If the Exit menu is disabled, you can still access its
+      commands via the Operator menu, which you can display
+      via the "service buttons" inside the coin door.  The
+      Operator menu is accessed from the service buttons
+      specifically because those buttons are behind the
+      (normally locked) coin door, specifically to limit
+      access in a public setting.
+   </p>
+
+   <li><b>Include Operator Menu option in Exit menu:</b>  Check
+   this box if you want the Exit menu to include a command to
+   show the Operator Menu, which provides access to commands
+   related to game setup and PinballY options.  You can access
+   the Operator Menu directly using the service buttons inside
+   the coin door, if you have those; if you don't, this
+   this option lets you access the Operator Menu from the
+   basic menu buttons.
+</ul>
+
+<p>
+   <b>"Cancel/Escape" button behavior in Exit menu:</b>  This controls what
+   the Cancel/Escape button does while the Exit menu is being displayed.
+</p>
+
+<ul>
+   <li><b>Select the current command</b> means that the Cancel/Escape button
+      acts like the Select button within the Exit menu.
+      
+   <li><b>Close the Exit menu</b> means that the Cancel/Escape button acts
+      like it does in any other menu, canceling the menu.
+</ul>
+
+<p>
+   This option might seem bizarre at first glance - why would you
+   want to make the Cancel button do the opposite of what it normally
+   does?  The rationale is that you activate the Exit menu in the
+   first place by pressing the Cancel button, so in a way it's already
+   acting like a "select" button in this context.  Some people find it
+   more natural for it to keep acting like a "select" button throughout
+   the Exit menu.  This option lets you set it up to match whichever
+   sense seems more natural to you.
+</p>
+
+<p>
+   <b>Terminate game when idle for (seconds):</b>  This sets
+   an inactivity timeout period for launched games.  If you launch
+   a game and then walk away from the system, not touching any
+   buttons for a while, PinballY will terminate the game and
+   return to its menu display when this timeout period expires.
+   Set this to zero to disable the timeout entirely.
+</p>
+<p>
+   The timeout won't kick in while you're actively playing a game,
+   since it only takes effect when you haven't pressed any buttons
+   for the timeout period.  So it doesn't limit the amount of time
+   you can play a single game.  It's just there in case you walk
+   away from the system while a game is running, to ensure that
+   the system eventually returns to "attract mode" if left idle
+   for a long time.
+</p>
+
+</body>

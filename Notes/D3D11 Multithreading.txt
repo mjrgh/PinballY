@@ -1,0 +1,264 @@
+D3D11 Multi-threading: The Rise and Fall
+----------------------------------------
+
+If you carefully read through the code, you'll find that there's a
+provision for multi-threaded access to D3D11 objects, particularly the
+device context.  This was a nice idea that turned out not to work, so
+we don't actually attempt any multi-threaded D3D11 access in this
+program.  However, the framework is still in place, in case ever want
+to revisit this and perhaps re-instate some multi-therading capability
+in the future.  It's the sort of thing that's fairly easy to design
+into a program from the early stages and extremely hard to retrofit
+into an existing program that wasn't designed with it in mind, so I
+think that's a good enough reason to leave it in place.  And by its
+nature, having this framework in place makes it easy and natural to
+stick to the same good practices in new code as the program evolves.
+
+
+1. Background and motivation
+
+The D3D11 SDK explains that access to the D3D11 "device context"
+object has to be single-threaded, but they go on to suggest that
+multi-threaded access is possible if you take care to serialize dc
+method calls across threads using some kind of explicit resource
+locking.
+
+For video playback via libvlc, it was hugely attractive to try to make
+multi-threaded device context access work, because of the way libvlc
+works.  For the kind of custom rendering we're doing, libvlc makes
+callbacks into client code to manage the memory buffers that libvlc
+decodes its frame data into.  The rendering process is much faster if
+we can use D3D11 textures in "Usage Dynamic" mode for these buffers,
+rather than asking libvlc to decode into plain memory buffers that we
+later have to copy into video memory.  Usage Dynamic textures are a
+special type of D3D11 resource that's optimized for streaming data
+from the CPU to the GPU, which is precisely what's called for in this
+situation, because it effectively allows libvlc to decode frames
+directly into video memory, so that the frames can be rendered onto
+the physical display without any additional byte copying.
+
+So my clever plan was to use the libvlc buffer management callbacks to
+carry out resource allocation and mapping operations on the D3D11
+objects representing these special video buffers.  The libvlc callback
+structure maps very directly onto the D3D11 resource management scheme
+for these buffers, so the code required is straightforward and
+extremely efficient.
+
+But, naturally, there's a huge wrench in the works, which is this
+issue with threading.  Libvlc calls all of those buffer management
+callbacks from its own worker threads, which it creates and manages.
+The threading is all beyond the client's control; there's no option to
+force these calls onto our D3D11 thread.  And we wouldn't want to
+anyway, as it would defeat all of the good things libvlc does to make
+decoding run fast.
+
+Note that this whole thing might seem confusing if you have some basic
+D3D11 knowledge, because D3D11 does have some native threading
+ability.  But it's extremely limited: it's only for the resource
+allocation calls in the "device" object.  The device context is a
+separate object that's explicitly NOT thread-safe.  For our purposes
+in the libvlc interfaces, the D3D11 buffer operations that we need to
+perform in the callbacks all need to go through the device context.
+That's not a choice on our part; it's just where these calls are
+located in the D3D11 architecture.
+
+
+2. A practical framework for multi-threaded device context access
+
+I tried to take the SDK docs at their word that multi-threading is
+possible if you're careful to coordinate device context access via
+resource locks.  I came up with a pretty nice, structured, easy to use
+scheme to protect all calls to the dc across all threads.  The nice
+thing about the scheme is that it's not only really easy to use, but
+practically impossible to get wrong or to fail to use it where you
+need to.  Specifically, I wrapped our reference to the device context
+object in a class called D3D::DeviceContextLocker.  The raw pointer to
+the object is buried inside private parts of our D3D wrapper class,
+and even has a variable name that is graphically descriptive of the
+fact that you should never use it directly.  To access the device
+context, you simply create a local variable like this in the place
+where you want to access the dc:
+
+   D3D::DeviceContextLocker ctx;
+
+When that variable comes into scope, it acquires the resource lock on
+the context; when it goes out of scope, it releases the lock.  To make
+a method call on the device context, you just use the 'ctx' variable:
+
+   ctx->Map(&resource, 0, D3D11_MAP_WRITE, 0, &msr);
+
+It's intuitive to use: when you need a pointer to the device context,
+you just create a local variable to give you that pointer.  And it's
+practically impossible to get wrong, in that the code goes to lengths
+to make this the only way to get that pointer at all: if you're going
+to call into the device context, you need a pointer to the object, and
+the mere act of declaring the pointer has the side effect of acquiring
+the thread-safe lock as you enter the code, and releasing it as you
+exit.
+
+
+3. Why this doesn't actually work
+
+Alas, multi-threaded device context access is a futile fantasy in
+actual practice.  I don't think anyone at Microsoft went beyond
+thinking up the idea that *maybe* you could make this work if you used
+resource locking.  Because you really can't.
+
+Here's the issue: *other* D3D11 objects hold onto their own references
+to the device context, and make their own internal calls into device
+context methods in the course of their work carrying out operations
+that don't *seem* to be DC-related on the surface.  So it's not good
+enough to serialize our own direct calls into the device context.  We
+really have to serialize every call to every D3D11 object of every
+type.
+
+The way I figured this was tracking down a crash I was getting very
+rarely and sporadically in my video playback code.  It turned out that
+the crash was happening in a call to Release() on a D3D11 2D texture
+object.  It turned out that the Release() call, deep inside the D3D11
+code, was calling into the device context as a side effect.  The
+texture evidently was hanging onto a reference to its device context
+and had to do some cleanup operation in the context before the texture
+was destroyed.
+
+I thought about maybe protecting that Release() call in the same
+manner as our own direct calls into the device context.  This would
+certainly be doable, but on reflection, I decided this was a bad idea.
+The problem is that if this Release() call can make a "secret"
+implicit call from internal D3D11 code into the device context,
+ANYTHING in D3D11 could potentially call into the device context.
+There's no possible way to figure out where these are; that's
+certainly not documented, and no amount of testing would ever be good
+enough because this sort of crash is so sporadic and can be so rare.
+
+So I decided to abandon the clever multi-threading attempt and go back
+to a strictly single-threaded D3D11 model.  Even so, I'm leaving the
+context locker idiom in place, since it's completely harmless to leave
+it there if everything's single-threaded, and since following the
+idiom will make it much easier should we ever want to revisit this in
+the future.
+
+
+4. How the libvlc decoder deals with the threading issue
+
+The multi-threaded decoder was fast, as you'd expect from the comments
+above, and I'd have certainly kept it if it weren't for the
+intractable crash issues.  It crashed rarely enough that I could get a
+read on its performance, so it can at least serve as a performance
+benchmark to compare other approaches.  With a particular arbitrary
+set of sample videos on my particular development machine, I was
+getting about 300 fps playback with the multi-threaded code.
+
+Just for reference, here's what the multi-threaded code did:
+
+- Libvlc "set format" callback: allocate Usage Dynamic buffers in
+  the required size and format
+
+- "Lock frame" callback: find a free frame and call DeviceContext::
+  Map() to map its Usage Dynamic texture buffer into CPU memory, and
+  hand the CPU buffer over to libvlc to use as the decoding buffer
+
+- "Unlock frame" callback: call Device Context::Unmap() to hand over
+  the texture buffer to the GPU for rendering
+
+There are two naive single-threaded alternatives to the multi-threaded
+code:
+
+1. In set format, lock, and unlock, do everything in terms of pure
+   CPU buffers.  In the renderer, copy data from the CPU buffers into
+   separate Usage Dynamic buffers that we allocate here, on the main
+   render thread.  In other words, we do a Map(), copy, and Unmap()
+   sequence using the Usage Dynamic buffers in the renderer.
+
+2. In set format and lock, do everything in terms of pure CPU buffers.
+   In Unlock, create a new Usage Immutable texture from the CPU buffer.
+   Texture creation is one of those ID3D11Device operations that's
+   explicitly thread-safe in the native D3D11 code, so we can safely
+   do this without worrying about any resource locking of our own.
+
+These approaches are both much slower than the benchmark threaded
+code.  In my sample data set, they each take playback down to about
+160 fps.
+
+That's actually still plenty fast enough to keep up with full-speed
+physical display with 60fps hardware. You won't see a difference to
+the eye as long as we're faster than the physical video refresh cycle.
+But it still bugged me that it was almost a 50% fps reduction, plus
+this is only some test data on my own machine, so there's no reason to
+assume that "fast enough" in this case is fast enough across the
+board.  I really wanted to see if I could get back to the benchmark
+speed with something single-threaded.
+
+And I did!  The approach I came up with is a little more complex, but
+manages to be both safely single-threaded and about as fast as the
+benchmark code.  The solution was to use a hybrid approach, where we
+use both plain CPU buffers *and* Usage Dynamic buffers.
+
+The trick is to do all of the GPU object allocation in the render
+routine (which always runs on the main UI/render thread, and thus is
+on the "single thread" where we're allowed to do all D3D11
+operations).  We do this by passing information back and forth between
+the render thread and the libvlc decoder threads, using internal
+object member variables, and of course protecting access across
+threads using resource locks.
+
+In the "set format" callback, we record the size and format of the
+frame we need, but we don't actually allocate it, since we have to
+leave that to the render routine.  We also allocate a pure CPU buffer
+of the correct type in the "set format" callback.  In the "lock"
+callback, we look to see if a mapped Usage Dynamic texture is
+available.  If so, we hand it back to libvlc.  If not, we find an
+available plain CPU buffer and hand that to libvlc instead.
+
+The render routine, always called on the main UI/render thread, is
+where things get interesting.  We of course do the actual rendering
+here, but we also check for outstanding buffer management requests
+from the libvlc decoder threads.  We look at the requested buffer
+size/format information in our member variables, and if there's a new
+request, we allocate the buffers here.  We also go through the current
+buffers and use Map() to map any free buffers into CPU space.  This
+ties back to the libvlc "lock" callback, where it looks for the
+buffers we've mapped here.  For our rendering work, we find the
+current presented buffer from the libvlc decoder thread.  If the
+"lock" callback handed over a plain CPU buffer to libvlc, we have to
+create a new Usage Immutable texture from the CPU memory at this point
+so that we can render it.  However, if the "lock" callback was able to
+hand over a mapped GPU buffer to libvlc, all we have to do is call
+Unmap() to hand the buffer over to the GPU - no copying or resource
+creation is required.
+
+What's the deal with the dual CPU and GPU buffers?  Why do we need
+both?  Well, the dual buffers are there because we can't guarantee
+that the render thread will manage to create the GPU buffers in time
+for the "lock" callback to be invoked.  Remember that render and lock
+run on different threads, so one or the other could run first after a
+"set format" callback.  So "lock" can be called before the render
+routine has had a chance to receive the "new buffer" request from the
+"set format" callback.  We *could* just wait for the new buffer to
+become available here, but in practice that seems to be a terrible
+idea because of the potential for deadlocks.  The main thread does a
+bunch of other stuff besides rendering, and one of those things is
+that it can call into other entrypoints in libvlc, such as the one
+that stops video playback in this object.  These libvlc calls from the
+main thread can block until the decoder threads all finish, so we
+basically can't allow any situation where a decoder thread is waiting
+for the main thread, hence we can't have a callback waiting for the
+renderer.  So the point of the CPU buffers is to serve as a fallback
+for those cases where the "lock" routine is asked to provide a buffer,
+and the "render" thread hasn't gotten around to creating one yet.  We
+can guarantee that a CPU buffer is always available in these cases,
+because we can just allocate these directly in the "set format"
+callback.
+
+In practice, the way that execution proceeds is something like this:
+video starts; "set format" is invoked; the decoder gets going and
+locks one or two frames as plain CPU buffers, because we haven't
+gotten around to allocating any GPU buffers yet; the renderer runs at
+some point within the first few decoded frames and allocates the GPU
+buffers; and from that point on, the "lock callback has mapped GPU
+buffers to work with and returns those to libvlc.  So we end up using
+the horrendously slow CPU buffers for a couple of frames, and the
+speedy mapped GPU buffers for thousands of frames.  The mix is such
+that overall throughput is pretty much indistinguishable from the
+multi-threaded setup.
+

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Button Options</h1>
+
+<p>
+   This lets you select the keyboard keys or joystick buttons
+   assigned to the PinballY command functions.
+</p>
+<p>
+   The list shows all of the available command functions.  If
+   the command already has a keyboard key or joystick button
+   assigned, it'll be listed in the "Key" column.
+</p>
+<p>
+   To change the key or button assigned to a command, click the
+   mouse on the current key name.  (If there's no key assigned
+   to the command yet, just click on the blank area in the
+   "Key" column for the command.)  Now just press the key or
+   joystick button that you want to assign to the command.
+</p>
+<p>
+   You can assign almost any key on the keyboard to each command,
+   including the "modifier" keys (the Shift keys, Alt, and Ctrl).
+   The left and right Shift, Alt, and Ctrl keys count as separate
+   keys, so you can assign (say) the Left Shift and Right
+   Shift keys to separate commands.
+</p>
+<p>
+   Note that you can only assign individual keys, not "chords"
+   or keys such as Ctrl+A or Alt+Shift+X.  That's the tradeoff
+   for being able to assign the Shift, Alt, and Ctrl keys as
+   separate keys: they can't be combined to form combinations
+   the way they can in more typical Windows productivity apps.
+   We use this different approach because it's the way that
+   the various pinball programs (e.g., Visual Pinball) work.
+   In fact, most Windows video games also work this way, so
+   even though it's weird for productivity apps, it's the
+   more normal way to do things in a gaming context.
+</p>
+
+<h2>Multiple keys per command</h2>
+
+<p>
+   You can assign more than one key or button to the same
+   command.  If you've already assigned one key to a command,
+   you can assign a second one as follows:
+</p>
+<ul>
+   <li>Move the mouse over the "Key" column for the command
+
+   <li>Click the "+" button that appears at the right edge
+
+   <li>A new row will appear for the same command, with no key
+   assigned yet
+
+   <li>Click in the blank "Key" area of the new row
+
+   <li>Press the new keyboard key or joystick button that you want to assign
+</ul>
+
+<p>
+   You can repeat this process to assign any number of keys
+   to the same command.
+</p>
+
+<p>
+   To delete one of the keys assigned to a
+   command, move the mouse over the key name you want to
+   delete, and click the "X" button that appears at the
+   right edge.
+</p>
+
+<h2>Multiple commands per key</h2>
+
+<p>
+   You can assign the same keyboard key or joystick button to more than
+   one command.  If you do, pressing the key/button will activate each of
+   the commands assigned to it.
+</p>
+<p>
+   You wouldn't want to do this for most commands, but it's useful in
+   some limited cases.  In particular, the "Exit" and "Exit Game" commands
+   are usually mapped to the same key (usually the Escape key).  In this
+   case, using the same key for both commands won't create any confusion,
+   because "Exit" and "Exit Game" operate in different contexts.
+</p>
+<p>
+   The program will warn you any time you try to assign a new command
+   to a key that already has a command assigned.  The warning lets you know
+   that the key is already in use, and lets you select whether you'd like
+   to add the new command (keeping the existing command assignment(s))
+   or simply replace the existing command(s) with the new one.
+</p>
+   
+
+<h2>Joystick assignments</h2>
+
+<p>
+   Joystick buttons can be assigned "generically", or for a specific joystick device.
+</p>
+<p>
+   The default is to assign joystick buttons generically.  This means that PinballY
+   doesn't think of the button as belonging to a specific joystick; only the 
+   button number is important.  If a command is assigned generically to
+   "Joystick button 4", pressing the 4th button on any attached joystick
+   activates the command.
+</p>
+<p>
+   If you check the box at the bottom of the dialog that says "Remember device
+   for each joystick button", then the program will tie buttons to individual
+   joystick devices.  Button assignments you make after checking the box will
+   show the joystick device name in addition to the button number.  For these
+   assignments, the command will only be triggered when you press the given
+   button on the same joystick.  Pressing the same numbered button on another
+   joystick device won't have any effect.  That means that you can assign
+   a different command to the same numbered button on a separate joystick, if
+   you have two or more joysticks attached to your system.
+</p>
+<p>
+   If you only have one joystick, or if you only use the buttons on one
+   joystick, you should use the "generic" mode.  The generic mode is
+   better in this case because it's more flexible in terms of changes
+   to your system.  If you switch to a different joystick
+   device in the future, for example, generic button assignments will continue
+   to be recognized.  The "Remember" mode is only necessary if you
+   have two or more joystick devices attached to your system at the
+   same time, and you want to assign commands to the buttons
+   on each joystick independently.
+</p>
+<p>
+   Any change to the "Remember" setting only applies to
+   <b>new</b> command assignments made after you change the setting.
+   Any existing assignments will remain as they were.  That lets you use
+   a mix of generic and device-specific button assignments, if you wish.
+   If you want to change an existing button assignment from generic to
+   device-specific or vice versa, simply re-do that button assignment
+   with the new checkbox setting in effect.
+</p>
+
+<h2>Command descriptions</h2>
+
+<style type="text/css">
+.ButtonImage {
+    display: inline-block;
+    height: 24px;
+    width: 24px;
+    vertical-align: middle;
+    background-image: url(ButtonIcons24x24.png);
+}
+</style>
+
+<p>
+   <div class="ButtonImage" style="background-position: 0px 0px;"></div>
+   <b>Select/Enter:</b>  This is the main "do it" command throughout the
+   user interface.  When a menu is visible, pressing Select activates
+   the current menu command.  When a popup window is showing, Select
+   usually closes it.  When nothing else is going on, Select brings
+   up the main game menu.  This command is normally assigned to the
+   Start button on a pin cab, which is typically mapped to the "1"
+   key on the keyboard.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -24px 0px;"></div>
+   <b>Cancel/Escape:</b>  This is the main "cancel" or "return" command
+   throughout the user interface.  When a menu is visible, pressing
+   Exit dismisses the menu (without activating any commands).
+   When a popup window is showing, Exit closes it.  When nothing
+   else is going on, Exit brings up the "Exit" menu, which shows
+   options for exiting out of PinballY and a few other system
+   functions.  This command is normally assigned to the
+   Exit button on a pin cab, which is typically mapped to the Escape
+   key on the keyboard.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -48px 0px;"></div>
+   <b>Exit Game:</b>  When there's a game running, pressing
+   this button terminates the game and returns to the PinballY
+   game list.  On pin cabs, this is usually assigned to the
+   "Exit" button, which is usually mapped to the Escape key
+   on the keyboard.  This is usually the same key or button
+   mapped for the Cancel/Escape command above, but the two
+   functions are separated into different commands in
+   case you want to map them as different buttons for
+   some reason.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -72px 0px;"></div>
+   <b>Next:</b>  Navigates to the next game, menu item, popup
+   page, etc.  This is normally assigned to the Right Flipper
+   button on a pin cab, which is usually mapped to the Right Shift
+   key.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -96px 0px;"></div>
+   <b>Previous:</b>  Navigates to the previous game, menu item,
+   popup page, etc.  This is normally assigned to the Left
+   Flipper button on a pin cab, which is usually the Left Shift key.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -120px 0px;"></div>
+   <b>Next Page:</b>  Navigates to the next letter group in the
+   game list, the next page of a menu, etc.  This is normally
+   assigned to the Right Magna Save button on a pin cab, which
+   is usually the Right Ctrl key.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -144px 0px;"></div>
+   <b>Previous Page:</b>  Navigates to the previous letter group
+   in the game list, the previous page of a menu, etc.  This is
+   normally assigned to the Left Magna Save button on a pin cab,
+   which is usually the Left Ctrl key.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -168px 0px;"></div>
+   <b>Launch:</b>  This command directly launches the
+   currently selected game without bringing up the menu.
+   This is just a convenience to bypass the extra step
+   of selecting "Play" from the menu.  When a menu is
+   showing, this acts the same as the Select button.
+   The usual mapping for this command is the "Launch
+   Ball" button, if your pin cab has one; this is
+   usually mapped to the Enter key on the keyboard.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -192px 0px;"></div>
+   <b>Information:</b>  Shows information on the current game.
+   There's no standard pin cab button for this, but some
+   pin cab builders include a few extra front-panel buttons
+   for special functions like this; if you have such
+   a button, you can map it to this function.  This button
+   is completely optional, though, since you can access
+   the same function with a couple of button clicks via the
+   "Information" command in the main game menu.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -216px 0px;"></div>
+   <b>Instructions:</b>  Displays the instruction card for
+   the current game in a popup window.  There's no standard
+   pin cab button for this, but some pin cab builders include
+   a few extra front-panel buttons for special functions like
+   this.  This button is completely optional, though, since
+   you can access the same function with a couple of button
+   clicks via the "Instructions" command in the main
+   game menu.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -240px 0px; width: 96px;"></div>
+   <b>Coin 1/2/3/4:</b>  If your pin cab has real coin slot
+   switches wired to your key encoder, or you just have a "Coin In"
+   button, you can assign the button to the Coin 1/2/3/4 functions.
+   There are four of these commands because some pin cabs have
+   multiple coin chutes with different denominations, in which
+   case you'd want to assign a distinct command for each slot.
+   If you map these commands, PinballY will keep track of coins
+   inserted and will add credits to an internal counter, but this
+   is purely for the sake of arcade simulation and doesn't have
+   any practical use or necessity, so you can leave these
+   commands unmapped if you don't care about this bit of
+   simulation detail.  The normal pin cab mappings for the
+   coin chutes are the "3", "4", "5", and "6" keys, for the
+   left, middle, right, and fourth coin chutes respectively.
+   For US coin doors with two chutes, you'd normally map
+   them to "3" and "5", since they count as left and right
+   (with the "middle" and "fourth" slots unused).   
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -336px 0px;"></div>
+   <b>Coin door:</b>  If your pin cab has a coin door switch
+   (that detects when the door is open or closed), you can map
+   that key here.  PinballY doesn't currently use this for
+   anything, but could in the future.  The typical pin cab
+   setup uses the "End" key for the coin door switch.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -360px 0px; width: 96px;"></div>
+   <b>Service 1/2/3/4:</b>  If your pin cab has a four-button
+   service panel inside the coin door, you can assign those
+   keys here.  These are normally assigned to the "7", "8",
+   "9", and "0" keys on the keyboard.  PinballY uses the
+   "Service 4/Enter" button to activate the "System" menu,
+   which is useful for setting up new games and editing
+   game details.  The other service keys can be used to
+   navigate within the service menu, but they're optional,
+   since you can navigate this menu equally well with the
+   regular Next/Previous/Select/Exit keys instead.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -456px 0px;"></div>
+   <b>Frame Counter:</b>  Shows on-screen performance
+   statistics, including the CPU load and a frames-per-second
+   counter showing the graphics redraw rate.  This can be
+   helpful to gauge the effect on PinballY performance when
+   adjusting your video card settings or other system
+   settings.  There's no standard pin cab key for this,
+   but Visual Pinball uses the "F10" key to control its
+   similar performance counter display.  You can also
+   access this function via the right-click menu in the
+   main window.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -480px 0px;"></div>
+   <b>Full Screen Toggle:</b>  Toggles the current window
+   between normal and Full Screen modes.  There's no
+   standard pin cab key for this, but many other Windows
+   apps (especially Web browsers) use the "F11" key for
+   the same function.  You can also access this function
+   with the right-click menu in any window.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -504px 0px;"></div>
+   <b>Settings:</b>  Brings up the setting dialog.  There's
+   no standard pin cab key for this.  You can also access
+   this function from the right-click menu in the main window.
+</p>
+<p>
+   <div class="ButtonImage" style="background-position: -528px 0px;"></div>
+   <b>Rotate Monitor:</b>  Rotates the current window's
+   contents by 90 degrees clockwise.  You can use this to
+   adjust the display rotation of each window to match your
+   physical monitor setup.  There's no standard pin cab
+   key for this.  You can also access this function from
+   the right-click menu in any window.
+</p>
+
+</body>

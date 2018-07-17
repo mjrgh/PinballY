@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Folder Options</h1>
+<p>
+   PinballY uses a number of external files to read and store
+   information on the pinball tables you have installed on your system,
+   and the video and graphic files displayed in the UI.  This dialog
+   lets you tell PinballY where to look for these files.
+</p>
+
+<ul>
+   <li><b>Media folder:</b>  this is the folder where all of the
+      graphics and video files for your games are installed.  This
+      folder contains subfolders for different media types and for
+      different systems (Visual Pinball, Future Pinball, etc).  The
+      actual media files are stored in subfolders according to the
+      type of image/video they contain.
+
+   <li><b>Table database folder:</b>  This is the folder where
+      your "table database" files are stored.  These are XML files
+      that contain information the installed games, such as the
+      title of each game, the manufacturer, and the pinball program
+      that it's written for.
+
+</ul>
+
+<p>
+   In most cases, you should be able to use the default settings
+   for the folder paths.  You can change them as needed if you have
+   an unusual setup.  Here are the basic options for each folder
+   type:
+</p>
+<ul>
+   <li><b>Auto:</b>  This is the default setting for each type.
+   When this option is selected, PinballY will first look to see
+   if you also have PinballX installed on your system.  If so,
+   it'll use the existing PinballX folder for this item.  If not,
+   PinballY will use the appropriate folder within the PinballY
+   program folder.
+   <p>
+      This option is the default because it works whether or
+      not you have PinballX installed, and if you <i>do</i> have
+      PinballX installed, it lets you use all of your existing
+      table lists and media without having to copy or move
+      any files.  It makes it pretty much effortless to try
+      out PinballY and migrate to it if you like it.  PinballY
+      is compatible with the PinballX database and media formats
+      and folder structures, so you can always go back to PinballX
+      later if you like, even if you use PinballY to add new tables
+      and/or media.  You can also freely switch back and forth
+      between the two programs.
+   </p>
+
+   <li><b>Use the PinballY folder:</b>  This tells PinballY to
+   ignore any existing PinballX installation on your machine and
+   use only the PinballY program folder.
+   <p>
+      This option is useful if you want to maintain separate
+      PinballX and PinballY installations, rather than sharing
+      files between the two, since it prevents
+      PinballY from trying to access your PinballX files.  This
+      lets you have separate table lists and separate
+      media files for each system.
+   </p>
+
+   <li><b>Use a different folder:</b>  This option lets you
+   choose a specific folder, rather than using one of the
+   default locations.  This gives you full control in case
+   you have an unusual setup that requires a special location
+   for these files.
+   <p>It's usually better to use one of the
+   defaults, since the default settings will adapt more
+   automatically if you ever move files around.  If you enter a
+   fixed folder path, you'll have to remember to update the
+   setting if you should ever move that folder to a different
+   parent folder or to a different disk drive. </p>
+
+</ul>
+
+</body>

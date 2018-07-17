@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{738A1295-F643-486C-86EE-0DC99DF1820E}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>LZMA</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>C;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+    <IncludePath>C;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>C;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <IncludePath>C;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="CPP\7zip\Compress\LzmaDecoder.h" />
+    <ClInclude Include="C\Precomp.h" />
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="targetver.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="CPP\7zip\Archive\7z\7zDecode.cpp" />
+    <ClCompile Include="CPP\7zip\Archive\ArchiveExports.cpp" />
+    <ClCompile Include="CPP\7zip\Archive\DllExports2.cpp" />
+    <ClCompile Include="CPP\7zip\Common\CreateCoder.cpp" />
+    <ClCompile Include="CPP\7zip\Common\CWrappers.cpp" />
+    <ClCompile Include="CPP\7zip\Common\FilePathAutoRename.cpp" />
+    <ClCompile Include="CPP\7zip\Common\FileStreams.cpp" />
+    <ClCompile Include="CPP\7zip\Common\FilterCoder.cpp" />
+    <ClCompile Include="CPP\7zip\Common\InBuffer.cpp" />
+    <ClCompile Include="CPP\7zip\Common\InOutTempBuffer.cpp" />
+    <ClCompile Include="CPP\7zip\Common\LimitedStreams.cpp" />
+    <ClCompile Include="CPP\7zip\Common\LockedStream.cpp" />
+    <ClCompile Include="CPP\7zip\Common\MethodId.cpp" />
+    <ClCompile Include="CPP\7zip\Common\MethodProps.cpp" />
+    <ClCompile Include="CPP\7zip\Common\OffsetStream.cpp" />
+    <ClCompile Include="CPP\7zip\Common\OutBuffer.cpp" />
+    <ClCompile Include="CPP\7zip\Common\ProgressUtils.cpp" />
+    <ClCompile Include="CPP\7zip\Common\PropId.cpp" />
+    <ClCompile Include="CPP\7zip\Common\StreamBinder.cpp" />
+    <ClCompile Include="CPP\7zip\Common\StreamObjects.cpp" />
+    <ClCompile Include="CPP\7zip\Common\StreamUtils.cpp">
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="CPP\7zip\Common\UniqBlocks.cpp" />
+    <ClCompile Include="CPP\7zip\Common\VirtThread.cpp" />
+    <ClCompile Include="CPP\7zip\Compress\CodecExports.cpp" />
+    <ClCompile Include="CPP\7zip\Compress\LzmaDecoder.cpp">
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Stdafx.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)$(TargetName)CPP.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="CPP\Common\CommandLineParser.cpp" />
+    <ClCompile Include="CPP\Common\CRC.cpp" />
+    <ClCompile Include="CPP\Common\CrcReg.cpp" />
+    <ClCompile Include="CPP\Common\IntToString.cpp" />
+    <ClCompile Include="CPP\Common\ListFileUtils.cpp" />
+    <ClCompile Include="CPP\Common\MyString.cpp" />
+    <ClCompile Include="CPP\Common\MyVector.cpp" />
+    <ClCompile Include="CPP\Common\MyWindows.cpp" />
+    <ClCompile Include="CPP\Common\NewHandler.cpp" />
+    <ClCompile Include="CPP\Common\Sha256Reg.cpp" />
+    <ClCompile Include="CPP\Common\StdInStream.cpp" />
+    <ClCompile Include="CPP\Common\StdOutStream.cpp" />
+    <ClCompile Include="CPP\Common\StringConvert.cpp" />
+    <ClCompile Include="CPP\Common\StringToInt.cpp" />
+    <ClCompile Include="CPP\Common\TextConfig.cpp" />
+    <ClCompile Include="CPP\Common\UTFConvert.cpp" />
+    <ClCompile Include="CPP\Common\Wildcard.cpp" />
+    <ClCompile Include="CPP\Common\XzCrc64Init.cpp" />
+    <ClCompile Include="CPP\Common\XzCrc64Reg.cpp" />
+    <ClCompile Include="CPP\Windows\CommonDialog.cpp" />
+    <ClCompile Include="CPP\Windows\DLL.cpp" />
+    <ClCompile Include="CPP\Windows\ErrorMsg.cpp" />
+    <ClCompile Include="CPP\Windows\FileDir.cpp" />
+    <ClCompile Include="CPP\Windows\FileFind.cpp" />
+    <ClCompile Include="CPP\Windows\FileIO.cpp" />
+    <ClCompile Include="CPP\Windows\FileLink.cpp" />
+    <ClCompile Include="CPP\Windows\FileMapping.cpp" />
+    <ClCompile Include="CPP\Windows\FileName.cpp" />
+    <ClCompile Include="CPP\Windows\FileSystem.cpp" />
+    <ClCompile Include="CPP\Windows\MemoryLock.cpp" />
+    <ClCompile Include="CPP\Windows\PropVariant.cpp" />
+    <ClCompile Include="CPP\Windows\PropVariantConv.cpp" />
+    <ClCompile Include="CPP\Windows\Registry.cpp" />
+    <ClCompile Include="CPP\Windows\ResourceString.cpp" />
+    <ClCompile Include="CPP\Windows\SecurityUtils.cpp" />
+    <ClCompile Include="CPP\Windows\Shell.cpp" />
+    <ClCompile Include="CPP\Windows\Synchronization.cpp" />
+    <ClCompile Include="CPP\Windows\System.cpp" />
+    <ClCompile Include="CPP\Windows\TimeUtils.cpp" />
+    <ClCompile Include="CPP\Windows\Window.cpp" />
+    <ClCompile Include="C\7zAlloc.c">
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Precomp.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Precomp.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Precomp.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Precomp.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)$(TargetName)C.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)$(TargetName)C.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)$(TargetName)C.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)$(TargetName)C.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="C\7zArcIn.c" />
+    <ClCompile Include="C\7zBuf.c" />
+    <ClCompile Include="C\7zBuf2.c" />
+    <ClCompile Include="C\7zCrc.c" />
+    <ClCompile Include="C\7zCrcOpt.c" />
+    <ClCompile Include="C\7zDec.c" />
+    <ClCompile Include="C\7zFile.c" />
+    <ClCompile Include="C\7zStream.c" />
+    <ClCompile Include="C\Aes.c" />
+    <ClCompile Include="C\AesOpt.c" />
+    <ClCompile Include="C\Alloc.c" />
+    <ClCompile Include="C\Bcj2.c" />
+    <ClCompile Include="C\Bcj2Enc.c" />
+    <ClCompile Include="C\Bra.c" />
+    <ClCompile Include="C\Bra86.c" />
+    <ClCompile Include="C\BraIA64.c" />
+    <ClCompile Include="C\CpuArch.c" />
+    <ClCompile Include="C\Delta.c" />
+    <ClCompile Include="C\DllSecur.c" />
+    <ClCompile Include="C\LzFind.c" />
+    <ClCompile Include="C\LzFindMt.c" />
+    <ClCompile Include="C\Lzma2Dec.c" />
+    <ClCompile Include="C\Lzma2Enc.c" />
+    <ClCompile Include="C\Lzma86Dec.c" />
+    <ClCompile Include="C\Lzma86Enc.c" />
+    <ClCompile Include="C\LzmaDec.c" />
+    <ClCompile Include="C\LzmaEnc.c" />
+    <ClCompile Include="C\LzmaLib.c" />
+    <ClCompile Include="C\MtCoder.c" />
+    <ClCompile Include="C\Ppmd7.c" />
+    <ClCompile Include="C\Ppmd7Dec.c" />
+    <ClCompile Include="C\Ppmd7Enc.c" />
+    <ClCompile Include="C\Sha256.c" />
+    <ClCompile Include="C\Sort.c" />
+    <ClCompile Include="C\Threads.c" />
+    <ClCompile Include="C\Xz.c" />
+    <ClCompile Include="C\XzCrc64.c" />
+    <ClCompile Include="C\XzCrc64Opt.c" />
+    <ClCompile Include="C\XzDec.c" />
+    <ClCompile Include="C\XzEnc.c" />
+    <ClCompile Include="C\XzIn.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

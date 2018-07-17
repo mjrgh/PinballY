@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Pinball Player System Setup</h1>
+
+<p>
+   This dialog lets you configure your pinball player systems, such as Visual
+   Pinball and Future Pinball, for use with PinballY.
+</p>
+<p>
+   PinballY tries to be as "system agnostic" as possible, so it tries to
+   avoid hard-coded special handling for any one system.  Instead, it gives
+   you a big collection of tunable options that you can tailor to each
+   system.  The downside is that it makes the setup dialog pretty complex;
+   it might look a little daunting when you first bring it up just because
+   there are so many options.  But it's not as bad as it looks at first
+   glance, because you can leave many of the options blank in most cases.
+   PinballY will try to choose a suitable default for anything you leave
+   blank.
+</p>
+
+<h2>Adding a new system</h2>
+
+<p>
+   To add a new system, click on the "Systems" item in the list on the
+   left, then click the "Add a new system" button.  This will create a
+   new system page that you can fill in with the system's details.
+</p>
+
+<h2>Migrating from PinballX</h2>
+
+<p>
+   If you've already set up PinballX on your system, and you've already
+   gone through the process of setting up its list of tables and installing
+   media packs, you can use all of those existing table lists and media files
+   in PinballY without moving or copying any files.  All you have to do is
+   make sure that the <b>System name</b> settings in your PinballY setup
+   match those in your PinballX setup.  PinballX keys all of the folder
+   locations for its table database and media files to the system name,
+   so as the PinballY system name settings match your old PinballX system
+   name settings, PinballY should be able to find your existing PinballX
+   files.  You should also go to the "Folders" page and make sure that
+   you've selected the "Auto" setting for both the main media folder and
+   main table database folder; this will tell PinballY to use your existing
+   PinballX folder trees.
+</p>
+<p>
+   As long as you set the system name correctly for each system (to match
+   the system name as it appeared in your PinballX setup), you can leave
+   the "Media folder" and "Database folder" boxes blank.
+</p>
+
+<h2>Settings for all systems</h2>
+
+<p>
+   Some of the settings are handled the same way for all types of
+   player systems:
+</p>
+<ul>
+   <li><b>System name:</b> Enter a name of your choice here, as this
+   is used mostly for display purposes in the user interface.  If
+   you're migrating from PinballX, and you want to use the same
+   media and table list files, you should make sure this matches
+   the name used in your PinballX settings.
+
+   <li><b>Enable:</b> Check this box to enable the system; un-check
+   it to disable it.  Disabling a system prevents any of its games
+   from appearing in the user interface, so it's effectively like
+   deleting the system from your configuration entirely, except that
+   it lets you keep the settings around in case you want to restore
+   them in the future.
+
+   <li><b>Media folder:</b>  This is the sub-folder (within the main
+   PinballX or PinballY media folder tree) where the image, video,
+   and sound files for this system's games are stored.  You can usually
+   just leave this blank, in which case the System Name is used as
+   the default folder name.
+
+   <li><b>Database folder:</b>  This is the sub-folder (within the
+   main PinballX or PinballY database folder tree) where the game
+   listing files for this system are located.  You can usually just
+   leave this blank, in which case the System Name is used as the
+   default folder name.
+</ul>
+
+<h2>Recipes for the common systems</h2>
+
+<p>
+   The basic settings for the most common systems are listed below.
+   Apart from the "System Name", "Media Folder", and "Database Folder",
+   you should simply leave any fields not mentioned in the recipes blank.
+   Set the System Name to a name of your choosing, but note that it should
+   match the corresponding system name from your PinballX setup if you're
+   migrating (see above).  The Media Folder and Database Folder boxes
+   can be left blank, which uses the System Name as the default folder
+   name in each case.
+</p>
+
+<h3>Visual Pinball 8/9</h3>
+
+<p>
+   <b>System class:</b> Visual Pinball 9 or earlier<br>
+   <b>Program EXE:</b> leave blank (see below)<br>
+   <b>Parameters:</b>  /play -"[TABLEPATH]\[TABLEFILE]"<br>
+   <b>Table folder:</b> Tables<br>
+   <b>Table extension:</b> .vpt<br>
+</p>
+<p>
+   For the <b>Program EXE</b> box, if you leave it blank, PinballY will
+   use the Visual Pinball executable that's assigned for <tt>.vpt</tt> files in
+   the Windows registry.  This only works if you have only one version
+   of VP installed, and you ran the VP SETUP program to set up the
+   file associations in the registry.  If the .vpt file associations
+   aren't set up, you'll have to enter the full path to the Visual
+   Pinball .exe file; you can click the little folder icon button next
+   to the Program EXE box to browse for the file.
+</p>
+<p>
+   Many people keep multiple versions of VP 8-9 installed at the same
+   time.  In this case, Windows only allows one of them to be associated
+   with .vpt files, so the "leave it blank" advice will only work for
+   that one version that's assigned in the registry.  For the other
+   versions, you'll have to specify the version of VPinballXXX.exe
+   to use.  For example, if you have both VP 9.2 and VP 9.9 installed
+   (as many people do), follow this procedure:
+</p>
+<ul>
+   <li>Create two separate "system" pages, one for VP 9.2 and one for 9.9
+   <li>In the VP 9.2 page, set the Program EXE box to VPinball921.exe
+   (or whichever version is current)
+   <li>In the VP 9.9 page, set the Program EXE box to VPinball995.exe
+   (or whichever version is current)
+</ul>
+<p>
+   You can repeat that procedure to create additional system pages
+   for any other VP versions that you have installed.  Note that the
+   default settings when you first install PinballY come with entries
+   already filled in for VP 9.2, VP 9.9, and VP 10, so you probably
+   won't have to create those yourself.  But you can create as many
+   additional entries as you need.
+</p>
+
+<h3>Visual Pinball 10</h3>
+
+<p>
+   <b>System class:</b> Visual Pinball 10<br>
+   <b>Program EXE:</b> leave blank<br>
+   <b>Parameters:</b>  /play -"[TABLEPATH]\[TABLEFILE]"<br>
+   <b>Table folder:</b> Tables<br>
+   <b>Table extension:</b> .vpx<br>
+</p>
+
+<h3>Future Pinball</h3>
+
+<p>
+   <b>System class:</b> Future Pinball<br>
+   <b>Program EXE:</b> leave blank<br>
+   <b>Parameters:</b>  /open "[TABLEPATH]\[TABLEFILE]" /play /exit /arcaderender<br>
+   <b>Table folder:</b> Tables<br>
+   <b>Table extension:</b> .fpt<br>
+   <b>Startup Keys:</b> [click playfield]<br>
+   <b>DOF Prefix:</b> FP<br>
+</p>
+
+<h3>Farsight's Pinball Arcade</h3>
+
+<p>
+   <b>System class:</b> STEAM<br>
+   <b>Program EXE:</b> [STEAM]<br>
+   <b>Parameters:</b> -applaunch 238260<br>
+   <b>Process name:</b> PinballArcade.exe<br>
+   <b>Startup Keys:</b> [pace 250] [pause 25] [click] [pause 5]
+     up up right right right right right [click] [pause 5]
+     up up left left left left left right [click] [pause 10]
+     up left left left left left [click] [pause 5]
+     [pace 1000] down [gridpos down right] [click] [pause 3] [click]<br>
+</p>
+<p>
+   Note that the Program EXE setting should be literally <b>[STEAM]</b>, including
+   the brackets.  I know that looks like one of those "substitute the real name
+   here" formats you see in user manuals, but in this case it's not!  Just type
+   in the literal text <b>[STEAM]</b>.
+</p>
+<p>
+   The "Startup Keys" sequence is a huge mess, I know, but it seems to be the only
+   way to automatically navigate to a particular game.  The key sequence is designed
+   to step through Pinball Arcade's menu screens to get to the icon for the game,
+   using the grid position configured for the game.  You can just copy and paste
+   that whole sequence into the field.
+</p>
+
+<h3>Pinball FX2</h3>
+<p>
+   <b>System class:</b> STEAM<br>
+   <b>Program EXE:</b> [STEAM]<br>
+   <b>Parameters:</b> -applaunch 226980<br>
+   <b>Process name:</b> Pinball FX2.exe<br>
+</p>
+<p>
+   The Program EXE text should be entered literally as <b>[STEAM]</b>, including
+   the brackets.  Don't substitute a file path or anything else; just write it
+   literally like that.
+</p>
+
+<h2>Details on the settings</h2>
+
+<p>
+   The individual settings are explained below.  For most systems, you
+   should be able to leave most of the fields blank.
+</p>
+
+<h3>System name</h3>
+<p>
+   This is the name that PinballY displays when referring to the system
+   in the user interface, such as in the summary information box shown when
+   the game is selected in the "wheel" menu.   The name is really only for
+   display purposes, and doesn't have any special meaning to PinballY.
+</p>
+
+<h3>Delete System</h3>
+<p>
+   Click this button if you want to completely remove this system from
+   your PinballY configuration.
+</p>
+<p>
+   This button has no effect on the actual installed program
+   system that the setting page refers to.  It won't uninstall your
+   Visual Pinball player or anything crazy like that.  It just deletes
+   the PinballY settings for the system.
+</p>
+
+<h3>Enable</h3>
+<p>
+   Check this box if you want to include the system's games in the
+   "wheel" menu list.  If this box isn't checked, the system's games
+   will be ignored. 
+</p>
+<p>
+   The main reason for this box is that it lets you retain the default
+   configuration settings for all of the pre-defined systems, even those
+   that you don't currently have installed, just in case you ever want
+   to install them in the future.  If you do install one of these systems
+   in the future, you'll be able to use it in PinballY simply by
+   checking the existing entry's Enable box, rather than having to enter all
+   of the system's options anew.
+</p>
+
+<h3>Media folder</h3>
+<p>
+   This is the name of the sub-folder for this system's "media" files:
+   "wheel" icons, instruction card images, flyer pages, images and videos
+   for the playfield and backglass, etc.
+</p>
+<p>
+   This is always a sub-folder of the main PinballY media folder, which
+   you can configure in the "Folders" page in the options dialog.  The
+   folder name entered here shouldn't contain any path prefix or
+   any "\" characters; it's just the name of the sub-folder.
+</p>
+<p>
+   By default, each system's media folder name is simply the same as
+   the system name.  Leave the folder name blank to use this default.
+   If you're migrating from a PinballX installation, its media folders
+   are always named the same as the corresponding systems.
+</p>
+<p>
+   It's okay to have multiple systems sharing the same media folder.
+   For example, if you have both Visual Pinball 9.2 and 9.9 installed,
+   you might want to use a single "Visual Pinball" media folder for
+   both systems.
+</p>
+
+<h3>Database folder</h3>
+<p>
+   This is the name of the sub-folder for this system's "table database"
+   files.  These are the XML files that list the games for the system
+   and provide their bibliographic details (titles, manufacturers, etc).
+</p>
+<p>
+   This is always a sub-folder of the main PinballY table database
+   folder, which you can configure in the "Folders" page of the options
+   dialog.  The folder name entered here shouldn't contain any path
+   prefix or any "\" characters; it's just the name of the sub-folder.
+</p>
+<p>
+   The default folder name is the same as the system name.  Leave
+   the folder name blank to use this default.  If you're migrating
+   from PinballX, its database folders are always named the same
+   as the corresponding systems.
+<p>
+   Every system must have its own separate table database folder.
+   Table database folders can't be shared.
+</p>
+
+<h3>System class</h3>
+
+<p>
+   We said above that we try to be "system agnostic", avoiding special
+   handling for any one system, but a few systems are so ubiquitous that
+   we do have some special recognition for them.  Specifically, Visual
+   Pinball 8-9, Visual Pinball 10, Future Pinball, and Steam-based games.
+   This doesn't mean that PinballY only supports those systems; it just
+   means that PinballY has some special handling for those systems.
+</p>
+<p>
+   You should select the option here that matches the system you're
+   setting up.  If you don't see your system in the list, it's not
+   a problem!  Just select "Other".
+</p>
+   
+
+<h3>Table extension</h3>
+
+<p>
+   If the system uses separate table files, enter the filename
+   extension for the files:
+</p>
+<ul>
+   <li>For Visual Pinball 9 or earlier, enter <tt>.vpt</tt>
+   <li>For Visual Pinball X, enter <tt>.vpx</tt>
+   <li>For Future Pinball, enter <tt>.fpt</tt>
+</ul>
+
+<p>
+   Leave this blank if the system doesn't use table files (e.g.,
+   any of the Steam-based systems).
+</p>
+
+<h3>DOF prefix</h3>
+
+<p>
+   This is a prefix code used for entries in the DOF configuration.  This
+   is just a convention used in the DOF Config Tool, to distinguish
+   the DOF settings for the same game written in different player
+   systems.  For example, the Config Tool database includes listings
+   for numerous re-creations of real games that were written
+   for both Visual Pinball and Future Pinball.  Entering the
+   correct prefix helps PinballY identify the right DOF settings to
+   use depending on which game is selected in the "wheel".
+</p>
+<ul>
+   <li>For Future Pinball, enter <tt>FP</tt>
+   <li>For Pinball FX2, enter <tt>FX2</tt>
+   <li>For Pinball FX3, enter <tt>FX3</tt>
+</ul>
+
+<p>
+   Leave it blank in other cases.  The DOF Config Tool treats
+   Visual Pinball games as the "default" system, so the different
+   versions of VP never use a prefix.
+</p>
+
+
+<h3>Program EXE</h3>
+<p>
+   This is the name of the application file (.exe) that PinballY
+   will launch when you play a table using this system.  There are
+   several choices here:
+</p>
+<ul>
+   <li><b>Leave it blank:</b>  PinballY will automatically launch
+   the program that's associated in the Windows registry with the
+   filename extension in the "Table Extension" box.  For example,
+   if the extension is set to <b>.vpt</b>, the program associated
+   with the .vpt extension would be launched.  This is the same
+   program that Windows launches when you double-click on a file
+   of that type in the Windows desktop.
+
+   <p>
+      Use this option whenever possible, since it's 
+      the most future-proof choice.  If you use this approach,
+      you won't have to worry about updating the PinballY settings
+      the next time you update the program to a new version, or
+      reinstall it in a different folder, since PinballY should
+      be able to pick up the new location automatically from
+      the registry.
+   </p>
+
+   <li><b>Specify the .exe name only:</b>  If you enter the .exe
+   name without a path prefix (e.g., <tt>VPinball921.exe</tt> rather than
+   <tt>c:\VisualPinball\VPinball921.exe</tt>), PinballY will look for the
+   file in the folder containing the program that's associated with
+   the file extension, but it will replace the registered program
+   with the named program instead.
+   <p>
+      This option is especially good for Visual Pinball, since
+      it's common to have multiple VP 8/9 versions installed on
+      one pin cab at the same time.  All VP 8/9 versions
+      use the .vpt file extension, but Windows only allows one
+      program to be associated with a given extension, so they
+      can't all use the fully automatic lookup of the "leave it
+      blank" option.  This ".exe name only" option is the next best
+      thing in this case.  As long as all of the different VP
+      executables are installed in the same folder, this option
+      lets you specify the specific VPinballXXX.exe program to
+      run for each version, but still lets PinballY find the
+      folder location based on the .vpt registry settings.  That
+      at least makes the settings future-proof against
+      reinstalling VP in a different folder.
+   </p>
+
+   <li><b>Specify a full path:</b>  If you don't have a Windows
+   registry association for the file extension, you'll have to
+   enter the full path for the program, as in <tt>c:\VisualPinball\VPinball921.exe</tt>.
+   PinballY will simply launch this exact program file without
+   consulting the registry or any other hidden information.
+   Clicking on the folder button next to the box lets you browse for the
+   program .exe file.
+
+   <li><b>[STEAM]:</b>  For Steam-based programs like Farsight's
+   Pinball Arcade or Pinball FX2/FX3, you can enter the special
+   name <b>[STEAM]</b> (exactly like that, including the brackets).
+   This tells PinballY to find the Steam executable using Steam's
+   installation records in the Windows registry.  As with the
+   "leave it blank" option, this future-proofs the settings against
+   updates to Steam or changes to its location.
+
+</ul>
+
+<h3>Parameters</h3>
+<p>
+   Enter the command-line parameters for the command here.  There's
+   no general rule to how the parameters look; the parameters are
+   entirely peculiar to the individual programs.  See the "recipes"
+   section above for the parameter formats for the common systems.
+</p>
+<p>
+   There are some special "substitution variables" that you can
+   use in the parameters.  When the program is launched, these will
+   be replaced with value specific to the game you're launching.
+</p>
+<ul>
+   <li><b>[TABLEPATH]</b>: the full path name to the table file for the
+   game you're running.  For example, for a Visual Pinball game, this is
+   the full path of the VP "Tables" folder, so it'll be something like
+   <tt>c:\VisualPinball\Tables</tt>.
+
+   <li><b>[TABLEFILE]</b>: the filename of the table file for the
+   game you're running, without any path prefix.  For example, for
+   a Visual Pinball version of <i>Funhouse</i>, this might be something
+   like <tt>funhouse_v2.vpt</tt>.
+</ul>
+
+<h3>Process name</h3>
+
+<p>
+   This is a weird special case needed mostly for Steam games (that is,
+   games that are installed and launched via Valve's "Steam" system).
+   Steam games use a two-step launch procedure where you run the
+   STEAM.EXE application first, and that in turn runs the separate game
+   program .exe (application) file.  In Windows terminology, each running
+   .exe is a "process".  So when you run a Steam-based game like Farsight's
+   Pinball Arcade or Pinball FX2, you're really launching two processes:
+   STEAM.EXE, and the actual game's .exe file.  This complicates things a
+   bit for PinballY, because it needs to monitor each launched game process
+   to determine when the game terminates, so that PinballY can take over
+   when the game exits.  And the real complication is that STEAM.EXE itself
+   terminates as soon as it launches the game .exe, so PinballY can't
+   use STEAM.EXE as a proxy for whether the game is running; it has
+   to monitor the separate process where the game's .exe is running.
+</p>
+<p>
+   That's where the "Process name" setting comes in.  This lets you
+   identify the name of the game process that Steam launches.
+   This is simply the name of the game's .exe file, without any
+   path prefix.  For example, for The Pinball Arcade, this is
+   <tt>PinballArcade.exe</tt>.  
+</p>
+
+
+<h3>Startup keys</h3>
+<p>
+   This defines a sequence of keystrokes and mouse clicks to be sent to the
+   launched program after it starts up.  There are three main uses for this:
+</p>
+<ul>
+   <li>First, to set focus on the right window after launch if needed.
+   Future Pinball in particular needs a mouse click on its playfield
+   window before it'll accept keyboard input.  You can do this with
+   a simple <b>[click playfield]</b> sequence, which sends a mouse
+   click to the middle of the playfield window.
+
+   <li>Second, to click through any initial dialogs the
+   game system displays at startup.  You can use a sequence like
+   <b>enter enter</b> to send a couple of Enter key presses to the
+   program to dismiss dialogs.
+
+   <li>Third, to navigate any menus the game presents at startup.  This
+   is needed for Farsight's Pinball Arcade, since it presents its own
+   game selection menu.
+</ul>
+
+<p>
+   See the "recipes" section above for the recommended settings
+   for the various systems.  If you need to create a custom key
+   sequence, here are the key names and special commands you
+   can use:
+</p>
+<table style="margin: 2em auto; max-width: 80%;">
+   <tr><th>Command</th><th>Meaning</th></tr>
+   <tr><td>esc</td><td>Escape key</td></tr>
+   <tr><td>tab</td><td>The Tab key</td></tr>
+   <tr><td>enter</td><td>The Enter key</td></tr>
+   <tr><td>lshift</td><td>The left Shift key</td></tr>
+   <tr><td>rshift</td><td>The right Shift key</td></tr>
+   <tr><td>lctrl</td><td>The left Ctrl key</td></tr>
+   <tr><td>rctrl</td><td>The right Ctrl key</td></tr>
+   <tr><td>lalt</td><td>The left Alt key</td></tr>
+   <tr><td>ralt</td><td>The right Alt key</td></tr>
+   <tr><td>capslock</td><td>The Caps Lock key</td></tr>
+   <tr><td>f1-f12</td><td>Function keys F1 through F12</td></tr>
+   <tr><td>tilde</td><td>The tilde (~) key</td></tr>
+   <tr><td>0-9</td><td>Digit keys 0 through 9</td></tr>
+   <tr><td>A-Z</td><td>The alphabetic keys A through Z</td></tr>
+   <tr><td>dash</td><td>The -_ key</td></tr>
+   <tr><td>plus</td><td>The += key </td></tr>
+   <tr><td>backslash</td><td>The \| key</td></tr>
+   <tr><td>lbracket</td><td>The [{ key</td></tr>
+   <tr><td>rbracket</td><td>The ]} key</td></tr>
+   <tr><td>colon</td><td>The :; key</td></tr>
+   <tr><td>quote</td><td>The "' key</td></tr>
+   <tr><td>comma</td><td>The ,&lt; key</td></tr>
+   <tr><td>period</td><td>The .&gt; key </td></tr>
+   <tr><td>slash</td><td>The /? key</td></tr>
+   <tr><td>home</td><td> </td></tr>
+   <tr><td>up</td><td>Cursor up key</td></tr>
+   <tr><td>down</td><td>Cursor down key</td></tr>
+   <tr><td>left</td><td>Cursor left key</td></tr>
+   <tr><td>right</td><td>Cursor right key</td></tr>
+   <tr><td>end</td><td>End key</td></tr>
+   <tr><td>ins</td><td>Ins key</td></tr>
+   <tr><td>del</td><td>Del key</td></tr>
+   <tr><td>pageup</td><td>Page Up key</td></tr>
+   <tr><td>pagedown</td><td>Page Down key</td></tr>
+   <tr><td>kp0-kp9</td><td>Keypad 0 through 9 keys</td></tr>
+   <tr><td>decimal</td><td>Keypad . key</td></tr>
+   <tr><td>add</td><td>Keypad + key</td></tr>
+   <tr><td>subtract</td><td>Keypad - key</td></tr>
+   <tr><td>times</td><td>Keypad * key</td></tr>
+   <tr><td>divide</td><td>Keypad / key</td></tr>
+   <tr><td>{comment}</td><td>Comment text - ignored</td></tr>
+   <tr><td>[pause <i>n</i>]</td><td>Pause for n milliseconds</td></tr>
+   <tr><td>[pace <i>n</i>]</td><td>Set the "pace" (time between keystrokes) to n milliseconds</td></tr>
+   <tr><td>[click]</td><td>Click the left mouse button at the current mouse position</td></tr>
+   <tr><td>[rclick]</td><td>Click the right mouse button at the current mouse position</td></tr>
+   <tr><td>[click <i>window</i>]</td><td>Click the left mouse button in the middle of the given window,
+      using the PinballY window layout; the window can be playfield, backglass, dmd, or topper</td></tr>
+   <tr><td>[rclick <i>window</i>]</td><td>Click the right mouse button in the middle of the given window</td></tr>
+   <tr><td>[gridpos <i>down</i> <i>right]</i></td><td>Send a sequence of <i>down</i> and <i>right</i> keys
+      to move to the "grid position" defined for the game being launched.  The grid position is
+      set in the game's settings.  The <i>down</i> and <i>right</i> keys are key names from the
+      list above, as in <b>[gridpos comma period]</b> or, more likely, <b>[gridpos down right]</b></td></tr>
+</table>
+
+
+<h3>Table folder</h3>
+
+<p>
+   Enter the folder where this system's tables are located.
+</p>
+<p>
+   If you're new to virtual pinball, it might seem puzzling and limiting that
+   you have to specify a single folder here.  But that's the long-standing
+   convention that's more or less forced by the design of Visual Pinball
+   and Future Pinball, so it's assumed by most of the rest of the pin cab
+   ecosystem.  It's not great for people who download a large number of
+   tables and want to impose some kind of order on things, but you'll just
+   make things unnecessary hard on yourself if you try to work around it.
+</p>
+<p>
+   There are three formats for the entry here:
+</p>
+<ul>
+   <li><b>Leave it blank:</b>  PinballY assumes that tables are in the
+   same folder as the program EXE if you leave this blank.
+
+   <li><b>Enter a full folder path:</b>  If you enter a full, absolute
+   folder path with drive letter (e.g., <tt>c:\VisualPinball\Tables</tt>),
+   PinballY will simply use the exact path you enter.
+
+   <li><b>Enter a "relative" folder name:</b>  If you enter a relative
+   path with no drive letter prefix (e.g., <tt>Tables</tt>), PinballY
+   will treat it as a sub-folder of the main folder containing the
+   program EXE.
+   <p>
+      It's best to use this format when possible, because you won't
+      have to update this setting if you should reinstall the player
+      system in a different main program folder in the future.
+      PinballY will automatically use whatever main program folder
+      is current on each run.
+   </p>
+</ul>
+
+<h3>NVRAM folder</h3>
+
+<p>
+   This is the folder where NVRAM (non-volatile RAM) files for the
+   system's games are stored.  The NVRAM files are where the high
+   score listings are stored, so this path needs to be set correctly
+   for PinballY to be able to display high scores in the game list.
+</p>
+<p>
+   This setting is only meaningful for Future Pinball and Visual Pinball,
+   since PinballY can only read high scores from those types of systems.
+</p>
+<p>
+   There are three ways to enter this setting:
+</p>
+<ul>
+   <li><b>Leave it blank:</b>  PinballY will use the standard NVRAM path
+   for the system.  In the case of Visual Pinball, this is the NVRAM folder
+   from your VPinMAME setup, as recorded in the registry.  For
+   Future Pinball, this is the fpRAM sub-folder of the main Future
+   Pinball program folder.  This is the best option in most cases,
+   because you won't have to update it if you ever reinstall the
+   player system in a new location.
+
+   <li><b>Enter a full path:</b>  If you enter a full, absolute path
+   with drive letter (e.g., <tt>c:\VisualPinball\VPinMAME\nvram</tt>),
+   PinballY will use the folder exactly as specified.
+
+   <li><b>Enter a relative path:</b>  If you enter only a sub-folder
+   name with no path prefix (e.g., <tt>fpRAM</tt>), PinballY will
+   look in that sub-folder of the system's main program folder.
+</ul>
+
+
+<h3>Run before</h3>
+<p>
+   This is a command to run just before launching the game.  Use the normal Windows
+   command syntax, as though typing a command into the Windows+R "Run" box.
+</p>
+<p>
+   You can put a special "flags" string at the very beginning of the command
+   to control how the command is processed:
+</p>
+<ul>
+   <li><b>[NOWAIT]</b>: PinballY will execute the command and leave it running.
+   If you don't specify this, PinballY will wait for the program to exit before
+   proceeding to the next step.
+
+   <li><b>[NOWAIT TERMINATE]</b>: PinballY will execute the command and leave
+   it running, and will then explicitly terminate the running process as soon
+   as the game exits.  Use this for a program that you want to leave running
+   while the game runs, but <i>only</i> while the game runs.
+</ul>
+<p>
+   There are also some "substitution variables" you can use anywhere within
+   the command string:
+</p>
+<ul>
+   <li><b>[TABLEPATH]</b>: the full path name to the table file for the
+   game you're running.  For example, for a Visual Pinball game, this is
+   the full path of the VP "Tables" folder, so it'll be something like
+   <tt>c:\VisualPinball\Tables</tt>.
+
+   <li><b>[TABLEFILE]</b>: the filename of the table file for the
+   game you're running, without any path prefix.  For example, for
+   a Visual Pinball version of <i>Funhouse</i>, this might be something
+   like <tt>funhouse_v2.vpt</tt>.
+</ul>
+
+
+<h3>Run after</h3>
+
+<p>
+   This is a command to run just after a launched game exits.  This is just
+   like the Run Before command above, except that it runs after the game
+   terminates.  You can use the same flags and substitution variables as
+   with Run Before, except that the TERMINATE option obviously doesn't
+   make any sense with this one, since the game has already exited by
+   the time this command is executed.
+</p>
+
+</body>

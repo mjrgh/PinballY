@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Media Capture Options</h1>
+
+<p>
+   PinballY lets you create the background media items for each of
+   your tables - images and videos of the playfield, backglass, and so on -
+   by launching the table in its player program and capturing screen shots
+   (still or video) while it runs.  The Media Capture options dialog lets
+   you set up the details for these screen shot operations.
+</p>
+<p>
+   Note that this dialog doesn't actually initiate a capture operation;
+   it's just for setting up the options.  To perform a media capture for
+   a game:
+</p>
+<ul>
+   <li>Close the options dialog and go back to the main game window
+   <li>Navigate to the game you want to capture media for
+   <li>Bring up the "System" menu by pressing the Service Enter button
+   <li>Select the "Game Setup" command
+   <li>Select the "Capture Images &amp; Video" command
+   <li>Choose the items you want to capture using the menu
+   <li>Select the "Begin Capture" command
+</ul>
+<h2>Option details</h2>
+<p>
+   <b>Wait for game to start:</b>  This setting lets you specify a
+   delay time before the first screen shot is captured, to give the
+   game a chance to initialize and enter its "attract mode".  This
+   delay time starts after the player program has loaded, so it
+   doesn't need to count the time required to start the player;
+   it only needs to count the time it takes the player to load
+   the table, plus the time the table itself takes to complete
+   its own startup.  Most tables have a "self test" that they
+   have to complete when first loaded, so you should take this
+   time into account.  The "right" value for this delay is
+   unpredictable, because it depends on so many different
+   factors: your system's performance, the player program's
+   load time, and the individual table's ROM program.  If you
+   find that the screen capture is kicking in too soon for
+   some tables, just increase this delay time setting a bit
+   and try again.
+</p>
+<p>
+   <b>Video capture times:</b>  These settings let you set the
+   length of the videos captured for the various windows.  When
+   PinballY plays back the videos, they'll all be shown in loops,
+   so you effectively get "infinite" video coverage no matter how
+   long you make the individual videos.  But it's better to make
+   the loops long enough to cover at least one whole attract
+   mode loop for the game, so that the video isn't too
+   repetitive, and so that you don't see jumps back to the
+   beginning so often that they're distracting.
+</p>
+
+</body>

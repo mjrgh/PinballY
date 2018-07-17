@@ -1,0 +1,29 @@
+As with libvlc, our git repository includes the binary files from
+FFMPEG that we distribute.  We include these to ensure consistent
+results from independent builds made from the same git commit.
+
+Our repos includes ONLY the files that we need for our binary
+distribution.  We don't include everything because doing so is
+unnecessary and wasteful; the full FFMPEG distro is quite large.  It's
+not necessary to include everything because nothing in our version is
+customized - it's just a snapshot taken from the plain vanilla
+end-user FFMPEG distro.  It's more efficient to let users who want the
+full installation download the official version from the FFMPEG site.
+
+As with libvlc, we don't need to update our FFMPEG snapshot in lock
+step with the FFMPEG release schedule.  It's fine to stick with a
+static snapshot for a while.  But updating should be painless in most
+cases, since our dependency on FFMPEG is extremely simple -t we just
+launch it as an EXE with some command-line parameters.  Given the way
+we use it, it's unlikely that we'll run into any incompatible changes
+for quite a while.  Keeping relatively up-to-date is always good so
+that we benefit from the latest bug fixes and improvements.
+
+The procedure for updating is:
+
+- Download the latest FFMPEG end-user distribution
+
+- Copy the required files from the new FFMPEG distro to your
+  PinballY source tree, using the current source tree file set
+  as a guide to which files are required
+

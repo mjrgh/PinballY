@@ -1,0 +1,119 @@
+The PinballY code base has quite a lot of code devoted to video
+playback.  Video is a central function of the app, specifically video
+playback integrated within a layered graphical user interface.
+
+You'd think that this sort of integrated video playback within a
+layered UI would be a common enough feature of modern Windows
+applications that there'd be some native support for it in D3D11, or
+if not native, then some kind of helper in one of the Microsoft DX
+toolkits, or maybe as a last resort there'd at least be a few
+well-established open-source libraries for it.  As far as I can tell,
+you'd be wrong.  Yes, there's lots of example code for the most basic
+task of playing back video into an HWND, but if you want to play it
+back into a DirectX-rendered window, or if you want to do something
+else with the window at the same time video is playing, you're out of
+luck.  What seems to me to be the most obvious building-block task,
+namely decoding video into a D3D texture to allow integrating the
+video into a larger scene, just doesn't seem to be done much.  Not
+with resuable code, at least.  I guess D3D developers are mostly game
+coders, and maybe reusable code isn't a thing in that culture.
+
+I haven't exactly fixed this situation with PinballY, but I think I've
+at least chipped away at it a little bit.  The video player code here
+might serve as a somewhat better starting point for other similar
+applications than anything else I've come across.  So for the sake of
+other developers looking for example code or reusable code for video,
+the PinballY source base has a variety of implementations to choose
+from.
+
+The basic video functionality is defined in the AudioVideoPlayer
+class.  This is an abstract interface that defines a way to play back
+video within a VideoSprite object.  VideoSprite is a separate class
+that provides a surface for video or static graphics that can be
+layered with other sprite objects to create a rendered scene.  A scene
+can have any combination of static graphics and video objects.
+
+There are are two implementations of AudioVideoPlayer.  The first is
+based on Windows Media Foundation, which is the current official
+architecture in Windows for media playback.  Media Foundation provides
+built-in support for the most common audio and video file formats and
+encodings, which makes it attractive from a deployment perspective.
+But support for "the most common" formats isn't the same as support
+for "most" formats; it's fairly easy to find example files that MF
+rejects.  Which is why I wrote the a whole second AudioVideoPlayer
+implementation, this time based on libvlc, which is the core of the
+popular VLC media player.  VLC has extremely comprehensive format
+support.  It's also fast and robust, and it has a well designed API
+for use in third-party apps like ours.
+
+The PinballY application actually only uses and only needs one of
+these AudioVideoPlayer implementations.  They're perfectly
+interchangeable as far as the rest of the code is concerned, thanks to
+the common abstract interface they both implement.  The libvlc version
+is currently the one (and only one) that the code uses.  It seems to
+be functionally equivalent or superior to the Media Foundation version
+in every way I've been able to test - it's at least as fast, seems
+very reliable, and supports (many) more file formats.
+
+So you might wonder why I'm bothering to leave the Media Foundation
+code in there at all.  Two reasons.  
+
+The first is that libvlc has more licensing entanglements.  The libvlc
+"core" is under LGPL 2.1, but the core can't stand alone; it depends
+on a large number of separate "modules" a/k/a plugins, and per the
+VideoLAN web site, "some" of these are under the more restrictive GPL.
+If you know anything about GPL, you know that the whole point is
+contagion: anything that incorporates GPL code or components, even in
+dynamically linked form such as we have here, can only be released as
+a whole under GPL.  As a consequence, all of the official builds of
+libvlc are under GPL.  This also requires us to release PinballY under
+GPL, since it incorporates libvlc (including its plugins) as a
+component.  So the first reason I'm preserving the Media Foundation
+version of the media player is that it leaves open the possibility of
+releasing an alternate version, with only the MF player code, under
+other license terms.  I don't have any particular reason to do this
+right now, but it keeps options open.
+
+The second reason for preserving the Media Foundation implementation
+is simply to provide more example code and more reusable code to other
+open-source developers who might be looking for such things.  Media
+Foundation is insanely complex to use, and I didn't come across a lot
+of good examples.  Microsoft's examples are all kind of weird and
+insanely complicated themselves, and maybe as a result, no one else
+seems to be using MF for much.  They're at least not writing a lot of
+open-source code using it.  Maybe it's had more traction with
+proprietary application developers, whose code you wouldn't find lying
+around on github.  Anyway, this code is a pretty complete example of
+how to use MF for basic video playback with custom DirectX rendering.
+
+If you browse through the PinballY code base, you'll find a couple of
+side projects related to video tacked onto the Visual Studio
+"Solution" set: the "EVRPresenter" project and the "DX11VideoRenderer"
+project.  Those are both supporting components for the Media
+Foundation AudioVideoPlayer class, so they're only needed if you want
+to use the MF implementation.  The libvlc player doesn't need these at
+all.  EVRPresenter and DX11VideoRenderer do the same thing, using
+different Windows subsystems.  They both plug into the Media
+Foundation video pipeline (I did say MF was insanely complex) to take
+the output from the MF decoders and feed it into D3D textures.
+Despite its complexity, Media Foundation doesn't have any built-in way
+to get at the video in a usable D3D format; if you want to use wholly
+built-in components, the only thing you can really do with video
+presentation-wise is dump it into an HWND.  These plug-ins provide the
+missing pieces to recover the decoded video in a usable format for
+D3D, which is what lets us render it into scenes containing other
+graphics layered with the video.  The reason there are two plugins is
+to support older Windows versions, namely Windows 7.  Microsoft added
+a bunch of new video functionality in Windows 8 that they didn't
+back-port to Windows 7, and many of these are integrated into Media
+Foundation.  EVRPresenter uses the old DX9-based video interfaces, so
+it runs happily in Win 7 (and probably even Vista).  DX11VideoRenderer
+uses newer DX11 video features that require Windows 8 or later.  The
+MF AudioVideoPlayer class automatically selects the one to use based
+on available functionality at run-time.  We actually could have just
+gone with EVRPresenter across the board, since the DX9 features work
+fine on later Windows versions, but the subsystem that it's based on
+is officially obsolete (says Microsoft), so I wanted a newer
+alternative as well just in case Microsoft pulls EVR support from the
+next Windows release.
+

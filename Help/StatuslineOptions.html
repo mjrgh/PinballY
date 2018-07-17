@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Status Line Options</h1>
+<p>
+   The "status line" is the area at the bottom of the main playfield
+   window where text messages are displayed.  This dialog lets you
+   customize what's displayed there.
+</p>
+<p>
+   There are actually two lines of text shown in the status area, an
+   "upper" and "lower" status line.  You can program separate custom
+   messages into each line.
+</p>
+<h2>Message text</h2>
+<p>
+   Enter the messages to display in the text boxes.  Enter multiple
+   messages by writing one message per line (press the Return key
+   to start a new line).  Messages are shown in a loop in the order
+   they're entered in the text box.
+</p>
+
+<h3>Substitution variables</h3>
+<p>
+   Within the text of each message, you can use a number of
+   "substitution variables".  These are special tags that are
+   replaced at run-time with current information, such as
+   information about the current selected game or the game
+   filter that's currently in use.
+</p>
+<table>
+   <tr><td>[Game.Title]</td><td>The title of the currently selected game</td></tr>
+   <tr><td>[Game.Manuf]</td><td>The current game's manufacturer (Williams, Gottlieb, etc)</td></tr>
+   <tr><td>[Game.Year]</td><td>Year of release of the original arcade version current game</td></tr>
+   <tr><td>[Game.System]</td><td>Name of the current game's player system (Visual Pinball, etc)</td></tr>
+   <tr><td>[Filter.Title]</td><td>Name of the current game filter (All Tables, 70s Tables, etc)</td></tr>
+   <tr><td>[Filter.Count]</td><td>Number of games matching the current filter</td></tr>
+   <tr><td>[Filter.Count:A:B:C]</td><td>Displays "A" if the filter count is 1, "B" if it's greater than 1, or "C" if it's zero</td></tr>
+   <tr><td>[Credits]</td><td>Current number of credits from inserted coins</td></tr>
+   <tr><td>[Credits.Count:A:B:C]</td><td>Displays "A" if the credit count is 1, "B" if it's greater than 1, or "C" if it's zero</td></tr>
+   <tr><td>[lb]</td><td>A literal left square bracket ("[")</td></tr>
+   <tr><td>[rb]</td><td>A literal right square bracket ("]")</td></tr>
+</table>
+
+<p>
+   The special ".Count:A:B:C" formats can be used to construct singular
+   or plural forms to match one of the counters.  For example:
+</p>
+<pre>
+    [Filter.Count] [Filter.Count:Game:Games] Selected
+</pre>
+<p>
+   The second element translates to "Game" or "Games" as needed to
+   match the count, so the overall messages would translate to
+   "1 Game Selected", "2 Games Selected", and so on.  The point is
+   simply to make the wording more human-friendly by matching the
+   singular and plural form to the actual number.
+</p>
+<p>
+   Note that we only specified two ":" alternatives in the example,
+   not three.  The third alternative is for the "zero" case, but in
+   English, you can simply use the plural form with zero
+   ("0 Games Selected" sounds right to most English speakers).
+   If you omit the third ":" alternative, the system uses the plural
+   form for zero.  That saves you a little typing, but you could
+   equally well have spelled it out in full:
+</p>
+<pre>
+    [Filter.Count] [Filter.Count:Game:Games:Games] Selected
+</pre>
+
+<h2>Message switch time</h2>
+<p>
+   The switching time sets the length of time each individual message
+   is displayed before switching to the next message.  This is given
+   in milliseconds.  A millisecond is 1/1000 of a second; 1000
+   milliseconds equals one second.
+</p>
+<p>
+   
+</body>

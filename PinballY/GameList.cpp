@@ -1,0 +1,3730 @@
+// This file is part of PinballY
+// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+//
+#include "stdafx.h"
+#include <regex>
+#include <iostream>
+#include <fstream>
+#include <Shlwapi.h>
+#include "../rapidxml/rapidxml_print.hpp"
+#include "../Utilities/Config.h"
+#include "../Utilities/PBXUtil.h"
+#include "../Utilities/GlobalConstants.h"
+#include "GameList.h"
+#include "DateUtil.h"
+#include "Application.h"
+
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+
+// include the capture-related variables
+#include "CaptureConfigVars.h"
+
+// import the rapidxml namespace for concision
+using namespace rapidxml;
+
+// global singleton
+GameList *GameList::inst = 0;
+
+void GameList::Init()
+{
+	if (inst == 0)
+		inst = new GameList();
+}
+
+void GameList::Shutdown()
+{
+	delete inst;
+	inst = 0;
+}
+
+GameList::GameList()
+{
+	// clear variables
+	curGame = -1;
+
+	// create the dummy "no game" game
+	noGame.reset(new NoGame());
+
+	// start with the All Games filter
+	curFilter = &allGamesFilter;
+
+	// assign filter command IDs starting from ID_FILTER_FIRST
+	nextFilterCmdID = ID_FILTER_FIRST;
+
+	// get the media path from the configuration
+	mediaPath = GetDataFilePath(_T("MediaPath"), _T("Media"));
+
+	// Set up our stats columns
+	gameCol = statsDb.DefineColumn(_T("Game"));
+	lastPlayedCol = statsDb.DefineColumn(_T("Last Played"));
+	playCountCol = statsDb.DefineColumn(_T("Play Count"));
+	playTimeCol = statsDb.DefineColumn(_T("Play Time"));
+	favCol = statsDb.DefineColumn(_T("Is Favorite"));
+	ratingCol = statsDb.DefineColumn(_T("Rating"));
+	categoriesCol = statsDb.DefineColumn(_T("Categories"));
+	hiddenCol = statsDb.DefineColumn(_T("Is Hidden"));
+
+	// find the game stats database file
+	TCHAR statsFile[MAX_PATH];
+	GetDeployedFilePath(statsFile, _T("GameStats.csv"), _T(""));
+	statsDb.SetFile(statsFile);
+
+	// load the game stats database, if it exists
+	if (FileExists(statsFile))
+		statsDb.Read(SilentErrorHandler());
+
+	// initialize the stats database
+	size_t nRows = statsDb.GetNumRows();
+	for (size_t i = 0; i < nRows; ++i)
+	{
+		// add a game index entry for the game ID at this row
+		if (const TCHAR *id = gameCol->Get(i); id != nullptr)
+			statsDbIndex.emplace(id, i);
+
+		// Parse the categories column.  This is stored in the CSV file
+		// as a string containing a list of category names; this tokenizes
+		// the list and converts it to a list of GameCategory pointers for
+		// fast run-time access when filtering by category.
+		ParseCategoryList(i);
+	}
+}
+
+GameList::~GameList()
+{
+}
+
+namespace ConfigVars
+{
+	static const TCHAR *CurGame = _T("GameList.CurrentGame");
+	static const TCHAR *CurFilter = _T("GameList.CurrentFilter");
+	static const TCHAR *EmptyCategories = _T("GameList.EmptyCategories");
+};
+
+void GameList::SaveConfig()
+{
+	// get the current game selection
+	TSTRING newSel;
+	if (GameListItem *game = GetNthGame(0); game != nullptr)
+		newSel = game->GetGameId();
+
+	// if it's different from the value stored in the config, update the config
+	ConfigManager *cfg = ConfigManager::GetInstance();
+	const TCHAR *cfgSel = cfg->Get(ConfigVars::CurGame, _T(""));
+	if (_tcscmp(cfgSel, newSel.c_str()) != 0)
+		cfg->Set(ConfigVars::CurGame, newSel.c_str());
+
+	// save the current filter
+	cfg->Set(ConfigVars::CurFilter, curFilter->GetFilterId().c_str());
+
+	// Figure out which categories are "empty" - i.e., no games are
+	// assigned to them.  Categories used in games will be naturally
+	// recoverable from the game database, since we list the category
+	// for each game there.  Empty categories won't be mentioned 
+	// anywhere else, though, so we need to save them separately in
+	// the config under the GameList.EmptyCategories variable.
+	// Start by going through all of the games and marking the
+	// categories they mention as "in use".
+	std::unordered_set<const GameCategory*> usedCategories;
+	for (auto &game : games)
+	{
+		// get this game's category list
+		std::list<const GameCategory*> gameCategories;
+		GetCategoryList(&game, gameCategories);
+
+		// mark each one as in-use
+		for (auto cat : gameCategories)
+			usedCategories.emplace(cat);
+	}
+
+	// Now go through all of the categories and add the ones that
+	// don't appear in the in-use set to a list of empty categories.
+	std::list<TSTRING> emptyCategories;
+	for (auto &cat : categories)
+	{
+		// if this one isn't in the in-use set, it's empty
+		if (usedCategories.find(cat.second.get()) == usedCategories.end())
+			emptyCategories.push_back(cat.second->name);
+	}
+
+	// construct the string form of the list
+	TSTRING val;
+	CSVFile::CSVify(emptyCategories, [&val](const TCHAR *seg, size_t len) {
+		val.append(seg, len);
+		return true; 
+	});
+
+	// store the value
+	cfg->Set(ConfigVars::EmptyCategories, val.c_str());
+}
+
+void GameList::SaveStatsDb()
+{
+	SilentErrorHandler eh;
+	statsDb.WriteIfDirty(eh);
+}
+
+void GameList::SaveGameListFiles()
+{
+	// set up a capturing error handler
+	CapturingErrorHandler eh;
+
+	// scan the filter list for systems
+	for (auto f : filters)
+	{
+		if (auto sys = dynamic_cast<GameSystem*>(f); sys != nullptr)
+		{
+			// This is a system entry.  Scan its list of game list XML
+			// files and save any changes.
+			for (auto &d : sys->dbFiles)
+			{
+				if (d->isDirty)
+				{
+					// Write the XML file.  Do this in two stages:  first, write the
+					// contents to a temp file in the same folder, with the same name
+					// as the XML file but with ~ appended to the name.  Then delete
+					// the original file and rename the temp file to replace it.  The
+					// staged procedure is to reduce the chances of corrupting or
+					// losing the original file data: if anything goes wrong while
+					// writing the XML, the temp file is the only thing affected, as
+					// we haven't even touched the original file yet.  We'll only
+					// replace the original file after we're sure that the new file
+					// has been successfully written.
+					TSTRING tmpfile = d->filename + _T("~");
+					std::ofstream os;
+					os.open(tmpfile.c_str());
+
+					// Print the XML.  The PinballX game list editor wrote empty tags
+					// as full begin-end tag pairs ("<tag></tag>", rather than using 
+					// the more typical XML empty-tag shorthand "<tag/>".  So we'll
+					// do the same thing just to minimize the amount of change we
+					// introduce when rewriting files.  This will also make sure that
+					// the files remain PinballX compatible even after we've mucked
+					// with them, in case someone tries this program and decides to
+					// switch back after all.  (PinballX doesn't seem to have any
+					// problem reading back the "<tag/>" format, but just in case.)
+					rapidxml::print<char>(os, d->doc, rapidxml::print_expand_empty_tags);
+					os.close();
+
+					// check for errors
+					if (!os.good())
+					{
+						// write failed - report a file write error on the temp file
+						eh.Error(MsgFmt(IDS_ERR_WRITEFILE, tmpfile.c_str(), FileErrorMessage(errno).c_str()));
+
+						// Delete the temp file, if possible, but ignore errors.  If
+						// this fails, the worst that happens is that we leave behind
+						// a harmless extra file.  Plus, the name should suggest to the 
+						// user that it's a temp file, as most of the MSFT productivity 
+						// applications use the same naming convention.  So the user
+						// will likely know that they can safely hand-delete it if
+						// they ever even notice that it's there, and if not, that's
+						// fine too; it'll just take up a small amount of disk space
+						// in the meantime.
+						DeleteFile(tmpfile.c_str());
+					}
+					else
+					{
+						// Success - replace the original file with the temp file.
+						//
+						// If this is the first time we've written the file during this
+						// session, rename the original file as a backup copy, just in
+						// case anything got screwed up in our update.  Do this only
+						// once per session, as we might save several copies, and it
+						// would defeat the purpose to save our own intermediate
+						// updates as backups.
+						TSTRING backup = d->filename + _T(".bak");
+						bool ok = true;
+						if (d->isBackedUp)
+						{
+							// We've already done a backup, so just delete any
+							// existing copy of the final file.
+							DeleteFile(d->filename.c_str());
+						}
+						else if (FileExists(d->filename.c_str()))
+						{
+							// We haven't done a backup yet, and the original file
+							// exists, so rename it as a backup.  Delete any prior
+							// backup first so that the rename succeeds.
+							DeleteFile(backup.c_str());
+							if (!MoveFile(d->filename.c_str(), backup.c_str()))
+							{
+								// rename original as backup failed
+								WindowsErrorMessage winerr;
+								eh.Error(MsgFmt(IDS_ERR_MOVEFILE, d->filename.c_str(), backup.c_str(), winerr.Get()));
+								ok = false;
+							}
+						}
+
+						// If all is well, rename the temp file as the actual file
+						if (ok)
+						{
+							// note that we've done our backup
+							d->isBackedUp = true;
+
+							// rename the file
+							if (!MoveFile(tmpfile.c_str(), d->filename.c_str()))
+							{
+								// rename temp as original failed
+								WindowsErrorMessage winerr;
+								eh.Error(MsgFmt(IDS_ERR_MOVEFILE, tmpfile.c_str(), d->filename.c_str(), winerr.Get()));
+								ok = false;
+							}
+						}
+
+						// check how that all went
+						if (ok)
+						{
+							// success - the on-disk version is now in sync with the
+							// in-memory data
+							d->isDirty = false;
+						}
+						else
+						{
+							// failed - delete the temp file (if it still exists) so 
+							// that we don't leave cruft behind
+							DeleteFile(tmpfile.c_str());
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// if we caught any errors, report them
+	if (eh.CountErrors() != 0)
+	{
+		Application::InUiErrorHandler uieh;
+		uieh.GroupError(EIT_Error, MsgFmt(IDS_ERR_SAVEGAMELIST), eh);
+	}
+}
+
+void GameList::RestoreConfig()
+{
+	// set the current filter first
+	ConfigManager *cfg = ConfigManager::GetInstance();
+	if (const TCHAR *filterId = cfg->Get(ConfigVars::CurFilter); filterId != 0)
+	{
+		// search for the filter
+		for (auto it : filters)
+		{
+			if (it->GetFilterId() == filterId)
+			{
+				SetFilter(it);
+				break;
+			}
+		}
+	}
+
+	// look up the current game, if any
+	if (const TCHAR *gameId = cfg->Get(ConfigVars::CurGame); gameId != 0)
+	{
+		// search for the game in the list selected by the filter
+		for (size_t i = 0 ; i < byTitleFiltered.size() ; ++i)
+		{
+			if (byTitleFiltered[i]->GetGameId() == gameId)
+			{
+				curGame = i;
+				break;
+			}
+		}
+	}
+
+	// create category objects for empty categories
+	if (const TCHAR *emptyCats = cfg->Get(ConfigVars::EmptyCategories, nullptr); emptyCats != nullptr)
+	{
+		// parse it from CSV format
+		std::list<TSTRING> cats;
+		CSVFile::ParseCSV(emptyCats, -1, cats);
+
+		// add the category filters
+		for (auto const &cat : cats)
+			NewCategory(cat.c_str());
+	}
+}
+
+void GameList::SetLastPlayedNow(GameListItem *game)
+{
+	DateTime d;
+	SetLastPlayed(game, d.ToString().c_str());
+}
+
+float GameList::GetRating(GameListItem *game)
+{
+	// If there's a row and column in our stats database for the 
+	// game, use the rating stored there.  This overrides any
+	// imported rating from the XML file.  If there's no entry
+	// in the stats database, use the XML file value.
+	int row = GetStatsDbRow(game, false);
+	if (row >= 0)
+	{
+		// check if the column has a non-empty value; if so,
+		// interpret it as a float and return the value
+		const TCHAR *val = ratingCol->Get(row, nullptr);
+		if (val != nullptr && val[0] != 0)
+			return (float)_ttof(val);
+	}
+
+	// There's no stats database entry, so fall back on the
+	// value from the XML database.  In the PinballX XML
+	// schema, a rating of 0 means "undefined".  In contrast,
+	// we use 0 as a valid rating meaning "0 stars" and -1
+	// to mean "unrated".  So translate a 0 in the PBX data
+	// to a -1 in our schema.
+	return game->pbxRating > 0.0f ? game->pbxRating : -1.0f;
+}
+
+void GameList::SetRating(GameListItem *game, float rating)
+{
+	// set the rating in the stats database, creating the row as needed
+	ratingCol->Set(GetStatsDbRow(game, true), rating);
+
+	// Set the PinballX rating.  -1 in our scheme means "undefined",
+	// which PBX represents as zero.  PBX has no way to represent zero
+	// stars, so store a zero star rating as the lowest PBX rating of
+	// one star.  PBX also can't store half stars, so round half stars
+	// up to the next full point.
+	if (rating < 0.0f)
+		game->pbxRating = 0.0f;
+	else if (rating == 0.0f)
+		game->pbxRating = 1.0f;
+	else
+		game->pbxRating = ceilf(rating);
+
+	// flush the changes to the XML record, if present
+	FlushToXml(game);
+}
+
+GameListItem *GameList::GetNthGame(int n)
+{
+	// if there's no current game, there's nothing to be relative to
+	if (curGame < 0)
+		return noGame.get();
+
+	// if the filter is empty, there's no current game
+	int cnt = byTitleFiltered.size();
+	if (cnt == 0)
+		return noGame.get();
+
+	// get the new index in the filtered game list, wrapping
+	return byTitleFiltered[Wrap(curGame + n, cnt)];
+}
+
+int GameList::FindNextLetter()
+{
+	// if there's no current game, no search is possible
+	if (curGame < 0)
+		return 0;
+
+	// get the current game's first letter in lower case
+	TCHAR l = _totlower(byTitleFiltered[curGame]->title[0]);
+
+	// scan ahead from the current game
+	int cnt = byTitleFiltered.size();
+	for (int i = (curGame + 1) % cnt, n = 1; i != curGame; i = (i + 1) % cnt, ++n)
+	{
+		// check for a different first letter
+		TCHAR c = _totlower(byTitleFiltered[i]->title[0]);
+		if (c != l)
+			return n;
+	}
+
+	// nothing found - stay on the current game
+	return 0;
+}
+
+int GameList::FindPrevLetter()
+{
+	// if there's no current game, no search is possible
+	if (curGame < 0)
+		return 0;
+
+	// We want to back up to the start of the current letter group,
+	// or to the start of the previous group if we're already at the
+	// start of a group.  We can accomplish both by searching for the
+	// nearest previous item with a different letter from the item
+	// just before the current item.  So start by backing up one spot.
+	int cnt = byTitleFiltered.size();
+	int i = Wrap(curGame - 1, cnt);
+
+	// get this item's first letter
+	TCHAR l = _totlower(byTitleFiltered[i]->title[0]);
+
+	// now scan backwards until we find an item with a different first letter
+	for (int n = -1; i != curGame; i = Wrap(i - 1, cnt), --n)
+	{
+		// Check the first letter of this item.  If it differs, we've found
+		// the last item in the prior group, so return the *next* item, which
+		// is the first item in the group we're looking for.
+		TCHAR c = _totlower(byTitleFiltered[i]->title[0]);
+		if (c != l)
+			return n + 1;
+	}
+
+	// nothing found - stay on the current game
+	return 0;
+}
+
+void GameList::SetGame(int n)
+{
+	// do nothing if there's no active game or the filter is empty
+	int cnt = byTitleFiltered.size();
+	if (curGame < 0 || cnt == 0)
+		return;
+
+	// switch to the new game, wrapping at the ends of the list
+	curGame = Wrap(curGame + n, cnt);
+}
+
+GameListFilter *GameList::GetFilterByCommand(int cmdID)
+{
+	// search for the filter by command ID
+	for (auto f : filters)
+	{
+		if (f->cmd == cmdID)
+			return f;
+	}
+
+	// not found
+	return nullptr;
+}
+
+void GameList::RefreshFilter()
+{
+	// Remember the current selection, if any
+	const GameListItem *oldSel = GetNthGame(0);
+
+	// reset the filter list
+	byTitleFiltered.clear();
+	curGame = -1;
+
+	// Construct the new list of games that pass the filter
+	for (auto g : byTitle)
+	{
+		// If this game is hidden OR disabled, check to see if the filter 
+		// passes hidden games.  If not, skip it.
+		if (g->IsHidden() && !curFilter->IncludeHidden())
+			continue;
+
+		// If this game is included, add it to the list
+		if (curFilter->Include(g))
+		{
+			// note its new index, and add it to the list
+			int idx = byTitleFiltered.size();
+			byTitleFiltered.push_back(g);
+
+			auto IsLexicallyCloser = [](const TSTRING &newName, const TSTRING &oldName, const TSTRING &refName)
+			{
+				// compare the strings character by character
+				for (size_t i = 0; ; ++i)
+				{
+					// get the current character from each string
+					TCHAR cNew = i < newName.length() ? newName[i] : 0;
+					TCHAR cOld = i < oldName.length() ? oldName[i] : 0;
+					TCHAR cRef = i < refName.length() ? refName[i] : 0;
+
+					// figure the lexical distance new-to-ref and old-to-ref
+					int newDist = abs(cNew - cRef);
+					int oldDist = abs(cOld - cRef);
+
+					// If the new distance is less than the old distance, the new
+					// string is indeed closer than the old string.
+					if (newDist < oldDist)
+						return true;
+
+					// If the new distance is greater than the old distance, the
+					// new string is further away than the old string.
+					if (newDist > oldDist)
+						return false;
+
+					// The distances are equal for this character position, so we 
+					// need to look at the next characters.  If there aren't any
+					// more characters, the names must all be identical, so the
+					// new name isn't any closer than the old name.  Note that we
+					// must be at the end of ALL of the strings if we're at the
+					// end of any of them, since we know they're all identical
+					// to this point - if they weren't, we would have found a
+					// non-zero distance to one or the other above and we would
+					// have already returned.
+					if (cNew == 0)
+						return false;
+				}
+			};
+
+			// If a game was previously selected, check this game's title
+			// against the closest matching game so far, and keep the one
+			// that's closest to the old name.  This will give us a selection
+			// after the filter update that's at least alphabetically close
+			// to the old selection.  This will leave the same game selected
+			// if it's present in the new list, since it will obviously have
+			// the shortest distance (zero) from its own name.  If we don't
+			// have a candidate yet, this game is inherently the closest so
+			// far - this also has the side effect of selecting the first
+			// game we encounter, so as long the new filter matches at least
+			// one game, we'll end up with something selected.
+			if (oldSel != nullptr
+				&& (curGame == -1 || IsLexicallyCloser(g->title, byTitleFiltered[curGame]->title, oldSel->title)))
+				curGame = idx;
+		}
+	}
+}
+
+
+void GameList::SetFilter(int cmdID)
+{
+	if (auto f = GetFilterByCommand(cmdID); f != nullptr)
+		SetFilter(f);
+}
+
+void GameList::SetFilter(const GameListFilter *filter)
+{
+	// set the new filter
+	curFilter = filter;
+
+	// Refresh the filter selection
+	RefreshFilter();
+}
+
+// Initialize from the PinballX .ini file.  This isn't currently used,
+// as we prefer to load from our own config file instead, since the PBX
+// data doesn't exactly match our internal model.  This is here in case
+// anyone wants to fork the project to create a more direct drop-in 
+// replacement for PinballX.  It might also be useful as a reference
+// to see how the PinabllX INI variables map to our own settings.
+bool GameList::InitFromPinballX(ErrorHandler &eh)
+{
+	// if the PinballX path is empty in the configuration, skip this
+	const TCHAR *pbxPath = ConfigManager::GetInstance()->Get(_T("PinballXPath"), nullptr);
+	if (pbxPath == 0)
+		return true;
+
+	// read the PinballX .ini file
+	TCHAR path[MAX_PATH];
+	PathCombine(path, pbxPath, _T("Config\\PinballX.ini"));
+	long len;
+	std::unique_ptr<wchar_t> ini(ReadFileAsWStr(path, eh, len, ReadFileAsStr_NullTerm));
+	if (ini.get() == 0)
+		return false;
+
+	// current section name and variables
+	WSTRING sect;
+	struct
+	{
+		void Add(const WCHAR *name, const WCHAR *val)
+		{
+			TSTRING key = WideToTSTRING(name);
+			std::transform(key.begin(), key.end(), key.begin(), ::towlower);
+			map.emplace(key, val);
+		}
+		const TCHAR *Get(const WCHAR *name, const TCHAR *defval = 0)
+		{
+			if (auto it = map.find(name); it != map.end())
+				return it->second.c_str();
+			else
+				return defval;
+		}
+		bool GetBool(const WCHAR *name, bool defval = false)
+		{
+			if (auto it = map.find(name); it != map.end())
+			{
+				TSTRING val = it->second;
+				std::transform(val.begin(), val.end(), val.begin(), ::towlower);
+				return val == _T("true") || val == _T("1") || val == _T("yes");
+			}
+			return defval;
+		}
+		std::unordered_map<WSTRING, TSTRING> map;
+	}
+	vars;
+
+	// close a section
+	auto closeSect = [this, &eh, &sect, &vars, pbxPath]() -> bool
+	{
+		// if the section is disabled, skip it - simply return success
+		if (!vars.GetBool(L"enabled"))
+			return true;
+
+		// if this is one of the pre-defined systems or a custom
+		// system, scan its game lists
+		TSTRING sys;
+		TSTRING dofTitlePrefix;
+		TSTRING defExt;
+		if (sect == L"VisualPinball")
+		{
+			sys = _T("Visual Pinball");
+			defExt = _T(".vpt");
+		}
+		else if (sect == L"FuturePinball")
+		{
+			sys = _T("Future Pinball");
+			dofTitlePrefix = _T("FP");
+			defExt = _T(".fpt");
+		}
+		else if (sect == L"PinballFX2")
+		{
+			sys = _T("Pinball FX2");
+			dofTitlePrefix = _T("FX2");
+		}
+		else if (sect == L"PinballFX3")
+		{
+			sys = _T("Pinball FX3");
+			dofTitlePrefix = _T("FX3");
+		}
+		else if (sect == L"PinballArcade")
+		{
+			sys = _T("Pinball Arcade");
+		}
+		else if (_memicmp(sect.c_str(), L"System_", 14) == 0
+			&& _wtoi(sect.c_str() + 7) != 0
+			&& vars.Get(L"name") != 0)
+		{
+			sys = WideToTSTRING(vars.Get(L"name"));
+		}
+
+		// if we found a system name, add its games
+		if (sys.length() != 0)
+		{
+			// build the path to the database files for the system
+			TCHAR parent[MAX_PATH], path[MAX_PATH];
+			PathCombine(parent, pbxPath, _T("Databases"));
+			PathCombine(path, parent, sys.c_str());
+
+			// get the table path for the system
+			const TCHAR *tablePath = vars.Get(L"tablepath", _T(""));
+
+			// create the system object
+			GameSystem *system = CreateSystem(sys.c_str(), path, tablePath, defExt.c_str());
+
+			// load the system configuration
+			system->mediaDir = system->displayName;			// PBX always uses the display name as the media folder name
+			system->databaseDir = system->displayName;		// likewise for the table database folder name
+			system->exe = vars.Get(L"executable", _T(""));
+			system->workingPath = vars.Get(L"workingpath", _T(""));
+			system->tablePath = tablePath;
+			system->defExt = defExt;
+			system->params = vars.Get(L"parameters", _T(""));
+			system->process = vars.Get(L"process", _T(""));
+			system->dofTitlePrefix = dofTitlePrefix;
+
+			// If "mouseclickfocus" was set, synthesize startup keys sequence to
+			// generate a mouse click at the center of the main window at startup.
+			if (vars.GetBool(L"mouseclickfocus", false))
+				system->startupKeys = _T("[click playfield]");
+
+			// translate PBX's SystemType code to our system class
+			if (const TCHAR *sysType = vars.Get(L"SystemType", nullptr); sysType != nullptr)
+			{
+				switch (_wtoi(sysType))
+				{
+				case 1:
+					system->systemClass = _T("VP");
+					break;
+
+				case 2:
+					system->systemClass = _T("FP");
+					break;
+				}
+			}
+
+			// PBX keeps the working path and executable name separately,
+			// but it treats the working path as the executable folder.
+			// Build the full path to the executable by combining them.
+			TCHAR exe[MAX_PATH];
+			PathCombine(exe, system->workingPath.c_str(), system->exe.c_str());
+			system->exe = exe;
+
+			// scan the .XML files for the lists
+			for (auto &file : fs::directory_iterator(path))
+			{
+				// check if it's an XML file
+				const wchar_t *fname = file.path().c_str();
+				std::basic_regex<wchar_t> xmlExtPat(L".*\\.xml$", std::regex_constants::icase);
+				if (std::regex_match(fname, xmlExtPat))
+				{
+					// it is - load it
+					if (!LoadGameDatabaseFile(fname, sys.c_str(), system, eh))
+						return false;
+				}
+			}
+		}
+
+		// success
+		return true;
+	};
+
+	// scan for enabled systems
+	typedef std::basic_regex<wchar_t> wregex;
+	wregex varPat(L"^\\s*(\\w+)\\s*=\\s*(.*?)\\s*$", std::regex_constants::icase);
+	wregex sectPat(L"^\\s*\\[\\s*(.*?)\\s*\\]\\s*$");
+	for (wchar_t *p = ini.get(); *p != 0; )
+	{
+		// find the next line
+		const wchar_t *l = p;
+		for (; *p != '\n' && *p != '\0'; ++p);
+
+		// convert the newline to a nul byte if found
+		if (*p == '\n')
+			*p++ = '\0';
+
+		// Check for relevant line formats
+		std::match_results<const wchar_t *> m;
+		if (std::regex_match(l, m, sectPat))
+		{
+			// [Section] marker - close the current section
+			if (!closeSect())
+				return false;
+
+			// enter the new section: note the new section title and clear the 
+			// variable table
+			sect = m[1].str();
+			vars.map.clear();
+		}
+		else if (std::regex_match(l, m, varPat))
+		{
+			// add the variable
+			vars.Add(m[1].str().c_str(), m[2].str().c_str());
+		}
+	}
+
+	// close the final section
+	if (!closeSect())
+		return false;
+
+	// success
+	return true;
+}
+
+bool GameList::InitFromConfig(ErrorHandler &eh)
+{
+	// Get the database folder, using "data folder" rules
+	TSTRING dbDir = GetDataFilePath(_T("TableDatabasePath"), _T("Databases"));
+
+	// Run through the SystemN variables to see what's populated.
+	ConfigManager *cfg = ConfigManager::GetInstance();
+	for (int n = 0; n <= PinballY::Constants::MaxSystemNum; ++n)
+	{
+		// Check if there's an entry for "SystemN".  If so, populate
+		// it as long as it's not disabled.
+		MsgFmt sysvar(_T("System%d"), n);
+		MsgFmt enabled(_T("%s.Enabled"), sysvar.Get());
+		if (const TCHAR *systemName = cfg->Get(sysvar); systemName != 0 && cfg->GetBool(enabled, true))
+		{
+			// There's an enabled entry for this system slot.  First,
+			// get its table database folder so that we can populate its 
+			// game list.  Note that the system's display name is the 
+			// default media folder name, if SystemN.DatabaseDir isn't
+			// separately specified.
+			const TCHAR *databaseDir = cfg->Get(MsgFmt(_T("%s.DatabaseDir"), sysvar.Get()), _T(""));
+			if (databaseDir[0] == 0)
+				databaseDir = systemName;
+
+			// Build the full path to the database folder for the system
+			TCHAR sysDbDir[MAX_PATH], sysDbDirOrig[MAX_PATH];
+			PathCombine(sysDbDirOrig, dbDir.c_str(), databaseDir);
+			PathCanonicalize(sysDbDir, sysDbDirOrig);
+
+			// The database directory has to be unique per system
+			bool dbDirClash = false;
+			for (auto &otherSys : systems)
+			{
+				// check for a match
+				if (_tcsicmp(otherSys.second.databaseDir.c_str(), databaseDir) == 0)
+				{
+					// uh oh - flag an error and continue
+					eh.Error(MsgFmt(IDS_ERR_DBDIRCLASH, otherSys.second.displayName.c_str(), systemName, systemName));
+					dbDirClash = true;
+					break;
+				}
+			}
+
+			// skip this system if we found a database directory collision
+			if (dbDirClash)
+				continue;
+
+			// Get the system class, executable, table path, and default 
+			// extension, if defined in the configuration.
+			const TCHAR *sysClass = cfg->Get(MsgFmt(_T("%s.Class"), sysvar.Get()), _T(""));
+			const TCHAR *exe = cfg->Get(MsgFmt(_T("%s.Exe"), sysvar.Get()), _T(""));
+			const TCHAR *defExt = cfg->Get(MsgFmt(_T("%s.DefExt"), sysvar.Get()), _T(""));
+			const TCHAR *tablePath = cfg->Get(MsgFmt(_T("%s.TablePath"), sysvar.Get()), _T(""));
+
+			// if no system class is defined, infer it from the name
+			auto icase = std::regex_constants::icase;
+			if (sysClass[0] == 0)
+			{
+				// try to infer the class from the system name
+				std::basic_regex<TCHAR> vpxNamePat(_T("visual\\s*pinball.*(x|10)|vp(x|10).*"), icase);
+				std::basic_regex<TCHAR> vpNamePat(_T("visual\\s*pinball.*|vp.*|physmod.*|vp.*pm.*|visual\\s*pinball\\s.*pm.*"), icase);
+				std::basic_regex<TCHAR> fpNamePat(_T("future\\s*pinball.*|fp.*"), icase);
+				if (std::regex_match(systemName, vpxNamePat))
+					sysClass = _T("VPX");
+				else if (std::regex_match(systemName, vpNamePat))
+					sysClass = _T("VP");
+				else if (std::regex_match(systemName, fpNamePat))
+					sysClass = _T("FP");
+			}
+
+			// if we still don't know the system class, try to infer it from 
+			// the default extension
+			if (sysClass[0] == 0 && defExt[0] != 0)
+			{
+				if (_tcsicmp(defExt, _T(".vpt")) == 0)
+					sysClass = _T("VP");
+				else if (_tcsicmp(defExt, _T(".vpx")) == 0)
+					sysClass = _T("VPX");
+				else if (_tcsicmp(defExt, _T(".fpt")) == 0)
+					sysClass = _T("FP");
+			}
+
+			// if the system class is still a mystery, try to infer it 
+			// from the executable
+			if (sysClass[0] == 0 && exe[0] != 0)
+			{
+				std::basic_regex<TCHAR> vpxExePat(_T(".*\\\\vpinballx[^\\\\]*"), icase);
+				std::basic_regex<TCHAR> vpExePat(_T(".*\\\\vpinball[^\\\\]*"), icase);
+				std::basic_regex<TCHAR> fpExePat(_T(".*\\\\future\\s*pinball[^\\\\]*"), icase);
+				if (std::regex_match(exe, vpxExePat))
+					sysClass = _T("VPX");
+				else if (std::regex_match(exe, vpExePat))
+					sysClass = _T("VP");
+				else if (std::regex_match(exe, fpExePat))
+					sysClass = _T("FP");
+			}
+
+			// supply the suitable default extension for the system, if
+			// the config didn't specify one
+			if (defExt[0] == 0 && sysClass[0] != 0)
+			{
+				if (_tcsicmp(sysClass, _T("VPX")) == 0)
+					defExt = _T(".vpx");
+				else if (_tcsicmp(sysClass, _T("VP")) == 0)
+					defExt = _T(".vpt");
+				else if (_tcsicmp(sysClass, _T("FP")) == 0)
+					defExt = _T(".fpt");
+			}
+
+			// Figure the full name of the program executable:
+			//
+			// - If it's specified as an absolute path in the configuration,
+			//   use it exactly as given.
+			//
+			// - If the config specifies [STEAM], look in the registry for
+			//   the Steam installation.
+			//
+			// - If the path isn't specified at all, use the executable
+			//   associated with the default extension.
+			//
+			// - If the config gives a relative path, and a default filename
+			//   extension is specified, use path portion of the registered
+			//   application for the extension.
+			//
+			TCHAR exeBuf[MAX_PATH];
+			TSTRING registeredExe;
+			if (_tcsicmp(exe, _T("[steam]")) == 0)
+			{
+				// This is shorthand for the Steam executable as specified
+				// in the registry, under the "Steam" program ID.
+				DWORD len = countof(exeBuf);
+				if (SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+					_T("steam"), _T("Open"), exeBuf, &len)))
+					exe = exeBuf;
+			}
+			else if ((exe[0] == 0 || PathIsRelative(exe)) && GetProgramForExt(registeredExe, defExt))
+			{
+				// If no program name was specified, use the registered
+				// program as found.  If a partial program name was given,
+				// take the PATH portion of the registered program, and
+				// combine it with the relative filename given in the
+				// config.
+				if (exe[0] == 0)
+				{
+					// no program specified - use the registered program
+					// name in its entirety
+					exe = registeredExe.c_str();
+				}
+				else
+				{
+					// partial program name specified - combine the path 
+					// from the registered program with the filename from
+					// the config
+					_tcscpy_s(exeBuf, registeredExe.c_str());
+					PathRemoveFileSpec(exeBuf);
+					PathAppend(exeBuf, exe);
+					exe = exeBuf;
+				}
+			}
+
+			// the working directory is the folder containing the executable
+			const TCHAR *exeFileName = PathFindFileName(exe);
+			TSTRING workingPath(exe, exeFileName - exe);
+
+			// If the table path is in relative notation, it's relative to the
+			// system's program folder.  Expand it to an absolute path.
+			TCHAR tablePathBuf[MAX_PATH];
+			if (tablePath[0] == 0 || PathIsRelative(tablePath))
+			{
+				// start with the working path
+				_tcscpy_s(tablePathBuf, workingPath.c_str());
+
+				// if a path other than empty or "." was specified, append it
+				if (tablePath[0] != 0 && _tcscmp(tablePath, _T(".")) != 0)
+					PathAppend(tablePathBuf, tablePath);
+
+				// store the result back in the table path
+				tablePath = tablePathBuf;
+			}
+
+			// create the system object
+			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath, defExt);
+
+			// Load the config variables for the system
+			system->databaseDir = databaseDir;
+			system->exe = exe;
+			system->defExt = defExt;
+			system->systemClass = sysClass;
+			system->tablePath = tablePath;
+			system->workingPath = workingPath;
+			system->mediaDir = cfg->Get(MsgFmt(_T("%s.MediaDir"), sysvar.Get()), systemName);
+			system->params = cfg->Get(MsgFmt(_T("%s.Parameters"), sysvar.Get()), _T(""));
+			system->process = cfg->Get(MsgFmt(_T("%s.Process"), sysvar.Get()), _T(""));
+			system->startupKeys = cfg->Get(MsgFmt(_T("%s.StartupKeys"), sysvar.Get()), _T(""));
+			system->dofTitlePrefix = cfg->Get(MsgFmt(_T("%s.DOFTitlePrefix"), sysvar.Get()), _T(""));
+			system->runBefore = cfg->Get(MsgFmt(_T("%s.RunBefore"), sysvar.Get()), _T(""));
+			system->runAfter = cfg->Get(MsgFmt(_T("%s.RunAfter"), sysvar.Get()), _T(""));
+			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
+
+			// Search the system's database directory for .XML files.  These 
+			// contain the table metadata for the system's tables.
+			for (auto &file : fs::directory_iterator(sysDbDir))
+			{
+				// check if it's an XML file
+				const wchar_t *fname = file.path().c_str();
+				std::basic_regex<wchar_t> xmlExtPat(L".*\\.xml$", std::regex_constants::icase);
+				if (std::regex_match(fname, xmlExtPat))
+				{
+					// it's an XML file - load the table list
+					if (!LoadGameDatabaseFile(fname, databaseDir, system, eh))
+						return false;
+				}
+			}
+		}
+	}
+
+	// success
+	return true;
+}
+
+bool GameList::Load(ErrorHandler &eh)
+{
+	// initialize from the configuration variables
+	if (!InitFromConfig(eh))
+		return false;
+
+	// if the game index is empty, log an error, but continue running,
+	// as the user might for some reason just want to run the empty UI
+	if (games.size() == 0)
+		eh.Error(LoadStringT(IDS_ERR_NOGAMES).c_str());
+
+	// Add game entries for unconfigured table files - that is, files
+	// we find in the system folders that match a default extension
+	// for one or systems, but which have no game database entries.
+	// The direct file entries allow the user to play new table files
+	// immediately without setting up their metadata and media files,
+	// and also let the user see which files haven't been set up yet
+	// and run the setup menus for them.
+	AddUnconfiguredGames();
+
+	// Build the title index
+	BuildTitleIndex();
+
+	// Create the master filter list.  The UI uses this to construct
+	// menus to select filters, by selecting subsets of the filters
+	// of desired types, usually by C++ class (using dynamic_cast<>).
+	// For the most part, the UI builds filter menus in the order in
+	// which the filters appear in our master list, so we need to pay
+	// attention to the presentation aesthetics when choosing how to
+	// order the filters.  Within each group, if there's a natural
+	// ordering principle for the filter type, we use that; e.g.,
+	// we order the "era" filters chronologically.  In the absence 
+	// of any ordering principle peculiar to the filter class, we
+	// just order the items alphabetically.  The ordering is only 
+	// important within subclass groups, because the UI never
+	// presents all of the filters in a single flat list (such a
+	// list would be too long for usability's sake).
+	
+	// Start with the "All Games" filter
+	AddFilter(&allGamesFilter);
+
+	// Add the Hidden Games filter
+	AddFilter(&hiddenGamesFilter);
+	
+	// Add the Favorites filter
+	AddFilter(&favoritesFilter);
+
+	// Build an index on the date filters, sorted chronologically
+	std::vector<DateFilter*> dfIndex;
+	for (auto &df : dateFilters)
+		dfIndex.push_back(&df.second);
+	std::sort(dfIndex.begin(), dfIndex.end(), [](DateFilter* const &a, DateFilter* const &b) {
+		return a->yearFrom < b->yearFrom;
+	});
+
+	// add the date filters to the master list
+	for (auto df : dfIndex)
+		AddFilter(df);
+
+	// Build an index on the manufacturer filters, sorted alphabetically
+	std::vector<GameManufacturer*> mfIndex;
+	for (auto &mf : manufacturers)
+		mfIndex.push_back(&mf.second);
+	std::sort(mfIndex.begin(), mfIndex.end(), [](GameManufacturer* const &a, GameManufacturer* const &b) {
+		return lstrcmpi(a->manufacturer.c_str(), b->manufacturer.c_str()) < 0;
+	});
+
+	// add the manufacturers to the master list
+	for (auto mf : mfIndex)
+		AddFilter(mf);
+
+	// Build an index on the system filters, sorted alphabetically
+	std::vector<GameSystem*> sysIndex;
+	for (auto &sys : systems)
+		sysIndex.push_back(&sys.second);
+	std::sort(sysIndex.begin(), sysIndex.end(), [](GameSystem* const &a, GameSystem* const &b) {
+		return lstrcmpi(a->displayName.c_str(), b->displayName.c_str()) < 0;
+	});
+
+	// add the system filters to the master list
+	for (auto sys : sysIndex)
+		AddFilter(sys);
+
+	// Build an index on the category filters, sorted alphabetically
+	std::vector<GameCategory*> catIndex;
+	for (auto &cat : categories)
+		catIndex.push_back(cat.second.get());
+	std::sort(catIndex.begin(), catIndex.end(), [](GameCategory* const &a, GameCategory* const &b) {
+		return a->SortsBefore(b);
+	});
+
+	// Add the category filters in alphabetical order
+	for (auto cat : catIndex)
+		AddFilter(cat);
+
+	// Add the "Uncategorized" filter at the end
+	AddFilter(&noCategoryFilter);
+
+	// Create the rating filters
+	for (int stars = -1; stars <= 5; ++stars)
+	{
+		// add the filter
+		auto it = ratingFilters.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(stars),
+			std::forward_as_tuple(stars));
+
+		// add it to the master list
+		AddFilter(&it.first->second);
+	}
+
+	// Create the recency filters.  These sort games by how recently
+	// they've been played.
+	auto CreateRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
+	{
+		// create the filter
+		recencyFilters.emplace_back(
+			LoadStringT(titleStringId).c_str(), 
+			LoadStringT(menuStringId).c_str(),
+			days, exclude);
+
+		// add it to the master list
+		AddFilter(&recencyFilters.back());
+	};
+	CreateRecencyFilter(IDS_FILTER_THISWEEK, IDS_SFILTER_THISWEEK, 7, false);
+	CreateRecencyFilter(IDS_FILTER_THISMONTH, IDS_SFILTER_THISMONTH, 30, false);
+	CreateRecencyFilter(IDS_FILTER_THISYEAR, IDS_SFILTER_THISYEAR, 365, false);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISWEEK, IDS_SFILTER_NOTTHISWEEK, 7, true);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISMONTH, IDS_SFILTER_NOTTHISMONTH, 30, true);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISYEAR, IDS_SFILTER_NOTTHISYEAR, 365, true);
+
+	// For the "Never Played" filter, use an absurdly long interval
+	// of a million years, and of course the "exclude" flag.  This
+	// effectively filters out anything with a valid Last Played time,
+	// thus selecting only games that have never been played.  It's
+	// certainly possible to construct a valid date before a million
+	// years ago and put it in the database by hand, but we'd never 
+	// create that sort of timestamp organically, so the only way this 
+	// filter would get confused is if someone was intentionally trying
+	// to confuse it.  In which case it's their problem!
+	CreateRecencyFilter(IDS_FILTER_NEVERPLAYED, IDS_SFILTER_NEVERPLAYED, 365242200, true);
+
+	// set the "all games" filter to populate the initial filter list
+	SetFilter(&allGamesFilter);
+
+	// success
+	return true;
+}
+
+void GameList::BuildTitleIndex() 
+{
+	// clear any previous index
+	byTitle.clear();
+
+	// create the title index
+	for (auto &g : games)
+		byTitle.emplace_back(&g);
+
+	// sort the title index
+	SortTitleIndex();
+}
+
+void GameList::SortTitleIndex()
+{
+	// sort the title index alphabetically
+	std::sort(byTitle.begin(), byTitle.end(), [](GameListItem* const &a, GameListItem* const &b) {
+		return lstrcmpi(a->title.c_str(), b->title.c_str()) < 0;
+	});
+}
+
+void GameList::AddUnconfiguredGames()
+{
+	// go through the table file sets
+	for (auto &tfsIter : tableFileSets)
+	{
+		// go through the files in this set
+		auto &tfs = tfsIter.second;
+		for (auto &fileIter : tfsIter.second.files)
+		{
+			// if there's no GameListItem for this file, it's unconfigured
+			auto &file = fileIter.second;
+			if (file.game == nullptr)
+			{
+				// Add a game list item for the file.  Use the filename as
+				// the display name and media name.
+				auto &newGame = games.emplace_back(file.filename.c_str(), &tfs);
+
+				// initialize its Hidden status
+				newGame.SetHidden(IsHidden(&newGame), false);
+			}
+		}
+	}
+}
+
+int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext, 
+	const std::list<TSTRING> newFiles)
+{
+	// Find the table file set described by the path and extension.  If
+	// there isn't such a table file set, ignore the files: we must have
+	// launched a file scan and then loaded a new configuration that
+	// doesn't include this folder before the scan completed.  Any files
+	// found in a folder we're no longer monitoring are of no interest.
+	int nAdded = 0;
+	auto it = tableFileSets.find(TableFileSet::GetKey(path.c_str(), ext.c_str()));
+	if (it != tableFileSets.end())
+	{
+		// get the table file set object
+		auto &ts = it->second;
+
+		// add each file
+		for (auto &f : newFiles) 
+		{
+			// if the file isn't part of the table file set, add it
+			if (ts.FindFile(f.c_str(), nullptr, false) == nullptr)
+			{
+				// add it
+				auto tf = ts.AddFile(f.c_str());
+
+				// add a game list item for the file
+				auto &newGame = games.emplace_back(f.c_str(), &ts);
+
+				// initialize its Hidden status
+				newGame.SetHidden(IsHidden(&newGame), false);
+
+				// count it
+				++nAdded;
+			}
+		}
+	}
+
+	// return the number of added games
+	return nAdded;
+}
+
+GameSystem *GameList::CreateSystem(
+	const TCHAR *systemName, const TCHAR *sysDatabaseDir, 
+	const TCHAR *tablePath, const TCHAR *defExt)
+{
+	// Look up the system by name
+	auto it = systems.find(systemName);
+	if (it == systems.end())
+	{
+		// it doesn't exist yet - add it
+		it = systems.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(systemName),
+			std::forward_as_tuple(systemName)).first;
+
+		// Figure the system's generic file name.  The generic file
+		// is of the form <database path>\<system dir>\<system dir>.xml.
+		TCHAR genericFileName[MAX_PATH];
+		_tcscpy_s(genericFileName, sysDatabaseDir);
+		PathAppend(genericFileName, PathFindFileName(sysDatabaseDir));
+		_tcscat_s(genericFileName, _T(".xml"));
+
+		// assign it
+		it->second.genericDbFilename = genericFileName;
+	}
+
+	// Get the system
+	GameSystem *system = &it->second;
+
+	// Look up the table file set object for the system's table
+	// file pattern
+	TSTRING key = TableFileSet::GetKey(tablePath, defExt);
+	auto itfs = tableFileSets.find(key);
+	if (itfs == tableFileSets.end())
+	{
+		// there's no table file set for this pattern yet - create one
+		itfs = tableFileSets.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(key),
+			std::forward_as_tuple(tablePath, defExt)).first;
+	}
+
+	// cross-reference the system and the table file set
+	TableFileSet *tfs = &itfs->second;
+	tfs->systems.push_back(system);
+	system->tableFileSet = tfs;
+
+	// return the system we found or created
+	return system;
+}
+
+bool GameList::LoadGameDatabaseFile(
+	const TCHAR *filename, const TCHAR *parentFolder,
+	GameSystem *system, ErrorHandler &eh)
+{
+	// read and parse the XML
+	std::unique_ptr<GameDatabaseFile> xml(new GameDatabaseFile());
+	if (!xml->Load(filename, eh))
+		return false;
+
+	// make sure it has the root <menu> node
+	typedef xml_node<char> node;
+	typedef xml_attribute<char> attr;
+	node *menu = xml->doc.first_node("menu");
+	if (menu == nullptr)
+		return false;
+
+	// Determine if the file defines a "category".
+	//
+	// Categories are user-defined tags that can be associated with
+	// games and then used to select subsets of games to display in
+	// UI.  We *mostly* implement categories using our "game stats" 
+	// database file (via a Categories column that lists the names
+	// of the categories assigned to a game), but we *also* respect
+	// the PinballX convention of using the source file location of
+	// a game's definition as an implied category.  That lets us
+	// correctly import category assignments when using files ported
+	// directly over from PinballX.
+	//
+	// The PinballX notion of categories was fairly primitive: each
+	// game could be assigned one category, determined by its file
+	// placement.  The name of XML file that contained a game entry
+	// was used as the category name for that game, with the
+	// exception that an XML file with same name as its parent
+	// system folder didn't define a category - e.g., games in
+	// Databases\Visual Pinball\Visual Pinball.xml were treated as
+	// uncategorized.
+	//
+	// So we need to determine the category name (if any) implied by
+	// the current XML file.  This category will be assigned to all
+	// of the games listed within this file.  Start by pulling out
+	// the root filename (that is, minus path prefix and .xml 
+	// suffix) to get the implied category name.
+	TCHAR categoryNameBuf[MAX_PATH];
+	_tcscpy_s(categoryNameBuf, PathFindFileName(filename));
+	PathRemoveExtension(categoryNameBuf);
+
+	// Now check the file name against the parent folder name.  If
+	// it's the same, this is the "generic" list for the system,
+	// which doesn't define a category; otherwise, it implies the 
+	// category name.
+	const TCHAR *categoryName = nullptr;
+	if (_tcsicmp(categoryNameBuf, parentFolder) != 0)
+		categoryName = categoryNameBuf;
+
+	// There's one more special case, this time of our own making 
+	// rather than a PinballX compatibility point.  Unlike PinballX,
+	// we let the user rename (and add and delete) category names
+	// through the UI.  If the user renames a category that came
+	// from an XML file name, and the new name doesn't form a valid
+	// filename, we deal with this by inserting a <CategoryName>
+	// tag into the XML file with the new name.  So if we find 
+	// this tag, it overrides the name implied by the filename.
+	// This is true even if the name matches the system name.
+	TSTRING catNameNodeVal;
+	if (node *catNameNode = menu->first_node("CategoryName");
+		catNameNode != nullptr && catNameNode->value() != nullptr)
+	{
+		catNameNodeVal = AnsiToTSTRING(catNameNode->value());
+		categoryName = catNameNodeVal.c_str();
+	}
+
+	// If we found a category name, find or create the category
+	// object
+	GameCategory *category = nullptr;
+	if (categoryName != nullptr)
+		category = FindOrCreateCategory(categoryName);
+
+	// remember the category in the XML source file
+	xml->category = category;
+
+	// The PinballX XML schema:
+	//
+	//   <menu>
+	//     <game name="Game_filename">
+	//       <description>Game Title (Manufacturer year)</description>
+	//       <rom>Rom Name</rom>						 // VPinMAME ROM name, or DOF effects and high score retrieval
+	//       <manufacturer>Williams</manufacturer>		 // manufacturer name
+	//       <year>1980</year>                           // YYYY format; year of original arcade game release
+	//       <type>SS</type>                             // SS=solid state, EM=electromechanical, ME=pure mechanical
+	//       <hidedmd>True</hidedmd>                     // boolean
+	//       <hidetopper>True</hidetopper>               // boolean
+	//       <hidebackglass>True</hidebackglass>         // boolean
+	//       <enabled>True</enabled>                     // boolean; default = true
+	//       <rating>0</rating>                          // star rating, 1-5; 0 if unrated
+	//     </game>
+	//   </menu>
+	if (node *menu = xml->doc.first_node("menu"); menu != nullptr)
+	{
+		// visit the <game> nodes
+		for (node *game = menu->first_node("game"); game != 0; game = game->next_sibling("game"))
+		{
+			// pull out the name attribute
+			attr *nameAttr = game->first_attribute("name");
+			char *name = nameAttr != nullptr ? nameAttr->value() : nullptr;
+
+			// scan for subnodes of interest to populate our fields
+			char *desc = nullptr;
+			TSTRING manufName;
+			const char *gridPos = nullptr;
+			const char *rom = nullptr;
+			int year = 0;
+			bool enabled = true;
+			float rating = 0.0f;
+			for (node *n = game->first_node(); n != 0; n = n->next_sibling())
+			{
+				char *id = (char *)n->name();
+				if (_stricmp(id, "description") == 0)
+					desc = n->value();
+				else if (_stricmp(id, "manufacturer") == 0)
+					manufName = AnsiToTSTRING(n->value());
+				else if (_stricmp(id, "year") == 0)
+					year = atoi((char *)n->value());
+				else if (_stricmp(id, "enabled") == 0)
+					enabled = (_stricmp(n->value(), "true") == 0);
+				else if (_stricmp(id, "rom") == 0)
+					rom = n->value();
+				else if (_stricmp(id, "rating") == 0)
+					rating = (float)atof(n->value());
+				else if (_stricmp(id, "gridposition") == 0)
+					gridPos = n->value();
+			}
+
+			// if the entry has a valid filename and title, add it
+			if (name != 0 && desc != 0)
+			{
+				// The "description" in the PinballX database is conventionally in the 
+				// form "Title (Manufacturer YYYY)".  That's redundant with the separate
+				// fields provided for the manufacturer and year, but it's the way they
+				// did it, so we're stuck with it if we want to parse their files.  It
+				// does have the advantage that we can use the description elements as
+				// fallbacks in case the separate fields weren't specified.  
+				CSTRING title;
+				std::regex pat("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s+(\\d{4})\\s*\\)\\s*$");
+				std::match_results<const char *> m;
+				if (std::regex_match(desc, m, pat))
+				{
+					// matched the pattern - pull out the title
+					title = m[1].str().c_str();
+
+					// pull out the manufacturer and year, if they weren't provided
+					// in the separate database fields
+					if (manufName.length() == 0)
+						manufName = AnsiToTSTRING(m[2].str().c_str());
+					if (year == 0)
+						year = atoi(m[3].str().c_str());
+				}
+				else
+				{
+					// it's not in the standard format, so use the whole string
+					// as the title
+					title = desc;
+				}
+
+				// look up or create the manufacturer object
+				GameManufacturer *manuf = FindOrAddManufacturer(manufName.c_str());
+
+				// If a release year is specified, figure out which "era"
+				// filter the year fits in.  For years before 2000, we create
+				// an era filter by decade (1970s, 1980s, etc).  For 2000 and
+				// beyond, we use a single "2000s" filter.  We *could* filter
+				// by decade even in the 2000s, but I think it works better
+				// to lump them all into one bucket for now, since the 2000s
+				// haven't seen the kind of evolution in the machine designs
+				// that made the decades of the 1900s into recognizably 
+				// separate eras.  For whatever reason, you can look at games
+				// from the 1990s and see a distinct style from the 1980s;
+				// those were in turn different from the 1970s machines, and
+				// so on.  That kind of stopped around 1995; games from 2018
+				// don't look all that different from the late 90s games.
+				// Maybe at some point there will be enough incremental change
+				// that we'll want a new era filter, but for now I think 
+				// "2000+" is a pretty good bin.  Plus, the rate of production
+				// of new machines slowed down so much after the 90s that 
+				// "2000+" is a small bin compared with whole decades before.
+				if (year != 0)
+				{
+					// figure the date range: for pre-2000 games, use the decade;
+					// lump everything after 2000 into a single category
+					int decade = (year / 10) * 10;
+					int yearFrom, yearTo;
+					TSTRING dateFilterTitle;
+					if (decade < 2000)
+					{
+						yearFrom = decade;
+						yearTo = decade + 9;
+						dateFilterTitle = MsgFmt(IDS_FILTER_DECADE, yearFrom % 100);
+					}
+					else
+					{
+						yearFrom = 2000;
+						decade = 2000;
+						yearTo = 9999;
+						dateFilterTitle = LoadStringT(IDS_FILTER_2000S);
+					}
+
+					// if there's no such filter, add one
+					if (dateFilters.find(yearFrom) == dateFilters.end())
+					{
+						// there's no such decade filter yet - add one
+						dateFilters.emplace(
+							std::piecewise_construct,
+							std::forward_as_tuple(decade),
+							std::forward_as_tuple(dateFilterTitle.c_str(), yearFrom, yearTo));
+					}
+				}
+
+				// form the media name based on the description string
+				TSTRING mediaName = GameListItem::CleanMediaName(AnsiToTSTRING(desc).c_str());
+
+				// add the entry
+				GameListItem &g = games.emplace_back(
+					mediaName.c_str(), title.c_str(), name, manuf, year, rom, 
+					system, enabled, gridPos);
+
+				// remember the table file set for the system, and set the file
+				// entry in the system's table file list (if one exists) to point
+				// back to the game list entry
+				g.tableFileSet = system->tableFileSet;
+				auto tableFile = system->tableFileSet->FindFile(g.filename.c_str(), system->defExt.c_str(), true);
+				tableFile->game = &g;
+
+				// remember the game's XML source location
+				g.dbFile = xml.get();
+				g.gameXmlNode = game;
+
+				// set the PBX rating
+				g.pbxRating = rating;
+			}
+		}
+	}
+
+	// Hand over the XML file to the system.  The system object
+	// will own the file object from now on.  This allows the
+	// system to rewrite the XML file if we make any changes,
+	// such as adding new games or moving a game to a different
+	// category file.
+	system->dbFiles.emplace_back(xml.release());
+
+	// success 
+	return true;
+}
+
+TSTRING GameList::GetDataFilePath(const TCHAR *configVarName, const TCHAR *defaultFolder)
+{
+	// look up the config variable
+	if (const TCHAR *cfgPath = ConfigManager::GetInstance()->Get(configVarName, _T(""));
+	    !std::regex_match(cfgPath, std::basic_regex<TCHAR>(_T("\\s*"))))
+	{
+		// There's a configured path.  If it's relative, get the
+		// full path relative to the deployment folder.
+		if (PathIsRelative(cfgPath))
+		{
+			// it's relative - resolve it relative to the deployment folder
+			TCHAR buf[MAX_PATH];
+			GetDeployedFilePath(buf, cfgPath, _T(""));
+			return buf;
+		}
+		else
+		{
+			// it's an absolute path - use it exactly as given
+			return cfgPath;
+		}
+	}
+
+	// This path isn't set in the configuration.  If PinballX is installed,
+	// use the default folder in the PinballX install directory.
+	if (const TCHAR *pbxDir = GetPinballXPath(); pbxDir != nullptr)
+	{
+		// got it - use PinballX\<folder>
+		TCHAR buf[MAX_PATH];
+		PathCombine(buf, pbxDir, defaultFolder);
+		return buf;
+	}
+
+	// The default of last resort is the default folder in our own
+	// deployment folder
+	TCHAR buf[MAX_PATH];
+	GetDeployedFilePath(buf, defaultFolder, _T(""));
+	return buf;
+}
+
+int GameList::GetStatsDbRow(const TCHAR *gameId, bool createIfNotFound)
+{
+	// look up the game in our index
+	if (auto it = statsDbIndex.find(gameId); it != statsDbIndex.end())
+		return it->second;
+
+	// if they didn't want to create a new row, return "not found"
+	if (!createIfNotFound)
+		return -1;
+
+	// Create a row in the stats database
+	return AddStatsDbRow(gameId);
+}
+
+int GameList::AddStatsDbRow(const TCHAR *gameId)
+{
+	// create a new, empty row
+	int row = statsDb.CreateRow();
+
+	// set the Game column in the new row to the game ID
+	gameCol->Set(row, gameId);
+	
+	// add the row to our db index
+	statsDbIndex.emplace(gameId, row);
+
+	// return the new row
+	return row;
+}
+
+int GameList::GetStatsDbRow(GameListItem *game, bool createIfNotFound)
+{
+	// Start with the row number stored in the game object itself
+	int row = game->statsDbRow;
+
+	// If the game object's row number field -2, it means that
+	// we haven't done the lookup yet.  Do so now.
+	if (row == -2)
+	{
+		// look up the game in our index
+		auto it = statsDbIndex.find(game->GetGameId());
+
+		// If we found a matching row, store the row number in the
+		// game object and return the row.
+		if (it != statsDbIndex.end())
+			return game->statsDbRow = it->second;
+
+		// Not found.  Explicitly update the game object's row number
+		// field to -1, so that we don't have to repeat this index 
+		// lookup on the next access.  The -1 will tell us that we've
+		// already tried looking up the game and found that is has no
+		// database row.
+		row = game->statsDbRow = -1;
+	}
+
+	// If the row number is -1, it means that there's no row for this
+	// game in the stats database.  Create a new entry for it if the
+	// caller so desires.
+	if (row == -1 && createIfNotFound)
+	{
+		// Create a new, empty row in the stats database
+		row = game->statsDbRow = AddStatsDbRow(game->GetGameId().c_str());
+	}
+
+	// return the row number
+	return row;
+}
+
+GameCategory *GameList::GetCategoryByName(const TCHAR *name) const
+{
+	// look up the category by name
+	auto it = categories.find(name);
+	return it != categories.end() ? it->second.get() : nullptr;
+}
+
+bool GameList::CategoryExists(const TCHAR *name) const
+{
+	return GetCategoryByName(name) != nullptr;
+}
+
+GameCategory *GameList::FindOrCreateCategory(const TCHAR *name)
+{
+	// look up the category by name - if there's already a matching 
+	// category, simply return it
+	auto it = categories.find(name);
+	if (it != categories.end())
+		return it->second.get();
+
+	// create a new category object
+	GameCategory *newcat = new GameCategory(name);
+
+	// add it to the map
+	categories.emplace(
+		std::piecewise_construct,
+		std::forward_as_tuple(name),
+		std::forward_as_tuple(newcat));
+
+	// return the new category object
+	return newcat;
+}
+
+void GameList::NewCategory(const TCHAR *name)
+{
+	// if the category exists, do nothing
+	if (CategoryExists(name))
+		return;
+
+	// create the category
+	GameCategory *category = FindOrCreateCategory(name);
+
+	// insert a filter list entry, maintaining the sorting order
+	AddCategoryToFilterList(category);
+
+	// assign it a command ID for the menu system 
+	category->cmd = nextFilterCmdID++;
+}
+
+void GameList::AddCategoryToFilterList(GameCategory *category)
+{
+	// To maintain the sort order, insert the new category before the first
+	// existing category filter that we sort before.
+	for (auto it = filters.begin(); it != filters.end(); ++it)
+	{
+		// if it's a category filter, and we sort before it, this is
+		// the insertion point
+		if (category->SortsBefore(*it))
+		{
+			// this is the place - insert before this item, and we're done
+			filters.insert(it, category);
+			return;
+		}
+	}
+
+	// We ran through the whole list and didn't find an existing category
+	// filter that we sort before.  So either there are no existing category
+	// filters, or we sort after the last existing one.  In either case, just
+	// add the new item at the end of the filter list.  It's not important to
+	// keep the category filters contiguous in the list, so it's okay to 
+	// insert at the very end of the entire list rather than immediately 
+	// after the last existing category filter.
+	filters.push_back(category);
+}
+
+void GameList::RenameCategory(GameCategory *category, const TCHAR *newName)
+{
+	// update the name in the category object
+	const TSTRING oldName = category->name;
+	category->name = newName;
+
+	// The name of the category is also its key in the category
+	// map, so we have to remove the existing map entry and add
+	// a new one.  There's a slight trick to this: the map entry
+	// owns the category object's memory, so we have to take
+	// ownership of the pointer before deleting the entry, then
+	// convey ownership to the new entry we add.
+	if (auto it = categories.find(oldName); it != categories.end())
+	{
+		// take ownership of the pointer from the map entry
+		it->second.release();
+
+		// delete the old map entry
+		categories.erase(it);
+
+		// create a new map entry under the new name
+		categories.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(newName),
+			std::forward_as_tuple(category));
+	}
+
+	// The category also appears in the filter list.  That's not
+	// keyed to the name directly, but it is keyed indirectly, in
+	// that its position in the list is determined by alphabetical
+	// ordering.  We thus need to delete the old entry, then add it
+	// back at the new sorting position.
+	filters.remove(category);
+	AddCategoryToFilterList(category);
+
+	// The category name might also be the file name of one or
+	// more system database files.  Go through all database files
+	// tied to this category and rename them.  Start by iterating
+	// over all systems...
+	for (auto &s : systems)
+	{
+		// now iterate over all db files for this system...
+		for (auto &f : s.second.dbFiles)
+		{
+			// check for a match to this category
+			if (f->category == category)
+			{
+				// In PinballX, a category file defines a category
+				// name via its filename.  So changing the category
+				// name means we want to change the filename to
+				// match.  Build the new name by replacing the
+				// existing file spec with the category name plus
+				// the .xml suffix.
+				TCHAR newfname[MAX_PATH];
+				_tcscpy_s(newfname, f->filename.c_str());
+				PathRemoveFileSpec(newfname);
+				PathAppend(newfname, newName);
+				_tcscat_s(newfname, _T(".xml"));
+
+				// Try renaming the file.  If the file contains any
+				// path-related characters or outright invalid characters,
+				// don't bother trying.
+				std::basic_regex<TCHAR> invPat(_T("[\\\\/*?+:\"|<>]"));
+				if (!std::regex_search(newName, invPat) && MoveFile(f->filename.c_str(), newfname))
+				{
+					// Success - the category name is now implicit in the
+					// filename.  If we previously added a <CategoryName>
+					// tag to the file's contents (see below), we can now
+					// remove it.
+					if (auto root = f->doc.first_node(); root != nullptr)
+					{
+						if (auto node = root->first_node("CategoryName"); node != nullptr)
+						{
+							// remove the now-unnecessary <CategoryName> tag
+							root->remove_node(node);
+
+							// we now have unsaved changes in the file
+							f->isDirty = true;
+						}
+					}
+
+					// Update the filename in the file object
+					f->filename = newfname;
+				}
+				else
+				{
+					// Failure - we can't use the filename to imply the
+					// category name as usual.  This could be due to an
+					// ill-formed filename (e.g., invalid characters we
+					// didn't already catch in our regex test above, or
+					// an over-long path) or some runtime file system
+					// error, such as a name collision or permissions
+					// restriction.  In any case, we have a fallback:
+					// we can insert a special <CategoryName> node into
+					// the XML to override the filename as the source of
+					// the category name.  PinballX doesn't use that, so
+					// it won't get the category name correct if the 
+					// user runs PinballX on this database later, so
+					// *also* make an attempt to give the file a close-
+					// enough name, for PinballX's sake, as well as to
+					// make things clearer in if the user manually
+					// browses the file system folders.  For the
+					// "close enough" name, replace invalid characters
+					// in the proposed filename with approximations.
+					// 
+					// Note that this name munging affects only the name
+					// of the file, NOT the category name as it appears 
+					// in the UI.  The category name is exactly as the
+					// user set it no matter what happens with the filename,
+					// thanks to the <CategoryName> insertion below.
+					for (TCHAR *p = PathFindFileName(newfname); *p != 0; ++p)
+					{
+						static const TCHAR *from = _T("/*?+:|<>\"\\");
+						static const TCHAR *to = _T(";#;-;;()'_");
+						if (auto f = _tcschr(from, *p); f != nullptr)
+							*p = to[f - from];
+					}
+
+					// Try the rename again with the modified name.  If
+					// this fails, give up on the renaming.  As with the
+					// munged name, this doesn't affect the category name
+					// in the UI, so we don't lose any functionality if
+					// this fails; we merely leave behind a file on disk
+					// with a name that doesn't match its category as 
+					// shown in the UI, which will only matter to the 
+					// extent that the user browses the folder manually.
+					// Which they shouldn't need to do, thanks to our
+					// full-featured UI that offers in-program commands
+					// for most operations you'd want to do on the files.
+					if (MoveFile(f->filename.c_str(), newfname))
+					{
+						// the rename succeeded - note the new filename
+						// in the in-memory file object
+						f->filename = newfname;
+					}
+
+					// Whatever happened, add a <CategoryName> tag (or
+					// replace an existing one) that records the actual
+					// category name as assigned by the user.  This will
+					// supersede the filename as the basis for naming the
+					// category the next time the program runs, to ensure
+					// that the category name as shown in the UI always
+					// exactly matches what the user entered, even though 
+					// we couldn't give the file that exact name on disk.
+					if (auto root = f->doc.first_node(); root != nullptr)
+					{
+						auto value = f->doc.allocate_string(TCHARToAnsi(newName).c_str());
+						auto node = root->first_node("CategoryNode");
+						if (node != nullptr)
+							node->value(value);
+						else
+							node = f->doc.allocate_node(rapidxml::node_element, "CategoryName", value);
+					}
+				}
+			}
+		}
+	}
+
+	// Notify all of the games associated with the category
+	// that we're renaming the category.
+	for (auto &g : games)
+	{
+		if (IsInCategory(&g, category))
+			OnRenameCategory(&g, category, oldName.c_str());
+	}
+}
+
+void GameList::DeleteCategory(GameCategory *category)
+{
+	// first, delete the category from all games that include it
+	for (auto &g : games)
+		RemoveCategory(&g, category);
+
+	// remove the category from the filter list
+	filters.remove(category);
+
+	// For debugging purposes and protection against self-inflicted errors,
+	// we're not going to actually delete the GameCategory object.  We hand
+	// out references to this object through the public interface, so there
+	// could be some outstanding references elsewhere in the system.  There
+	// *shouldn't* be, but like I said, this is for debugging/crashproofing.
+	// Instead of deleting it, we're going to take it out of the name table
+	// and move it to a list of deleted categories.  That will keep the
+	// object alive (and thus keep any remaining pointers to it valid) for
+	// the life of the session.  As a debugging aid, we'll change the name
+	// to make it obvious that it's been deleted; if we do have any pointers
+	// floating around and someone uses one in the UI or a config file, we'll
+	// be able to see what happened.  It might still be embarrassing, but
+	// it's much less embarrassing than crashing, and will provide much
+	// better diagnostic information if it happens.
+
+	// find it in the category map
+	if (auto it = categories.find(category->name); it != categories.end())
+	{
+		// The category map normally owns the object memory.  Assume 
+		// ownership by asking the map entry to release the pointer.
+		it->second.release();
+
+		// delete the map entry
+		categories.erase(it);
+	}
+
+	// change the name so that it's obvious that it's been deleted, should
+	// someone screw up and use the pointer after this point
+	category->name += _T(" [DELETED]");
+
+	// Add it to the deleted categories list.  This list (like the original
+	// map) holds the pointer in a std::unique_ptr, so it assumes ownership
+	// of the memory and responsibility for deleting it when the list is
+	// destroyed.
+	deletedCategories.emplace_back(category);
+}
+
+void GameList::SetCategories(GameListItem *game, const std::list<const GameCategory*> &newCats)
+{
+	// get the game's current category list
+	std::list<const GameCategory*> oldCats;
+	GetCategoryList(game, oldCats);
+
+	// Add categories that appear in the new list but aren't
+	// in the old list.  Don't rebuild the stats database row
+	// on each addition, since we might have multiple changes
+	// to make - wait until we're done with the whole set and
+	// just rebuild it once.
+	bool changed = false;
+	for (auto c : newCats)
+	{
+		if (findex(oldCats, c) == oldCats.end())
+		{
+			JustAddCategory(game, c);
+			changed = true;
+		}
+	}
+
+	// Remove categories that appear in the old list but aren't
+	// in the new list.
+	for (auto c : oldCats)
+	{
+		if (findex(newCats, c) == newCats.end())
+		{
+			JustRemoveCategory(game, c);
+			changed = true;
+		}
+	}
+
+	// If we made any changes, rebuild the column in the stats db
+	if (changed)
+	{
+		// Get the row.  Note that we don't have to create a new row if one
+		// doesn't already exist, because rebuilding the category list merely
+		// syncs the two data formats stored in the same row/column inter-
+		// section.  If that intersection doesn't exist already, there's
+		// nothing to bring into sync.
+		int row = GetStatsDbRow(game);
+
+		// if there's a row, rebuild the field
+		if (row >= 0)
+			RebuildCategoryList(row);
+	}
+}
+
+void GameList::AddCategory(GameListItem *game, const GameCategory *category)
+{
+	// add the category if it's not already in the list
+	if (!IsInCategory(game, category))
+	{
+		// update the parsed list
+		JustAddCategory(game, category);
+
+		// rebuild the string form of the column data if desired
+		RebuildCategoryList(GetStatsDbRow(game));
+	}
+}
+
+GameDatabaseFile *GameList::GetGenericDbFile(GameSystem *system, bool create)
+{
+	// Find the generic XML file for the system.  It's the one 
+	// that has no associated category object.
+	for (auto const &f : system->dbFiles)
+	{
+		if (f->category == nullptr)
+			return f.get();
+	}
+
+	// There's no generic file - this is entirely possible, since
+	// a system's database files can all be category files.  If
+	// desired, create a new generic file for the system.
+	if (create)
+	{
+		// create the file object and add it to the system's file list
+		auto dbFile = new GameDatabaseFile();
+		system->dbFiles.emplace_front(dbFile);
+
+		// load an empty initial XML document
+		dbFile->Load("<menu></menu>", SilentErrorHandler());
+
+		// give it the name of the system's generic file
+		dbFile->filename = system->genericDbFilename;
+
+		// return the new file
+		return dbFile;
+	}
+
+	// no file found or created
+	return nullptr;
+}
+
+void GameList::MoveGameToDbFile(GameListItem *game, GameDatabaseFile *dbFile)
+{
+	// If no database file was specified, it means that we're to
+	// move the game to the "generic" uncategorized file for the 
+	// system.  Create the generic file if it doesn't already exist.
+	if (dbFile == nullptr)
+		dbFile = GetGenericDbFile(game->system, true);
+
+	// add the game's XML node to the generic file's XML tree
+	if (auto newParent = dbFile->doc.first_node(); newParent != nullptr)
+	{
+		// get the game's defining node
+		if (auto gameNode = game->gameXmlNode; gameNode != nullptr)
+		{
+			// remove it from its existing document
+			if (gameNode->parent() != nullptr)
+				gameNode->parent()->remove_node(gameNode);
+
+			// add it to the new document
+			newParent->append_node(gameNode);
+
+			// both the old and new db files now have unsaved changes
+			dbFile->isDirty = true;
+			if (game->dbFile != nullptr)
+				game->dbFile->isDirty = true;
+		}
+
+		// set the game's new source file location
+		game->dbFile = dbFile;
+	}
+}
+
+void GameList::JustAddCategory(GameListItem *game, const GameCategory *category)
+{
+	// Check to see if we can categorize the game by XML file placement.
+	// If the game isn't currently in a categorizing database file (that
+	// is, it's either not in a database file at all, or it's in the
+	// "generic" database file for its system, which has no category
+	// association), AND the game's system has an existing XML file for
+	// this category, move the game into that category file.  
+	//
+	// Note that we don't create a new category file if there isn't one
+	// here already, because category files are really more for legacy 
+	// PinballX compatibility than for our own purposes.  We could even
+	// just ignore the PinballX categorization scheme on updates, since
+	// our stats database provides a more general mechanism.  But we
+	// use PinballX categorization on update when possible anyway, for
+	// maximum interoperability.  This will allow PinballX to see any
+	// category changes (for a single category per game, at least) if
+	// the user ever wants to take the same data back to PinballX.
+	if (game->dbFile == nullptr || game->dbFile->category == nullptr)
+	{
+		// It passes the first check - the game isn't currently in a
+		// category file.  Now check if there's an existing category
+		// file for this category in this system.
+		if (game->system != nullptr)
+		{
+			for (auto &f : game->system->dbFiles) 
+			{
+				if (f->category == category)
+				{
+					// We found the category file for this system and
+					// this category.  Establish the categorization by
+					// moving the game's XML record into this file.
+					MoveGameToDbFile(game, f.get());
+
+					// that completes the category addition
+					return;
+				}
+			}
+		}
+	}
+
+	// We didn't add the category by XML file placement, so use our
+	// stats file category list instead.  Simply add the category to
+	// the parsed category list for the game.  This requires creating
+	// the database row and the parsed data object, if it doesn't
+	// already exist.
+	int row = GetStatsDbRow(game, true);
+	auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(row));
+	if (d == nullptr)
+		categoriesCol->SetParsedData(row, d = new ParsedCategoryData());
+
+	// add the category to the parsed list
+	d->categories.push_back(category);
+}
+
+
+void GameList::RemoveCategory(GameListItem *game, const GameCategory *category)
+{
+	// remove the category if it's in the game's current list
+	if (IsInCategory(game, category))
+	{
+		// update the parsed list and XML file location
+		JustRemoveCategory(game, category);
+
+		// Rebuild the stats db row, if there is one.  If there's isn't
+		// already a row, there's no need to rebuild the string list,
+		// because a remove operation obviously won't make an empty
+		// list non-empty.
+		if (int row = GetStatsDbRow(game, false); row >= 0)
+			RebuildCategoryList(row);
+	}
+}
+
+void GameList::JustRemoveCategory(GameListItem *game, const GameCategory *category)
+{
+	// Retrieve the parsed category list, if present.  There's no need
+	// to create one just to remove a category, as we obviously wouldn't
+	// find a list item to remove if there's no list at all.
+	int row = GetStatsDbRow(game, false);
+	auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(row));
+	if (d != nullptr)
+	{
+		// found it - remove the category from the list if present
+		d->categories.remove(category);
+	}
+
+	// Now the tricky part!  If the category was established by the
+	// game's XML file placement, we need to delete the game entry from
+	// that XML file and move it to the generic XML file for the game's
+	// system.
+	if (game->dbFile != nullptr && game->dbFile->category == category && game->system != nullptr)
+		MoveGameToDbFile(game, nullptr);
+}
+
+void GameList::OnRenameCategory(GameListItem *game, const GameCategory *category, const TCHAR * /*oldName*/)
+{
+	// If the game is associated with the category by way of the
+	// stats database "Categories" column, that column in the
+	// game's row already has a pointer to the category object
+	// in its parsed data object, so it already "knows" about
+	// the name change by reference to the category object.
+	// But that means that we have to rebuild the string version
+	// of the column data.  If we don't have a database row or
+	// a category column already, there's no need to add one,
+	// since that means we don't have such a pointer - our
+	// association with the category must come from the XML
+	// file placement instead.
+	if (auto rownum = GetStatsDbRow(game, false); rownum >= 0)
+		RebuildCategoryList(rownum);
+}
+
+void GameList::RebuildCategoryList(int rownum)
+{
+	// ignore this for invalid rows
+	if (rownum < 0)
+		return;
+
+	// Get the category list.  If there isn't one already, there's
+	// no Categories column in this row, so there's nothing to
+	// rebuild and we can simply skip this.
+	if (auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(rownum)); d != nullptr)
+	{
+		// Build a list of category names
+		std::list<TSTRING> catNames;
+		for (auto cat : d->categories)
+			catNames.emplace_back(cat->name);
+
+		// Construct the comma-separated list, using CSV format rules
+		TSTRING buf;
+		CSVFile::CSVify(catNames, [&buf](const TCHAR *segment, size_t len) {
+			buf.append(segment, len);
+			return true;
+		});
+
+		// set the text list form of the category list
+		categoriesCol->Set(rownum, buf.c_str());
+	}
+}
+
+void GameList::GetCategoryList(GameListItem *game, std::list<const GameCategory*> &cats)
+{
+	// look up the category list in the stats database
+	if (auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(GetStatsDbRow(game, false))); d != nullptr)
+	{
+		// copy the categories to the caller's result list
+		for (auto cat : d->categories)
+			cats.push_back(cat);
+	}
+
+	// Also add the implicit category set by the XML file where the game
+	// entry was defined, if there is one.
+	if (game->dbFile != nullptr && game->dbFile->category != nullptr)
+		cats.push_back(game->dbFile->category);
+}
+
+bool GameList::IsInCategory(GameListItem *game, const GameCategory *category)
+{
+	// look up the game's category list in the stats database
+	if (auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(GetStatsDbRow(game, false))); d != nullptr)
+	{
+		// We have a stats db entry.  Look for the category in that list.
+		if (auto it = findex(d->categories, category); it != d->categories.end())
+			return true;
+	}
+
+	// We didn't find the category in the stats db list, but the game
+	// could still implicitly be in the category based on the XML file
+	// where the game's entry was found.
+	return game->dbFile == nullptr ? false : game->dbFile->category == category;
+}
+
+bool GameList::IsUncategorized(GameListItem *game)
+{
+	// Look up the game's category list in the stats database.  If we have an
+	// entry with one or more categories listed, we're not uncategorized.
+	if (auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(GetStatsDbRow(game, false)));
+		d != nullptr && d->categories.size() != 0)
+		return false;
+
+	// We don't have any stats db category entries, so we're uncategorized
+	// so far.  But there's one more possibility: we could have an implicit
+	// category based on the XML file where our game entry was found.  So
+	// we're uncategorized if there's no category for the file.
+	return game->dbFile == nullptr || game->dbFile->category == nullptr;
+}
+
+void GameList::ParseCategoryList(int row)
+{
+	// get the string data from the row
+	if (const TCHAR *txt = categoriesCol->Get(row, nullptr); txt != nullptr)
+	{
+		// create a category list data object to store in the stats row
+		std::unique_ptr<ParsedCategoryData> data(new ParsedCategoryData());
+
+		// Parse the file text using CSV format rules
+		std::list<TSTRING> catNames;
+		CSVFile::ParseCSV(txt, -1, catNames);
+
+		// add each category to the column data object
+		for (auto &catName : catNames)
+			data->categories.push_back(FindOrCreateCategory(catName.c_str()));
+
+		// Store the category data object in the database row.  Note that we
+		// release the pointer to hand over ownership of the memory.
+		categoriesCol->SetParsedData(row, data.release());
+	}
+}
+
+GameManufacturer *GameList::FindOrAddManufacturer(const TCHAR *name)
+{
+	// look up an existing manufacturer
+	if (auto itMan = manufacturers.find(name); itMan != manufacturers.end())
+		return &itMan->second;
+
+	// no entry yet - create a new entry and return it
+	return &manufacturers.emplace(
+		std::piecewise_construct,
+		std::forward_as_tuple(name),
+		std::forward_as_tuple(name)).first->second;
+}
+
+void GameList::EnumManufacturers(std::function<void(const GameManufacturer*)> func)
+{
+	for (auto const &m : manufacturers)
+		func(&m.second);
+}
+
+void GameList::ChangeSystem(GameListItem *game, GameSystem *newSystem)
+{
+	// If we're not changing systems, do nothing
+	if (newSystem == game->system)
+		return;
+
+	// If we're currently associated with a system, our XML record
+	// is in the old system's database file, so the first step is
+	// to remove it from the old XML tree.
+	if (game->system != nullptr && game->gameXmlNode != nullptr)
+		game->gameXmlNode->parent()->remove_node(game->gameXmlNode);
+
+	// Get the game's current category list.  The game's database
+	// file location can give it a category, so before we remove
+	// it from its current file, we need to remember if that gave
+	// the game a category so that we can restore it when deciding
+	// where to put the game in the new system's db files.
+	auto gl = GameList::Get();
+	std::list<const GameCategory*> oldCats;
+	gl->GetCategoryList(game, oldCats);
+
+	// remove the game from its current database file
+	game->dbFile = nullptr;
+
+	// Remember the new system
+	game->system = newSystem;
+
+	// If we have a new system, move the XML record into the new
+	// system's database file.
+	GameDatabaseFile *newDbFile = nullptr;
+	if (newSystem != nullptr)
+	{
+		// Find a suitable target database file.  If we have any
+		// categories, look for a db file associated with one of
+		// our categories - that maximized PinballX interop by
+		// allowing PBX to recognize the category association
+		// should the user ever take the data back to PBX.
+		for (auto &f : newSystem->dbFiles)
+		{
+			// if this file has a category, and it's in our category
+			// list, use this as the new file location
+			if (f->category != nullptr
+				&& findex(oldCats, f->category) != oldCats.end())
+			{
+				newDbFile = f.get();
+				break;
+			}
+		}
+
+		// If we didn't find a category file, use the generic file
+		// for the system, creating one if necessary.
+		if (newDbFile == nullptr)
+			newDbFile = gl->GetGenericDbFile(newSystem, true);
+
+		// Move the game into the new file
+		MoveGameToDbFile(game, newDbFile);
+	}
+
+	// Fix up the category list.  The storage for the category list
+	// is a bit muddled because of our PinballX support.  The db file
+	// placement might imply one category, and the stats db row lists
+	// the rest of the categories.  What makes it muddled is that the
+	// stats db row listing excludes the category implied by the db 
+	// file placement.  Moving the game to a new system creates an
+	// especially difficult situation: we might have been in one
+	// category db file in the old system, and a different category
+	// db file in the new system.  Fortunately, we have the complete
+	// list of old categories, and we know which one of those is
+	// implied by the placement in the new file.  So we'll simply
+	// replace the old stats db list with the old category list
+	// MINUS the new db file placement category.
+	if (newDbFile != nullptr && newDbFile->category != nullptr)
+		oldCats.remove(newDbFile->category);
+
+	// Get the category list from the stats db row.  If the new
+	// category list is non-empty, we'll have to create the field;
+	// if the list is empty, we can leave it blank, since blank
+	// is the same as an empty list anyway.
+	int row = GetStatsDbRow(game, oldCats.size() != 0);
+	if (row >= 0)
+	{
+		// the row exists - get the field
+		auto d = dynamic_cast<ParsedCategoryData*>(categoriesCol->GetParsedData(row));
+
+		// if the field is missing, and we have categories to
+		// set, we'll need to create the field
+		if (d == nullptr && oldCats.size() != 0)
+			categoriesCol->SetParsedData(row, d = new ParsedCategoryData());
+
+		// if we have a field now, update it
+		if (d != nullptr)
+		{
+			// clear the stats db list
+			d->categories.clear();
+
+			// copy the new category list into the stats db
+			for (auto cat : oldCats)
+				d->categories.push_back(cat);
+		}
+
+		// rebuild the text list from the parsed list
+		RebuildCategoryList(row);
+	}
+}
+
+void GameList::FlushToXml(GameListItem *game)
+{
+	// There's nothing to do if the game isn't in a db file
+	if (game->dbFile == nullptr)
+		return;
+
+	// If the game doesn't already have an XML record, create one. 
+	// A game that was discovered in the file system rather than
+	// in a database will have no XML until the user edits the
+	// game record and adds it to a system.
+	auto &doc = game->dbFile->doc;
+	auto par = game->gameXmlNode;
+	if (par == nullptr)
+	{
+		// create the root game node
+		par = game->gameXmlNode = doc.allocate_node(rapidxml::node_element, "game");
+
+		// add it to the document under the root <menu> node
+		if (auto menuNode = doc.first_node("menu"); menuNode != nullptr)
+			menuNode->append_node(par);
+
+		// If the game is hidden, add <enabled>false</enabled>.  This is
+		// only necessary when creating a NEW node, since we otherwise
+		// keep <enabled> in sync on any update, and it's only necessary
+		// if the game is hidden, since <enabled>true</enabled> is the
+		// default in the absence of the tag.
+		if (game->IsHidden())
+			par->append_node(doc.allocate_node(rapidxml::node_element, "enabled", "False"));
+	}
+
+	// Get the filename to use in the <game name="xxx"> attribute. 
+	// This is just the game filename, except that we remove the
+	// extension if it matches the default extension for the system.
+	// This is just for PinballX's sake, if the user ever wants to
+	// repatriate the database files; PBX's convention is to store
+	// the filename sans extension.
+	TSTRING nameAttrValBuf;
+	const TCHAR *nameAttrVal = game->filename.c_str();
+	if (game->system != nullptr
+		&& game->system->defExt.length() != 0
+		&& tstriEndsWith(nameAttrVal, game->system->defExt.c_str()))
+	{
+		// it ends with the default extension - remove it
+		nameAttrValBuf.assign(nameAttrVal, game->filename.length() - game->system->defExt.length());
+		nameAttrVal = nameAttrValBuf.c_str();
+	}
+
+	// If there's no <game name="xxx"> attribute yet, add it
+	auto nameAttr = par->first_attribute("name");
+	if (nameAttr == nullptr)
+		par->append_attribute(nameAttr = doc.allocate_attribute("name"));
+
+	// Update <game name="xxx"> with the game filename
+	nameAttr->value(doc.allocate_string(TCHARToAnsi(nameAttrVal).c_str()));
+
+	// Add or update a child node
+	auto UpdateChildA = [game, par, &doc](const char *name, const char *val)
+	{
+		// if the child doesn't exist, add it
+		auto child = par->first_node(name);
+		if (child == nullptr)
+			par->append_node(child = doc.allocate_node(rapidxml::node_element, name));
+
+		// set the value
+		child->value(doc.allocate_string(val));
+	};
+	auto UpdateChildT = [game, par, &doc, UpdateChildA](const char *name, const TCHAR *val)
+	{
+		UpdateChildA(name, TCHARToAnsi(val).c_str());
+	};
+
+	// Build the description - "Title (Manufacturer Year)".  If both
+	// manufacturer and year are missing, just use the title.
+	TSTRINGEx desc;
+	if (game->manufacturer != nullptr && game->year != 0)
+		desc.Format(_T("%s (%s %d)"), game->title.c_str(), game->manufacturer->manufacturer.c_str(), game->year);
+	else if (game->manufacturer != nullptr)
+		desc.Format(_T("%s (%s)"), game->title.c_str(), game->manufacturer->manufacturer.c_str());
+	else if (game->year != 0)
+		desc.Format(_T("%s (%d)"), game->title.c_str(), game->year);
+	else
+		desc = game->title;
+
+	// store the description
+	UpdateChildT("description", desc);
+
+	// store the ROM name
+	UpdateChildT("rom", game->rom.c_str());
+
+	// store the manufacturer, or an empty string if there isn't one
+	UpdateChildT("manufacturer", game->manufacturer != nullptr ? game->manufacturer->manufacturer.c_str() : _T(""));
+
+	// store the year, or just a blank value if it's zero
+	char year[10];
+	sprintf_s(year, "%d", game->year);
+	UpdateChildA("year", game->year != 0 ? year : "");
+
+	// store the rating
+	char rating[10];
+	sprintf_s(rating, "%d", (int)game->pbxRating);
+	UpdateChildA("rating", rating);
+
+	// If there's a non-zero grid position, update it.  If the grid position
+	// in the in-memory record is 0x0, and there's a grid position in the
+	// XML, set the XML version to an empty string.  But if we're setting
+	// it to empty, and there's not already an XML tag for it, don't add
+	// one, as the game system probably doesn't use the tag at all in this
+	// case, so it's better not to muddy the XML with the unused tag.
+	static const char *gridPosTag = "gridposition";
+	if (game->gridPos.row != 0 && game->gridPos.col != 0)
+	{
+		// We're setting a non-zero row x col address, so set the <gridposition>
+		// element, whether or not it already exists.
+		char buf[128];
+		sprintf_s(buf, "%dx%d", game->gridPos.row, game->gridPos.col);
+		UpdateChildA(gridPosTag, buf);
+	}
+	else if (par->first_node(gridPosTag) != nullptr)
+	{
+		// The new grid position is 0x0, which means that no position is
+		// assigned, which we represent in the XML with an empty tag.  The
+		// tag already exists in the XML, so we need to update it to empty.
+		// Note that we're only doing this because the tag already exists;
+		// if there's not such a tag already, we'll just continue to leave
+		// it out of the file, which means the same thing as an empty tag
+		// for the purposes of this tag and doesn't muddy the file with an
+		// unnecessary tag for a system that probably doesn't ever use it.
+		UpdateChildA(gridPosTag, "");
+	}
+
+	// the database file now has unsaved changes
+	game->dbFile->isDirty = true;
+}
+
+void GameList::FlushGameIdChange(GameListItem *game)
+{
+	// if the game has a row in the stats database, update the Game
+	// column with the new ID
+	if (auto row = GetStatsDbRow(game, false); row >= 0)
+	{
+		// if there's an old ID value, delete its stats db index entry
+		if (auto oldId = gameCol->Get(row, nullptr); oldId != nullptr)
+			statsDbIndex.erase(oldId);
+
+		// update the stats db field
+		TSTRING newId = game->GetGameId();
+		gameCol->Set(row, newId.c_str());
+
+		// add a new index entry with the new ID
+		statsDbIndex.emplace(newId, row);
+	}
+}
+
+void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
+{
+	for (auto &pair : tableFileSets)
+		func(pair.second);
+}
+
+// -----------------------------------------------------------------------
+// 
+// Game list item.  This represents the entry for a single game.
+//
+
+GameListItem::GameListItem(
+	const TCHAR *mediaName,
+	const char *title, 
+	const char *filename,
+	const GameManufacturer *manufacturer, int year, 
+	const char *rom,
+	GameSystem *system,
+	bool enabled,
+	const char *gridPos)
+{
+	// do the basic initialization
+	CommonInit();
+
+	// store the basic attributes
+	this->mediaName = mediaName;
+	this->title = AnsiToTSTRING(title);
+	this->filename = AnsiToTSTRING(filename);
+	this->manufacturer = manufacturer;
+	this->year = year;
+	if (rom != nullptr)
+		this->rom = AnsiToTSTRING(rom);
+	this->system = system;
+	this->recentSystemIndex = -1;
+
+	// set the Hidden flag if the XML entry is disabled
+	this->hidden = !enabled;
+
+	// parse the grid position if present
+	if (gridPos != nullptr)
+	{
+		std::regex gridPat("\\s*(\\d+)x(\\d+)\\s*", std::regex_constants::icase);
+		std::match_results<const char*> m;
+		if (std::regex_match(gridPos, m, gridPat))
+		{
+			this->gridPos.row = atoi(m[1].str().c_str());
+			this->gridPos.col = atoi(m[2].str().c_str());
+		}
+	}
+
+	// this game is configured
+	this->isConfigured = true;
+}
+
+GameListItem::GameListItem(const TCHAR *filename, TableFileSet *tableFileSet)
+{
+	// do the common initialization
+	CommonInit();
+
+	// remember the filename
+	this->filename = filename;
+
+	// strip the default extension from the filename for use as the
+	// media name and title
+	size_t lenSansExt = _tcslen(filename);
+	if (tstriEndsWith(filename, tableFileSet->defExt.c_str()))
+		lenSansExt -= tableFileSet->defExt.length();
+
+	this->mediaName.assign(filename, lenSansExt);
+	this->title.assign(filename, lenSansExt);
+
+	// unconfigured games don't have manufacturer or system settings
+	this->manufacturer = nullptr;
+	this->system = nullptr;
+
+	// Remember the table file set that the file came from.  This lets
+	// us infer which system(s) the game belongs to.  It's possible for
+	// the implied system to be ambiguous, since multiple systems can
+	// share the same table file set, so we can't just assume a system
+	// here.  Keep our options open for now by simply recording the
+	// file set, so that we can look at which systems are associated
+	// with it when we actually need to know (e.g., when the user tries
+	// to run this file).
+	this->tableFileSet = tableFileSet;
+}
+
+void GameListItem::CommonInit()
+{
+	// clear fields
+	dbFile = nullptr;
+	gameXmlNode = nullptr;
+	pbxRating = 0;
+	highScoresSet = false;
+	tableFileSet = nullptr;
+	hidden = false;
+	isConfigured = false;
+
+	// we haven't attempted to look up the stats db row yet - use
+	// the magic number -2 to mean "unknown row number"
+	statsDbRow = -2;
+}
+
+GameListItem::~GameListItem()
+{
+}
+
+TSTRING GameListItem::GetGameId() const
+{
+	return title + _T(".") + (system != nullptr ? system->displayName : _T("Unconfigured"));
+}
+
+TSTRING GameListItem::CleanMediaName(const TCHAR *src)
+{
+	// process each character of the source string
+	static const TCHAR *inv = _T("<>:/|?*\"\\");
+	static const TCHAR *rep = _T("()x;;x+';");
+	TSTRING result;
+	for (; *src != 0; ++src)
+	{
+		// get this character
+		auto c = *src;
+
+		// check for forbidden characters
+		if (auto p = _tcschr(inv, c); p != nullptr)
+		{
+			// This character is invalid.  Get the replacement.
+			c = rep[p - inv];
+
+			// 'x' has the special meaning "no replacement"
+			if (c == 'x')
+				continue;
+		}
+
+		// add this character to the result
+		result.append(&c, 1);
+	}
+
+	// return the result
+	return result;
+}
+
+// Define the standard extension lists for the main media type.
+// Note that these are explicitly #define's rather than something
+// like 'static const TCHAR*', because the #define arrangement lets
+// us use C++'s string literal concatenation feature to add more
+// extensions to these lists in individual invocations.  E.g., if
+// we wanted to add ".tiff" as a possible type for a specific image
+// type, we'd write 'ImageExtensions _T(" .tiff")'.
+//
+// Extensions in the list must include the '.' character.  Use one
+// space to delimit adjacent items.
+#define ImageExtensions  _T(".png .jpg .jpeg")
+#define VideoExtensions  _T(".mp4 .mpg .mkv .wmv .f4v .m4v .avi")
+#define AudioExtensions  _T(".wav .mp3")
+
+// Flyer images are arranged into subfolders by page.  (Note that these
+// are directory names used in the HyperPin/PinballX media database
+// structure, so they're intentionally not localized.)
+static const TCHAR *flyerPages[] = {
+	_T("Front"),
+	_T("Inside1"),
+	_T("Inside2"),
+	_T("Inside3"),
+	_T("Inside4"),
+	_T("Inside5"),
+	_T("Inside6"),
+	_T("Back"),
+	nullptr
+};
+
+// Define the media types.  Note that the media type subdirectory names 
+// are explicitly not localized, since they're internal names defined by
+// the HyperPin/PinballX media database structure.
+const MediaType GameListItem::wheelImageType = {
+	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::instructionCardImageType = {
+	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, nullptr, MediaType::Image, 0, true };
+const MediaType GameListItem::flyerImageType = {
+	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, nullptr, MediaType::Image, 0, false, flyerPages };
+const MediaType GameListItem::launchAudioType = {
+	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, nullptr, MediaType::Audio, 0 };
+const MediaType GameListItem::playfieldImageType = {
+	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, nullptr, MediaType::Image, 270 };
+const MediaType GameListItem::playfieldVideoType = {
+	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, ConfigVars::CapturePFVideoTime, MediaType::VideoWithAudio, 270 };
+const MediaType GameListItem::backglassImageType = {
+	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::backglassVideoType = {
+	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, ConfigVars::CaptureBGVideoTime, MediaType::SilentVideo, 0 };
+const MediaType GameListItem::dmdImageType = {
+	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::dmdVideoType = {
+	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, ConfigVars::CaptureDMVideoTime, MediaType::SilentVideo, 0 };
+const MediaType GameListItem::topperImageType = {
+	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::topperVideoType = {
+	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, ConfigVars::CaptureTPVideoTime, MediaType::SilentVideo, 0 };
+const MediaType GameListItem::realDMDImageType = {
+	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::realDMDColorImageType = {
+	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::realDMDVideoType = {
+	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, nullptr, MediaType::Image, 0 };
+const MediaType GameListItem::realDMDColorVideoType = {
+	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, nullptr, MediaType::Image, 0 };
+
+
+bool GameListItem::MediaExists(const MediaType &mediaType) const
+{
+	TSTRING filename;
+	return GetMediaItem(filename, mediaType, false);
+}
+
+bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList)
+{
+	// Figure the new name, base on the the PinballX convention:
+	// "Title (Manufacturer Year)".  If the manufacturer or year
+	// is missing, simply omit that element.  If we don't even
+	// have a title, use the filename minus the default extension.
+	TSTRINGEx newMediaName;
+	if (title.length() == 0)
+	{
+		// figure the length, minus the default extension if present
+		size_t len = filename.length();
+		if (tableFileSet != nullptr && tstriEndsWith(filename.c_str(), tableFileSet->defExt.c_str()))
+			len -= tableFileSet->defExt.length();
+
+		// use the filename minus extension
+		newMediaName.assign(filename, len);
+	}
+	else if (manufacturer != nullptr && year != 0)
+		newMediaName.Format(_T("%s (%s %d)"), title.c_str(), manufacturer->manufacturer.c_str(), year);
+	else if (manufacturer != nullptr)
+		newMediaName.Format(_T("%s (%s)"), title.c_str(), manufacturer->manufacturer.c_str());
+	else if (year != 0)
+		newMediaName.Format(_T("%s (%d)"), title.c_str(), year);
+	else
+		newMediaName = title;
+
+	// clean up the name to remove invalid filename characters
+	mediaName = CleanMediaName(newMediaName.c_str());
+
+	// If the name has changed (ignoring case), apply the change
+	if (_tcsicmp(mediaName.c_str(), newMediaName.c_str()) != 0)
+	{
+		// find existing media items if desired
+		if (mediaRenameList != nullptr)
+		{
+			auto AddItem = [this, mediaRenameList, &newMediaName](const TSTRING &oldPath)
+			{
+				// make a copy of the path
+				TCHAR newPath[MAX_PATH];
+				_tcscpy_s(newPath, oldPath.c_str());
+
+				// The file spec for a media item always starts with the base
+				// media name, and has a varying suffix following that.  The
+				// suffix is usually just a type extension (e.g., ".jpg"), but
+				// not always - sometimes there's also a numeric suffix, such
+				// as for the instructions cards ("<media> 1.flv", etc).  We
+				// can handle all of this uniformly here by just assuming
+				// there's an opaque string suffix following the media base
+				// name.  So as long as the old file spec starts with the old
+				// media base name, pull out whatever's left after that and
+				// append it to the new base name to get the full new name.
+				TCHAR *oldName = PathFindFileName(newPath);
+				if (oldName != nullptr && tstriStartsWith(oldName, mediaName.c_str()))
+				{
+					// pull out the original suffix
+					TSTRING suffix(oldName + mediaName.length());
+
+					// remove the old name from the new path by null-terminating
+					// the string at the start of the file spec
+					*oldName = 0;
+
+					// form the new filename by combining the new media base
+					// name with the suffix from the existing file
+					TSTRING newName = newMediaName + suffix;
+
+					// append the new name to the new path
+					PathAppend(newPath, newName.c_str());
+
+					// add this <old, new> pair to the result list
+					mediaRenameList->emplace_back(oldPath, newPath);
+				}
+				else
+				{
+					// This really shouldn't be possible
+					assert(false);
+				}
+			};
+
+			auto AddItems = [this, mediaRenameList, &newMediaName, &AddItem](
+				const MediaType &mediaType)
+			{
+				// get the list of existing files for this media type
+				std::list<TSTRING> filenames;
+				GetMediaItems(filenames, mediaType, false);
+
+				// add each item to the result list with its old and new name
+				for (auto &f : filenames)
+					AddItem(f);
+			};
+
+			// add all matching media items to the rename list
+			AddItems(playfieldImageType);
+			AddItems(playfieldVideoType);
+			AddItems(backglassImageType);
+			AddItems(backglassVideoType);
+			AddItems(dmdImageType);
+			AddItems(dmdVideoType);
+			AddItems(topperImageType);
+			AddItems(topperVideoType);
+			AddItems(wheelImageType);
+			AddItems(launchAudioType);
+			AddItems(instructionCardImageType);
+			AddItems(flyerImageType);
+		}
+
+		// store the new name
+		mediaName = newMediaName;
+
+		// tell the caller that a name change occurred
+		return true;
+	}
+	else
+	{
+		// no change
+		return false;
+	}
+}
+
+bool GameListItem::GetMediaItem(TSTRING &filename,
+	const MediaType &mediaType, bool forCapture) const
+{
+	// get the list of media items
+	std::list<TSTRING> lst;
+	if (!GetMediaItems(lst, mediaType, forCapture) || lst.size() == 0)
+		return false;
+
+	// return the first item in the list
+	filename = lst.front();
+	return true;
+}
+
+
+bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
+	const MediaType &mediaType, bool forCapture) const
+{
+	// get the media path
+	TCHAR dir[MAX_PATH];
+	if (!mediaType.GetMediaPath(dir, system != nullptr ? system->mediaDir.c_str() : nullptr))
+		return false;
+
+	// If this is an indexed media type, search for an arbitrary
+	// maximum number of index values.  For non-indexed types, we
+	// only need to make one index pass.
+	int maxMediaIndex = mediaType.indexed ? 32 : 0;
+
+	// iterate over image index values
+	for (int mediaIndex = 0; mediaIndex <= maxMediaIndex; ++mediaIndex)
+	{
+		// iterate over the page subfolders
+		for (int pageno = 0; ; ++pageno)
+		{
+			// build the base filename sans extension
+			TCHAR fullName[MAX_PATH];
+			if (mediaType.pageList != nullptr)
+			{
+				// This is a paged item type.  Stop if we've exhausted
+				// the page list.
+				if (mediaType.pageList[pageno] == nullptr)
+					break;
+
+				// Combine the media folder name and page subfolder, then
+				// add the media base name
+				PathCombine(fullName, dir, mediaType.pageList[pageno]);
+				PathAppend(fullName, mediaName.c_str());
+			}
+			else
+			{
+				// This isn't a paged type, so we only need to consider 
+				// a single item.  Stop the page iteration after that.
+				if (pageno > 0)
+					break;
+
+				// Combine the media folder name and media file base name
+				PathCombine(fullName, dir, mediaName.c_str());
+			}
+
+			// get the index of the end of the string
+			size_t endIndex = _tcslen(fullName);
+
+			// If the index is non-zero, add it as well.  The zeroeth
+			// item just uses the base name with no index, so we don't
+			// add anything for media index 0.
+			if (mediaIndex != 0)
+			{
+				_stprintf_s(&fullName[endIndex], countof(fullName) - endIndex, _T(" %d"), mediaIndex);
+				endIndex += _tcslen(&fullName[endIndex]);
+			}
+
+			// check each extension
+			for (const TCHAR *ext = mediaType.exts; *ext != 0; )
+			{
+				// Append the current extension to the end of the full filename
+				// string.  Note that the 'extensions' string can list more than
+				// one extension by separating items with spaces, so only append
+				// up to (and not including) the next space.
+				size_t index = endIndex;
+				for (; *ext != 0 && *ext != ' '; ++ext)
+				{
+					// add this character if there's room
+					if (index + 1 < MAX_PATH)
+						fullName[index++] = *ext;
+				}
+
+				// null-terminate the path name
+				fullName[index] = 0;
+
+				// If the file exists, OR we're just getting the default name for
+				// capture purposes, include this name.  For capture, the filename
+				// to use for is always the first extension in the list, and it
+				// doesn't have to exist yet (since the whole point is to capture
+				// it anew), so we can simply return the first filename we form.
+				if (forCapture || FileExists(fullName))
+					filenames.emplace_back(fullName);
+
+				// if we're at a space separator in the extension string, skip it
+				if (*ext == ' ')
+					++ext;
+			}
+		}
+	}
+
+	// return true if we found any items
+	return filenames.size() != 0;
+}
+
+TSTRING GameListItem::GetDropDestFile(const TCHAR *droppedFile, const MediaType &t) const
+{
+	// Split the dropped filename into path, base filename, and
+	// extension elements
+	std::basic_regex<TCHAR> compPat(_T("(?:(.*)\\\\)?([^\\\\]+)(\\.[^\\\\.]+)$"));
+	std::match_results<const TCHAR*> m;
+	TSTRING path, baseName, ext;
+	if (std::regex_match(droppedFile, m, compPat))
+	{
+		path = m[1].str();
+		baseName = m[2].str();
+		ext = m[3].str();
+	}
+	else
+	{
+		baseName = droppedFile;
+	}
+
+	// If this is an indexed type, get the index in the name of
+	// the dropped file, if any.
+	int index = 0;
+	if (t.indexed)
+	{
+		std::basic_regex<TCHAR> indexPat(_T(".*\\s(\\d+)$"));
+		if (std::regex_match(baseName.c_str(), m, indexPat))
+			index = _ttoi(m[1].str().c_str());
+	}
+
+	// If this type breaks up pages into subfolders, get the 
+	// folder from the last path element
+	TSTRING pageDir;
+	if (t.pageList != nullptr)
+	{
+		// pull out the last element
+		std::basic_regex<TCHAR> lastElePat(_T("(?:.*\\\\)?([^\\\\]+)$"));
+		if (std::regex_match(path.c_str(), m, lastElePat))
+		{
+			// Validate that it's in the list
+			for (size_t i = 0; t.pageList[i] != nullptr; ++i)
+			{
+				// check for a case-insensitive match
+				if (_tcsicmp(t.pageList[i], m[1].str().c_str()) == 0)
+				{
+					// it's a match - use the original form from the
+					// list to make sure we have the original case
+					pageDir = t.pageList[i];
+					break;
+				}
+			}
+		}
+	}
+
+	// Assemble the name: start with the base media folder
+	TCHAR buf[MAX_PATH];
+	_tcscpy_s(buf, GameList::Get()->GetMediaPath());
+
+	// add the system-specific folder if appropriate
+	if (t.perSystem && system != nullptr)
+		PathAppend(buf, system->databaseDir.c_str());
+
+	// add the type folder
+	PathAppend(buf, t.subdir);
+
+	// add the page folder
+	if (pageDir.length() != 0)
+		PathAppend(buf, pageDir.c_str());
+
+	// add the game's base media name
+	PathAppend(buf, mediaName.c_str());
+
+	// Add the index, if it's non-zero.  Note that we don't add
+	// anything if the index is zero, even for an indexed type,
+	// since the zeroeth element of an indexed type just uses
+	// the base name.
+	if (index != 0)
+	{
+		TCHAR indexBuf[10];
+		_stprintf_s(indexBuf, _T(" %d"), index);
+		_tcscat_s(buf, indexBuf);
+	}
+
+	// Add the extension
+	_tcscat_s(buf, ext.c_str());
+
+	// and that's it!
+	return buf;
+}
+
+// Set the Hidden flag.  The Hidden status is kept in two places
+// in the external databases: it's stored in the XML database entry
+// via the <enabled> property, and it's stored in the game's stats 
+// DB row in the Hidden column.  The redundant representation is
+// unfortunate, but it lets us meet two needs that are somewhat in
+// conflict for this particular datum:  PinballX compatibility, and
+// support for unconfigured table files (those without XML entries).
+// The stats DB entry is specifically to give us a place to stick
+// metadata for files that don't appear in the PinballX databases.
+// We *could* have just used that exclusively and avoided this dual
+// storage mess, but PinballX already has the equivalent concept of 
+// <enabled> in its databases, so the only way to maintain two-way
+// compatibility is to maintain <enabled> in sync with our own stats
+// DB entry.
+void GameListItem::SetHidden(bool f, bool updateDatabases)
+{
+	// set the internal flag
+	hidden = f;
+
+	// update the database entries if desired
+	if (updateDatabases)
+	{
+		// update the stats DB Hidden column
+		GameList::Get()->SetHidden(this, f);
+
+		// If we have an XML entry, update its <enabled> status such
+		// that enabled == !hidden.  There's a special case here: the
+		// default for <enabled> is true, so if the new hidden status
+		// is false (!f), and there's no <enabled> node in the XML,
+		// we don't have to add one - a missing node means the same
+		// thing.  This is just an optimization to skip a file update
+		// when possible.  And if there's no XML node at all, we don't
+		// need to add one - this means that the game is unconfigured
+		// and thus (by definition) has no XML database entry.
+		if (gameXmlNode != nullptr && dbFile != nullptr)
+		{
+			// find the <enabled> node
+			if (auto enabledNode = gameXmlNode->first_node("enabled"); enabledNode != nullptr)
+			{
+				// update it to the new enabled status to !hidden
+				enabledNode->value(f ? "False" : "True");
+				dbFile->isDirty = true;
+			}
+			else
+			{
+				// There's no existing <enabled> node.  If the new status
+				// is Not Hidden, <enabled> is TRUE, which is the default
+				// implied by a missing node, so we can just leave well
+				// enough alone.  Otherwise, we have to add the node.
+				if (f)
+				{
+					// add the node
+					enabledNode = dbFile->doc.allocate_node(rapidxml::node_element, "enabled", "False");
+					gameXmlNode->append_node(enabledNode);
+					dbFile->isDirty = true;
+				}
+			}
+		}
+	}
+}
+
+void GameListItem::EnumHighScoreGroups(std::function<void(const std::list<const TSTRING*> &)> func)
+{
+	std::list<const TSTRING*> group;
+	for (auto it = highScores.begin(); ; ++it)
+	{
+		// if we're at a blank line or we've reached the end, process
+		// the current group
+		if (it == highScores.end() || it->length() == 0)
+		{
+			// if the current group isn't empty, send it to the callback
+			if (group.size() != 0)
+				func(group);
+
+			// start the next group
+			group.clear();
+
+			// if this is the end of the list, we're done
+			if (it == highScores.end())
+				break;
+		}
+		else
+		{
+			// add this item to the current group
+			group.emplace_back(&*it);
+		}
+	}
+}
+
+void GameListItem::DispHighScoreGroups(std::function<void(const std::list<const TSTRING*> &)> func)
+{
+	EnumHighScoreGroups([&func](const std::list<const TSTRING*> &group)
+	{
+		// A real DMD usually displays only two lines at a time,
+		// but examples exist in nature of three-line screens (e.g.,
+		// Medieval Madness's roster of mission champions).  More
+		// than that would be illegible on a 32-pixel-high display.
+		// Now, we're only simulating a DMD using a modern video
+		// display, so we could cheat and pack a lot more into
+		// each page by using the full video resolution.  But we
+		// display the score screens in alternation with images
+		// or videos captured from the DMD during game play,
+		// which will normally be at DMD resultion, so we want 
+		// to use the same low-res look for our generated score
+		// screens.  So limit our screens to three lines.
+		//
+		// PINEmHi generally breaks things up into groups that
+		// match the pages displayed during the actual high score
+		// rotation as displayed in the original ROM, but in some
+		// cases it will give us larger groups, so we'll have to
+		// do our own re-grouping in some cases.  Here's how we
+		// do this:
+		//
+		// - If the current group is three lines or fewer, show
+		//   it as given
+		//
+		// - Otherwise, break it into two-line groups.  If the
+		//   group has an odd number of lines, show the FIRST
+		//   line as the odd man out.  PINEmHi usually uses the
+		//   first line of a group as a "header" of sorts, so
+		//   it usually produces a pleasing effect to show
+		//   this by itself ahead of the remaining items.
+		auto it = group.begin();
+		if (group.size() <= 3)
+		{
+			// three or fewer lines - draw it as-is
+			func(group);
+		}
+		else
+		{
+			// More than three lines.  Break into two-line groups.
+			auto it = group.begin();
+			auto Disp = [&it, &func](int n)
+			{
+				// build the subgroup list
+				std::list<const TSTRING*> subgroup;
+				for (; n != 0; --n, ++it)
+					subgroup.emplace_back(*it);
+
+				// pass it to the callback
+				func(subgroup);
+			};
+
+			// If we have an odd number of lines, break out the
+			// first line as the one going solo.
+			if ((group.size() & 1) != 0)
+				Disp(1);
+
+			// show the remaining lines in pairs
+			while (it != group.end())
+				Disp(2);
+		}
+	});
+}
+
+// -----------------------------------------------------------------------
+//
+// Favorites filter
+//
+
+bool FavoritesFilter::Include(GameListItem *game) const
+{
+	return GameList::Get()->IsFavorite(game);
+}
+
+// -----------------------------------------------------------------------
+//
+// Hidden game filter
+//
+
+bool HiddenGamesFilter::Include(GameListItem *game) const
+{
+	return game->IsHidden();
+}
+
+// -----------------------------------------------------------------------
+//
+// Rating filter
+//
+
+bool RatingFilter::Include(GameListItem *game) const
+{
+	float gameRating = GameList::Get()->GetRating(game);
+	float minRating = (float)stars, maxRating = minRating + 1.0f;
+	return gameRating >= minRating && gameRating < maxRating;
+}
+
+
+// -----------------------------------------------------------------------
+//
+// Recency filter
+//
+
+bool RecencyFilter::Include(GameListItem *game) const
+{
+	// Get the game's last played time, as a DateTime value
+	DateTime lastPlayed(GameList::Get()->GetLastPlayed(game));
+
+	// If there's not a valid Last Played value for the game, treat it
+	// as "never played".  That means that this game can't pass any date
+	// inclusion filter, and that it passes every exclusion filter.
+	if (!lastPlayed.IsValid())
+		return exclude;
+
+	// Get the current system local time
+	SYSTEMTIME stNow;
+	GetLocalTime(&stNow);
+
+	// Adjust it to the most recent midnight
+	SYSTEMTIME stMidnight = stNow;
+	stMidnight.wHour = 0;
+	stMidnight.wMinute = 0;
+	stMidnight.wSecond = 0;
+	stMidnight.wMilliseconds = 0;
+
+	// Convert to a Variant DATE value.  This is the ideal format for
+	// our purposes here because it represents the date/time value as a
+	// number of days since an epoch (a fixed zero point in the past).
+	// That makes it easy to work in terms of days between dates.
+	DATE dMidnight;
+	SystemTimeToVariantTime(&stMidnight, &dMidnight);
+
+	// Now figure the starting point of the filter interval, by
+	// subtracting the filter's interval in days from the midnight
+	// timestamp.  In concrete terms, the DATE value is actually a
+	// 'double' representing the number of days since the epoch.
+	// The fractional part thus represents the time within the day
+	// as a fraction of 24 hours.  So to do a "days ago" calculation
+	// with an integral number of days, we simply subtract the number
+	// of days from the DATE value.
+	DATE dStart = dMidnight - days;
+
+	// Determine if the Last Played time is within the interval
+	bool lastPlayedInInterval = lastPlayed.ToVariantDate() >= dStart;
+
+	// Now determine if it passes the filter: if it's an inclusion
+	// filter, it passes if the game was last played in the interval,
+	// otherwise it passes if the game wasn't played in the interval.
+	// That makes it an XOR truth table.
+	return exclude ^ lastPlayedInInterval;
+}
+
+// -----------------------------------------------------------------------
+//
+// Special "No Game" entry.  The game list creates a singleton instance
+// of this class, and uses it to satisfy queries that select no games.
+// We mostly could have used a null pointer to represent this case instead 
+// of the special "no game" singleton, but using a valid object is more
+// convenient for a lot of cases (e.g., we don't have to test for a null
+// pointer every time we retrieve the title), and is especially useful to
+// distinguish the case "no selection" from "not initialized" and the like.
+// We need to handle the "no game" condition gracefully in many places in
+// the UI, because it's a perfectly valid and ordinary condition.  For
+// example, selecting the "5-star games" filter when there are no 5-star
+// games will select an empty list into the "wheel".
+//
+
+NoGame::NoGame() :
+	dummySystem(LoadStringT(IDS_NO_SYSTEM)),
+	dummyManufacturer(LoadStringT(IDS_NO_MANUFACTURER))
+{
+	// set the empty game title
+	title = LoadStringT(IDS_NO_GAME_TITLE);
+
+	// set our dummy system and manufacturer
+	system = &dummySystem;
+	manufacturer = &dummyManufacturer;
+}
+
+// -----------------------------------------------------------------------
+//
+// Category filters
+//
+
+bool GameCategory::Include(GameListItem *game) const
+{
+	return GameList::Get()->IsInCategory(game, this);
+}
+
+bool GameCategory::SortsBefore(const GameListFilter *other) const
+{
+	// check if the comparison item is a category filter
+	if (auto otherCat = dynamic_cast<const GameCategory*>(other); otherCat != nullptr)
+	{
+		// all regular category filters sort ahead of "Uncategorized"
+		if (dynamic_cast<const NoCategory*>(other) != nullptr)
+			return true;
+
+		// sort based on the name, ignoring case
+		return lstrcmpi(name.c_str(), otherCat->name.c_str()) < 0;
+	}
+	else
+	{
+		// we sort after non-category filters
+		return false;
+	}
+
+}
+
+bool NoCategory::Include(GameListItem *game) const
+{
+	return GameList::Get()->IsUncategorized(game);
+}
+
+bool NoCategory::SortsBefore(const GameListFilter *other) const
+{
+	// we sort after all regular category filters, and after all
+	// non-category filters, so this is simple - we're never ahead
+	// of anything!
+	return false;
+}
+
+// -----------------------------------------------------------------------
+//
+// Game database file object
+//
+
+GameDatabaseFile::GameDatabaseFile() :
+	category(nullptr),
+	isDirty(false),
+	isBackedUp(false)
+{
+}
+
+GameDatabaseFile::~GameDatabaseFile()
+{
+}
+
+bool GameDatabaseFile::Load(const TCHAR *filename, ErrorHandler &eh)
+{
+	// set the filename
+	this->filename = filename;
+
+	// read the file
+	long len = 0;
+	sourceText.reset((char *)ReadFileAsStr(filename, eh, len, ReadFileAsStr_NullTerm));
+	if (sourceText == nullptr)
+		return false;
+
+	// parse it
+	return Parse(eh);
+}
+
+bool GameDatabaseFile::Load(const char *txt, ErrorHandler &eh)
+{
+	// set the filename to indicate a memory source
+	this->filename = _T("internal:");
+
+	// allocate space for a private copy of the text
+	size_t len = strlen(txt) + 1;
+	sourceText.reset(new (std::nothrow) char[len]);
+	if (sourceText == nullptr)
+	{
+		eh.SysError(
+			MsgFmt(IDS_ERR_LOADGAMELIST, _T("[Internal]")),
+			_T("Out of memory"));
+		return false;
+	}
+
+	// copy it
+	memcpy(sourceText.get(), txt, len * sizeof(txt[0]));
+
+	// parse it
+	return Parse(eh);
+}
+
+bool GameDatabaseFile::Parse(ErrorHandler &eh)
+{
+	try
+	{
+		// Parse the file.  Omit data nodes: this represents the text
+		// contents of a node in the 'value' property of the node, which
+		// is simpler to work with than storing the text in separate
+		// child data nodes.  Data nodes would be useful if our document
+		// schema used tags embedded within text (the way HTML does),
+		// but the PinballX database schema doesn't do this, so we can 
+		// use this simpler tree representation.
+		//
+		// Note that if we *did* want to use data nodes, we'd have to
+		// change our document manipulation operations to update the 
+		// data nodes in addition to the value nodes, since the two
+		// locations store the text redundantly, and rapidxml doesn't 
+		// make any attempt to keep them in sync - that's up to the 
+		// caller.  That's the big reason it's so much easier to just 
+		// skip the data nodes entirely if you're ever going to make
+		// any updates to the parsed tree.
+		doc.parse<rapidxml::parse_no_data_nodes>(sourceText.get());
+	}
+	catch (std::exception &exc)
+	{
+		eh.SysError(
+			MsgFmt(IDS_ERR_LOADGAMELIST, filename),
+			MsgFmt(_T("XML parsing error: %hs"), exc.what()));
+		return false;
+	}
+
+	// success
+	return true;
+}
+
+// -----------------------------------------------------------------------
+//
+// Table file sets
+//
+
+TableFileSet::TableFileSet(const TCHAR *tablePath, const TCHAR *defExt) :
+	tablePath(tablePath), defExt(defExt)
+{
+	// build our initial file set from a directory scan
+	ScanFolder(tablePath, defExt, [this](const TCHAR *filename) { AddFile(filename); });
+}
+
+void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
+	std::function<void(const TCHAR *filename)> func)
+{
+	// If the default extension is non-empty, build the list of files
+	// in this folder matching *.<defExt>.  An empty extension means
+	// that the system is something like Steam that doesn't use the 
+	// VP-style model with a player program and separate table files
+	// that it can load.  An extension ".*" has the special meaning
+	// of selecting all files.
+	if (ext != nullptr && ext[0] != 0)
+	{
+		// note if we're dealing with the all-file wildcard
+		bool dotStar = (_tcscmp(ext, _T(".*")) == 0);
+
+		// build the list of files in this folder that match *.<defExt>
+		for (auto &file : fs::directory_iterator(path))
+		{
+			// skip directories
+			if (file.status().type() == fs::file_type::directory)
+				continue;
+
+			// Match this file to the default extension.  It matches
+			// if either this is the special ".*" wildcard, or the
+			// filename ends with the extension, ignoring case.
+			if (dotStar || tstriEndsWith(file.path().c_str(), ext))
+				func(WSTRINGToTSTRING(file.path().filename().wstring()).c_str());
+		}
+	}
+}
+
+TSTRING TableFileSet::GetKey(const TCHAR *tablePath, const TCHAR *defExt)
+{
+	// get the canonical form of the path
+	TCHAR buf[MAX_PATH];
+	PathCanonicalize(buf, tablePath);
+
+	// append *.<defExt>
+	PathAppend(buf, _T("*"));
+	_tcscat_s(buf, defExt);
+
+	// convert it all to lower-case
+	_tcslwr_s(buf);
+
+	// return the result
+	return buf;
+}
+
+TableFileSet::TableFile *TableFileSet::AddFile(const TCHAR *fname)
+{
+	// get the lower-case version to use as the key
+	TSTRING key(fname);
+	std::transform(key.begin(), key.end(), key.begin(), ::_totlower);
+
+	// add it to my file list
+	auto &it = files.emplace(
+		std::piecewise_construct,
+		std::forward_as_tuple(key),
+		std::forward_as_tuple(fname));
+
+	// return the new list entry
+	return &it.first->second;
+}
+
+TableFileSet::TableFile *TableFileSet::FindFile(
+	const TCHAR *filename, const TCHAR *defExt, bool add)
+{
+	// Try looking up the filename, in lower-case
+	TSTRING key(filename);
+	std::transform(key.begin(), key.end(), key.begin(), ::_totlower);
+	if (auto it = files.find(key); it != files.end())
+		return &it->second;
+
+	// We didn't find the exact filename as given.  Try again with
+	// the default extension added.  The PinballX database convention
+	// is to list the filename without the extension.
+	TSTRING fnameWithExt(filename);
+	if (defExt != nullptr && !tstriEndsWith(key.c_str(), defExt))
+	{
+		// add the default extension to the key and filename
+		key += defExt;
+		fnameWithExt += defExt;
+
+		// look up the key with the extension added
+		if (auto it = files.find(key); it != files.end())
+			return &it->second;
+	}
+
+	// We still didn't find it.  If the 'add' option is set, create
+	// a new entry representing the file, even though no such file
+	// currently exists in the file system.
+	if (add)
+	{
+		// Create the entry.  Note that we use the name with the 
+		// extension added, if it didn't already have the default 
+		// extension, since this is the file we'll find on future
+		// scans of the directory for new files.
+		return &files.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(key),
+			std::forward_as_tuple(fnameWithExt.c_str())).first->second;
+	}
+
+	// No match
+	return nullptr;
+}
+
+// -----------------------------------------------------------------------
+//
+// Media Type Descriptor
+//
+
+bool MediaType::GetMediaPath(TCHAR/*[MAX_PATH]*/ *buf, const TCHAR *systemMediaDir) const
+{
+	// check if the media for this type are stored per-system or generically
+	if (perSystem)
+	{
+		// if there's no system, we can't get system-specific media
+		if (systemMediaDir == nullptr)
+			return false;
+
+		// system-specific items are in <media dir>\<System>\<Subdir>\<Game Media Name>.ext
+		PathCombine(buf, GameList::Get()->GetMediaPath(), systemMediaDir);
+		PathAppend(buf, subdir);
+	}
+	else
+	{
+		// generic items are in <media dir>\<Subdir>\<Game Media Name>.ext
+		PathCombine(buf, GameList::Get()->GetMediaPath(), subdir);
+	}
+
+	// success
+	return true;
+}
+
+// determine if a filename has an extension matching a media type descriptor
+bool MediaType::MatchExt(const TCHAR *filename) const
+{
+	// if the media type is null, or we don't have an extension list, 
+	// there's nothing to match
+	if (this == nullptr || exts == nullptr)
+		return false;
+
+	// check each extension in the list
+	for (const TCHAR *p = exts; *p != 0; )
+	{
+		// scan for the next extension
+		const TCHAR *start = p;
+		for (; *p != 0 && *p != ' '; ++p);
+
+		// extract the current extension
+		TSTRING curExt(start, p - start);
+
+		// check for a match
+		if (tstriEndsWith(filename, curExt.c_str()))
+			return true;
+
+		// if we're at a space, skip it
+		if (*p == ' ')
+			++p;
+	}
+
+	// no match found
+	return false;
+}
+
+bool MediaType::SaveBackup(const TCHAR *filename, TSTRING &newName, ErrorHandler &eh) const
+{
+	// Separate the name into path and filename
+	TSTRING path, base;
+	const TCHAR *slash = _tcsrchr(filename, '\\');
+	if (slash != nullptr)
+	{
+		path.assign(filename, slash - filename);
+		base = slash + 1;
+	}
+	else
+		return false;
+
+	// Pull out the extension separately
+	TSTRING ext;
+	const TCHAR *dot = _tcsrchr(base.c_str(), '.');
+	if (dot != nullptr)
+	{
+		ext = dot;
+		base.resize(dot - base.c_str());
+	}
+
+	// search the folder for previous backups - <base>.old[n].<ext>
+	int nMax = 0;
+	std::basic_regex<WCHAR> filePat(L"(.*)(\\.old\\[(\\d+)\\])(\\.[^.]+)",	std::regex_constants::icase);
+	for (auto &file : fs::directory_iterator(path))
+	{
+		// get the name and parse it into our sections
+		WSTRING fname = file.path().filename();
+		std::match_results<const WCHAR*> m;
+		if (std::regex_match(fname.c_str(), m, filePat))
+		{
+			// Retrieve the name and extension.  If it doesn't match the 
+			// subject game, we don't have to touch this file.
+			WSTRING curBase = m[1].str();
+			WSTRING curExt = m[4].str();
+			if (_tcsicmp(curBase.c_str(), base.c_str()) != 0
+				|| _tcsicmp(curExt.c_str(), ext.c_str()) != 0)
+				continue;
+
+			// It's a match.  Get the .old[N] number and remember it if
+			// it's the highest so far.
+			int n = _wtoi(m[3].str().c_str());
+			if (n > nMax)
+				nMax = n;
+		}
+	}
+
+	// Build the new name for the file
+	MsgFmt newExt(_T("old[%d]%s"), nMax + 1, ext.c_str());
+	newName = MsgFmt(_T("%s\\%s.%s"), path.c_str(), base.c_str(), newExt.operator const wchar_t *());
+
+	// It's possible for the file to vanish between the time 
+	// we take the directory listing and the time we try to
+	// rename it here, so proceed only if it still exists.
+	if (FileExists(filename) && !MoveFile(filename, newName.c_str()))
+	{
+		// log the error
+		WindowsErrorMessage winErr;
+		eh.Error(MsgFmt(IDS_ERR_MEDIA_ITEM_RENAME,
+			LoadStringT(this->nameStrId).c_str(), filename, newExt.Get(), winErr.Get()));
+
+		// return failure
+		return false;
+	}
+
+	// success
+	return true;
+}
+

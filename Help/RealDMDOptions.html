@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Real DMD Options</h1>
+
+<p>
+   This dialog lets you control how PinballY uses your real DMD
+   device, if you have one.  By "real DMD", we mean an external
+   pinball-style 128x32 dot matrix display, using either a plasma
+   display like those used in the 1990s pinball machines, or an
+   LED DMD like those used in some modern Stern machines.  You
+   can add one of these to your cab by buying a commercial DMD
+   kit like PinDMD, or by building one yourself using open-source
+   plans such as Pin2DMD.
+</p>
+<p>
+   The "real DMD" settings don't affect the simulated DMD window
+   that PinballY also shows on the video monitor.  If you have a
+   real DMD and want to get rid of the redundant video DMD window,
+   simply close the window.  If you've previously closed the window
+   and want to bring it back, right-click in the main playfield
+   window and select "Show DMD" from the menu.
+</p>
+<p>
+   PinballY supports the same sets of devices that Visual Pinball
+   supports via VPinMAME, since it uses the VPinMAME DLLs to access
+   the device.  See <a href="#detect">below</a> for more details.
+</p>
+
+<h2>Enable/disable options</h2>
+<ul>
+   <li><b>Automatic:</b>  This is the default, which makes PinballY look
+   for a DMD device using the procedure described below and decide
+   what to do based on the result.  If no device is found, PinballY
+   silently ignores the DMD; there will be no error messages, since
+   it's perfectly all right not to have a DMD installed.  If
+   a device is found, PinballY will use it to display DMD media
+   for games as you visit them in the game list.
+<p>
+   If automatic detection doesn't work on your machine for some
+   reason, you can use one of the manual options below.
+</p>
+
+   <li><b>Enable always:</b>  This tells PinballY that you definitely
+   have a DMD installed.  If this is selected, PinballY looks for
+   the device using the procedure described below, and displays
+   an error message if it fails.  This option is useful if you have
+   a DMD, but PinballY doesn't seem to be using it.  When this
+   setting is in effect, and PinballY can't find your DMD, it will
+   at least display an error message with some more details on
+   the problem, which might be helpful in clearing up what's wrong.
+
+   <li><b>Disable always:</b>  This tells PinballY to ignore your DMD
+   even if it looks like you have one installed.  This is useful
+   if you have the DLL installed (see below) but you don't have
+   a physical DMD device currently attached, since in that case
+   the "Automatic" mode might trigger PinballY to show an error
+   every time it starts up.  This settings will prevent PinballY
+   from even trying to access the DMD, avoiding unnecessary
+   error messages.
+
+</ul>
+
+<h2>Display effects options</h2>
+
+<ul>
+   <li><b>Mirror horizontally:</b>  this reverses the dots across
+   the display horizontally, as though you were looking at it in
+   a mirror.
+
+   <li><b>Flip vertically:</b>  this mirrors the dots vertically.
+   This is useful if you have something like a Pinball 2000 style
+   cabinet where the DMD is meant to be viewed indirectly by its
+   reflection off the playfield glass.
+
+</ul>
+
+<a name="detect"></a>
+<h2>How PinballY detects a DMD</h2>
+<p>
+   <b>Using VPinMAME:</b>  PinballY normally detects a real DMD automatically
+   by finding it through your VPinMAME installation.  PinballY looks for
+   a file called <b>dmddevice.dll</b> in your VPinMAME program folder. 
+   That's the file that VPinMAME uses to access the DMD, so PinballY assumes
+   that if you have a DMD, you would have installed the correct version of
+   that DLL to make the DMD work with your Visual Pinball tables.  As long
+   as Visual Pinball is working properly with your DMD, PinballY should
+   automatically detect and use your DMD as well; no further setup should
+   be needed.
+</p>
+<p>
+   <b>Without VPinMAME:</b>
+   If for some reason you don't have VPinMAME installed on your machine,
+   you can still use a real DMD with PinballY by installing the correct
+   version of dmddevice.dll in your PinballY program folder.  You'll still
+   have to download VPinMAME so that you can get the correct version of
+   the DLL, but you don't have to install any other parts of VPinMAME.
+   Note that there are several different versions of the DLL in the
+   VPinMAME download files, because the DLL version has to be tailored
+   to the particular type of DMD device you have.  Be
+   You might also need an additional DLL that came with your device.
+   If your device came with its own DLL, copy that into the PinballY
+   program folder as well.
+</p>
+   
+</body>

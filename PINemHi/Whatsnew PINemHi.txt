@@ -1,0 +1,117 @@
+﻿************************
+PINemHi Version 1.3.1
+************************
+Added 99 roms , mostly SAM (including all special scores)
+Total Number of ROMS supported is now :      1240
+Total Number of VP-Games supported is now : 425
+Total Number of FP-Games supported is now :   All (standard top ten hiscore table)
+
+Made PINemHi compatible with Vpinmame version 3.0
+
+************************
+PINemHi Version 1.2
+************************
+Added  90 ROMS
+Total Number of ROMS supported is now :      1142
+Total Number of VP-Games supported is now : 388
+Total Number of FP-Games supported is now :   All (standard top ten hiscore table)
+
+replayscores support using an ini-file (added all roms from Gottlieb in pinemhi_replays.ini)
+selection for VP whether to have the hiscores only , replayscores only or both on.
+selection for VP whether to have the buy-in hiscores displayed
+These selections can be configured within the pinemhi.ini file 
+
+romfind fixes for games that start with 'the" in pinemhi.ini - thanks blur
+added 107 entries (new ones from vpinmame 2.5) to the romfind section in pinemhi.ini 
+
+Fixed Starship Troopers rom (startrp) not showing Conquered Klendathu 
+Fixed Rollercoaster Tycoon rom (rct600) not showing the right scores and initials
+Fixed Who Dunnit rom (wd_03r) not showing the right initials
+Fixed trucksp2 and trucksp3 not showing the right initials and scores - thanks freezy
+Fixed tag-team pinball to display right scores in tag team mode as well 
+
+************************
+PINemHi Version 1.1
+************************
+Added  101  VP-games
+Added  160 ROMS
+Total Number of ROMS supported is now :      1052
+Total Number of VP-Games supported is now : 388
+Total Number of FP-Games supported is now :   All (standard top ten hiscore table)
+
+Fixed some Sega and Stern games output that wasn't correct (caused by 3 initials or 10 initials choice):
+Godzilla , Golden Cue , Southpark , Sharkey's Shootout , Lost in Space , Highroller Casino , Austin Powers , Playboy (Stern)
+Fixed Fishtales scores for rock the boat and Fish Tales scores (had to read it as hex instead of decimal from the nvram)
+Dots in filenames were causing problems , this has now been fixed.
+
+
+************************
+PINemHi Version 1.0
+************************
+Added  35  VP-games
+Added  251 ROMS  (added lots of roms that are new in visual pinmame 2.4)
+Total Number of ROMS supported is now :       892
+Total Number of VP-Games supported is now : 287
+Total Number of FP-Games supported is now :   All (standard top ten hiscore table)
+
+From now on PINemHi will be a .Net 2 release instead of .Net 4  
+Full support on all Future Pinball Games (standard top ten hiscore table)
+romfind section in pinemhi.ini added to (future) support frontend(s)            * hyperpin via FPlaunch
+
+
+
+************************
+PINemHi Version 0.9
+************************
+Added 127 ROMS
+Added 95 VP-Games
+Added 1 FP-Game
+Total Number of ROMS supported is now :       641
+Total Number of FP-Games supported is now :    1
+Total Number of VP-Games supported is now : 252
+
+Added future pinball support    ***   First Future Pinball game added Family Guy Tribute   ***
+Added a pinemhi.ini to set the paths to Future pinball's fpram and Visual pinball's nvram
+PINemHi -lgf gives a list of FP-games supported
+PINemHi -lgv gives a list of VP-games supported
+PINemHi -lg is no more as of version 0.9
+-------------------------------------------------------------------------------------------------------------------------------- 
+Made segments in hiscore output.
+Made scores into fixed lengths (with multiple scores)
+changed some of the headers in the output to make it look better   * mostly for Sega and Stern games *
+-------------------------------------------------------------------------------------------------------------------------------
+fixed viprsega - used the wrong adresses for the bytes to pick up the data
+added the number of loops in mnfb_c27 (monday night football)
+-------------------------------------------------------------------------------------------------------------------------------
+
+Because of the Future Pinball support you now have to put the paths to Future pinball's fpram and Visual pinball's nvram in pinemhi.ini
+And also you have to give the extension on the commandline as well....
+For instance for visual pinball:
+PINemHi afm_113b.nv
+
+For instance for Future pinball:
+PINemhi familyguy.fpram
+ 
+
+
+************************
+PINemHi Version 0.8
+************************
+Added 178 ROMS
+Added 56 Games
+Total Number of ROMS supported is now :  514
+Total Number of Games supported is now : 157
+
+
+
+************************
+PINemHi Version 0.7
+************************
+Added 336 ROMS
+Added 101 Games
+
+
+Have Fun.  ---Dna Disturber---
+
+
+  

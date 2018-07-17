@@ -1,0 +1,982 @@
+# PinballY configuration settings
+#
+# PinballY modifies this file each time it runs, so don't edit the file
+# manually while the program is running.  However, you can safely edit the
+# file between sessions.  The program will preserve comment lines (any line 
+# starting with "#", like this one) and preserves the overall order of the
+# file's contents, so you can apply manual comments and formatting as 
+# desired to make the file more easily readable.
+#
+# Note: Variable names are case-sensitive!  Upper/lower case must be matched 
+# exactly in variable names.
+
+# time of last update by the program
+UpdateTime = Sat 28 Apr 2018 11:51:48
+
+
+# Media folder path.  This is the root of the our media folder tree, where
+# we look for the various table media files (images, videos, sounds, etc).
+# We use the same subfolder structure as HyperPin and PinballX, so you 
+# simply point this to your existing PinballX or HyperPin Media folder to 
+# use your existing files, if you installed one of those programs.
+#
+# If you enter a "relative" path here (that is, a path name that doesn't
+# start with an X:\ drive spec), the path is relative to your PinballY
+# installation folder.
+#
+# If you don't set this, the default is chosen as follows:
+#
+# 1. If PinballX is installed on your machine, your existing
+#    PinballX\Media folder will be used
+#
+# 2. Otherwise, the default is <PinballY install folder>\Media 
+#
+MediaPath =
+
+
+# Table database path.  This is the root of the game list folder tree,
+# where we look for the XML files listing games by system.  PinballY can 
+# read the XML format used by PinballX and HyperPin, so if you previously 
+# used one of those, you can reuse your existing game lists simply by
+# pointing this to the old folder path.
+#
+# If you enter a "relative" path here (that is, a path name that doesn't
+# start with an X:\ drive spec), the path is relative to your PinballY
+# installation folder.
+#
+# If you don't set this, the default is chosen as follows:
+#
+# 1. If PinballX is installed on your machine, your existing
+#    PinballX\Databases folder will be used
+#
+# 2. Otherwise, the default is <PinballY install folder>\Databases
+#
+TableDatabasePath =
+
+
+# Should PinballY automatically launch at system startup?  If this is set to 
+# True, PinballY will set the appropriate Windows registry key to tell Windows
+# to start PinballY when you first log in.  PinballY updates the registry
+# key to match the setting given here the next time you run the program, so
+# just be sure to run the program once manually if you change this value.  
+#
+# The registry key affected is:
+# HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run[PinballY]
+#
+# You can also control this setting interactively while the program is
+# running, via the "Setup" menu.
+#
+# Note that this option can only launch the regular "user mode" version of
+# the program, not the Administrator mode version.  Windows doesn't allow
+# launching Administrator programs using the basic "Run" registry keys,
+# for security reasons.  Instead, you'll have to use the Windows Task 
+# Scheduler program (press Windows+S and search for "Schedule Tasks" or 
+# "taskschd.msc").  Use that to create a task that launches "PinballY 
+# Admin Mode.exe" each time you log in.
+#
+AutoLaunch = 0
+
+
+# Should we wait for monitors to come online at startup?  Most pin cabs
+# have multiple monitors, and on many pin cabs, these are regular TVs rather 
+# than computer monitors.  One of the little snags using TVs as monitors is
+# that Windows can be slow to recognize them at system startup.  In fact,
+# this process can be so slow that Windows can finish booting and can start
+# launching programs before all of the TVs have been recognized.  This can
+# cause screen layout problems for a program like PinballY that launches at
+# startup, because it might not be possible to restore the saved window
+# layout if some of the windows are located on screens that are still
+# off-line.
+#
+# This option offers a way to work around that problem.  This lets you
+# tell PinballY that it should wait, when first starting up, until Windows 
+# has recognized all of your monitors.  PinballY won't open any of its
+# UI windows until the system reports that all of your monitors are
+# on-line.
+#
+# This string should use this format:
+#
+# <N> monitors, <S> seconds
+#
+# <N> monitors tells the program that it should wait at startup until
+# Windows has recognized at least that many monitors.  Specify a maximum
+# waiting time with <S> seconds.
+#
+# The program displays a little dialog box during the wait, with a Cancel
+# button that lets you manually cancel the wait if desired.  So you can 
+# set safely set a long wait time if necessary to accommodate monitors 
+# with unpredictable startup times, in that you can always cancel the
+# wait if necessary.
+#
+WaitForMonitors = 1 monitor, 10 seconds
+
+# Real DMD setup.  This is for real pinball-style Dot Matrix Display
+# devices.  (It's NOT for normal video monitors used to display simulated
+# DMD images; it's only for physical DMD devices, such as the commercial
+# PinDMD products or the DIY Pin2Dmd device.
+#
+# Set RealDMD as follows:
+#
+# RealDMD = Auto - searches for DmdDevice.dll in your VPinMAME folder,
+# then in your PinballY program folder.  If the DLL exists, PinballY
+# will use the DMD device.  If the DLL doesn't exist, no error is shown.
+#
+# RealDMD = On - same as above, but an error is shown if the DLL
+# can't be found.  Use this for troubleshooting if you think the DLL
+# is installed but nothing is happening on the DMD device.
+#
+# RealDMD = Off - disables the real DMD, even if the DLL exists.
+#
+# If you haven't already done so, install Visual Pinball, and check that
+# it works properly with your DMD device.  PinballY will use your Visual
+# Pinball installation to access the DLL that interfaces with the device,
+# so no additional configuration should be required for PinballY.
+#
+# Special case only: If for some reason you DON'T plan to install Visual
+# Pinball, but still want to use the DMD with PinballY, you can install
+# the appropriate DmdDevice.dll for your device directly in the PinballY
+# program folder.  You should be able to get the right DLL from your
+# device manufacturer or from the Visual Pinball distribution.  If you 
+# get the DLL from the VP files, make sure you select the DLL version
+# that matches your physical DMD device.
+#
+RealDMD = Auto
+
+# Real DMD mirroring modes.  These are for cabinets where the user views
+# the display via a mirror (e.g., "Pinball 2000" style cabinets).  If a
+# mirror is involved, it's necessary to flip the pixel layout either
+# vertically or horizontally to compensate.  You can control these via
+# menu commands in the main window, so you can experiment with the
+# settings interactively if you're not sure how to set these.
+RealDMD.MirrorHorz = 0
+RealDMD.MirrorVert = 0
+
+
+# External program to run at startup.  This is executed when PinballY first
+# starts, before PinballY loads the game list or displays any UI windows.
+# This uses the same command line syntax that you'd type at a CMD prompt
+# or into the Windows system "Run" (Windows+R) dialog.
+#
+# To run a .CMD or .BAT script, use this syntax: 
+#
+#    CMD /c <script file name>
+#
+# With the exception of Windows system programs like CMD.EXE, you should
+# always specify the full path to the program you want to launch.  If the
+# program name or its path contain spaces, you must enclose the name in 
+# double-quote marks:
+#
+#    "c:\my path\my program"
+#
+RunAtStartup = 
+
+# External program to run at exit.  This is executed just before PinballY
+# terminates, after it closes all of its UI windows.  This follows the same
+# rules as RunAtStartup for specifying the command line.
+RunAtExit = 
+
+
+# Where should instruction card pop-up images be displayed?  Enter 
+# Playfield, Topper, or Backglass to select the desired display window.
+# (If the window you designate here isn't visible when you ask to 
+# display an instruction card, the card will be shown in the playfield
+# window instead.)
+#
+# Note that this only controls the pop-up images that appear when you
+# use the "Instructions" command.  You can also have a whole dedicated
+# window where the instruction card for the current game is always
+# shown without having to select a menu command at all.  If that
+# window isn't already displayed, right-click on the main window and
+# select "Show Instruction Card" from the menu.
+#
+InstructionCardLocation = Backglass
+
+
+# Mute videos.  Turns off sound playback on all videos (playfield, 
+# backglass, DMD).  You can change this while the program is running,
+# using the "Exit" menu.
+Video.Mute = 0
+
+# Enable videos.  This allows using video media for the playfield,
+# backglass, etc when available.  If this is set to 0, still images
+# will be used instead.  You can change this within the program
+# using the "Setup" menu.
+Video.Enable = 1
+
+# Mute sounds when in attract mode.  Turns off sound playback for
+# all videos when attract mode is active.  You can also change this 
+# from the "Exit" menu.
+AttractMode.Mute = 1
+
+# Mute the sound effects for all button presses.  You can also change
+# this from the "Exit" menu.
+Buttons.Mute = 0
+
+
+# Is the Exit menu enabled?  If this is true (1), pressing the Exit 
+# button when no menus or popups are shown brings up the Exit menu, 
+# which offers commands for exiting PinballY (returning to the Windows
+# desktop) and a few other miscellaneous system options.  Set this to
+# 0 to prevent the Exit menu from being displayed.
+#
+# Disabling the exit menu is useful if your pin cab is in a public
+# setting, since it prevents users from accidentally (or on purpose)
+# quitting out of PinballY and accessing the Windows desktop, shutting
+# down the system, etc.
+ExitMenu.Enabled = 1
+
+# How should the Exit button act in the Exit menu?  "Select" means that 
+# the Exit button can be used to select items in the menu, just like the
+# Start button.  "Cancel" means that it simply cancels out of the menu,
+# the same way it does in other menus.  I find it more natural for the
+# Exit button to select items in the Exit menu, because you had to press
+# the Exit button to bring up this menu in the first place, so that's
+# where your finger is poised while operating the menu.  As a result, I
+# always found PinballX's treatment of it as the Cancel button, even in
+# this context, to be irritating and wrong.  Granted, it's more 
+# consistent overall to treat it as the Cancel button, since that's 
+# how it acts everywhere else, but in my opinion this is one of those
+# "foolish consistencies" that makes things worse rather than better.
+# And even in terms of consistency, it's arguably more consistent in
+# the local context of the Exit menu to treat it as "select".  But if
+# you disagree and you prefer the old PinballX handling, just change
+# this setting to Cancel.
+#
+# Select -> treat the Exit key as a select button in an Exit menu
+#           [this is the default]
+#
+# Cancel -> Exit key simply cancels out of an Exit menu
+#
+ExitMenu.ExitKeyMode = Select
+
+# Should the Exit menu include an "Operator Menu" command?  If this
+# is true (1), the Exit menu will include a command that lets you
+# access the Operator menu, which provides commands for game setup
+# and various PinballY option settings.  
+#
+# The Operator menu is normally accessed from the "service buttons"
+# inside the coin door, because those buttons are locked away behind
+# the coin door specifically to prevent players from accessing setup 
+# functions, just like on a real machine.  You'd normally want to
+# limit access to these commands to the owner/operator.  However,
+# pin cabs don't always include these extra buttons, so PinballY 
+# lets you access the Operator menu from the Exit menu instead, if
+# you wish.
+ExitMenu.ShowOperatorMenu = 0
+
+#
+# Button assignments.  Each button assignment uses syntax like
+# this:
+#
+#   Button.<Name> = ...
+#
+# The button names and their meanings are listed below.  On the
+# right side of the "=", you can assign one or more keyboard keys
+# and/or joystick buttons to each function.  To map a keyboard
+# key, use this syntax:
+#
+#   Button.<Name> = keyboard A
+#
+# Each key has a name; the alphabetic and number keys simply use
+# their normal keyboard symbols, and most of the special function
+# keys use the names printed on the key: Escape, Tab, Enter, etc.
+# All of the "modified" keys (Shift, Control, Alt, Windows) come
+# in left and right versions: LShift, RShift, LControl, etc.
+#
+# To map a joystick button, use this syntax:
+#
+#   Button.<name> = joystick * 7
+#
+# That maps button 7 on any joystick.  If you have multiple
+# joysticks, and you want to tie a button to a particular joystick,
+# that gets a bit tricker.  Change the * to a "logical joystick"
+# unit number, then add a separate entry to the config like this:
+#
+#   JoystickDevice[N] = VID:PID:Product Name
+#
+# Where N is the logical joystick number you used above (you
+# should number these consecutively from 0), VID and PID are the
+# USB Vendor ID and Product ID for your joystick, and Product Name
+# is the product name string for your joystick.  I'd recommend
+# just using the * notation and ignoring all of this!
+#
+
+# Select = show menu/select current menu item.  This is normally
+# mapped to the Start button in a cab (usually the "1" key).
+Buttons.Select = keyboard 1
+
+# Launch = start current game (bypasses the menu).  This is normally
+# mapped to the Launch Ball button in a cab ("Return" key).
+Buttons.Launch = keyboard Return
+
+# Exit = exit menu, or show Exit menu.  This is normally mapped to
+# the Exit button in a cab ("Escape" key).
+Buttons.Exit = keyboard Escape
+
+# Exit Game = terminate the currently playing game.  This is normally
+# mapped to the same button as Buttons.Exit, since you usually want
+# to use the same physical button for both purposes.  You can map this
+# to a different key if you prefer, though.
+Buttons.ExitGame = keyboard Escape
+
+# Next/Previous = game/menu navigation.  These are normally mapped to
+# the flipper buttons in a cab (Right/Left Shift keys).
+Buttons.Next = keyboard RShift
+Buttons.Prev = keyboard LShift
+
+# Next Page/Previous Page = next alphabetical letter group in game list.
+# These are normally mapped to the MagnaSave buttons in a cab (Right/
+# Left Control keys).
+Buttons.NextPage = keyboard RControl
+Buttons.PrevPage = keyboard LControl
+
+# Service menu buttons.  These are used to call up the internal
+# setup menu within PinballY, in analogy to the operator menus in
+# a modern pinball machine.  I recommend using the normal VPinMAME
+# mappings for these:
+#
+#   Service1 = Exit/Escape  = 7
+#   Service2 = -/Down       = 8
+#   Service3 = +/Up         = 9
+#   Service4 = Enter/Select = 0
+#
+# The Service4 "Enter" button brings up the Setup menu, which lets
+# you set global program options and set up tables.  This menus is
+# only accessible from the service buttons for the same reason that
+# the operator menus on a real pinball are only accessible from the
+# service buttons, namely that it prevents guests from messing
+# around with your configuration while still providing easy access
+# to the owner, the difference being that the owner has the key to
+# the coin door!  Once you're in the Setup menu, you can navigate
+# it with the flipper buttons just like the other menus, or you can
+# continue using the service buttons if you prefer.
+#
+# The Service1 "Exit" button cancels the current menu, if one is
+# open, but it has a special extra function outside of menus: it
+# adds a "service credit", meaning that it adds one credit to the
+# credit balance.  This feature is for the sake of simulation, as
+# the real 1990s machines have this same feature.
+#
+Buttons.Service1 = keyboard 7
+Buttons.Service2 = keyboard 8
+Buttons.Service3 = keyboard 9
+Buttons.Service4 = keyboard 0
+
+# Show the frame counter.  There's no typical cab mapping for this;
+# the default is F10.  You can also access this via the right-click 
+# menu in the window where you want to show the counter.
+Buttons.FrameCounter = keyboard F10
+
+# Toggle full-screen mode.  There's no typical cab mapping for this;
+# the default is F11.  You can also access this via the right-click 
+# menu in the window that you want to resize (each window can be
+# individually set to full screen or windowed mode).
+Buttons.FullScreen = keyboard F11
+
+# Rotate the display 90 degrees.  There's no typical cab mapping for 
+# this; the default is the keypad "*" key ("Multiply").  You can also
+# access this via the right-click menu in the window you want to
+# rotate (each window can be individually rotated).
+Buttons.RotateMonitor = keyboard Multiply
+
+# Show game information.  This pops up a box with information on the
+# game, including historical information and statistics on usage on
+# your cab.  Some cab builders include dedicated buttons for extra
+# "front end" functions like this, but you can also access this
+# feature from the main menu, so a dedicated button is optional.
+# If you have any otherwise unused buttons (such as an "Extra Ball"
+# or "Fire" button), you can map that to this function if you wish.
+# The default is the "2" key, which is normally used for the Extra
+# Ball button.
+Buttons.Information = keyboard 2
+
+# Show the instruction card for the current game.  This displays
+# an image of the original instruction card from the game's apron.
+# Some cab builders include dedicated buttons for extra "front end"
+# functions like this, but you can also access this feature from
+# the main menu, so a dedicated button is optional.  You can map
+# any otherwise unused button here if you wish (e.g., an "Extra
+# Ball" or "Fire" button). 
+Buttons.Instructions = keyboard I
+
+# Options settings button.  This button brings up the Options
+# dialog.  There's no standard pin cab button for this command;
+# you can assign it to any otherwise unused button if you have
+# extra buttons on your cab for miscellaneous special functions.
+Buttons.Settings = keyboard O
+
+# Coin door button.  Some pin cab builders include a switch that
+# senses the position of the coin door like on a real machine, since
+# that information is useful to VPinMAME and other simulators.  
+# PinballY doesn't current use this button for anything, but if you
+# do have a coin door switch in your cab, you can provide the key
+# mapping here in case it becomes useful in PinballY in the future.
+# For VPinMAME compatibility, this is normally assigned to the END
+# key.
+Buttons.CoinDoor = keyboard END
+
+# Should new joystick button assignments be tied to individual
+# devices (1) or assigned generically (0)?  "Generic" means that
+# joystick button assignments aren't tied to specific devices,
+# so pressing the same button on any joystick will trigger the
+# command.  This doesn't affect any existing key assignments; it
+# only determines how new button assignments are handled in the
+# Options dialog.
+RememberJSButtonSource = 0
+
+
+# Status line messages.  These messages are displayed in continuous
+# rotation in the status area at the bottom of the screen.  Use "|" 
+# to separate messages.  Use "||" to insert a "|" into a message.
+# If you want a blank message, use a single space character as the
+# message text for that slot.  For example, "first| |last" will show
+# "first", then a blank message, then "last", then repeat.
+#
+# The following substitution variables can be used within a message
+# insert special text:
+#
+#   [Game.Title]   - title of currently selected game
+#   [Game.Manuf]   - manufacturer of current game
+#   [Game.Year]    - release year of current game
+#   [Game.System]  - system of current game (Visual Pinball, etc)
+#   [Filter.Title] - current filter name ("All Tables", "70s Tables")
+#   [Filter.Count] - number of games in the current filter set
+#   [Credits]      - number of "credits" from inserted coins
+#   [lb]           - literal left square bracket ("[")
+#   [rb]           - literal right square bracket ("]")
+#
+# There's a special form for grammatical agreement in number for
+# the Filter.Count and Credits fields.  You can create a variable
+# singular/plural form like this: {Filter.Count:Table:Tables:Tablez}.  
+# The word after the first colon is used as the expansion if the 
+# count is 1, so this gives you the singular form.  The word after 
+# the second colon is selected if the count is greater than one.  
+# The word after the third colon is used if the count is zero.
+# The third "zero" variation is optional; the plural form is used 
+# if it's not specified.  So {Filter.Count:Table:Tables:Tablez} 
+# expands to "Table" if the filter count is 1, "Tables" if it's
+# greater than 1, or "Tablez" if it's 0.  In English, you only
+# need the first two for grammatical agreement, since zero is
+# grammatically plural in English ("0 things").
+#
+UpperStatus.Messages = Welcome to PinballY!|[Filter.Title] ([Filter.Count] [Filter.Count:Match:Matches])
+LowerStatus.Messages = Free Play|Press Start|[Game.Title] ([Game.Manuf], [Game.Year])
+
+# Status line update times, in millseconds.  These set the time
+# intervals for rotating messages in the status lines.  Using
+# slightly different intervals will make the two messages switch
+# out of sync with each other, at apparently random different
+# times, which creates a more pleasing effect than having them
+# always update together.
+UpperStatus.UpdateTime = 2513
+LowerStatus.UpdateTime = 2233
+
+
+# Attract mode enabled
+AttractMode.Enabled = true
+
+# Attract mode idle time, in seconds.  Attract mode kicks in
+# after there hasn't been any button input for this long.
+AttractMode.IdleTime = 180
+
+# Attract mode game switch time, in seconds.  When attract mode is
+# active, it automatically switches to a new game selection after
+# this interval.
+AttractMode.SwitchTime = 10
+
+# Attract mode status messages.  The normal status lines are hidden
+# during attract mode and replaced with this message cycle.
+AttractMode.StatusLine.Messages = Welcome to PinballY!|Free Play|Press a button to continue| |
+AttractMode.StatusLine.UpdateTime = 1000
+
+# Game timeout, in seconds.  If this is set to a non-zero value,
+# the system will automatically terminate a running game when there 
+# hasn't been any keyboard, joystick, or mouse input for this length 
+# of time.  This lets the system return to the main menu and enter
+# attract mode if you leave a game running while away from the
+# machine for a while.  Set to zero to disable this feature.
+GameTimeout = 300
+
+
+# Last selected game and filter.  These are updated automatically
+# by the program so that we can come back to the same wheel selection
+# as in the last session.
+GameList.CurrentGame = 
+GameList.CurrentFilter = All
+
+
+# Media capture setup.  The Game Setup menu lets you capture screen
+# shots of a running game to use as the background images displayed
+# in the menu system.  The system automatically uses your PinballY
+# window layout as a proxy for the running game's window layout, so
+# there's no need to configure the game window layout separately.
+# The only thing you have to configure here is the timing of the
+# capture process.  
+#
+# The first timing parameter is how long to wait for the game to
+# start up.  You'll want to give it enough time to enter "Attract
+# Mode" in the game, where it's ready to begin a game.  That is,
+# long enough to load into VP (or whatever system) and go through
+# the game's ROM startup/test process.  The actual ROM startup
+# time varies a lot by game, so adjust this as needed if you
+# encounter games that aren't ready in time.  The delay time is
+# given in seconds.
+Capture.StartupDelay = 10
+
+# The rest of the media capture timing parameters specify the
+# length (in seconds) of video captures.  These should be long
+# enough to cover a typical Attract Mode loop, but short enough
+# that the videos are reasonably compact.  These times are in
+# seconds.
+Capture.PlayfieldVideoTime = 30
+Capture.BackglassVideoTime = 30
+Capture.DMDVideoTime = 30
+Capture.TopperVideoTime = 30
+
+
+# Coin slot pricing.  This is just a novelty feature for the sake
+# of its entertainment value, as we don't have any real practical
+# use for coins or credits.  We do deduct one credit for each game
+# launch, but we don't require credits to launch - we'll launch a
+# game even if the balance is zero.  But if we wanted to implement
+# a "real" coin system, we wouldn't want to deduct credits when
+# you merely launch a game from the menu; we'd instead want to
+# transfer credits from the menu system to the games themselves,
+# and then have the tables deduct credits on each play.  We don't
+# have any way to transfer credits like that, so the use of coins
+# in the menu is purely for the novelty value.
+#
+# If you want to disable this feature, simply omit the button
+# assignments below, which will prevent any coin recognition.
+#
+# If you want to enable coin recognition, the first step is to set
+# up your coin slot keyboard mappings.  If you have physical coin 
+# slots with "coin mechs" installed, you'll want to set them up 
+# for use with VP anyway, so it's a small extra step to enable 
+# them here.  Simply list the keyboard keys or joystick buttons 
+# that you've wired your coin slot switches to below, in the 
+# Buttons.CoinN variable settings.  
+#
+# The standard button assignments are dictated by VPinMAME, which
+# uses the following fixed key assignments:
+#
+#  "3" key -> first/left slot in a 2-slot coin door
+#  "4" key -> second/middle slot, not used in a 2-slot door
+#  "5" key -> third/right slot in a 2-slot door
+#  "6" key -> fourth slot, or dollar bill acceptor in a US 2-coin door
+#
+Buttons.Coin1 = keyboard 3
+Buttons.Coin2 = keyboard 4
+Buttons.Coin3 = keyboard 5
+Buttons.Coin4 = keyboard 6
+
+# Now set the coin denomination for each slot.  The currency unit
+# is whatever you want it to be.  In the US, you can use dollars,
+# so .25 would represent a quarter.  But you could just as well 
+# denominate this in Euros, Pounds, or arcade tokens.  When you
+# insert a coin in one of the slots, PinballY will add the
+# declared coin value for that slot to a running total "coin
+# balance" it keeps internally.
+Coin1.Value = .25
+Coin2.Value = .25
+Coin3.Value = .25
+Coin4.Value = 1.00
+
+# Finally, set the relationship between coin values and "credits".
+# We use "credit" in the usual pinball sense of the word, where a
+# credit gives you one play.  The UI reports everything in terms 
+# of credits. 
+#
+# Most pinballs from the 90s and later have pricing where you get
+# bonus credits for more coins, such as "one credit for 50 cents,
+# 3 credits for $1".  To allow for this kind of pricing model, we
+# let you list multiple coin value levels, and the corresponding
+# number of credits.  You can enter as many of these levels as
+# you like.  Each level is specified with an entry of the form
+# <coin-value> <credits>.  For example:
+#
+#    .50 1
+#
+# That means that .50 currency units (Coin.Value units) gives you
+# one credit.  List any number of these levels that you like, in
+# ascending order, separated by commas.  The default setting sets
+# up the typical modern US "50/75/$1" pricing, which is to say, 50 
+# cents for one credit, 75 cents for two credits, $1 for three. 
+# When we reach the end of the list, we simply start over, so in 
+# our .50/.75/$1 example, inserting a fifth quarter takes you
+# back to the .50/credit point.  
+#
+# Fractional credits can be used, expressed as floating point
+# values:  e.g., 0.5 means a half credit.  You should only use
+# halves and quarters for the sake of nice display formatting,
+# as we can show 1/2, 1/4, and 3/4 as fractions in the UI;
+# other fractions will be displayed less nicely as decimal
+# values (e.g., if for some reason you want 1/6 credits, it
+# would be displayed as .166667).
+#
+# The program keeps an internal counter of the total coin value
+# inserted so far, and translates to credits accordingly.  The
+# coin counter resets whenever the player launches a new game
+# or exits, but the last credit balance is retained across
+# sessions.  The program deducts one credit on each launch, if
+# any credits are available, just to maintain the pretense that
+# the credits are actually used for something.
+#
+# Sample pricing models:
+#
+# US 25 cents/play: .25 1
+# US 50 cents/play: .25 .5, .50 1
+# US 50c/75c/$1:    .25 .5, .50 1, .75 2, 1.00 3
+# US 3 for $1:      .25 .5, .50 1, .75 1.5, 1.00 3
+# US 75c/$2 x 3:    .75 1, 2.00 3
+# US 50c/$2 x 5:    .25 .5, .50 1, .75 1.5, 1.00 2, 1.25 2.5, 1.50 3, 1.75 3.5, 2.00 5
+# 
+PricingModel = .25 .5, .50 1, .75 2, 1.00 3
+
+# Maximum credit balance.  Zero means there's no maximum.
+MaxCreditBalance = 10
+
+# Current credit balance.  The program automatically saves the
+# credit balance across sessions here.
+CreditBalance = 0
+
+
+#
+# Pinball systems.  Each system is specified via a set of "System<n>" 
+# variables, explained below.  The "<n>" is just an arbitrary number to 
+# identify the system within the configuration ("System1", "System2",
+# etc).
+#
+#
+# SystemN = Display Name
+# This is the name displayed in the UI for this system.
+#
+# SystemN.MediaDir = subfolder
+# The subfolder name to use for media files for this system's games.
+# Media files are the images, videos, and sounds for the tables:
+# the playfield images and backglass videos and so on.  Use only
+# the subfolder name here, such as "Visual Pinball" - this is
+# combined with the MediaPath variable to form the full path, so
+# you only need the subfolder name here.  If you omit this, the
+# display name of the system is used by default, as defined
+# by the SystemN=xxx variable.
+#
+# SystemN.DatabaseDir = subfolder
+# The subfolder name to use for the XML files that list the games
+# for this system.  EACH SYSTEM MUST HAVE ITS OWN SEPARATE FOLDER
+# THAT ISN'T SHARED BY ANY OTHER SYSTEMS, since this is how the
+# program tells which system to use to launch each game.  If you
+# omit this variable, the display name of the system (as defined 
+# by the SystemN=xxx variable) is used as the folder name.
+#
+# SystemN.Enabled = true|false
+# Specifies whether this game's systems appear in the UI.  The
+# system's XML database files will simply be ignored if the system 
+# is marked as disabled.  This defaults to true if omitted.
+#
+# SystemN.Class = system type:  type of system.  Set this to one
+# of the following:
+#
+#   VPX    - Visual Pinball 10
+#   VP     - Visual Pinball 9 or earlier
+#   FP     - Future Pinball
+#   STEAM  - Steam-based program (Pinball Arcade, Pinball FX2, etc)
+#   Other  - Any other system [this is the default]
+#
+# Omit it for other systems.  If you set this, it lets PinballY use
+# its special knowledge of VP or FP for this system's games.  It also
+# lets PinballY supply defaults for some settings, so that you don't
+# have to set up as much explicitly.
+#
+# SystemN.Exe = application executable (.exe) file with full path
+# This is the executable that we launch when the user starts a table
+# for this system.  In most cases, you should simply specify the
+# full path and .exe file name.  Alternatively, you let PinballY
+# find the executable based on the registry settings for the target
+# system:
+#
+# - If you omit this entirely, and there's a DefExt setting for
+#   this system, PinballY will use the program registered for that
+#   file type.
+#
+# - If you use a filename with no path (e.g., VPinball995.exe),
+#   PinballY will look for the registered program for the filename
+#   extension given in DefExt for this system.  It will then combine
+#   the PATH portion of that program with the filename you specified.
+#   This is convenient if you have multiple versions of VP installed,
+#   as long as you installed them all in the same folder, since it
+#   looks up the folder path automatically.
+#
+# - If you set this to [STEAM] (with the square brackets), PinballY
+#   will look in the registry for the installed Steam application,
+#   and use that if found.
+#
+#
+# SystemN.Process = process name to monitor (XXX.EXE, with no path)
+# This is mostly for games that run through Steam.  To run a Steam
+# game, the application we launch via SystemN.Exe is STEAM.EXE, but
+# that in turn launches a second executable that actually runs the
+# game session.  That second exe is the one that we have to monitor
+# for shutdown, and the one that we have to close if the user wants
+# to exit back to PinballY.  Specify just the exe name here, without
+# any path prefix.
+#
+# SystemN.TablePath = full path to the folder where you store the
+# table files for the system, such as Visual Pinball's .vpt files.
+# If you specify a relative path (with no X:\ drive spec), the path
+# is relative to the .EXE folder for the system.  This means you
+# can simply set this to "Tables" for the standard VP setup, for
+# example, without specifying the full path.  Use "." (a single
+# period) to specify folder itself.  You can simply omit this for
+# a system like The Pinball Arcade that doesn't use table files.
+#
+# SystemN.Parameters = command-line parameters for launching games
+# This is a template for the command line sent to the EXE at launch.  
+# You can use the following substitution variables in the string:
+#
+#   [TABLEPATH] = the path from SystemN.TablePath 
+#   [TABLEFILE] = the filename of the table being launched
+#
+# SystemN.DefExt = default filename extension ("." suffix) for table files
+# The launcher will add this to the table filenames in the table database 
+# if necessary when generating the command line parameters.  You can
+# simply omit this for a system like The Pinball Arcade that doesn't use 
+# external table files.
+#
+# SystemN.StartupKeys = key sequence to send at startup
+# This is designed especially for The Pinball Arcade, but could be used for
+# any other game systems where the game itself has a startup menu that has
+# to be navigated before play can begin.  TPA really complicates things in
+# this regard because it has its own table menu: we have to navigate through
+# its table menu to pick out the game that the user already selected from
+# our table menu!  It's ridiculous, but TPA doesn't have a way to launch
+# a particular game externally; it can only reach a game through its UI.
+# So this option provides a way to automate that initial menu navigation.
+# The StartupKeys entry is a list of keystrokes to send, separated by
+# spaces.  You can use the following key names:
+#
+#   Up Down Left Right   [the arrow keys]
+#   A through Z, 0 through 9  [letter and number keys]
+#   LShift RShift LAlt RAlt LCtrl RCtrl  [shift/alt/control keys]
+#   CapsLock NumLock
+#   F1 through F12  [top-row function keys]
+#   Dash Plus Backslash LBracket RBracket Comma Period Slash Colon Quote
+#   Esc Tab Space Backspace
+#
+# In addition, the following special sequences can be used:
+#
+#   {comment} - everything between curly braces is ignored
+#
+#   [click] or [rclick] - send a left or right mouse click.  By default,
+#   this clicks at the current mouse position, wherever that is.  You
+#   can also specify a target window to click in, which positions the
+#   mouse at the center of the target window just before clicking:
+#   [click playfield], [click backglass], [click dmd], or [click topper].
+#
+#   [pace M] - set the pace in milliseconds.  The simulated keystrokes
+#   after this point will be paced with a delay of M milliseconds
+#   between keys.  This can be used if the receiver program doesn't
+#   respond quickly enough to handle keys sent at full speed.
+#
+#   [pause N]  - pause for N seconds
+#
+#   [gridpos Down Right]  - send the Down Arrow and Right Arrow keys
+#   enough times to move to the grid position given by the gridPos
+#   entry for the game in the game database.  Make sure that the 
+#   key sequence leading up to this point sets things up so that the
+#   upper left icon (row 1, column 1) is selected, since the [gridpos]
+#   element determines how many Down and Right keys to send based on
+#   the assumption that we're starting from the upper left.
+#
+# For a system that requires a mouse click in its main window at startup
+# to establish focus, use a StartupKeys string like this: [click playfield]
+#
+# SystemN.DOFTitlePrefix = prefix used in DOF table entries for this system
+# The DOF table database uses prefixes in the game title to distinguish
+# games that exist in multiple systems.  The DOF database considers VP to
+# be the default system, so VP has no prefix.  Future Pinball uses "FP",
+# PinballFX2 and FX3 use "FX2" and "FX3" respectively.
+#
+# SystemN.NVRAMPath = path to this system's "non-volatile RAM" files.  We
+# use these files to retrieve high score lists, when available.  This only
+# applies to VP and FP games, and you can normally omit it, because we can
+# usually infer it automatically from the VPinMAME install location (for VP
+# games) or the Future Pinball install folder (for FP games).  Please only
+# use this if you have an unusual setup - it's better to use the defaults 
+# if you can, because it's one less thing to keep track of if you ever 
+# rearrange folder paths.
+#
+# SystemN.RunBefore = a command to run just before launching a game using
+# this system.  This is a command line of the sort that you could type into
+# the Windows "Run" box.  Use the same rules as for the RunAtStartup option.
+# You can use same substitution variables allowed in SystemN.Parameters (see
+# above) in this command line.  You can also use the special prefix string
+# [NOWAIT] if you want PinballY to launch the program as a background
+# process and then immediately launch the game, without waiting for the
+# RunBefore program to finish.  Without this prefix, PinballY waits for
+# the RunBefore program to finish before launching the game.  Use [NOWAIT]
+# if the program you're running is meant to continue running while the game
+# is running.  If you want PinballY to explicitly terminate this program
+# after the game exits, use [NOWAIT TERMINATE].
+#
+# SystemN.RunAfter = a command to run just after finishing a game using
+# this system.  This is executed just after the game exits, before PinballY 
+# takes over again.  Use the same command line syntax that you'd type into
+# the Windows "Run" box.  You can use same substitution variables allowed in
+# SystemN.Parameters (see above) in this command line.  Use [NOWAIT] if you
+# want PinballY to return to resume immediately, without waiting for the 
+# program to finish.  By default, PinballY will wait for this program to
+# exit before returning to its normal user interface.
+
+
+# VP 9
+System1 = Visual Pinball 9
+System1.Class = VP
+System1.MediaDir = Visual Pinball
+System1.DatabaseDir = Visual Pinball
+System1.Enabled = true
+System1.Exe =
+System1.TablePath = Tables
+System1.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
+System1.DefExt = .vpt
+# System1.RunBefore = cmd /c echo Example RunBefore command! Path=[TABLEPATH], file=[TABLEFILE] && pause
+# System1.RunAfter = cmd /c echo Example Run After command! Path=[TABLEPATH], file=[TABLEFILE] && pause
+
+# VP 9.2
+System2 = Visual Pinball 9.2
+System2.Class = VP
+System2.MediaDir = Visual Pinball
+System2.Exe = VPinball921.exe
+System2.TablePath = Tables
+System2.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
+System2.DefExt = .vpt
+
+# VP 10
+System3 = Visual Pinball X
+System3.Class = VPX
+System3.Exe =
+System3.TablePath = Tables
+System3.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
+System3.DefExt = .vpx
+
+# Future Pinball
+System4 = Future Pinball
+System4.Class = FP
+System4.Exe =
+System4.TablePath = Tables
+System4.Parameters = /open "[TABLEPATH]\[TABLEFILE]" /play /exit /arcaderender
+System4.DefExt = .fpt
+System4.StartupKeys = [click playfield]
+System4.DOFTitlePrefix = FP
+
+# The Pinball Arcade (Farsight Studios)
+System5 = Pinball Arcade
+System5.Class = STEAM
+System5.Exe = [STEAM]
+System5.DefExt =
+System5.Parameters = -applaunch 238260
+System5.Process = PinballArcade.exe
+
+# Menu navigation for The Pinball Arcade to reach the selected game.  This is
+# rather convoluted because we can't get any feedback on the UI's state, and
+# more problematically, the initial state can vary.  The keystroke list below
+# will undoubtedly have to be tweaked from time to time as Farsight revises 
+# their UI.
+#
+# Since this is so convoluted, here's an explanation of the steps...
+#
+# The first thing we do is give the UI 25 seconds to start up.  It usually
+# doesn't need quite this long, but it can on the first run after a reboot.
+# Then we press the Enter key to get past the intro screen and into the menu.
+#
+# At that point, TPA sometimes likes to throw up an announcement dialog box,
+# but not always.  Clicking the mouse dismisses the dialog, but if there's
+# no dialog, clicking will select some random initial button selection
+# on the menu instead.  So we pretend that there's no dialog and navigate
+# up to the "Settings" icon at the top, and send a click.  If there was a
+# dialog, the navigation will have no effect, but the click will dismiss
+# the dialog and leave us at the main menu; if there wasn't a dialog,
+# we'll be on the settings page.  In either case, we can now get to the
+# grid by hitting Up to get the top row of icons, Left several times to
+# make sure we're at the left end of the row, Right to get to the arcade
+# icon, and click to enter the game grid.  Whee!
+#
+# Now that we're in the game grid, we have to get into the alphabetical
+# list.  The grid retains its setting from the last run, so it could be
+# sorted in some other order, in which case the game's grid position won't
+# be the same.   When we enter this screen, the top left game will be
+# selected.  Moving up one row takes us to the sorting options row, so
+# we send an Up, then a bunch of Left keys to make sure we're at the
+# first button in the row ("Alphabetical").  We send a click to select
+# that.  Now we should have the grid in the right order, so we send a
+# Down to move to the top left game, send send Down and Right keys to
+# get to the target grid position.  Finally, we send a click to select
+# that game icon.  That'll bring up a "play this game" dialog, so we
+# pause to let the dialog load, and then send a click to load the game.
+#
+System5.StartupKeys = [pace 250] [pause 25] {intro screen} [click] [pause 5] {main menu OR announcement dialog - try going to Settings} up up right right right right right [click] [pause 5] {now in settings OR main dialog - select arcade icon at top} up up left left left left left right [click] [pause 10] {now on grid screen - go to the sorting row and select Alphabetical} up left left left left left [click] [pause 5] [pace 1000] down [gridpos down right] [click] [pause 3] [click]
+
+
+# Empty categories.  Categories are user-defined tags that can be assigned
+# to games, via the Game Setup menu in the main window.  These can then be 
+# used to select a subset of games to display, by selecting "Filter by 
+# Category" in the main menu and selecting the category to show.  This 
+# variable lists any categories that were created at some point but aren't
+# currently assigned to any game.  The program stores this list to keep a 
+# memory of the presently unused categories, in case you want to assign any
+# of them to games in the future.  You don't have to edit this list by hand.
+# It's just a place for the system to stash the information.  The list only
+# included unused categories, because any categories currently assigned to 
+# one or more games will appear in the game database, and thus the program 
+# will know about them via their inclusion there.
+GameList.EmptyCategories = 
+
+
+# Window layout.  There's no need to edit any of this manually.  Just run
+# the program and arrange the windows the way you want them using the normal
+# Windows controls.  Use the right-click menu in each window to switch 
+# between full-screen and windowed modes.
+#
+# The program automatically saves and restores the window layout on each 
+# session, so any changes you make to the layout will be restored the next
+# time you run the program.
+#
+PlayfieldWindow.Position = 600,24,1900,800
+PlayfieldWindow.Rotation = 90
+PlayfieldWindow.MirrorHorz = 0
+PlayfieldWindow.MirrorVert = 0
+PlayfieldWindow.FullScreen = 0
+PlayfieldWindow.Maximized = 0
+PlayfieldWindow.Minimized = 0
+BackglassWindow.Position = 8,24,590,612
+BackglassWindow.Rotation = 0
+BackglassWindow.MirrorHorz = 0
+BackglassWindow.MirrorVert = 0
+BackglassWindow.Visible = 1
+BackglassWindow.FullScreen = 0
+BackglassWindow.Maximized = 0
+BackglassWindow.Minimized = 0
+DMDWindow.Position = 8,620,590,820
+DMDWindow.Rotation = 0
+DMDWindow.MirrorHorz = 0
+DMDWindow.MirrorVert = 0
+DMDWindow.Visible = 1
+DMDWindow.FullScreen = 0
+DMDWindow.Maximized = 0
+DMDWindow.Minimized = 0
+TopperWindow.Position = 600,820,1296,1146
+TopperWindow.Rotation = 0
+TopperWindow.MirrorHorz = 0
+TopperWindow.MirrorVert = 0
+TopperWindow.Visible = 0
+TopperWindow.FullScreen = 0
+TopperWindow.Maximized = 0
+TopperWindow.Minimized = 0
+InstCardWindow.Position = 8,820,545,1139
+InstCardWindow.Rotation = 0
+InstCardWindow.MirrorHorz = 0
+InstCardWindow.MirrorVert = 0
+InstCardWindow.Visible = 0
+InstCardWindow.FullScreen = 0
+InstCardWindow.Maximized = 0
+InstCardWindow.Minimized = 0

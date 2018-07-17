@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Coin Options</h1>
+
+<p>
+   PinballY simulates a coin-op arcade game by accepting coins and converting
+   them to "credits".  Credits are added when you insert coins, and credits
+   are deducted when you launch games.  This is purely a novelty feature, for
+   the sake of arcade simulation; the coins and credits aren't used for anything
+   other than this accounting for its own sake.  If this seems like a pointless
+   detail to you, you're right, and you can just skip this batch of options.
+   But if you're amused by the simulation aspect, this dialog lets you customize
+   the "pricing model" to match your local currency and your preferred
+   era of pinball.
+</p>
+<p>
+   The coin/credit counter is internal to PinballY.  It doesn't
+   carry over to the pinball tables you launch with PinballY.  Each table
+   uses its own internal counter, and there's no way to transfer the credit
+   information back and forth between the tables and the menu system.  That's
+   the big limitation that makes this a novelty feature only.
+</p>
+
+<h2>Coin slot values</h2>
+
+<p>
+   The first step to setting up pricing is to specify the currency value for
+   each type of coin that your machine accepts.  The "Coin slot N" entries
+   correspond to the "Coin N" switches you can set up in the Buttons dialog.
+   If you have a typical US coin door with two slots that both accept
+   quarters, for example, you could just set up all of the slots with a
+   currency value of 0.25, for a quarter dollar.  If you have a 1960s coin
+   door with dime and quarter slots, you can set up one slot with a 0.10
+   value and one with a 0.25 value.
+</p>
+
+<h2>Pricing model</h2>
+
+<p>
+   The second step, after setting up the coin slot currency values, is
+   to set up the "pricing model".  This is where you specify how the
+   currency values are converted to credits.
+</p>
+<p>
+   You can select one of the pre-defined models from the
+   drop list, or you can enter a completely custom model.  The list
+   has entries for the most common models used since the 1980s in the US.
+   If you select one of the pre-defined models, the price points for
+   that model will appear in the "Coin/credit levels" box.
+</p>
+<p>
+   The key to understanding how the coin/credit list works is to know
+   that there are two separate counters inside PinballY:
+</p>
+<ul>
+   <li>The <b>coin balance</b>, which keeps track of the total value
+   of coins that have been inserted.  For example, if you insert three
+   quarters, the coin balance will be 0.75.
+
+   <li>The <b>credit balance</b>, which keeps track of coins that
+   have been fully converted to credits.
+</ul>
+<p>
+   The information that you enter in the coin/credit list
+   works in terms of the coin balance.  The list consists of a
+   series of price points and the corresponding number of credits. 
+</p>
+<p>
+   Each time you insert a coin, PinballY adds the coin's value to the
+   total coin balance.  It then looks up the current coin balance in
+   the pricing model list.  It finds the highest coin value from the
+   list that can be bought with the current coin balance, and it
+   counts it as the corresponding number of credits.  When the coin
+   balance reaches or exceeds the highest value level in the list,
+   PinballY converts that much of the coin balance into a credit
+   balance, reducing the coin balance accordingly.
+</p>
+<p>
+   To enter a pricing model, simply enter a series of lines consisting
+   of one coin value and one credit value per line.  The coin values
+   should be in ascending order.  For example, one common model in the
+   US is 50&cent; for the one credit, 75&cent; for two credits, or
+   $1.00 for three credits.  You can enter this like so:
+</p>
+<pre>
+   0.25  .5
+   0.50  1
+   0.75  2
+   1.00  3
+</pre>
+<p>
+   Note that we entered a line for a half-credit for 25&cent; (the
+   first line, <tt>0.25 .5</tt>).  That's for the sake of giving the
+   user some feedback when she drops in the first coin, the same way
+   most real pinball machines would.
+</p>
+
+<h2>Max credits</h2>
+
+<p>
+   This box lets you set an upper limit to the number of credits that
+   can be accumulated.  Most real pinball machines have a limit of 10
+   credits or so.
+</p>
+   
+</body>
