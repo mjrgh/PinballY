@@ -1,4 +1,7 @@
-Exposed in the Setup dialogs:
+Settings not in the main UI
+
+These settings are exposed in the setup dialogs, but not in the
+"media" part of the UI:
 
 Buttons.*
 WaitForMonitors
@@ -28,8 +31,7 @@ Coin[1234].Value
 PricingModel
 MaxCreditBalance
 CreditBalance
-
-
-Not exposed anywhere yet:
-
 SystemN.*
+
+
+
