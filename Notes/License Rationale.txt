@@ -1,13 +1,13 @@
 Rationale for the choice of open-source license
 -----------------------------------------------
 
-This project is currently licensed under GPL v2.
+This project is currently licensed under GPL v3.
 
 The primary reason is practical necessity: I'm incorporating portions
 of VLC, which is distributed under GPL.  Anything that incorporates
-GPLv2 code is required by GPLv2 to be itself released under GPLv2 or a
-compatible license, therefore incorporating the GPL'd VLC means we
-have to release under GPL.
+GPLv2 code is required by GPLv2 to be itself released under GPLv2-or-
+later, therefore incorporating the GPL'd VLC means we have to release
+under GPL.
 
 This might actually be an overly conservative reading of the
 situation.  To be more precise, we actually only incorporate libvlc
@@ -21,9 +21,8 @@ building one from source, and there's not even an accounting anywhere
 of which modules are LGPL and which are GPL.  All of the actual
 distributions of VLC that I can find come with GPL license terms only.
 
-I'd be more than happy to change to a more permissive (or just
-different) license, if we can figure out the libvlc issues.  If
-someone wants to figure out how to create a clean LGPL build of libvlc
-that we can release with the project, I'd happily change the overall
-project license to perhaps the Apache license or a Creative Commons
-license.
+I'd consider changing to a more permissive license, if we can figure
+out the libvlc issues.  If someone wants to figure out how to create a
+clean LGPL build of libvlc that we can release with the project, I'd
+happily change the overall project license to perhaps the Apache
+license or a Creative Commons license.
