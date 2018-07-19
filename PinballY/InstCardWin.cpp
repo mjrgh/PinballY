@@ -6,7 +6,7 @@
 #include "stdafx.h"
 #include <Dwmapi.h>
 #include <vssym32.h>
-#include "Config.h"
+#include "../Utilities/Config.h"
 #include "Resource.h"
 #include "Application.h"
 #include "InstCardView.h"

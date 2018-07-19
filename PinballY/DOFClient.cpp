@@ -152,7 +152,7 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	VARIANTEx argp[3];
 	InitVariantFromString(L"PinballY", &argp[2]);   // program name
 	InitVariantFromString(L"", &argp[1]);			// table name
-	InitVariantFromString(L"PinballX", &argp[0]);	// ROM name
+	InitVariantFromString(L"PinballY", &argp[0]);	// ROM name
 	args = { argp, 0, countof(argp), 0 };
 	result.Clear();
 	exc.Clear();
@@ -263,17 +263,19 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 	// Retrieve the pre-configured table element descriptors
 	if (pDispatch != 0)
 	{
-		// Invoke GetConfiguredTableElmentDescriptors() to get the predefined ROM name list.
-		// This contains a list of all of the defined table elements, which is a mix of
-		// DOF's traditional numbered VPinMAME triggers, like solenoid (e.g., "S7") and
-		// switches ("W19"), and abstract named elements.  Named elements are designated
-		// with a "$" prefix.  In the PinballX/front-end configuration, the named elements
-		// comprise a mix of ROM names and front-end UI events.  There's no formal way to 
-		// distinguish them, but by convention the UI events are prefixed with "PBX".
-		// We could use that to leave the PBX* items out of the ROM enumeration, but it 
-		// seems better to just keep everything, in case some ROM happens to start with 
-		// "PBX".  The chances of a name collision are negligible because the abstract
-		// event names are all long enough to reasonably ensure uniqueness.
+		// Invoke GetConfiguredTableElmentDescriptors() to get the predefined ROM name 
+		// list.  This contains a list of all of the defined table elements, which is 
+		// a mix of DOF's traditional numbered VPinMAME triggers (e.g., solenoids
+		// ["S7"], switches ["W19"], lamps (["L5"]), and abstract named elements. 
+		// Named elements use a "$" prefix, and comprise a mix of ROM names and 
+		// abstract UI events.  There's no formal way to distinguish the two, but by
+		// convention, all of our UI events are prefixed with "PBY".  (This follows the
+		// pattern used in PinballX, which uses "PBX" prefixes.)  We could omit all
+		// of the PBY* names from the ROM enumeration, since they're almost certainly
+		// our UI event names rather than ROMs, but it seems better to keep everything
+		// just in case some actual ROM happens to start with "PBY".  The chances of
+		// a name collision are negligible, even if such a ROM comes into being, since
+		// all of our event names are all long enough to reasonably ensure uniqueness.
 		DISPPARAMS args = { nullptr, nullptr, 0, 0 };
 		VARIANTEx result;
 		EXCEPINFOEx exc;
@@ -295,10 +297,10 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 				SafeArrayGetElement(result.parray, &n, &bstr);
 
 				// If it starts with "$", it's a named effect, so keep it.  As described
-				// above, a named effect for the PinballX/front-end config can be either
-				// a ROM name or an abstract UI event name, but we don't try to distinguish;
-				// we just keep them all and count on the names being long enough that we
-				// don't have any collisions in practice within the mixed namespace.
+				// above, a "$" named effect can be either a ROM name or an abstract UI 
+				// event name, but we don't try to distinguish; we just keep them all and
+				// count on the names being long enough that we don't have any collisions
+				// in practice within the mixed namespace.
 				if (bstr[0] == '$')
 				{
 					// keep the part after the "$" prefix
