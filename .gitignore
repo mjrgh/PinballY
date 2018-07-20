@@ -38,3 +38,4 @@ Settings.txt
 GameStats.csv
 zlib/contrib/vstudio/vc14/x86/**
 PinballY/shaders/*.h
+Builds/**

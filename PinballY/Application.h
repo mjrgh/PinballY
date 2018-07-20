@@ -521,10 +521,13 @@ protected:
 		};
 		struct CaptureInfo
 		{
-			CaptureInfo() : startupDelay(5000) { }
+			CaptureInfo() : startupDelay(5000), twoPassEncoding(false) { }
 
 			// startup delay time, in milliseconds
 			DWORD startupDelay;
+
+			// two-pass encoding mode
+			bool twoPassEncoding;
 
 			// capture list
 			std::list<CaptureItem> items;

@@ -136,7 +136,8 @@ protected:
 	struct EditIntMap : VarMap
 	{
 		EditIntMap(const TCHAR *configVar, int controlID, int defVal) :
-			VarMap(configVar, controlID, edit) { }
+			VarMap(configVar, controlID, edit), defVal(defVal) { }
+
 		int intVar;
 		int defVal;
 		CEdit edit;
@@ -150,7 +151,7 @@ protected:
 	struct EditFloatMap : VarMap
 	{
 		EditFloatMap(const TCHAR *configVar, int controlID, float defVal) :
-			VarMap(configVar, controlID, edit) { }
+			VarMap(configVar, controlID, edit),	defVal(defVal) { }
 		float floatVar;
 		float defVal;
 		CEdit edit;

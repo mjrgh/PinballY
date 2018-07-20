@@ -64,4 +64,25 @@
    beginning so often that they're distracting.
 </p>
 
+<p>
+   <b>Use two-pass video encoding:</b>  Use this option if your
+   captured videos look too choppy.  Normally, PinballY tries to
+   capture and compress video frames at the same time, in
+   a single pass.  This requires a fairly fast machine, though; on
+   slower machines, the compressor might have to drop frames (omit
+   them from the resulting video) when it can't keep up with the
+   live video rate.  Dropped frames are visible as momentary
+   freezes when you play back the video, which can make the
+   video look choppy or jerky.  If this happens on your machine,
+   you can try two-pass encoding instead.  Two-pass encoding
+   initially captures the video frames without any compression,
+   which can usually be done without any dropped frames even on
+   slower machines.  It then goes back and re-encodes the video
+   to a compressed format after the full capture has finished.
+   This takes longer overall because of the separate second pass,
+   but should eliminate (or at least greatly reduce) dropped
+   frames in the resulting video.
+</p>
+
 </body>
+</html>

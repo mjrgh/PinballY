@@ -1398,6 +1398,9 @@ bool Application::GameMonitorThread::Launch(
 		capture.startupDelay = cfg->GetInt(ConfigVars::CaptureStartupDelay, 5) * 1000;
 		totalTime += capture.startupDelay;
 
+		// remember the two-pass encoding option
+		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
+
 		// build our local list of capture items
 		for (auto &cap : *captureList)
 		{
@@ -1416,6 +1419,24 @@ bool Application::GameMonitorThread::Launch(
 			// add it to the total time, plus a couple of seconds of
 			// overhead launching the capture program
 			totalTime += item.captureTime + 2000;
+
+			// If we're doing two-pass encoding, add an estimate of the second
+			// pass encoding time.  This option is normally used only on a machine
+			// that can't keep up with real-time encoding, so it's a good bet that
+			// the encoding time will exceed the capture time - by how much, though,
+			// is pretty much impossible to estimate without more knowledge of the
+			// local machine than we can be bothered to gather.  So we'll just make
+			// a wild guess.  It's hard to run VP successfully on *too* slow a 
+			// machine; the slowest machines capable of good VP operation are
+			// probably only borderline too slow for real-time encoding, so let's
+			// assume that a factor of two (times the video running time) is a 
+			// decent upper bound.  And of course we've already established that 
+			// a factor of one is a good lower bound if we're using this mode.
+			// So let's just split the difference and call it 1.5x.
+			if (capture.twoPassEncoding 
+				&& (item.mediaType.format == MediaType::Format::SilentVideo
+					|| item.mediaType.format == MediaType::Format::VideoWithAudio))
+				totalTime += item.captureTime*3/2;
 
 			// get the source window's rotation
 			item.windowRotation = cap.win->GetRotation();
@@ -1497,6 +1518,26 @@ DWORD Application::GameMonitorThread::Main()
 	TSTRING gameFile = game.filename;
 	TCHAR gameFileWithPath[MAX_PATH];
 	PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFile.c_str());
+
+	// If PinVol is running, send it a message on its mailslot with the
+	// game file and title.  This lets it show the title in its on-screen
+	// display text rather than the filename.  PinVol infers which game
+	// is running from the window title of the foreground app, and the
+	// apps usually only include the filename there.
+	if (HandleHolder mailslot(CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
+		GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+		mailslot != NULL && mailslot != INVALID_HANDLE_VALUE)
+	{
+		// Prepare the message: "game <filename>|<title>", in WCHAR
+		// (16-bit unicode) characters.
+		WSTRINGEx msg;
+		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFile).c_str(), TSTRINGToWSTRING(game.title).c_str());
+
+		// Write the message to the mailslot.  Ignore errors, as the only
+		// harm if we fail is that PinVol won't have the title to display.
+		DWORD actual;
+		WriteFile(mailslot, msg.c_str(), msg.length() * sizeof(WCHAR), &actual, NULL);
+	}
 
 	// Get the centerpoint of the various windows.  If we need to
 	// send a synthesized mouse click targeted to a specific window, 
@@ -2557,94 +2598,146 @@ DWORD Application::GameMonitorThread::Main()
 			}
 
 			// set up the ffmpeg command line
-			TSTRINGEx extraOpts;
+			TSTRINGEx audioOpts;
 			const TCHAR *framerateOpt = _T("");
 			TSTRINGEx timeLimitOpt;
+			bool isVideo = false;
 			switch (item.mediaType.format)
 			{
 			case MediaType::Image:
 				// image capture - capture one frame only (-vframes 1)
-				extraOpts = _T("-vframes 1");
+				audioOpts = _T("-vframes 1");
 				break;
 
 			case MediaType::SilentVideo:
 				// video capture, no audio
+				isVideo = true;
 				framerateOpt = _T("-framerate 30");
 				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
-				extraOpts = _T("-c:a none");
+				audioOpts = _T("-c:a none");
 				break;
 
 			case MediaType::VideoWithAudio:
 				// video capture with optional audio
+				isVideo = true;
 				framerateOpt = _T("-framerate 30");
 				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				if (item.enableAudio && audioCaptureDevice.length() != 0)
-					extraOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
+					audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
 				else
-					extraOpts = _T("-c:a none");
+					audioOpts = _T("-c:a none");
 				break;
 			}
 
-			// build the full command line
-			TSTRINGEx cmdline;
-			cmdline.Format(_T("\"%s\" -f gdigrab %s ")
-				_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
-				_T(" %s %s %s \"%s\""),
-				ffmpeg, framerateOpt,
-				item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top,
-				extraOpts.c_str(), rotateOpt, timeLimitOpt.c_str(), item.filename.c_str());
-
-			// Set up the startup info.  Use Show-No-Activate to try to keep
-			// the game window activated and in the foreground, since VP (and
-			// probably others) stop animations when in the background.
-			STARTUPINFO startupInfo;
-			ZeroMemory(&startupInfo, sizeof(startupInfo));
-			startupInfo.cb = sizeof(startupInfo);
-			startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-			startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
-
-			// launch the process
-			PROCESS_INFORMATION procInfo;
-			if (CreateProcess(NULL, cmdline.data(), 0, 0, false, CREATE_NO_WINDOW, 0,
-				NULL, &startupInfo, &procInfo))
+			// Build the full command line, depending on whether we're in 
+			// normal one-pass mode or two-pass video mode.
+			TSTRINGEx cmdline1;
+			TSTRINGEx cmdline2;
+			TSTRINGEx tmpfile;
+			if (isVideo && capture.twoPassEncoding)
 			{
-				// ffmpeg launched successfully.  Wait for ffmpeg to finish, or
-				// for one of the other events.
-				HandleHolder hFfmpegProc(procInfo.hProcess);
-				CloseHandle(procInfo.hThread);
-				HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
-				switch (WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
-				{
-				case WAIT_OBJECT_0:
-					// ffmpeg finished.  Count this as a success.
-					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
-					break;
+				// Two-pass encoding.  Capture the video with the lossless h265
+				// code in the fastest mode, with no rotation, to a temp file.
+				// We'll re-encode to the actual output file and apply rotations
+				// in the second pass.
+				tmpfile.Format(_T("%s.tmp.mkv"), item.filename.c_str());
+				cmdline1.Format(_T("\"%s\" -f gdigrab %s")
+					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
+					_T(" %s %s -c:v libx264 -crf 0 -preset ultrafast \"%s\""),
+					ffmpeg, framerateOpt,
+					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top,
+					audioOpts.c_str(), timeLimitOpt.c_str(), tmpfile.c_str());
 
-				case WAIT_OBJECT_0 + 1:
-				case WAIT_OBJECT_0 + 2:
-				case WAIT_OBJECT_0 + 3:
-				default:
-					// Shutdown event, close event, or premature game termination,
-					// or another error.  Count this as an interrupted capture.
-					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
-					captureOkay = false;
-					abortCapture = true;
-					break;
-				}
+				// Format the command line for the second pass while we're here
+				cmdline2.Format(_T("\"%s\" ")
+					_T(" -i \"%s\"")
+					_T(" %s \"%s\""),
+					ffmpeg,
+					tmpfile.c_str(),
+					rotateOpt, item.filename.c_str());
 			}
 			else
 			{
-				// Error launching ffmpeg.  It's likely that all subsequent
-				// ffmpeg launch attempts will fail, because the problem is
-				// probably something permanent (e.g., ffmpeg.exe isn't
-				// installed where we expect it to be installed, or there's
-				// a file permissions problem).  So skip any remaining items
-				// by setting the 'abort' flag.
-				statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
-				captureOkay = false;
-				abortCapture = true;
-				break;
+				// normal one-pass encoding - include all options and encode
+				// directly to the desired output file
+				cmdline1.Format(_T("\"%s\" -f gdigrab %s")
+					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
+					_T(" %s %s %s \"%s\""),
+					ffmpeg, framerateOpt,
+					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top,
+					audioOpts.c_str(), rotateOpt, timeLimitOpt.c_str(), item.filename.c_str());
 			}
+
+			auto RunFFMPEG = [this, &statusList, &itemDesc, &captureOkay, &abortCapture](TSTRINGEx &cmdline, bool logSuccess)
+			{
+				// Set up the startup info.  Use Show-No-Activate to try to keep
+				// the game window activated and in the foreground, since VP (and
+				// probably others) stop animations when in the background.
+				STARTUPINFO startupInfo;
+				ZeroMemory(&startupInfo, sizeof(startupInfo));
+				startupInfo.cb = sizeof(startupInfo);
+				startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+				startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
+
+				// launch the process
+				PROCESS_INFORMATION procInfo;
+				if (CreateProcess(NULL, cmdline.data(), 0, 0, false, CREATE_NO_WINDOW, 0,
+					NULL, &startupInfo, &procInfo))
+				{
+					// ffmpeg launched successfully.  Wait for ffmpeg to finish, or
+					// for one of the other events.
+					HandleHolder hFfmpegProc(procInfo.hProcess);
+					CloseHandle(procInfo.hThread);
+					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
+					switch (WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
+					{
+					case WAIT_OBJECT_0:
+						// ffmpeg finished.  Count this as a success.
+						if (logSuccess)
+							statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
+						return true;
+
+					case WAIT_OBJECT_0 + 1:
+					case WAIT_OBJECT_0 + 2:
+					case WAIT_OBJECT_0 + 3:
+					default:
+						// Shutdown event, close event, or premature game termination,
+						// or another error.  Count this as an interrupted capture.
+						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
+						captureOkay = false;
+						abortCapture = true;
+						return false;
+					}
+				}
+				else
+				{
+					// Error launching ffmpeg.  It's likely that all subsequent
+					// ffmpeg launch attempts will fail, because the problem is
+					// probably something permanent (e.g., ffmpeg.exe isn't
+					// installed where we expect it to be installed, or there's
+					// a file permissions problem).  So skip any remaining items
+					// by setting the 'abort' flag.
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
+					captureOkay = false;
+					abortCapture = true;
+					return false;
+				}
+			};
+
+			// run the first pass
+			if (RunFFMPEG(cmdline1, cmdline1.length() == 0))
+			{
+				// success - if there's a second pass, run it
+				if (cmdline2.length() != 0)
+				{
+					capture.statusWin->SetCaptureStatus(MsgFmt(IDS_CAPSTAT_ENCODING_ITEM, itemDesc.c_str()), item.captureTime*3/2);
+					RunFFMPEG(cmdline2, true);
+				}
+			}
+
+			// if there's a temp file, delete it
+			if (tmpfile.length() != 0 && FileExists(tmpfile.c_str()))
+				DeleteFile(tmpfile.c_str());
 		}
 
 		// We're done with the capture process, either because we finished

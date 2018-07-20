@@ -25,5 +25,6 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new SpinIntMap(_T("Capture.BackglassVideoTime"), IDC_EDIT_CAP_BG_TIME, 30, IDC_SPIN_CAP_BG_TIME, 1, 120));
 	varMap.emplace_back(new SpinIntMap(_T("Capture.DMDVideoTime"), IDC_EDIT_CAP_DMD_TIME, 30, IDC_SPIN_CAP_DMD_TIME, 1, 120));
 	varMap.emplace_back(new SpinIntMap(_T("Capture.TopperVideoTime"), IDC_EDIT_CAP_TOPPER_TIME, 30, IDC_SPIN_CAP_TOPPER_TIME, 1, 120));
+	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
 }
 

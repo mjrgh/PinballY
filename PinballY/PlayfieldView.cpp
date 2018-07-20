@@ -2999,6 +2999,7 @@ void PlayfieldView::EndRunningGameMode()
 	SetForegroundWindow(GetParent(hWnd));
 
 	// set wheel context
+	QueueDOFPulse(L"PBYEndGame");
 	dof.SetUIContext(_T("PBYWheel"));
 
 	// cancel any keyboard/joystick auto-repeat
@@ -7047,6 +7048,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 	// for the overhead of launching the capture program.
 	int timeEst = 5;
 	auto config = ConfigManager::GetInstance();
+	bool twoPass = config->GetInt(ConfigVars::CaptureTwoPassEncoding, false);
 	const int imageTime = 2;
 	const int defaultVideoTime = 30;
 	for (auto &cap : captureList)
@@ -7060,9 +7062,31 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 			// the time estimate.  Otherwise, it must be a still image, so
 			// use the fixed image overhead time.
 			if (auto cfgvar = cap.mediaType.captureTimeConfigVar; cfgvar != nullptr)
-				timeEst += config->GetInt(cfgvar, defaultVideoTime);
+			{
+				// use the video time
+				int videoTime = config->GetInt(cfgvar, defaultVideoTime);
+				timeEst += videoTime;
+
+				// If we're using two-pass encoding, add time for the second
+				// pass.  Use a factor of 1.5 of the video running time as a
+				// wild guess.  The actual time depends on the hardware, but 
+				// as explained in the comments for the similar calculation 
+				// in Application::GameMonitorThread::Launch, it probably
+				// won't be less than the running time (since otherwise
+				// the machine is fast enough for real-time encoding) and
+				// it's probably not more than about 2x real time (since
+				// if it were, the machine would be too underpowered to run
+				// any of the common pinball software, so probably isn't
+				// running PinballY).  So we'll take the middle of that
+				// band (1x to 2x) as our estimate.
+				if (twoPass)
+					timeEst += videoTime*3/2;
+			}
 			else
+			{
+				// use the image time
 				timeEst += imageTime;
+			}
 			break;
 
 		case IDS_CAPTURE_KEEP:

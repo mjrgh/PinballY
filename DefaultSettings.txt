@@ -533,6 +533,22 @@ Capture.BackglassVideoTime = 30
 Capture.DMDVideoTime = 30
 Capture.TopperVideoTime = 30
 
+# Two-pass capture.  Normally, when capturing screen-shot video,
+# we capture and encode (compress) the video in real time.  This
+# requires a fairly fast CPU; slower machines might not be able
+# to do the compression work quickly enough to keep up with the
+# live video frame rate, so captured videos might have too many
+# dropped frames, which will manifest see as momentary freezes 
+# when the video is played back.  If your captured videos look
+# choppy, try setting this to 1 to enable two-pass recording.
+# In two-pass mode, we initially capture the video without any
+# compression; even slower machines can usually handle this
+# without dropping frames.  We then convert the captured video
+# to a compressed format.  This takes long than doing it all
+# in one operation, but it should produce smoother videos if
+# your single-pass captures look too choppy.
+Capture.TwoPassEncoding = 0
+
 
 # Coin slot pricing.  This is just a novelty feature for the sake
 # of its entertainment value, as we don't have any real practical

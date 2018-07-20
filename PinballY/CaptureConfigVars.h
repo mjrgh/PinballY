@@ -12,4 +12,5 @@ namespace ConfigVars
 	static const TCHAR *CaptureBGVideoTime = _T("Capture.BackglassVideoTime");
 	static const TCHAR *CaptureDMVideoTime = _T("Capture.DMDVideoTime");
 	static const TCHAR *CaptureTPVideoTime = _T("Capture.TopperVideoTime");
+	static const TCHAR *CaptureTwoPassEncoding = _T("Capture.TwoPassEncoding");
 }

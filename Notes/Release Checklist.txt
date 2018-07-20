@@ -14,15 +14,16 @@ PinballY Release Checklist
 
 - Close Visual Studio
 
-- Open a CMD box, CD to the root folder of the source tree
+- Open a CMD box, CD to the root folder of the PinballY source tree
 
 - Run RELEASE.BAT
 
-- Upload PinballY-xxxxxxx.zip, PinballY-Min-xxxxxx.zip, and VersionHistory.txt
+- Upload to mjrnet.org/pinscape/downloads/PinballY:
+    Builds\PinballY-xxxxxxx.zip
+    Builds\PinballY-Min-xxxxxx.zip
+    VersionHistory.txt
 
 - git commit -a -m "checkin message"
 
 - git push
-
-- 
 

@@ -294,6 +294,7 @@
 #define IDS_CAPSTAT_ITEM                873
 #define IDS_CAPSTAT_ENDING              874
 #define IDS_CAPSTAT_NONE_SELECTED       875
+#define IDS_CAPSTAT_ENCODING_ITEM       876
 
 #define IDS_SEARCH_SETUP_MSG            900
 #define IDS_SEARCH_SETUP_GO             901

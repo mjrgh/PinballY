@@ -175,13 +175,13 @@ static bool LoadLibvlc(ErrorHandler &eh)
 	// Load libvlccore first, so that it's in memory when libvlc.dll
 	// tries to bind to it statically.
 	TCHAR libvlccorePath[MAX_PATH];
-	GetDeployedFilePath(libvlccorePath, _T("libvlccore.dll"), _T("VLC"));
+	GetDeployedFilePath(libvlccorePath, _T("VLC\\libvlccore.dll"), _T(""));
 	if (LoadLibrary(libvlccorePath) == NULL)
 		return Failure(MsgFmt(_T("Unable to load %s"), libvlccorePath));
 
 	// load libvlc
 	TCHAR libvlcPath[MAX_PATH];
-	GetDeployedFilePath(libvlcPath, _T("libvlc.dll"), _T("VLC"));
+	GetDeployedFilePath(libvlcPath, _T("VLC\\libvlc.dll"), _T(""));
 	if ((hmoduleLibvlc = LoadLibrary(libvlcPath)) == NULL)
 		return Failure(MsgFmt(_T("Unable to load %s"), libvlcPath));
 

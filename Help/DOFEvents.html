@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a>
+</div>
+<h1>DOF Events</h1>
+
+<p>
+   If DOF is installed on your system, PinballY will generate
+   DOF events to trigger effects from your feedback devices (such as
+   solenoids and flasher lights).  This will fire flashers and other
+   devices on certain events, such as when you switch between
+   tables in the table list.
+</p>
+<p>
+   DOF integration is automatic;
+   to take advantage of it, just make sure that DOF is installed
+   and that your .ini files from the
+   <a href="http://configtool.vpuniverse.com/">DOF Config Tool</a>
+   are up to date.  The PinballY definitions were added to the
+   Config Tool database in late July 2018, so you'll need to generate
+   and download fresh copies if your current .ini files are older
+   than that.
+</p>
+
+<h2>Customizing DOF effects</h2>
+<p>
+   The DOF Config Tool's database includes a predefined set of
+   effects for PinballY, so you don't have to do anything to use
+   the standard effects other than make sure your .ini files are
+   up-to-date.  If you want to customize anything, though, the
+   Config Tool lets you override any of the default effects with
+   your own custom settings.
+</p>
+<p>
+   All PinballY events are defined under the pseudo-table named
+   <b>PinballY</b>.  To view the event settings in the DOF Config Tool,
+   go to the Table Configs page and select <b>PinballY</b> from the
+   Table Name drop list.
+</p>
+<p>
+   PinballY's entries in the Config Tool follow the standard format
+   defined by DOF.  That's a bit obscure and hard to read, but we
+   won't try to explain it here, since you can find documentation
+   on it in the DOF user guide.  What we will give you is a list of
+   the special event names and state names that PinballY generates.
+</p>
+<p>
+   Note that all named effects in the Config Tool are specified with
+   a <b>$</b> prefix, so remember to add that to the names in the lists below.
+   For example, you'd write <b>$PBYWheelNext</b> in the Config Tool
+   field if you want something to trigger on a "wheel next" event.
+</p>
+<p>
+   <b>@allrgb@:</b>  There's one special bit of Config Tool syntax that's
+   worth mentioning, because it's a special Config Tool feature that
+   isn't part of DOF.  If you put <b>@allrgb@</b> in one of the toy
+   fields, the Config Tool expands this to a list of the settings for
+   that toy for all of the individual tables throughout the rest of
+   the database.  This translates to showing the same colors on
+   that device that would be shown if you were actually playing
+   the game.  For example, putting <b>@allrgb@</b> in the "RGB
+   Flippers" field makes the flipper buttons light up in the colors
+   for whichever table is currently selected in the PinballY wheel
+   display.  This only applies to RGB toys.  
+</p>
+<h3>Events</h3>
+<p>
+   Each time something DOF-worthy happens in the PinballY user
+   interface, PinballY fires a named DOF event.  For example, when
+   you press the Next button (usually the right flipper button) to
+   switch to the next game, PinballY fires a <b>PBYWheelNext</b> event.
+</p>
+<p>
+   Here's a list of the events that PinballY fires:
+</p>
+<ul>
+   <li><b>PBYAttractA1</b> through <b>PBYAttractA5:</b> When attract mode is
+      running, these events are fired in order (1 through 5) at 1-second
+      intervals.  After reaching 5, the counter loops back to 1.  This can
+      be used to create a series of events that runs on a 5-second loop.
+
+   <li><b>PBYAttractB1</b> through <b>PBYAttractB60:</b> When attract
+      mode is running, these events fire in order (1 through 60) at 1-second
+      intervals, looping back to 1 after reaching the last event.  This can
+      be used to create a series of events that runs on a 60-second loop.
+
+   <li><b>PBYAttractR1</b> through <b>PBYAttractR5:</b> When attract mode
+      is running, these events fire in random sequence and at random intervals.
+      These can be used for effects that you want to fire randomly when
+      attract mode is active.
+
+   <li><b>PBYAttractWheelNext:</b> Attract mode is running and automatically
+      switched to a new game
+
+   <li><b>PBYEndGame:</b> The current running game has ended
+
+   <li><b>PBYFlipperLeft:</b> The left flipper button (or whichever key
+      is assigned as the Previous button) was pressed
+
+   <li><b>PBYFlipperRight:</b> The right flipper button (or whichever
+      key is assigned as the Next button) was pressed
+
+   <li><b>PBYFlyer:</b> The Flyer command was selected, to display the
+      current game's flyer as a popup window
+
+   <li><b>PBYGameInfo:</b> The Information command was selected, to display
+      the pop-up information box for the current game
+
+   <li><b>PBYGameSelect:</b> A new game was selected
+
+   <li><b>PBYHighScores:</b> The High Scores command was selected, to display
+      the pop-up high score box for the current game
+
+   <li><b>PBYInstructions:</b> The Instructions command was selected, to
+       display the current game's instruction card as a popup window
+
+   <li><b>PBYMagnaRight:</b> The right MagnaSave button (or whichever key
+       is assigned as the Next Page button) was pressed
+
+   <li><b>PBYMagnaLeft:</b> The left MagnaSave button (or whichever key
+       is assigned as the Previous Page button) was pressed
+
+   <li><b>PBYMenuDown:</b> The user navigated to the next item in a menu
+
+   <li><b>PBYMenuOpen:</b> A new menu was opened
+
+   <li><b>PBYMenuSelect:</b> A command was selected in a menu (this usually
+      means that the "Start" button, or whichever key is assigned as the
+      Enter/Select command key, was pressed)
+
+   <li><b>PBYMenuUp:</b> The user navigated to the previous item in a menu
+
+   <li><b>PBYQuit:</b> A menu was closed
+
+   <li><b>PBYScreenSaverStart:</b> Attract mode (the "screen saver" mode)
+      is starting
+
+   <li><b>PBYScreenSaverQuit:</b> Attract mode is exiting
+
+   <li><b>PBYWheelNext:</b> The user navigated to the next game in the wheel
+
+   <li><b>PBYWheelNextPage:</b> The user navigated to the next "page" (the next
+      alphabetical letter group) in the wheel
+
+   <li><b>PBYWheelPrev:</b> The user navigated to the previous game in the wheel
+
+   <li><b>PBYWheelPrevPage:</b> The user navigated to the previous "page" (the
+      previous alphabetical letter group) in the wheel
+
+</ul>
+
+<h3>States</h3>
+<p>
+   In addition to events, PinballY has "states".  These differ from
+   events only in that states are long-lasting.  An event fires
+   briefly, usually triggering a quick event in DOF, such as flashing
+   the flashers or firing a flipper solenoid.  A state turns on and
+   stays on for an extended period.  States tell DOF the current
+   context in the UI:  showing a game in the wheel interface, showing
+   a menu, running the "attract mode" screen saver, and so on.
+</p>
+<ul>
+   <li><b>PBYMenu:</b> A menu is displayed
+
+   <li><b>PBYScreenSaver:</b> Attract mode is active
+
+   <li><b>PBYWheel:</b> This is the default state, where the "wheel"
+   interface is displayed with no menus or popups active
+
+   <li><b>ROM name:</b> In addition to the PBYxxx states, PinballY also
+      turns on a named event with the same name as the ROM for the table
+      currently selected in the wheel display.  For example,
+      PinballY turns on the named effect <b>MM</b> when Medieval
+      Madness is currently selected in the wheel.  This lets you trigger
+      effects that depend on which table is selected.  The <b>@allrgb@</b>
+      syntax described above uses this to select device colors according
+      to the selected table, but you can also use it explicitly
+      for individual effects.  The ROM names match the names in the
+      Config Tool, which you can see listed on the Table Config page 
+      (look for "Rom: XXX" near the top of the page).
+</ul>
+
+
+
+</body>
+</html>
+
