@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="PinballY"
+    Language="1033"
+    Version="1.0.0"
+    Manufacturer="Pinscape Labs"
+    UpgradeCode="fba66d28-bdeb-491a-986b-2491b43f8399">
+
+    <Package
+      Description="PinballY"
+      InstallerVersion="200"
+      Compressed="yes"
+      InstallScope="perUser" />
+
+    <MajorUpgrade AllowDowngrades="yes" IgnoreRemoveFailure="no" Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="WixSetup" Level="1">
+      <ComponentRef Id="PinballY" />
+      <ComponentRef Id="SevenZip"/>
+      <ComponentRef Id="ffmpeg"/>
+      <ComponentRef Id="PINemHi"/>
+      <ComponentRef Id="vlc"/>
+      <ComponentGroupRef Id="HeatGeneratedAssets" />
+      <ComponentGroupRef Id="HeatGeneratedHelp" />
+      <ComponentGroupRef Id="HeatGeneratedVLCPlugins" />
+    </Feature>
+
+    <!-- At run time, show the dialog UI to select the destination folder -->
+    <Property Id="WIXUI_INSTALLDIR" Value="PBYDIR" />
+    <UIRef Id="WixUI_InstallDirCustom" />
+
+    <!-- Custom license file for the dialog UI -->
+    <WixVariable Id="WixUILicenseRtf" Value="res\License.rtf" />
+
+    <!-- Custom UI dialog bitmaps -->
+    <WixVariable Id="WixUIBannerBmp" Value="res\Banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="res\DialogSide.bmp" />
+
+  </Product>
+
+  <Fragment>
+    <!-- Retrieve the old install folder from the registry, if set -->
+    <Property Id="INSTALLFOLDER">
+      <RegistrySearch
+        Id="InstallFolder" Type="raw"
+        Root="HKCU" Key="SOFTWARE\Pinscape Labs\PinballY" Name="InstallPath"/>
+    </Property>
+
+    <!-- 
+      Install folder root - default to X:\PinballY (where X: is the
+      Windows install volume).  Note that the RegistrySearch property
+      setting above will override this if the key exists, so we'll
+      propose installing in same current folder if a previous version
+      already exists.
+    -->
+    <!-- <SetDirectory Id="INSTALLFOLDER" Value="[WindowsVolume]PinballY" /> -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="WINDOWSVOLUME">
+        <Directory Id="INSTALLFOLDER" Name="PinballY">
+          <Directory Id="PBYDIR" >
+            <Directory Id="ASSETSDIR" Name="Assets" />
+            <Directory Id="HELPDIR" Name="Help" />
+            <Directory Id="FFMPEGDIR" Name="ffmpeg" />
+            <Directory Id="SEVENZIPDIR" Name="7-Zip" />
+            <Directory Id="PINEMHIDIR" Name="PINemHi" />
+            <Directory Id="VLCDIR" Name="VLC" >
+              <Directory Id="VLCPLUGINSDIR" Name="plugins" />
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="PBYDIR">
+      <Component Id="PinballY" Guid="15AEC001-F02E-4F1A-B94F-0FCEC8D3B140">
+        <File Id="MainEXE" Source="$(var.PinballY.TargetPath)" />
+        <File Source="$(var.PinballY Admin Mode.TargetPath)" />
+        <File Source="$(var.OptionsDialog.TargetPath)" />
+        <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
+        <File Source="$(var.SolutionDir)DefaultSettings.txt" />
+        <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
+        <File Source="$(var.SolutionDir)Third Party Licenses.txt" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="SEVENZIPDIR">
+      <Component Id="SevenZip" Guid="82137583-E243-4728-A562-6FF6BC3FB238">
+        <File Source="$(var.SolutionDir)7-Zip\7z.dll" />
+      </Component>
+    </DirectoryRef>
+    
+    <DirectoryRef Id="FFMPEGDIR">
+      <Component Id="ffmpeg" Guid="726673D1-7AD0-4197-ACED-626B53951149">
+        <File Source="$(var.SolutionDir)ffmpeg\ffmpeg.exe" />
+        <File Id="ffmpegLicense" Source="$(var.SolutionDir)ffmpeg\LICENSE.txt" />
+        <File Id="ffmpegReadme" Source="$(var.SolutionDir)ffmpeg\README.txt" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="PINEMHIDIR">
+      <Component Id="PINemHi" Guid="999CD3EC-F8B9-4AF2-9473-C545DADB6AD3">
+        <File Source="$(var.SolutionDir)PINemHi\pinemhi.exe" />
+        <File Source="$(var.SolutionDir)PINemHi\pinemhi.ini" />
+        <File Source="$(var.SolutionDir)PINemHi\pinemhi_replays.ini" />
+        <File Source="$(var.SolutionDir)PINemHi\Whatsnew PINemHi.txt" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="VLCDIR">
+      <Component Id="vlc" Guid="5AE1F4F6-C022-40FE-B955-DA431EB1AA62">
+        <File Source="$(var.SolutionDir)VLC\libvlc.dll" />
+        <File Source="$(var.SolutionDir)VLC\libvlccore.dll" />
+        <File Source="$(var.SolutionDir)VLC\AUTHORS.txt" />
+        <File Source="$(var.SolutionDir)VLC\COPYING.txt" />
+        <File Id="vlcReadme" Source="$(var.SolutionDir)VLC\README.txt" />
+        <File Source="$(var.SolutionDir)VLC\THANKS.txt" />
+      </Component>
+    </DirectoryRef>
+    
+  </Fragment>
+
+  <Fragment>
+    <UI Id="WixUI_InstallDirCustom">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1">NOT Installed</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+      <Property Id="ARPNOMODIFY" Value="1" />
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
+  </Fragment>
+
+</Wix>

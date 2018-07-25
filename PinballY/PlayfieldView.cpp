@@ -72,7 +72,8 @@ static const DWORD wheelTime = 260;
 
 
 // construction
-PlayfieldView::PlayfieldView() : BaseView(IDR_PLAYFIELD_CONTEXT_MENU, ConfigVars::PlayfieldWinPrefix),
+PlayfieldView::PlayfieldView() : 
+	BaseView(IDR_PLAYFIELD_CONTEXT_MENU, ConfigVars::PlayfieldWinPrefix),
 	playfieldLoader(this)
 {
 	// clear variables, reset modes
@@ -512,6 +513,20 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// this is a one-shot
 		KillTimer(hWnd, timer);
 		return true;
+
+	case restoreDOFTimerID:
+		// reinitialize the DOF client
+		if (DOFClient::Init(Application::InUiErrorHandler()))
+		{
+			// set wheel context
+			QueueDOFPulse(L"PBYEndGame");
+			dof.SetUIContext(_T("PBYWheel"));
+			dof.SyncSelectedGame();
+		}
+
+		// this is a one-shot
+		KillTimer(hWnd, timer);
+		return true;
 	}
 
 	// use the default handling
@@ -821,6 +836,10 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_MEDIA_DROP_GO:
 		MediaDropGo();
+		return true;
+
+	case ID_CAPTURE_ADJUSTDELAY:
+		ShowCaptureDelayDialog(false);
 		return true;
 
 	default:
@@ -1300,9 +1319,15 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 			}
 		}
 
+		// Before launching, shut down our DOF interface, so that the game
+		// can take it over while running.
+		dof.SetRomContext(_T(""));
+		dof.SetUIContext(_T(""));
+		DOFClient::Shutdown();
+
 		// try launching the game
 		Application::InUiErrorHandler eh;
-		if (Application::Get()->Launch(cmd, game, system, &launchCaptureList, eh))
+		if (Application::Get()->Launch(cmd, game, system, &launchCaptureList, captureStartupDelay, eh))
 		{
 			// show the "game running" popup in the main window
 			BeginRunningGameMode();
@@ -1335,6 +1360,11 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 					player->AddRef();
 				}
 			}
+		}
+		else
+		{
+			// launch failed - reinstate the DOF client
+			SetTimer(hWnd, restoreDOFTimerID, 100, NULL);
 		}
 	}
 }
@@ -2451,7 +2481,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		// is actually the image width and vice versa.)
 		Application::AsyncErrorHandler eh;
 		if (video.length() != 0
-			&& sprite->LoadVideo(video, hWnd, { 1.0f, 0.5625f }, eh, _T("Playfield Video")))
+			&& sprite->LoadVideo(video, hWnd, { 1.0f, 9.0f/16.0f }, eh, _T("Playfield Video")))
 			ok = true;
 
 		// If there's no video, try a static image
@@ -2897,10 +2927,6 @@ void PlayfieldView::BeginRunningGameMode()
 	// cancel any key/joystick auto-repeat
 	StopAutoRepeat();
 
-	// turn off all DOF modes
-	dof.SetRomContext(_T(""));
-	dof.SetUIContext(_T(""));
-
 	// don't monitor for attract mode while running
 	KillTimer(hWnd, attractModeTimerID);
 
@@ -2998,9 +3024,20 @@ void PlayfieldView::EndRunningGameMode()
 	// make sure I'm in the foreground
 	SetForegroundWindow(GetParent(hWnd));
 
-	// set wheel context
-	QueueDOFPulse(L"PBYEndGame");
-	dof.SetUIContext(_T("PBYWheel"));
+	// Set a timer to reinstate our DOF client after a short delay.
+	// Don't do this immediately, because DOF doesn't do anything to
+	// serialize access from multiple processes, and many of the USB
+	// devices that DOF accesses have protocols that depend on packet
+	// sequencing, which for obvious reasons will get confused if 
+	// multiple processes are sending packets at once.  DOF resets
+	// devices when an attached process exits, so the exiting game
+	// will have just sent a set of USB packets to each device to 
+	// turn off its ports.  We want to allow time for those packets
+	// to make it through the Windows driver buffers and down the
+	// wire before we start sending our own DOF packets, to avoid
+	// the packet sequencing problems mentioned above.  So set a
+	// short timer for doing our DOF re-connect.
+	SetTimer(hWnd, restoreDOFTimerID, 500, NULL);
 
 	// cancel any keyboard/joystick auto-repeat
 	StopAutoRepeat();
@@ -4065,7 +4102,8 @@ void PlayfieldView::ScaleSprites()
 		break;
 	}
 
-	// Scale the playfield to fill as much of the window as possible
+	// Scale the playfield to fill as much of the window as possible,
+	// maintaining the original aspect ratio
 	ScaleSprite(currentPlayfield.sprite, 1.0f, true);
 	ScaleSprite(incomingPlayfield.sprite, 1.0f, true);
 }
@@ -5024,13 +5062,13 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 		}
 		else if (popupSprite != nullptr)
 		{
+			// assume we'll use the "deselect menu" sound
 			const TCHAR *sound = _T("Deselect");
-				
-			// If the Rate Game dialog is open, commit the new rating
-			// to the database
+
+			// check the popup type
 			if (popupType == PopupRateGame)
 			{
-				// set the new rating
+				// Rate Game dialog - commit the new rating to the game database
 				GameList *gl = GameList::Get();
 				GameListItem *game = gl->GetNthGame(0);
 				if (IsGameValid(game))
@@ -5050,6 +5088,13 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 					UpdateSelection();
 					UpdateAllStatusText();
 				}
+			}
+			else if (popupType == PopupCaptureDelay)
+			{
+				// Capture Delay dialog - commit the new adjusted startup 
+				// delay and return to the capture menu
+				captureStartupDelay = adjustedCaptureStartupDelay;
+				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
 			}
 
 			// Popup mode - remove the popup
@@ -5301,9 +5346,20 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 		}
 		else if (popupSprite != nullptr)
 		{
-			// close the popup sprite
-			PlayButtonSound(_T("Deselect"));
-			ClosePopup();
+			// check the popup type
+			if (popupType == PopupCaptureDelay)
+			{
+				// capture delay - return to the capture setup menu, 
+				// without committing the adjusted delay time
+				ClosePopup();
+				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
+			}
+			else
+			{
+				// close the popup sprite
+				PlayButtonSound(_T("Deselect"));
+				ClosePopup();
+			}
 		}
 		else if (runningGamePopup != nullptr)
 		{
@@ -5410,6 +5466,12 @@ void PlayfieldView::DoCmdNext(bool fast)
 			// high scores - go to game info
 			ShowGameInfo();
 		}
+		else if (popupType == PopupCaptureDelay)
+		{
+			// increment the startup delay time and update the dialog
+			adjustedCaptureStartupDelay += 1;
+			ShowCaptureDelayDialog(true);
+		}
 		else
 		{
 			// for others, just cancel the popup
@@ -5477,6 +5539,13 @@ void PlayfieldView::DoCmdPrev(bool fast)
 			// high scores - go to game info
 			ShowGameInfo();
 		}
+		else if (popupType == PopupCaptureDelay)
+		{
+			// decrement the startup delay time and re-show the dialog
+			adjustedCaptureStartupDelay -= 1;
+			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
+			ShowCaptureDelayDialog(true);
+		}
 		else
 		{
 			// for others, just cancel the popup
@@ -5512,6 +5581,12 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			// there's a Page Down item - send the command
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_DOWN);
 		}
+		else if (popupSprite != nullptr && popupType == PopupCaptureDelay)
+		{
+			// increment the startup delay time and re-show the dialog
+			adjustedCaptureStartupDelay += 5;
+			ShowCaptureDelayDialog(true);
+		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat it as a regular 'next'
@@ -5544,6 +5619,13 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		if (curMenu != nullptr && curMenu->paged)
 		{
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_UP);
+		}
+		else if (popupSprite != nullptr && popupType == PopupCaptureDelay)
+		{
+			// decrement the startup delay time and re-show the dialog
+			adjustedCaptureStartupDelay -= 5;
+			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
+			ShowCaptureDelayDialog(true);
 		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
@@ -6994,6 +7076,9 @@ void PlayfieldView::CaptureMediaSetup()
 	if (!CanAddMedia(game))
 		return;
 
+	// set the default capture time to the configured delay time
+	captureStartupDelay = ConfigManager::GetInstance()->GetInt(ConfigVars::CaptureStartupDelay, 5);
+
 	// Set up the capture list.  Only include the media types for visible
 	// windows with background media displayed by the various game player 
 	// systems:  playfield, backglass, DMD, topper.  Don't include hidden
@@ -7036,6 +7121,72 @@ void PlayfieldView::CaptureMediaSetup()
 
 	// display the menu
 	DisplayCaptureMenu(false, -1);
+}
+
+void PlayfieldView::ShowCaptureDelayDialog(bool update)
+{
+	// if we're showing the dialog anew (rather than updating the existing
+	// popup), copy the current delay time to the temporary value that the
+	// dialog adjusts
+	if (!update)
+		adjustedCaptureStartupDelay = captureStartupDelay;
+
+	// dismiss any menu if not updating
+	if (!update)
+		CloseMenusAndPopups();
+
+	// set up the new dialog
+	const int width = 960, height = 480;
+	Application::InUiErrorHandler eh;
+	popupSprite.Attach(new Sprite());
+	if (popupSprite->Load(width, height, [this, width, height](HDC hdc, HBITMAP)
+	{
+		// set up the GDI+ context
+		Gdiplus::Graphics g(hdc);
+
+		// draw the background
+		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+		g.FillRectangle(&bkgBr, 0, 0, width, height);
+
+		// draw the border
+		const int borderWidth = 2;
+		Gdiplus::Pen pen(Gdiplus::Color(0xe0, 0xff, 0xff, 0xff), float(borderWidth));
+		g.DrawRectangle(&pen, borderWidth / 2, borderWidth / 2, width - borderWidth, height - borderWidth);
+
+		// margin for our content area
+		const float margin = 16.0f;
+
+		// centered string formatter
+		Gdiplus::StringFormat centerFmt;
+		centerFmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+		centerFmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+
+		// draw the main text
+		Gdiplus::RectF rc(0.0f, 0.0f, (float)width, (float)height/2.0f);
+		std::unique_ptr<Gdiplus::Font> font1(CreateGPFont(_T("Tahoma"), 48, 400));
+		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
+		g.DrawString(MsgFmt(IDS_CAPTURE_DELAYTIME1, adjustedCaptureStartupDelay), -1, font1.get(), rc, &centerFmt, &textBr);
+
+		// draw the bottom text
+		rc.Y += (float)height/2.0f;
+		std::unique_ptr<Gdiplus::Font> font2(CreateGPFont(_T("Tahoma"), 20, 400));
+		g.DrawString(LoadStringT(IDS_CAPTURE_DELAYTIME2), -1, font2.get(), rc, &centerFmt, &textBr);
+
+		// done with GDI+
+		g.Flush();
+
+	}, eh, _T("Capture startup delay adjustment dialog")))
+	{
+		AdjustSpritePosition(popupSprite);
+		if (popupType != PopupCaptureDelay)
+			StartPopupAnimation(PopupCaptureDelay, true);
+	}
+	else
+	{
+		popupSprite = nullptr;
+	}
+
+	UpdateDrawingList();
 }
 
 void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
@@ -7142,6 +7293,12 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 			MsgFmt(_T("%s: %s"), LoadStringT(cap.mediaType.nameStrId).c_str(), LoadStringT(cap.mode).c_str()),
 			cap.cmd, flags);
 	};
+
+	// add the delay time adjust item
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(MsgFmt(IDS_CAPTURE_ADJUSTDELAY, captureStartupDelay), 
+		ID_CAPTURE_ADJUSTDELAY,
+		selectedCmd == ID_CAPTURE_ADJUSTDELAY ? MenuSelected : 0);
 
 	// add the Begin and Cancel items
 	md.emplace_back(_T(""), -1);

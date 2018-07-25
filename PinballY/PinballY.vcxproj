@@ -220,6 +220,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="I420Shader.cpp" />
     <ClCompile Include="InstCardView.cpp" />
     <ClCompile Include="InstCardWin.cpp" />
+    <ClCompile Include="LogFile.cpp" />
     <ClCompile Include="MediaDropTarget.cpp" />
     <ClCompile Include="MonitorCheck.cpp" />
     <ClCompile Include="PinscapeDevice.cpp" />
@@ -274,6 +275,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="GraphicsUtil.h" />
     <ClInclude Include="I420Shader.h" />
     <ClInclude Include="HighScores.h" />
+    <ClInclude Include="LogFile.h" />
     <ClInclude Include="MediaDropTarget.h" />
     <ClInclude Include="PrivateWindowMessages.h" />
     <ClInclude Include="RealDMD.h" />

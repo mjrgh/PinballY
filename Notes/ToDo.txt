@@ -1,3 +1,17 @@
+- Add an option to make unconfigured games (games with no database
+entries) automatically hidden.  This doesn't mark the games as
+"hidden" in the sense of the manual "Hide Game" option; it's just a
+separate property like "hidden" that filters them out of the regular
+filters.  Add a separate "Unconfigured Games" filter, next to "Show
+Hidden Games" in the operator menu, that shows all unconfigured games.
+Manually hidden games aren't included in this filter.
+
+- Keep a "date added" field in the CSV database; fill in with the
+current date the first time the user configures a game's basic
+bibliographic information through the setup dialog.  Create a filter
+long the lines of the "last played" filter that selects games added
+within or before the last week, month, year.
+
 - *IF* people get stuck looking for a dialog box where you type in the
 window layout numbers, and don't immediately recognize that you
 position the windows the "normal" way, add a tip popup that appears
@@ -13,12 +27,6 @@ display for the character images, but apply tinting to match the VPM
 DMD color setting for the game.  For "EM" (electromechanical) or "ME"
 (pure mechanical) type games, use something else suitable, like maybe
 a synthesized hand-written sticky note or index card.
-
-- Keep a "date added" field in the CSV database; fill in with the
-current date the first time the user configures a game's basic
-bibliographic information through the setup dialog.  Create a filter
-long the lines of the "last played" filter that selects games added
-within or before the last week, month, year.
 
 - Default videos: create some attractive default videos for the
 various windows (playfield, backglass, DMD, topper).  Ideally create a

@@ -176,35 +176,5 @@ protected:
 
 	// String[] GetConfiguredTableElmentDescriptors() [sic - "Elment" not "Element"]
 	DISPID dispidGetConfiguredTableElmentDescriptors;
-
-	
-	// EXCEPINFO subclass with auto initialization and cleanup
-	struct EXCEPINFOEx : EXCEPINFO
-	{
-		EXCEPINFOEx() { ZeroMemory(this, sizeof(EXCEPINFO)); }
-		~EXCEPINFOEx() { Clear(); }
-
-		void Clear()
-		{
-			if (bstrDescription != nullptr) SysFreeString(bstrDescription);
-			if (bstrSource != nullptr) SysFreeString(bstrSource);
-			if (bstrHelpFile != nullptr) SysFreeString(bstrHelpFile);
-			ZeroMemory(this, sizeof(EXCEPINFO));
-		}
-	};
-
-	// VARIANT subclass with auto initialization and cleanup
-	struct VARIANTEx : VARIANT
-	{
-		VARIANTEx() 
-		{
-			ZeroMemory(this, sizeof(VARIANT));
-			vt = VT_NULL;
-		}
-
-		~VARIANTEx() { Clear(); }
-		
-		void Clear() { ClearVariantArray(this, 1); }
-	};
 };
 

@@ -47,6 +47,9 @@
 #define IDS_NO_YEAR                     222
 #define IDS_NO_SYSTEM                   223
 
+#define IDS_CAPTURE_DELAYTIME1          240
+#define IDS_CAPTURE_DELAYTIME2          241
+
 #define IDS_CAPTURE_SELECT_MEDIA        250
 #define IDS_CAPTURE_CAPTURE             251
 #define IDS_CAPTURE_WITH_AUDIO          252
@@ -55,6 +58,7 @@
 #define IDS_CAPTURE_KEEP                255
 #define IDS_CAPTURE_GO                  256
 #define IDS_CAPTURE_CANCEL              257
+#define IDS_CAPTURE_ADJUSTDELAY         258
 
 #define IDS_MEDIATYPE_PFPIC             260
 #define IDS_MEDIATYPE_PFVID             261
@@ -295,6 +299,7 @@
 #define IDS_CAPSTAT_ENDING              874
 #define IDS_CAPSTAT_NONE_SELECTED       875
 #define IDS_CAPSTAT_ENCODING_ITEM       876
+#define IDS_CAPSTAT_INITING             877
 
 #define IDS_SEARCH_SETUP_MSG            900
 #define IDS_SEARCH_SETUP_GO             901
@@ -387,6 +392,7 @@
 #define ID_REALDMD_ENABLE               32845
 #define ID_REALDMD_DISABLE              32846
 #define ID_OPERATOR_MENU                32847
+#define ID_CAPTURE_ADJUSTDELAY          32848
 
 
 // Next default values for new objects
@@ -395,7 +401,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32847
+#define _APS_NEXT_COMMAND_VALUE         32849
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

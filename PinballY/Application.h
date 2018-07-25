@@ -153,11 +153,13 @@ public:
 	//    ID_PLAY_GAME -> normal launch to play the game
 	//    ID_CAPTURE_GO -> launch for media capture
 	//
-	// In capture mode, the caller must supply the list of capture
-	// items.  This can be null for regular launch mode.
+	// In capture mode, the caller must supply the list of capture items. 
+	// This can be null for regular launch mode.  captureStartupDelay is
+	// the initial startup delay (the time to wait after launching the
+	// child process for the game) in seconds.
 	//
 	bool Launch(int cmd, GameListItem *game, GameSystem *system, 
-		const std::list<LaunchCaptureItem> *captureList, ErrorHandler &eh);
+		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay, ErrorHandler &eh);
 
 	// Kill the running game, if any
 	void KillGame();
@@ -424,7 +426,8 @@ protected:
 
 		// launch
 		bool Launch(int cmd, GameListItem *game, GameSystem *system, 
-			const std::list<LaunchCaptureItem> *captureList, ErrorHandler &eh);
+			const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+			ErrorHandler &eh);
 
 		// try shutting down the game thread
 		bool Shutdown(ErrorHandler &eh, DWORD timeout, bool force);
@@ -471,6 +474,9 @@ protected:
 
 		// game inactivity timeout, in milliseconds
 		TSTRINGEx gameInactivityTimeout;
+
+		// hide the Windows taskbar while the game is running?
+		bool hideTaskbar;
 
 		// Media capture information.  To avoid any cross-thread sync
 		// issues, we grab all of the information we need for media

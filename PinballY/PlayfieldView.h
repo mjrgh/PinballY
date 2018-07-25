@@ -223,6 +223,7 @@ protected:
 	static const int creditsDispTimerID = 113;	  // number of credits display overlay timer
 	static const int gameTimeoutTimerID = 114;    // game inactivity timeout timer
 	static const int endSplashTimerID = 115;      // remove the "splash screen"
+	static const int restoreDOFTimerID = 116;     // restore DOF access after a game terminates
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -401,6 +402,12 @@ protected:
 	};
 	std::list<CaptureItem> captureList;
 
+	// Startup delay time for the current item, in seconds
+	int captureStartupDelay;
+
+	// adjusted startup delay, in the adjustment dialog
+	int adjustedCaptureStartupDelay;
+
 	// Display/update the capture setup menu.  The menu includes
 	// checkbox items for all of the available media types, and
 	// these operate in "dialog" mode, meaning that selecting them
@@ -422,6 +429,9 @@ protected:
 
 	// Advance a capture item to the next state
 	void AdvanceCaptureItemState(int cmd);
+
+	// Show/update the capture startup delay dialog
+	void ShowCaptureDelayDialog(bool update);
 
 	// Media drop list.  
 	struct MediaDropItem
@@ -736,7 +746,8 @@ protected:
 		PopupAboutBox,		// about box
 		PopupErrorMessage,	// error message alert
 		PopupRateGame,		// enter game rating "dialog"
-		PopupHighScores     // high scores list
+		PopupHighScores,    // high scores list
+		PopupCaptureDelay   // capture delay dialog
 	} 
 	popupType;
 

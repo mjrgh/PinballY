@@ -161,6 +161,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ComUtil.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="Dialog.h" />
     <ClInclude Include="ErrorIconType.h" />

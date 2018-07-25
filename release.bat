@@ -33,3 +33,6 @@ for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull% %%i
 rem  Build the "Min" ZIP.  This uses only the "Min" manifest.
 if exist %ReleaseZipMin% del %ReleaseZipMin%
 for /f "delims=" %%i in (ReleaseManifestMin.txt) do zip %ReleaseZipMin% %%i
+
+rem  Copy the MSI installer
+copy "WixSetup\bin\Release\PinballY Setup.msi" Builds\PinballY-%ReleaseDate%.msi

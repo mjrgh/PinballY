@@ -1,0 +1,1497 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Fragment>
+        <DirectoryRef Id="VLCPLUGINSDIR">
+            <Directory Id="dirC76394BEAAD88541B3C5EC7E7C09F978" Name="access">
+                <Component Id="cmp999791E547D221360414833D414E074D" Guid="{18FBF83A-DE47-4DB4-A2C0-AE93B037768A}">
+                    <File Id="fil075DC9BD79418AB44843D57289032269" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libaccess_concat_plugin.dll" />
+                </Component>
+                <Component Id="cmpC0937C33DDD24E5FAE140E387AF019BD" Guid="{FF55F85A-E37E-4BDA-A42F-A4DC64AB65B1}">
+                    <File Id="fil1C99B7CB1ACC2B3829636C82C23A2F57" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libaccess_imem_plugin.dll" />
+                </Component>
+                <Component Id="cmp0403BF80CCB3A9E54DFD9747E053CD32" Guid="{22344DF7-EE1A-430B-BC63-1ED46DD50E8C}">
+                    <File Id="fil4D0B64ECABCCDE88ADB2141340D3A216" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libaccess_mms_plugin.dll" />
+                </Component>
+                <Component Id="cmpCC04C2217E4F45C00ECD5AA31D665A66" Guid="{77A01E32-B67B-4222-92C8-C267EA6D2AB1}">
+                    <File Id="filEA08D71175AB51FD22DD11BA92B8377B" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libaccess_realrtsp_plugin.dll" />
+                </Component>
+                <Component Id="cmp2980DD86E21CDA0A0FF11550C5850C02" Guid="{6E99E050-3935-48E7-AE6B-EF7C4470FB8F}">
+                    <File Id="fil3504601B29D26751B12FED0EF62894DC" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libaccess_wasapi_plugin.dll" />
+                </Component>
+                <Component Id="cmp2306CB59AF74C2EB7AEE3798AAB669C2" Guid="{BDE5AF5D-167A-445C-B6B2-BEC2EC899071}">
+                    <File Id="fil288F64F08F4304A140F0F299BFED29CB" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libattachment_plugin.dll" />
+                </Component>
+                <Component Id="cmp48BA01BECF4C5E7FF605A7B22E58563A" Guid="{8D3223B3-FC4F-412F-9E6C-B318664BD061}">
+                    <File Id="filF6D605B07752795055D6878211B144D1" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libbluray-j2se-1.0.2.jar" />
+                </Component>
+                <Component Id="cmpE80F7F39622A5B612D78C8025ABCB74C" Guid="{CFD606AD-5815-4FEB-9B80-01F7EFE07710}">
+                    <File Id="filABA4259EA0E4DB5AE37E7DA6A485F660" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libcdda_plugin.dll" />
+                </Component>
+                <Component Id="cmp6587B31F9A33CE3B7E276512C5FDE261" Guid="{DBF8A5F9-1F3A-4E71-B1CD-2E482D9BC827}">
+                    <File Id="fil9709F8F5F77977BCB57B7FD5A27DD888" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libdcp_plugin.dll" />
+                </Component>
+                <Component Id="cmp7FACBC454DDDF647B023A3FD619638A2" Guid="{65BD4007-A24F-4B5F-94A8-8E8DD1F8F102}">
+                    <File Id="filF5E627F553488C4B75AD7EEEFB93C760" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libdshow_plugin.dll" />
+                </Component>
+                <Component Id="cmp77C20E0445A309B1BB23954B3A4FD62F" Guid="{AA091059-18FD-41A9-8FA1-2989DC4979E1}">
+                    <File Id="fil81BD60071D8EF77168313A62B730741E" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libdtv_plugin.dll" />
+                </Component>
+                <Component Id="cmpECA2D196FF1716F6D9035F134CACA6D6" Guid="{5C7BD581-B887-4165-99F6-CECF627A9605}">
+                    <File Id="fil4EB47E9FF01BB457D985565B9B8906BE" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libdvdnav_plugin.dll" />
+                </Component>
+                <Component Id="cmp36E08BAD5E80B5DE01CB044D36193478" Guid="{C88AEB5B-D4E3-4846-B57A-C6A3BF931D56}">
+                    <File Id="filBCED3B0EE1A5C7503419BBE909262378" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libdvdread_plugin.dll" />
+                </Component>
+                <Component Id="cmp8DF1936B3D1793A4C44BE3DE4686EA78" Guid="{56745D76-8D73-4FFF-BBB2-B5AD3012C816}">
+                    <File Id="filB768C49FF5A687C913A503CDDAE21ED9" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libfilesystem_plugin.dll" />
+                </Component>
+                <Component Id="cmpFE73E6C44DF18888740D3D8741549700" Guid="{7639EEBC-F83E-494C-9206-973F2799CC38}">
+                    <File Id="fil3D918FF297E8BFB5AA62B8138A68C2C3" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libftp_plugin.dll" />
+                </Component>
+                <Component Id="cmp3EFD2951569A82A90F06B5AA0D92D4C3" Guid="{C0E1ED8F-4D26-4F20-9C00-4128F3C370F8}">
+                    <File Id="filE82DBBD746B8D164B20DBEEB9F9EEABF" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libhttps_plugin.dll" />
+                </Component>
+                <Component Id="cmp0956BA7E8879E65B49F33E445843D0D7" Guid="{3808A26D-313F-4DDD-BFBB-4055DF32C467}">
+                    <File Id="fil250916C28E083BF5554CBA00FB9A359E" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libhttp_plugin.dll" />
+                </Component>
+                <Component Id="cmp9FFC53CAE12B129F529885261008D7C6" Guid="{4D8B6BCD-1415-44AE-B8F3-57090A43E47D}">
+                    <File Id="filCFDDE85F7C9EAF7DEC5F8082B998D312" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libidummy_plugin.dll" />
+                </Component>
+                <Component Id="cmpE68D91A5551A88C2C91CC55FB3A06C29" Guid="{C3C4EDD5-6AA4-42F5-9353-7C3AAE639FD6}">
+                    <File Id="fil6E0F5C1C57675D6BA1B14A42BFA2250D" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libimem_plugin.dll" />
+                </Component>
+                <Component Id="cmp61958E037D40B0AEC7D0EE71CC63FDEF" Guid="{B16F8244-7546-4262-91BE-C71A2805E9D8}">
+                    <File Id="fil72720D0353BACF7EE64C3408577BD221" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\liblibbluray_plugin.dll" />
+                </Component>
+                <Component Id="cmp3DE735A43B924D11198D6F4AC69C40C4" Guid="{831A235A-F124-4CA5-9724-CCE3F91438CE}">
+                    <File Id="fil82FC5BD0432ECC5EA4A3ED59FF4EBE8B" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\liblive555_plugin.dll" />
+                </Component>
+                <Component Id="cmp054D77306C17CA23671A0FECD621A68B" Guid="{88E64B29-FB6C-4761-9880-A8962C48A682}">
+                    <File Id="fil0FB2FE4D0A9D4F536FB6F96F3370629A" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libnfs_plugin.dll" />
+                </Component>
+                <Component Id="cmpB0106E86554BCD0D2FE0BCA109B59E31" Guid="{B5C32608-B803-43EF-81B2-90B3EEB79369}">
+                    <File Id="filB80626FBE283962108D14AAAAF03D26B" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\librtp_plugin.dll" />
+                </Component>
+                <Component Id="cmp139569A8147D29A1E6258B49BB23D483" Guid="{CBDF0D38-9480-4D87-AF56-06B0E2C8320A}">
+                    <File Id="filFC02FEFF5C556B01084024CFA84F6706" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libsatip_plugin.dll" />
+                </Component>
+                <Component Id="cmp6978F39E8271AC1B3D76268704C6A368" Guid="{9C6CD1DD-EF69-457C-A512-9A9B59132E24}">
+                    <File Id="fil7AECF776EAC0E528E74891754039594A" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libscreen_plugin.dll" />
+                </Component>
+                <Component Id="cmpCCB2A657E3A23CC80B57044A80398E6D" Guid="{62BF8D0C-E7EC-4104-A3BD-A4A68C1B04B4}">
+                    <File Id="fil9043CE1A127BC1157EA8C345CAD3D325" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libsdp_plugin.dll" />
+                </Component>
+                <Component Id="cmpD73EA5267DF1E474350E9455D82C872E" Guid="{49CE8388-B991-4799-B6E9-1BB4546BA475}">
+                    <File Id="fil3A22F2B0CFF305FBF505CF6C1B7F6E47" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libsftp_plugin.dll" />
+                </Component>
+                <Component Id="cmpE4ACD2134B150C6D2B107E000E9A0312" Guid="{40D3780C-8A81-498F-8684-D9E2C0A008D0}">
+                    <File Id="fil3E85CE0047AA7EF78474932ED7848707" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libshm_plugin.dll" />
+                </Component>
+                <Component Id="cmp0C8694887EB765930D1FBA3FD9E2BE37" Guid="{02BADAF6-947B-4A2A-BE1F-567BD865F29C}">
+                    <File Id="fil9F39A66FCA62B007C74E638643AFBE86" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libsmb_plugin.dll" />
+                </Component>
+                <Component Id="cmpBCEB8CF8FCDF4B87D969F6BF87D57A54" Guid="{261AE177-B678-475E-A158-6251C9F9D59B}">
+                    <File Id="fil397CC31562430C0A494327D554F777BF" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libtcp_plugin.dll" />
+                </Component>
+                <Component Id="cmpD30F567101E787FB27573B24C650D79E" Guid="{DD195DB1-51A1-445A-A4D6-6499828F1979}">
+                    <File Id="filA61FEC2C8A35B1A9BA53CA890EABBA56" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libtimecode_plugin.dll" />
+                </Component>
+                <Component Id="cmp65BD5890FAA055D7ECA0702550EA88ED" Guid="{48BF0EAA-9868-44F0-A607-DCBB28061B95}">
+                    <File Id="fil08FC18CCB49353499E235E48887B3BD9" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libudp_plugin.dll" />
+                </Component>
+                <Component Id="cmp80B5D2D2D522F34A1FC8A0EE1709B71D" Guid="{1F8D9335-5E14-484D-A56D-80D55DF38347}">
+                    <File Id="filCB1EBE191B2A338711FFDB79DDF12E29" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libvcd_plugin.dll" />
+                </Component>
+                <Component Id="cmpD2011AA8561FDFFDAED03BA14F6FC4FF" Guid="{D9F05A3B-B487-432D-8E49-A082D6DAA590}">
+                    <File Id="fil156660679C9A83AE90C397DC718ABA23" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libvdr_plugin.dll" />
+                </Component>
+                <Component Id="cmp6A06BCB59F12751D67CAF898FD301F96" Guid="{D16FE988-C262-4019-850D-9EA6C92537E7}">
+                    <File Id="fil0226AF195497678CF910EF472037641E" KeyPath="yes" Source="$(var.VLCPluginsPath)\access\libvnc_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir456550F0D88E00EDA77F0E968C745ADC" Name="access_output">
+                <Component Id="cmp61494BD48960366B2B74D4CF903AE794" Guid="{607562AF-A3F4-42E4-A9B4-0534F16A18D0}">
+                    <File Id="filC3E9450CD15D027C6AB5F34EE9D807A1" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_dummy_plugin.dll" />
+                </Component>
+                <Component Id="cmpD0BC08586D71AD0718218EAC42884A0F" Guid="{067BE7D1-B32D-4645-B7B1-A8A869A8997A}">
+                    <File Id="filC6383E321F9F0A331FF109AF04B36DC4" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_file_plugin.dll" />
+                </Component>
+                <Component Id="cmpFF6A21C8B0CC91E6931A34FFED13428E" Guid="{F64AE4D9-85D9-4AB9-931B-F5D48015900F}">
+                    <File Id="filBA11A0EB5797AEEDF73AAA42B7F6E824" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_http_plugin.dll" />
+                </Component>
+                <Component Id="cmp20A0458CBEABEB5D96D5E99ED0A2D496" Guid="{052C4C55-F4B6-489A-AEC1-56038AEB60A8}">
+                    <File Id="filD0B48C9D075718D181DA2145A79322F5" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_livehttp_plugin.dll" />
+                </Component>
+                <Component Id="cmpE477D76CC0CEF42CB27FB2B15004816E" Guid="{33E401B6-26FF-43EB-9252-549F70CD66E2}">
+                    <File Id="fil30DDE71D581F4EC7990C979D40D53884" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_shout_plugin.dll" />
+                </Component>
+                <Component Id="cmp76596BF8A404C0C95503A0D05D222A28" Guid="{DE545DB9-675A-4AA5-9A41-F4A4E92864E7}">
+                    <File Id="fil7B3117FA026C5A644379FADB08DF682F" KeyPath="yes" Source="$(var.VLCPluginsPath)\access_output\libaccess_output_udp_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir12C069E0477616F1BF31DD0E9A1E7EF9" Name="audio_filter">
+                <Component Id="cmpDDCAFEE736F4AD49D20D9DC5FA8EE91D" Guid="{9CF1AA2D-B20A-43CF-A977-1FD1F05CB695}">
+                    <File Id="filB9D2326FE7CE6634239C77568E0C2DED" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libaudiobargraph_a_plugin.dll" />
+                </Component>
+                <Component Id="cmpBC8FEB6254158AAF8F40EFB8C467B75A" Guid="{7B52BDBA-51C3-4B9E-A684-502423777E4D}">
+                    <File Id="fil709791D9FBF94C2E2E8030CA5898F83D" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libaudio_format_plugin.dll" />
+                </Component>
+                <Component Id="cmp2FBE24A0A96EC218F756AEC4202F2049" Guid="{70A2FF1B-74DD-446F-9C60-43AC8D781F15}">
+                    <File Id="filC796088FEA9DCDA2F1ECBCFBF7AAC7FE" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libchorus_flanger_plugin.dll" />
+                </Component>
+                <Component Id="cmp7AE3303457134D7C6A0F08BCA2CBD070" Guid="{BD5AD7F9-2445-46A9-B8EB-4397B4BD1E57}">
+                    <File Id="fil3D0095700DCD1098D52B9CC92CFCDF7E" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libcompressor_plugin.dll" />
+                </Component>
+                <Component Id="cmp0B2F7EEAA76D54BB0DD7ED32A916F9ED" Guid="{171B3F3D-EF6F-45AD-A1CB-777187547381}">
+                    <File Id="fil6B0055A6CA30A0C33269301504D79285" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libdolby_surround_decoder_plugin.dll" />
+                </Component>
+                <Component Id="cmpBA7DF4AAF8EB152494628E310252EE8A" Guid="{9A234CF5-0927-4C2A-99EB-26B62ECFD2AA}">
+                    <File Id="fil61296B1397700754D2F1265FEEC919AF" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libequalizer_plugin.dll" />
+                </Component>
+                <Component Id="cmp8DD0254A25B9ABE431D82E4C5EE56D4C" Guid="{4223C720-C57E-4651-9334-4D0449B9DD6E}">
+                    <File Id="fil7F3DD9BDA74E7EDC22459A346C835375" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libgain_plugin.dll" />
+                </Component>
+                <Component Id="cmp552724004D89E07912D5587BF24DC240" Guid="{47B1C1D9-2FFC-4366-BF4F-D0BA2350A08D}">
+                    <File Id="fil8645E4F71B696F2CDE4CB39259F0CDDB" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libheadphone_channel_mixer_plugin.dll" />
+                </Component>
+                <Component Id="cmp5069575E2DEA80712DECFB2FD65CABF2" Guid="{137430A9-0BA7-40AF-8C5B-4E8E1AE786E7}">
+                    <File Id="fil2CAC212172DA476BF700694DDADA956B" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libkaraoke_plugin.dll" />
+                </Component>
+                <Component Id="cmpECFAF7E208DC047BDDB5686E2D1D695A" Guid="{BE943C98-C265-45DE-9823-D17AF0B1F672}">
+                    <File Id="fil66B7E3503794946596E18A3590108D91" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libmad_plugin.dll" />
+                </Component>
+                <Component Id="cmp101190A3079A265AF912FFDA0FC5754E" Guid="{33F7B331-0FAF-4CDF-A077-DAB8CCE30FB5}">
+                    <File Id="fil7C14F7A26AABFBD6DE020CA4003DC0BA" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libmono_plugin.dll" />
+                </Component>
+                <Component Id="cmp465A8908CE754DAD942186439333A00B" Guid="{E438A0C4-7A0B-4DD2-8A22-AF81E7B518D5}">
+                    <File Id="fil8D856C65E524D6DAE80F86EE24FB09A8" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libnormvol_plugin.dll" />
+                </Component>
+                <Component Id="cmpAE1E5124355720D1C36C4744CED38AF2" Guid="{B52B025A-CBA8-4065-A9C7-1E8E61F0C53E}">
+                    <File Id="fil4B5D39EE04AD257C1809C60D0EEB937F" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libparam_eq_plugin.dll" />
+                </Component>
+                <Component Id="cmpAB3AC08A234CAFAE29D8EEFA9AD8C26E" Guid="{C213542C-C18B-4E26-B9B7-D93590A4772E}">
+                    <File Id="fil98BE08A2FBDA0762CEB62D34448C74A9" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libremap_plugin.dll" />
+                </Component>
+                <Component Id="cmp81BEE82BB7E9E59A93B9D4EA0F2638EF" Guid="{9692D800-D9DE-47C9-88F4-79268F6EEDAD}">
+                    <File Id="fil4A4B67AF50503A22EAC76DB3657E6E29" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libsamplerate_plugin.dll" />
+                </Component>
+                <Component Id="cmp8DEF8DB8A8C871DDED3EF40E08ACA045" Guid="{AEE73FBD-D2EA-4B8C-A4E8-9B826DF27EA6}">
+                    <File Id="filB333E7959AE54FA191B5964BDEF38DB5" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libscaletempo_pitch_plugin.dll" />
+                </Component>
+                <Component Id="cmpD2BD0EB1904DF7666545A7C3B61EAB79" Guid="{9F76A0A7-448E-4282-9181-00DBE1226FD7}">
+                    <File Id="fil2A85D40C08BCD12571680470B92F8AB9" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libscaletempo_plugin.dll" />
+                </Component>
+                <Component Id="cmp2554FB674C9BAE6D381F983E94926C1B" Guid="{85080AB8-892A-48A9-9A97-4E2FC8728DCA}">
+                    <File Id="fil3AC9944D495147B28108CA3F54D3218C" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libsimple_channel_mixer_plugin.dll" />
+                </Component>
+                <Component Id="cmp5B66686D22DFED5E91BB305CE18DFBBC" Guid="{000B9F91-69C9-40AC-BB09-8269A424F071}">
+                    <File Id="fil0F9D05F742F6B1AA80A3FCD60E111C1D" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libspatialaudio_plugin.dll" />
+                </Component>
+                <Component Id="cmpC3A5CE53C9E1C83760E83C31A961DB8D" Guid="{6EBF5E1F-FB50-42B5-8267-DE432A63D272}">
+                    <File Id="fil2F2BF0E57970742DB5E998110C869243" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libspatializer_plugin.dll" />
+                </Component>
+                <Component Id="cmp8C04BF7B84025BA4CB63E76859601B4C" Guid="{46C82CEF-8007-421D-8DCD-262A3E4EE0B4}">
+                    <File Id="fil6CC3363341F14FDF52A3C2D09B3B077B" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libspeex_resampler_plugin.dll" />
+                </Component>
+                <Component Id="cmp7DA002BB8F8E6C9CE16AC7219D1BA74E" Guid="{6EF43FD8-23A5-4229-A834-E9E93CC251D0}">
+                    <File Id="fil87466B8DB136C97BCBDAF73B3BD2B36C" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libstereo_widen_plugin.dll" />
+                </Component>
+                <Component Id="cmpE8F9E7333594273D8768CAFB0D1A5DC0" Guid="{05003C9C-F225-4A14-A527-3A892AEF4E76}">
+                    <File Id="fil69FEC33810ED40DBF9E7E4A093273233" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libtospdif_plugin.dll" />
+                </Component>
+                <Component Id="cmp377BCD7CD5FC4C8BE0119F4F9763DDBC" Guid="{6C05CD8F-BF7B-4BB9-92CF-DC3513DE1029}">
+                    <File Id="fil54083C48F39B7050EA93AEE4456DCE77" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libtrivial_channel_mixer_plugin.dll" />
+                </Component>
+                <Component Id="cmp699614B0BE808004FAC9191233E3E638" Guid="{F20A8BD5-0400-4EFF-B98D-BF25CE86B99D}">
+                    <File Id="fil8A2F8AADF78DE175E108607D45A6F567" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_filter\libugly_resampler_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir24BA5B26B77DED51A863A6FBD14D4F6C" Name="audio_mixer">
+                <Component Id="cmp7643EB3911CB40BD358B40890F68A276" Guid="{78E5CA7F-029D-422F-9FB9-31E8B712B33A}">
+                    <File Id="fil68602FCAB5E030BC8EA1EDB92F36CE61" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_mixer\libfloat_mixer_plugin.dll" />
+                </Component>
+                <Component Id="cmpED4C733111B045D62C9CDAA2162B9397" Guid="{B1E9B410-899A-43B1-A8C3-CCE0DB9EE089}">
+                    <File Id="fil42AF354BAADA34DDCFF52A5E962B5324" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_mixer\libinteger_mixer_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir52AF778EDD94391937748499FD0A8826" Name="audio_output">
+                <Component Id="cmpD712800CA171C1076D053E558001FA6C" Guid="{4675F36B-2835-4EE4-AAC1-89C8DB014566}">
+                    <File Id="filC3DBDA3F964333FDA3A96AA86832C34D" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libadummy_plugin.dll" />
+                </Component>
+                <Component Id="cmpAC47A3F6CB7114DE2FE0A6F52534E666" Guid="{76C5FCA3-E77A-4F78-8D22-A6D3C76EBFE2}">
+                    <File Id="fil2C039F6CDF05A6C9C05E768799C4D197" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libafile_plugin.dll" />
+                </Component>
+                <Component Id="cmp2C857049CDAD2720334F9B578451E3CA" Guid="{BFE6C97C-1AB4-487E-8D96-B9CBB6E052FD}">
+                    <File Id="filBB346350D10599590A48AC719D073D6E" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libamem_plugin.dll" />
+                </Component>
+                <Component Id="cmp39132B0D5D3C4ED9E9CCDC892CD10AF1" Guid="{E5B20599-6157-4CB5-B6AB-AA4DD3DA8F40}">
+                    <File Id="fil7076214EFFB867861E39C2622BA669E7" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libdirectsound_plugin.dll" />
+                </Component>
+                <Component Id="cmp804B77367A71371B76FA1B02E1145B99" Guid="{D8F17E1F-E8FC-4770-8E2D-5620B43CB10D}">
+                    <File Id="fil208A2441177433861C31174FEECDD02F" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libmmdevice_plugin.dll" />
+                </Component>
+                <Component Id="cmpFC62C1118188939D4760C622333A3DBD" Guid="{2403051E-21D6-4135-B427-333FA28318A6}">
+                    <File Id="filCF2FDC48F493314AE1455A5E985FDADB" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libwasapi_plugin.dll" />
+                </Component>
+                <Component Id="cmp045AC83EF9C63B1B70584B947758C447" Guid="{480DE04E-599D-4541-96B1-97A22192743D}">
+                    <File Id="filC25D5B3914D8F7F1E55D5F0EC507470F" KeyPath="yes" Source="$(var.VLCPluginsPath)\audio_output\libwaveout_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir39521ACA158C881A12063FBCDC17BB7E" Name="codec">
+                <Component Id="cmpDF968A79B7E85FB8D3DA1525E884C47C" Guid="{9BAC0D21-DCF4-494E-A7F0-B08A19E7CBF5}">
+                    <File Id="filBCD612281F268F5B99191BE5EAD8262C" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\liba52_plugin.dll" />
+                </Component>
+                <Component Id="cmp4EE8C68BDB97365BF4D16E3538C1C9D9" Guid="{2E76BFA6-2136-4EFD-8BED-67580A7AA7B7}">
+                    <File Id="fil97996302E16E8F8BBB052AF08CC7E2E3" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libadpcm_plugin.dll" />
+                </Component>
+                <Component Id="cmp77AD3ECD8A2FD2763218880ABCD4F932" Guid="{367A74DB-1A3D-440B-89D1-60B3F384286D}">
+                    <File Id="fil7DF28F351BB3F2244A3A90D5F5C08713" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libaes3_plugin.dll" />
+                </Component>
+                <Component Id="cmpD4BF208FA313621233E7DEA082A98375" Guid="{48ABF0FC-760F-49CE-BA9E-A2B0F00C23CA}">
+                    <File Id="fil1CF375409E120F8CCB6F87287A080167" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libaraw_plugin.dll" />
+                </Component>
+                <Component Id="cmp71B8EFA03ADCFFDF040F7A1AB2F93E4A" Guid="{BD137288-EF42-4F62-9C7E-A62F204331D7}">
+                    <File Id="fil4BD442E28D47110AACE6C25B8753B81D" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libaribsub_plugin.dll" />
+                </Component>
+                <Component Id="cmp27F1CB6D69415061D5B00A09ED1BDB28" Guid="{AAC54F18-4C00-496E-8612-B0F180CC24E0}">
+                    <File Id="fil1B1181E774757D0105CD6AA3D023F1E2" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libavcodec_plugin.dll" />
+                </Component>
+                <Component Id="cmp942E3E87BC9A796EFF4AB5072BB21D5B" Guid="{4BE49B98-55FA-4498-8A70-72FDC0BCA7BD}">
+                    <File Id="fil3AD03ED6C25DC4D660C12B7C94071ED6" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libcc_plugin.dll" />
+                </Component>
+                <Component Id="cmpCF5A0B7C7113C1ECDD9AD9F3909BF2A1" Guid="{29D2AC9A-717C-4A19-94A8-2DA358FB56AB}">
+                    <File Id="filB906D42B395A8E055FC28CED4DA537F9" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libcdg_plugin.dll" />
+                </Component>
+                <Component Id="cmp47D12C1F07EFA04CF6930AE209FEC2D8" Guid="{CA80C7AB-4F98-45F8-ACB1-2F0894E61784}">
+                    <File Id="filC70D95BBFA6E07113599350CBAF4B1E1" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libcrystalhd_plugin.dll" />
+                </Component>
+                <Component Id="cmp37DC0F30942F38B89A1C43E9BA898EFD" Guid="{C3C1ABD2-35B9-4EFB-99BC-897E8F1EF10B}">
+                    <File Id="fil22CA7E4E8D04212F0EC13102DD873008" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libcvdsub_plugin.dll" />
+                </Component>
+                <Component Id="cmp108FA8EA8FBE3A393B425034A3FF5FD6" Guid="{2DE76E83-6CA7-4C62-B565-A3126DA3F2E1}">
+                    <File Id="filDF62DE2D5B73B503DCE5E822DFF72E23" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libd3d11va_plugin.dll" />
+                </Component>
+                <Component Id="cmpD7B87A95BAB66D5B92CBA92369B94226" Guid="{76B19EF7-3F66-4BF9-AF04-AD2258345BEF}">
+                    <File Id="filAA0B4A243FC8CE5AEFB9780A5AE023F4" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libdca_plugin.dll" />
+                </Component>
+                <Component Id="cmp4A257404293AC83FAE349E8CEDD69D03" Guid="{CDAFDCE4-4F46-4DCE-9F28-05856B3EFD9D}">
+                    <File Id="fil0CAC197A1C2F2A228F73849714DE6EB9" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libddummy_plugin.dll" />
+                </Component>
+                <Component Id="cmp53F9A63201513C26EBC8525E28857296" Guid="{55210A97-0D42-49FC-BB6A-301838DB7490}">
+                    <File Id="fil7664815F0F5764CD6BF7BB8BF27AF6B2" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libdmo_plugin.dll" />
+                </Component>
+                <Component Id="cmpBB1CE9850FBD12D0C461D82FA687368D" Guid="{868B1951-D759-42B2-9480-4F9C87219BD9}">
+                    <File Id="filE516C1F6509F233A1D08CA95A3D5098E" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libdvbsub_plugin.dll" />
+                </Component>
+                <Component Id="cmpD222CE34B3C4F4160308AF6E53E03A79" Guid="{8B21205C-6AD4-42D2-9BBB-C25BF96A7A27}">
+                    <File Id="fil0D4208203D3ADFFBB261C8CF1B415D29" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libdxva2_plugin.dll" />
+                </Component>
+                <Component Id="cmpE32B08E5821D1759A7894C21BD4A5926" Guid="{C695A216-9E24-4111-9D3F-28828745EF6F}">
+                    <File Id="fil0745696990E1288D3404B7EB2C180E7F" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libedummy_plugin.dll" />
+                </Component>
+                <Component Id="cmp105482202CE0AA84B9137A194F24A549" Guid="{D3B8645A-7347-455B-9735-DFD929A6864F}">
+                    <File Id="fil458D3F3C724DF683F2ACD75F15DF53B1" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libfaad_plugin.dll" />
+                </Component>
+                <Component Id="cmpF34104226625CE7A4FF4DEBF5181BC3D" Guid="{0E3FCFA0-1DEF-48F8-AC7F-BE6757EE6248}">
+                    <File Id="fil4257CECF4C99AEF18FBC626F1E09DDD7" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libflac_plugin.dll" />
+                </Component>
+                <Component Id="cmpF3414860146F849D0B29177F7AD0A2D8" Guid="{0EB68510-989C-4448-989A-8CB971595046}">
+                    <File Id="filD49127582A534DE66F3E48DF5E5A0CF1" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libfluidsynth_plugin.dll" />
+                </Component>
+                <Component Id="cmp1493881A69709EC35E61D621BCCDBB84" Guid="{BA5F1285-3DD5-43C0-9E9E-B9FC4993DF1C}">
+                    <File Id="fil3971D15344DF58B9548DB3803433C368" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libg711_plugin.dll" />
+                </Component>
+                <Component Id="cmp566A2926256DC26C2AD87180C94559C3" Guid="{8308856C-FC36-4085-9818-A1B99E7B0971}">
+                    <File Id="fil692C186C08228A8B31A287214AE37AE7" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libjpeg_plugin.dll" />
+                </Component>
+                <Component Id="cmp388BE9BB3371EE7438390198AD9BEE31" Guid="{BAA09121-BC91-4DAD-95C9-5691F08EE9F3}">
+                    <File Id="fil498207FFDD2D57DE69B1560A3F700A49" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libkate_plugin.dll" />
+                </Component>
+                <Component Id="cmp615BA7483EF72491AA3994420260B436" Guid="{29A6E938-11FB-4C04-8AC6-66B96ABCE5FB}">
+                    <File Id="fil358F9E2AFEABB90FCF07D67F223C3680" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\liblibass_plugin.dll" />
+                </Component>
+                <Component Id="cmpE3A9A10F4456F55BCEE5D4FA1F1648A7" Guid="{CEC1C45A-66C7-43CA-BC9B-1414112FAA5F}">
+                    <File Id="fil594EB418C3E8A50D1A893009F807FCF6" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\liblibmpeg2_plugin.dll" />
+                </Component>
+                <Component Id="cmpA4A5C513BC21D9714B3D56E2B7B1A44B" Guid="{224BA0A1-C380-4AE8-8A8D-854B31F1F1B3}">
+                    <File Id="fil11174460E77421905D0B08057C478300" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\liblpcm_plugin.dll" />
+                </Component>
+                <Component Id="cmp4D934D1F71270810E88505B950BA85EC" Guid="{82053690-AF28-45F0-A436-2818B00EAE4B}">
+                    <File Id="fil40F576679ED9B98FF35B403B36D8E2EF" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libmft_plugin.dll" />
+                </Component>
+                <Component Id="cmp944424E09AB9BEE8BF7C94694B2EC698" Guid="{C24FE099-8166-4C03-A9EA-D132E3588970}">
+                    <File Id="filAF878430B08E5E82BF2449B54228E615" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libmpg123_plugin.dll" />
+                </Component>
+                <Component Id="cmp60BB16506F053F046498DEFBE4F9C722" Guid="{D564AF2A-0D69-4A7D-934F-64174547DAAD}">
+                    <File Id="filC831E1A0E0C817506B27EC45436FB78B" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\liboggspots_plugin.dll" />
+                </Component>
+                <Component Id="cmpA250B7B0084B24C874BF5292C65091EB" Guid="{03857DA2-0CF4-4FDC-B96F-28541913E86C}">
+                    <File Id="fil5E081AE16D4B02001B525F548DE734CB" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libopus_plugin.dll" />
+                </Component>
+                <Component Id="cmpAEE0D497231176DA215AD9A7B54F6C76" Guid="{E55977FD-8FE3-4354-A5CA-AA51F74A682D}">
+                    <File Id="fil16A0528DA208C3D22E7145C2449094E0" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libpng_plugin.dll" />
+                </Component>
+                <Component Id="cmpFB4368B1BB161F73F8D908279FC0EC59" Guid="{5AF227D1-98B1-47AB-8A5A-5B12A8B35A90}">
+                    <File Id="fil9DDD6F0960495BF0F856F55B524EA70B" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libqsv_plugin.dll" />
+                </Component>
+                <Component Id="cmp24F5BC30FA772C24E34D8DA692155AB3" Guid="{EF88133C-C8C4-4EA3-A3A9-768AF95237B3}">
+                    <File Id="fil6C2C24C4DC13F170EA3282E70CF20D99" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\librawvideo_plugin.dll" />
+                </Component>
+                <Component Id="cmpCA6BC53337762DED2E2FD5292920B82B" Guid="{EA146838-4559-4C85-BB09-6073BE6BDAC1}">
+                    <File Id="fil0A2096AAEC74B3F05615559B7C87F85F" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\librtpvideo_plugin.dll" />
+                </Component>
+                <Component Id="cmp0D8B00CFB4FCC9E03B28C65154F36983" Guid="{04E39395-B472-4113-B99B-9B841292933F}">
+                    <File Id="fil5DE3442B289E9597C277FDCC9F59CBD2" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libschroedinger_plugin.dll" />
+                </Component>
+                <Component Id="cmp78A60B5B3FA292C64FD60F5100286112" Guid="{F46500DC-4F95-4B17-B8F1-2221551E5F5B}">
+                    <File Id="fil99D1A893335BBCB211D20AE5D41884E5" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libscte18_plugin.dll" />
+                </Component>
+                <Component Id="cmp1209A5DB4CB938830518CA52FCD27F47" Guid="{3E3A454A-FBEF-4F4D-83B0-F896FA02FB06}">
+                    <File Id="fil1A79BE9845A147BB7B638B0E4910531E" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libscte27_plugin.dll" />
+                </Component>
+                <Component Id="cmpA1ECD32B5B48D686645FF033EBE9BDDE" Guid="{229823D6-42D8-454B-B372-C66A81A82D3E}">
+                    <File Id="fil0477A1D8F7116B9C1C44E8F0D099D550" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libsdl_image_plugin.dll" />
+                </Component>
+                <Component Id="cmp997D4393AFE2EDE1E0026561B10FFB4C" Guid="{E160F2FD-9C2B-4BB6-87E2-4BB894E6D78C}">
+                    <File Id="fil8B69391F8E183624D7004137E01AFCF7" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libspdif_plugin.dll" />
+                </Component>
+                <Component Id="cmp4B7890F2367FB4C0DEE94B09FE1D7C89" Guid="{23CB24B2-D89C-4F46-8D95-C4AC00EFEF3E}">
+                    <File Id="filFB32C3721E09683CB6FDFB4709C965CC" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libspeex_plugin.dll" />
+                </Component>
+                <Component Id="cmpC361BD5001B2CA555A193A96017D855D" Guid="{3AA5719D-82A2-4D85-9E6E-9E59066F5479}">
+                    <File Id="fil7711E87067D369C19CD61AB5A25E467D" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libspudec_plugin.dll" />
+                </Component>
+                <Component Id="cmp76AA53BBCEAF109EE31BA98CD19BEFE6" Guid="{D8B6527E-4A28-4690-A47C-CF4DFA70EBC4}">
+                    <File Id="fil96F02569B842BA8B21B3C6A64C497210" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libstl_plugin.dll" />
+                </Component>
+                <Component Id="cmp0BFFCA57CF5FC2C2EA7D1D4D187130D8" Guid="{2FAB6109-2F62-4B93-B790-05FCE925B618}">
+                    <File Id="fil4FAA7E14C49C2BBAC67543F8947DAE5A" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libsubsdec_plugin.dll" />
+                </Component>
+                <Component Id="cmpAD3566FB223F2AA3555F87F2B6D4FE38" Guid="{3A58F2C4-D3C9-4716-8BEC-1C21DABBC99F}">
+                    <File Id="fil4CF41809F4CD25613CF24B2805064E16" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libsubstx3g_plugin.dll" />
+                </Component>
+                <Component Id="cmpAA839BF8D5A9E40F8D25BB274A053B74" Guid="{D8AFFBFC-B2E8-49EA-A0C9-16762ACF9E71}">
+                    <File Id="fil25C68F7AEB6924A3CB9C25CABDECE2EA" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libsubsusf_plugin.dll" />
+                </Component>
+                <Component Id="cmpC2A7675EAD5AA4BA0AFEF53536BB5E55" Guid="{EC3F1C53-3A09-4186-891D-BF3F41C0F468}">
+                    <File Id="filDF7CAD61E3BC00396C8C48076E9A2B33" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libsvcdsub_plugin.dll" />
+                </Component>
+                <Component Id="cmp986315B3A0A834008D096EA57D31325C" Guid="{1ADAA0FF-3923-4875-BDAF-19B20D81A886}">
+                    <File Id="filA368501F2B46235B193456A0E957DA07" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libt140_plugin.dll" />
+                </Component>
+                <Component Id="cmpD52C46626A9D00F28C4FD01927F48CF5" Guid="{013E04EE-207F-43F0-9888-D1473A2A238C}">
+                    <File Id="fil9087D46DDD88AB67526AF7515D7FD994" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libtextst_plugin.dll" />
+                </Component>
+                <Component Id="cmpE6963CE1E76D6D94043CE723DB8B244C" Guid="{DCA7A092-502F-4DEA-994B-813EC46D5F1C}">
+                    <File Id="fil9C2B5A94A6C43A8869E4CF2A8906E200" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libtheora_plugin.dll" />
+                </Component>
+                <Component Id="cmp6DF6536B59979C5B20514C7015F009E2" Guid="{6867A49D-8B83-4F8E-8F6F-BB02862B984B}">
+                    <File Id="filD4C272B8D82B8AE45A3C4A5590F16C42" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libttml_plugin.dll" />
+                </Component>
+                <Component Id="cmp430EB9968E05F7827161A65CFEDEA38E" Guid="{C440C155-5E97-4498-8DA9-724AC220080B}">
+                    <File Id="filC9AE1E0E981BDBAAAFE6AF442D13BA73" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libtwolame_plugin.dll" />
+                </Component>
+                <Component Id="cmp70363BDCA47355287654366C82702378" Guid="{85403156-18DA-4287-B064-30A8C110A211}">
+                    <File Id="filD8889C5D261EB72BB89C4BC85067D045" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libuleaddvaudio_plugin.dll" />
+                </Component>
+                <Component Id="cmp2A715D616C23908424535738DF9854B8" Guid="{CCF75EDC-8DCE-487A-AF68-A44F2A3528F4}">
+                    <File Id="fil4C90D343A2E631EAF9B0A9C6CE7C7842" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libvorbis_plugin.dll" />
+                </Component>
+                <Component Id="cmpCB1C3A591B5935D871BC633730FCEB3D" Guid="{7BEDB3A5-BE96-4F8A-A593-D770BE81153B}">
+                    <File Id="fil49433680881128CF77CC004D30D6725F" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libvpx_plugin.dll" />
+                </Component>
+                <Component Id="cmp7D75936B99669B08E0BC620326E7EA3D" Guid="{77F667D7-DB6F-4686-965F-31924911AA60}">
+                    <File Id="fil52E4416254622D2AC56FD07DAD438B02" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libwebvtt_plugin.dll" />
+                </Component>
+                <Component Id="cmpCA9B93F901C41C67E613E8DEC8914BDE" Guid="{F18BD041-8453-4063-8943-B48B73ECF458}">
+                    <File Id="filA081C8ECB37354D1F000D2583CC65689" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libx264_plugin.dll" />
+                </Component>
+                <Component Id="cmp1F9F459CA7D699652E8B9D9C81180B52" Guid="{E90A13F7-ACD0-4ECB-B1B6-C3F8C822948A}">
+                    <File Id="fil15544D8C680FC7EC627A1462C78FC539" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libx265_plugin.dll" />
+                </Component>
+                <Component Id="cmp072A0CA863708D377FBC25CFB9706CDA" Guid="{681CCF52-6CD6-4F59-A7A6-8371A3BD0C36}">
+                    <File Id="filB642A2B1441DCE85F09FC08D6CCB5B68" KeyPath="yes" Source="$(var.VLCPluginsPath)\codec\libzvbi_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir868BC8E5B9CF1E11767CE0931359DA3B" Name="control">
+                <Component Id="cmp607FC5C1889A21647F5EE7503D837C2B" Guid="{39C2EA53-32E8-4AC0-BA85-84EA0DEBAC3A}">
+                    <File Id="filFA85794476511CABDAC591EA133A34DF" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libdummy_plugin.dll" />
+                </Component>
+                <Component Id="cmpDC392CDD8F0A295761A76404BED2E635" Guid="{57CBA2F1-0E75-48D2-9FB6-4892E9183E2A}">
+                    <File Id="fil222E7883C0D131C19B7FEF678DFAE52B" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libgestures_plugin.dll" />
+                </Component>
+                <Component Id="cmp783A7A45899B46F14F337F3F086551A5" Guid="{8B333A51-827F-40ED-B890-8A47104DA5CD}">
+                    <File Id="fil30C0FF90283D858C573CFE16BE6667EA" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libhotkeys_plugin.dll" />
+                </Component>
+                <Component Id="cmp46F6B5A1CA54C555B914B5105F46B215" Guid="{29A46AAD-9D2C-499C-A98B-9AF4ADC6C0F4}">
+                    <File Id="filE5A735094193085053D7A12920B9EC95" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libnetsync_plugin.dll" />
+                </Component>
+                <Component Id="cmp71CB7500A0E1C4C08617519415C35011" Guid="{B9E89CE5-6283-4715-B5C0-23B2F04F0F2D}">
+                    <File Id="fil7016707981DCE63ADC660AB9AFEBCBF8" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libntservice_plugin.dll" />
+                </Component>
+                <Component Id="cmpD11A7E1EB5C04875FB87F9A7A2AF98AE" Guid="{C909A6F5-4B48-4B42-B227-E2D380A0379A}">
+                    <File Id="fil34F38C1D45AFADD205AA95F501000814" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\liboldrc_plugin.dll" />
+                </Component>
+                <Component Id="cmp9E33654F5996A2FC6C378E66FEAB0308" Guid="{5C5100B1-D0AB-4DCD-AF98-A192B150E9ED}">
+                    <File Id="fil21ECCE992699EC5F4A4DFB48212FFB8A" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libwin_hotkeys_plugin.dll" />
+                </Component>
+                <Component Id="cmp278F974BB7A2A2A455268EF1741E6033" Guid="{6E3F7CA2-657D-4107-8069-5A2428111E22}">
+                    <File Id="fil73A119E9C3B38711CC91687853C8BDE3" KeyPath="yes" Source="$(var.VLCPluginsPath)\control\libwin_msg_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir29111FF3DB7A8955C164980712471314" Name="d3d11">
+                <Component Id="cmpF362145A7B4D363FD17B4B31B0993EA2" Guid="{505EE801-A683-4299-A3FC-23EB84922B73}">
+                    <File Id="fil9DFB77E75B12A9ED7692C66061366C86" KeyPath="yes" Source="$(var.VLCPluginsPath)\d3d11\libdirect3d11_filters_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirDAD6660BF23F67BECBB22C5EE211574B" Name="d3d9">
+                <Component Id="cmp212B6F96FA54D429F9F9F348EB012907" Guid="{E12C36FB-DC52-48BD-8A2F-64E8D6035EB6}">
+                    <File Id="fil22DC5C0B33CAC1323AEA47308355E72E" KeyPath="yes" Source="$(var.VLCPluginsPath)\d3d9\libdirect3d9_filters_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir0001121CBE77151FD070F34AFB92B7DB" Name="demux">
+                <Component Id="cmpE3B18665FF46CF2907695DB879FC799B" Guid="{83BB11CD-48C1-4DC2-85F6-6F39F7B9A96E}">
+                    <File Id="fil195B7FE880AFEA4E61E1A37F72CEE783" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libadaptive_plugin.dll" />
+                </Component>
+                <Component Id="cmpBDD78A97E29A9DC03477C070350BAE2C" Guid="{96D2CA89-7CB1-4DC8-BB8C-8B3E214B4451}">
+                    <File Id="fil1C484DB32119D3F7D0459F295EC4CEC1" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libaiff_plugin.dll" />
+                </Component>
+                <Component Id="cmp33BE5B4297AA9C105C4B193B5DFE2659" Guid="{4CADFCD3-94DB-46C6-AF7A-F0A4D89C19E0}">
+                    <File Id="fil2611B0FF39F2FF8B2C418B5FE7328496" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libasf_plugin.dll" />
+                </Component>
+                <Component Id="cmpB8B8B498E9E380B177058EB79A50BDEC" Guid="{4165A239-5518-4452-A47F-ED0F2E2DCC1E}">
+                    <File Id="fil156F15A6CB8DAD57D35076F04007F0FB" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libau_plugin.dll" />
+                </Component>
+                <Component Id="cmp8A27EAB7D9B13A0CDD97DA1A92CDDB56" Guid="{5D97243A-C03F-4CE9-A154-C6461637A5DD}">
+                    <File Id="fil54B77AC59B787E47E19BC6B7359C825C" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libavi_plugin.dll" />
+                </Component>
+                <Component Id="cmp0FA6002E4483F37A5E367E7562562570" Guid="{1A400E91-DEEC-4A61-8A4D-905429B2D493}">
+                    <File Id="filBD8DAEBDACBB29C5BF23397EFDA0FFA5" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libcaf_plugin.dll" />
+                </Component>
+                <Component Id="cmp522F74CCD6B764074F089B19932BA647" Guid="{2C372EF1-45BF-4348-91F1-2A1FC21A9030}">
+                    <File Id="fil4A5F16BDCD6F7CFCA31207D3D6443D06" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdemuxdump_plugin.dll" />
+                </Component>
+                <Component Id="cmpD47C1F0F3F4FC5469A6269649A8ACAFD" Guid="{2DE4EE0B-E98B-4A13-8196-131A607ED6DA}">
+                    <File Id="fil34FAD38D2E0FF6560416AB3CF1203791" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdemux_cdg_plugin.dll" />
+                </Component>
+                <Component Id="cmpC87D8312EDBF926A25B2301566E166EC" Guid="{7E457710-1776-4F8B-A96E-C40AE5C24E64}">
+                    <File Id="fil0A5EE3510A922C5593EF9428274E3DD6" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdemux_chromecast_plugin.dll" />
+                </Component>
+                <Component Id="cmpEDC16A515E87D025A0870222DA79045A" Guid="{325F81A7-12DB-4CEE-9A7D-DB4BB6DA1B77}">
+                    <File Id="fil02843DA1215D19E88341AA91480EC7A7" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdemux_stl_plugin.dll" />
+                </Component>
+                <Component Id="cmpF3FFC9379ED2DBDB47130456EB1DC1D0" Guid="{5137F75B-BB3F-4845-A5D6-4B3006AA5049}">
+                    <File Id="fil4713AC16C45F9723AC33F3F2AE93FBBA" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdiracsys_plugin.dll" />
+                </Component>
+                <Component Id="cmp2083E4CC13BAA9A27D77790388D0C7B8" Guid="{2EBBF6B1-B38D-4C8B-93F8-148576FD5219}">
+                    <File Id="fil6BBFC5EE92877109583210B22F02AC3D" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libdirectory_demux_plugin.dll" />
+                </Component>
+                <Component Id="cmp7E7F9348DEA61BFCB40ADF21968D2A25" Guid="{61806311-4D15-4C9E-A012-2D009444E11E}">
+                    <File Id="fil83263E3C67F690C1EB11697CE6CB4BCE" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libes_plugin.dll" />
+                </Component>
+                <Component Id="cmpD3B0E5016152C04C5189779D0556B0EA" Guid="{8E7F73F0-F3BB-4E9E-A436-C0D3C17389AA}">
+                    <File Id="fil7E946919B6668DA37FBDD35DDCBF3116" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libflacsys_plugin.dll" />
+                </Component>
+                <Component Id="cmpB20A61079283CDACC7966D633D5795FD" Guid="{15926F8E-3AD3-40A6-9BED-A5661E6034DD}">
+                    <File Id="filE3C912AA29117A5576C3292FC79E1ADE" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libgme_plugin.dll" />
+                </Component>
+                <Component Id="cmp6C9C3D9CC5561471DFD3A7D13A2B4469" Guid="{8A07BD3D-FCAC-4998-800C-46D2778F41BE}">
+                    <File Id="filC72CCECCD23F959FF6FFB5F60A1D3569" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libh26x_plugin.dll" />
+                </Component>
+                <Component Id="cmp602F00CCDE2D593CA9DA4A9546CA87BB" Guid="{9E616769-CAA6-4B9E-BAAF-0EAC7ECAD48D}">
+                    <File Id="fil5FA2DF4487D08026484BB76F6E712910" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libimage_plugin.dll" />
+                </Component>
+                <Component Id="cmp556A4576E4D03471FF1433827D8FE930" Guid="{6E7AB71D-CD8C-489C-9FCA-7097428ACA5D}">
+                    <File Id="fil6B5F139242F5D93F5A312B471826A082" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmjpeg_plugin.dll" />
+                </Component>
+                <Component Id="cmp82E159B58F68F5F483E23F1ABD501944" Guid="{5448A412-B45C-4D4A-A251-54EE3E7B8B3C}">
+                    <File Id="fil5DFB6199A47AC318A952BAD40C03ABCE" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmkv_plugin.dll" />
+                </Component>
+                <Component Id="cmpA2292DBA0F22D4450311C6359777CE90" Guid="{85472798-045C-4788-9055-0738C47FAD15}">
+                    <File Id="fil5A8759C51A5F215E2CC0839920C3C475" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmod_plugin.dll" />
+                </Component>
+                <Component Id="cmp1F6DDF5BA94885CA2E553A54FDF9FD08" Guid="{C022E4EB-BED7-4602-AE16-6E07F99F7735}">
+                    <File Id="fil68E9422D9A72E69C865FC759E27437CA" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmp4_plugin.dll" />
+                </Component>
+                <Component Id="cmp5BDEFA4D527FE26C9D858D7FAAB5C0BA" Guid="{14637AB5-0632-4CDB-970F-EEDA4A02BCA0}">
+                    <File Id="filA4C2DAAE10F6582FCBAA090640FF3323" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmpc_plugin.dll" />
+                </Component>
+                <Component Id="cmp59AC1DB8205C96FCC783C0872406875C" Guid="{ACF17B31-7549-46FE-9835-52658BCAB279}">
+                    <File Id="fil361DDA35022962A376AAB9A0464C1F8A" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libmpgv_plugin.dll" />
+                </Component>
+                <Component Id="cmp576C65A95BA1C3E46DC57893996B83FC" Guid="{B269FA31-5A12-4C6A-B1A7-77332A203DDD}">
+                    <File Id="filADF1D5E09FE3ECAF460CB5517EC30086" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libnoseek_plugin.dll" />
+                </Component>
+                <Component Id="cmp6945E167EF4E7F07F664886E1CA1141B" Guid="{83893BC2-60FC-42CF-9BE0-0F70967546A5}">
+                    <File Id="filEDA00FB52AC08D9C8080C1EBB88841B6" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libnsc_plugin.dll" />
+                </Component>
+                <Component Id="cmp86811D6BD6F4F88E20CD6C439D2BD558" Guid="{372F1F63-7236-460C-8CC6-A4B407D8A21D}">
+                    <File Id="filFAC321473DE4A0B469482251B402019D" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libnsv_plugin.dll" />
+                </Component>
+                <Component Id="cmpE205CC60EC0B3520896463439041A1C6" Guid="{1522271D-5CAF-45B7-A978-61B7121BE7ED}">
+                    <File Id="filCC378107A6B87CF5C862CC0AF02B191E" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libnuv_plugin.dll" />
+                </Component>
+                <Component Id="cmp38B3AD7C886FF22C39D3DDFCF71FC6B9" Guid="{E9631280-F072-43E6-958B-EE4C1AF612E4}">
+                    <File Id="fil963332DB72739ABE7E4975FF1C0D159F" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libogg_plugin.dll" />
+                </Component>
+                <Component Id="cmpAB835FE322AD9BBD6734AC3CCE57AB67" Guid="{0CC8B22E-BDB9-44D4-B484-6D3869C1B19D}">
+                    <File Id="filFF1EAE4B47792CD5BA74F1B1D142224D" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libplaylist_plugin.dll" />
+                </Component>
+                <Component Id="cmp10E3D4748241B6D74AFD88E486A9A76F" Guid="{68DCB469-91BA-436E-8480-4C9320762E28}">
+                    <File Id="fil3ADA248E9C6B0CF950C8A9008781B5E6" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libps_plugin.dll" />
+                </Component>
+                <Component Id="cmp9769B1AD49183FBF20292CC86C902BD1" Guid="{A5734B71-A022-4A7A-B09D-F3157203DE4F}">
+                    <File Id="fil7CD3BD3AF7078E5B840C287908AA510A" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libpva_plugin.dll" />
+                </Component>
+                <Component Id="cmp59A0FE5851F775D197E785432017EA54" Guid="{B6CEF379-0488-41E7-A3BC-C2C65D5E4EF6}">
+                    <File Id="filF575FDFBDAD1368C0E958CE0E8EFE696" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\librawaud_plugin.dll" />
+                </Component>
+                <Component Id="cmpC94C5836F7E9DFF67DC3E6A8ABA087B1" Guid="{54E30950-4C73-4367-8EF6-C95762CB0632}">
+                    <File Id="filC08E3298567A5D205B8A9BC97D002789" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\librawdv_plugin.dll" />
+                </Component>
+                <Component Id="cmpDBE4B1046A2325E9C1E6F7B19CFD0EAD" Guid="{8D59BF07-B470-4EE1-A7EF-5C0E2F296EE5}">
+                    <File Id="fil3D3B6EB3DA6C3CA9D860E7ACF8920C7A" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\librawvid_plugin.dll" />
+                </Component>
+                <Component Id="cmpCEC5A1B4CB91A59423CE04C2B987BB18" Guid="{82A9762D-B308-4A81-99FC-457464E049B1}">
+                    <File Id="filB079C083FE06EC88AD4F5C004672B419" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libreal_plugin.dll" />
+                </Component>
+                <Component Id="cmp17A5803924169114B54D00723704DED6" Guid="{5DB8A82C-B78D-42A0-B8EF-733F2BBAF203}">
+                    <File Id="fil45EF989487BE436E542A58AF11785543" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libsid_plugin.dll" />
+                </Component>
+                <Component Id="cmp03514ECE29051769CB59B14239EDBEA7" Guid="{965FD619-9C3C-49F1-A85F-5166DE47F26D}">
+                    <File Id="filD43EBA6975923FD7032625F19F54F39F" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libsmf_plugin.dll" />
+                </Component>
+                <Component Id="cmp8059BA5D3D9F2FB3F000FA3D3C17BE34" Guid="{1CB24643-5F5B-4FD2-8EFD-452DE34FF45E}">
+                    <File Id="filF76C3B7BA6DBA46ADDEB7D10BAFD903A" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libsubtitle_plugin.dll" />
+                </Component>
+                <Component Id="cmp36C715C01B64F7EAC8B1CD111F70CA99" Guid="{01746D78-104C-4129-B53D-D30309E6405D}">
+                    <File Id="fil39C0D471BA91B5780D8995AFFC929A34" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libts_plugin.dll" />
+                </Component>
+                <Component Id="cmpAD4851AC892D44A4FBCFD5D96E207FEB" Guid="{344A4035-DAAB-45B7-A164-DFF072C9C3B3}">
+                    <File Id="fil0E1A57DE0ED8FB6D5D27944E93AAD9C4" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libtta_plugin.dll" />
+                </Component>
+                <Component Id="cmp55DDD650C53824AF15E9E86D1B21146C" Guid="{39307F64-25F4-464C-A085-A4BF911846A9}">
+                    <File Id="fil9443738E5B95C9B017F49B36492ED942" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libty_plugin.dll" />
+                </Component>
+                <Component Id="cmp300A4FBB76F3552013E6FD5968C0538A" Guid="{76981EE5-23EA-4B5A-B15F-60DD8F093ED8}">
+                    <File Id="filE0066417952D267F7338BC50312AC65B" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libvc1_plugin.dll" />
+                </Component>
+                <Component Id="cmpAD1E8DF508F3FDA0CED89CAD2E6E43D4" Guid="{A82FB7EC-DDCA-4106-AA91-DC19D473C99A}">
+                    <File Id="filD3A20C9916ECD299990F3DEEA577C9DD" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libvobsub_plugin.dll" />
+                </Component>
+                <Component Id="cmp6EDD4091D226409F9A962FEE24DA6863" Guid="{B814D256-CB34-4FD2-8276-E49966AD0682}">
+                    <File Id="filC336EB9D258BAC23DE012B40D7AE4D83" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libvoc_plugin.dll" />
+                </Component>
+                <Component Id="cmpBAC22536280E3BB2B79B7D4F11D72AA0" Guid="{828FB5D0-7538-4212-B58E-6A411E52638D}">
+                    <File Id="fil405F3B850F9DB03F32ACF726AA738B11" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libwav_plugin.dll" />
+                </Component>
+                <Component Id="cmpAED3CE12DA8A508F46CC53DC3097E32E" Guid="{DC92BE79-67BB-40E2-8E39-FF2FB3D10E36}">
+                    <File Id="fil96E5F714E46F18BB6A93B8EA0B7C167D" KeyPath="yes" Source="$(var.VLCPluginsPath)\demux\libxa_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir4DFB97B7D2D5078CC556B010A18A5F34" Name="gui">
+                <Component Id="cmpB88764BC2821723FDF005CBC94556890" Guid="{06DBE439-CF46-450C-B115-2715ACD4610B}">
+                    <File Id="filF3CDB09AF2EBA9B0B458EA4B43BA23CC" KeyPath="yes" Source="$(var.VLCPluginsPath)\gui\libqt_plugin.dll" />
+                </Component>
+                <Component Id="cmp1F3A38D88D768426DDF986366BB6A092" Guid="{5DABF875-D730-4299-A0A1-CFD83458903F}">
+                    <File Id="fil547EEDFDCA273B316E5BFD8E6A5BBA52" KeyPath="yes" Source="$(var.VLCPluginsPath)\gui\libskins2_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirF1D8D8DC6DD324FF9B0A76C179900084" Name="keystore">
+                <Component Id="cmp6FE82C46569CE8DBACD332DF26944B8F" Guid="{C5A2B43A-20FA-4C1C-BC7F-3D1BDDF9C688}">
+                    <File Id="filF393340AACE2B2AC97A5B4E307911961" KeyPath="yes" Source="$(var.VLCPluginsPath)\keystore\libfile_keystore_plugin.dll" />
+                </Component>
+                <Component Id="cmpE7B902EFD142F2980CFCD322686A4A9C" Guid="{7CF3A21F-6E7B-416B-AEA0-8C0EBFAED7AF}">
+                    <File Id="fil55352942894E6FDED7DCB7C9AF79EEF2" KeyPath="yes" Source="$(var.VLCPluginsPath)\keystore\libmemory_keystore_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirFEDA9A85A6A7B0EEF2221DF21E4DC0E4" Name="logger">
+                <Component Id="cmpCB3AEF13766F7BFE65C5A363E08131CA" Guid="{55E53E06-79D5-4C82-823B-366F5BC0BE86}">
+                    <File Id="filB1B4B62C9CC811EC6AEAC7D3AF45827E" KeyPath="yes" Source="$(var.VLCPluginsPath)\logger\libconsole_logger_plugin.dll" />
+                </Component>
+                <Component Id="cmp90E581BCA190D20FC7EEB9F9034F8792" Guid="{CD3D3F90-CE2A-4D96-9E14-AC7D63A20169}">
+                    <File Id="fil35C72CB98DAADAB6CF872C7186694910" KeyPath="yes" Source="$(var.VLCPluginsPath)\logger\libfile_logger_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirA8F2E512A9B650590325579F60EEF209" Name="lua">
+                <Component Id="cmp7C787309728D56C147AE9522C51A5D9A" Guid="{B5E97B32-713E-4BAC-B48B-F7DBFCC434F9}">
+                    <File Id="fil2554DFCBBA7A58487C889D2863C5F4A0" KeyPath="yes" Source="$(var.VLCPluginsPath)\lua\liblua_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirAC18FF4CD01FEC60D7EAD55C38BFBF2C" Name="meta_engine">
+                <Component Id="cmpA1040E10977326F93492797FCD7B160F" Guid="{94DB07C6-039A-47CC-8771-F1EAF1C26A09}">
+                    <File Id="filAD710F0074B1EDCFEEA099AC6A8AB7A9" KeyPath="yes" Source="$(var.VLCPluginsPath)\meta_engine\libfolder_plugin.dll" />
+                </Component>
+                <Component Id="cmp64EFD810D9CD9AD37FA1B554EE4CD00C" Guid="{D45212DC-BDAF-4FAE-92CE-FBAB8F8BE86D}">
+                    <File Id="filCC09D5931BF886E2740FE6B5EFAC3790" KeyPath="yes" Source="$(var.VLCPluginsPath)\meta_engine\libtaglib_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirF76D427048FBF8EA2A51AB15D2AD56E4" Name="misc">
+                <Component Id="cmpE107CA35B207A9AC3CE16308DF483B7B" Guid="{8F04B0EA-7206-44DE-9BFB-C03405790F57}">
+                    <File Id="fil059EC52E78403B6B63ADC1DFAB14F26F" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libaddonsfsstorage_plugin.dll" />
+                </Component>
+                <Component Id="cmpDAE6FE93DFF6D82BC296A3B4265856E4" Guid="{E73499A8-BDCE-4C8B-AFC9-23ADA59A6A90}">
+                    <File Id="fil49E4F86290C846CF637AA65CF2DB8414" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libaddonsvorepository_plugin.dll" />
+                </Component>
+                <Component Id="cmp24EC1E7F2F9D81EA38691D67683AB43A" Guid="{9286F0A9-1D2A-485A-9C17-609FD38565AF}">
+                    <File Id="fil524A9C0CADBEBC7A49B4706A599B93A7" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libaudioscrobbler_plugin.dll" />
+                </Component>
+                <Component Id="cmpDC64BC0975BC0A73212872E23EDAADD3" Guid="{C546444F-5192-4F53-A29E-E05202E673BA}">
+                    <File Id="fil3E8E4175848C7B694827192E9B4FC583" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libexport_plugin.dll" />
+                </Component>
+                <Component Id="cmp9591277FD2CC6638B7128B23A9768532" Guid="{5E5972E5-6B54-44CE-A96F-BB677DB43AD3}">
+                    <File Id="fil25B2985730356BF53C48A22E1E1F39D8" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libfingerprinter_plugin.dll" />
+                </Component>
+                <Component Id="cmp311CE661C539C5045495DB9924C60DA9" Guid="{FFADF1BD-0405-4D7C-80E3-4F9C26754BE1}">
+                    <File Id="filD867B7CF51EF94B0EEFE3745BFBFEDA9" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libgnutls_plugin.dll" />
+                </Component>
+                <Component Id="cmp83A90F9B82F1B22623ADA7D148DC6E4A" Guid="{C46F5FE6-EDD3-44F9-A18D-7D7237C36548}">
+                    <File Id="fil1C5EF34D4AC2B4897445CF8DF03CE670" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\liblogger_plugin.dll" />
+                </Component>
+                <Component Id="cmpABCA34866687BA8AC35180595DA8E9CA" Guid="{E2CEEA49-DA91-4AFA-A885-76816CB73D45}">
+                    <File Id="filD04130AC7ED05CBD85F16888A15FB65A" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libstats_plugin.dll" />
+                </Component>
+                <Component Id="cmpFFB506513533EE8DE3B642254F26DA58" Guid="{09CC0783-8DAA-47BF-8DBD-F586BEA8558E}">
+                    <File Id="filF90A5C9F281ABAAC9AADB6F7171D973D" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libvod_rtsp_plugin.dll" />
+                </Component>
+                <Component Id="cmpBD8032807F2F397E2FB659999629AAF1" Guid="{09A75622-525B-4076-B676-3B6A9E827E97}">
+                    <File Id="fil419925B3E6BFC2BF848F3232EE0F3C6C" KeyPath="yes" Source="$(var.VLCPluginsPath)\misc\libxml_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir98916074B9AE12A71E0AB91EED067BD2" Name="mux">
+                <Component Id="cmp6C9294D07540BCCCB18D469252212587" Guid="{128F5E73-C890-4194-91B5-C48064D5F7D7}">
+                    <File Id="fil7B9AFE7A0E0913EB9C67E496A567D70E" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_asf_plugin.dll" />
+                </Component>
+                <Component Id="cmpADCDA478039D622B00B90A9BF0AF769C" Guid="{84445C3A-82E9-4BFA-9E9E-DBF941616DC9}">
+                    <File Id="fil5FE4AD4E58D337966B944537F0397CF7" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_avi_plugin.dll" />
+                </Component>
+                <Component Id="cmp9AA6CC83E27FCA9945F7E5B996E14B05" Guid="{C2B3C147-5DEC-4A70-B12D-647E6A4FF9FD}">
+                    <File Id="fil7231574EA06969C9BC3C28E4564FD161" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_dummy_plugin.dll" />
+                </Component>
+                <Component Id="cmp7A1689B4964E0B3FE2E12B14F911BF03" Guid="{AAD4F8D9-E141-4DD4-9E42-75A46DC55A52}">
+                    <File Id="fil15821AFD5CB6B3378AF65BEAA665B5EF" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_mp4_plugin.dll" />
+                </Component>
+                <Component Id="cmp7F1C2464EB670580140A92AFF770AC2A" Guid="{F7209662-3879-4854-BD99-65748578F0BC}">
+                    <File Id="fil24ECA5E3906FD869176DD3129B384915" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_mpjpeg_plugin.dll" />
+                </Component>
+                <Component Id="cmp165D07D4942F9D8AA754F1247CF67C09" Guid="{F3B4FD6F-A1E5-4933-A47C-9B9F1AF6FC2A}">
+                    <File Id="fil1699448CFF3AEE426466FF21365CAAE3" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_ogg_plugin.dll" />
+                </Component>
+                <Component Id="cmp2375D3A7AB93B3EC51B9BC8A4A4EDAE8" Guid="{5AA33497-78A2-43A5-BEED-55B24958EB6B}">
+                    <File Id="filEDDC4B58971EC34A6088594D0EE7871A" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_ps_plugin.dll" />
+                </Component>
+                <Component Id="cmp3115848AFBCD1312D42F48C9D7DF9EC7" Guid="{7A7F233D-94B0-43B3-947A-927B4170EB62}">
+                    <File Id="fil8E8324D5DC3561A5745867B43B6EB6EF" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_ts_plugin.dll" />
+                </Component>
+                <Component Id="cmpD88AE466479738511FC2C10D9709DAA7" Guid="{D30C2FD8-29A9-49DA-AC7E-E656309CDB0F}">
+                    <File Id="fil8AFDE4FDF89FF2CFD8F3CEF6B6E6112C" KeyPath="yes" Source="$(var.VLCPluginsPath)\mux\libmux_wav_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir989E96FF9AC082FE0D7A265890BEC8C2" Name="packetizer">
+                <Component Id="cmpD4D74FDBA0BF6B4CCE6CF0EB110C41CE" Guid="{A4AF770A-CA00-4E58-B03E-D2251C40702B}">
+                    <File Id="fil6709084004D4961F95B5E240FCEC4A7F" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_a52_plugin.dll" />
+                </Component>
+                <Component Id="cmp75C3D52F85B281F0E7F09A2FC68BA3A2" Guid="{BAF0212C-3C08-46BF-8694-0F5C4E311129}">
+                    <File Id="filFE8DA79E5D4051190BF434749443B323" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_copy_plugin.dll" />
+                </Component>
+                <Component Id="cmp703884DEF3E52A35D5A8153C2DC90D78" Guid="{1E4A4365-6253-4330-B0B1-A6FFFDBD9EF4}">
+                    <File Id="fil0017FA312366F480F41DD42255E9EDD3" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_dirac_plugin.dll" />
+                </Component>
+                <Component Id="cmpC52526D69D34691D8B1F6647A5EB151F" Guid="{DF620116-0302-4FE4-BE28-B7754FAC41E8}">
+                    <File Id="filEFA349DF05A0921E96352806A1F15A36" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_dts_plugin.dll" />
+                </Component>
+                <Component Id="cmpB3C1B5F2AA13F059E150D29F20839A27" Guid="{362AAD53-C2BF-4C0A-BB18-07B9C2FA7EF7}">
+                    <File Id="fil561D63B6F93D94FDA4DE0FFD3FCB1C81" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_flac_plugin.dll" />
+                </Component>
+                <Component Id="cmpC4F220BCA6CC638338E306CC4160E987" Guid="{CB4EB7B0-19ED-4136-BDA2-418D14F6A1D7}">
+                    <File Id="fil27CABE74FB43EC1B8EF6784742BA49DD" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_h264_plugin.dll" />
+                </Component>
+                <Component Id="cmp06811545CF1F30CBADF5B090EBF729D9" Guid="{33D7CC0E-1875-4F89-8ED1-134105708CDF}">
+                    <File Id="fil5A20D50B67C95B799D0BD5D8BAFF118E" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_hevc_plugin.dll" />
+                </Component>
+                <Component Id="cmp7511443DA451E29B2471332DEA9A4B69" Guid="{DE610590-1A51-4AEB-948A-3D2CA245ACAE}">
+                    <File Id="fil70B166503A9C6E871250E9410CF64D7E" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_mlp_plugin.dll" />
+                </Component>
+                <Component Id="cmp81878FC7C00C9A473A40A8D739A65C96" Guid="{ED54BB44-80BE-4F39-ACF7-6199A56010B9}">
+                    <File Id="fil4D1604D277129FE5E283354ADCCE0F02" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_mpeg4audio_plugin.dll" />
+                </Component>
+                <Component Id="cmp480623D04D7561177A834744A987D32B" Guid="{B9099852-7734-4F01-A01F-8BB1EBD68A78}">
+                    <File Id="filE982BD916753A52172055620B496AF47" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_mpeg4video_plugin.dll" />
+                </Component>
+                <Component Id="cmpD47AE3C7EA7F7ACE0053EC3DCEB540EE" Guid="{B0928CEA-9595-4E1F-BA28-E98A290858E7}">
+                    <File Id="filA29249F835ECD9F60D00BFD031E6781E" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_mpegaudio_plugin.dll" />
+                </Component>
+                <Component Id="cmp64EC751224FD368A400C8FCC570BE1F5" Guid="{F791A9BD-EA74-4634-A6A6-CFBF1A60355E}">
+                    <File Id="filD33401F8A7F22D03C36C88E7BB92C55D" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_mpegvideo_plugin.dll" />
+                </Component>
+                <Component Id="cmp12ADF5FB119795A086FD2ADE195A0350" Guid="{96C0C422-716A-4046-8734-57F213E8CAD2}">
+                    <File Id="fil5C7A7226B4AB5F48EF8B38F0EFF4B47F" KeyPath="yes" Source="$(var.VLCPluginsPath)\packetizer\libpacketizer_vc1_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir69B210A6E1A9AA34B340E5E478FDAE61" Name="services_discovery">
+                <Component Id="cmp0532C4E34A14A158B633ACBBAA626BDA" Guid="{3BE6F609-8C7F-4D7F-A372-232C0E9DAAE1}">
+                    <File Id="fil615D2F4F0FA42CD58446201DA0988658" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libmediadirs_plugin.dll" />
+                </Component>
+                <Component Id="cmp89C9575468174246388CC270A86D75E8" Guid="{08768638-5022-478C-B1A6-4EAE13676DAD}">
+                    <File Id="filBB70B355DF189871EC5D3AA334444922" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libmicrodns_plugin.dll" />
+                </Component>
+                <Component Id="cmp18182706C8EBBBD5FD0484FF9B122050" Guid="{F483AF17-4E89-45E9-99DF-BD7BA98BF1A8}">
+                    <File Id="filE4CCC950F7CEA42923E6791E3968C788" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libpodcast_plugin.dll" />
+                </Component>
+                <Component Id="cmp88D127ACAA7EDE7C834860EF98CA3897" Guid="{116B2D51-A122-40DE-8716-27B7263AB2BD}">
+                    <File Id="fil04392FD3425E4C78EA2CDAED11988959" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libsap_plugin.dll" />
+                </Component>
+                <Component Id="cmp29466FCBD66AAF888220857A048D9A74" Guid="{24948A97-1E68-4E1F-BA0B-D7F0F65F740B}">
+                    <File Id="fil798E021B23414DECCA4D01D27136CD87" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libupnp_plugin.dll" />
+                </Component>
+                <Component Id="cmp462EC6BEBC66A885AD33B87E40FC637F" Guid="{1E69A2EB-0B85-4DEF-B0AC-359ED0D55E8B}">
+                    <File Id="fil651D09BE77767DC46FEC4408F2D7791E" KeyPath="yes" Source="$(var.VLCPluginsPath)\services_discovery\libwindrive_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir4970A5BD2AB5C29D196BF75D7E6C88F5" Name="spu">
+                <Component Id="cmp5E2716186845BE26CDF80C9E62F027B2" Guid="{60078664-5AC8-48AF-860F-0077E3270709}">
+                    <File Id="fil0393D5ADCFFE791C9B6A5883B247AF49" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\libaudiobargraph_v_plugin.dll" />
+                </Component>
+                <Component Id="cmpB7748AFDCDB5BB646461C59B2B0469FD" Guid="{EDF90BE2-880B-4941-AD57-ECE3BA1C274D}">
+                    <File Id="fil485E834DD94216ECA36B64FE8D4484D7" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\liblogo_plugin.dll" />
+                </Component>
+                <Component Id="cmp4ECEF633E7940EE73349A483B5FEE75D" Guid="{03A54B89-E0B7-4BB2-90E2-D5D8BCA960DB}">
+                    <File Id="fil370D4845510971D22EBB8C5F9A7BEDEC" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\libmarq_plugin.dll" />
+                </Component>
+                <Component Id="cmp9E445FADA766FD299CA0ACE1EEBA92E9" Guid="{4A19B4F6-5667-4B1B-B3B3-28DDB4760D62}">
+                    <File Id="fil644D64A81BFE9AF986CB2C21D67BA1B0" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\libmosaic_plugin.dll" />
+                </Component>
+                <Component Id="cmpE93AE7E95DD6C03F9A40225C9C71C96C" Guid="{8D92FF0A-A5DE-48F7-8E6F-F3E807A81C45}">
+                    <File Id="fil26E90FA70FE916CE0DFBE26C32EB3A50" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\libremoteosd_plugin.dll" />
+                </Component>
+                <Component Id="cmp04E65824E9058E714FEF8EBC456BFDF5" Guid="{0C2193CD-0DF0-4974-B13E-5945C1203083}">
+                    <File Id="fil7F69D363383EAFF1A2772F7845124E0E" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\librss_plugin.dll" />
+                </Component>
+                <Component Id="cmpC2F7B43EC269A22650793830EA8F7FA2" Guid="{C6402C1F-64E6-48D1-9F5F-1E0A14F27133}">
+                    <File Id="fil15D8E79504410A247318EF814C701D1C" KeyPath="yes" Source="$(var.VLCPluginsPath)\spu\libsubsdelay_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirD68EE8A4550AF86E1C40731676B7BDE2" Name="stream_extractor">
+                <Component Id="cmp8E4D9ACEA9FFACA73FB24EB266B4CD35" Guid="{C2EFDE81-BCD3-4FA8-8963-16C6001BA33B}">
+                    <File Id="fil6202C83F0FCE4C622C7AC863EAE7C198" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_extractor\libarchive_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir9FD275CDCAD8609B469371D6947FA9C7" Name="stream_filter">
+                <Component Id="cmpA6FC12093B14B7994785AA0B053ED35F" Guid="{C0764B8B-5D5F-48B8-836E-C8448A7A1789}">
+                    <File Id="fil50104ADF3BC0545CF54774D602AA8C33" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libadf_plugin.dll" />
+                </Component>
+                <Component Id="cmpD5EBD9E2D39F10C43D3820C9CD019620" Guid="{1E60556A-AF3C-4648-B7E5-758A003BBA9E}">
+                    <File Id="filFFE1E8E87F5797CD2D7EE91F5B92FAB7" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libaribcam_plugin.dll" />
+                </Component>
+                <Component Id="cmpACDC6B874A191CF7DD94DF50C5BFBD32" Guid="{CE00A6E4-784C-478F-903D-7C558760398E}">
+                    <File Id="filDEBE460E8F1FA2F40E7366C86E93B971" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libcache_block_plugin.dll" />
+                </Component>
+                <Component Id="cmp01AEB67F781AB754B44A57240C5C7949" Guid="{EF94461A-49A3-49A3-B27D-9DF671F12ADF}">
+                    <File Id="filBC0DF15860F48C8033CBF7B1371D011B" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libcache_read_plugin.dll" />
+                </Component>
+                <Component Id="cmp3CF46180314C0EACBEDEEEE0B83A62A0" Guid="{D9AB321A-99C9-4D66-ADDB-CD421AA551D4}">
+                    <File Id="fil7E7310654A7C716C456EE4EEFBE6116D" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libhds_plugin.dll" />
+                </Component>
+                <Component Id="cmp3D1E9B5CE0BA743BEC6171761A763FC0" Guid="{5F4AEC99-8A75-4C45-8DA1-E50B0D532DB1}">
+                    <File Id="filEE14F65B71EC30C02D3A4D31B0F54077" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libinflate_plugin.dll" />
+                </Component>
+                <Component Id="cmp6368286280F052D1EF9DC578A4C5B900" Guid="{7E5CF19C-A80C-4BBB-BF42-6E73A8347250}">
+                    <File Id="fil7EB6CDBBF93085EEE011DB93D9E723CF" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libprefetch_plugin.dll" />
+                </Component>
+                <Component Id="cmp435FB2DFB9D77C537756A522F6CDB3E9" Guid="{16AB5242-46A8-4304-BA73-F9C0C2D50115}">
+                    <File Id="filFB49046DF717759D7E37DDAAB2D1A75D" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\librecord_plugin.dll" />
+                </Component>
+                <Component Id="cmp18DE5575A96E1DCC7BDFB9219EA68CA4" Guid="{278203D8-2858-445A-BCA6-AA4495900786}">
+                    <File Id="filCEE7E96F715ED6D530BBA0CB34D9CED9" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_filter\libskiptags_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir40BA9CBF78676FDA0CD5564F405FDAC1" Name="stream_out">
+                <Component Id="cmpAFD3C3F82134097D1746CA68ED31532A" Guid="{76A53261-855D-4BA8-ACE6-F2BE8F1616B9}">
+                    <File Id="fil2299E8E9800CC3140F32CDFD827017EF" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_autodel_plugin.dll" />
+                </Component>
+                <Component Id="cmp5E84A0AADA33A00D9C4380D1A686AB06" Guid="{46BE2197-99D6-4977-8A1A-DEFC95F1FB63}">
+                    <File Id="fil2B1995AA9BFBF9B061BAD29F4FD44AE1" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_bridge_plugin.dll" />
+                </Component>
+                <Component Id="cmpF789A85574DFD271DFB49AB2B6BA5653" Guid="{61F6209E-7EA0-4DD9-990F-3CA072B93EF7}">
+                    <File Id="fil2BBC4AE1FAD62569126B166B35FF9534" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_chromaprint_plugin.dll" />
+                </Component>
+                <Component Id="cmpF104CBB081215A30FA98DEE2F020500B" Guid="{5A980314-E187-4E3C-A0FB-1C25DCB8A606}">
+                    <File Id="filADCE56E4D4144EF3C6627EDE41661F18" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_chromecast_plugin.dll" />
+                </Component>
+                <Component Id="cmpDE5E949E08E3F2B8EF7544FEE4644C78" Guid="{19418D06-D724-471F-9977-C267AB91B078}">
+                    <File Id="fil30EA84F84B0900C72A4FE81E69EC61A3" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_cycle_plugin.dll" />
+                </Component>
+                <Component Id="cmp44066A71E9B0D61391F9834897816F74" Guid="{7CD17390-9C5A-49ED-B692-41C1A93F959A}">
+                    <File Id="fil07142FFF1FDE3A0DF17408ED8286077E" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_delay_plugin.dll" />
+                </Component>
+                <Component Id="cmpCD83BCA76699514EB55EF07B52CFAF93" Guid="{16C49FA4-3375-496F-A379-4DE8E3CED601}">
+                    <File Id="fil9423303A56956512868402B88A39F246" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_description_plugin.dll" />
+                </Component>
+                <Component Id="cmp217BE285B4FBAE3607D847FA5B7E6510" Guid="{F37E0800-3B99-4638-9547-E56B37B1DC8B}">
+                    <File Id="fil7DD78A7F606450C6F83DFA47A703C23F" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_display_plugin.dll" />
+                </Component>
+                <Component Id="cmpFE8698D8414443360DFC590EC52CE074" Guid="{03991C33-7B33-412D-B02F-1364E410D6AA}">
+                    <File Id="fil2B6ADE4D15D81917C85253939CF6DC14" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_dummy_plugin.dll" />
+                </Component>
+                <Component Id="cmp682BE4237CCD0F5D9D4E0ADBE04D18A1" Guid="{7DE88D7E-E22D-4554-A4DF-440BB4D188DC}">
+                    <File Id="fil709CBFF57A8DF1A151CDF2999AAE1EBE" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_duplicate_plugin.dll" />
+                </Component>
+                <Component Id="cmp55B45626FDD17B23A81954A87E6BB8CD" Guid="{F7F56C24-DEAF-4CF9-BA5C-E3942511C3B1}">
+                    <File Id="fil8A5472E7A35AB2F6E4A0B9D7AD00D11A" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_es_plugin.dll" />
+                </Component>
+                <Component Id="cmpFDF51211CD5F5A1079049158EE1D340E" Guid="{2FC2071C-24DC-47F2-AB52-39A17DA414C0}">
+                    <File Id="fil9925E4DF67ED24D9D5F7AFF25FC11F54" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_gather_plugin.dll" />
+                </Component>
+                <Component Id="cmpF40737F7A10A354BDE030613766E4DAC" Guid="{085A6100-F74A-410A-B15A-0FD75E35DA1B}">
+                    <File Id="fil69AE4F4CFFD6ABDE8D4AABCBF89074C3" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_mosaic_bridge_plugin.dll" />
+                </Component>
+                <Component Id="cmp4C7D455EEF09CB95424F6B21BD49E58F" Guid="{3460DE92-1FEA-4E39-B4AA-2BFCBBBC0E40}">
+                    <File Id="filEB6B0252F01F0B84E722672D9BC3A253" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_record_plugin.dll" />
+                </Component>
+                <Component Id="cmp41D4A79EBC0FB48D8D209D3D70E99576" Guid="{6FBF89E7-3289-489B-BB0B-9521E28C5937}">
+                    <File Id="fil480BE2F290418E7E2D1467A01B0B18A1" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_rtp_plugin.dll" />
+                </Component>
+                <Component Id="cmp288D8ABB2EF5275C1825165FA6E60F95" Guid="{322D6C94-82BF-47C8-9CCF-F19780AD5719}">
+                    <File Id="fil09818DDBF20424ED9738D4FE649ABCB7" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_setid_plugin.dll" />
+                </Component>
+                <Component Id="cmpE548EE1233299CE6BE69FA38FC4924CD" Guid="{C3CD2603-F33C-4DCF-AA50-71C293E64314}">
+                    <File Id="fil800630A5DAB454C476B41C6245B41075" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_smem_plugin.dll" />
+                </Component>
+                <Component Id="cmp7F1DB333F3CD1F9849F2E33EDF50E412" Guid="{36D2593B-C608-47F0-80B3-93A471DBA4F7}">
+                    <File Id="fil6D97D718F7D8C5AC31B168CA22242563" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_standard_plugin.dll" />
+                </Component>
+                <Component Id="cmpF86FDC97D673D1A267164F6AF0FF63F2" Guid="{A038A149-A272-4E8C-91B3-C27879085FF4}">
+                    <File Id="fil27FAEA6F64C37ACB7238052CB95650FE" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_stats_plugin.dll" />
+                </Component>
+                <Component Id="cmpA0E3883F172F5097E1122EF212125D98" Guid="{31959BF6-5FCE-48FB-973A-12262D04BEA4}">
+                    <File Id="filDDAEFAE766EB75D56D8C12BCDF2E1A43" KeyPath="yes" Source="$(var.VLCPluginsPath)\stream_out\libstream_out_transcode_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir291795F85924E9F75B0A0FF4C8E61DA8" Name="text_renderer">
+                <Component Id="cmpB33743AAA7857B62F390084E1B5ED155" Guid="{109A324F-691C-4F07-AEBC-6623D678A7F2}">
+                    <File Id="fil9D9C995B6EED159C0DBF3D79B58251D0" KeyPath="yes" Source="$(var.VLCPluginsPath)\text_renderer\libfreetype_plugin.dll" />
+                </Component>
+                <Component Id="cmp53CC4138937A2CB8F809A9D73E33958E" Guid="{EDF1D176-FE83-4C9A-BC34-5882B9AEB33D}">
+                    <File Id="fil8E145298C309CC9ED3D5937A3D24D723" KeyPath="yes" Source="$(var.VLCPluginsPath)\text_renderer\libsapi_plugin.dll" />
+                </Component>
+                <Component Id="cmpF56071E2CC665161EF2690235D9A174C" Guid="{A82A9182-43E4-4B97-A1DD-995CFF6981DA}">
+                    <File Id="filA23DFFD4E0A7E9D635785CB514EE011F" KeyPath="yes" Source="$(var.VLCPluginsPath)\text_renderer\libtdummy_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir4D0A8E1B09C6498290A7EE76B15EC176" Name="video_chroma">
+                <Component Id="cmp02051AAC52E0325F07A310C3348D0A27" Guid="{C05DE433-A1EF-43C1-9245-749050E1F712}">
+                    <File Id="filAD50E552FA8B23BCE8A09ABFE9587B9E" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libchain_plugin.dll" />
+                </Component>
+                <Component Id="cmpA2F15EDAFDDC64ACBE9CC931C0EBEF79" Guid="{A3455CAB-BD56-4021-AD2C-F316FD0BF5A9}">
+                    <File Id="filE327C049685EAFDEFE8DB2918BA541DF" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libgrey_yuv_plugin.dll" />
+                </Component>
+                <Component Id="cmpF8745B2DFF1CEE83F616F0CF8DF0D4A2" Guid="{096994BE-1C4E-4D24-BFA8-D31DF937B65B}">
+                    <File Id="filDA8C67107FC50BC493E83B205F4FCAD0" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_10_p010_plugin.dll" />
+                </Component>
+                <Component Id="cmp756277BEAF77DCA3FE6832DDB41AB1E6" Guid="{590E4120-17EB-4BA0-A607-2306BEC0A747}">
+                    <File Id="fil7457BF5EF18B9802E052D34D3407B5DD" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_nv12_plugin.dll" />
+                </Component>
+                <Component Id="cmp5772F43A38AD52122CB58E235E0E619D" Guid="{4F437A1E-0F7E-4036-AA42-8C0BD60BD2CF}">
+                    <File Id="filF8768726F8623ABE971F85539E4B66C4" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_rgb_mmx_plugin.dll" />
+                </Component>
+                <Component Id="cmpB9EF7A6437169BF2691D5CD7BAF55CB3" Guid="{109561DF-5E84-499C-9EA5-CBD5052BE9D5}">
+                    <File Id="filE0BD3B9C6A488E04A5DD0634AB80F5F8" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_rgb_plugin.dll" />
+                </Component>
+                <Component Id="cmpB3D9B36F9CB616A6C06D026E3E286DB7" Guid="{F13706D4-1C60-4AC2-A152-FD016D10BB49}">
+                    <File Id="filE77A4C6A15F7419BD2C505D4DA511C63" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_rgb_sse2_plugin.dll" />
+                </Component>
+                <Component Id="cmpB517406EDEDF14E4AC6CB46AA01FFE4F" Guid="{ADF52811-1CFB-499A-BB11-ED5A6CBAB688}">
+                    <File Id="fil02130DAF739883E6984C8CD38DCCB6C9" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_yuy2_mmx_plugin.dll" />
+                </Component>
+                <Component Id="cmp5374F48AF28E87194C80DD92A69D1CB0" Guid="{38DADC67-A6F8-4A96-A5EC-5C26FCAA041F}">
+                    <File Id="filA5B6B58580C8545926D9C25E86BE2D65" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_yuy2_plugin.dll" />
+                </Component>
+                <Component Id="cmp13F4AB0EDB9F51A346D861606E30C843" Guid="{784E276C-E15E-4C68-8C2F-FEB810ECCAE8}">
+                    <File Id="fil9824789012DC9061A1D7CBE04CCAC962" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi420_yuy2_sse2_plugin.dll" />
+                </Component>
+                <Component Id="cmp5CE614627EFCA8C3E0D57A7161438234" Guid="{0952B39F-16F8-4FF7-B07F-330B42B240AB}">
+                    <File Id="fil1182C941FF8F599D739C0F1765C92A83" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi422_i420_plugin.dll" />
+                </Component>
+                <Component Id="cmp66A8F645FA9884C972C54B41F3833E05" Guid="{DDAD5CAA-0C35-4E6A-9516-929E84218C63}">
+                    <File Id="fil74ED0BB37E7840C5B41FDF2B4A3E3DD1" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi422_yuy2_mmx_plugin.dll" />
+                </Component>
+                <Component Id="cmp079C0185795BAB6377A8A58509FC7E25" Guid="{9C981CDD-DC9F-4284-A8CA-92EF2B698BC8}">
+                    <File Id="fil9568E6E2E3D90FED86152677AF2B3584" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi422_yuy2_plugin.dll" />
+                </Component>
+                <Component Id="cmp95F84E22CB64F9407D0CC0B71A1E08E8" Guid="{3DA92878-F0A9-4EDA-905F-AE04F0396108}">
+                    <File Id="fil627D131F4DD43753A2FED78D47E5C174" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libi422_yuy2_sse2_plugin.dll" />
+                </Component>
+                <Component Id="cmp1FCDEAD544C25DADDD17901B692EEDED" Guid="{9B50DAF9-94A8-4C86-907F-294426E643B1}">
+                    <File Id="fil4D0753872A487A1776B6E7B3C82E14B9" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\librv32_plugin.dll" />
+                </Component>
+                <Component Id="cmp8E8DAC41A6254419F56F057D0583E5F0" Guid="{B6C74E99-92C8-4864-8023-C384C30B161A}">
+                    <File Id="fil81098E7628EEE8A05D8A36378E39E603" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libswscale_plugin.dll" />
+                </Component>
+                <Component Id="cmpA1E2384642280F55416BF742D08F812D" Guid="{D34C2B2B-8F2B-4CCD-8977-625FA93625B8}">
+                    <File Id="fil3D314AA55B15FE61799D7D87FED87356" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libyuvp_plugin.dll" />
+                </Component>
+                <Component Id="cmp15D2A74D3EA4B52255CFD5468B64940D" Guid="{F9728174-FFCE-4914-A732-C050CA2C2F19}">
+                    <File Id="fil669A6C699E0F1DD428BAC2C539C7B60C" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libyuy2_i420_plugin.dll" />
+                </Component>
+                <Component Id="cmp5707B4FBB9CD2E2F3E283886478692FA" Guid="{6601D1D4-BECB-4E60-839C-90B28E57E474}">
+                    <File Id="fil0440A6E7A0DBCB0D331A45E038BFC537" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_chroma\libyuy2_i422_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirC5B04D65DFF800A47CCBEB11CD950D49" Name="video_filter">
+                <Component Id="cmp89E2E86CC909C9D27C345BE48D198D3A" Guid="{4B1688D4-1EBB-43B5-B7DA-71D7933CF818}">
+                    <File Id="filB2CC58AEAB45429481BB4CAA50C991C1" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libadjust_plugin.dll" />
+                </Component>
+                <Component Id="cmpD0B81BE24E545AB9DD9FC05EA4CB81E1" Guid="{2E56D250-BEC9-46B8-AFF2-4346C434C2A2}">
+                    <File Id="filEB37A45ED7CC04C0BECC363949C82C7A" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libalphamask_plugin.dll" />
+                </Component>
+                <Component Id="cmp226B9871ECB2DBA98FCB364AB7FB915D" Guid="{D2082831-F20B-4652-9E9C-B3F075A6FD80}">
+                    <File Id="fil4F1B09208852BDC0B56784405F4BC497" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libanaglyph_plugin.dll" />
+                </Component>
+                <Component Id="cmp61627B44F003E76BDFE7063486B57D99" Guid="{D967DE4B-B9F6-4CFE-B964-6862216021F1}">
+                    <File Id="filB52B48E3CCB133806FB4F17339B3DDA8" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libantiflicker_plugin.dll" />
+                </Component>
+                <Component Id="cmpBC2A04833D72035B0832BAA7130C983E" Guid="{759E1FA8-A61A-4324-BBE1-452635AD593A}">
+                    <File Id="fil1D88159AAFFF9D7A8DB380FD030A231B" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libball_plugin.dll" />
+                </Component>
+                <Component Id="cmp9A11739896B86DEE6019DF82EF9FBD0C" Guid="{F107DFA5-6045-4F59-8921-43CCDFE4A89A}">
+                    <File Id="fil2E0632C53CA64B156186CEDC7AD9E5CC" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libblendbench_plugin.dll" />
+                </Component>
+                <Component Id="cmp66D98399C10F1D877825D702BE66832D" Guid="{C54FF442-FDD4-4A36-A8E6-631C23ADF134}">
+                    <File Id="fil5675FB0401959E77D700A46FDF61351E" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libblend_plugin.dll" />
+                </Component>
+                <Component Id="cmp2E51D4A2EC4418C24ED8A5DFF9AF1E19" Guid="{DA571BF6-2924-4F1C-ADCB-DA31B04B24CC}">
+                    <File Id="filD471325B1092D0B4368697A1D5B9AF79" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libbluescreen_plugin.dll" />
+                </Component>
+                <Component Id="cmp51C12412AE1B7E5BA690A35593137E13" Guid="{37EDC638-D31D-4D50-A5F4-7178F5A709EF}">
+                    <File Id="fil30191318EEA63DA23D7D6A90236724DE" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libcanvas_plugin.dll" />
+                </Component>
+                <Component Id="cmpC8E5DF63181E860BB5B4F1BF2DF62722" Guid="{02D7E57E-F1B3-412A-A728-EC6A9F144772}">
+                    <File Id="fil33E47A789BA55491C834F4E172EA3B4B" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libcolorthres_plugin.dll" />
+                </Component>
+                <Component Id="cmp67242BF26353B42F03FA8C0CBAC7A355" Guid="{8EC15C53-E86F-4C3F-9E93-5CDC11E2C2B8}">
+                    <File Id="fil72ABA9F774850260F7204549413140D0" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libcroppadd_plugin.dll" />
+                </Component>
+                <Component Id="cmp0D298B6A88B29628CE76A7002C1DC0F2" Guid="{DE1EB354-DEC0-44ED-AF77-ABA160E6A2FF}">
+                    <File Id="fil5B6705E26A290CB616B1CAE54021DA28" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libdeinterlace_plugin.dll" />
+                </Component>
+                <Component Id="cmp4B82EAEC80F11BD6D9452FCCF527528D" Guid="{A2605DEC-C2AD-48DE-A8FE-6FC120F3344D}">
+                    <File Id="fil1D3B9CEA3597588A8701428EE22AEC2F" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libedgedetection_plugin.dll" />
+                </Component>
+                <Component Id="cmp46B7817A57D985A56A953FB97E27AD0E" Guid="{C440AD5A-365D-4F77-95BA-A9094E7D4D9D}">
+                    <File Id="filE7D3396C20773130A1EBEF84B3D823ED" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\liberase_plugin.dll" />
+                </Component>
+                <Component Id="cmp379451F17BAAE0AE7AA14B0A609D3ABD" Guid="{46FF40D4-67DA-4B99-8715-55FE624B02B4}">
+                    <File Id="fil790F01ABED17BEEDCB632025AAF10CE5" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libextract_plugin.dll" />
+                </Component>
+                <Component Id="cmp8963CA0025CE075E2025745B5B47E075" Guid="{224CB1EF-4A7A-4F12-A05E-D3F785AFFD33}">
+                    <File Id="filADF7B009A88288F706D533E5D7E66F44" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libfps_plugin.dll" />
+                </Component>
+                <Component Id="cmp1A3C17F8F4D75128FE5F56B0F97905CB" Guid="{97C4DC43-50C7-4D8E-94E5-248AED400B1C}">
+                    <File Id="filA0037E6DB317AC1DF5375A6819431E5D" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libfreeze_plugin.dll" />
+                </Component>
+                <Component Id="cmp8D51BB35B67F5531267A630E4FEB8436" Guid="{DD29422B-3339-4063-BEC8-7303F5AEC756}">
+                    <File Id="fil6CCF070F70D35C2B055E093D04DCC06E" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libgaussianblur_plugin.dll" />
+                </Component>
+                <Component Id="cmp45F229B7E7626B562349DE99FAF7BB7F" Guid="{1E409452-0CF6-4549-90D2-34994C815D07}">
+                    <File Id="fil72829C3F13263CF7851F2357AA097271" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libgradfun_plugin.dll" />
+                </Component>
+                <Component Id="cmp8C7AB037F6B9D0E53EFFC70FC8C43BEB" Guid="{04ECBAF2-4288-45D4-8CDC-51DF5BD02EDD}">
+                    <File Id="fil6D24A22B17E3E1495E94EDD4FA2EBB95" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libgradient_plugin.dll" />
+                </Component>
+                <Component Id="cmpA7FAE453434A6DD02940F74C35A296A6" Guid="{1140E9CA-3F95-42D3-BE6E-89B68EB42C35}">
+                    <File Id="fil8BAF40BA5DCB83DCBFA64AE58C160C02" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libgrain_plugin.dll" />
+                </Component>
+                <Component Id="cmpC0C21EF8EE8CA788B832F3E22D17CA6B" Guid="{5B9E08E3-1D28-4D5C-832C-AFEB763D209D}">
+                    <File Id="fil2168C504296E2F38C3F9AB6EEF5F0DFD" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libhqdn3d_plugin.dll" />
+                </Component>
+                <Component Id="cmp07D5DC7C793E0ACBBCC20978F7B57B82" Guid="{D43E76F3-6680-49AC-B69D-F3B7D3661E67}">
+                    <File Id="fil72025B933F81FA9EA73DCB69C98951D2" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libinvert_plugin.dll" />
+                </Component>
+                <Component Id="cmpC949C95C0C1D8002151349787D26C2F7" Guid="{19AA8042-8845-418C-9E29-69A651FFD025}">
+                    <File Id="fil7AAF87AE814D5D3B49321A493108EEEF" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libmagnify_plugin.dll" />
+                </Component>
+                <Component Id="cmp85535A5E8B1F8E58F81CE7174BD146AA" Guid="{496A263D-3B59-489D-8981-547F0BD7BA6A}">
+                    <File Id="fil336BBEC9BD705E2ED8998C9AB978F1F9" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libmirror_plugin.dll" />
+                </Component>
+                <Component Id="cmpD2346534E5492C1BBAA8E68B784AC31A" Guid="{4B180AFE-E15B-404D-948F-9CD64D892BBB}">
+                    <File Id="filC712B075BB2F6C828561051948C93230" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libmotionblur_plugin.dll" />
+                </Component>
+                <Component Id="cmpD43CDDEFA53381CD045B308981339DAF" Guid="{468E2D8B-1F4C-4804-A0EF-61C0F631F652}">
+                    <File Id="filCE329743EDDF83266F66CEBB7A704216" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libmotiondetect_plugin.dll" />
+                </Component>
+                <Component Id="cmp4DCEBB869EBFC5FAF609E054F3B1AA8F" Guid="{C6D7B174-F6B0-4D3F-9ADD-4B57DBEC8DEB}">
+                    <File Id="filF657AFC54029BDD81DFE725733B1D8A0" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\liboldmovie_plugin.dll" />
+                </Component>
+                <Component Id="cmpB07B8FED2A8B749EFFC06BDF3C9D12A5" Guid="{840F6B63-FB6D-4E3D-ACAE-1823DC7F9DAD}">
+                    <File Id="filA4B0F951632CF2CABDCFCEE5496B0B01" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libposterize_plugin.dll" />
+                </Component>
+                <Component Id="cmpD6D13DFD8E14B4BFD06A56CFE09DEF4E" Guid="{418D237F-044E-46E7-ACC0-711190BF3446}">
+                    <File Id="filCB472D04C929677CDBB502111C066AA1" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libpostproc_plugin.dll" />
+                </Component>
+                <Component Id="cmpF7F54BB74CC1BDD39D269E2E46C9C382" Guid="{CD441284-ED2D-4C58-B348-246CBA67617C}">
+                    <File Id="fil8F60B4BFFEA20090CA3C93062070F02F" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libpsychedelic_plugin.dll" />
+                </Component>
+                <Component Id="cmp5BB7022DE4EF0292CAD4A9EC24F97D5B" Guid="{15148E2E-D5E4-4D10-92FE-5D02D91560BA}">
+                    <File Id="fil967DA065561384DFCCCB3FBE8DD6241E" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libpuzzle_plugin.dll" />
+                </Component>
+                <Component Id="cmp82D9B120D522C79A6E6A0E48EAA6E3A6" Guid="{562CF106-4FC4-4920-BA36-D8B82073AEAE}">
+                    <File Id="fil926BE5BC7B60FC30DE6B87EE4D484C4C" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libripple_plugin.dll" />
+                </Component>
+                <Component Id="cmpD222F2CF759D0A839AF57BF4BDD8A0CE" Guid="{F5509A91-5566-4E5E-959C-395B9AFCF166}">
+                    <File Id="fil251B27F29EDA7931F3041DEA9D3503EF" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\librotate_plugin.dll" />
+                </Component>
+                <Component Id="cmpC248B8087E65AAC13FD63C72DE78FACA" Guid="{4E50FD74-6B7F-4280-B41D-3861DE8E9ABE}">
+                    <File Id="fil6710666C746C2FF6A55EF440E510868D" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libscale_plugin.dll" />
+                </Component>
+                <Component Id="cmp848274302F9ABC0D3AF0CB8C5C2AD685" Guid="{DA91B546-D939-4407-8B12-FE457821DDFA}">
+                    <File Id="fil226375AA6E1EEB343B1E45F2DEF662EC" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libscene_plugin.dll" />
+                </Component>
+                <Component Id="cmpA334FE597E7B1E1D26089338032304CD" Guid="{2186257A-5B3F-45A4-8A42-2265C57CCC4A}">
+                    <File Id="fil0C4DDF77DFAE98F9C1033ECB7EC74CE3" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libsepia_plugin.dll" />
+                </Component>
+                <Component Id="cmp03106078287A7E377D4C9757DCF6D430" Guid="{01EBCA1D-88AA-43AD-B9ED-C0DB39DDEF19}">
+                    <File Id="fil80515D8E2794D569DCD9148C7B98CAF2" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libsharpen_plugin.dll" />
+                </Component>
+                <Component Id="cmp399500524B4F56B5007F31F6F96B6EAD" Guid="{A4ED26A4-1DAE-4637-A77D-0B33FA895B4D}">
+                    <File Id="filFDA45E04054230811EDAE0B4233476B5" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libtransform_plugin.dll" />
+                </Component>
+                <Component Id="cmp0A43876FEE8009B339F0CEE8C71805BD" Guid="{7ABF862F-489A-4DCE-9A2F-7039492433EC}">
+                    <File Id="filE22EE95CAC9F42A290B497443959C5C9" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libvhs_plugin.dll" />
+                </Component>
+                <Component Id="cmp6FC4029734679DF371C555B064E01135" Guid="{C4540B8A-C3CB-4FED-A0B1-E08E042374C7}">
+                    <File Id="fil079B281F2F3AAF94ED2DBD785A1E7CE0" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_filter\libwave_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dirD71B7B4E0E779ADCBC1F5F02ACC7FB37" Name="video_output">
+                <Component Id="cmp2D6042098B3AA80DBBF6A3CD844BB616" Guid="{DBD809C5-D553-4CEB-A33E-12B4F8711C6A}">
+                    <File Id="filD1A003D67D76967F08E11F6B6F0115A7" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libcaca_plugin.dll" />
+                </Component>
+                <Component Id="cmpCF396E389E9E99872B112972F7283CCB" Guid="{E829A8F8-B583-41E0-9977-5832C24EBAF1}">
+                    <File Id="filD475930D7AF42EE73D603699FEC0DA94" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libdirect3d11_plugin.dll" />
+                </Component>
+                <Component Id="cmpCFD5FE56712623982E8862B9F846FCFF" Guid="{94427075-B7DC-421A-89AD-57D973FE24EB}">
+                    <File Id="fil477993E379CC52D5DD70E03BA3428AB9" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libdirect3d9_plugin.dll" />
+                </Component>
+                <Component Id="cmp5172DED4E82209A9E53AC3A885AA6804" Guid="{FCAE4665-127B-4581-B9CB-D15E236F719D}">
+                    <File Id="filBC0AC3C31439B98AF6CD418CA0C5DA88" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libdirectdraw_plugin.dll" />
+                </Component>
+                <Component Id="cmp54E3D5A1B6292AE05B936337B6CC9898" Guid="{C791DCFD-20FD-49B4-B660-D91C55F8D3D0}">
+                    <File Id="filCA0EC5F2230F5D0F4D8323E5FA7FA4A2" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libdrawable_plugin.dll" />
+                </Component>
+                <Component Id="cmp9558E89DC253FBEBA53D65DF88BC8A99" Guid="{02431D5A-47C5-4B9A-BA00-32E9BD83C146}">
+                    <File Id="fil88DF57FE7239B1293A2E22B4154FED14" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libflaschen_plugin.dll" />
+                </Component>
+                <Component Id="cmp775193D9F56BF539628C859BD9590AA1" Guid="{123BE61F-758F-4763-B4E7-2846D935673A}">
+                    <File Id="filD3B89CBA57F4B5A79E18BD3758C74161" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libglwin32_plugin.dll" />
+                </Component>
+                <Component Id="cmpF93DD487396AA3A56C4DAB11BE1B261E" Guid="{906E44C6-72BE-420D-B848-C17BCDE42F97}">
+                    <File Id="fil72B89D35F312D8B81899819DD804050E" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libgl_plugin.dll" />
+                </Component>
+                <Component Id="cmpB6CD25F97BE129085472F06FD9D6E9C2" Guid="{CDE74B25-8A1C-4C77-A461-332601D2857B}">
+                    <File Id="fil7C1B6EA8CC8DCF829A50CC316DEF5410" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libvdummy_plugin.dll" />
+                </Component>
+                <Component Id="cmp068449864E44FE27485C44A8BB2E0A15" Guid="{EA98F161-8B56-4A6E-8DD1-E3F8B883F13E}">
+                    <File Id="fil3A0DE90542530CB953BB9B0056C5936D" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libvmem_plugin.dll" />
+                </Component>
+                <Component Id="cmp1F1A49495F5655CCE4BAB8A8BE65CCB3" Guid="{CEA77F36-3CE0-4C6A-8917-90FD228FD6BB}">
+                    <File Id="filA0807F2E63DC705C02D2B79814F475D0" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libwgl_plugin.dll" />
+                </Component>
+                <Component Id="cmpE71E4B6FFA15543C6382A23D781C7658" Guid="{8241F21A-05FA-474C-832C-24E71F2603CB}">
+                    <File Id="filA0193EE89CCC61CCFFE7212BBF2D43A5" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libwingdi_plugin.dll" />
+                </Component>
+                <Component Id="cmp25E0DF90E28BD90FB65E2E29A2434793" Guid="{7EA19B52-075B-42F2-B9A3-31688B794C36}">
+                    <File Id="fil06617AB49950D9E702C0D781BABE8CA4" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libwinhibit_plugin.dll" />
+                </Component>
+                <Component Id="cmpACD9ECBC9257FBF1539278A061C3A334" Guid="{5A0DD57B-F813-461D-983E-09FB545ECB66}">
+                    <File Id="fil972F4FCC28D6E1A9C1363DF5A4BFF9CB" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_output\libyuv_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir0DCBCAB477534FEC73DFE42E91820639" Name="video_splitter">
+                <Component Id="cmpCA241C68AA2FF614FB6EB97386419FF2" Guid="{9331FF21-22BF-4655-9265-B360BDEE6F01}">
+                    <File Id="fil9DAC4111CE025EE019097665B9DBEDE5" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_splitter\libclone_plugin.dll" />
+                </Component>
+                <Component Id="cmpE611A421276532456C18564552AF361F" Guid="{6D61E114-558E-46A1-BC87-1F1F6027FA44}">
+                    <File Id="filD61B5801C82FAC140E5908E573B11037" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_splitter\libpanoramix_plugin.dll" />
+                </Component>
+                <Component Id="cmp2DA887535BE60ED8150C8B14DC439381" Guid="{A352F4C9-5E10-43C0-8D91-05F43C973044}">
+                    <File Id="filC61772E6550F32A5A588DAD56F868F95" KeyPath="yes" Source="$(var.VLCPluginsPath)\video_splitter\libwall_plugin.dll" />
+                </Component>
+            </Directory>
+            <Directory Id="dir648778FC3E4136E26611F11081CD897E" Name="visualization">
+                <Component Id="cmpBADD590E3BB4A85B7CD569BFEFE03894" Guid="{87875282-8D99-4F46-8F43-D65ECB6165F7}">
+                    <File Id="filDDE20CB5712298D024B4A370ED09167D" KeyPath="yes" Source="$(var.VLCPluginsPath)\visualization\libglspectrum_plugin.dll" />
+                </Component>
+                <Component Id="cmpA89A45CCC08CCC16B30E19F77A9A487E" Guid="{42D0FEC3-E2A0-4B08-9D09-B1B109D1969B}">
+                    <File Id="filE8D4B22C7E8965BC96EE25BA6D38FDB0" KeyPath="yes" Source="$(var.VLCPluginsPath)\visualization\libgoom_plugin.dll" />
+                </Component>
+                <Component Id="cmpD2C020FF958186D25FA6494288B9A750" Guid="{B35670E2-7181-4DBB-8DB5-E28EF337F21A}">
+                    <File Id="fil4A5CB3BA783FE01D182D76ED2F4468ED" KeyPath="yes" Source="$(var.VLCPluginsPath)\visualization\libprojectm_plugin.dll" />
+                </Component>
+                <Component Id="cmpE5882BEFDAE83FB77C8EB9E8229EF970" Guid="{4A81A5E9-6854-4E07-BFAA-EF04319773E9}">
+                    <File Id="filEB12C3DBA8B95EDA90A2BB7DA218F3D3" KeyPath="yes" Source="$(var.VLCPluginsPath)\visualization\libvisual_plugin.dll" />
+                </Component>
+            </Directory>
+        </DirectoryRef>
+    </Fragment>
+    <Fragment>
+        <ComponentGroup Id="HeatGeneratedVLCPlugins">
+            <ComponentRef Id="cmp999791E547D221360414833D414E074D" />
+            <ComponentRef Id="cmpC0937C33DDD24E5FAE140E387AF019BD" />
+            <ComponentRef Id="cmp0403BF80CCB3A9E54DFD9747E053CD32" />
+            <ComponentRef Id="cmpCC04C2217E4F45C00ECD5AA31D665A66" />
+            <ComponentRef Id="cmp2980DD86E21CDA0A0FF11550C5850C02" />
+            <ComponentRef Id="cmp2306CB59AF74C2EB7AEE3798AAB669C2" />
+            <ComponentRef Id="cmp48BA01BECF4C5E7FF605A7B22E58563A" />
+            <ComponentRef Id="cmpE80F7F39622A5B612D78C8025ABCB74C" />
+            <ComponentRef Id="cmp6587B31F9A33CE3B7E276512C5FDE261" />
+            <ComponentRef Id="cmp7FACBC454DDDF647B023A3FD619638A2" />
+            <ComponentRef Id="cmp77C20E0445A309B1BB23954B3A4FD62F" />
+            <ComponentRef Id="cmpECA2D196FF1716F6D9035F134CACA6D6" />
+            <ComponentRef Id="cmp36E08BAD5E80B5DE01CB044D36193478" />
+            <ComponentRef Id="cmp8DF1936B3D1793A4C44BE3DE4686EA78" />
+            <ComponentRef Id="cmpFE73E6C44DF18888740D3D8741549700" />
+            <ComponentRef Id="cmp3EFD2951569A82A90F06B5AA0D92D4C3" />
+            <ComponentRef Id="cmp0956BA7E8879E65B49F33E445843D0D7" />
+            <ComponentRef Id="cmp9FFC53CAE12B129F529885261008D7C6" />
+            <ComponentRef Id="cmpE68D91A5551A88C2C91CC55FB3A06C29" />
+            <ComponentRef Id="cmp61958E037D40B0AEC7D0EE71CC63FDEF" />
+            <ComponentRef Id="cmp3DE735A43B924D11198D6F4AC69C40C4" />
+            <ComponentRef Id="cmp054D77306C17CA23671A0FECD621A68B" />
+            <ComponentRef Id="cmpB0106E86554BCD0D2FE0BCA109B59E31" />
+            <ComponentRef Id="cmp139569A8147D29A1E6258B49BB23D483" />
+            <ComponentRef Id="cmp6978F39E8271AC1B3D76268704C6A368" />
+            <ComponentRef Id="cmpCCB2A657E3A23CC80B57044A80398E6D" />
+            <ComponentRef Id="cmpD73EA5267DF1E474350E9455D82C872E" />
+            <ComponentRef Id="cmpE4ACD2134B150C6D2B107E000E9A0312" />
+            <ComponentRef Id="cmp0C8694887EB765930D1FBA3FD9E2BE37" />
+            <ComponentRef Id="cmpBCEB8CF8FCDF4B87D969F6BF87D57A54" />
+            <ComponentRef Id="cmpD30F567101E787FB27573B24C650D79E" />
+            <ComponentRef Id="cmp65BD5890FAA055D7ECA0702550EA88ED" />
+            <ComponentRef Id="cmp80B5D2D2D522F34A1FC8A0EE1709B71D" />
+            <ComponentRef Id="cmpD2011AA8561FDFFDAED03BA14F6FC4FF" />
+            <ComponentRef Id="cmp6A06BCB59F12751D67CAF898FD301F96" />
+            <ComponentRef Id="cmp61494BD48960366B2B74D4CF903AE794" />
+            <ComponentRef Id="cmpD0BC08586D71AD0718218EAC42884A0F" />
+            <ComponentRef Id="cmpFF6A21C8B0CC91E6931A34FFED13428E" />
+            <ComponentRef Id="cmp20A0458CBEABEB5D96D5E99ED0A2D496" />
+            <ComponentRef Id="cmpE477D76CC0CEF42CB27FB2B15004816E" />
+            <ComponentRef Id="cmp76596BF8A404C0C95503A0D05D222A28" />
+            <ComponentRef Id="cmpDDCAFEE736F4AD49D20D9DC5FA8EE91D" />
+            <ComponentRef Id="cmpBC8FEB6254158AAF8F40EFB8C467B75A" />
+            <ComponentRef Id="cmp2FBE24A0A96EC218F756AEC4202F2049" />
+            <ComponentRef Id="cmp7AE3303457134D7C6A0F08BCA2CBD070" />
+            <ComponentRef Id="cmp0B2F7EEAA76D54BB0DD7ED32A916F9ED" />
+            <ComponentRef Id="cmpBA7DF4AAF8EB152494628E310252EE8A" />
+            <ComponentRef Id="cmp8DD0254A25B9ABE431D82E4C5EE56D4C" />
+            <ComponentRef Id="cmp552724004D89E07912D5587BF24DC240" />
+            <ComponentRef Id="cmp5069575E2DEA80712DECFB2FD65CABF2" />
+            <ComponentRef Id="cmpECFAF7E208DC047BDDB5686E2D1D695A" />
+            <ComponentRef Id="cmp101190A3079A265AF912FFDA0FC5754E" />
+            <ComponentRef Id="cmp465A8908CE754DAD942186439333A00B" />
+            <ComponentRef Id="cmpAE1E5124355720D1C36C4744CED38AF2" />
+            <ComponentRef Id="cmpAB3AC08A234CAFAE29D8EEFA9AD8C26E" />
+            <ComponentRef Id="cmp81BEE82BB7E9E59A93B9D4EA0F2638EF" />
+            <ComponentRef Id="cmp8DEF8DB8A8C871DDED3EF40E08ACA045" />
+            <ComponentRef Id="cmpD2BD0EB1904DF7666545A7C3B61EAB79" />
+            <ComponentRef Id="cmp2554FB674C9BAE6D381F983E94926C1B" />
+            <ComponentRef Id="cmp5B66686D22DFED5E91BB305CE18DFBBC" />
+            <ComponentRef Id="cmpC3A5CE53C9E1C83760E83C31A961DB8D" />
+            <ComponentRef Id="cmp8C04BF7B84025BA4CB63E76859601B4C" />
+            <ComponentRef Id="cmp7DA002BB8F8E6C9CE16AC7219D1BA74E" />
+            <ComponentRef Id="cmpE8F9E7333594273D8768CAFB0D1A5DC0" />
+            <ComponentRef Id="cmp377BCD7CD5FC4C8BE0119F4F9763DDBC" />
+            <ComponentRef Id="cmp699614B0BE808004FAC9191233E3E638" />
+            <ComponentRef Id="cmp7643EB3911CB40BD358B40890F68A276" />
+            <ComponentRef Id="cmpED4C733111B045D62C9CDAA2162B9397" />
+            <ComponentRef Id="cmpD712800CA171C1076D053E558001FA6C" />
+            <ComponentRef Id="cmpAC47A3F6CB7114DE2FE0A6F52534E666" />
+            <ComponentRef Id="cmp2C857049CDAD2720334F9B578451E3CA" />
+            <ComponentRef Id="cmp39132B0D5D3C4ED9E9CCDC892CD10AF1" />
+            <ComponentRef Id="cmp804B77367A71371B76FA1B02E1145B99" />
+            <ComponentRef Id="cmpFC62C1118188939D4760C622333A3DBD" />
+            <ComponentRef Id="cmp045AC83EF9C63B1B70584B947758C447" />
+            <ComponentRef Id="cmpDF968A79B7E85FB8D3DA1525E884C47C" />
+            <ComponentRef Id="cmp4EE8C68BDB97365BF4D16E3538C1C9D9" />
+            <ComponentRef Id="cmp77AD3ECD8A2FD2763218880ABCD4F932" />
+            <ComponentRef Id="cmpD4BF208FA313621233E7DEA082A98375" />
+            <ComponentRef Id="cmp71B8EFA03ADCFFDF040F7A1AB2F93E4A" />
+            <ComponentRef Id="cmp27F1CB6D69415061D5B00A09ED1BDB28" />
+            <ComponentRef Id="cmp942E3E87BC9A796EFF4AB5072BB21D5B" />
+            <ComponentRef Id="cmpCF5A0B7C7113C1ECDD9AD9F3909BF2A1" />
+            <ComponentRef Id="cmp47D12C1F07EFA04CF6930AE209FEC2D8" />
+            <ComponentRef Id="cmp37DC0F30942F38B89A1C43E9BA898EFD" />
+            <ComponentRef Id="cmp108FA8EA8FBE3A393B425034A3FF5FD6" />
+            <ComponentRef Id="cmpD7B87A95BAB66D5B92CBA92369B94226" />
+            <ComponentRef Id="cmp4A257404293AC83FAE349E8CEDD69D03" />
+            <ComponentRef Id="cmp53F9A63201513C26EBC8525E28857296" />
+            <ComponentRef Id="cmpBB1CE9850FBD12D0C461D82FA687368D" />
+            <ComponentRef Id="cmpD222CE34B3C4F4160308AF6E53E03A79" />
+            <ComponentRef Id="cmpE32B08E5821D1759A7894C21BD4A5926" />
+            <ComponentRef Id="cmp105482202CE0AA84B9137A194F24A549" />
+            <ComponentRef Id="cmpF34104226625CE7A4FF4DEBF5181BC3D" />
+            <ComponentRef Id="cmpF3414860146F849D0B29177F7AD0A2D8" />
+            <ComponentRef Id="cmp1493881A69709EC35E61D621BCCDBB84" />
+            <ComponentRef Id="cmp566A2926256DC26C2AD87180C94559C3" />
+            <ComponentRef Id="cmp388BE9BB3371EE7438390198AD9BEE31" />
+            <ComponentRef Id="cmp615BA7483EF72491AA3994420260B436" />
+            <ComponentRef Id="cmpE3A9A10F4456F55BCEE5D4FA1F1648A7" />
+            <ComponentRef Id="cmpA4A5C513BC21D9714B3D56E2B7B1A44B" />
+            <ComponentRef Id="cmp4D934D1F71270810E88505B950BA85EC" />
+            <ComponentRef Id="cmp944424E09AB9BEE8BF7C94694B2EC698" />
+            <ComponentRef Id="cmp60BB16506F053F046498DEFBE4F9C722" />
+            <ComponentRef Id="cmpA250B7B0084B24C874BF5292C65091EB" />
+            <ComponentRef Id="cmpAEE0D497231176DA215AD9A7B54F6C76" />
+            <ComponentRef Id="cmpFB4368B1BB161F73F8D908279FC0EC59" />
+            <ComponentRef Id="cmp24F5BC30FA772C24E34D8DA692155AB3" />
+            <ComponentRef Id="cmpCA6BC53337762DED2E2FD5292920B82B" />
+            <ComponentRef Id="cmp0D8B00CFB4FCC9E03B28C65154F36983" />
+            <ComponentRef Id="cmp78A60B5B3FA292C64FD60F5100286112" />
+            <ComponentRef Id="cmp1209A5DB4CB938830518CA52FCD27F47" />
+            <ComponentRef Id="cmpA1ECD32B5B48D686645FF033EBE9BDDE" />
+            <ComponentRef Id="cmp997D4393AFE2EDE1E0026561B10FFB4C" />
+            <ComponentRef Id="cmp4B7890F2367FB4C0DEE94B09FE1D7C89" />
+            <ComponentRef Id="cmpC361BD5001B2CA555A193A96017D855D" />
+            <ComponentRef Id="cmp76AA53BBCEAF109EE31BA98CD19BEFE6" />
+            <ComponentRef Id="cmp0BFFCA57CF5FC2C2EA7D1D4D187130D8" />
+            <ComponentRef Id="cmpAD3566FB223F2AA3555F87F2B6D4FE38" />
+            <ComponentRef Id="cmpAA839BF8D5A9E40F8D25BB274A053B74" />
+            <ComponentRef Id="cmpC2A7675EAD5AA4BA0AFEF53536BB5E55" />
+            <ComponentRef Id="cmp986315B3A0A834008D096EA57D31325C" />
+            <ComponentRef Id="cmpD52C46626A9D00F28C4FD01927F48CF5" />
+            <ComponentRef Id="cmpE6963CE1E76D6D94043CE723DB8B244C" />
+            <ComponentRef Id="cmp6DF6536B59979C5B20514C7015F009E2" />
+            <ComponentRef Id="cmp430EB9968E05F7827161A65CFEDEA38E" />
+            <ComponentRef Id="cmp70363BDCA47355287654366C82702378" />
+            <ComponentRef Id="cmp2A715D616C23908424535738DF9854B8" />
+            <ComponentRef Id="cmpCB1C3A591B5935D871BC633730FCEB3D" />
+            <ComponentRef Id="cmp7D75936B99669B08E0BC620326E7EA3D" />
+            <ComponentRef Id="cmpCA9B93F901C41C67E613E8DEC8914BDE" />
+            <ComponentRef Id="cmp1F9F459CA7D699652E8B9D9C81180B52" />
+            <ComponentRef Id="cmp072A0CA863708D377FBC25CFB9706CDA" />
+            <ComponentRef Id="cmp607FC5C1889A21647F5EE7503D837C2B" />
+            <ComponentRef Id="cmpDC392CDD8F0A295761A76404BED2E635" />
+            <ComponentRef Id="cmp783A7A45899B46F14F337F3F086551A5" />
+            <ComponentRef Id="cmp46F6B5A1CA54C555B914B5105F46B215" />
+            <ComponentRef Id="cmp71CB7500A0E1C4C08617519415C35011" />
+            <ComponentRef Id="cmpD11A7E1EB5C04875FB87F9A7A2AF98AE" />
+            <ComponentRef Id="cmp9E33654F5996A2FC6C378E66FEAB0308" />
+            <ComponentRef Id="cmp278F974BB7A2A2A455268EF1741E6033" />
+            <ComponentRef Id="cmpF362145A7B4D363FD17B4B31B0993EA2" />
+            <ComponentRef Id="cmp212B6F96FA54D429F9F9F348EB012907" />
+            <ComponentRef Id="cmpE3B18665FF46CF2907695DB879FC799B" />
+            <ComponentRef Id="cmpBDD78A97E29A9DC03477C070350BAE2C" />
+            <ComponentRef Id="cmp33BE5B4297AA9C105C4B193B5DFE2659" />
+            <ComponentRef Id="cmpB8B8B498E9E380B177058EB79A50BDEC" />
+            <ComponentRef Id="cmp8A27EAB7D9B13A0CDD97DA1A92CDDB56" />
+            <ComponentRef Id="cmp0FA6002E4483F37A5E367E7562562570" />
+            <ComponentRef Id="cmp522F74CCD6B764074F089B19932BA647" />
+            <ComponentRef Id="cmpD47C1F0F3F4FC5469A6269649A8ACAFD" />
+            <ComponentRef Id="cmpC87D8312EDBF926A25B2301566E166EC" />
+            <ComponentRef Id="cmpEDC16A515E87D025A0870222DA79045A" />
+            <ComponentRef Id="cmpF3FFC9379ED2DBDB47130456EB1DC1D0" />
+            <ComponentRef Id="cmp2083E4CC13BAA9A27D77790388D0C7B8" />
+            <ComponentRef Id="cmp7E7F9348DEA61BFCB40ADF21968D2A25" />
+            <ComponentRef Id="cmpD3B0E5016152C04C5189779D0556B0EA" />
+            <ComponentRef Id="cmpB20A61079283CDACC7966D633D5795FD" />
+            <ComponentRef Id="cmp6C9C3D9CC5561471DFD3A7D13A2B4469" />
+            <ComponentRef Id="cmp602F00CCDE2D593CA9DA4A9546CA87BB" />
+            <ComponentRef Id="cmp556A4576E4D03471FF1433827D8FE930" />
+            <ComponentRef Id="cmp82E159B58F68F5F483E23F1ABD501944" />
+            <ComponentRef Id="cmpA2292DBA0F22D4450311C6359777CE90" />
+            <ComponentRef Id="cmp1F6DDF5BA94885CA2E553A54FDF9FD08" />
+            <ComponentRef Id="cmp5BDEFA4D527FE26C9D858D7FAAB5C0BA" />
+            <ComponentRef Id="cmp59AC1DB8205C96FCC783C0872406875C" />
+            <ComponentRef Id="cmp576C65A95BA1C3E46DC57893996B83FC" />
+            <ComponentRef Id="cmp6945E167EF4E7F07F664886E1CA1141B" />
+            <ComponentRef Id="cmp86811D6BD6F4F88E20CD6C439D2BD558" />
+            <ComponentRef Id="cmpE205CC60EC0B3520896463439041A1C6" />
+            <ComponentRef Id="cmp38B3AD7C886FF22C39D3DDFCF71FC6B9" />
+            <ComponentRef Id="cmpAB835FE322AD9BBD6734AC3CCE57AB67" />
+            <ComponentRef Id="cmp10E3D4748241B6D74AFD88E486A9A76F" />
+            <ComponentRef Id="cmp9769B1AD49183FBF20292CC86C902BD1" />
+            <ComponentRef Id="cmp59A0FE5851F775D197E785432017EA54" />
+            <ComponentRef Id="cmpC94C5836F7E9DFF67DC3E6A8ABA087B1" />
+            <ComponentRef Id="cmpDBE4B1046A2325E9C1E6F7B19CFD0EAD" />
+            <ComponentRef Id="cmpCEC5A1B4CB91A59423CE04C2B987BB18" />
+            <ComponentRef Id="cmp17A5803924169114B54D00723704DED6" />
+            <ComponentRef Id="cmp03514ECE29051769CB59B14239EDBEA7" />
+            <ComponentRef Id="cmp8059BA5D3D9F2FB3F000FA3D3C17BE34" />
+            <ComponentRef Id="cmp36C715C01B64F7EAC8B1CD111F70CA99" />
+            <ComponentRef Id="cmpAD4851AC892D44A4FBCFD5D96E207FEB" />
+            <ComponentRef Id="cmp55DDD650C53824AF15E9E86D1B21146C" />
+            <ComponentRef Id="cmp300A4FBB76F3552013E6FD5968C0538A" />
+            <ComponentRef Id="cmpAD1E8DF508F3FDA0CED89CAD2E6E43D4" />
+            <ComponentRef Id="cmp6EDD4091D226409F9A962FEE24DA6863" />
+            <ComponentRef Id="cmpBAC22536280E3BB2B79B7D4F11D72AA0" />
+            <ComponentRef Id="cmpAED3CE12DA8A508F46CC53DC3097E32E" />
+            <ComponentRef Id="cmpB88764BC2821723FDF005CBC94556890" />
+            <ComponentRef Id="cmp1F3A38D88D768426DDF986366BB6A092" />
+            <ComponentRef Id="cmp6FE82C46569CE8DBACD332DF26944B8F" />
+            <ComponentRef Id="cmpE7B902EFD142F2980CFCD322686A4A9C" />
+            <ComponentRef Id="cmpCB3AEF13766F7BFE65C5A363E08131CA" />
+            <ComponentRef Id="cmp90E581BCA190D20FC7EEB9F9034F8792" />
+            <ComponentRef Id="cmp7C787309728D56C147AE9522C51A5D9A" />
+            <ComponentRef Id="cmpA1040E10977326F93492797FCD7B160F" />
+            <ComponentRef Id="cmp64EFD810D9CD9AD37FA1B554EE4CD00C" />
+            <ComponentRef Id="cmpE107CA35B207A9AC3CE16308DF483B7B" />
+            <ComponentRef Id="cmpDAE6FE93DFF6D82BC296A3B4265856E4" />
+            <ComponentRef Id="cmp24EC1E7F2F9D81EA38691D67683AB43A" />
+            <ComponentRef Id="cmpDC64BC0975BC0A73212872E23EDAADD3" />
+            <ComponentRef Id="cmp9591277FD2CC6638B7128B23A9768532" />
+            <ComponentRef Id="cmp311CE661C539C5045495DB9924C60DA9" />
+            <ComponentRef Id="cmp83A90F9B82F1B22623ADA7D148DC6E4A" />
+            <ComponentRef Id="cmpABCA34866687BA8AC35180595DA8E9CA" />
+            <ComponentRef Id="cmpFFB506513533EE8DE3B642254F26DA58" />
+            <ComponentRef Id="cmpBD8032807F2F397E2FB659999629AAF1" />
+            <ComponentRef Id="cmp6C9294D07540BCCCB18D469252212587" />
+            <ComponentRef Id="cmpADCDA478039D622B00B90A9BF0AF769C" />
+            <ComponentRef Id="cmp9AA6CC83E27FCA9945F7E5B996E14B05" />
+            <ComponentRef Id="cmp7A1689B4964E0B3FE2E12B14F911BF03" />
+            <ComponentRef Id="cmp7F1C2464EB670580140A92AFF770AC2A" />
+            <ComponentRef Id="cmp165D07D4942F9D8AA754F1247CF67C09" />
+            <ComponentRef Id="cmp2375D3A7AB93B3EC51B9BC8A4A4EDAE8" />
+            <ComponentRef Id="cmp3115848AFBCD1312D42F48C9D7DF9EC7" />
+            <ComponentRef Id="cmpD88AE466479738511FC2C10D9709DAA7" />
+            <ComponentRef Id="cmpD4D74FDBA0BF6B4CCE6CF0EB110C41CE" />
+            <ComponentRef Id="cmp75C3D52F85B281F0E7F09A2FC68BA3A2" />
+            <ComponentRef Id="cmp703884DEF3E52A35D5A8153C2DC90D78" />
+            <ComponentRef Id="cmpC52526D69D34691D8B1F6647A5EB151F" />
+            <ComponentRef Id="cmpB3C1B5F2AA13F059E150D29F20839A27" />
+            <ComponentRef Id="cmpC4F220BCA6CC638338E306CC4160E987" />
+            <ComponentRef Id="cmp06811545CF1F30CBADF5B090EBF729D9" />
+            <ComponentRef Id="cmp7511443DA451E29B2471332DEA9A4B69" />
+            <ComponentRef Id="cmp81878FC7C00C9A473A40A8D739A65C96" />
+            <ComponentRef Id="cmp480623D04D7561177A834744A987D32B" />
+            <ComponentRef Id="cmpD47AE3C7EA7F7ACE0053EC3DCEB540EE" />
+            <ComponentRef Id="cmp64EC751224FD368A400C8FCC570BE1F5" />
+            <ComponentRef Id="cmp12ADF5FB119795A086FD2ADE195A0350" />
+            <ComponentRef Id="cmp0532C4E34A14A158B633ACBBAA626BDA" />
+            <ComponentRef Id="cmp89C9575468174246388CC270A86D75E8" />
+            <ComponentRef Id="cmp18182706C8EBBBD5FD0484FF9B122050" />
+            <ComponentRef Id="cmp88D127ACAA7EDE7C834860EF98CA3897" />
+            <ComponentRef Id="cmp29466FCBD66AAF888220857A048D9A74" />
+            <ComponentRef Id="cmp462EC6BEBC66A885AD33B87E40FC637F" />
+            <ComponentRef Id="cmp5E2716186845BE26CDF80C9E62F027B2" />
+            <ComponentRef Id="cmpB7748AFDCDB5BB646461C59B2B0469FD" />
+            <ComponentRef Id="cmp4ECEF633E7940EE73349A483B5FEE75D" />
+            <ComponentRef Id="cmp9E445FADA766FD299CA0ACE1EEBA92E9" />
+            <ComponentRef Id="cmpE93AE7E95DD6C03F9A40225C9C71C96C" />
+            <ComponentRef Id="cmp04E65824E9058E714FEF8EBC456BFDF5" />
+            <ComponentRef Id="cmpC2F7B43EC269A22650793830EA8F7FA2" />
+            <ComponentRef Id="cmp8E4D9ACEA9FFACA73FB24EB266B4CD35" />
+            <ComponentRef Id="cmpA6FC12093B14B7994785AA0B053ED35F" />
+            <ComponentRef Id="cmpD5EBD9E2D39F10C43D3820C9CD019620" />
+            <ComponentRef Id="cmpACDC6B874A191CF7DD94DF50C5BFBD32" />
+            <ComponentRef Id="cmp01AEB67F781AB754B44A57240C5C7949" />
+            <ComponentRef Id="cmp3CF46180314C0EACBEDEEEE0B83A62A0" />
+            <ComponentRef Id="cmp3D1E9B5CE0BA743BEC6171761A763FC0" />
+            <ComponentRef Id="cmp6368286280F052D1EF9DC578A4C5B900" />
+            <ComponentRef Id="cmp435FB2DFB9D77C537756A522F6CDB3E9" />
+            <ComponentRef Id="cmp18DE5575A96E1DCC7BDFB9219EA68CA4" />
+            <ComponentRef Id="cmpAFD3C3F82134097D1746CA68ED31532A" />
+            <ComponentRef Id="cmp5E84A0AADA33A00D9C4380D1A686AB06" />
+            <ComponentRef Id="cmpF789A85574DFD271DFB49AB2B6BA5653" />
+            <ComponentRef Id="cmpF104CBB081215A30FA98DEE2F020500B" />
+            <ComponentRef Id="cmpDE5E949E08E3F2B8EF7544FEE4644C78" />
+            <ComponentRef Id="cmp44066A71E9B0D61391F9834897816F74" />
+            <ComponentRef Id="cmpCD83BCA76699514EB55EF07B52CFAF93" />
+            <ComponentRef Id="cmp217BE285B4FBAE3607D847FA5B7E6510" />
+            <ComponentRef Id="cmpFE8698D8414443360DFC590EC52CE074" />
+            <ComponentRef Id="cmp682BE4237CCD0F5D9D4E0ADBE04D18A1" />
+            <ComponentRef Id="cmp55B45626FDD17B23A81954A87E6BB8CD" />
+            <ComponentRef Id="cmpFDF51211CD5F5A1079049158EE1D340E" />
+            <ComponentRef Id="cmpF40737F7A10A354BDE030613766E4DAC" />
+            <ComponentRef Id="cmp4C7D455EEF09CB95424F6B21BD49E58F" />
+            <ComponentRef Id="cmp41D4A79EBC0FB48D8D209D3D70E99576" />
+            <ComponentRef Id="cmp288D8ABB2EF5275C1825165FA6E60F95" />
+            <ComponentRef Id="cmpE548EE1233299CE6BE69FA38FC4924CD" />
+            <ComponentRef Id="cmp7F1DB333F3CD1F9849F2E33EDF50E412" />
+            <ComponentRef Id="cmpF86FDC97D673D1A267164F6AF0FF63F2" />
+            <ComponentRef Id="cmpA0E3883F172F5097E1122EF212125D98" />
+            <ComponentRef Id="cmpB33743AAA7857B62F390084E1B5ED155" />
+            <ComponentRef Id="cmp53CC4138937A2CB8F809A9D73E33958E" />
+            <ComponentRef Id="cmpF56071E2CC665161EF2690235D9A174C" />
+            <ComponentRef Id="cmp02051AAC52E0325F07A310C3348D0A27" />
+            <ComponentRef Id="cmpA2F15EDAFDDC64ACBE9CC931C0EBEF79" />
+            <ComponentRef Id="cmpF8745B2DFF1CEE83F616F0CF8DF0D4A2" />
+            <ComponentRef Id="cmp756277BEAF77DCA3FE6832DDB41AB1E6" />
+            <ComponentRef Id="cmp5772F43A38AD52122CB58E235E0E619D" />
+            <ComponentRef Id="cmpB9EF7A6437169BF2691D5CD7BAF55CB3" />
+            <ComponentRef Id="cmpB3D9B36F9CB616A6C06D026E3E286DB7" />
+            <ComponentRef Id="cmpB517406EDEDF14E4AC6CB46AA01FFE4F" />
+            <ComponentRef Id="cmp5374F48AF28E87194C80DD92A69D1CB0" />
+            <ComponentRef Id="cmp13F4AB0EDB9F51A346D861606E30C843" />
+            <ComponentRef Id="cmp5CE614627EFCA8C3E0D57A7161438234" />
+            <ComponentRef Id="cmp66A8F645FA9884C972C54B41F3833E05" />
+            <ComponentRef Id="cmp079C0185795BAB6377A8A58509FC7E25" />
+            <ComponentRef Id="cmp95F84E22CB64F9407D0CC0B71A1E08E8" />
+            <ComponentRef Id="cmp1FCDEAD544C25DADDD17901B692EEDED" />
+            <ComponentRef Id="cmp8E8DAC41A6254419F56F057D0583E5F0" />
+            <ComponentRef Id="cmpA1E2384642280F55416BF742D08F812D" />
+            <ComponentRef Id="cmp15D2A74D3EA4B52255CFD5468B64940D" />
+            <ComponentRef Id="cmp5707B4FBB9CD2E2F3E283886478692FA" />
+            <ComponentRef Id="cmp89E2E86CC909C9D27C345BE48D198D3A" />
+            <ComponentRef Id="cmpD0B81BE24E545AB9DD9FC05EA4CB81E1" />
+            <ComponentRef Id="cmp226B9871ECB2DBA98FCB364AB7FB915D" />
+            <ComponentRef Id="cmp61627B44F003E76BDFE7063486B57D99" />
+            <ComponentRef Id="cmpBC2A04833D72035B0832BAA7130C983E" />
+            <ComponentRef Id="cmp9A11739896B86DEE6019DF82EF9FBD0C" />
+            <ComponentRef Id="cmp66D98399C10F1D877825D702BE66832D" />
+            <ComponentRef Id="cmp2E51D4A2EC4418C24ED8A5DFF9AF1E19" />
+            <ComponentRef Id="cmp51C12412AE1B7E5BA690A35593137E13" />
+            <ComponentRef Id="cmpC8E5DF63181E860BB5B4F1BF2DF62722" />
+            <ComponentRef Id="cmp67242BF26353B42F03FA8C0CBAC7A355" />
+            <ComponentRef Id="cmp0D298B6A88B29628CE76A7002C1DC0F2" />
+            <ComponentRef Id="cmp4B82EAEC80F11BD6D9452FCCF527528D" />
+            <ComponentRef Id="cmp46B7817A57D985A56A953FB97E27AD0E" />
+            <ComponentRef Id="cmp379451F17BAAE0AE7AA14B0A609D3ABD" />
+            <ComponentRef Id="cmp8963CA0025CE075E2025745B5B47E075" />
+            <ComponentRef Id="cmp1A3C17F8F4D75128FE5F56B0F97905CB" />
+            <ComponentRef Id="cmp8D51BB35B67F5531267A630E4FEB8436" />
+            <ComponentRef Id="cmp45F229B7E7626B562349DE99FAF7BB7F" />
+            <ComponentRef Id="cmp8C7AB037F6B9D0E53EFFC70FC8C43BEB" />
+            <ComponentRef Id="cmpA7FAE453434A6DD02940F74C35A296A6" />
+            <ComponentRef Id="cmpC0C21EF8EE8CA788B832F3E22D17CA6B" />
+            <ComponentRef Id="cmp07D5DC7C793E0ACBBCC20978F7B57B82" />
+            <ComponentRef Id="cmpC949C95C0C1D8002151349787D26C2F7" />
+            <ComponentRef Id="cmp85535A5E8B1F8E58F81CE7174BD146AA" />
+            <ComponentRef Id="cmpD2346534E5492C1BBAA8E68B784AC31A" />
+            <ComponentRef Id="cmpD43CDDEFA53381CD045B308981339DAF" />
+            <ComponentRef Id="cmp4DCEBB869EBFC5FAF609E054F3B1AA8F" />
+            <ComponentRef Id="cmpB07B8FED2A8B749EFFC06BDF3C9D12A5" />
+            <ComponentRef Id="cmpD6D13DFD8E14B4BFD06A56CFE09DEF4E" />
+            <ComponentRef Id="cmpF7F54BB74CC1BDD39D269E2E46C9C382" />
+            <ComponentRef Id="cmp5BB7022DE4EF0292CAD4A9EC24F97D5B" />
+            <ComponentRef Id="cmp82D9B120D522C79A6E6A0E48EAA6E3A6" />
+            <ComponentRef Id="cmpD222F2CF759D0A839AF57BF4BDD8A0CE" />
+            <ComponentRef Id="cmpC248B8087E65AAC13FD63C72DE78FACA" />
+            <ComponentRef Id="cmp848274302F9ABC0D3AF0CB8C5C2AD685" />
+            <ComponentRef Id="cmpA334FE597E7B1E1D26089338032304CD" />
+            <ComponentRef Id="cmp03106078287A7E377D4C9757DCF6D430" />
+            <ComponentRef Id="cmp399500524B4F56B5007F31F6F96B6EAD" />
+            <ComponentRef Id="cmp0A43876FEE8009B339F0CEE8C71805BD" />
+            <ComponentRef Id="cmp6FC4029734679DF371C555B064E01135" />
+            <ComponentRef Id="cmp2D6042098B3AA80DBBF6A3CD844BB616" />
+            <ComponentRef Id="cmpCF396E389E9E99872B112972F7283CCB" />
+            <ComponentRef Id="cmpCFD5FE56712623982E8862B9F846FCFF" />
+            <ComponentRef Id="cmp5172DED4E82209A9E53AC3A885AA6804" />
+            <ComponentRef Id="cmp54E3D5A1B6292AE05B936337B6CC9898" />
+            <ComponentRef Id="cmp9558E89DC253FBEBA53D65DF88BC8A99" />
+            <ComponentRef Id="cmp775193D9F56BF539628C859BD9590AA1" />
+            <ComponentRef Id="cmpF93DD487396AA3A56C4DAB11BE1B261E" />
+            <ComponentRef Id="cmpB6CD25F97BE129085472F06FD9D6E9C2" />
+            <ComponentRef Id="cmp068449864E44FE27485C44A8BB2E0A15" />
+            <ComponentRef Id="cmp1F1A49495F5655CCE4BAB8A8BE65CCB3" />
+            <ComponentRef Id="cmpE71E4B6FFA15543C6382A23D781C7658" />
+            <ComponentRef Id="cmp25E0DF90E28BD90FB65E2E29A2434793" />
+            <ComponentRef Id="cmpACD9ECBC9257FBF1539278A061C3A334" />
+            <ComponentRef Id="cmpCA241C68AA2FF614FB6EB97386419FF2" />
+            <ComponentRef Id="cmpE611A421276532456C18564552AF361F" />
+            <ComponentRef Id="cmp2DA887535BE60ED8150C8B14DC439381" />
+            <ComponentRef Id="cmpBADD590E3BB4A85B7CD569BFEFE03894" />
+            <ComponentRef Id="cmpA89A45CCC08CCC16B30E19F77A9A487E" />
+            <ComponentRef Id="cmpD2C020FF958186D25FA6494288B9A750" />
+            <ComponentRef Id="cmpE5882BEFDAE83FB77C8EB9E8229EF970" />
+        </ComponentGroup>
+    </Fragment>
+</Wix>

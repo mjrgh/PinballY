@@ -31,5 +31,6 @@ void MiscDialog::InitVarMap()
 
 	varMap.emplace_back(new CkBoxMap(_T("ExitMenu.Enabled"), IDC_CK_ENABLE_EXIT_MENU, true));
 	varMap.emplace_back(new CkBoxMap(_T("ExitMenu.ShowOperatorMenu"), IDC_CK_SHOW_OP_MENU_IN_EXIT_MENU, false));
+	varMap.emplace_back(new CkBoxMap(_T("HideTaskbarDuringGame"), IDC_CK_HIDE_TASKBAR, true));
 }
 

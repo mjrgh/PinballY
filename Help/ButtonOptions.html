@@ -42,18 +42,19 @@
    separate keys: they can't be combined to form combinations
    the way they can in more typical Windows productivity apps.
    We use this different approach because it's the way that
-   the various pinball programs (e.g., Visual Pinball) work.
-   In fact, most Windows video games also work this way, so
-   even though it's weird for productivity apps, it's the
-   more normal way to do things in a gaming context.
+   most of the pinball programs (e.g., Visual Pinball) work.
+   In fact, Windows games of all kinds typically work this way,
+   so even though it would be out of place in a productivity app,
+   it's pretty standard in a gaming context.
 </p>
 
 <h2>Multiple keys per command</h2>
 
 <p>
    You can assign more than one key or button to the same
-   command.  If you've already assigned one key to a command,
-   you can assign a second one as follows:
+   command.  This simply lets you access the command from
+   any of the assigned buttons.  If you've already assigned
+   one key to a command, you can assign a second one as follows:
 </p>
 <ul>
    <li>Move the mouse over the "Key" column for the command
@@ -77,7 +78,7 @@
    To delete one of the keys assigned to a
    command, move the mouse over the key name you want to
    delete, and click the "X" button that appears at the
-   right edge.
+   right side.
 </p>
 
 <h2>Multiple commands per key</h2>
@@ -261,17 +262,19 @@
    There are four of these commands because some pin cabs have
    multiple coin chutes with different denominations, in which
    case you'd want to assign a distinct command for each slot.
-   If you map these commands, PinballY will keep track of coins
-   inserted and will add credits to an internal counter, but this
-   is purely for the sake of arcade simulation and doesn't have
-   any practical use or necessity, so you can leave these
-   commands unmapped if you don't care about this bit of
-   simulation detail.  The normal pin cab mappings for the
-   coin chutes are the "3", "4", "5", and "6" keys, for the
-   left, middle, right, and fourth coin chutes respectively.
-   For US coin doors with two chutes, you'd normally map
-   them to "3" and "5", since they count as left and right
-   (with the "middle" and "fourth" slots unused).   
+   The normal pin cab mappings for the coin chutes are the "3", "4",
+   "5", and "6" keys, for the left, middle, right, and fourth coin
+   chutes respectively.  For US coin doors with two chutes, you'd
+   normally map them to "3" and "5", since they count as left and
+   right (with the "middle" and "fourth" slots unused).</p>
+<p>
+   If you map the coin commands, PinballY will keep track of coins
+   inserted and will add "credits" to an internal counter, but this
+   is purely for the sake of arcade simulation.  It doesn't have
+   any practical use, so you can leave the coin buttons
+   unmapped if you don't care about this bit of simulation detail.
+   See <a href="CoinOptions.html">Coin Options</a>
+   for more on coin handling.
 </p>
 <p>
    <div class="ButtonImage" style="background-position: -336px 0px;"></div>

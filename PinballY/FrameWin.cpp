@@ -200,8 +200,17 @@ bool FrameWin::InitWin()
 
 	// switch to full-screen style if initially in full-screen mode
 	if (fullScreenMode)
+	{
+		// set styles for full-screen mode
 		SetWindowLong(hWnd, GWL_STYLE,
-		(GetWindowLong(hWnd, GWL_STYLE) & ~WS_OVERLAPPEDWINDOW) | WS_POPUP);
+			(GetWindowLong(hWnd, GWL_STYLE) & ~WS_OVERLAPPEDWINDOW) | WS_POPUP);
+
+		// refigure the frame borders
+		SetWindowPos(
+			hWnd, NULL, -1, -1, -1, -1,
+			SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED);
+
+	}
 
 	// If we're not starting in full-screen mode, initialize the system menu.
 	// There's no need to do this in full-screen mode because there's no system
@@ -210,6 +219,7 @@ bool FrameWin::InitWin()
 		CustomizeSystemMenu(GetSystemMenu(hWnd, FALSE));
 
 	// update the frame layout
+    FigureFrameParams();
 	UpdateLayout();
 
 	// success

@@ -657,6 +657,17 @@ MaxCreditBalance = 10
 CreditBalance = 0
 
 
+# Hide the Windows taskbar while a game is running.  If you're using
+# full-screen windows, the Windows taskbar normally hides itself so
+# that PinballY, Visual Pinball, and other pinball software can use
+# the entire screen for the game display.  However, the taskbar might
+# still pop up when launching or exiting a game, which isn't very
+# nice cosmetically.  If you wish, PinballY can explicitly hide the
+# taskbar while a game is running, which should eliminate the
+# brief appearances.
+HideTaskbarDuringGame = 1
+
+
 #
 # Pinball systems.  Each system is specified via a set of "System<n>" 
 # variables, explained below.  The "<n>" is just an arbitrary number to 
@@ -984,7 +995,7 @@ TopperWindow.Position = 600,820,1296,1146
 TopperWindow.Rotation = 0
 TopperWindow.MirrorHorz = 0
 TopperWindow.MirrorVert = 0
-TopperWindow.Visible = 0
+TopperWindow.Visible = 1
 TopperWindow.FullScreen = 0
 TopperWindow.Maximized = 0
 TopperWindow.Minimized = 0
@@ -992,7 +1003,7 @@ InstCardWindow.Position = 8,820,545,1139
 InstCardWindow.Rotation = 0
 InstCardWindow.MirrorHorz = 0
 InstCardWindow.MirrorVert = 0
-InstCardWindow.Visible = 0
+InstCardWindow.Visible = 1
 InstCardWindow.FullScreen = 0
 InstCardWindow.Maximized = 0
 InstCardWindow.Minimized = 0

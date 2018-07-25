@@ -38,3 +38,20 @@ XAudio2.7 is the only legacy technology we depend upon, so as soon as
 we're ready to abandon Windows 7 users, we can get rid of the old
 DXSDK and go entirely with the modern Windows SDK.
 
+
+3.  WiX Toolset
+
+To build the MSI installer, you'll also need to install the free WiX
+Toolset, version 3.11.  You can find that here:
+
+  http://wixtoolset.org/
+
+Install both of the following:
+
+  - WiX Toolset 3.11
+  - WiX Toolset Visual Studio 2017 Extension
+
+Installing WiX is optional, as you can build the rest of the system
+without building the MSI installer.  Just build the "PinballY Admin
+Mode" project individually.  That will build the main PinballY project
+and all of its subprojects as dependencies.

@@ -249,7 +249,7 @@ void SecondaryView::SyncCurrentGame()
 		Application::AsyncErrorHandler eh;
 		bool ok = false;
 		if (video.length() != 0 && Application::Get()->IsEnableVideo())
-			ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Topper Video"));
+			ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"));
 
 		// try the image if that didn't work
 		if (!ok && image.length() != 0)

@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include <oleidl.h>
 #include <propvarutil.h>
+#include "../Utilities/ComUtil.h"
 #include "DOFClient.h"
 #include "DiceCoefficient.h"
 #include "GameList.h"
@@ -18,14 +19,14 @@ DOFClient *DOFClient::inst;
 bool DOFClient::Init(ErrorHandler &eh)
 {
 	// if there's not an instance yet, create and initialize it
-	if (inst == 0)
+	if (inst == nullptr)
 	{
 		inst = new DOFClient();
 		if (!inst->InitInst(eh))
 		{
 			// initialization failed - delete the object and return failure
 			delete inst;
-			inst = 0;
+			inst = nullptr;
 			return false;
 		}
 	}
@@ -37,8 +38,11 @@ bool DOFClient::Init(ErrorHandler &eh)
 // shut down
 void DOFClient::Shutdown()
 {
-	delete inst;
-	inst = 0;
+	if (inst != nullptr)
+	{
+		delete inst;
+		inst = nullptr;
+	}
 }
 
 DOFClient::DOFClient()
@@ -60,14 +64,14 @@ DOFClient::~DOFClient()
 
 void DOFClient::SetNamedState(const WCHAR *name, int val)
 {
-	if (pDispatch != 0)
+	if (pDispatch != nullptr)
 	{
 		// Invoke UpdateNamedTableElement(name, val)
 		// NB - Invoke() arguments are sent in reverse order
 		VARIANTEx argp[2];
 		InitVariantFromString(name, &argp[1]);		// state name
 		InitVariantFromInt32(val, &argp[0]);		// value
-		DISPPARAMS args = { argp, 0, countof(argp), 0 };
+		DISPPARAMS args = { argp, nullptr, countof(argp), 0 };
 		VARIANTEx result;
 		EXCEPINFOEx exc;
 		pDispatch->Invoke(dispidUpdateNamedTableElement, IID_NULL,

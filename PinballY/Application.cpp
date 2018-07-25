@@ -8,6 +8,7 @@
 #include <winsafer.h>
 #include <shellapi.h>
 #include <TlHelp32.h>
+#include <dshow.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,7 @@
 #include "../Utilities/Config.h"
 #include "../Utilities/Joystick.h"
 #include "../Utilities/KeyInput.h"
+#include "../Utilities/ComUtil.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
 #include "Resource.h"
@@ -43,7 +45,7 @@
 #include "VLCAudioVideoPlayer.h"
 #include "RefTableList.h"
 #include "CaptureStatusWin.h"
-
+#include "LogFile.h"
 
 // --------------------------------------------------------------------------
 //
@@ -63,6 +65,9 @@
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
 
+// include the DirectShow class IDs
+#pragma comment(lib, "strmiids.lib")
+
 
 // --------------------------------------------------------------------------
 //
@@ -74,6 +79,7 @@ namespace ConfigVars
 	static const TCHAR *EnableVideos = _T("Video.Enable");
 	static const TCHAR *MuteAttractMode = _T("AttractMode.Mute");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
+	static const TCHAR *HideTaskbarDuringGame = _T("HideTaskbarDuringGame");
 }
 
 // include the capture-related variables
@@ -516,6 +522,9 @@ bool Application::Init()
 	// set up the config manager
 	ConfigManager::Init();
 
+	// initialize the log file
+	LogFile::Init();
+
 	// initialize D3D
 	if (!D3D::Init())
 		return false;
@@ -571,6 +580,9 @@ Application::~Application()
 
 	// clean up the config manager
 	ConfigManager::Shutdown();
+
+	// close the log file
+	LogFile::Shutdown();
 
 	// forget the global instance pointer
 	if (inst == this)
@@ -1035,7 +1047,8 @@ void Application::EndRunningGameMode()
 }
 
 bool Application::Launch(int cmd, GameListItem *game, GameSystem *system, 
-	const std::list<LaunchCaptureItem> *capture, ErrorHandler &eh)
+	const std::list<LaunchCaptureItem> *capture, int captureStartupDelay,
+	ErrorHandler &eh)
 {
 	// if there's already a game monitor thread, shut it down
 	if (gameMonitor != 0)
@@ -1051,7 +1064,7 @@ bool Application::Launch(int cmd, GameListItem *game, GameSystem *system,
 	gameMonitor.Attach(new GameMonitorThread());
 
 	// launch it
-	return gameMonitor->Launch(cmd, game, system, capture, eh);
+	return gameMonitor->Launch(cmd, game, system, capture, captureStartupDelay, eh);
 }
 
 void Application::KillGame()
@@ -1233,7 +1246,8 @@ void Application::TogglePinscapeNightMode()
 //
 
 Application::GameMonitorThread::GameMonitorThread() :
-	isAdminMode(false)
+	isAdminMode(false),
+	hideTaskbar(false)
 {
 	// create the shutdown and close-game event objects
 	shutdownEvent = CreateEvent(0, TRUE, FALSE, 0);
@@ -1288,9 +1302,10 @@ void Application::GameMonitorThread::CloseGame()
 			// look for a window to close
 			struct CloseContext
 			{
-				CloseContext() : found(false) { }
+				CloseContext(HANDLE hGameProc) : found(false), hGameProc(hGameProc) { }
 				bool found;
-			} closeCtx;
+				HANDLE hGameProc;
+			} closeCtx(hGameProc);
 			EnumThreadWindows(tidMainGameThread, [](HWND hWnd, LPARAM lParam)
 			{
 				// get the context
@@ -1303,7 +1318,18 @@ void Application::GameMonitorThread::CloseGame()
 				// normally hides the taskbar when a full-screen window is
 				// in front, but only when it's in front.
 				if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
+				{
+					// inject a call to the child process to set our window
+					// as the foreground
+					DWORD tid;
+					HandleHolder hRemoteThread = CreateRemoteThread(
+						ctx->hGameProc, NULL, 0,
+						(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
+						0, &tid);
+
+					// explicitly set our foreground window
 					SetForegroundWindow(pfw->GetHWnd());
+				}
 
 				// If the window is visible and enabled, close it.  Don't try 
 				// to close hidden or disabled windows; doing so can crash VP
@@ -1370,7 +1396,8 @@ void Application::GameMonitorThread::BringToForeground()
 
 bool Application::GameMonitorThread::Launch(
 	int cmd, GameListItem *game, GameSystem *system, 
-	const std::list<LaunchCaptureItem> *captureList, ErrorHandler &eh)
+	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+	ErrorHandler &eh)
 {
 	// save the game information
 	this->cmd = cmd;
@@ -1378,8 +1405,11 @@ bool Application::GameMonitorThread::Launch(
 	this->gameId = game->GetGameId();
 	this->gameSys = *system;
 	this->elevationApproved = system->elevationApproved;
-	this->gameInactivityTimeout.Format(_T("%ld"), 
-		ConfigManager::GetInstance()->GetInt(ConfigVars::GameTimeout, 0) * 1000);
+
+	// get config settings needed during the launch
+	auto cfg = ConfigManager::GetInstance();
+	this->hideTaskbar = cfg->GetBool(ConfigVars::HideTaskbarDuringGame, true);
+	this->gameInactivityTimeout.Format(_T("%ld"), cfg->GetInt(ConfigVars::GameTimeout, 0) * 1000);
 
 	// If the launch is for the sake of capturing screenshots of the
 	// running game, pre-figure the capture details for all of the
@@ -1390,12 +1420,14 @@ bool Application::GameMonitorThread::Launch(
 	// list item or windows.
 	if (cmd == ID_CAPTURE_GO && captureList != nullptr)
 	{
-		// Keep a running total of the capture time as we go
-		DWORD totalTime = 0;
+		// Keep a running total of the capture time as we go.  Start
+		// with some fixed overhead for our own initialization.
+		const DWORD initTime = 3000;
+		DWORD totalTime = initTime;
 
 		// remember the startup delay
 		auto cfg = ConfigManager::GetInstance();
-		capture.startupDelay = cfg->GetInt(ConfigVars::CaptureStartupDelay, 5) * 1000;
+		capture.startupDelay = captureStartupDelay * 1000;
 		totalTime += capture.startupDelay;
 
 		// remember the two-pass encoding option
@@ -1457,6 +1489,7 @@ bool Application::GameMonitorThread::Launch(
 		capture.statusWin.Attach(new CaptureStatusWin());
 		capture.statusWin->Create(NULL, _T("PinballY"), WS_POPUP, SW_SHOWNOACTIVATE);
 		capture.statusWin->SetTotalTime(totalTime);
+		capture.statusWin->SetCaptureStatus(LoadStringT(IDS_CAPSTAT_INITING), initTime);
 	}
 
 	// Add a reference to myself on behalf of the thread.  This will 
@@ -1754,6 +1787,38 @@ DWORD Application::GameMonitorThread::Main()
 	startupInfo.cb = sizeof(startupInfo);
 	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
 	startupInfo.wShowWindow = SW_SHOWMINIMIZED;
+
+	// If desired, hide the taskbar while the game is running
+	class TaskbarHider
+	{
+	public:
+		TaskbarHider() { Show(SW_HIDE); }
+		~TaskbarHider() { Show(SW_SHOW); }
+
+		void Show(int nCmdShow)
+		{
+			// hide/show all top-level windows with a given class name
+			auto ShowTopLevelWindows = [nCmdShow](const TCHAR *className)
+			{
+				for (HWND hWnd = FindWindowEx(NULL, NULL, className, NULL);
+					hWnd != NULL;
+					hWnd = FindWindowEx(NULL, hWnd, className, NULL))
+				{
+					::ShowWindow(hWnd, nCmdShow);
+					::UpdateWindow(hWnd);
+				}
+			};
+
+			// show/hide all taskbar and secondary taskbar windows, and
+			// "Button" windows for the Start button
+			ShowTopLevelWindows(_T("Shell_TrayWnd"));
+			ShowTopLevelWindows(_T("Shell_SecondaryTrayWnd"));
+			ShowTopLevelWindows(_T("Button"));
+		}
+	};
+	std::unique_ptr<TaskbarHider> taskbarHider;
+	if (hideTaskbar)
+		taskbarHider.reset(new TaskbarHider());
 
 	// Try launching the new process
 	PROCESS_INFORMATION procInfo;
@@ -2413,6 +2478,7 @@ DWORD Application::GameMonitorThread::Main()
 		bool abortCapture = false;
 
 		// overall capture status
+		TSTRINGEx curStatus;
 		TSTRINGEx overallStatus;
 
 		// do the initial startup wait, to allow the game to boot up
@@ -2474,7 +2540,8 @@ DWORD Application::GameMonitorThread::Main()
 			}
 
 			// set the status window message
-			capture.statusWin->SetCaptureStatus(MsgFmt(IDS_CAPSTAT_ITEM, itemDesc.c_str()), item.captureTime);
+			curStatus.Format(LoadStringT(IDS_CAPSTAT_ITEM), itemDesc.c_str());
+			capture.statusWin->SetCaptureStatus(curStatus, item.captureTime);
 
 			// Move the status window over the playfield window when capturing
 			// in any other window, and move it over the backglass window when
@@ -2492,61 +2559,52 @@ DWORD Application::GameMonitorThread::Main()
 			}
 
 			// If we're capturing audio for this item, and we haven't found
-			// the audio capture device yet, find it now
+			// the audio capture device yet, find it now.  We use FFMPEG's
+			// DirectShow (dshow) audio capture capability, so we have to 
+			// find the device using the dshow API to make sure we see the
+			// same device name that FFMPEG will see when it scans for a
+			// device.  Note that Windows has multiple media APIs that can
+			// access the same audio devices, but it's important to use the
+			// same API that FFMPEG uses, since the different APIs can use
+			// different names for the same devices.  For example, dshow 
+			// truncates long device names in different ways on different
+			// Windows versions.
 			if (item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio
 				&& audioCaptureDevice.length() == 0)
 			{
-				// create an attribute store to hold the search criteria
-				RefPtr<IMFAttributes> pConfig;
-				HRESULT hr = MFCreateAttributes(&pConfig, 1);
+				// friendly name pattern we're scanning for
+				std::basic_regex<WCHAR> stmixPat(L"\\bstereo mix\\b", std::regex_constants::icase);
 
-				// set up the search descriptor with source type = audio capture
-				if (SUCCEEDED(hr))
+				// create the audio device enumerator
+				RefPtr<ICreateDevEnum> pCreateDevEnum;
+				RefPtr<IEnumMoniker> pEnumMoniker;
+				LPMALLOC coMalloc = nullptr;
+				if (SUCCEEDED(CoGetMalloc(1, &coMalloc))
+					&& SUCCEEDED(CoCreateInstance(CLSID_SystemDeviceEnum, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pCreateDevEnum)))
+					&& SUCCEEDED(pCreateDevEnum->CreateClassEnumerator(CLSID_AudioInputDeviceCategory, &pEnumMoniker, 0)))
 				{
-					hr = pConfig->SetGUID(
-						MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
-						MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_AUDCAP_GUID
-					);
-				}
-
-				// enumerate devices
-				IMFActivate **ppDevices = NULL;
-				UINT32 count = 0;
-				if (SUCCEEDED(hr))
-					hr = MFEnumDeviceSources(pConfig, &ppDevices, &count);
-
-				// find a suitable device in the list
-				if (SUCCEEDED(hr))
-				{
-					// scan the list
-					std::basic_regex<TCHAR> stmixPat(_T("\\bstereo mix\\b"), std::regex_constants::icase);
-					for (UINT32 i = 0; i < count && audioCaptureDevice.length() == 0; ++i)
+					// scan through the audio devices
+					RefPtr<IMoniker> m;
+					while (pEnumMoniker->Next(1, &m, NULL) == S_OK)
 					{
-						// pull out the friendly name
-						UINT32 cchName;
-						WCHAR *szFriendlyName = NULL;
-						if (SUCCEEDED(ppDevices[i]->GetAllocatedString(
-							MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-							&szFriendlyName, &cchName)))
+						// get the friendly name from the object's properties
+						RefPtr<IBindCtx> bindCtx;
+						RefPtr<IPropertyBag> propertyBag;
+						VARIANTEx v(VT_BSTR);
+						if (SUCCEEDED(CreateBindCtx(0, &bindCtx))
+							&& SUCCEEDED(m->BindToStorage(bindCtx, NULL, IID_PPV_ARGS(&propertyBag)))
+							&& SUCCEEDED(propertyBag->Read(L"FriendlyName", &v, NULL)))
 						{
-							// look for "Stereo Mix"
-							if (std::regex_search(szFriendlyName, stmixPat))
+							// check if the name matches our pattern
+							if (std::regex_search(v.bstrVal, stmixPat))
 							{
 								// use this source
-								audioCaptureDevice = szFriendlyName;
+								audioCaptureDevice = v.bstrVal;
+								break;
 							}
 						}
-
-						// free the name string
-						CoTaskMemFree(szFriendlyName);
 					}
 				}
-
-				// Free the device list: first release each list element, then
-				// free the list itself (which MF allocated in COM task space)
-				for (DWORD i = 0; i < count; i++)
-					ppDevices[i]->Release();
-				CoTaskMemFree(ppDevices);
 			}
 
 			// save (by renaming) any existing files of the type we're about to capture
@@ -2640,8 +2698,9 @@ DWORD Application::GameMonitorThread::Main()
 				// code in the fastest mode, with no rotation, to a temp file.
 				// We'll re-encode to the actual output file and apply rotations
 				// in the second pass.
-				tmpfile.Format(_T("%s.tmp.mkv"), item.filename.c_str());
-				cmdline1.Format(_T("\"%s\" -f gdigrab %s")
+				tmpfile = std::regex_replace(item.filename, std::basic_regex<TCHAR>(_T("\\.([^.]+)$")), _T(".tmp.$1"));
+				cmdline1.Format(_T("\"%s\" -loglevel error")
+					_T(" -f gdigrab %s")
 					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
 					_T(" %s %s -c:v libx264 -crf 0 -preset ultrafast \"%s\""),
 					ffmpeg, framerateOpt,
@@ -2649,9 +2708,9 @@ DWORD Application::GameMonitorThread::Main()
 					audioOpts.c_str(), timeLimitOpt.c_str(), tmpfile.c_str());
 
 				// Format the command line for the second pass while we're here
-				cmdline2.Format(_T("\"%s\" ")
+				cmdline2.Format(_T("\"%s\" -loglevel error")
 					_T(" -i \"%s\"")
-					_T(" %s \"%s\""),
+					_T(" %s -c:a copy -max_muxing_queue_size 1024 \"%s\""),
 					ffmpeg,
 					tmpfile.c_str(),
 					rotateOpt, item.filename.c_str());
@@ -2660,7 +2719,8 @@ DWORD Application::GameMonitorThread::Main()
 			{
 				// normal one-pass encoding - include all options and encode
 				// directly to the desired output file
-				cmdline1.Format(_T("\"%s\" -f gdigrab %s")
+				cmdline1.Format(_T("\"%s\" -loglevel error")
+					_T(" -f gdigrab %s")
 					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
 					_T(" %s %s %s \"%s\""),
 					ffmpeg, framerateOpt,
@@ -2668,24 +2728,41 @@ DWORD Application::GameMonitorThread::Main()
 					audioOpts.c_str(), rotateOpt, timeLimitOpt.c_str(), item.filename.c_str());
 			}
 
-			auto RunFFMPEG = [this, &statusList, &itemDesc, &captureOkay, &abortCapture](TSTRINGEx &cmdline, bool logSuccess)
+			auto RunFFMPEG = [this, &statusList, &curStatus, &itemDesc, &captureOkay, &abortCapture](TSTRINGEx &cmdline, bool logSuccess)
 			{
+				// presume failure
+				bool result = false;
+
+				// Log the command for debugging purposes, as there's a lot that
+				// can go wrong here and little information back from ffmpeg that
+				// we can analyze mechanically.
+				LogFile::Get()->Write(_T("%s:\n> %s\n"), curStatus.c_str(), cmdline.c_str());
+
+				// open the NUL file as stdin for the child
+				SECURITY_ATTRIBUTES sa;
+				sa.nLength = sizeof(sa);
+				sa.lpSecurityDescriptor = NULL;
+				sa.bInheritHandle = TRUE;
+				HandleHolder hNulIn = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
+
 				// Set up the startup info.  Use Show-No-Activate to try to keep
 				// the game window activated and in the foreground, since VP (and
 				// probably others) stop animations when in the background.
 				STARTUPINFO startupInfo;
 				ZeroMemory(&startupInfo, sizeof(startupInfo));
 				startupInfo.cb = sizeof(startupInfo);
-				startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+				startupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
 				startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
+				startupInfo.hStdInput = hNulIn;
+				startupInfo.hStdOutput = startupInfo.hStdError = LogFile::Get()->GetFileHandle();
 
 				// launch the process
 				PROCESS_INFORMATION procInfo;
-				if (CreateProcess(NULL, cmdline.data(), 0, 0, false, CREATE_NO_WINDOW, 0,
-					NULL, &startupInfo, &procInfo))
+				if (CreateProcess(NULL, cmdline.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW, 
+					NULL, NULL, &startupInfo, &procInfo))
 				{
-					// ffmpeg launched successfully.  Wait for ffmpeg to finish, or
-					// for one of the other events.
+					// ffmpeg launched successfully.  Wait for ffmpeg to finish, for
+					// the game to exit, or for one of our  cancellation events.
 					HandleHolder hFfmpegProc(procInfo.hProcess);
 					CloseHandle(procInfo.hThread);
 					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
@@ -2695,7 +2772,8 @@ DWORD Application::GameMonitorThread::Main()
 						// ffmpeg finished.  Count this as a success.
 						if (logSuccess)
 							statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
-						return true;
+						result = true;
+						break;
 
 					case WAIT_OBJECT_0 + 1:
 					case WAIT_OBJECT_0 + 2:
@@ -2706,7 +2784,7 @@ DWORD Application::GameMonitorThread::Main()
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;
 						abortCapture = true;
-						return false;
+						break;
 					}
 				}
 				else
@@ -2720,8 +2798,13 @@ DWORD Application::GameMonitorThread::Main()
 					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
 					captureOkay = false;
 					abortCapture = true;
-					return false;
 				}
+
+				// add a blank line to the log for readability 
+				LogFile::Get()->Write(_T("\n"));
+
+				// return the status
+				return result;
 			};
 
 			// run the first pass
@@ -2730,7 +2813,8 @@ DWORD Application::GameMonitorThread::Main()
 				// success - if there's a second pass, run it
 				if (cmdline2.length() != 0)
 				{
-					capture.statusWin->SetCaptureStatus(MsgFmt(IDS_CAPSTAT_ENCODING_ITEM, itemDesc.c_str()), item.captureTime*3/2);
+					curStatus.Format(LoadStringT(IDS_CAPSTAT_ENCODING_ITEM), itemDesc.c_str());
+					capture.statusWin->SetCaptureStatus(curStatus.c_str(), item.captureTime*3/2);
 					RunFFMPEG(cmdline2, true);
 				}
 			}
