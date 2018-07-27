@@ -72,6 +72,24 @@ template<class S> bool LoadStringT(S *str, int resourceId)
 		return false;
 }
 
+// Split a string at a delimiter, returning a list.  S is one of
+// the basic_string<chartype>-derived types - TSTRING, TSTRINGEx, etc.
+template<class S>
+std::list<S> StrSplit(const typename S::value_type *str, typename S::value_type delim)
+{
+	std::list<S> lst;
+	for (const typename S::value_type *p = str; *p != 0; ++p)
+	{
+		if (*p == delim)
+		{
+			lst.emplace_back(str, p - str);
+			str = p + 1;
+		}
+	}
+	lst.emplace_back(str);
+	return lst;
+}
+
 // Extended string class.  This can be used to extend the basic
 // string, TSTRING, and WSTRING classes with some extra methods.
 template<class S> 
@@ -121,6 +139,8 @@ public:
 		// return 'this'
 		return *this;
 	}
+
+	std::list<StringEx<S>> Split(typename S::value_type delim) { return StrSplit<StringEx<S>>(this->c_str(), delim); }
 
 	operator const typename S::value_type*() { return this->c_str(); }
 };

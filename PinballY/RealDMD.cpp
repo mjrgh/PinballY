@@ -795,6 +795,14 @@ void RealDMD::GenerateHighScoreGraphics()
 	// if we have a game, and it has high scores, generate the graphics
 	if (curGame != nullptr && curGame->highScores.size() != 0)
 	{
+		// Check the game's high score style setting.  If it's "none",
+		// suppress the generated graphics entirely.  Note that we
+		// otherwise ignore the style, since everything on a DMD will
+		// end up looking like a DMD anyway.
+		const TCHAR *style = GameList::Get()->GetHighScoreStyle(curGame);
+		if (style != nullptr && _tcsicmp(style, _T("none")) == 0)
+			return;
+
 		// generate the graphics for each high score text group
 		curGame->DispHighScoreGroups([this](const std::list<const TSTRING*> &group)
 		{

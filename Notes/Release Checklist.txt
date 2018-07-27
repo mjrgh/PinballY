@@ -21,6 +21,7 @@ PinballY Release Checklist
 - Upload to mjrnet.org/pinscape/downloads/PinballY:
     Builds\PinballY-xxxxxxx.zip
     Builds\PinballY-Min-xxxxxx.zip
+    Builds\PinballY-xxxxxx.msi
     VersionHistory.txt
 
 - git commit -a -m "checkin message"

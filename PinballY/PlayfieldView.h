@@ -319,7 +319,18 @@ protected:
 
 	// show a filter submenu
 	void ShowFilterSubMenu(int cmd);
-	void ShowRecencyFilterMenu(int cmd);
+	
+	// show a recency filter menu for a particular filter subclass
+	template<class FilterClass> void ShowRecencyFilterMenu(int idStrWithin, int idStrNotWithin)
+	{
+		ShowRecencyFilterMenu(
+			[](const GameListFilter *f) { return dynamic_cast<const FilterClass*>(f) != nullptr; },
+			idStrWithin, idStrNotWithin);
+	}
+	void ShowRecencyFilterMenu(
+		std::function<bool(const GameListFilter*)> testFilter, 
+		int idStrWithin, int idStrNotWithin);
+
 
 	// update the animation
 	void UpdateAnimation();

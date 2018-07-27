@@ -103,6 +103,16 @@ void DMDView::GenerateHighScoreImages()
 	// if a game is active, and it has high scores, generate graphics
 	if (auto game = currentBackground.game; game != nullptr && game->highScores.size() != 0)
 	{
+		// get this game's high score style setting; if it's not set,
+		// use "auto" as the default
+		const TCHAR *style = GameList::Get()->GetHighScoreStyle(game);
+		if (style == nullptr)
+			style = _T("auto");
+		
+		// if the style is "none", skip high score display for this game
+		if (_tcsicmp(style, _T("none")) == 0)
+			return;
+
 		// Get the VPinMAME ROM key for the game, if possible
 		TSTRING rom;
 		HKEYHolder hkey;
@@ -152,7 +162,7 @@ void DMDView::GenerateHighScoreImages()
 		BYTE pix[dmdBytes];
 
 		// Set up a DIB descriptor for the 32bpp bitmap.  We'll use this
-		// to create the D3D texture for the sprite.
+		// to create the D3D texture for the DMD sprite.
 		BITMAPINFO bmi;
 		bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 		bmi.bmiHeader.biWidth = dmdWidth;
@@ -180,7 +190,7 @@ void DMDView::GenerateHighScoreImages()
 		}
 
 		// generate the graphics for each text group
-		game->DispHighScoreGroups([this, &pix, &bmi, &colors](const std::list<const TSTRING*> &group)
+		game->DispHighScoreGroups([this, &pix, &bmi, &colors, style](const std::list<const TSTRING*> &group)
 		{
 			// clear the buffer to the background color
 			BYTE *dst = pix;
@@ -243,7 +253,6 @@ const DMDFont *DMDView::PickHighScoreFont(const std::list<const TSTRING*> &group
 		&DMDFonts::Font_CC_7px_az,
 		&DMDFonts::Font_CC_5px_AZ
 	};
-
 
 	// start with the largest font that will fit the vertical space
 	int nLines = group.size();

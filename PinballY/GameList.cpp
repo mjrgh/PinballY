@@ -64,6 +64,8 @@ GameList::GameList()
 	ratingCol = statsDb.DefineColumn(_T("Rating"));
 	categoriesCol = statsDb.DefineColumn(_T("Categories"));
 	hiddenCol = statsDb.DefineColumn(_T("Is Hidden"));
+	dateAddedCol = statsDb.DefineColumn(_T("Date Added"));
+	highScoreStyleCol = statsDb.DefineColumn(_T("High Score Style"));
 
 	// find the game stats database file
 	TCHAR statsFile[MAX_PATH];
@@ -345,8 +347,23 @@ void GameList::RestoreConfig()
 
 void GameList::SetLastPlayedNow(GameListItem *game)
 {
+	// Set the last played time to the current system time.  Note
+	// that this stores a UTC value!  UTC is the right format for
+	// storage because it's invariant with respect to local time
+	// zone changes.  For example, there will be no confusion
+	// about this point in time if we switch from Standard Time to
+	// Daylight Time or vice versa, and there will never be any
+	// confusion if the local rules for when Daylight Time starts
+	// ever change (as they do with surprising frequency).
 	DateTime d;
 	SetLastPlayed(game, d.ToString().c_str());
+}
+
+void GameList::SetDateAddedNow(GameListItem *game)
+{
+	// Set the Date Added to the current UTC time
+	DateTime d;
+	SetDateAdded(game, d.ToString().c_str());
 }
 
 float GameList::GetRating(GameListItem *game)
@@ -498,16 +515,58 @@ void GameList::RefreshFilter()
 	byTitleFiltered.clear();
 	curGame = -1;
 
+	// note if the "Hide Unconfigured Games" option is set
+	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
+
+	// Figure the UTC timestamp for midnight in the local time zone.
+	// The recency filters require this to determine the time window.
+	// Start with the local system time.  Note that we have to start
+	// with the local time, even though we ultimately want the result
+	// to be in the UTC domain, because we want "today" to have its
+	// plain meaning in terms of the local clock.
+	SYSTEMTIME localNow;
+	GetLocalTime(&localNow);
+
+	// Adjust it to the most recent midnight in local time
+	SYSTEMTIME localMidnight = localNow;
+	localMidnight.wHour = 0;
+	localMidnight.wMinute = 0;
+	localMidnight.wSecond = 0;
+	localMidnight.wMilliseconds = 0;
+
+	// Now we have the midnight local time, expressed in local time.
+	// Get the corresonding UTC time/date.  Note that the UTC value
+	// might be on a different day, since the change from local to
+	// UTC can cross a date boundary (e.g., 23:00 1/1/2019 PST is
+	// 7:00 1/2/2019 UTC).  But that's okay!  It's the absolute
+	// point in time that matters, and we've already figured what
+	// we need to figure in terms of the local clock and calendar.
+	SYSTEMTIME utcMidnight;
+	TzSpecificLocalTimeToSystemTime(NULL, &localMidnight, &utcMidnight);
+
+	// Convert to a Variant DATE value.  This is the ideal format for
+	// our purposes here because it represents the date/time value as a
+	// number of days since an epoch (a fixed zero point in the past).
+	// That makes it easy to work in terms of days between dates.
+	DATE dMidnight;
+	SystemTimeToVariantTime(&utcMidnight, &dMidnight);
+
 	// Construct the new list of games that pass the filter
 	for (auto g : byTitle)
 	{
-		// If this game is hidden OR disabled, check to see if the filter 
-		// passes hidden games.  If not, skip it.
+		// If this game is hidden or disabled, check to see if the filter passes
+		// hidden games.  If not, skip it.
 		if (g->IsHidden() && !curFilter->IncludeHidden())
 			continue;
 
+		// If the game is unconfigured, and the config options are set to hide
+		// unconfigured games, hide it unless the filter specifically selects
+		// unconfigured.
+		if (!g->isConfigured && hideUnconfigured && !curFilter->IncludeUnconfigured())
+			continue;
+
 		// If this game is included, add it to the list
-		if (curFilter->Include(g))
+		if (curFilter->Include(g, dMidnight))
 		{
 			// note its new index, and add it to the list
 			int idx = byTitleFiltered.size();
@@ -1057,6 +1116,9 @@ bool GameList::Load(ErrorHandler &eh)
 
 	// Add the Hidden Games filter
 	AddFilter(&hiddenGamesFilter);
+
+	// Add the Unconfigured Games filter
+	AddFilter(&unconfiguredGamesFilter);
 	
 	// Add the Favorites filter
 	AddFilter(&favoritesFilter);
@@ -1155,6 +1217,26 @@ bool GameList::Load(ErrorHandler &eh)
 	// filter would get confused is if someone was intentionally trying
 	// to confuse it.  In which case it's their problem!
 	CreateRecencyFilter(IDS_FILTER_NEVERPLAYED, IDS_SFILTER_NEVERPLAYED, 365242200, true);
+
+	// Create the installation recency filters.  These sort games by
+	// how recently they were added to the database.
+	auto CreateInstRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
+	{
+		// create the filter
+		instRecencyFilters.emplace_back(
+			LoadStringT(titleStringId).c_str(),
+			LoadStringT(menuStringId).c_str(),
+			days, exclude);
+
+		// add it to the master list
+		AddFilter(&instRecencyFilters.back());
+	};
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISWEEK, IDS_SFILTER_THISWEEK, 7, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISMONTH, IDS_SFILTER_THISMONTH, 30, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISYEAR, IDS_SFILTER_THISYEAR, 365, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERWEEK, IDS_SFILTER_WEEKAGO, 7, true);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERMONTH, IDS_SFILTER_MONTHAGO, 30, true);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERYEAR, IDS_SFILTER_YEARAGO, 365, true);
 
 	// set the "all games" filter to populate the initial filter list
 	SetFilter(&allGamesFilter);
@@ -1408,6 +1490,7 @@ bool GameList::LoadGameDatabaseFile(
 			TSTRING manufName;
 			const char *gridPos = nullptr;
 			const char *rom = nullptr;
+			const char *tableType = nullptr;
 			int year = 0;
 			bool enabled = true;
 			float rating = 0.0f;
@@ -1428,6 +1511,8 @@ bool GameList::LoadGameDatabaseFile(
 					rating = (float)atof(n->value());
 				else if (_stricmp(id, "gridposition") == 0)
 					gridPos = n->value();
+				else if (_stricmp(id, "type") == 0)
+					tableType = n->value();
 			}
 
 			// if the entry has a valid filename and title, add it
@@ -1519,8 +1604,8 @@ bool GameList::LoadGameDatabaseFile(
 
 				// add the entry
 				GameListItem &g = games.emplace_back(
-					mediaName.c_str(), title.c_str(), name, manuf, year, rom, 
-					system, enabled, gridPos);
+					mediaName.c_str(), title.c_str(), name, manuf, year, tableType,
+					rom, system, enabled, gridPos);
 
 				// remember the table file set for the system, and set the file
 				// entry in the system's table file list (if one exists) to point
@@ -2488,6 +2573,9 @@ void GameList::FlushToXml(GameListItem *game)
 	// store the description
 	UpdateChildT("description", desc);
 
+	// store the table type
+	UpdateChildT("type", game->tableType.c_str());
+
 	// store the ROM name
 	UpdateChildT("rom", game->rom.c_str());
 
@@ -2570,7 +2658,9 @@ GameListItem::GameListItem(
 	const TCHAR *mediaName,
 	const char *title, 
 	const char *filename,
-	const GameManufacturer *manufacturer, int year, 
+	const GameManufacturer *manufacturer, 
+	int year, 
+	const char *tableType,
 	const char *rom,
 	GameSystem *system,
 	bool enabled,
@@ -2585,6 +2675,8 @@ GameListItem::GameListItem(
 	this->filename = AnsiToTSTRING(filename);
 	this->manufacturer = manufacturer;
 	this->year = year;
+	if (tableType != nullptr)
+		this->tableType = AnsiToTSTRING(tableType);
 	if (rom != nullptr)
 		this->rom = AnsiToTSTRING(rom);
 	this->system = system;
@@ -3241,7 +3333,7 @@ void GameListItem::DispHighScoreGroups(std::function<void(const std::list<const 
 // Favorites filter
 //
 
-bool FavoritesFilter::Include(GameListItem *game) const
+bool FavoritesFilter::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	return GameList::Get()->IsFavorite(game);
 }
@@ -3251,9 +3343,19 @@ bool FavoritesFilter::Include(GameListItem *game) const
 // Hidden game filter
 //
 
-bool HiddenGamesFilter::Include(GameListItem *game) const
+bool HiddenGamesFilter::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	return game->IsHidden();
+}
+
+// -----------------------------------------------------------------------
+//
+// Unconfigured games filter
+//
+
+bool UnconfiguredGamesFilter::Include(GameListItem *game, DATE /*midnight*/) const
+{
+	return !game->isConfigured;
 }
 
 // -----------------------------------------------------------------------
@@ -3261,7 +3363,7 @@ bool HiddenGamesFilter::Include(GameListItem *game) const
 // Rating filter
 //
 
-bool RatingFilter::Include(GameListItem *game) const
+bool RatingFilter::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	float gameRating = GameList::Get()->GetRating(game);
 	float minRating = (float)stars, maxRating = minRating + 1.0f;
@@ -3271,12 +3373,13 @@ bool RatingFilter::Include(GameListItem *game) const
 
 // -----------------------------------------------------------------------
 //
-// Recency filter
+// Recently played filter
 //
 
-bool RecencyFilter::Include(GameListItem *game) const
+bool RecentlyPlayedFilter::Include(GameListItem *game, DATE midnight) const
 {
-	// Get the game's last played time, as a DateTime value
+	// Get the game's last played time, as a DateTime value.
+	// Note that this is in UTC.
 	DateTime lastPlayed(GameList::Get()->GetLastPlayed(game));
 
 	// If there's not a valid Last Played value for the game, treat it
@@ -3285,33 +3388,15 @@ bool RecencyFilter::Include(GameListItem *game) const
 	if (!lastPlayed.IsValid())
 		return exclude;
 
-	// Get the current system local time
-	SYSTEMTIME stNow;
-	GetLocalTime(&stNow);
-
-	// Adjust it to the most recent midnight
-	SYSTEMTIME stMidnight = stNow;
-	stMidnight.wHour = 0;
-	stMidnight.wMinute = 0;
-	stMidnight.wSecond = 0;
-	stMidnight.wMilliseconds = 0;
-
-	// Convert to a Variant DATE value.  This is the ideal format for
-	// our purposes here because it represents the date/time value as a
-	// number of days since an epoch (a fixed zero point in the past).
-	// That makes it easy to work in terms of days between dates.
-	DATE dMidnight;
-	SystemTimeToVariantTime(&stMidnight, &dMidnight);
-
-	// Now figure the starting point of the filter interval, by
-	// subtracting the filter's interval in days from the midnight
-	// timestamp.  In concrete terms, the DATE value is actually a
+	// Figure the starting point of the filter interval, by
+	// subtracting the filter's interval in days from the current
+	// midnight.  In concrete terms, the DATE value is actually a
 	// 'double' representing the number of days since the epoch.
 	// The fractional part thus represents the time within the day
 	// as a fraction of 24 hours.  So to do a "days ago" calculation
 	// with an integral number of days, we simply subtract the number
 	// of days from the DATE value.
-	DATE dStart = dMidnight - days;
+	DATE dStart = midnight - days;
 
 	// Determine if the Last Played time is within the interval
 	bool lastPlayedInInterval = lastPlayed.ToVariantDate() >= dStart;
@@ -3321,6 +3406,45 @@ bool RecencyFilter::Include(GameListItem *game) const
 	// otherwise it passes if the game wasn't played in the interval.
 	// That makes it an XOR truth table.
 	return exclude ^ lastPlayedInInterval;
+}
+
+// -----------------------------------------------------------------------
+//
+// Recently added filter
+//
+
+bool RecentlyAddedFilter::Include(GameListItem *game, DATE midnight) const
+{
+	// if the game isn't configured, it doesn't pass any Added Date test
+	if (!game->isConfigured)
+		return false;
+
+	// Get the date/time the game was added, as a DateTime value.
+	// This is in UTC.
+	DateTime added(GameList::Get()->GetDateAdded(game));
+
+	// If there's not a valid Added date, it must have come from a
+	// pre-existing PinballX database.  PBX doesn't track added dates,
+	// so all we can say is that the game was added before our first
+	// run.
+	if (!added.IsValid())
+		added = Application::Get()->GetFirstRunTime();
+
+	// Figure the starting point of the filter interval, by
+	// subtracting the filter's interval in days from the current
+	// midnight.  DATE values are in terms of days since an epoch,
+	// so date arithmetic in whole days is just a matter of
+	// adding/subtracting the number of days.
+	DATE dStart = midnight - days;
+
+	// Determine if the game was added during the interval
+	bool addedDuringInterval = added.ToVariantDate() >= dStart;
+
+	// Now determine if it passes the filter: if it's an inclusion
+	// filter, it passes if the game was added within the interval,
+	// otherwise it passes if the game wasn't added within the
+	// interval.  That makes it an XOR truth table.
+	return exclude ^ addedDuringInterval;
 }
 
 // -----------------------------------------------------------------------
@@ -3355,7 +3479,7 @@ NoGame::NoGame() :
 // Category filters
 //
 
-bool GameCategory::Include(GameListItem *game) const
+bool GameCategory::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	return GameList::Get()->IsInCategory(game, this);
 }
@@ -3380,7 +3504,7 @@ bool GameCategory::SortsBefore(const GameListFilter *other) const
 
 }
 
-bool NoCategory::Include(GameListItem *game) const
+bool NoCategory::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	return GameList::Get()->IsUncategorized(game);
 }

@@ -211,7 +211,7 @@ void GPDrawString::DrawString(
 
 	// measure it
 	Gdiplus::RectF newBounds;
-	g.MeasureString(str, -1, font, layoutRect, &newBounds);
+	g.MeasureString(str, -1, font, layoutRect, &format, &newBounds);
 
 	// advance horizontally or vertically, as desired
 	if (newline)

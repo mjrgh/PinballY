@@ -40,14 +40,15 @@ public:
 	{
 		Table(RefTableList *rtl, int row, float score);
 
-		TSTRING listName;   // list name - "title (manufacturer year)"
-		TSTRING name;		// table name
-		TSTRING manuf;		// manufacturer
-		int year;			// year; 0 if unknown
-		int players;		// number of players; 0 if unknown
-		TSTRING themes;		// themes, with " - " delimiters
-		TSTRING sortKey;    // sort key
-		float score;		// Dice coefficient score for the fuzzy match
+		TSTRING listName;     // list name - "title (manufacturer year)"
+		TSTRING name;		  // table name
+		TSTRING manuf;		  // manufacturer
+		int year;			  // year; 0 if unknown
+		int players;		  // number of players; 0 if unknown
+		TSTRING themes;		  // themes, with " - " delimiters
+		TSTRING sortKey;      // sort key
+		TSTRING machineType;  // IPDB machine type code (SS, EM, ME)
+		float score;		  // Dice coefficient score for the fuzzy match
 	};
 
 	// Get the top N matches to a given string.  The results

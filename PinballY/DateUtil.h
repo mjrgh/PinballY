@@ -28,6 +28,12 @@ public:
 		SystemTimeToFileTime(&st, &ft);
 	}
 
+	// Parse from flexible input formats.  This tries to infer
+	// the format from the text.  On success, populates the DateTime
+	// object with the new date and returns true; on failure, leaves
+	// the DateTime value unchanged and returns false.
+	bool Parse(const TCHAR *str);
+
 	// is the date valid?
 	bool IsValid() const { return ft.dwHighDateTime != 0 || ft.dwLowDateTime != 0; }
 
@@ -44,15 +50,33 @@ public:
 		return d;
 	}
 
-	// Get the value in human-readable format, in local time.  The
-	// flags are the values defined for Win32 GetTimeFormatEx():
+	// Get the value in human-readable Date-and-time format, in the local
+	// time zone, using the Windows localization.  
+	//
+	// The date flags are the values defined for Win32 GetDateFormatEx():
+	//
+	//  DATE_LONGDATE           - use the localized long date format
+	//  DATE_SHORTDATE          - use the localized short date format
+	//
+	// The time flags are the values defined for Win32 GetTimeFormatEx():
 	//
 	//  TIME_NOMINUTESORSECONDS - omit minutes and seconds
 	//  TIME_NOSECONDS          - omits seconds
 	//  TIME_NOTIMEMARKER       - omit the time portion marker
 	//  TIME_FORCE24HOURFORMAT  - use 24-hour format (overrides locale defaults)
 	//
-	TSTRING FormatLocalTime(DWORD flags = 0) const;
+	TSTRING FormatLocalDateTime(DWORD dateFlags = DATE_LONGDATE, DWORD timeFlags = 0) const;
+
+	// Get the value in human-readable Date format (the date only,
+	// without the time of day), in the local time zone, using the
+	// Windows localization.
+	//
+	// The flags are the values defined for Win32 GetDateFormatEx():
+	//
+	//  DATE_LONGDATE           - use the localized long date format
+	//  DATE_SHORTDATE          - use the localized short date format
+	//
+	TSTRING FormatLocalDate(DWORD dateFlags = DATE_LONGDATE) const;
 
 protected:
 	// timestamp this date represents, as a FILETIME value

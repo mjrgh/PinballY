@@ -12,6 +12,7 @@
 #include "DMDWin.h"
 #include "TopperWin.h"
 #include "CaptureStatusWin.h"
+#include "DateUtil.h"
 
 struct ConfigFileDesc;
 class TextureShader;
@@ -191,6 +192,12 @@ public:
 	// Is the application in the foreground?
 	static inline bool IsInForeground() { return isInForeground; }
 
+	// Get the first run time
+	DateTime GetFirstRunTime() const { return firstRunTime; }
+
+	// Hide unconfigured games?
+	bool IsHideUnconfiguredGames() const { return hideUnconfiguredGames; }
+
 	// Globally enable/disable videos
 	void EnableVideos(bool enable);
 	void ToggleEnableVideos() { EnableVideos(!enableVideos); }
@@ -314,6 +321,15 @@ protected:
 	// Check for a RunAfter command (an external program to execute
 	// just before PinballY exits)
 	void CheckRunAtExit();
+
+	// First Run time.  This is the timestamp from the first time
+	// the program was run on the local machine.
+	DateTime firstRunTime;
+
+	// Hide unconfigured games, except when the "Unconfigured Games"
+	// filter is in effect.  If this is false, unconfigured games are
+	// displayed alongside configured games.
+	bool hideUnconfiguredGames;
 
 	// are videos enabled?
 	bool enableVideos;

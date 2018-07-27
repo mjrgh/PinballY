@@ -60,9 +60,6 @@
     <ClCompile Include="DMDDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="MiscDialog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PathsDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -79,6 +76,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AudioVideoDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="InstCardDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GameLaunchDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GameWheelDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -148,9 +157,6 @@
     <ClInclude Include="DMDDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MiscDialog.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PathsDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -167,6 +173,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="AudioVideoDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="InstCardDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameLaunchDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameWheelDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

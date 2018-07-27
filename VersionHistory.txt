@@ -1,6 +1,5 @@
 PinballY Update History
 
-06-30-2018 (1.0.0 Alpha 1)
+07-27-2018 (1.0.0 Alpha 1)
 
-Initial version
-
+Inaugural release

@@ -8,6 +8,7 @@
 #include "../rapidxml/rapidxml.hpp"
 #include "Resource.h"
 #include "CSVFile.h"
+#include "DateUtil.h"
 
 class ErrorHandler;
 class GameManufacturer;
@@ -103,6 +104,10 @@ public:
 	// Year (release date of original arcade game).  We use zero
 	// if the date is unknown or doesn't apply.
 	int year;
+
+	// IPDB table type: SS (solid state), EM (electromechanical),
+	// ME (pure mechanical).
+	TSTRING tableType;
 
 	// Grid position.  This is essentially a special case for 
 	// The Pinball Arcade by Farsight, which doesn't have a way to
@@ -211,7 +216,10 @@ public:
 	GameListItem(
 		const TCHAR *mediaName,
 		const char *title, 
-		const char *filename, const GameManufacturer *manufacturer, int year,
+		const char *filename, 
+		const GameManufacturer *manufacturer, 
+		int year,	
+		const char *tableType,
 		const char *rom, GameSystem *system, bool enabled,
 		const char *gridpos);
 
@@ -451,14 +459,38 @@ public:
 	// get the display title of the filter
 	virtual const TCHAR *GetFilterTitle() const = 0;
 
-	// Is this game included in this filter group?
-	virtual bool Include(GameListItem *game) const = 0;
+	// Is this game included in this filter group?  
+	//
+	// 'midnight' is the Variant Date value for the most recent
+	// past midnight local time, expressed in UTC.  This can be
+	// used by recency filters to figure windows expressed in
+	// days before the present day.  "Midnight local time in UTC"
+	// is a bit tricky to parse: it's the UTC timestamp of 00:00
+	// hours today in the local time zone.  For example, consider 
+	// a machine that's in the Pacific (US) time zone, and let's
+	// say today's date is 1/1/2019.  PST is 8 hours ahead of UTC.
+	// So at any time during 1/1/2019 local time, midnight local
+	// time is equivalent to 8:00 1/1/2019 UTC.  The 'midnight'
+	// value would thus reflect that value.
+	virtual bool Include(GameListItem *game, DATE midnight) const = 0;
 
 	// Does this filter include hidden games?  We break this out as
 	// an extra test to simplify the individual filter Include() tests,
 	// since almost all of them would have to include the hidden check
 	// if we didn't do this separately.
 	virtual bool IncludeHidden() const { return false; }
+
+	// Does this filter specifically select unconfigured games, even
+	// when they're hidden from ordinary filters?  As with "hidden", we 
+	// break this out as an separate test to simplify the basic Include()
+	// tests, as nearly all filters just return false.  
+	//
+	// Note that this doesn't consider the global option for whether
+	// or not to include unconfigured games (GameList.HideUnconfigured),
+	// as that's checked separately.  What this method says is whether
+	// or not this filter specifically selects unconfigured games when
+	// they're otherwise excluded by that option setting.
+	virtual bool IncludeUnconfigured() const { return false; }
 
 	// Command ID.  This is used to identify filters in menus in 
 	// the UI.  We dynamically assign each filter an ID in the range
@@ -475,7 +507,7 @@ class AllGamesFilter : public GameListFilter
 public:
 	AllGamesFilter() { title.Load(IDS_FILTER_ALL); }
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
-	virtual bool Include(GameListItem *) const override { return true; }
+	virtual bool Include(GameListItem *, DATE) const override { return true; }
 	virtual TSTRING GetFilterId() const override { return _T("All"); }
 
 	TSTRINGEx title;
@@ -487,7 +519,7 @@ class FavoritesFilter : public GameListFilter
 public:
 	FavoritesFilter() { title.Load(IDS_FILTER_FAVORITES); }
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
-	virtual bool Include(GameListItem *game) const override;
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return _T("Favorites"); }
 
 	TSTRINGEx title;
@@ -503,8 +535,30 @@ public:
 	
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual TSTRING GetFilterId() const override { return _T("Hidden"); }
-	virtual bool Include(GameListItem *game) const override;
-	virtual bool IncludeHidden() const { return true; }
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
+	virtual bool IncludeHidden() const override { return true; }
+
+	TSTRINGEx title;
+};
+
+// Unconfigured game filter.  This is a special filter that
+// selects unconfigured games only.  
+//
+// This can be used whether or not the global "Hide Unconfigured Games"
+// setting is in effect.  When it is, this is the only filter that can
+// show unconfigured games.  When the global "Hide" setting isn't in
+// effect, unconfigured games show up alongside regular games in all of
+// the regular filters, but this filter can still be used to limit the
+// view to unconfigured games only.
+class UnconfiguredGamesFilter : public GameListFilter
+{
+public:
+	UnconfiguredGamesFilter() { title.Load(IDS_FILTER_UNCONFIGURED); }
+
+	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
+	virtual TSTRING GetFilterId() const override { return _T("Unconfigured"); }
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
+	virtual bool IncludeUnconfigured() const override { return true; }
 
 	TSTRINGEx title;
 };
@@ -522,7 +576,7 @@ public:
 	}
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
-	virtual bool Include(GameListItem *game) const override;
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return MsgFmt(_T("Rating.%d"), stars).Get(); }
 
 	// number of stars this filter selects for
@@ -542,7 +596,7 @@ public:
 
 	// use the category name as the filter name
 	virtual const TCHAR *GetFilterTitle() const override { return name.c_str(); }
-	virtual bool Include(GameListItem *game) const override;
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return TSTRING(_T("Category.")) + name; }
 
 	// Figure the category sorting order
@@ -559,7 +613,7 @@ public:
 	NoCategory() : GameCategory(LoadStringT(IDS_UNCATEGORIZED).c_str()) { }
 
 	virtual const TCHAR *GetFilterTitle() const override { return name.c_str(); }
-	virtual bool Include(GameListItem *game) const override;
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return _T("Uncategorized"); }
 
 	// Figure the category sorting order
@@ -574,7 +628,7 @@ public:
 		: title(title), yearFrom(yearFrom), yearTo(yearTo) { }
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
-	virtual bool Include(GameListItem *game) const override
+	virtual bool Include(GameListItem *game, DATE midnight) const override
 		{ return game->year >= yearFrom && game->year <= yearTo; }
 	virtual TSTRING GetFilterId() const override 
 		{ return MsgFmt(_T("YearRange.%d.%d"), yearFrom, yearTo).Get(); }
@@ -587,8 +641,8 @@ public:
 	int yearTo;
 };
 
-// Recency filter: selects games played within a given timeframe
-// or not played within a given timeframe.
+// Base recency filter - common base class for the Recently Played
+// and Recently Added filters.
 class RecencyFilter : public GameListFilter
 {
 public:
@@ -596,9 +650,6 @@ public:
 		: title(title), menuTitle(menuTitle), days(days), exclude(exclude) { }
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
-	virtual bool Include(GameListItem *game) const override;
-	virtual TSTRING GetFilterId() const override 
-		{ return MsgFmt(_T("%s.%d"), exclude ? _T("PlayedWithin") : _T("NotPlayedWithin"), days).Get(); }
 
 	// filter title ("Played This Month", "Not Played in a Month")
 	TSTRING title;
@@ -621,6 +672,34 @@ public:
 	bool exclude;
 };
 
+
+// Recency (playing) filter: selects games played within a given timeframe
+// or not played within a given timeframe.
+class RecentlyPlayedFilter : public RecencyFilter
+{
+public:
+	RecentlyPlayedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude)
+		: RecencyFilter(title, menuTitle, days, exclude) { }
+
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
+	virtual TSTRING GetFilterId() const override 
+		{ return MsgFmt(_T("%s.%d"), exclude ? _T("PlayedWithin") : _T("NotPlayedWithin"), days).Get(); }
+
+};
+
+// Recency (installation) filter: selects games installed within a given
+// timeframe or longer ago than a given timeframe.
+class RecentlyAddedFilter : public RecencyFilter
+{
+public:
+	RecentlyAddedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude)
+		: RecencyFilter(title, menuTitle, days, exclude) { }
+
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
+	virtual TSTRING GetFilterId() const override
+		{ return MsgFmt(_T("%s.%d"), exclude ? _T("AddedWithin") : _T("AddedBefore"), days).Get(); }
+};
+
 // Manufacturer filter: selects games from the given manufacturer
 class GameManufacturer : public GameListFilter
 {
@@ -630,7 +709,7 @@ public:
 	    { }
 
 	virtual const TCHAR *GetFilterTitle() const override { return filterTitle.c_str(); }
-	virtual bool Include(GameListItem *game) const override
+	virtual bool Include(GameListItem *game, DATE midnight) const override
 	    { return game->manufacturer == this; }
 	virtual TSTRING GetFilterId() const override { return TSTRING(_T("Manuf.")) + manufacturer; }
 
@@ -771,8 +850,7 @@ public:
 
 	// filter operations
 	virtual const TCHAR *GetFilterTitle() const override { return filterTitle.c_str(); }
-	virtual bool Include(GameListItem *game) const override
-	    { return game->system == this; }
+	virtual bool Include(GameListItem *game, DATE) const override  { return game->system == this; }
 	virtual TSTRING GetFilterId() const override { return TSTRING(_T("System.")) + displayName; }
 
 	TSTRING filterTitle;
@@ -966,12 +1044,17 @@ public:
 	// Get the Hidden Games filter
 	const GameListFilter *GetHiddenGamesFilter() const { return &hiddenGamesFilter; }
 
+	// Get the Unconfigured Games filter
+	const GameListFilter *GetUnconfiguredGamesFilter() const { return &unconfiguredGamesFilter; }
+
 	// Get the number of games matching the current filter
 	int GetCurFilterCount() const { return byTitleFiltered.size(); }
 
 	// columns we use in the database file
 	const CSVFile::Column *gameCol;
 	const CSVFile::Column *lastPlayedCol;
+	const CSVFile::Column *dateAddedCol;
+	const CSVFile::Column *highScoreStyleCol;
 	const CSVFile::Column *playCountCol;
 	const CSVFile::Column *playTimeCol;
 	const CSVFile::Column *favCol;
@@ -987,6 +1070,25 @@ public:
 
 	// set the last played time to "now"
 	void SetLastPlayedNow(GameListItem *game);
+
+	// Get/set the Date Added
+	const TCHAR *GetDateAdded(GameListItem *game)
+		{ return dateAddedCol->Get(GetStatsDbRow(game)); }
+	void SetDateAdded(GameListItem *game, const TCHAR *val)
+		{ dateAddedCol->Set(GetStatsDbRow(game, true), val); }
+	void SetDateAdded(GameListItem *game, DateTime val)
+		{ dateAddedCol->Set(GetStatsDbRow(game, true), val.ToString().c_str()); }
+
+	// set the Date Added to "now"
+	void SetDateAddedNow(GameListItem *game);
+
+	// Get the high score style: DMD (dot matrix display), Alpha (segmented
+	// alphanumeric display, like the 1980s Williams machines), TT (typewriter
+	// font), None (no high score display).
+	const TCHAR *GetHighScoreStyle(GameListItem *game)
+		{ return highScoreStyleCol->Get(GetStatsDbRow(game)); }
+	void SetHighScoreStyle(GameListItem *game, const TCHAR *val)
+		{ highScoreStyleCol->Set(GetStatsDbRow(game, true), val); }
 
 	// get/set the play count
 	int GetPlayCount(GameListItem *game) 
@@ -1189,6 +1291,9 @@ protected:
 	// "hidden games" filter
 	HiddenGamesFilter hiddenGamesFilter;
 
+	// "unconfigured games" filter
+	UnconfiguredGamesFilter unconfiguredGamesFilter;
+
 	// "no category" filter
 	NoCategory noCategoryFilter;
 
@@ -1248,8 +1353,11 @@ protected:
 	// star rating filters, by stars
 	std::unordered_map<int, RatingFilter> ratingFilters;
 
-	// recency filters
-	std::list<RecencyFilter> recencyFilters;
+	// recency (played) filters
+	std::list<RecentlyPlayedFilter> recencyFilters;
+
+	// recencey (added) filters
+	std::list<RecentlyAddedFilter> instRecencyFilters;
 
 	// game list
 	std::list<GameListItem> games;

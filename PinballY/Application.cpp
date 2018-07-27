@@ -18,6 +18,7 @@
 #include "../Utilities/Joystick.h"
 #include "../Utilities/KeyInput.h"
 #include "../Utilities/ComUtil.h"
+#include "DateUtil.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
 #include "Resource.h"
@@ -80,6 +81,8 @@ namespace ConfigVars
 	static const TCHAR *MuteAttractMode = _T("AttractMode.Mute");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
 	static const TCHAR *HideTaskbarDuringGame = _T("HideTaskbarDuringGame");
+	static const TCHAR *FirstRunTime = _T("FirstRunTime");
+	static const TCHAR *HideUnconfiguredGames = _T("GameList.HideUnconfigured");
 }
 
 // include the capture-related variables
@@ -601,6 +604,21 @@ bool Application::LoadConfig(const ConfigFileDesc &fileDesc)
 	if (!ConfigManager::GetInstance()->Load(fileDesc))
 		return false;
 
+	// If the "first run" timestamp hasn't been set, set it to the
+	// current time.
+	TSTRING firstRunTime = ConfigManager::GetInstance()->Get(ConfigVars::FirstRunTime, _T(""));
+	if (firstRunTime.length() == 0)
+	{
+		// get the current date/time
+		firstRunTime = DateTime().ToString();
+
+		// save it
+		ConfigManager::GetInstance()->Set(ConfigVars::FirstRunTime, firstRunTime.c_str());
+	}
+
+	// remember the first run time
+	this->firstRunTime = DateTime(firstRunTime.c_str());
+
 	// load our own config variables
 	OnConfigChange();
 
@@ -670,6 +688,7 @@ void Application::OnConfigChange()
 	enableVideos = cfg->GetBool(ConfigVars::EnableVideos, true);
 	muteVideos = cfg->GetBool(ConfigVars::MuteVideos, false);
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
+	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
 }
 
 void Application::SaveFiles()

@@ -717,7 +717,11 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_FILTER_BY_RECENCY:
-		ShowRecencyFilterMenu(cmd);
+		ShowRecencyFilterMenu<RecentlyPlayedFilter>(IDS_PLAYED_WITHIN, IDS_NOT_PLAYED_WITHIN);
+		return true;
+
+	case ID_FILTER_BY_ADDED:
+		ShowRecencyFilterMenu<RecentlyAddedFilter>(IDS_ADDED_WITHIN, IDS_NOT_ADDED_WITHIN);
 		return true;
 
 	case ID_CLEAR_CREDITS:
@@ -1859,12 +1863,12 @@ static void DrawInfoBoxCommon(const GameListItem *game,
 	// draw the title
 	std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 48, 400));
 	Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-	Gdiplus::StringFormat fmt;
+	Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
 	g.DrawString(game->title.c_str(), -1, titleFont.get(), titleBox, &fmt, &textBr);
 
 	// measure the fit
 	Gdiplus::RectF bbox;
-	g.MeasureString(game->title.c_str(), -1, titleFont.get(), titleBox, &bbox);
+	g.MeasureString(game->title.c_str(), -1, titleFont.get(), titleBox, &fmt, &bbox);
 	if (bbox.GetBottom() > pt.Y)
 		pt.Y = bbox.GetBottom();
 
@@ -1958,7 +1962,7 @@ void PlayfieldView::ShowGameInfo()
 			DateTime d(gl->GetLastPlayed(game));
 			if (d.IsValid())
 			{
-				gds.DrawString(MsgFmt(IDS_LAST_PLAYED_DATE, d.FormatLocalTime(TIME_NOSECONDS).c_str()),
+				gds.DrawString(MsgFmt(IDS_LAST_PLAYED_DATE, d.FormatLocalDateTime(DATE_LONGDATE, TIME_NOSECONDS).c_str()),
 					detailsFont.get(), &textBr);
 			}
 			else
@@ -1997,9 +2001,15 @@ void PlayfieldView::ShowGameInfo()
 		if (gl->IsFavorite(game))
 			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont.get(), &textBr);
 
-		// add the game file, if present
+		// start the details section
 		gds.VertSpace(16.0f);
 		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(0xff, 0xA0, 0xA0, 0xA0));
+
+		// add the date added
+		if (DateTime dateAdded = gl->GetDateAdded(game); dateAdded.IsValid())
+			gds.DrawString(MsgFmt(IDS_DATE_ADDED, dateAdded.FormatLocalDate().c_str()), detailsFont.get(), &detailsBr);
+
+		// add the game file, if present
 		if (game->filename.length() != 0)
 			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, game->filename.c_str()), detailsFont.get(), &detailsBr);
 
@@ -5174,13 +5184,14 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 			AddFilter(gl->GetAllGamesFilter());
 			AddFilter(gl->GetFavoritesFilter());
 
-			// Add the sub-menu items for 
+			// Add the filter classes that have submenus with the specific filters
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_ERA), ID_FILTER_BY_ERA, MenuHasSubmenu);
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_MANUF), ID_FILTER_BY_MANUF, MenuHasSubmenu);
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_SYS), ID_FILTER_BY_SYS, MenuHasSubmenu);
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_CATEGORY), ID_FILTER_BY_CATEGORY, MenuHasSubmenu);
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_RATING), ID_FILTER_BY_RATING, MenuHasSubmenu);
 			md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
+			md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
 
 			// add the "Return" item to exit the menu
 			md.emplace_back(_T(""), -1);
@@ -5233,7 +5244,7 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 		break;
 
 	case ID_FILTER_BY_RECENCY:
-		// Note - the recency filter menu is normally built specially by
+		// Note - the recency filter menu is built specially by
 		// ShowRecencyFilterMenu(), so this case isn't normally used.  But
 		// include it for the sake of generality, in case someone wants to
 		// build it as a regular menu for some reason.  The reason we use
@@ -5241,7 +5252,11 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 		// to group the recency filters into sections for a little nicer
 		// look - just enumerating them in a single flat list gets a bit
 		// unwieldy because the full names are so long and similar.
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecencyFilter*>(f) != nullptr; };
+		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyPlayedFilter*>(f) != nullptr; };
+		break;
+
+	case ID_FILTER_BY_ADDED:
+		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyAddedFilter*>(f) != nullptr; };
 		break;
 	}
 
@@ -5272,30 +5287,32 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 	QueueDOFPulse(L"PBYMenuOpen");
 }
 
-void PlayfieldView::ShowRecencyFilterMenu(int cmd)
+void PlayfieldView::ShowRecencyFilterMenu(
+	std::function<bool(const GameListFilter*)> testFilterType, 
+	int idStrWithin, int idStrNotWithin)
 {
 	// set up to add filters to the menu
 	std::list<MenuItemDesc> md;
 	GameList *gl = GameList::Get();
 	const GameListFilter *curFilter = gl->GetCurFilter();
-	auto AddFilters = [gl, &md, curFilter](std::function<bool(const RecencyFilter *f)> include)
+	auto AddFilters = [gl, &md, curFilter, &testFilterType](std::function<bool(const RecencyFilter *f)> include)
 	{
 		for (auto f : gl->GetFilters())
 		{
-			if (auto rf = dynamic_cast<RecencyFilter*>(f); rf != nullptr && include(rf))
+			if (auto rf = dynamic_cast<RecencyFilter*>(f); rf != nullptr && testFilterType(rf) && include(rf))
 				md.emplace_back(rf->menuTitle.c_str(), rf->cmd, rf == curFilter ? MenuRadio : 0);
 		}
 	};
 
-	// Add the group header for the "Played within:" section, then add
+	// Add the group header for the "Played/added within:" section, then add
 	// the inclusion filters
-	md.emplace_back(LoadStringT(IDS_PLAYED_WITHIN), -1);
+	md.emplace_back(LoadStringT(idStrWithin), -1);
 	AddFilters([](const RecencyFilter *f) { return !f->exclude; });
 
-	// Add the group header for the "Not played within:" section, then
+	// Add the group header for the "Not played within/added before:" section, then
 	// add the exclusion filters
 	md.emplace_back(_T(""), -1);
-	md.emplace_back(LoadStringT(IDS_NOT_PLAYED_WITHIN), -1);
+	md.emplace_back(LoadStringT(idStrNotWithin), -1);
 	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days < 3000000; });
 
 	// Add the "Never Played" filter in its own group
@@ -5963,16 +5980,37 @@ void PlayfieldView::ShowOperatorMenu()
 		md.emplace_back(_T(""), -1);
 	}
 
-	// Add the Hidden Games filter.  This is an oddball filter because
-	// it appears on its own, not adjacent to the other filters.  Normally,
-	// we treat filters as radio buttons because they all appear grouped
-	// together.  But this one is all by itself, so make it a checkbox,
-	// and treat un-checking it as a return to the All Games filter.
-	auto hf = gl->GetHiddenGamesFilter();
-	if (gl->GetCurFilter() == hf)
-		md.emplace_back(LoadStringT(IDS_MENU_SHOW_HIDDEN), gl->GetAllGamesFilter()->cmd, MenuChecked);
-	else
-		md.emplace_back(LoadStringT(IDS_MENU_SHOW_HIDDEN), hf->cmd);
+	// Special filters for operator use.  The Hidden Games and Unconfigured
+	// Games filters are unusual in that they appear in this separate menu
+	// rather than in the main menu alongside all of the regular filters.
+	// The regular filters in the main menu are presented as a set of
+	// "radio button" menu items, since exactly one filter is selected at 
+	// any given time, and they all appear together as a block.  But that
+	// doesn't work for the special operator filters, as they're off by
+	// themselves in this separate menu.  So instead, use checkmarks for
+	// them, and when toggling from 'checked' to 'unchecked', treat it
+	// as turning off that filter, by returning to the default All Games
+	// filter.
+	auto AddSpecialFilter = [&md, gl](const GameListFilter *filter, int strId)
+	{
+		// check if this special filter is currently active
+		if (gl->GetCurFilter() == filter)
+		{
+			// it's active - show it as checked; on selecting this menu item,
+			// "un-check" it by switching back to the default All Games filter
+			md.emplace_back(LoadStringT(strId), gl->GetAllGamesFilter()->cmd, MenuChecked);
+		}
+		else
+		{
+			// it's not active - show it unchecked, and on selecting it,
+			// activate this filter
+			md.emplace_back(LoadStringT(strId), filter->cmd);
+		}
+	};
+	AddSpecialFilter(gl->GetHiddenGamesFilter(), IDS_MENU_SHOW_HIDDEN);
+	AddSpecialFilter(gl->GetUnconfiguredGamesFilter(), IDS_MENU_SHOW_UNCONFIG);
+
+	// end the special filters section
 	md.emplace_back(_T(""), -1);
 
 	// add the miscellaneous setup options
@@ -6188,6 +6226,20 @@ void PlayfieldView::EditGameInfo()
 			GetText(IDC_TXT_YEAR, year);
 			game->year = _ttoi(year.c_str());
 
+			// Set the table type.  Note that we only keep the first token;
+			// for readability, the combo box list items show the internal
+			// token followed by explanatory text in parens.  We only want
+			// that internal token.
+			TSTRING tableType;
+			GetText(IDC_CB_TABLE_TYPE, tableType);
+			game->tableType = GetFirstToken(tableType);
+
+			// Set the high score display style.  Keep only the first token,
+			// for the same reasons as for the table type.
+			TSTRING hiScoreStyle;
+			GetText(IDC_CB_HIGH_SCORE_STYLE, hiScoreStyle);
+			gl->SetHighScoreStyle(game, hiScoreStyle.c_str());
+
 			// If the ROM name selected is the first item in the list,
 			// which is always the default selection, set it to an empty
 			// string.  In the database, "default" is represented as
@@ -6201,6 +6253,13 @@ void PlayfieldView::EditGameInfo()
 			TSTRING manuf;
 			GetText(IDC_CB_MANUF, manuf);
 			game->manufacturer = gl->FindOrAddManufacturer(manuf.c_str());
+
+			// Update the Date Added
+			TSTRING dateAddedStr;
+			GetText(IDC_TXT_DATE_ADDED, dateAddedStr);
+			DateTime dateAdded;
+			if (dateAdded.Parse(dateAddedStr.c_str()))
+				gl->SetDateAdded(game, dateAdded);
 
 			// Update the grid position
 			TSTRING gridPos;
@@ -6353,6 +6412,10 @@ void PlayfieldView::EditGameInfo()
 					// store the year
 					if (selTable->year != 0)
 						SetDlgItemText(hDlg, IDC_TXT_YEAR, MsgFmt(_T("%d"), selTable->year).Get());
+
+					// store the type
+					if (selTable->machineType.length() != 0)
+						SetDlgItemText(hDlg, IDC_CB_TABLE_TYPE, selTable->machineType.c_str());
 
 					// populate the ROM combo list with possible matches
 					PopulateROMCombo();
@@ -6513,6 +6576,14 @@ void PlayfieldView::EditGameInfo()
 			SetDlgItemText(hDlg, IDC_CB_TITLE, title.c_str());
 		}
 
+		// extract the first token of a combo box string, delimited by a space
+		static TSTRING GetFirstToken(const TSTRING &s)
+		{
+			const TCHAR *p;
+			for (p = s.c_str(); *p != 0 && *p != ' '; ++p);
+			return TSTRING(s, 0, p - s.c_str());
+		}
+
 		// Initialize fields and combo lists
 		void InitFields()
 		{
@@ -6540,6 +6611,26 @@ void PlayfieldView::EditGameInfo()
 			HWND cbGridPos = GetDlgItem(IDC_CB_GRIDPOS);
 			if (game->gridPos.row != 0 && game->gridPos.col != 0)
 				ComboBox_SetText(cbGridPos, MsgFmt(_T("%dx%d"), game->gridPos.row, game->gridPos.col));
+
+			// Get the date added
+			DateTime dateAdded = GameList::Get()->GetDateAdded(game);
+			if (!dateAdded.IsValid())
+			{
+				// The date isn't set yet.  If this game was already configured,
+				// it must have been inherited from a pre-existing PinballX
+				// configuration, so use the application first run date as the
+				// default.  If it's not configured yet, we're adding it just now.
+				if (game->isConfigured)
+					dateAdded = Application::Get()->GetFirstRunTime();
+				else
+					dateAdded = DateTime();
+			}
+
+			// Format the date.  Only include the date part, to keep things
+			// simpler in the UI presentation; there's no real benefit to
+			// more precision than this, since the main use of this is for
+			// the "added since" filter, which only counts days.
+			SetDlgItemText(hDlg, IDC_TXT_DATE_ADDED, dateAdded.FormatLocalDate(DATE_SHORTDATE).c_str());
 
 			// populate the Grid Position drop-down with sufficient items for
 			// The Pinball Arcade's game selection menu (which is the only place
@@ -6600,6 +6691,39 @@ void PlayfieldView::EditGameInfo()
 
 			// update dependent items for the initial system selection
 			OnSelectSystem();
+
+			// populate the table type combo
+			const TCHAR *tableType = game->tableType.c_str();
+			HWND cbTableType = GetDlgItem(IDC_CB_TABLE_TYPE);
+			for (auto const &s : LoadStringT(IDS_TABLETYPECOMBO_STRINGS).Split(';'))
+			{
+				// add the string
+				ComboBox_AddString(cbTableType, s.c_str());
+
+				// select this string if its first token matches the db value
+				if (_tcsicmp(tableType, GetFirstToken(s).c_str()) == 0)
+					ComboBox_SetText(cbTableType, s.c_str());
+			}
+
+			// populate the high score display type combo
+			const TCHAR *hiScoreStyle = GameList::Get()->GetHighScoreStyle(game);
+			HWND cbHiScoreStyle = GetDlgItem(IDC_CB_HIGH_SCORE_STYLE);
+			auto hiScoreStrings = LoadStringT(IDS_HISCORECOMBO_STRINGS).Split(';');
+			for (auto const &s : hiScoreStrings)
+			{
+				// add the string
+				ComboBox_AddString(cbHiScoreStyle, s.c_str());
+
+				// select this string if its first token matches the db value
+				if (hiScoreStyle != nullptr && _tcsicmp(hiScoreStyle, GetFirstToken(s).c_str()) == 0)
+					ComboBox_SetText(cbHiScoreStyle, s.c_str());
+			}
+
+			// If the db value for the high score style is empty, select the 
+			// first list item as the default.  The first item should always
+			// "Auto".
+			if (hiScoreStyle == nullptr || hiScoreStyle[0] == 0)
+				ComboBox_SetText(cbHiScoreStyle, hiScoreStrings.front().c_str());
 
 			// Thread entrypoint for populating the title drop list.  This
 			// can take a few seconds, since we have to scan the whole
@@ -8486,11 +8610,11 @@ TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 		if (v == _T("game.title"))
 			return game != nullptr ? game->title : _T("?");
 		else if (v == _T("game.manuf"))
-			return game != nullptr && game->manufacturer != nullptr ? game->manufacturer->manufacturer : _T("?");
+			return IsGameValid(game) && game->manufacturer != nullptr ? game->manufacturer->manufacturer : LoadStringT(IDS_NO_MANUFACTURER);
 		else if (v == _T("game.year"))
-			return IsGameValid(game) ? MsgFmt(_T("%d"), game->year).Get() : LoadStringT(IDS_NO_YEAR);
+			return IsGameValid(game) && game->year != 0 ? MsgFmt(_T("%d"), game->year).Get() : LoadStringT(IDS_NO_YEAR);
 		else if (v == _T("game.system"))
-			return game != nullptr && game->system != nullptr ? game->system->displayName : _T("?");
+			return IsGameValid(game) && game->system != nullptr ? game->system->displayName : LoadStringT(IDS_NO_SYSTEM);
 		else if (v == _T("filter.title"))
 			return filter->GetFilterTitle();
 		else if (v == _T("filter.count"))

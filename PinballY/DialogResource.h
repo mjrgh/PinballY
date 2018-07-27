@@ -1,7 +1,4 @@
-﻿// This file is part of PinballY
-// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
-//
-//{{NO_DEPENDENCIES}}
+﻿//{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
 // Used by Dialogs.rc
 //
@@ -19,7 +16,12 @@
 #define IDC_TXT_ARCHIVE                 3012
 #define IDC_CB_ROM2                     3012
 #define IDC_CB_GRIDPOS                  3012
+#define IDC_CB_TABLE_TYPE               3013
 #define IDC_EDIT_PASSWORD               3014
+#define IDC_CB_SYSTEM3                  3014
+#define IDC_CB_HIGH_SCORE_STYLE         3014
+#define IDC_TXT_YEAR2                   3015
+#define IDC_TXT_DATE_ADDED              3015
 #define IDC_TXT_ARCHENTRY               3016
 #define IDC_ST_GRIDPOS                  3017
 #define IDD_EDIT_CATEGORIES             4000
@@ -32,7 +34,7 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        4009
+#define _APS_NEXT_RESOURCE_VALUE        4010
 #define _APS_NEXT_COMMAND_VALUE         45000
 #define _APS_NEXT_CONTROL_VALUE         3018
 #define _APS_NEXT_SYMED_VALUE           7000

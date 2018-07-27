@@ -11,7 +11,10 @@
 #include "CaptureDialog.h"
 #include "CoinsDialog.h"
 #include "DMDDialog.h"
-#include "MiscDialog.h"
+#include "InstCardDialog.h"
+#include "GameLaunchDialog.h"
+#include "GameWheelDialog.h"
+#include "MenuDialog.h"
 #include "PathsDialog.h"
 #include "StartupDialog.h"
 #include "StatuslineDialog.h"
@@ -294,7 +297,10 @@ MainOptionsDialog::MainOptionsDialog(int startPage)
 	AddPage(new AttractModeDialog(IDD_ATTRACT_MODE), AttractModePage, _T("AttractModeOptions.html"));
 	AddPage(new CoinsDialog(IDD_COINS), CoinsPage, _T("CoinOptions.html"));
 	AddPage(new DMDDialog(IDD_DMD), DMDPage, _T("RealDMDOptions.html"));
-	AddPage(new MiscDialog(IDD_MISC), MiscPage, _T("MiscOptions.html"));
+	AddPage(new InstCardDialog(IDD_INST_CARD), InstCardPage, _T("InstCardOptions.html"));
+	AddPage(new GameLaunchDialog(IDD_LAUNCH), GameLaunchPage, _T("GameLaunchOptions.html"));
+	AddPage(new GameWheelDialog(IDD_GAME_WHEEL), GameWheelPage, _T("GameWheelOptions.html"));
+	AddPage(new MenuDialog(IDD_MENUS), MenuPage, _T("MenuOptions.html"));
 	AddPage(new PathsDialog(IDD_PATHS), PathsPage, _T("PathOptions.html"));
 	AddPage(new StartupDialog(IDD_STARTUP), StartupPage, _T("StartupOptions.html"));
 	AddPage(new StatuslineDialog(IDD_STATUSLINE), StatuslinePage, _T("StatuslineOptions.html"));

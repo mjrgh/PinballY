@@ -32,7 +32,7 @@ LogFile::LogFile()
 	if (h != INVALID_HANDLE_VALUE)
 	{
 		DateTime d;
-		Write(_T("PinballY session started %s\n\n"), d.FormatLocalTime().c_str());
+		Write(_T("PinballY session started %s\n\n"), d.FormatLocalDateTime().c_str());
 	}
 }
 

@@ -183,6 +183,7 @@ RefTableList::Table::Table(RefTableList *rtl, int row, float score) :
 	players = rtl->playersCol->GetInt(row, 0);
 	themes = rtl->themeCol->Get(row, _T(""));
 	sortKey = rtl->sortKeyCol->Get(row, _T(""));
+	machineType = rtl->typeCol->Get(row, _T(""));
 }
 
 void RefTableList::Init()

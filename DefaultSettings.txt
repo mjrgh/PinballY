@@ -13,6 +13,14 @@
 # time of last update by the program
 UpdateTime = Sat 28 Apr 2018 11:51:48
 
+# First run time.  The system automatically sets this to the date and
+# time when the program is first run on your machine.  This is used as
+# the install date for any games that are found already installed from
+# your PinballX game database.  This is in YYYYMMDDhhmmss format, in
+# the GMT time zone (e.g., 20180725162715 for 2018-July-25 at 16:27:15
+# GMT).
+FirstRunTime =
+
 
 # Media folder path.  This is the root of the our media folder tree, where
 # we look for the various table media files (images, videos, sounds, etc).
@@ -254,15 +262,11 @@ ExitMenu.ExitKeyMode = Select
 # access the Operator menu, which provides commands for game setup
 # and various PinballY option settings.  
 #
-# The Operator menu is normally accessed from the "service buttons"
-# inside the coin door, because those buttons are locked away behind
-# the coin door specifically to prevent players from accessing setup 
-# functions, just like on a real machine.  You'd normally want to
-# limit access to these commands to the owner/operator.  However,
-# pin cabs don't always include these extra buttons, so PinballY 
-# lets you access the Operator menu from the Exit menu instead, if
-# you wish.
-ExitMenu.ShowOperatorMenu = 0
+# If you have a coin door with service buttons, you might want to
+# disable this, so that the Operator Menu is only accessible via the
+# service buttons.  That will prevent guests from accidentally
+# accessing the setup options.
+ExitMenu.ShowOperatorMenu = 1
 
 #
 # Button assignments.  Each button assignment uses syntax like
@@ -497,6 +501,26 @@ AttractMode.StatusLine.UpdateTime = 1000
 # machine for a while.  Set to zero to disable this feature.
 GameTimeout = 300
 
+# Hide unconfigured games from the wheel list.  An unconfigured game
+# represents a table file that PinballY found in the Tables folder for
+# a system without any matching bibliographic data.  Normally, these
+# are shown in the main wheel list, mixed in with configured games.
+# You can easily recognize an unconfigured game because it'll be shown
+# with default background images, and its raw filename will appear in
+# place of a title.
+#
+# The point of showing unconfigured games alongside games whose details
+# have already been entered is to make it easier to identify games that
+# require your attention to complete their setup.  It also lets you
+# launch a table file even if you haven't set up its details yet.  To
+# set up an unconfigured game, select "Game Setup" from the main menu.
+#
+# If you prefer NOT to include unconfigured games in the regular wheel
+# listings, set this variable to true (1).  You'll still be able to
+# view any unconfigured table files at any time by selecting "Show 
+# Unconfigured Games" from the Operator Menu; that command will filter
+# the game list so that ONLY the unconfigured games are showing.
+GameList.HideUnconfigured = 1
 
 # Last selected game and filter.  These are updated automatically
 # by the program so that we can come back to the same wheel selection

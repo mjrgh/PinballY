@@ -166,14 +166,23 @@
 #define IDS_UNCATEGORIZED               471
 #define IDS_FILTER_HIDDEN               472
 #define IDS_FILTER_CATEGORY             473
+#define IDS_FILTER_UNCONFIGURED         474
+#define IDS_FILTER_ADDEDTHISWEEK        475
+#define IDS_FILTER_ADDEDTHISMONTH       476
+#define IDS_FILTER_ADDEDTHISYEAR        477
+#define IDS_FILTER_ADDEDOVERWEEK        478
+#define IDS_FILTER_ADDEDOVERMONTH       479
+#define IDS_FILTER_ADDEDOVERYEAR        480
+#define IDS_FILTER_BY_ADDED             481
 
-#define IDS_MENU_FILTER_RETURN          478
+#define IDS_MENU_FILTER_RETURN          499
 
 #define IDS_MENU_CLEAR_CREDITS          500
 #define IDS_MENU_GAME_SETUP             501
 #define IDS_MENU_SHOW_HIDDEN            502
 #define IDS_MENU_OPTIONS                503
 #define IDS_MENU_ENABLE_ALL_VIDEO       504
+#define IDS_MENU_SHOW_UNCONFIG          505
 
 #define IDS_MENU_EDIT_GAME_INFO         520
 #define IDS_MENU_SET_CATEGORIES         521
@@ -280,6 +289,9 @@
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
 
+#define IDS_ADDED_WITHIN                805
+#define IDS_NOT_ADDED_WITHIN            806
+
 #define IDS_SFILTER_THISWEEK            820
 #define IDS_SFILTER_THISMONTH           821
 #define IDS_SFILTER_THISYEAR            822
@@ -287,6 +299,9 @@
 #define IDS_SFILTER_NOTTHISMONTH        824
 #define IDS_SFILTER_NOTTHISYEAR         825
 #define IDS_SFILTER_NEVERPLAYED         826
+#define IDS_SFILTER_WEEKAGO             827
+#define IDS_SFILTER_MONTHAGO            828
+#define IDS_SFILTER_YEARAGO             829
 
 #define IDS_CONFIRM_DELETE_CATEGORY     850
 #define IDS_CATEGORY_ALREADY_EXISTS     851
@@ -319,6 +334,8 @@
 
 #define IDS_ROMCOMBO_DEFAULT_EMPTY      930
 #define IDS_ROMCOMBO_DEFAULT_NAME       931
+#define IDS_TABLETYPECOMBO_STRINGS      932
+#define IDS_HISCORECOMBO_STRINGS        933
 
 #define ID_DLG_MONITOR_WAIT             950
 
@@ -393,6 +410,7 @@
 #define ID_REALDMD_DISABLE              32846
 #define ID_OPERATOR_MENU                32847
 #define ID_CAPTURE_ADJUSTDELAY          32848
+#define ID_FILTER_BY_ADDED              32849
 
 
 // Next default values for new objects
@@ -401,7 +419,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32849
+#define _APS_NEXT_COMMAND_VALUE         32850
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

@@ -2,52 +2,52 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Fragment>
         <DirectoryRef Id="ASSETSDIR">
-            <Component Id="cmp0FC5E2772CA777A22E774F54AB005659" Guid="{5D5068F4-C979-43ED-A40E-66D8FFF966F6}">
+            <Component Id="cmp0FC5E2772CA777A22E774F54AB005659" Guid="{54F60F2F-D8D2-4924-8179-0B3899662C89}">
                 <File Id="filBDB5308B301B3A55FFC8DA4E4A1A7FB3" KeyPath="yes" Source="$(var.AssetsPath)\AddCredit.wav" />
             </Component>
-            <Component Id="cmp4F4DEE29C4F8EFA03811B08795FFE472" Guid="{392E8A5C-92AE-4FA9-9588-5E7070F0D7BC}">
+            <Component Id="cmp4F4DEE29C4F8EFA03811B08795FFE472" Guid="{C7B72090-D16B-446B-8B49-1C82521EB05A}">
                 <File Id="filF517071641D53EF5E37E700D329C9D10" KeyPath="yes" Source="$(var.AssetsPath)\CoinIn.wav" />
             </Component>
-            <Component Id="cmp13619DD868DB4B4D052C1DA762082F50" Guid="{CB59CDF8-E2E6-4E78-A521-ED2198312D0B}">
+            <Component Id="cmp13619DD868DB4B4D052C1DA762082F50" Guid="{8F6A5C6B-62D3-412B-96BA-E55DAD90CBA3}">
                 <File Id="fil55D22A445ADF888A80A31E468F9EBD32" KeyPath="yes" Source="$(var.AssetsPath)\DefaultBackglass.png" />
             </Component>
-            <Component Id="cmp37F39FED4141A30323357F588B5DEAFB" Guid="{137078F3-211D-4B8B-A1CC-A08737771630}">
+            <Component Id="cmp37F39FED4141A30323357F588B5DEAFB" Guid="{15049F89-3621-4C4F-9BE8-7AF73C96815D}">
                 <File Id="fil902F7FCED9696720C91154DD0155FFA1" KeyPath="yes" Source="$(var.AssetsPath)\DefaultDMD.png" />
             </Component>
-            <Component Id="cmp1B44F2426051ADA63B46885767629BDC" Guid="{04C8DD55-374E-4CF7-8BF7-F84A901DEE3E}">
+            <Component Id="cmp1B44F2426051ADA63B46885767629BDC" Guid="{548B8521-C4E8-45DC-B62A-8707CD7698E6}">
                 <File Id="filD629656E70BAA3025008D191951FB395" KeyPath="yes" Source="$(var.AssetsPath)\DefaultInstCard.png" />
             </Component>
-            <Component Id="cmpFB16FE67AD198FED40600086013228CD" Guid="{6A4C9FEF-9C1F-467D-871D-E24353370037}">
+            <Component Id="cmpFB16FE67AD198FED40600086013228CD" Guid="{3787B7A7-4B38-4057-868F-F34DBA42F1CD}">
                 <File Id="fil143663141AC46EC25690265EC3D9ECB9" KeyPath="yes" Source="$(var.AssetsPath)\DefaultPlayfield.png" />
             </Component>
-            <Component Id="cmp729F512DFEB2F761967A3BF980B7A523" Guid="{CDCBE8B3-53A9-491A-A536-9500885C3EFB}">
+            <Component Id="cmp729F512DFEB2F761967A3BF980B7A523" Guid="{7CCD6D14-232F-4907-A450-6D3087E5303B}">
                 <File Id="fil0D0504DD07658790BB4B5F88A036A88C" KeyPath="yes" Source="$(var.AssetsPath)\DefaultRealDMD.png" />
             </Component>
-            <Component Id="cmpA8DDB966096777EA565F33756F38FC0E" Guid="{C23702ED-078F-48A5-BD82-92F2FFDE808C}">
+            <Component Id="cmpA8DDB966096777EA565F33756F38FC0E" Guid="{07ED1795-AFE4-457C-B6D1-CCDD4AB3ACB2}">
                 <File Id="filB0F8E3F4D6C22800A089AA942771CF8A" KeyPath="yes" Source="$(var.AssetsPath)\DefaultTopper.png" />
             </Component>
-            <Component Id="cmp2B9749A49782FFE364B86F1784CB4713" Guid="{26FABE34-4547-4657-AA32-3AB51074003E}">
+            <Component Id="cmp2B9749A49782FFE364B86F1784CB4713" Guid="{70A30F61-BBFE-4C98-A746-2B0520A5CB7B}">
                 <File Id="filD5D91031F9A0E91EAEC70DDC9431CEDC" KeyPath="yes" Source="$(var.AssetsPath)\Deselect.wav" />
             </Component>
-            <Component Id="cmp53B52F6F833DE1168DC9CC2968FB37EC" Guid="{BE0791AD-08B2-4211-A61B-EE7FC3E02261}">
+            <Component Id="cmp53B52F6F833DE1168DC9CC2968FB37EC" Guid="{1E753E2F-A956-4B7A-B465-6417FE30901A}">
                 <File Id="fil2DF27031C0953C6139442DBCD56A0BF8" KeyPath="yes" Source="$(var.AssetsPath)\dmdfont.dxtkfont" />
             </Component>
-            <Component Id="cmpFEA13C0BB29B3418C83AF528876F30E8" Guid="{F9B9DD08-7342-4937-A19E-AB7F500A4A70}">
+            <Component Id="cmpFEA13C0BB29B3418C83AF528876F30E8" Guid="{64688372-425F-4841-BC26-0FB2DC165D8F}">
                 <File Id="filA1FBEFE939131AA12E0B9CA32E21A29F" KeyPath="yes" Source="$(var.AssetsPath)\dotfont.dxtkfont" />
             </Component>
-            <Component Id="cmp4DF45A26C98B20083D29FB90F0F107F6" Guid="{9ACB8B13-2792-4378-9B07-9369C0FB501C}">
+            <Component Id="cmp4DF45A26C98B20083D29FB90F0F107F6" Guid="{E7D8B40D-5436-40C0-B34E-F5F0EE87D869}">
                 <File Id="fil80BB4BF563722D80EC19969CCE483993" KeyPath="yes" Source="$(var.AssetsPath)\ipdbTableList.csv" />
             </Component>
-            <Component Id="cmp0DB63CCC160828075DB68B29D9793B42" Guid="{1F8FDA35-1717-4DAB-A81A-252C96992422}">
+            <Component Id="cmp0DB63CCC160828075DB68B29D9793B42" Guid="{B9304E2D-AF77-4FB5-AADB-E1CD39FD9288}">
                 <File Id="fil9760A23E9CF1F022A6A055E4DDDB9B0E" KeyPath="yes" Source="$(var.AssetsPath)\ledfont.dxtkfont" />
             </Component>
-            <Component Id="cmp12EE61477CABB8D7847102F50334EECF" Guid="{FA50AB85-1C7F-4D12-8835-BD404FDDCC7E}">
+            <Component Id="cmp12EE61477CABB8D7847102F50334EECF" Guid="{99AD18A8-84B9-4DF3-A833-EEE9B4AF0390}">
                 <File Id="fil5C454D85576E105543EA6377E98476DD" KeyPath="yes" Source="$(var.AssetsPath)\Next.wav" />
             </Component>
-            <Component Id="cmp812213F8CF7BEB3894FF722A37230A0F" Guid="{D587FF02-8B88-4D20-B946-F03C4CCC2ABA}">
+            <Component Id="cmp812213F8CF7BEB3894FF722A37230A0F" Guid="{723D039D-9114-4A8D-99C7-F93D5332B47B}">
                 <File Id="filF421F2D8116D6E97B468B69A4713A510" KeyPath="yes" Source="$(var.AssetsPath)\Prev.wav" />
             </Component>
-            <Component Id="cmp3E30DC697EFCC68C2F7C94B935D821C8" Guid="{48CE7A6B-54A2-4DD2-8712-FCFB51A6D996}">
+            <Component Id="cmp3E30DC697EFCC68C2F7C94B935D821C8" Guid="{DD5F42A5-CD6C-4869-9F0F-48AFECBD7778}">
                 <File Id="filDC968E6B5F2DD4417714FE6B555EA2CA" KeyPath="yes" Source="$(var.AssetsPath)\Select.wav" />
             </Component>
         </DirectoryRef>

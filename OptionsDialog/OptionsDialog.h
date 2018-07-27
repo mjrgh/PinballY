@@ -111,13 +111,16 @@ public:
 	static const int CoinsPage = 2;
 	static const int DMDPage = 3;
 	static const int KeysPage = 4;
-	static const int MiscPage = 5;
+	static const int InstCardPage = 5;
 	static const int PathsPage = 6;
 	static const int StartupPage = 7;
 	static const int StatuslinePage = 8;
 	static const int AttractModePage = 9;
 	static const int SysGroupPage = 10;
 	static const int AudioVideoPage = 11;
+	static const int GameLaunchPage = 12;
+	static const int MenuPage = 13;
+	static const int GameWheelPage = 14;
 	
 	// system pages are identified by SystemBasePage + <system number>
 	static const int SystemBasePage = 1000;
