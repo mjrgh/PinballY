@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Game Launch Options</h1>
+
+<p>
+   <b>Hide the Windows taskbar while a game is running:</b>  
+   This option is intended to make the transitions between PinballY
+   and running games more seamless, graphically, by making sure
+   that the Windows taskbar doesn't pop into view during
+   game launches or when games are exiting.  This option
+   simply hides the taskbar entirely any time a game is
+   running.
+</p>
+<p>
+   The reason this is optional is that Microsoft doesn't
+   consider it good practice for applications to mess with
+   the taskbar like this.  The taskbar is supposed to be the
+   exclusive province of the Windows desktop.
+   In this case, though, it's somewhat justifiable, as PinballY
+   effectively serves as a replacement for the Windows desktop
+   as long as you're operating in "pinball mode".  If you have
+   any problems with the taskbar remaining hidden after you
+   exit PinballY, or anything along those lines, disable this
+   option to make PinballY behave itself with respect to the
+   taskbar.
+</p>
+
+<p>
+   <b>Terminate game when idle for (seconds):</b>  This sets
+   an inactivity timeout period for launched games.  If you launch
+   a game and then walk away from the system, not touching any
+   buttons for a while, PinballY will terminate the game and
+   return to its menu display when this timeout period expires.
+   Set this to zero to disable the timeout entirely.
+</p>
+<p>
+   The timeout won't kick in while you're actively playing a game,
+   since it only takes effect when you haven't pressed any buttons
+   for the timeout period.  So it doesn't limit the amount of time
+   you can play a single game.  It's just there in case you walk
+   away from the system while a game is running, to ensure that
+   the system eventually returns to "attract mode" if left idle
+   for a long time.
+</p>
+
+</body>
+</html>
