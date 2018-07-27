@@ -28,3 +28,7 @@ PinballY Release Checklist
 
 - git push
 
+- git tag vX.Y.Z-LevelN
+
+- git push origin --tags
+
