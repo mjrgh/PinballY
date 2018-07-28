@@ -58,6 +58,15 @@ const TCHAR *GetPinballXPath()
 						break;
 					}
 				}
+				else
+				{
+					// Stop on any error.  When we reach the last item, the status
+					// will be ERROR_NO_MORE_ITEMS, so we'll want to stop.  But we
+					// also want to stop on any other error, so really the only time
+					// we *don't* want to stop is the 'success' case that we've
+					// already handled.
+					break;
+				}
 			}
 		}
 

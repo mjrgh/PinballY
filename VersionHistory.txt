@@ -1,5 +1,10 @@
 PinballY Update History
 
+07-27-2018a (1.0.1 Alpha 2)
+
+Bug fix: the program could get stuck on startup searching for PinballX, if PinballX wasn't installed.
+
 07-27-2018 (1.0.0 Alpha 1)
 
 Inaugural release
+
