@@ -520,7 +520,7 @@ GameTimeout = 300
 # view any unconfigured table files at any time by selecting "Show 
 # Unconfigured Games" from the Operator Menu; that command will filter
 # the game list so that ONLY the unconfigured games are showing.
-GameList.HideUnconfigured = 1
+GameList.HideUnconfigured = 0
 
 # Last selected game and filter.  These are updated automatically
 # by the program so that we can come back to the same wheel selection
