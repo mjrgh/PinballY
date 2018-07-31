@@ -31,13 +31,17 @@ void VideoSprite::ReleaseVideoPlayer()
 			}
 
 		protected:
-			// Thread entrypoint.  The only thing we have to do here
-			// is delete 'self', which will shut down and delete the
-			// video player.
+            // Thread entrypoint
 			static DWORD WINAPI SMain(LPVOID lParam)
-			{
-				// delete the object
-				delete static_cast<ShutdownThread*>(lParam);
+            {
+                // get 'self'
+                auto self = static_cast<ShutdownThread*>(lParam);
+                
+                // explicitly shut down the video player
+				self->vp->Shutdown();
+                
+				// delete 'self'
+				delete self;
 				return 0;
 			}
 

@@ -1,6 +1,11 @@
 PinballY Update History
 
-07-27-2018a (1.0.1 Alpha 2)
+07-31-2018 (1.0.0 Alpha 3)
+
+Added alternative high score display formats: alphanumeric 16-segment display style
+(for 1980s solid-state machines with segmented displays); typewriter style (for EM machines).
+
+07-27-2018a (1.0.0 Alpha 2)
 
 Bug fix: the program could get stuck on startup searching for PinballX, if PinballX wasn't installed.
 

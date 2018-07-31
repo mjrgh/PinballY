@@ -283,9 +283,15 @@ void VLCAudioVideoPlayer::Shutdown()
 
 	// release the VLC objects
 	if (player != nullptr)
+	{
 		libvlc_media_player_release_(player);
+		player = nullptr;
+	}
 	if (media != nullptr)
+	{
 		libvlc_media_release_(media);
+		media = nullptr;
+	}
 }
 
 bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, TargetDevice target)

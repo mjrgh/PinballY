@@ -42,6 +42,9 @@ public:
 	//
 	AudioVideoPlayer(HWND hwndVideo, HWND hwndEvent, bool audioOnly);
 
+	// explicitly shut down the player
+	virtual void Shutdown() = 0;
+
 	// Get this playback session's cookie.  This is an ID for the
 	// object, generated at construction, that's meant to be unique 
 	// over the lifetime of the process.  (It's not unique across 

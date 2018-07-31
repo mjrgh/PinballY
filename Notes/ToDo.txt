@@ -1,18 +1,3 @@
-- Alternative high score display styles: There's already a "High Score
-Style" setting in the game setup menu in anticipation of this, but it
-currently only offers a "DMD" style.  Add more options: "Alpha"
-(16-segment alphanumeric, for 1980s machines like Funhouse and
-Whirlwind), "TT" (typewriter font, for EM machines, to simulate a
-typed paper high score card), "Hand" (handwritten font, for EM
-machines, to simulate a hand-written paper high score card).  For the
-alphanumeric style, find or make a good set of photos of the System 11
-display with each character, but adjust it to use alpha so that we can
-superimpose it over a background using the VPM DMD color.  When the
-style is "Auto", infer the style based on metadata: Alpha for ((type
-== SS && year < 1991 || title is in (Funhouse, Harley-Davidson, The
-Machine: Bride of Pin-Bot), TT for (type == EM or type == ME), and DMD
-for everything else.
-
 - *IF* people get stuck looking for a dialog box where you type in the
 window layout numbers, and don't immediately recognize that you
 position the windows the "normal" way, add a tip popup that appears

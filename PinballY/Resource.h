@@ -33,6 +33,14 @@
 #define IDB_STARS                       160
 #define IDB_MNU_MIRROR_HORZ             161
 #define IDB_MNU_MIRROR_VERT             162
+#define IDB_INDEX_CARD                  163
+#define IDB_ALPHANUM_RED                164
+#define IDB_ALPHANUM_GREEN              165
+#define IDB_ALPHANUM_BLUE               166
+#define IDB_ALPHANUM_YELLOW             167
+#define IDB_ALPHANUM_PURPLE             168
+#define IDB_ALPHANUM_WHITE              169
+#define IDB_ALPHANUM_AMBER              170
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204

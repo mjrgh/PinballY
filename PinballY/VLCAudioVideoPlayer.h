@@ -63,6 +63,9 @@ public:
 		virtual bool SupportsRGBDisplay() const = 0;
 	};
 
+	// shut down the session
+	virtual void Shutdown() override;
+
 	// Open a file for playback on a real DMD device
 	bool OpenDmdTarget(const TCHAR *path, ErrorHandler &eh, DMD *dmd)
 	{
@@ -120,9 +123,6 @@ protected:
 
 	// Real DMD device target, when in DMD playback mode
 	DMD *dmd;
-
-	// shut down the session
-	void Shutdown();
 
 	// VLC event callbacks
 	static void OnMediaPlayerEndReached(const libvlc_event_t *event, void *opaque);

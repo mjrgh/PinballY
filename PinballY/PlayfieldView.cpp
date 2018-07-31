@@ -6238,7 +6238,7 @@ void PlayfieldView::EditGameInfo()
 			// for the same reasons as for the table type.
 			TSTRING hiScoreStyle;
 			GetText(IDC_CB_HIGH_SCORE_STYLE, hiScoreStyle);
-			gl->SetHighScoreStyle(game, hiScoreStyle.c_str());
+			gl->SetHighScoreStyle(game, GetFirstToken(hiScoreStyle).c_str());
 
 			// If the ROM name selected is the first item in the list,
 			// which is always the default selection, set it to an empty

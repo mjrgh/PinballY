@@ -1080,7 +1080,7 @@ public:
 		{ dateAddedCol->Set(GetStatsDbRow(game, true), val.ToString().c_str()); }
 
 	// set the Date Added to "now"
-	void SetDateAddedNow(GameListItem *game);
+	 void SetDateAddedNow(GameListItem *game);
 
 	// Get the high score style: DMD (dot matrix display), Alpha (segmented
 	// alphanumeric display, like the 1980s Williams machines), TT (typewriter

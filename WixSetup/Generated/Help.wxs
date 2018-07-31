@@ -2,61 +2,61 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
     <Fragment>
         <DirectoryRef Id="HELPDIR">
-            <Component Id="cmpF1EB43E1294CF023EED9C6C03773EEF0" Guid="{4D07AD20-A5A4-407F-BAAC-6F6015EDF084}">
+            <Component Id="cmpF1EB43E1294CF023EED9C6C03773EEF0" Guid="{01C80B7D-2635-4340-94AD-FBF8B3E9AC59}">
                 <File Id="filC932D02912252258310121B49D8B504A" KeyPath="yes" Source="$(var.HelpPath)\AttractModeOptions.html" />
             </Component>
-            <Component Id="cmp7A361B6BB41BEBB7DBC90C83118EE76A" Guid="{8CEACF21-4D29-49B7-AB89-E80F4590BDA6}">
+            <Component Id="cmp7A361B6BB41BEBB7DBC90C83118EE76A" Guid="{49AAF8FA-BEEC-4CA6-8804-771962F7588B}">
                 <File Id="fil0F46679359CCEB7187510168C1097790" KeyPath="yes" Source="$(var.HelpPath)\AudioVideoOptions.html" />
             </Component>
-            <Component Id="cmp0009ACF29198EE99B52D18C89AC75B64" Guid="{D149FB05-F3BE-4325-94B0-E73A940DB752}">
+            <Component Id="cmp0009ACF29198EE99B52D18C89AC75B64" Guid="{6E59A6A0-465B-4034-821E-77B09206323A}">
                 <File Id="fil8FEE49414F1FFD31BBEE5AF725A20E86" KeyPath="yes" Source="$(var.HelpPath)\ButtonIcons24x24.png" />
             </Component>
-            <Component Id="cmpD04BDB75DEBE85624BAF09CCE8025610" Guid="{EF12CDC0-527D-45FA-A15B-9D53355132CA}">
+            <Component Id="cmpD04BDB75DEBE85624BAF09CCE8025610" Guid="{DCE21791-2BD5-4B0A-8C7C-0790B1C08835}">
                 <File Id="filA7C3851AF84383772B3FC78A19514C49" KeyPath="yes" Source="$(var.HelpPath)\ButtonOptions.html" />
             </Component>
-            <Component Id="cmp78922B7D9502297B069E34907BB62066" Guid="{0A4B07C5-1682-420C-AB3E-39E9E3BF90D9}">
+            <Component Id="cmp78922B7D9502297B069E34907BB62066" Guid="{D1ADA97F-8B26-48E9-AEA0-B56D36B43448}">
                 <File Id="fil91F38DB8518EC87EFC255944EC41D873" KeyPath="yes" Source="$(var.HelpPath)\CaptureOptions.html" />
             </Component>
-            <Component Id="cmp959960105BFDABA8C00EA8C55CA28C67" Guid="{119A48A0-F95E-456E-AF63-C6CEFDD6103A}">
+            <Component Id="cmp959960105BFDABA8C00EA8C55CA28C67" Guid="{3FD9D5DA-771A-4E91-80CC-671D02B3CA42}">
                 <File Id="fil94939C8831EC66C742F311BBFE9267E2" KeyPath="yes" Source="$(var.HelpPath)\CoinOptions.html" />
             </Component>
-            <Component Id="cmp5EEAC0ECBDF0E6FC93303C9F0D219F23" Guid="{A4064D4D-90C0-484E-87A3-1FBB04CFC43E}">
+            <Component Id="cmp5EEAC0ECBDF0E6FC93303C9F0D219F23" Guid="{9D880DB5-E5AB-4410-BBC0-7D5C3FDF910D}">
                 <File Id="fil576EA35F59E3A0580036BEDD7395D022" KeyPath="yes" Source="$(var.HelpPath)\DOFEvents.html" />
             </Component>
-            <Component Id="cmp8B868A146447FCE65741220240FCA975" Guid="{CDBEB56B-232B-44DC-A35B-B12444EA491B}">
+            <Component Id="cmp8B868A146447FCE65741220240FCA975" Guid="{17CF63D5-36D6-412C-B49B-39C084C4DC45}">
                 <File Id="fil182E721EDBE315AF821E0CEED24D082C" KeyPath="yes" Source="$(var.HelpPath)\GameLaunchOptions.html" />
             </Component>
-            <Component Id="cmpCA9E2C5D02B29FE72654B4ED5DE04494" Guid="{3E25D6E3-80A5-4CED-A971-5D08E01A9C4A}">
+            <Component Id="cmpCA9E2C5D02B29FE72654B4ED5DE04494" Guid="{5D8CF9A3-7053-4A51-92DE-3B3A4C458D34}">
                 <File Id="filE0E54D581D2CE84200B7E431BFF931A4" KeyPath="yes" Source="$(var.HelpPath)\GameWheelOptions.html" />
             </Component>
-            <Component Id="cmp8B720006D6CF17E00BF3237176ACC624" Guid="{1E7CAECB-8B59-459C-9A15-A7E086786244}">
+            <Component Id="cmp8B720006D6CF17E00BF3237176ACC624" Guid="{D51457F8-52EC-4B30-AC7C-238AEC88F7C5}">
                 <File Id="fil98E8E0D774CB19EF6EDC39F04E03954E" KeyPath="yes" Source="$(var.HelpPath)\InstCardOptions.html" />
             </Component>
-            <Component Id="cmpB6FD1B6BCB9AF1D97FA1FAEF5E381FC9" Guid="{DA201189-8007-4F8D-B268-61B5D9EE3DE7}">
+            <Component Id="cmpB6FD1B6BCB9AF1D97FA1FAEF5E381FC9" Guid="{8D5553F0-5E49-4B70-8E2E-6FEDAB75B6B1}">
                 <File Id="fil0181C340FB1198F3AA0062CD7745F862" KeyPath="yes" Source="$(var.HelpPath)\main.css" />
             </Component>
-            <Component Id="cmp8E42F81023B8CCE9CFE5678013464A70" Guid="{06A03781-9637-49EB-A700-CDFBA89CEC14}">
+            <Component Id="cmp8E42F81023B8CCE9CFE5678013464A70" Guid="{AABE6297-71D6-44BD-BCE0-E1FACA6A3F66}">
                 <File Id="filCCA8491A075D690DBF8362509D558607" KeyPath="yes" Source="$(var.HelpPath)\MenuOptions.html" />
             </Component>
-            <Component Id="cmpD3CB9C699BB4E4FD636C21C870254A5A" Guid="{99E24CE6-B4C3-428C-8F64-3986C22C662F}">
+            <Component Id="cmpD3CB9C699BB4E4FD636C21C870254A5A" Guid="{9CA015DD-A534-4A30-9183-5EBB479B00D5}">
                 <File Id="fil281AB14DA38558652BB3DC1564EF24E9" KeyPath="yes" Source="$(var.HelpPath)\Options.html" />
             </Component>
-            <Component Id="cmp269C873EFFB97B379E0048CC329B511C" Guid="{64CBC774-FD61-4A14-B379-572F889DB012}">
+            <Component Id="cmp269C873EFFB97B379E0048CC329B511C" Guid="{CED34BAD-E074-4373-A071-47FB8EBD012D}">
                 <File Id="filED2B162710EF2BC9828E90A765B0CC52" KeyPath="yes" Source="$(var.HelpPath)\PathOptions.html" />
             </Component>
-            <Component Id="cmp0A07D06B6713BEA13BAAB3B40622CBFB" Guid="{D2DE5A38-3CBC-42A8-8D70-D67A8F5E12A1}">
+            <Component Id="cmp0A07D06B6713BEA13BAAB3B40622CBFB" Guid="{DD139DF6-AF3A-4C07-ABD5-167A930A6C97}">
                 <File Id="filFDC28C06876C5752048DD22ABA8FA94A" KeyPath="yes" Source="$(var.HelpPath)\PinballY.html" />
             </Component>
-            <Component Id="cmpE9112E888A8940952C228B6CB18D1EBC" Guid="{D5A61312-FC6D-4DC5-B146-FA004D7B13AE}">
+            <Component Id="cmpE9112E888A8940952C228B6CB18D1EBC" Guid="{DE99845D-6C76-45CF-8D5D-E5B50AE82B04}">
                 <File Id="filEA22EC06B34B35315B83D45DB60F5DC5" KeyPath="yes" Source="$(var.HelpPath)\RealDMDOptions.html" />
             </Component>
-            <Component Id="cmp3873F46DECCC70943AA36AC01C9ECC63" Guid="{F065D51A-3847-4F3A-9DD3-4E41A25DFFBF}">
+            <Component Id="cmp3873F46DECCC70943AA36AC01C9ECC63" Guid="{CEECD07C-3FB5-4F5C-985C-E970E0D0E49F}">
                 <File Id="filA5AC4E4D237EA5D852A6E7B0B89FED62" KeyPath="yes" Source="$(var.HelpPath)\StartupOptions.html" />
             </Component>
-            <Component Id="cmp694BA9DF92B99C3C5ECDB0FAE5C0096C" Guid="{69456929-112C-43A5-A85F-B04A6D40E859}">
+            <Component Id="cmp694BA9DF92B99C3C5ECDB0FAE5C0096C" Guid="{A6D97CD1-21AE-4834-9FC3-F908589C8792}">
                 <File Id="fil6BAB8814F4F51B2BF2903362703EE2B4" KeyPath="yes" Source="$(var.HelpPath)\StatuslineOptions.html" />
             </Component>
-            <Component Id="cmp2C9754EFA88EE1231D40131A8F774628" Guid="{824B17A5-75A4-4247-91F2-C6C5741B3E08}">
+            <Component Id="cmp2C9754EFA88EE1231D40131A8F774628" Guid="{A36FB4E0-3E7C-4BD3-9796-6CCA94245A55}">
                 <File Id="fil545CF20C3942AD385825B067F2BF8450" KeyPath="yes" Source="$(var.HelpPath)\SystemOptions.html" />
             </Component>
         </DirectoryRef>

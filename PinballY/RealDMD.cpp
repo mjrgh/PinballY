@@ -872,6 +872,9 @@ void RealDMD::GenerateHighScoreGraphics()
 			slideShow.emplace_back(DMD_COLOR_MONO16, pix.release(), 3500, Slide::HighScoreSlide);
 		});
 	}
+
+	// reset the slide show pointer
+	slideShowPos = slideShow.end();
 }
 
 bool RealDMD::SupportsRGBDisplay() const
