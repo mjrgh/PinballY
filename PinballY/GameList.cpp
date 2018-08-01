@@ -182,6 +182,25 @@ void GameList::SaveGameListFiles()
 			{
 				if (d->isDirty)
 				{
+					// If the destination folder doesn't exist, and it's within the
+					// PinballY folder tree, create it.
+					TCHAR dir[MAX_PATH];
+					_tcscpy_s(dir, d->filename.c_str());
+					PathRemoveFileSpec(dir);
+					if (!DirectoryExists(dir))
+					{
+						// get the program folder
+						TCHAR pbyDir[MAX_PATH];
+						GetExeFilePath(pbyDir, countof(pbyDir));
+
+						// check if it's a prefix of the table path
+						if (tstriStartsWith(dir, pbyDir) && dir[_tcslen(pbyDir)] == '\\')
+						{
+							// create the folder
+							CreateSubDirectory(dir, pbyDir, NULL);
+						}
+					}
+
 					// Write the XML file.  Do this in two stages:  first, write the
 					// contents to a temp file in the same folder, with the same name
 					// as the XML file but with ~ appended to the name.  Then delete
