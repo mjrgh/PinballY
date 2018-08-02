@@ -224,6 +224,7 @@ protected:
 	static const int gameTimeoutTimerID = 114;    // game inactivity timeout timer
 	static const int endSplashTimerID = 115;      // remove the "splash screen"
 	static const int restoreDOFTimerID = 116;     // restore DOF access after a game terminates
+	static const int cleanupTimerID = 117;        // periodic cleanup tasks
 
 	// update the selection to match the game list
 	void UpdateSelection();

@@ -1,5 +1,11 @@
 PinballY Update History
 
+08-02-2018 (1.0.0 Alpha 4)
+
+Fix slight UI pause when generating alphanumeric high score images; ensure video player
+D3D11 resources are released on main thread, to avoid any driver-dependent threading
+issues with resource deletion; create game database folders automatically as needed.
+
 07-31-2018 (1.0.0 Alpha 3)
 
 Added alternative high score display formats: alphanumeric 16-segment display style

@@ -811,7 +811,9 @@ void RealDMD::GenerateHighScoreGraphics()
 			std::unique_ptr<BYTE> pix(new BYTE[dmdBytes]);
 			memset(pix.get(), 0, dmdBytes);
 
-			// pick a font, using the algorithm used in the DMDView window
+			// Pick a font, using the algorithm from the DMDView window.  This
+			// selects the largest DMD font that will fit the message into the
+			// 128x32 space.
 			const DMDFont *font = DMDView::PickHighScoreFont(group);
 
 			// figure the starting y offset, centering the text vertically

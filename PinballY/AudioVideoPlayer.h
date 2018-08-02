@@ -45,6 +45,33 @@ public:
 	// explicitly shut down the player
 	virtual void Shutdown() = 0;
 
+	// Mark the player as pending deletion.  This adds the player
+	// to a deletion queue, which the UI loop can check periodically
+	// for objects that are ready to delete.
+	//
+	// Players pending deletion won't be removed until they report
+	// that they're ready, meaning that playback has been terminated
+	// and there are no references to the object apart from the one
+	// we keep from our own queue.
+	void SetPendingDeletion();
+
+	// Process the pending deletion queue.  This deletes any players
+	// that are marked as pending deletion and are ready to be
+	// deleted.  This should be called from time to time from the
+	// main UI thread, to clean up dead player objects.  This must 
+	// only be called from the main UI thread, since the whole point
+	// of the queue is to ensure that any implicit D3D11 resource
+	// releasing is done on the main UI thread.  Releasing a D3D
+	// resource can sometimes trigger an implicit call into the
+	// D3D Device Context, which isn't thread-safe.
+	//
+	// Returns true if any objects are left in the queue on return,
+	// false if the queue is now empty.
+	static bool ProcessDeletionQueue();
+
+	// Wait for the deletion queue to empty
+	static void WaitForDeletionQueue(DWORD timeout = INFINITE);
+
 	// Get this playback session's cookie.  This is an ID for the
 	// object, generated at construction, that's meant to be unique 
 	// over the lifetime of the process.  (It's not unique across 
@@ -92,6 +119,11 @@ protected:
 	// reference counted -> protected destructor
 	virtual ~AudioVideoPlayer();
 
+	// Is this object ready to delete?  This returns true if playback
+	// has been successfully terminated and there's only one reference
+	// to the object (presumably the caller's).
+	virtual bool IsReadyToDelete() const = 0;
+
 	// video window
 	HWND hwndVideo;
 
@@ -110,4 +142,10 @@ protected:
 	// Next available cookie.  We use this to assign a cookie each
 	// time we create a new player session.
 	static DWORD nextCookie;
+
+	// Pending deletion queue
+	static std::list<RefPtr<AudioVideoPlayer>> pendingDeletion;
+
+	// deletion queue resource lock
+	static CriticalSection pendingDeletionLock;
 };

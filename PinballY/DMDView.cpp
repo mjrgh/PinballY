@@ -39,9 +39,11 @@ protected:
 
 
 // construction
-DMDView::DMDView() : BorderlessSecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPrefix)
+DMDView::DMDView() : BorderlessSecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPrefix),
+	highScoreRequestSeqNo(0),
+	highScorePos(highScoreImages.end()),
+	nHighScoreThreads(0)
 {
-	highScorePos = highScoreImages.end();
 }
 
 // get the background media info
@@ -99,6 +101,12 @@ void DMDView::GenerateHighScoreImages()
 {
 	// remove any previous high-score graphics
 	ClearHighScoreImages();
+
+	// Advance the high score request sequence number.  This lets us
+	// determine if the asynchronous results from the thread we launch
+	// are the results we most recently requested.  We discard any
+	// results that arrive after we've already switched to a new game.
+	++highScoreRequestSeqNo;
 
 	// if a game is active, and it has high scores, generate graphics
 	if (auto game = currentBackground.game; game != nullptr && game->highScores.size() != 0)
@@ -227,401 +235,509 @@ void DMDView::GenerateHighScoreImages()
 			if (queryf(_T("dmd_red"), r) && queryf(_T("dmd_green"), g) && queryf(_T("dmd_blue"), b))
 				txtColor = { (BYTE)b, (BYTE)g, (BYTE)r };
 		}
-		
-		// Figure the background color, using the text color at reduced
-		// brightness.  This helps simulate the visible pixel structure of 
-		// a real DMD by showing a little of the text color even in pixels
-		// that are fully "off".
-		RGBQUAD bgColor = { (BYTE)(txtColor.rgbBlue/10), (BYTE)(txtColor.rgbGreen/10), (BYTE)(txtColor.rgbRed/10) };
 
-		// Set up the 128x32 32bpp pixel array buffer
-		static const int dmdBytes = dmdWidth * dmdHeight * 4;
-		BYTE pix[dmdBytes];
-
-		// Set up a DIB descriptor for the 32bpp bitmap.  We'll use this
-		// to create the D3D texture for the DMD sprite.
-		BITMAPINFO bmi;
-		bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-		bmi.bmiHeader.biWidth = dmdWidth;
-		bmi.bmiHeader.biHeight = -dmdHeight;
-		bmi.bmiHeader.biBitCount = 32;
-		bmi.bmiHeader.biCompression = BI_RGB;
-		bmi.bmiHeader.biSizeImage = 0;
-		bmi.bmiHeader.biXPelsPerMeter = 0;
-		bmi.bmiHeader.biYPelsPerMeter = 0;
-		bmi.bmiHeader.biClrUsed = 0;
-		bmi.bmiHeader.biClrImportant = 0;
-
-		// Build a color index table, with a ramp of brightness values
-		// from the background color to the full-brightness text color.
-		int redSpan = txtColor.rgbRed - bgColor.rgbRed;
-		int greenSpan = txtColor.rgbGreen - bgColor.rgbGreen;
-		int blueSpan = txtColor.rgbBlue - bgColor.rgbBlue;
-		DMDFont::Color colors[16];
-		for (int i = 0; i < 16; ++i)
+		// Creating the high-score images can be rather time-consuming, 
+		// especially for the alphanumeric style, as GDI+ is painfully
+		// slow at copying the character cell images.  Alphanumeric prep
+		// times can be as long as 400ms.  That's way too long to stall
+		// the UI, so we have to do it on a background thread.
+		struct ThreadInfo
 		{
-			colors[i].Set(
-				bgColor.rgbRed + redSpan*i/15,
-				bgColor.rgbGreen + greenSpan*i/15,
-				bgColor.rgbBlue + blueSpan*i/15);
-		}
-
-		// Count the character cells in an alphanumeric string.  This is
-		// slightly more complicated than just counting the characters,
-		// because of the special handling of '.' and ',': these combine
-		// with the previous character, since the dot/comma element in
-		// each cell can be "illuminated" in addition to any other glyph.
-		auto CountAlphaCells = [](const TCHAR *str)
-		{
-			int nCells = 0;
-			for (TCHAR prvChar = 0; *str != 0; ++str)
+			ThreadInfo(DMDView *view, DWORD seqno, RGBQUAD txtColor, const TCHAR *style) :
+				seqno(seqno),
+				txtColor(txtColor),
+				style(style)
 			{
-				// get this character
-				TCHAR c = *str;
-
-				// Check for combining characters.  A '.' or ',' can combine
-				// with the previous character to form a single cell, provided
-				// that the previous character isn't also '.' or ',', and that
-				// this isn't the first cell.
-				if (!((c == '.' || c == ',') && !(nCells == 0 || prvChar == '.' || prvChar == ',')))
-					++nCells;
-
-				// this is the next character for the next iteration
-				prvChar = c;
+				// assign the view pointer explicitly, to add a ref count
+				this->view = view;
 			}
 
-			// return the cell count
-			return nCells;
-		};
+			// associated view window
+			RefPtr<DMDView> view;
 
-		// If we're using alphanumeric segmented display style, we
-		// have a limited repertoire of colors for the pre-drawn images.
-		// Find the color that's closest to the VPM display color. 
-		//
-		// While we're at it, also figure the required grid size.  Alpha-
-		// numeric segmented displays use fixed character cells, so the 
-		// simulation is most convincing if the whole series of messages 
-		// is displayed on the same fixed grid layout.  This supports the
-		// illusion that the messages are being displayed on a physical
-		// segmented display unit.  Use the 1990-91 era Williams machines
-		// (e.g., Funhouse or Whirlwind) as the reference for the default 
-		// display size; these had two lines of 16 cells.  But we'll
-		// increase the width and/or height from there if any message
-		// groups require more, to make sure everything fits.
-		std::unique_ptr<Gdiplus::Bitmap> alphanumImage;
-		int alphaGridWid = 16, alphaGridHt = 2;
-		if (_tcsicmp(style, _T("alpha")) == 0)
-		{
-			static const struct
+			// high score request sequence number
+			DWORD seqno;
+
+			// text color for the DMD or alpha display
+			RGBQUAD txtColor;
+
+			// display style for the game
+			TSTRING style;
+
+			// Messages to display.  Each sublist is a set of strings to
+			// display together on one display slide; the overall list is
+			// the set of slides to display in time sequence.
+			std::list<std::list<TSTRING>> messages;
+
+			// thread entrypoint
+			static DWORD WINAPI SMain(LPVOID lParam) { return static_cast<ThreadInfo*>(lParam)->Main(); }
+			DWORD Main()
 			{
-				COLORREF color;
-				int imageId;
-			} colors[] = {
-				{ RGB(255, 88, 32), IDB_ALPHANUM_AMBER },
-				{ RGB(255, 0, 0), IDB_ALPHANUM_RED },
-				{ RGB(0, 255, 0), IDB_ALPHANUM_GREEN },
-				{ RGB(0, 0, 255), IDB_ALPHANUM_BLUE },
-				{ RGB(255, 255, 0), IDB_ALPHANUM_YELLOW },
-				{ RGB(255, 0, 255), IDB_ALPHANUM_PURPLE },
-				{ RGB(255, 255, 255), IDB_ALPHANUM_WHITE }
-			};
 
-			int dMin = 1000000;
-			int alphanumImageId = IDB_ALPHANUM_AMBER;
-			for (size_t i = 0; i < countof(colors); ++i)
-			{
-				// figure the distance between this color and the desired text
-				// color, in RGB vector space
-				int dr = GetRValue(colors[i].color) - txtColor.rgbRed;
-				int dg = GetGValue(colors[i].color) - txtColor.rgbGreen;
-				int db = GetBValue(colors[i].color) - txtColor.rgbBlue;
-				int d = dr*dr + dg*dg + db*db;
+				// Figure the background color, using the text color at reduced
+				// brightness.  This helps simulate the visible pixel structure of 
+				// a real DMD by showing a little of the text color even in pixels
+				// that are fully "off".
+				RGBQUAD bgColor = { (BYTE)(txtColor.rgbBlue / 10), (BYTE)(txtColor.rgbGreen / 10), (BYTE)(txtColor.rgbRed / 10) };
 
-				// if this is the closest match so far, keep it
-				if (d < dMin)
+				// Set up the 128x32 32bpp pixel array buffer
+				static const int dmdBytes = dmdWidth * dmdHeight * 4;
+				BYTE pix[dmdBytes];
+
+				// Set up a DIB descriptor for the 32bpp bitmap.  We'll use this
+				// to create the D3D texture for the DMD sprite.
+				BITMAPINFO bmi;
+				bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+				bmi.bmiHeader.biWidth = dmdWidth;
+				bmi.bmiHeader.biHeight = -dmdHeight;
+				bmi.bmiHeader.biBitCount = 32;
+				bmi.bmiHeader.biCompression = BI_RGB;
+				bmi.bmiHeader.biSizeImage = 0;
+				bmi.bmiHeader.biXPelsPerMeter = 0;
+				bmi.bmiHeader.biYPelsPerMeter = 0;
+				bmi.bmiHeader.biClrUsed = 0;
+				bmi.bmiHeader.biClrImportant = 0;
+
+				// Build a color index table, with a ramp of brightness values
+				// from the background color to the full-brightness text color.
+				int redSpan = txtColor.rgbRed - bgColor.rgbRed;
+				int greenSpan = txtColor.rgbGreen - bgColor.rgbGreen;
+				int blueSpan = txtColor.rgbBlue - bgColor.rgbBlue;
+				DMDFont::Color colors[16];
+				for (int i = 0; i < 16; ++i)
 				{
-					dMin = d;
-					alphanumImageId = colors[i].imageId;
-				}
-			}
-
-			// load the image we settled on
-			alphanumImage.reset(GPBitmapFromPNG(alphanumImageId));
-
-			// scan the group to determine the required grid size
-			game->DispHighScoreGroups([&alphaGridWid, &alphaGridHt, &CountAlphaCells](const std::list<const TSTRING*> &group)
-			{
-				// if this is the tallest message so far, remember it
-				if ((int)group.size() > alphaGridHt)
-					alphaGridHt = group.size();
-
-				// scan the group for the widest line
-				for (auto s : group)
-				{
-					// if this is the widest line so far, remember it
-					int wid = CountAlphaCells(s->c_str());
-					if (wid > alphaGridWid)
-						alphaGridWid = wid;
-				}
-			});
-		}
-
-		// load the background image for typewriter mode, if applicable
-		std::unique_ptr<Gdiplus::Bitmap> ttBkgImage;
-		if (_tcsicmp(style, _T("tt")) == 0)
-		{
-			ttBkgImage.reset(GPBitmapFromPNG(IDB_INDEX_CARD));
-		}
-
-		// generate the graphics for each text group
-		game->DispHighScoreGroups([this, &pix, &bmi, &colors, style, 
-			&alphanumImage, &ttBkgImage,
-			&CountAlphaCells, alphaGridWid, alphaGridHt]
-			(const std::list<const TSTRING*> &group)
-		{
-			// note the number of lines in this message
-			int nLines = group.size();
-
-			// create a graphic according to the style
-			RefPtr<Sprite> sprite;
-			if (_tcsicmp(style, _T("alpha")) == 0)
-			{
-				// Alphanumeric segmented display style
-
-				// Figure the pixel size required for the generated image.  The 
-				// image will consist of alphaGridHt x alphaGridWid character cells,
-				// plus margins and vertical padding between lines.  The character
-				// cells are of fixed size; we can determine the size of a cell from
-				// the size of the 'alphanumImage' PNG, which is laid out in a 16x8
-				// (col x row) grid.
-				//
-				// The margins and line spacing depend on the number of lines:
-				//
-				// - For a 2-line image, draw with 1/2 line of spacing top and bottom,
-				//   and 1/2 line of spacing between the two rows
-				//
-				// - For a 3-line image, draw with 1/2 line of spacing top and bottom
-				//   and 1/4 line between rows
-				//
-				// - For a 4-line image, draw with 1/4 line of spacing top and bottom
-				//   and 1/4 line between rows
-				//
-				const int charCellWid = alphanumImage.get()->GetWidth() / 16;
-				const int charCellHt = alphanumImage.get()->GetHeight() / 8;
-				int yPadding = alphaGridHt <= 2 ? charCellHt/2 : charCellHt/4;
-				int yMargin = alphaGridHt <= 2 ? charCellHt/2 : charCellHt/4;
-				int pixWid = alphaGridWid * charCellWid;
-				int pixHt = alphaGridHt*charCellHt + 2*yMargin + yPadding*(alphaGridHt-1);
-
-				// figure the top left cell position with these margins
-				int x0 = 0, y0 = yMargin;
-
-				// Pad this out to a 4:1 aspect ratio.  The video DMD display window
-				// is usually sized roughly 4:1 to match the proportions of real
-				// pinball DMDs from the 1990s, which were mostly 128x32.  The
-				// renderer will scale our image to the actual display size, so we
-				// don't have to match the exact size or proportions, but the result
-				// will look better if the image proportions are close to the display
-				// proportions, since that will cause less geometric distortion.
-				float aspect = (float)pixWid / (float)pixHt;
-				if (aspect > 4.0f)
-				{
-					y0 += (pixWid/4 - pixHt)/2;
-					pixHt = pixWid/4;
-				}
-				else if (aspect < 4.0f)
-				{
-					x0 += (pixHt*4 - pixWid)/2;
-					pixWid = pixHt*4;
+					colors[i].Set(
+						bgColor.rgbRed + redSpan * i / 15,
+						bgColor.rgbGreen + greenSpan * i / 15,
+						bgColor.rgbBlue + blueSpan * i / 15);
 				}
 
-				// create the image
-				sprite.Attach(new Sprite());
-				SilentErrorHandler eh;
-				sprite->Load(pixWid, pixHt, [&alphanumImage, &group, 
-					pixWid, pixHt, charCellWid, charCellHt, alphaGridWid, alphaGridHt, 
-					x0, y0, yPadding, &CountAlphaCells]
-				    (HDC hdc, HBITMAP)
+				// Count the character cells in an alphanumeric string.  This is
+				// slightly more complicated than just counting the characters,
+				// because of the special handling of '.' and ',': these combine
+				// with the previous character, since the dot/comma element in
+				// each cell can be "illuminated" in addition to any other glyph.
+				auto CountAlphaCells = [](const TCHAR *str)
 				{
-					// set up the GDI+ context
-					Gdiplus::Graphics g(hdc);
-
-					// fill the background with black
-					Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 0, 0));
-					g.FillRectangle(&bkg, 0, 0, charCellWid, charCellHt);
-
-					// center it vertically
-					int y = y0;
-					int blankLines = alphaGridHt - group.size();
-					int blankTopLines = blankLines/2;
-
-					// draw each line
-					auto s = group.begin();
-					for (int line = 0; line < alphaGridHt; ++line)
+					int nCells = 0;
+					for (TCHAR prvChar = 0; *str != 0; ++str)
 					{
-						// get the next item, if available, otherwise show a blank line
-						const TCHAR *txt = _T("");
-						if (line >= blankTopLines && s != group.end())
+						// get this character
+						TCHAR c = *str;
+
+						// Check for combining characters.  A '.' or ',' can combine
+						// with the previous character to form a single cell, provided
+						// that the previous character isn't also '.' or ',', and that
+						// this isn't the first cell.
+						if (!((c == '.' || c == ',') && !(nCells == 0 || prvChar == '.' || prvChar == ',')))
+							++nCells;
+
+						// this is the next character for the next iteration
+						prvChar = c;
+					}
+
+					// return the cell count
+					return nCells;
+				};
+
+				// If we're using alphanumeric segmented display style, we
+				// have a limited repertoire of colors for the pre-drawn images.
+				// Find the color that's closest to the VPM display color. 
+				//
+				// While we're at it, also figure the required grid size.  Alpha-
+				// numeric segmented displays use fixed character cells, so the 
+				// simulation is most convincing if the whole series of messages 
+				// is displayed on the same fixed grid layout.  This supports the
+				// illusion that the messages are being displayed on a physical
+				// segmented display unit.  Use the 1990-91 era Williams machines
+				// (e.g., Funhouse or Whirlwind) as the reference for the default 
+				// display size; these had two lines of 16 cells.  But we'll
+				// increase the width and/or height from there if any message
+				// groups require more, to make sure everything fits.
+				std::unique_ptr<Gdiplus::Bitmap> alphanumImage;
+				int alphaGridWid = 16, alphaGridHt = 2;
+				if (_tcsicmp(style.c_str(), _T("alpha")) == 0)
+				{
+					static const struct
+					{
+						COLORREF color;
+						int imageId;
+					} colors[] = {
+						{ RGB(255, 88, 32), IDB_ALPHANUM_AMBER },
+					{ RGB(255, 0, 0), IDB_ALPHANUM_RED },
+					{ RGB(0, 255, 0), IDB_ALPHANUM_GREEN },
+					{ RGB(0, 0, 255), IDB_ALPHANUM_BLUE },
+					{ RGB(255, 255, 0), IDB_ALPHANUM_YELLOW },
+					{ RGB(255, 0, 255), IDB_ALPHANUM_PURPLE },
+					{ RGB(255, 255, 255), IDB_ALPHANUM_WHITE }
+					};
+
+					int dMin = 1000000;
+					int alphanumImageId = IDB_ALPHANUM_AMBER;
+					for (size_t i = 0; i < countof(colors); ++i)
+					{
+						// figure the distance between this color and the desired text
+						// color, in RGB vector space
+						int dr = GetRValue(colors[i].color) - txtColor.rgbRed;
+						int dg = GetGValue(colors[i].color) - txtColor.rgbGreen;
+						int db = GetBValue(colors[i].color) - txtColor.rgbBlue;
+						int d = dr * dr + dg * dg + db * db;
+
+						// if this is the closest match so far, keep it
+						if (d < dMin)
 						{
-							txt = (*s)->c_str();
-							++s;
+							dMin = d;
+							alphanumImageId = colors[i].imageId;
+						}
+					}
+
+					// load the image we settled on
+					alphanumImage.reset(GPBitmapFromPNG(alphanumImageId));
+
+					// scan the group to determine the required grid size
+					for (auto &group : messages)
+					{
+						// if this is the tallest message so far, remember it
+						if ((int)group.size() > alphaGridHt)
+							alphaGridHt = group.size();
+
+						// scan the group for the widest line
+						for (auto s : group)
+						{
+							// if this is the widest line so far, remember it
+							int wid = CountAlphaCells(s.c_str());
+							if (wid > alphaGridWid)
+								alphaGridWid = wid;
+						}
+					}
+				}
+
+				// load the background image for typewriter mode, if applicable
+				std::unique_ptr<Gdiplus::Bitmap> ttBkgImage;
+				if (_tcsicmp(style.c_str(), _T("tt")) == 0)
+				{
+					ttBkgImage.reset(GPBitmapFromPNG(IDB_INDEX_CARD));
+				}
+
+				// generate the graphics for each text group
+				std::list<HighScoreImage> images;
+				for (auto &group : messages)
+				{
+					// note the number of lines in this message
+					int nLines = group.size();
+
+					// create a graphic according to the style
+					RefPtr<Sprite> sprite;
+					if (_tcsicmp(style.c_str(), _T("alpha")) == 0)
+					{
+						// Alphanumeric segmented display style
+
+						// Figure the pixel size required for the generated image.  The 
+						// image will consist of alphaGridHt x alphaGridWid character cells,
+						// plus margins and vertical padding between lines.  The character
+						// cells are of fixed size; we can determine the size of a cell from
+						// the size of the 'alphanumImage' PNG, which is laid out in a 16x8
+						// (col x row) grid.
+						//
+						// The margins and line spacing depend on the number of lines:
+						//
+						// - For a 2-line image, draw with 1/2 line of spacing top and bottom,
+						//   and 1/2 line of spacing between the two rows
+						//
+						// - For a 3-line image, draw with 1/2 line of spacing top and bottom
+						//   and 1/4 line between rows
+						//
+						// - For a 4-line image, draw with 1/4 line of spacing top and bottom
+						//   and 1/4 line between rows
+						//
+						const int charCellWid = alphanumImage.get()->GetWidth() / 16;
+						const int charCellHt = alphanumImage.get()->GetHeight() / 8;
+						int yPadding = alphaGridHt <= 2 ? charCellHt / 2 : charCellHt / 4;
+						int yMargin = alphaGridHt <= 2 ? charCellHt / 2 : charCellHt / 4;
+						int pixWid = alphaGridWid * charCellWid;
+						int pixHt = alphaGridHt * charCellHt + 2 * yMargin + yPadding * (alphaGridHt - 1);
+
+						// figure the top left cell position with these margins
+						int x0 = 0, y0 = yMargin;
+
+						// Pad this out to a 4:1 aspect ratio.  The video DMD display window
+						// is usually sized roughly 4:1 to match the proportions of real
+						// pinball DMDs from the 1990s, which were mostly 128x32.  The
+						// renderer will scale our image to the actual display size, so we
+						// don't have to match the exact size or proportions, but the result
+						// will look better if the image proportions are close to the display
+						// proportions, since that will cause less geometric distortion.
+						float aspect = (float)pixWid / (float)pixHt;
+						if (aspect > 4.0f)
+						{
+							y0 += (pixWid / 4 - pixHt) / 2;
+							pixHt = pixWid / 4;
+						}
+						else if (aspect < 4.0f)
+						{
+							x0 += (pixHt * 4 - pixWid) / 2;
+							pixWid = pixHt * 4;
 						}
 
-						// start at the left edge
-						int x = x0;
-
-						// figure the number of spaces to the left and
-						// right to center the line within the cell width
-						int nAdvChars = CountAlphaCells(txt);
-						int extraSpaces = alphaGridWid - nAdvChars;
-						int leftSpaces = extraSpaces / 2;
-						int rightSpaces = extraSpaces - leftSpaces;
-
-						// draw the left spaces
-						auto DrawSpaces = [&x, &alphanumImage, &g, &y, charCellWid, charCellHt](int n)
+						// create the image
+						sprite.Attach(new Sprite());
+						SilentErrorHandler eh;
+						sprite->Load(pixWid, pixHt, [&alphanumImage, &group,
+							pixWid, pixHt, charCellWid, charCellHt, alphaGridWid, alphaGridHt,
+							x0, y0, yPadding, &CountAlphaCells]
+							(HDC hdc, HBITMAP)
 						{
-							for (int i = 0; i < n; ++i)
+							// set up the GDI+ context
+							Gdiplus::Graphics g(hdc);
+
+							// fill the background with black
+							Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 0, 0));
+							g.FillRectangle(&bkg, 0, 0, charCellWid, charCellHt);
+
+							// center it vertically
+							int y = y0;
+							int blankLines = alphaGridHt - group.size();
+							int blankTopLines = blankLines / 2;
+
+							// draw each line
+							auto s = group.begin();
+							for (int line = 0; line < alphaGridHt; ++line)
 							{
-								// draw a space (code point 32 - grid row 2, column 0)
-								g.DrawImage(
-									alphanumImage.get(),
-									Gdiplus::RectF((float)x, (float)y, (float)charCellWid, (float)charCellHt),
-									0.0f, 2.0f*charCellHt, (float)charCellWid, (float)charCellHt,
-									Gdiplus::UnitPixel);
+								// get the next item, if available, otherwise show a blank line
+								const TCHAR *txt = _T("");
+								if (line >= blankTopLines && s != group.end())
+								{
+									txt = s->c_str();
+									++s;
+								}
 
-								x += charCellWid;
+								// start at the left edge
+								int x = x0;
+
+								// figure the number of spaces to the left and
+								// right to center the line within the cell width
+								int nAdvChars = CountAlphaCells(txt);
+								int extraSpaces = alphaGridWid - nAdvChars;
+								int leftSpaces = extraSpaces / 2;
+								int rightSpaces = extraSpaces - leftSpaces;
+
+								// draw the left spaces
+								auto DrawSpaces = [&x, &alphanumImage, &g, &y, charCellWid, charCellHt](int n)
+								{
+									for (int i = 0; i < n; ++i)
+									{
+										// draw a space (code point 32 - grid row 2, column 0)
+										g.DrawImage(
+											alphanumImage.get(),
+											Gdiplus::RectF((float)x, (float)y, (float)charCellWid, (float)charCellHt),
+											0.0f, 2.0f*charCellHt, (float)charCellWid, (float)charCellHt,
+											Gdiplus::UnitPixel);
+
+										x += charCellWid;
+									}
+								};
+								DrawSpaces(leftSpaces);
+
+								// draw the characters
+								TCHAR prvChar = 0;
+								const TCHAR *p = txt;
+								TCHAR c = *p;
+								while (c != 0)
+								{
+									// Figure the cell coordinates in the image.  The image
+									// is a 16x8 grid arranged in Unicode order.  Note that
+									// only the first 128 code points (the basic ASCII set)
+									// are present; replacing anything else with '*'.
+									if (c > 127)
+										c = '*';
+									int cellx = (c % 16) * charCellWid;
+									int celly = (c / 16) * charCellHt;
+
+									// draw the character
+									g.DrawImage(
+										alphanumImage.get(),
+										Gdiplus::RectF((float)x, (float)y, (float)charCellWid, (float)charCellHt),
+										(float)cellx, (float)celly, (float)charCellWid, (float)charCellHt,
+										Gdiplus::UnitPixel);
+
+									// advance to the next character
+									prvChar = c;
+									c = *++p;
+
+									// advance to the next character cell, unless this is a
+									// non-advancing character
+									if (!((c == ',' || c == '.') && !(prvChar == ',' || prvChar == '.')))
+										x += charCellWid;
+								}
+
+								// draw the right spaces
+								DrawSpaces(rightSpaces);
+
+								// advance to the next line
+								y += charCellHt + yPadding;
 							}
-						};
-						DrawSpaces(leftSpaces);
 
-						// draw the characters
-						TCHAR prvChar = 0;
-						const TCHAR *p = txt;
-						TCHAR c = *p;
-						while (c != 0)
+							// flush the bitmap
+							g.Flush();
+
+						}, eh, _T("Alphanumeric-style high score graphics"));
+					}
+					else if (_tcsicmp(style.c_str(), _T("tt")) == 0)
+					{
+						// typewriter style
+
+						// size the image to match the background
+						int wid = ttBkgImage.get()->GetWidth();
+						int ht = ttBkgImage.get()->GetHeight();
+
+						// draw the image
+						sprite.Attach(new Sprite());
+						SilentErrorHandler eh;
+						sprite->Load(wid, ht, [&group, wid, ht, &ttBkgImage](HDC hdc, HBITMAP)
 						{
-							// Figure it cell coordinates in the image.  The image
-							// is a 16x8 grid arranged in Unicode order.  Note that
-							// only the first 128 code points (the basic ASCII set)
-							// are present; replacing anything else with '*'.
-							if (c > 127)
-								c = '*';
-							int cellx = (c % 16) * charCellWid;
-							int celly = (c / 16) * charCellHt;
+							// set up the GDI+ context
+							Gdiplus::Graphics g(hdc);
 
-							// draw the character
-							g.DrawImage(
-								alphanumImage.get(), 
-								Gdiplus::RectF((float)x, (float)y, (float)charCellWid, (float)charCellHt),
-								(float)cellx, (float)celly, (float)charCellWid, (float)charCellHt,
-								Gdiplus::UnitPixel);
+							// copy the background
+							g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
 
-							// advance to the next character
-							prvChar = c;
-							c = *++p;
+							// get the font
+							std::unique_ptr<Gdiplus::Font> font(CreateGPFontPixHt(_T("Courier New"), ht / 8, 400));
 
-							// advance to the next character cell, unless this is a
-							// non-advancing character
-							if (!((c == ',' || c == '.') && !(prvChar == ',' || prvChar == '.')))
-								x += charCellWid;
+							// combine the text into a single string separated by line breaks
+							TSTRING txt;
+							for (auto s : group)
+							{
+								if (txt.length() != 0)
+									txt += _T("\n");
+								txt += s.c_str();
+							}
+
+							// draw it centered horizontally and vertically
+							Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
+							fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+							fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+							Gdiplus::SolidBrush br(Gdiplus::Color(32, 32, 32));
+							g.DrawString(txt.c_str(), -1, font.get(), Gdiplus::RectF(0, 0, (float)wid, (float)ht), &fmt, &br);
+
+							// flush graphics to the bitmap
+							g.Flush();
+
+						}, eh, _T("Typewriter-style high score graphic"));
+					}
+					else
+					{
+						// DMD style (this is also the default if the style setting
+						// isn't recognized)
+
+						// clear the buffer to the background color
+						BYTE *dst = pix;
+						for (int i = 0; i < dmdWidth*dmdHeight; ++i, dst += 4)
+							memcpy(dst, &colors[0], 4);
+
+						// pick the font
+						const DMDFont *font = PickHighScoreFont(group);
+
+						// figure the starting y offset, centering the text overall vertically
+						int totalTextHeight = font->cellHeight * nLines;
+						int y = (dmdHeight - totalTextHeight) / 2;
+
+						// draw each string
+						for (auto s : group)
+						{
+							// measure the string
+							const TCHAR *str = s.c_str();
+							SIZE sz = font->MeasureString(str);
+
+							// draw it centered horizontally
+							font->DrawString32(str, pix, (dmdWidth - sz.cx) / 2, y, colors);
+
+							// advance to the next line
+							y += font->cellHeight;
 						}
 
-						// draw the right spaces
-						DrawSpaces(rightSpaces);
-
-						// advance to the next line
-						y += charCellHt + yPadding;
+						// create the sprite
+						sprite.Attach(new DMDSprite());
+						SilentErrorHandler eh;
+						sprite->Load(bmi, pix, eh, _T("DMD-style high score graphics"));
 					}
 
-					// flush the bitmap
-					g.Flush();
-
-				}, eh, _T("Alphanumeric-style high score graphics"));
-			}
-			else if (_tcsicmp(style, _T("tt")) == 0)
-			{
-				// typewriter style
-
-				// size the image to match the background
-				int wid = ttBkgImage.get()->GetWidth();
-				int ht = ttBkgImage.get()->GetHeight();
-
-				// draw the image
-				sprite.Attach(new Sprite());
-				SilentErrorHandler eh;
-				sprite->Load(wid, ht, [&group, wid, ht, &ttBkgImage](HDC hdc, HBITMAP)
-				{
-					// set up the GDI+ context
-					Gdiplus::Graphics g(hdc);
-
-					// copy the background
-					g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
-
-					// get the font
-					std::unique_ptr<Gdiplus::Font> font(CreateGPFontPixHt(_T("Courier New"), ht/8, 400));
-
-					// combine the text into a single string separated by line breaks
-					TSTRING txt;
-					for (auto s : group)
-					{
-						if (txt.length() != 0)
-							txt += _T("\n");
-						txt += *s;
-					}
-
-					// draw it centered horizontally and vertically
-					Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
-					fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
-					fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-					Gdiplus::SolidBrush br(Gdiplus::Color(32, 32, 32));
-					g.DrawString(txt.c_str(), -1, font.get(), Gdiplus::RectF(0, 0, (float)wid, (float)ht), &fmt, &br);
-
-					// flush graphics to the bitmap
-					g.Flush();
-
-				}, eh, _T("Typewriter-style high score graphic"));
-			}
-			else
-			{
-				// DMD style (this is also the default if the style setting
-				// isn't recognized)
-
-				// clear the buffer to the background color
-				BYTE *dst = pix;
-				for (int i = 0; i < dmdWidth*dmdHeight; ++i, dst += 4)
-					memcpy(dst, &colors[0], 4);
-
-				// pick the font
-				const DMDFont *font = PickHighScoreFont(group);
-
-				// figure the starting y offset, centering the text overall vertically
-				int totalTextHeight = font->cellHeight * nLines;
-				int y = (dmdHeight - totalTextHeight) / 2;
-
-				// draw each string
-				for (auto s: group)
-				{
-					// measure the string
-					const TCHAR *str = s->c_str();
-					SIZE sz = font->MeasureString(str);
-
-					// draw it centered horizontally
-					font->DrawString32(str, pix, (dmdWidth - sz.cx) / 2, y, colors);
-
-					// advance to the next line
-					y += font->cellHeight;
+					// add the sprite to the list, handing over our reference on the sprite
+					if (sprite != nullptr)
+						images.emplace_back(sprite.Detach(), 3500);
 				}
 
-				// create the sprite
-				sprite.Attach(new DMDSprite());
-				SilentErrorHandler eh;
-				sprite->Load(bmi, pix, eh, _T("DMD-style high score graphics"));
-			}
+				// Send the sprite list back to the window
+				if (auto view = Application::Get()->GetDMDView(); view != nullptr)
+					view->SendMessage(DMVMsgHighScoreImage, seqno, reinterpret_cast<LPARAM>(&images));
 
-			// add the sprite to the list, handing over our reference on the sprite
-			if (sprite != nullptr)
-				highScoreImages.emplace_back(sprite.Detach(), 3500);
+				// count the thread exist in the view object
+				InterlockedDecrement(&view->nHighScoreThreads);
+
+				// delete 'self'
+				delete this;
+
+				// done (thread return code isn't used)
+				return 0;
+			}
+		};
+		ThreadInfo *ti = new ThreadInfo(this, highScoreRequestSeqNo, txtColor, style);
+		
+		// capture the message list to the thread
+		game->DispHighScoreGroups([&ti](const std::list<const TSTRING*> &group)
+		{
+			std::list<TSTRING> &list = ti->messages.emplace_back();
+			for (auto s : group)
+				list.emplace_back(*s);
 		});
+
+		// count the thread
+		InterlockedIncrement(&nHighScoreThreads);
+
+		// launch the thread
+		DWORD tid;
+		HandleHolder hThread = CreateThread(NULL, 0, &ThreadInfo::SMain, ti, 0, &tid);
+		if (hThread == nullptr)
+		{
+			// we couldn't launch the thread, so do the work inline instead
+			ti->Main();
+		}
+	}
+}
+
+void DMDView::WaitForHighScoreThreads(DWORD timeout)
+{
+	// get the starting time
+	DWORD t0 = GetTickCount();
+
+	// wait, but not forever
+	while (nHighScoreThreads != 0 && (timeout == INFINITE || (DWORD)(GetTickCount() - t0) < timeout))
+		Sleep(100);
+}
+
+bool DMDView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	// look for our recognized messages
+	switch (msg)
+	{
+	case DMVMsgHighScoreImage:
+		SetHighScoreImages(wParam, reinterpret_cast<std::list<HighScoreImage> *>(lParam));
+		return true;
+	}
+
+	// it's not one of ours - inherit the default handling
+	return __super::OnUserMessage(msg, wParam, lParam);
+}
+
+void DMDView::SetHighScoreImages(DWORD seqno, std::list<HighScoreImage> *images)
+{
+	// If the sequence number matches the current request, install
+	// this list of images
+	if (seqno == highScoreRequestSeqNo)
+	{
+		// transfer the images to our high score list
+		for (auto &i : *images)
+			highScoreImages.emplace_back(i.sprite.Detach(), i.displayTime);
 
 		// If there's only one item in the list, display it for longer than
 		// the default, which assumes that it's only one of several items.
@@ -635,6 +751,17 @@ void DMDView::GenerateHighScoreImages()
 		// set a timer to start the slide show
 		SetTimer(hWnd, StartHighScoreTimerID, StillImageDisplayTime, NULL);
 	}
+}
+
+const DMDFont *DMDView::PickHighScoreFont(const std::list<TSTRING> &group)
+{
+	// build the pointer-based list
+	std::list<const TSTRING*> pgroup;
+	for (auto &s : group)
+		pgroup.emplace_back(&s);
+
+	// call the common handler with the pointer-based list
+	return PickHighScoreFont(pgroup);
 }
 
 const DMDFont *DMDView::PickHighScoreFont(const std::list<const TSTRING*> &group)

@@ -407,6 +407,9 @@ void PlayfieldView::OnIdleEvent()
 	// set the attract mode timer
 	SetTimer(hWnd, attractModeTimerID, attractModeTimerInterval, 0);
 
+	// start the cleanup timer
+	SetTimer(hWnd, cleanupTimerID, 1000, 0);
+
 	// Show the about box for a few seconds, as a sort of splash screen
 	ShowAboutBox();
 	SetTimer(hWnd, endSplashTimerID, 5000, 0);
@@ -526,6 +529,11 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 
 		// this is a one-shot
 		KillTimer(hWnd, timer);
+		return true;
+
+	case cleanupTimerID:
+		// process pending audio/video player deletions
+		AudioVideoPlayer::ProcessDeletionQueue();
 		return true;
 	}
 
@@ -4278,6 +4286,12 @@ void PlayfieldView::HideInfoBox()
 // update the info box animation
 void PlayfieldView::UpdateInfoBoxAnimation()
 {
+	static DWORD lastTimer;
+	DWORD thisTimer = GetTickCount();
+	if (lastTimer != 0 && thisTimer - lastTimer > 32)
+		OutputDebugString(L"long delay");
+	lastTimer = thisTimer;
+
 	// make sure there's an info box to update
 	if (infoBox.sprite == nullptr)
 	{
@@ -4294,7 +4308,10 @@ void PlayfieldView::UpdateInfoBoxAnimation()
 
 	// end the animation if we've reached the end of the fade
 	if (progress == 1.0f)
+	{
+		lastTimer = 0;
 		KillTimer(hWnd, infoBoxFadeTimerID);
+	}
 }
 
 void PlayfieldView::EndAnimation()

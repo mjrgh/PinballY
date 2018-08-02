@@ -35,6 +35,23 @@ BOOL CreateSubDirectory(
 	// strip the last folder element
 	PathRemoveFileSpec(p.get());
 
+	// If that's empty or the same as the parent, stop.  When we reach
+	// the root folder, removing the last path element will have no
+	// effect.  Assuming the target folder is valid, the root folder
+	// will exist, so the recursion will have already ended when we
+	// tested for the current path's existence above.  And if a parent
+	// path was specified, we'll stop when we reach it.  But if no
+	// parent was specified (so we're supposed to create all folders
+	// back to the root folder, if needed), AND the volume is invalid,
+	// we'll never find an existing folder and so we'll never stop on
+	// the folder existence condition.  So we could get stuck trying
+	// to create an invalid root folder without this extra test.
+	// Note that the result is FALSE (failed) in this case, because
+	// we reached a topmost folder that doesn't exist and that we're
+	// not going to attempt to create (because that would fail).
+	if (p.get()[0] == 0 || _tcscmp(p.get(), fullPathToCreate) == 0)
+		return FALSE;
+
 	// create that element; if that works, create the child folder
 	return CreateSubDirectory(p.get(), fullParentPath, lpSecurityAttributes)
 		&& CreateDirectory(fullPathToCreate, lpSecurityAttributes);

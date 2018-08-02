@@ -44,6 +44,9 @@ const UINT PFVMsgShowError = WM_USER + 203;			// LPARAM = const PFVMsgShowErrorP
 const UINT PFVMsgShowSysError = WM_USER + 204;		// WPARAM = TCHAR *friendly, LPARAM = const TCHAR *details
 const UINT PFVMsgPlayElevReqd = WM_USER + 205;      // WPARAM = TCHAR *systemName, LPARAM = LONG_PTR(&GameListItem)
 
+// DMDView messages
+const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images
+
 // PFVShowMessage parameters struct
 class ErrorList;
 struct PFVMsgShowErrorParams

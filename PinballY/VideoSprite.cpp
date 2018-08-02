@@ -20,14 +20,49 @@ void VideoSprite::ReleaseVideoPlayer()
 {
 	if (videoPlayer != nullptr)
 	{
-		// shutdown thread
+		// Shutdown thread.  When we're ready to discard the underlying
+		// video, we start a low-priority thread to do the video player
+		// shutdown.  We do this on a separate thread to avoid a UI stall
+		// while waiting for the playback to stop.  The "stop" call to
+		// libvlc can take a noticeable amount of time to return, 
+		// presumably because it's explicitly waiting for its own
+		// background playback threads to exit.  
+		//
+		// We want to do the video "stop" call on the background thread,
+		// but we don't want to do the actual object deletion there; we
+		// want the deletion itself to occur on the main thread.  This
+		// is out of an abundance of caution about D3D threading.  The
+		// video player probably owns some shader resource view objects,
+		// and based on testing, releasing those can trigger implicit
+		// calls into the D3D11 Device Context.  DC calls are required
+		// to be single-threaded.  My own machines don't actually seem
+		// to have a problem with releasing the objects on a separate
+		// thread, but I suspect that some configurations might; the
+		// degree of thread safety here might be implementation-specific
+		// in the D3D11 hardware drivers.  Best not to risk it.  To get
+		// the actual object deletion back on the main thread, we use
+		// a queue of video players pending deletion.
 		class ShutdownThread
 		{
 		public:
 			ShutdownThread(AudioVideoPlayer *vp) : vp(vp) 
 			{ 
-				HandleHolder hThread = CreateThread(
-					NULL, 0, &ShutdownThread::SMain, this, 0, &tid);
+				// add the player to the pending deletion list
+				vp->SetPendingDeletion();
+
+				// create the thread, but don't start it yet
+				HandleHolder hThread = CreateThread(NULL, 0, &ShutdownThread::SMain, this, CREATE_SUSPENDED, &tid);
+				if (hThread != NULL)
+				{
+					// set it to low priority and kick it off
+					SetThreadPriority(hThread, BELOW_NORMAL_PRIORITY_CLASS);
+					ResumeThread(hThread);
+				}
+				else
+				{
+					// couldn't start the thread - do the thread work inline
+					SMain(this);
+				}
 			}
 
 		protected:

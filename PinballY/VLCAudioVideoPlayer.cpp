@@ -243,7 +243,8 @@ VLCAudioVideoPlayer::VLCAudioVideoPlayer(HWND hwndVideo, HWND hwndEvent, bool au
 	media(nullptr),
 	firstFramePresented(false),
 	shader(nullptr),
-	dmd(nullptr)
+	dmd(nullptr),
+	nPlanes(0)
 {
 	// load the libvlc DLLs if we haven't already
 	LoadLibvlc(Application::InUiErrorHandler());
@@ -507,7 +508,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 	auto self = reinterpret_cast<VLCAudioVideoPlayer*>(*opaque);
 
 	// plane descriptions, to be set according to the format
-	int nplanes = 0;
+	int nPlanes = 0;
 	FrameBuffer::Plane planes[3];
 
 	// shader, to be chosen according to the format
@@ -543,7 +544,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 	if (/* DISABLED */false && memcmp(chroma, "I444", 4) == 0)
 	{
 		// I444 uses 8 bits per pixel in three planes (Y U V).
-		nplanes = 3;
+		nPlanes = 3;
 		pitches[0] = pitches[1] = pitches[2] = *width;
 		lines[0] = lines[1] = lines[2] = *height;
 
@@ -563,7 +564,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 		// in each plane.  The Y plane has one byte per image pixel, and
 		// the U and V planes are sub-sampled in 2x2 blocks, so they're
 		// half the width and height of the Y plane.
-		nplanes = 3;
+		nPlanes = 3;
 		pitches[0] = *width;
 		pitches[1] = pitches[2] = (*width + 1)/2;
 		lines[0] = *height;
@@ -587,7 +588,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 
 	// calculate the buffer size
 	size_t bufsize = 0;
-	for (int i = 0; i < nplanes; ++i)
+	for (int i = 0; i < nPlanes; ++i)
 	{
 		planes[i].rowPitch = pitches[i];
 		planes[i].bufOfs = bufsize;
@@ -612,8 +613,8 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 		f.shader = shader;
 
 		// remember the plane descriptors
-		f.nplanes = nplanes;
-		for (int i = 0; i < nplanes; ++i)
+		f.nPlanes = nPlanes;
+		for (int i = 0; i < nPlanes; ++i)
 		{
 			f.planes[i].textureDesc = planes[i].textureDesc;
 			f.planes[i].bufOfs = planes[i].bufOfs;
@@ -661,7 +662,7 @@ void *VLCAudioVideoPlayer::OnVideoFrameLock(void *opaque, void **planes)
 				// so can find each plane's memory address by adding its
 				// offset to the base buffer address.
 				BYTE *p = f.pixBuf.get();
-				for (int i = 0; i < f.nplanes; ++i)
+				for (int i = 0; i < f.nPlanes; ++i)
 					planes[i] = p + f.planes[i].bufOfs;
 
 				// the frame buffer pointer is the frame ID
@@ -701,42 +702,6 @@ void VLCAudioVideoPlayer::OnVideoFrameUnlock(void *opaque, void *pictureId, void
 	// the "picture ID" is actually our frame buffer pointer
 	FrameBuffer *f = reinterpret_cast<FrameBuffer*>(pictureId);
 
-	// Launch the texture creation thread
-	auto threadMain = [](LPVOID lParam) -> DWORD
-	{
-		// get the frame from the lParam
-		auto f = static_cast<FrameBuffer*>(lParam);
-
-		// set up the shader resource view descriptor for the frame
-		D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
-		srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-		srvd.Texture2D.MipLevels = 1;
-		srvd.Texture2D.MostDetailedMip = 0;
-
-		// create the shader resource views for each plane
-		D3D11_SUBRESOURCE_DATA srd;
-		srd.SysMemSlicePitch = 0;
-		for (int i = 0; i < f->nplanes; ++i)
-		{
-			// get the plane
-			auto &plane = f->planes[i];
-
-			// release any previous shader resource view
-			plane.shaderResourceView = nullptr;
-
-			// create the new texture and view
-			srd.pSysMem = f->pixBuf.get() + plane.bufOfs;
-			srd.SysMemPitch = plane.rowPitch;
-			srvd.Format = plane.textureDesc.Format;
-			D3D::Get()->CreateTexture2D(&plane.textureDesc, &srd, &srvd, &plane.shaderResourceView, NULL);
-		}
-
-		// thread return code (not used)
-		return 0;
-	};
-	DWORD tid;
-	f->hThread = CreateThread(NULL, 0, threadMain, f, 0, &tid);
-
 	// the buffer now has a valid decoded frame
 	f->status = FrameBuffer::Valid;
 }
@@ -761,22 +726,14 @@ void VLCAudioVideoPlayer::OnVideoFramePresent(void *opaque, void *pictureId)
 		// If another frame was previously presented, that frame is
 		// now free.  Note that it's okay to free the frame currenty
 		// locked by the renderer, because merely updating the buffer
-		// status won't affect the texture data.  Instead, we check
+		// status won't affect the frame data.  Instead, we check
 		// in the 'lock' routine to make sure that we don't try to
 		// re-use a frame that's currently being used for rendering.
 		// We get finer resource access granularity and thus less
 		// contention by deferring that check until we actually need
 		// to write into a buffer.
 		if (self->presentedFrame != nullptr && self->presentedFrame != f)
-		{
-			// wait for the old frame's thread to exit
-			WaitForSingleObject(self->presentedFrame->hThread, INFINITE);
-			self->presentedFrame->hThread = NULL;
-
-			// The old presented frame is now a relic of the past, so
-			// we can reuse its buffer - mark it as free.
 			self->presentedFrame->status = FrameBuffer::Free;
-		}
 
 		// this is now the presented frame
 		self->presentedFrame = f;
@@ -837,24 +794,43 @@ bool VLCAudioVideoPlayer::Render(Camera *camera, Sprite *sprite)
 		// lock against concurrent access by the VLC background threads
 		CriticalSectionLocker locker(renderLock);
 
-		// Check for a new presented frame.  The presented frame
-		// must have its texture resources ready to use.
-		if (presentedFrame != nullptr
-			&& presentedFrame->hThread != nullptr
-			&& WaitForSingleObject(presentedFrame->hThread, 0) == WAIT_OBJECT_0)
+		// if there's a presented frame, create D3D shader resource
+		// views from the pixel plane data
+		if (presentedFrame != nullptr)
 		{
+			// delete the the previous shader resource views
+			for (int i = 0; i < nPlanes; ++i)
+				shaderResourceView[i] = nullptr;
+
 			// use the shader from the frame
 			shader = presentedFrame->shader;
 
-			// move the shader
-			for (size_t i = 0; i < countof(shaderResourceView); ++i)
-				shaderResourceView[i].Attach(presentedFrame->planes[i].shaderResourceView.Detach());
+			// set up the shader resource view descriptor for the frame
+			D3D11_SHADER_RESOURCE_VIEW_DESC srvd;
+			srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			srvd.Texture2D.MipLevels = 1;
+			srvd.Texture2D.MostDetailedMip = 0;
 
-			// We can now free this presented frame.  Note that the texture
-			// creation we just did had the effect of copying the pixel data
-			// into GPU memory, so we no longer need the CPU memory copy.
-			// That's why we can mark this frame object as free.
-			presentedFrame->hThread = NULL;
+			// create the shader resource views for each plane
+			D3D11_SUBRESOURCE_DATA srd;
+			srd.SysMemSlicePitch = 0;
+			nPlanes = presentedFrame->nPlanes;
+			for (int i = 0; i < nPlanes; ++i)
+			{
+				// get the plane
+				auto &plane = presentedFrame->planes[i];
+
+				// create the new texture and view
+				shaderResourceView[i] = nullptr;
+				srd.pSysMem = presentedFrame->pixBuf.get() + plane.bufOfs;
+				srd.SysMemPitch = plane.rowPitch;
+				srvd.Format = plane.textureDesc.Format;
+				D3D::Get()->CreateTexture2D(&plane.textureDesc, &srd, &srvd, &shaderResourceView[i], NULL);
+			}
+
+			// The presented frame is now free - its resources have been moved
+			// into the active frame, so it's ready to be reused for a new
+			// decoded frame.
 			presentedFrame->status = FrameBuffer::Free;
 			presentedFrame = nullptr;
 		}
@@ -867,7 +843,7 @@ bool VLCAudioVideoPlayer::Render(Camera *camera, Sprite *sprite)
 	// populate the resource view list to bind to the shader
 	ID3D11ShaderResourceView *rv[3];
 	int n = 0;
-	for (; n < countof(shaderResourceView) && shaderResourceView[n] != nullptr; ++n)
+	for (; n < nPlanes && n < countof(shaderResourceView) && shaderResourceView[n] != nullptr; ++n)
 		rv[n] = shaderResourceView[n];
 	
 	// we can't proceed if there were no shader resource views
@@ -956,7 +932,7 @@ unsigned int VLCAudioVideoPlayer::OnDMDSetFormat(void **opaque, char *chroma,
 		f.dims.cy = *height;
 
 		// set up the plane descriptors
-		f.nplanes = 3;
+		f.nPlanes = 3;
 		UINT ofs = 0;
 		for (int i = 0; i < 3; ++i)
 		{

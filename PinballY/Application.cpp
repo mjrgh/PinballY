@@ -338,11 +338,11 @@ int Application::EventLoop(int nCmdShow)
 	int retcode = D3DView::MessageLoop();
 
 	// if there's a game monitor thread, shut it down
-	if (gameMonitor != 0)
+	if (gameMonitor != nullptr)
 	{
 		InteractiveErrorHandler eh;
 		gameMonitor->Shutdown(eh, 5000, true);
-		gameMonitor = 0;
+		gameMonitor = nullptr;
 	}
 
 	// If there's a new file scanner thread running, give it a few seconds
@@ -353,6 +353,10 @@ int Application::EventLoop(int nCmdShow)
 	// if there's an admin host thread, terminate it
 	adminHost.Shutdown();
 
+	// make sure any high score image generator threads have exited
+	if (auto dmv = GetDMDView(); dmv != nullptr)
+		dmv->WaitForHighScoreThreads(5000);
+
 	// close the windows
 	DestroyWindow(playfieldWin->GetHWnd());
 	DestroyWindow(backglassWin->GetHWnd());
@@ -361,11 +365,14 @@ int Application::EventLoop(int nCmdShow)
 	DestroyWindow(instCardWin->GetHWnd());
 
 	// release the window pointers
-	playfieldWin = 0;
-	backglassWin = 0;
-	dmdWin = 0;
-	topperWin = 0;
-	instCardWin = 0;
+	playfieldWin = nullptr;
+	backglassWin = nullptr;
+	dmdWin = nullptr;
+	topperWin = nullptr;
+	instCardWin = nullptr;
+
+	// wait for the audio/video player deletion queue to empty
+	AudioVideoPlayer::WaitForDeletionQueue(5000);
 
 	// save any updates to the config file or game databases
 	SaveFiles();

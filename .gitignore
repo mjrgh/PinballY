@@ -40,3 +40,5 @@ zlib/contrib/vstudio/vc14/x86/**
 PinballY/shaders/*.h
 Builds/**
 WixSetup/Generated/*
+**/ZlibStatRelease/**
+**/ZlibStatDebug/**

@@ -35,11 +35,18 @@ public:
 	void OnUpdateHighScores(GameListItem *game);
 
 	// pick a font for a generated high score screen
+	static const DMDFont *PickHighScoreFont(const std::list<TSTRING> &group);
 	static const DMDFont *PickHighScoreFont(const std::list<const TSTRING*> &group);
+
+	// wait for high score image generator threads to exit
+	void WaitForHighScoreThreads(DWORD timeout = INFINITE);
 
 protected:
 	// private application message (WM_APP to 0xBFFF)
 	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+	// private window mesage
+	virtual bool OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 	// timers
 	virtual bool OnTimer(WPARAM timer, LPARAM callback) override;
@@ -86,6 +93,20 @@ protected:
 		DWORD displayTime;
 	};
 	std::list<HighScoreImage> highScoreImages;
+
+	// Set the high score image list.  When we switch to a new game, we kick
+	// off a thread to generate the high score images.  We use a thread rather
+	// than generating them on the main thread, because it can take long enough
+	// to cause a noticeable delay in the UI if done on the main thread.  The
+	// sequence number lets us determine if this is the most recent request;
+	// we'll simply discard results from an older request.
+	void SetHighScoreImages(DWORD seqno, std::list<HighScoreImage> *images);
+
+	// Last high score request sequence number
+	DWORD highScoreRequestSeqNo;
+
+	// Number of outstanding high score image generator threads
+	volatile DWORD nHighScoreThreads;
 
 	// Current display position in high score image list.  This
 	// is ignored when the high score image list is empty.  When

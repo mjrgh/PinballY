@@ -102,6 +102,12 @@ protected:
 	// reference-counted -> self-destruction only
 	virtual ~VLCAudioVideoPlayer();
 
+	// Is the object ready to delete?
+	virtual bool IsReadyToDelete() const override
+	{
+		return refCnt <= 1 && player == nullptr && media == nullptr;
+	}
+
 	// Static: libvlc initialization failed.  We keep track of this
 	// statically so that we don't keep showing initialization errors
 	// on subsequent attempts; if initialization fails once, it'll
@@ -192,9 +198,6 @@ protected:
 
 		~FrameBuffer()
 		{
-			// make sure our worker thread has exited
-			if (hThread != nullptr)
-				WaitForSingleObject(hThread, INFINITE);
 		}
 
 		// frame status
@@ -223,8 +226,7 @@ protected:
 		Shader *shader;
 
 		// Pixel plane layout.  Some formats (e.g., I420 or NV12) divide
-		// the image into multiple planes.  We create a texture and
-		// shader resource view per plane.
+		// the image into multiple planes.
 		struct Plane
 		{
 			// texture descriptor for this plane's data
@@ -238,21 +240,11 @@ protected:
 
 			// row pitch of this plane
 			UINT rowPitch;
-
-			// shader resource view - created by thread launched at
-			// Unlock time
-			RefPtr<ID3D11ShaderResourceView> shaderResourceView;
 		};
 		Plane planes[3];
 
 		// number of planes in this format
-		int nplanes;
-
-		// Texture creation thread handle.  This is the thread we 
-		// launch at Unlock time to create the texture objects for
-		// the buffer.  The renderer must wait on this before
-		// rendering the frame.
-		HandleHolder hThread;
+		int nPlanes;
 	};
 
 	// Frame buffers
@@ -262,6 +254,7 @@ protected:
 	Shader *shader;
 
 	// Shader resource views for the current frame we're rendering
+	int nPlanes;
 	RefPtr<ID3D11ShaderResourceView> shaderResourceView[3];
 
 	// Critical section locker for the rendering pointers.  This
