@@ -23,7 +23,7 @@ set ReleaseZipMin=Builds\PinballY-Min-%ReleaseDate%.zip
 
 rem  64-bit versions
 set ReleaseZipFull64=Builds\PinballY-64bit-%ReleaseDate%.zip
-set ReleaseZipMin64=Builds\PinballY-64-bit-Min-%ReleaseDate%.zip
+set ReleaseZipMin64=Builds\PinballY-64bit-Min-%ReleaseDate%.zip
 
 
 rem  Build the full ZIP.  Note that this includes BOTH the "Full"
