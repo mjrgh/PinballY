@@ -188,7 +188,7 @@ protected:
 	{
 		PathEntry() : lineNo(-1) { }
 
-		void Set(const CHAR *name, CSTRING &path, int lineNo)
+		void Set(const CHAR *name, CSTRING &path, size_t lineNo)
 		{
 			this->name = name;
 			this->path = path;
@@ -196,7 +196,7 @@ protected:
 		}
 
 		// line number in the INI file, as an index in iniLines
-		int lineNo;
+		size_t lineNo;
 
 		// system name variable
 		CSTRING name;

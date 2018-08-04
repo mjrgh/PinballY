@@ -15,14 +15,19 @@
     <DefineConstants>Debug</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <OutputPath>bin\$(Platform)-$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <OutputPath>bin\$(Platform)-$(Configuration)\</OutputPath>
     <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Product.wxs" />
     <Compile Include="Generated\Assets.wxs" />
     <Compile Include="Generated\Help.wxs" />
-    <Compile Include="Generated\VLCPlugins.wxs" />
+    <Compile Condition=" '$(Platform)' == 'x86' " Include="Generated\VLCPlugins.wxs" />
+    <Compile Condition=" '$(Platform)' == 'x64' " Include="Generated\VLC64Plugins.wxs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\OptionsDialog\OptionsDialog.vcxproj">
@@ -80,7 +85,16 @@
 	-->
   <!-- Heat path variables -->
   <PropertyGroup>
-    <DefineConstants>AssetsPath=$(SolutionDir)Assets;HelpPath=$(SolutionDir)Help;VLCPluginsPath=$(SolutionDir)VLC\plugins</DefineConstants>
+    <DefineConstants>AssetsPath=$(SolutionDir)Assets;HelpPath=$(SolutionDir)Help;VLCPluginsPath=$(SolutionDir)VLC\plugins;VLC64PluginsPath=$(SolutionDir)VLC64\plugins;</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <DefineConstants>Debug</DefineConstants>
+    <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <OutputPath>bin\$(Platform)-$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
   <Target Name="BeforeBuild">
     <!--
@@ -90,6 +104,7 @@
      -->
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Assets" PreprocessorVariable="var.AssetsPath" OutputFile="Generated\Assets.wxs" ComponentGroupName="HeatGeneratedAssets" DirectoryRefId="ASSETSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Help" PreprocessorVariable="var.HelpPath" OutputFile="Generated\Help.wxs" ComponentGroupName="HeatGeneratedHelp" DirectoryRefId="HELPDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC64\plugins" PreprocessorVariable="var.VLC64PluginsPath" OutputFile="Generated\VLC64Plugins.wxs" ComponentGroupName="HeatGeneratedVLC64Plugins" DirectoryRefId="VLC64PLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC\plugins" PreprocessorVariable="var.VLCPluginsPath" OutputFile="Generated\VLCPlugins.wxs" ComponentGroupName="HeatGeneratedVLCPlugins" DirectoryRefId="VLCPLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
   </Target>
 </Project>

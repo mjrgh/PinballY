@@ -422,7 +422,7 @@ public:
 				{
 					ZeroMemory(&zstr, sizeof(zstr));
 					zstr.next_in = buf;
-					zstr.avail_in = avail;
+					zstr.avail_in = (uInt)avail;
 					inflateInit(&zstr);
 				}
 				~ZlibByteReader() { inflateEnd(&zstr); }
@@ -486,7 +486,7 @@ public:
 					HRESULT STDMETHODCALLTYPE Read(void *data, UInt32 size, UInt32 *processedSize)
 					{
 						if (size < rem)
-							size = rem;
+							size = (UInt32)rem;
 
 						if (size == 0 && *processedSize == NULL)
 							return S_FALSE;

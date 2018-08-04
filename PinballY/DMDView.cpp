@@ -399,7 +399,7 @@ void DMDView::GenerateHighScoreImages()
 					{
 						// if this is the tallest message so far, remember it
 						if ((int)group.size() > alphaGridHt)
-							alphaGridHt = group.size();
+							alphaGridHt = (int)group.size();
 
 						// scan the group for the widest line
 						for (auto s : group)
@@ -424,7 +424,7 @@ void DMDView::GenerateHighScoreImages()
 				for (auto &group : messages)
 				{
 					// note the number of lines in this message
-					int nLines = group.size();
+					int nLines = (int)group.size();
 
 					// create a graphic according to the style
 					RefPtr<Sprite> sprite;
@@ -496,7 +496,7 @@ void DMDView::GenerateHighScoreImages()
 
 							// center it vertically
 							int y = y0;
-							int blankLines = alphaGridHt - group.size();
+							int blankLines = alphaGridHt - (int)group.size();
 							int blankTopLines = blankLines / 2;
 
 							// draw each line
@@ -721,7 +721,7 @@ bool DMDView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg)
 	{
 	case DMVMsgHighScoreImage:
-		SetHighScoreImages(wParam, reinterpret_cast<std::list<HighScoreImage> *>(lParam));
+		SetHighScoreImages((DWORD)wParam, reinterpret_cast<std::list<HighScoreImage> *>(lParam));
 		return true;
 	}
 
@@ -777,7 +777,7 @@ const DMDFont *DMDView::PickHighScoreFont(const std::list<const TSTRING*> &group
 	};
 
 	// start with the largest font that will fit the vertical space
-	int nLines = group.size();
+	int nLines = (int)group.size();
 	int fontIndex = 0;
 	const DMDFont *font = fonts[fontIndex];
 	while (fontIndex + 1 < countof(fonts))

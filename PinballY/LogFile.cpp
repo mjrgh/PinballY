@@ -79,6 +79,6 @@ void LogFile::Write(const TCHAR *fmt, ...)
 
 		// write to the file in single-byte characters
 		DWORD bytesWritten = 0;
-		WriteFile(h, c.c_str(), c.length(), &bytesWritten, NULL);
+		WriteFile(h, c.c_str(), (DWORD)c.length(), &bytesWritten, NULL);
 	}
 }

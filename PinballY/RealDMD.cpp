@@ -141,6 +141,15 @@ RealDMD::RealDMD() :
 	// if there's no singleton instance yet, we're it
 	if (inst == nullptr)
 		inst = this;
+
+	// create the writer thread event
+	hWriterEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+	// create an empty slide
+	size_t emptyBufSize = dmdWidth * dmdHeight;
+	std::unique_ptr<BYTE> emptyBuf(new BYTE[emptyBufSize]);
+	ZeroMemory(emptyBuf.get(), emptyBufSize);
+	emptySlide.Attach(new Slide(DMD_COLOR_MONO16, emptyBuf.release(), 0, Slide::EmptySlide));
 }
 
 RealDMD::~RealDMD()
@@ -224,6 +233,11 @@ bool RealDMD::Init(ErrorHandler &eh)
 	mirrorHorz = cfg->GetBool(ConfigVars::MirrorHorz, false);
 	mirrorVert = cfg->GetBool(ConfigVars::MirrorVert, false);
 
+	// launch the writer thread
+	DWORD tid;
+	writerThreadQuit = false;
+	hWriterThread = CreateThread(NULL, 0, &SWriterThreadMain, this, 0, &tid);
+
 	// success
 	return true;
 }
@@ -292,6 +306,11 @@ void RealDMD::Shutdown()
 		videoPlayer = nullptr;
 	}
 
+	// shut down the writer thread
+	writerThreadQuit = true;
+	SetEvent(hWriterEvent);
+	WaitForSingleObject(hWriterThread, 250);
+
 	// close the underlying device
 	if (hmodDll != NULL)
 		Close_();
@@ -351,6 +370,9 @@ void RealDMD::ClearMedia()
 		KillTimer(NULL, slideShowTimerID);
 		slideShowTimerID = 0;
 	}
+
+	// send an empty frame to the display
+	SendWriterFrame(emptySlide);
 }
 
 void RealDMD::UpdateGame()
@@ -652,8 +674,8 @@ void RealDMD::UpdateGame()
 							}
 
 							// add it to the slide show, and start playback
-							slideShow.emplace_back(imageColorSpace, gray.release(), 
-								imageDisplayTime, Slide::MediaSlide);
+							slideShow.emplace_back(new Slide(imageColorSpace, gray.release(), 
+								imageDisplayTime, Slide::MediaSlide));
 							StartSlideShow();
 						}
 						break;
@@ -661,8 +683,8 @@ void RealDMD::UpdateGame()
 					case DMD_COLOR_RGB:
 						// RGB mode - we have the bits in exactly the right format.
 						// Add the 24bpp buffer to the slide show.
-						slideShow.emplace_back(imageColorSpace, buf.release(), 
-							imageDisplayTime, Slide::MediaSlide);
+						slideShow.emplace_back(new Slide(imageColorSpace, buf.release(), 
+							imageDisplayTime, Slide::MediaSlide));
 						StartSlideShow();
 						break;
 					}
@@ -691,7 +713,7 @@ void RealDMD::StartSlideShow()
 	RenderSlide();
 
 	// set a timer to advance to the next slide
-	slideShowTimerID = SetTimer(NULL, 0, slideShowPos->displayTime, SlideTimerProc);
+	slideShowTimerID = SetTimer(NULL, 0, (*slideShowPos)->displayTime, SlideTimerProc);
 }
 
 VOID CALLBACK RealDMD::SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
@@ -742,7 +764,7 @@ void RealDMD::NextSlide()
 		RenderSlide();
 
 		// set a timer to advance to the next slide
-		slideShowTimerID = SetTimer(NULL, 0, slideShowPos->displayTime, SlideTimerProc);
+		slideShowTimerID = SetTimer(NULL, 0, (*slideShowPos)->displayTime, SlideTimerProc);
 	}
 }
 
@@ -750,23 +772,80 @@ void RealDMD::RenderSlide()
 {
 	// render the current slide
 	if (slideShow.size() != 0 && slideShowPos != slideShow.end())
+		SendWriterFrame(*slideShowPos);
+}
+
+void RealDMD::SendWriterFrame(Slide *slide)
+{
+	// Set the writer frame to the slide.  Note that this will add a
+	// reference to the slide, so it'll survive even if we clear media
+	// out of the slide show list before the write thread gets around
+	// to displaying it.
+	CriticalSectionLocker locker(writeFrameLock);
+	writerFrame = slide;
+
+	// wake up the writer thread
+	SetEvent(hWriterEvent);
+}
+
+DWORD RealDMD::WriterThreadMain()
+{
+	// keep going until the 'quit' event is signaled
+	for (;;)
 	{
-		auto &slide = *slideShowPos;
-		switch (slide.colorSpace)
+		// wait for an event
+		switch (WaitForSingleObject(hWriterEvent, INFINITE))
 		{
-		case DMD_COLOR_MONO4:
-			Render_4_Shades_(dmdWidth, dmdHeight, slide.pix.get());
+		case WAIT_OBJECT_0:
+		case WAIT_ABANDONED:
 			break;
 
-		case DMD_COLOR_MONO16:
-			Render_16_Shades_(dmdWidth, dmdHeight, slide.pix.get());
+		default:
+			// wait error - abandon the thread
+			return 0;
+		}
+
+		// if 'quit' is signaled, we're done
+		if (writerThreadQuit)
 			break;
 
-		case DMD_COLOR_RGB:
-			Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<DMDDevice::rgb24*>(slide.pix.get()));
-			break;
+		// send frames to the device
+		for (;;)
+		{
+			// Pull the latest frame off the queue
+			RefPtr<Slide> frame;
+			{
+				// lock the queue
+				CriticalSectionLocker locker(writeFrameLock);
+
+				// if there's no frame, there's nothing to do
+				if (writerFrame == nullptr)
+					break;
+
+				// grab the pending frame, taking over its reference count
+				frame.Attach(writerFrame.Detach());
+			}
+
+			// send the frame to the device
+			switch (frame->colorSpace)
+			{
+			case DMD_COLOR_MONO4:
+				Render_4_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+				break;
+
+			case DMD_COLOR_MONO16:
+				Render_16_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+				break;
+
+			case DMD_COLOR_RGB:
+				Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<DMDDevice::rgb24*>(frame->pix.get()));
+				break;
+			}
 		}
 	}
+
+	// done (thread return value isn't used)
+	return 0;
 }
 
 void RealDMD::OnUpdateHighScores(GameListItem *game)
@@ -788,7 +867,7 @@ void RealDMD::GenerateHighScoreGraphics()
 		++it;
 
 		// if it's a high score slide, delete it
-		if (cur->slideType == Slide::HighScoreSlide)
+		if ((*cur)->slideType == Slide::HighScoreSlide)
 			slideShow.erase(cur);
 	}
 
@@ -817,7 +896,7 @@ void RealDMD::GenerateHighScoreGraphics()
 			const DMDFont *font = DMDView::PickHighScoreFont(group);
 
 			// figure the starting y offset, centering the text vertically
-			int nLines = group.size();
+			int nLines = (int)group.size();
 			int totalTextHeight = font->cellHeight * nLines;
 			int y = (dmdHeight - totalTextHeight)/2;
 
@@ -871,7 +950,7 @@ void RealDMD::GenerateHighScoreGraphics()
 
 			// add this screen to our list, transferring ownership of the pixel
 			// buffer to the list
-			slideShow.emplace_back(DMD_COLOR_MONO16, pix.release(), 3500, Slide::HighScoreSlide);
+			slideShow.emplace_back(new Slide(DMD_COLOR_MONO16, pix.release(), 3500, Slide::HighScoreSlide));
 		});
 	}
 

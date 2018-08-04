@@ -1,0 +1,6 @@
+assets\*
+Help\*
+README.txt
+DefaultSettings.txt
+License.txt
+"Third Party Licenses.txt"

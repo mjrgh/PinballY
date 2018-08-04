@@ -1,0 +1,7 @@
+VLC64\libvlc.dll
+VLC64\libvlccore.dll
+-r VLC64\plugins
+VLC64\AUTHORS.txt
+VLC64\COPYING.txt
+VLC64\README.txt
+VLC64\THANKS.txt

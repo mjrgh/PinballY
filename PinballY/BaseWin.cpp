@@ -233,7 +233,7 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_HOTKEY:
-		if (OnHotkey(wParam, LOWORD(lParam), HIWORD(lParam)))
+		if (OnHotkey((int)wParam, LOWORD(lParam), HIWORD(lParam)))
 			return curMsg->lResult;
 		break;
 
@@ -457,7 +457,7 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_ENTERIDLE:
-		if (OnEnterIdle(wParam, (HWND)lParam))
+		if (OnEnterIdle((int)wParam, (HWND)lParam))
 			return curMsg->lResult;
 		break;
 

@@ -22,10 +22,17 @@
       <ComponentRef Id="SevenZip"/>
       <ComponentRef Id="ffmpeg"/>
       <ComponentRef Id="PINemHi"/>
-      <ComponentRef Id="vlc"/>
       <ComponentGroupRef Id="HeatGeneratedAssets" />
       <ComponentGroupRef Id="HeatGeneratedHelp" />
-      <ComponentGroupRef Id="HeatGeneratedVLCPlugins" />
+
+      <?if $(var.Platform) = x86 ?>
+        <ComponentRef Id="vlc"/>
+        <ComponentGroupRef Id="HeatGeneratedVLCPlugins" />
+      <?endif?>
+      <?if $(var.Platform) = x64 ?>
+        <ComponentGroupRef Id="HeatGeneratedVLC64Plugins" />
+        <ComponentRef Id="vlc64"/>
+      <?endif?>
     </Feature>
 
     <!-- At run time, show the dialog UI to select the destination folder -->
@@ -69,6 +76,9 @@
             <Directory Id="VLCDIR" Name="VLC" >
               <Directory Id="VLCPLUGINSDIR" Name="plugins" />
             </Directory>
+            <Directory Id="VLC64DIR" Name="VLC64" >
+              <Directory Id="VLC64PLUGINSDIR" Name="plugins" />
+            </Directory>
           </Directory>
         </Directory>
       </Directory>
@@ -111,17 +121,32 @@
       </Component>
     </DirectoryRef>
 
-    <DirectoryRef Id="VLCDIR">
-      <Component Id="vlc" Guid="5AE1F4F6-C022-40FE-B955-DA431EB1AA62">
-        <File Source="$(var.SolutionDir)VLC\libvlc.dll" />
-        <File Source="$(var.SolutionDir)VLC\libvlccore.dll" />
-        <File Source="$(var.SolutionDir)VLC\AUTHORS.txt" />
-        <File Source="$(var.SolutionDir)VLC\COPYING.txt" />
-        <File Id="vlcReadme" Source="$(var.SolutionDir)VLC\README.txt" />
-        <File Source="$(var.SolutionDir)VLC\THANKS.txt" />
-      </Component>
-    </DirectoryRef>
-    
+    <?if $(var.Platform) = x86 ?>
+      <DirectoryRef Id="VLCDIR">
+        <Component Id="vlc" Guid="5AE1F4F6-C022-40FE-B955-DA431EB1AA62">
+          <File Id="libvlc32" Source="$(var.SolutionDir)VLC\libvlc.dll" />
+          <File Id="libvlccore32" Source="$(var.SolutionDir)VLC\libvlccore.dll" />
+          <File Id="vlcAuthors32" Source="$(var.SolutionDir)VLC\AUTHORS.txt" />
+          <File Id="vlcCopying32" Source="$(var.SolutionDir)VLC\COPYING.txt" />
+          <File Id="vlcReadme32" Source="$(var.SolutionDir)VLC\README.txt" />
+          <File Id="vlcThanks32" Source="$(var.SolutionDir)VLC\THANKS.txt" />
+        </Component>
+      </DirectoryRef>
+    <?endif?>
+
+    <?if $(var.Platform) = x64 ?>
+      <DirectoryRef Id="VLC64DIR">
+        <Component Id="vlc64" Guid="6907404B-0A03-45DD-B1C8-A77FC5A13892">
+          <File Id="libvlc64" Source="$(var.SolutionDir)VLC64\libvlc.dll" />
+          <File Id="libvlccore64" Source="$(var.SolutionDir)VLC64\libvlccore.dll" />
+          <File Id="vlcAuthors64" Source="$(var.SolutionDir)VLC64\AUTHORS.txt" />
+          <File Id="vlcCopying64" Source="$(var.SolutionDir)VLC64\COPYING.txt" />
+          <File Id="vlcReadme64" Source="$(var.SolutionDir)VLC64\README.txt" />
+          <File Id="vlcThanks64" Source="$(var.SolutionDir)VLC64\THANKS.txt" />
+        </Component>
+      </DirectoryRef>
+    <?endif?>
+
   </Fragment>
 
   <Fragment>

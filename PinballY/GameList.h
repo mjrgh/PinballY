@@ -1048,7 +1048,7 @@ public:
 	const GameListFilter *GetUnconfiguredGamesFilter() const { return &unconfiguredGamesFilter; }
 
 	// Get the number of games matching the current filter
-	int GetCurFilterCount() const { return byTitleFiltered.size(); }
+	int GetCurFilterCount() const { return (int)byTitleFiltered.size(); }
 
 	// columns we use in the database file
 	const CSVFile::Column *gameCol;

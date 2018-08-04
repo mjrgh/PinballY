@@ -877,7 +877,7 @@ bool Application::SyncAutoLaunchInRegistry(ErrorHandler &eh)
 	{
 		// write the value
 		if ((err = RegSetValueEx(hkey, valName, 0, REG_SZ, (BYTE*)launchCmd.c_str(),
-			(launchCmd.length() + 1) * sizeof(TCHAR))) != ERROR_SUCCESS)
+			(DWORD)((launchCmd.length() + 1) * sizeof(TCHAR)))) != ERROR_SUCCESS)
 			return ReturnError(MsgFmt(_T("Updating %s[%s] to %s"), keyName, valName, launchCmd.c_str()));
 	}
 
@@ -1595,7 +1595,7 @@ DWORD Application::GameMonitorThread::Main()
 		// Write the message to the mailslot.  Ignore errors, as the only
 		// harm if we fail is that PinVol won't have the title to display.
 		DWORD actual;
-		WriteFile(mailslot, msg.c_str(), msg.length() * sizeof(WCHAR), &actual, NULL);
+		WriteFile(mailslot, msg.c_str(), (DWORD)(msg.length() * sizeof(WCHAR)), &actual, NULL);
 	}
 
 	// Get the centerpoint of the various windows.  If we need to
@@ -3387,7 +3387,7 @@ void Application::AdminHost::ProcessRequests()
 
 		// write the request to the pipe
 		const TCHAR *writeData = req->request.get();
-		DWORD writeLen = req->requestCharLen * sizeof(TCHAR);
+		DWORD writeLen = (DWORD)(req->requestCharLen * sizeof(TCHAR));
 		DWORD actual;
 		if (!WriteFile(hPipeOut, writeData, writeLen, &actual, NULL) || actual != writeLen)
 		{

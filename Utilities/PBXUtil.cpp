@@ -30,44 +30,56 @@ const TCHAR *GetPinballXPath()
 		// contain the full path to the PinballX.exe application file.
 		HKEYHolder hkey;
 		std::basic_regex<TCHAR> exePat(_T(".*\\\\pinballx\\.exe$"), std::regex_constants::icase);
-		if (RegOpenKey(HKEY_LOCAL_MACHINE, _T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"), &hkey) == ERROR_SUCCESS)
+		static const TCHAR *keys[] = {
+			_T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+			_T("SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall")
+		};
+		for (auto key : keys)
 		{
-			// enumerate subkeys
-			for (DWORD index = 0; ; ++index)
+			// check this key
+			if (RegOpenKey(HKEY_LOCAL_MACHINE, key, &hkey) == ERROR_SUCCESS)
 			{
-				TCHAR name[256];
-				DWORD namelen = countof(name);
-				if (RegEnumKeyEx(hkey, index, name, &namelen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS)
+				// enumerate subkeys
+				for (DWORD index = 0; ; ++index)
 				{
-					// query the DisplayIcon value of this key
-					HKEYHolder hSubkey;
-					DWORD typ;
-					TCHAR val[MAX_PATH];
-					DWORD vallen = sizeof(val);
-					if (RegOpenKey(hkey, name, &hSubkey) == ERROR_SUCCESS
-						&& RegQueryValueEx(hSubkey, _T("DisplayIcon"), NULL, &typ, (BYTE*)val, &vallen) == ERROR_SUCCESS
-						&& std::regex_match(val, exePat))
+					TCHAR name[256];
+					DWORD namelen = countof(name);
+					if (RegEnumKeyEx(hkey, index, name, &namelen, NULL, NULL, NULL, NULL) == ERROR_SUCCESS)
 					{
-						// DisplayIcon should be set to the full path and filename
-						// of the PinballX executable.  Remove the filename part to
-						// get the path - that should be the PBX install folder.
-						PathRemoveFileSpec(val);
-						pinballXPath = val;
+						// query the DisplayIcon value of this key
+						HKEYHolder hSubkey;
+						DWORD typ;
+						TCHAR val[MAX_PATH];
+						DWORD vallen = sizeof(val);
+						if (RegOpenKey(hkey, name, &hSubkey) == ERROR_SUCCESS
+							&& RegQueryValueEx(hSubkey, _T("DisplayIcon"), NULL, &typ, (BYTE*)val, &vallen) == ERROR_SUCCESS
+							&& std::regex_match(val, exePat))
+						{
+							// DisplayIcon should be set to the full path and filename
+							// of the PinballX executable.  Remove the filename part to
+							// get the path - that should be the PBX install folder.
+							PathRemoveFileSpec(val);
+							pinballXPath = val;
 
-						// stop searching
+							// stop searching
+							break;
+						}
+					}
+					else
+					{
+						// Stop on any error.  When we reach the last item, the status
+						// will be ERROR_NO_MORE_ITEMS, so we'll want to stop.  But we
+						// also want to stop on any other error, so really the only time
+						// we *don't* want to stop is the 'success' case that we've
+						// already handled.
 						break;
 					}
 				}
-				else
-				{
-					// Stop on any error.  When we reach the last item, the status
-					// will be ERROR_NO_MORE_ITEMS, so we'll want to stop.  But we
-					// also want to stop on any other error, so really the only time
-					// we *don't* want to stop is the 'success' case that we've
-					// already handled.
-					break;
-				}
 			}
+
+			// stop if we found the key
+			if (pinballXPath.length() != 0)
+				break;
 		}
 
 		// we've now done the search

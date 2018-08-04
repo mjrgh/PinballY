@@ -1,0 +1,3 @@
+-j x64\release\PinballY.exe
+-j "x64\release\PinballY Admin Mode.exe"
+-j x64\release\OptionsDialog.dll

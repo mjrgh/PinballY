@@ -23,7 +23,7 @@ CSVFile::Column *CSVFile::DefineColumn(const TCHAR *name)
 	auto it = columns.emplace(
 		std::piecewise_construct,
 		std::forward_as_tuple(name),
-		std::forward_as_tuple(this, name, columns.size()));
+		std::forward_as_tuple(this, name, (int)columns.size()));
 	return &it.first->second;
 }
 
@@ -208,7 +208,7 @@ bool CSVFile::Write(ErrorHandler &eh)
 	// write a string segment to the file
 	auto WriteSegment = [fp, ReportError](const TCHAR *str, size_t len)
 	{
-		if (_ftprintf(fp, _T("%.*s"), len, str) < 0)
+		if (_ftprintf(fp, _T("%.*s"), (int)len, str) < 0)
 			return ReportError(errno);
 		else
 			return true;

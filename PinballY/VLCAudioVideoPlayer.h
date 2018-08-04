@@ -182,17 +182,18 @@ protected:
 	// the kind of multi-stream playback we need to do.  Instead, we
 	// stream data to the GPU simply by creating a new texture for
 	// each frame.  This is less efficient than dynamic textures,
-	// but in testing it's more reliable.  (The really big problem
-	// with dynamic textures is that D3D seems to have bugs that
-	// make it crash on exhausting dynamic texture memory rather 
-	// than returning errors to callers as it should.  That makes
-	// it impossible to gracefully handle these conditions in the
-	// app code.)
-	class FrameBuffer
+	// but in testing it's more reliable.  (The key problem with 
+	// 'usage dynamic' textures is that the D3D11 call to allocate
+	// one flat out crashes when shared video memory is exhausted,
+	// rather than returning an error.  If it returned an error, we 
+	// could handle these conditions in app code, but there's no
+	// graceful way to handle the crash down in the D3D11 code.)
+	class FrameBuffer : public RefCounted
 	{
 	public:
 		FrameBuffer() : 
-			status(Free)
+			status(Free),
+			pixBuf(nullptr, &_aligned_free)
 		{ 
 		}
 
@@ -201,7 +202,7 @@ protected:
 		}
 
 		// frame status
-		enum
+		enum FrameStatus
 		{
 			// Free: this frame buffer is available for a new decoded frame.
 			Free,
@@ -210,9 +211,14 @@ protected:
 			// process of decoding frame data into it.
 			Locked,
 
-			// Valid:  VLC has finished rendering a frame into this buffer.
-			Valid
-		} status;
+			// Valid:  VLC has finished rendering a frame into this buffer,
+			// but the frame hasn't yet been presented.
+			Valid,
+
+			// Presented:  VLC has presented this frame.
+			Presented
+		};
+		volatile FrameStatus status;
 
 		// Frame dimensions in pixels
 		SIZE dims;
@@ -220,7 +226,7 @@ protected:
 		// Pixel buffer.  This is allocated in our libvlc "set format"
 		// callback, which tells us the size and pixel format of the frame
 		// so that we can allocate buffers.
-		std::unique_ptr<BYTE> pixBuf;
+		std::unique_ptr<BYTE, decltype(&_aligned_free)> pixBuf;
 
 		// Shader to use for rendering this frame
 		Shader *shader;
@@ -247,8 +253,12 @@ protected:
 		int nPlanes;
 	};
 
-	// Frame buffers
-	FrameBuffer frame[5];
+	// Frame buffers.  We seem to get the best results with about
+	// 3-5 buffers.  We need more than one to allow for concurrent
+	// decoding and rendering, but more than about 10 actually
+	// slows things down quite a lot, perhaps because of the large
+	// amount of memory that has to be allocated.
+	RefPtr<FrameBuffer> frame[3];
 
 	// Shader for current rendered frame
 	Shader *shader;
@@ -267,7 +277,7 @@ protected:
 	CriticalSection renderLock;
 
 	// Current presented frame
-	FrameBuffer *presentedFrame;
+	RefPtr<FrameBuffer> presentedFrame;
 
 	// has the first frame been presented yet?
 	bool firstFramePresented;

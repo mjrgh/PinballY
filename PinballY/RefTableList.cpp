@@ -97,7 +97,7 @@ void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst
 		// match, just a substring match, but we need a score on the 0-1.0
 		// scale for comparison purposes.  Score it based on the number of
 		// initials.  Don't try to match based on a single initial at all.
-		const TCHAR *initials = initialsCol->Get(i, _T(""));
+		const TCHAR *initials = initialsCol->Get((int)i, _T(""));
 		size_t nInitials = _tcslen(initials);
 		if (nInitials > 1 && (lcName == initials || baseName == initials))
 		{
@@ -121,7 +121,7 @@ void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst
 		}
 
 		// add it to the results, using the highest score we found
-		searchResults.emplace_back(i, score);
+		searchResults.emplace_back((int)i, score);
 	}
 
 	// sort the list by descending score
@@ -234,7 +234,7 @@ void RefTableList::Init()
 		for (size_t i = 0; i < nRows; ++i)
 		{
 			// get the name, in lower-case
-			TSTRING name = self->nameCol->Get(i, _T(""));
+			TSTRING name = self->nameCol->Get((int)i, _T(""));
 			std::transform(name.begin(), name.end(), name.begin(), _totlower);
 
 			// Emplace a new row in the bigram set vector, and build
@@ -243,16 +243,16 @@ void RefTableList::Init()
 			DiceCoefficient::BuildBigramSet(self->nameBigrams.back(), name.c_str());
 
 			// likewise for the AltName bigrams
-			TSTRING altName = self->altNameCol->Get(i, _T(""));
+			TSTRING altName = self->altNameCol->Get((int)i, _T(""));
 			std::transform(altName.begin(), altName.end(), altName.begin(), _totlower);
 			self->altNameBigrams.emplace_back();
 			DiceCoefficient::BuildBigramSet(self->altNameBigrams.back(), altName.c_str());
 
 			// Synthesize the sorting key
-			self->MakeSortKey(i);
+			self->MakeSortKey((int)i);
 
 			// Synthesize the list name
-			self->MakeListName(i);
+			self->MakeListName((int)i);
 
 			// Synthesize the initials.  Start by stripping out any paren-
 			// thetical suffix, then strip out any remaining punctuation
@@ -265,7 +265,7 @@ void RefTableList::Init()
 			initName = std::regex_replace(initName, initPat, _T("$1"));
 
 			// store it
-			self->initialsCol->Set(i, initName.c_str());
+			self->initialsCol->Set((int)i, initName.c_str());
 		}
 
 		// done (the thread return value isn't used, but we have to return

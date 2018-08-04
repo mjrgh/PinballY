@@ -920,7 +920,7 @@ bool FrameWin::OnNCHitTest(POINT ptMouse, UINT &hit)
 
 	// Now use the combination of top/bottom and left/right to see which
 	// specific border zone we're in
-	static const LRESULT hitTests[3][3] =
+	static const UINT hitTests[3][3] =
 	{
 		{ HTTOPLEFT,    HTTOP,     HTTOPRIGHT },
 		{ HTLEFT,       HTNOWHERE, HTRIGHT },

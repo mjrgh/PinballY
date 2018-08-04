@@ -488,7 +488,7 @@ void KeyboardDialog::CloseKeyEntry(BOOL commit)
 
 								const std::list<const Cmd::Key*> &origKeys;
 								const Cmd::Key *newKey;
-								int result;
+								UINT_PTR result;
 							};
 							PromptDialog prompt(origKeys, newKey.get());
 							prompt.Show(IDD_DUPLICATE_KEY);

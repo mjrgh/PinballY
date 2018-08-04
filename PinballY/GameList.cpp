@@ -78,7 +78,7 @@ GameList::GameList()
 
 	// initialize the stats database
 	size_t nRows = statsDb.GetNumRows();
-	for (size_t i = 0; i < nRows; ++i)
+	for (int i = 0; i < (int)nRows; ++i)
 	{
 		// add a game index entry for the game ID at this row
 		if (const TCHAR *id = gameCol->Get(i); id != nullptr)
@@ -329,7 +329,7 @@ void GameList::RestoreConfig()
 	if (const TCHAR *gameId = cfg->Get(ConfigVars::CurGame); gameId != 0)
 	{
 		// search for the game in the list selected by the filter
-		for (size_t i = 0 ; i < byTitleFiltered.size() ; ++i)
+		for (int i = 0 ; i < (int)byTitleFiltered.size() ; ++i)
 		{
 			if (byTitleFiltered[i]->GetGameId() == gameId)
 			{
@@ -426,7 +426,7 @@ GameListItem *GameList::GetNthGame(int n)
 		return noGame.get();
 
 	// if the filter is empty, there's no current game
-	int cnt = byTitleFiltered.size();
+	int cnt = (int)byTitleFiltered.size();
 	if (cnt == 0)
 		return noGame.get();
 
@@ -444,7 +444,7 @@ int GameList::FindNextLetter()
 	TCHAR l = _totlower(byTitleFiltered[curGame]->title[0]);
 
 	// scan ahead from the current game
-	int cnt = byTitleFiltered.size();
+	int cnt = (int)byTitleFiltered.size();
 	for (int i = (curGame + 1) % cnt, n = 1; i != curGame; i = (i + 1) % cnt, ++n)
 	{
 		// check for a different first letter
@@ -468,7 +468,7 @@ int GameList::FindPrevLetter()
 	// start of a group.  We can accomplish both by searching for the
 	// nearest previous item with a different letter from the item
 	// just before the current item.  So start by backing up one spot.
-	int cnt = byTitleFiltered.size();
+	int cnt = (int)byTitleFiltered.size();
 	int i = Wrap(curGame - 1, cnt);
 
 	// get this item's first letter
@@ -492,7 +492,7 @@ int GameList::FindPrevLetter()
 void GameList::SetGame(int n)
 {
 	// do nothing if there's no active game or the filter is empty
-	int cnt = byTitleFiltered.size();
+	int cnt = (int)byTitleFiltered.size();
 	if (curGame < 0 || cnt == 0)
 		return;
 
@@ -576,7 +576,7 @@ void GameList::RefreshFilter()
 		if (curFilter->Include(g, dMidnight))
 		{
 			// note its new index, and add it to the list
-			int idx = byTitleFiltered.size();
+			int idx = (int)byTitleFiltered.size();
 			byTitleFiltered.push_back(g);
 
 			auto IsLexicallyCloser = [](const TSTRING &newName, const TSTRING &oldName, const TSTRING &refName)

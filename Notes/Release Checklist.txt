@@ -7,10 +7,12 @@ PinballY Release Checklist
 - Edit PinballY\VersionInfo.h - update the version data as needed
 
 - Select the Release | x86 configuration
+  - Build > Clean Solution
+  - Build > Build Solution
 
-- Build > Clean Solution
-
-- Build > Build Solution
+- Select the Release | x64 configuration
+  - Build > Clean Solution
+  - Build > Build Solution
 
 - Close Visual Studio
 

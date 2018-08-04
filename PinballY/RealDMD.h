@@ -65,6 +65,38 @@ protected:
 	// singleton instance
 	static RealDMD *inst;
 
+	// Color space for a stored image.  This specifies the type of
+	// pixel data stored in the image, and the render function we 
+	// use to display it.
+	enum ColorSpace
+	{
+		DMD_COLOR_MONO4,		// 4-shade grayscale
+		DMD_COLOR_MONO16,		// 16-shade grayscale
+		DMD_COLOR_RGB			// 24-bit RGB
+	};
+
+	// Device writer thread.  Some device-specific dmddevice.dll
+	// implementations might block on the data transfer to the 
+	// physical device (e.g., a USB write).  We don't want the
+	// UI thread to get blocked on these writes, so we use a
+	// separate thread.
+	HandleHolder hWriterThread;
+
+	// thread exit flag
+	volatile bool writerThreadQuit;
+
+	// writer thread entrypoint
+	static DWORD WINAPI SWriterThreadMain(LPVOID lParam)
+		{ return reinterpret_cast<RealDMD*>(lParam)->WriterThreadMain(); }
+	DWORD WriterThreadMain();
+
+	// Device writer event.  We signal this event whenever we
+	// add a frame to the write queue.
+	HandleHolder hWriterEvent;
+
+	// Write queue lock
+	CriticalSection writeFrameLock;
+
 	// DLL location - set by FindDLL()
 	TSTRING dllPath;
 
@@ -84,16 +116,6 @@ protected:
 	// Monochrome base color for the current game, from the 
 	// VPinMAME settings for the game's ROM.
 	COLORREF baseColor;
-
-	// Color space for a stored image.  This specifies the type of
-	// pixel data stored in the image, and the render function we 
-	// use to display it.
-	enum ColorSpace
-	{
-		DMD_COLOR_MONO4,		// 4-shade grayscale
-		DMD_COLOR_MONO16,		// 16-shade grayscale
-		DMD_COLOR_RGB			// 24-bit RGB
-	};
 
 	// current game selection
 	GameListItem *curGame;
@@ -122,11 +144,12 @@ protected:
 	// If we have high score graphics, they appear in this list.
 	// High score graphics (unlike the still image from the media
 	// folder) can be used in combination with a video. 
-	struct Slide
+	struct Slide : RefCounted
 	{
 		// Slide type
 		enum SlideType
 		{
+			EmptySlide,      // generated empty image
 			MediaSlide,      // still image from the game's media folder
 			HighScoreSlide   // generated high score screen
 		} slideType;
@@ -139,7 +162,7 @@ protected:
 		{
 		}
 
-		// The image's color type - this selects the render
+		// The image's color type - this selects the device DLL
 		// function that we use to display it
 		ColorSpace colorSpace;
 
@@ -149,7 +172,21 @@ protected:
 		// display time for this image, in milliseconds
 		DWORD displayTime;
 	};
-	std::list<Slide> slideShow;
+	std::list<RefPtr<Slide>> slideShow;
+
+	// Empty screen slide.  We use this to clear the display when
+	// appropriate.
+	RefPtr<Slide> emptySlide;
+
+	// Next frame to write.  Note that we only keep a single frame
+	// buffered, since the main thread produces frames for display
+	// in real time.  There's no point in keeping missed frames;
+	// we'll just drop any frame that we don't manage to send to
+	// the device before the next frame arrives.
+	RefPtr<Slide> writerFrame;
+
+	// send a frame to the writer
+	void SendWriterFrame(Slide *slide);
 
 	// start slide show playback
 	void StartSlideShow();

@@ -6,10 +6,3 @@ PINemHi\pinemhi.exe
 PINemHi\pinemhi.ini
 PINemHi\pinemhi_replays.ini
 "PINemHi\Whatsnew PINemHi.txt"
-VLC\libvlc.dll
-VLC\libvlccore.dll
--r VLC\plugins
-VLC\AUTHORS.txt
-VLC\COPYING.txt
-VLC\README.txt
-VLC\THANKS.txt

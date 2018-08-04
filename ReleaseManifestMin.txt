@@ -1,9 +1,0 @@
--j Release\PinballY.exe
--j "Release\PinballY Admin Mode.exe"
--j Release\OptionsDialog.dll
-assets\*
-Help\*
-README.txt
-DefaultSettings.txt
-License.txt
-"Third Party Licenses.txt"

@@ -1159,7 +1159,7 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 		{
 			// if there's exactly one system, use that implicitly; if
 			// there are more than one, we have to ask
-			if (int nSystems = game->tableFileSet->systems.size(); nSystems == 0)
+			if (size_t nSystems = game->tableFileSet->systems.size(); nSystems == 0)
 			{
 				// there's nothing to choose from
 			}
@@ -1169,13 +1169,13 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 				// bet that this is the right system for the game.
 				system = game->tableFileSet->systems.front();
 			}
-			else if (systemIndex >= 0 && systemIndex < nSystems)
+			else if (systemIndex >= 0 && (size_t)systemIndex < nSystems)
 			{
 				// A system index was explicitly specified, meaning that
 				// the user selected a system from the system picker menu
 				// we presented in the code below in a prior pass.  Run
 				// the game with that system selected.
-				int n = 0;
+				size_t n = 0;
 				for (auto s : game->tableFileSet->systems)
 				{
 					if (n++ == systemIndex)
@@ -1438,7 +1438,7 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 
 	// if the selected page is out of range, wrap it
 	if (cardNumber < 0)
-		cardNumber = cards.size() - 1;
+		cardNumber = (int)cards.size() - 1;
 	else if (cardNumber >= (int)cards.size())
 		cardNumber = 0;
 
@@ -1521,7 +1521,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 
 	// if the selected page is out of range, wrap it
 	if (pageNumber < 0)
-		pageNumber = flyers.size() - 1;
+		pageNumber = (int)flyers.size() - 1;
 	else if (pageNumber >= (int)flyers.size())
 		pageNumber = 0;
 
@@ -3318,7 +3318,7 @@ void PlayfieldView::ShowQueuedError()
 
 	// add interline spacing
 	int spacing = 12;
-	ht += (messages.size() - 1) * spacing;
+	ht += ((int)messages.size() - 1) * spacing;
 
 	// if anything goes wrong while loading the graphics, ignore that
 	// problem and show the original error message in a system error box

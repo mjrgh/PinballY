@@ -244,7 +244,7 @@ void OptionsPage::RadioStrMap::LoadConfigVar()
 	{
 		if (_tcsicmp(val, vals[i]) == 0)
 		{
-			intVar = i;
+			intVar = (int)i;
 			break;
 		}
 	}
