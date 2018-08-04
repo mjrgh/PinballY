@@ -2021,6 +2021,10 @@ void PlayfieldView::ShowGameInfo()
 		if (game->filename.length() != 0)
 			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, game->filename.c_str()), detailsFont.get(), &detailsBr);
 
+		// add the media file name
+		if (game->mediaName.length() != 0)
+			gds.DrawString(MsgFmt(IDS_GAMEINFO_MEDIANAME, game->mediaName.c_str()), detailsFont.get(), &detailsBr);
+
 		// add the DOF ROM, if present
 		if (auto dofClient = DOFClient::Get(); dofClient != nullptr)
 		{
@@ -5312,12 +5316,23 @@ void PlayfieldView::ShowRecencyFilterMenu(
 	std::list<MenuItemDesc> md;
 	GameList *gl = GameList::Get();
 	const GameListFilter *curFilter = gl->GetCurFilter();
-	auto AddFilters = [gl, &md, curFilter, &testFilterType](std::function<bool(const RecencyFilter *f)> include)
+	auto AddFilters = [gl, &md, curFilter, &testFilterType](
+		std::function<bool(const RecencyFilter *f)> include, bool startGroup = false)
 	{
 		for (auto f : gl->GetFilters())
 		{
 			if (auto rf = dynamic_cast<RecencyFilter*>(f); rf != nullptr && testFilterType(rf) && include(rf))
+			{
+				// add a separator, if this is the first in the group
+				if (startGroup)
+				{
+					md.emplace_back(_T(""), -1);
+					startGroup = false;
+				}
+
+				// add the item
 				md.emplace_back(rf->menuTitle.c_str(), rf->cmd, rf == curFilter ? MenuRadio : 0);
+			}
 		}
 	};
 
@@ -5333,8 +5348,7 @@ void PlayfieldView::ShowRecencyFilterMenu(
 	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days < 3000000; });
 
 	// Add the "Never Played" filter in its own group
-	md.emplace_back(_T(""), -1);
-	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days > 3000000; });
+	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days > 3000000; }, true);
 
 	// add a Cancel item at the end
 	md.emplace_back(_T(""), -1);

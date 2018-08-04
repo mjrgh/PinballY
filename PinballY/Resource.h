@@ -116,6 +116,7 @@
 #define IDS_DATE_ADDED                  381
 #define IDS_GAMEINFO_FAV                382
 #define IDS_GAMEINFO_NVRAM              383
+#define IDS_GAMEINFO_MEDIANAME          384
 
 #define IDS_N_CREDITS                   390
 #define IDS_1_CREDIT                    391

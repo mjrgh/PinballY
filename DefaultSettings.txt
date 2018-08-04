@@ -148,7 +148,7 @@ WaitForMonitors = 1 monitor, 10 seconds
 # get the DLL from the VP files, make sure you select the DLL version
 # that matches your physical DMD device.
 #
-RealDMD = Auto
+RealDMD = Off
 
 # Real DMD mirroring modes.  These are for cabinets where the user views
 # the display via a mirror (e.g., "Pinball 2000" style cabinets).  If a
