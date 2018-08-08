@@ -48,6 +48,28 @@ public:
 	// file and the game statistics file.
 	static void SaveFiles();
 
+	// Initialize a dialog window position.  A dialog proc can call this
+	// on receiving WM_INITDIALOG to set the dialog position to the last
+	// saved position, or to initially position the dialog over a non-
+	// rotated window.  On pin cabs, the main playfield window is often
+	// shown with its contents rotated 90 or 270 degrees from the Windows
+	// desktop orientation on its monitor.  Ideally, we'd just rotate the
+	// dialog itself to match the content rotation, since that's the
+	// user's desired orientation for content on that monitor, but 
+	// unfortunately Windows doesn't have a mechanism for rotating the
+	// controls within dialog windows.  The next best option for the user
+	// is to reposition the dialog onto a different monitor where the
+	// content isn't rotated, such as the backglass monitor.  We can help
+	// out with this by making the dialog position's window stick across
+	// invocations, so that the user doesn't have to keep moving it to a
+	// workable location every time it opens.  We can also look for a 
+	// non-rotated window and position it there initially, if we don't
+	// have a user-defined saved location to restore.
+	void InitDialogPos(HWND hDlg, const TCHAR *configVar);
+
+	// save a dialog position for later restoration
+	void SaveDialogPos(HWND hDlg, const TCHAR *configVar);
+
 	// Application title, for display purposes (e.g., message box title)
 	TSTRINGEx Title;
 
@@ -209,6 +231,11 @@ public:
 	void ToggleMuteVideos() { MuteVideos(!muteVideos); }
 	bool IsMuteVideos() const { return muteVideos; }
 
+	// Mute table audio
+	void MuteTableAudio(bool mute);
+	void ToggleMuteTableAudio() { MuteTableAudio(!muteTableAudio); }
+	bool IsMuteTableAudio() const { return muteTableAudio; }
+
 	// Update the video enabled status for active videos in all 
 	// windows
 	void UpdateEnableVideos();
@@ -336,6 +363,9 @@ protected:
 
 	// are videos muted?
 	bool muteVideos;
+
+	// are table audios muted?
+	bool muteTableAudio;
 
 	// mute in attract mode?
 	bool muteAttractMode;
@@ -604,6 +634,30 @@ protected:
 
 	// current game monitor thread
 	RefPtr<GameMonitorThread> gameMonitor;
+
+	// Watchdog process interface.  This manages the pipes
+	// related to the watchdog process, which monitors for abnormal
+	// termination of the main PinballY process and clean up after
+	// us should we crash.  This helps avoid leaving global system
+	// state changes in effect after we exit.  For example, the
+	// watchdog will restore visibility of the taskbar window if
+	// we crash after hiding it.
+	struct Watchdog
+	{
+		// launch the watchdog process
+		void Launch();
+
+		// send a notification message to the watchdog process
+		void Notify(const char *msg);
+
+		// process handle of the watchdog (we launch it as a child)
+		HandleHolder hProc;
+
+		// communications pipes
+		HandleHolder hPipeRead;
+		HandleHolder hPipeWrite;
+	};
+	Watchdog watchdog;
 
 	// Admin Host interface.  This manages the pipes and threads
 	// related to the Admin Host.  The Admin Host is a separate

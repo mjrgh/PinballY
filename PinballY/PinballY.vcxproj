@@ -201,6 +201,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="D3DView.cpp" />
     <ClCompile Include="D3DWin.cpp" />
     <ClCompile Include="DateUtil.cpp" />
+    <ClCompile Include="DialogWithSavedPos.cpp" />
     <ClCompile Include="DMDFont.cpp" />
     <ClCompile Include="DMDShader.cpp" />
     <ClCompile Include="DMDView.cpp" />
@@ -263,6 +264,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="D3DWin.h" />
     <ClInclude Include="DateUtil.h" />
     <ClInclude Include="DialogResource.h" />
+    <ClInclude Include="DialogWithSavedPos.h" />
     <ClInclude Include="DiceCoefficient.h" />
     <ClInclude Include="DMDFont.h" />
     <ClInclude Include="DMDShader.h" />
@@ -390,8 +392,8 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">shaders\%(Filename).h</HeaderFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ObjectFileOutput>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">5.0</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.1</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.1</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
     </FxCompile>

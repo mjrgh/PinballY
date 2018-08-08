@@ -1,5 +1,26 @@
 PinballY Update History
 
+08-07-2018 (1.0.0 Alpha 6)
+
+* Added media file viewer: select via the Game Setup menu; shows
+all media folders for the game and all matching files; commands to
+open folders in Windows Explorer and delete individual media files
+
+* Added Table Audio media type support, including capture
+
+* Remember dialog window positions, and set the initial default
+position so that it's over a non-rotated window
+ 
+* Add media file name template to game info box
+
+* Add option to suppress splash screen at startup
+
+* Fix extra separator bar in "last played" filter menu
+
+* Added a "watchdog" process that restores the desktop taskbar to
+visibility, if PinballY happens to crash or otherwise exit abnormally
+while the taskbar was hidden for a game launch
+
 08-03-2018 (1.0.0 Alpha 5)
 
 64-bit build, to better support 4K video (libvlc needs about 600MB to

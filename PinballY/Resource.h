@@ -41,6 +41,10 @@
 #define IDB_ALPHANUM_PURPLE             168
 #define IDB_ALPHANUM_WHITE              169
 #define IDB_ALPHANUM_AMBER              170
+#define IDB_FOLDER_ICON                 171
+#define IDB_IMAGE_FILE_ICON             172
+#define IDB_VIDEO_FILE_ICON             173
+#define IDB_AUDIO_FILE_ICON             174
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
@@ -84,6 +88,7 @@
 #define IDS_MEDIATYPE_REALDMDCLRPIC     273
 #define IDS_MEDIATYPE_REALDMDVID        274
 #define IDS_MEDIATYPE_REALDMDCLRVID     275
+#define IDS_MEDIATYPE_PFAUDIO           276
 
 
 #define IDS_RENAME_MEDIA_PROMPT         280
@@ -133,6 +138,7 @@
 #define IDS_MENU_RATE_GAME              408
 #define IDS_MENU_HIGH_SCORES            409
 
+#define IDS_MENU_MUTETABLEAUDIO         419
 #define IDS_MENU_EXIT                   420
 #define IDS_MENU_SHUTDOWN               421
 #define IDS_MENU_ABOUT                  422
@@ -192,6 +198,7 @@
 #define IDS_MENU_OPTIONS                503
 #define IDS_MENU_ENABLE_ALL_VIDEO       504
 #define IDS_MENU_SHOW_UNCONFIG          505
+#define IDS_MENU_SHOW_MEDIA             506
 
 #define IDS_MENU_EDIT_GAME_INFO         520
 #define IDS_MENU_SET_CATEGORIES         521
@@ -294,6 +301,9 @@
 #define IDS_ERR_DMDNODLL                685
 #define IDS_ERR_OPTS_DIALOG_DLL         686
 #define IDS_ERR_NOT_WHILE_RUNNING       687
+#define IDS_ERR_OPTS_DIALOG_DLL_VER     688
+#define IDS_ERR_CAP_NO_AUDIO_DEV        689
+#define IDS_ERR_DEL_MEDIA_FILE          690
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
@@ -347,6 +357,20 @@
 #define IDS_HISCORECOMBO_STRINGS        933
 
 #define ID_DLG_MONITOR_WAIT             950
+
+#define IDS_SHOWMEDIA_CAPTION           960
+#define IDS_SHOWMEDIA_UNCONFIG          961
+#define IDS_SHOWMEDIA_TEMPLATE          962
+#define IDS_SHOWMEDIA_INSTRS            963
+#define IDS_SHOWMEDIA_CLOSE             964
+#define IDS_SHOWMEDIA_OPEN              965
+#define IDS_SHOWMEDIA_DEL               966
+#define IDS_SHOWMEDIA_CANCEL            967
+#define IDS_SHOWMEDIA_SHOW              968
+
+#define IDS_SHOWMEDIA_CONFIRM_DEL       980
+#define IDS_SHOWMEDIA_CONFIRM_DEL_YES   981
+#define IDS_SHOWMEDIA_CONFIRM_DEL_NO    982
 
 #define ID_EXIT                         32777
 #define ID_OPTIONS                      32778
@@ -420,6 +444,9 @@
 #define ID_OPERATOR_MENU                32847
 #define ID_CAPTURE_ADJUSTDELAY          32848
 #define ID_FILTER_BY_ADDED              32849
+#define ID_MUTE_TABLE_AUDIO             32850
+#define ID_SHOW_MEDIA_FILES             32851
+#define ID_DEL_MEDIA_FILE               32852
 
 
 // Next default values for new objects
@@ -428,7 +455,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32850
+#define _APS_NEXT_COMMAND_VALUE         32853
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

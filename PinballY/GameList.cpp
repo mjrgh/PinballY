@@ -2661,6 +2661,30 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 // Game list item.  This represents the entry for a single game.
 //
 
+std::list<const MediaType*> GameListItem::allMediaTypes;
+
+void GameListItem::InitMediaTypeList()
+{
+	allMediaTypes.clear();
+	allMediaTypes.push_back(&playfieldImageType);
+	allMediaTypes.push_back(&playfieldVideoType);
+	allMediaTypes.push_back(&playfieldAudioType);
+	allMediaTypes.push_back(&backglassImageType);
+	allMediaTypes.push_back(&backglassVideoType);
+	allMediaTypes.push_back(&dmdImageType);
+	allMediaTypes.push_back(&dmdVideoType);
+	allMediaTypes.push_back(&topperImageType);
+	allMediaTypes.push_back(&topperVideoType);
+	allMediaTypes.push_back(&wheelImageType);
+	allMediaTypes.push_back(&instructionCardImageType);
+	allMediaTypes.push_back(&flyerImageType);
+	allMediaTypes.push_back(&launchAudioType);
+	allMediaTypes.push_back(&realDMDImageType);
+	allMediaTypes.push_back(&realDMDColorImageType);
+	allMediaTypes.push_back(&realDMDVideoType);
+	allMediaTypes.push_back(&realDMDColorVideoType);
+}
+
 GameListItem::GameListItem(
 	const TCHAR *mediaName,
 	const char *title, 
@@ -2805,9 +2829,14 @@ TSTRING GameListItem::CleanMediaName(const TCHAR *src)
 //
 // Extensions in the list must include the '.' character.  Use one
 // space to delimit adjacent items.
+//
+// The order of the extensions determines the media search order.
+// In addition, the first extension for each type determines the
+// default capture format for that type.
+//
 #define ImageExtensions  _T(".png .jpg .jpeg")
 #define VideoExtensions  _T(".mp4 .mpg .mkv .wmv .f4v .m4v .avi")
-#define AudioExtensions  _T(".wav .mp3")
+#define AudioExtensions  _T(".mp3 .wav")
 
 // Flyer images are arranged into subfolders by page.  (Note that these
 // are directory names used in the HyperPin/PinballX media database
@@ -2839,6 +2868,8 @@ const MediaType GameListItem::playfieldImageType = {
 	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, nullptr, MediaType::Image, 270 };
 const MediaType GameListItem::playfieldVideoType = {
 	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, ConfigVars::CapturePFVideoTime, MediaType::VideoWithAudio, 270 };
+const MediaType GameListItem::playfieldAudioType = {
+	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, ConfigVars::CapturePFAudioTime, MediaType::Audio, 270 };
 const MediaType GameListItem::backglassImageType = {
 	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, nullptr, MediaType::Image, 0 };
 const MediaType GameListItem::backglassVideoType = {
@@ -2894,7 +2925,7 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 		newMediaName = title;
 
 	// clean up the name to remove invalid filename characters
-	mediaName = CleanMediaName(newMediaName.c_str());
+	newMediaName = CleanMediaName(newMediaName.c_str());
 
 	// If the name has changed (ignoring case), apply the change
 	if (_tcsicmp(mediaName.c_str(), newMediaName.c_str()) != 0)
@@ -2950,7 +2981,7 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 			{
 				// get the list of existing files for this media type
 				std::list<TSTRING> filenames;
-				GetMediaItems(filenames, mediaType, false);
+				GetMediaItems(filenames, mediaType);
 
 				// add each item to the result list with its old and new name
 				for (auto &f : filenames)
@@ -2988,9 +3019,14 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 bool GameListItem::GetMediaItem(TSTRING &filename,
 	const MediaType &mediaType, bool forCapture) const
 {
+	// if we're getting a name for capture purposes, the file
+	// doesn't have to exist; otherwise, we're looking for an
+	// extant file
+	DWORD flags = forCapture ? 0 : GMI_EXISTS;
+
 	// get the list of media items
 	std::list<TSTRING> lst;
-	if (!GetMediaItems(lst, mediaType, forCapture) || lst.size() == 0)
+	if (!GetMediaItems(lst, mediaType, flags) || lst.size() == 0)
 		return false;
 
 	// return the first item in the list
@@ -3000,9 +3036,9 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 
 
 bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
-	const MediaType &mediaType, bool forCapture) const
+	const MediaType &mediaType, DWORD flags) const
 {
-	// get the media path
+	// get the media folder
 	TCHAR dir[MAX_PATH];
 	if (!mediaType.GetMediaPath(dir, system != nullptr ? system->mediaDir.c_str() : nullptr))
 		return false;
@@ -3019,7 +3055,7 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 		for (int pageno = 0; ; ++pageno)
 		{
 			// build the base filename sans extension
-			TCHAR fullName[MAX_PATH];
+			TCHAR relName[MAX_PATH];
 			if (mediaType.pageList != nullptr)
 			{
 				// This is a paged item type.  Stop if we've exhausted
@@ -3029,8 +3065,7 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 
 				// Combine the media folder name and page subfolder, then
 				// add the media base name
-				PathCombine(fullName, dir, mediaType.pageList[pageno]);
-				PathAppend(fullName, mediaName.c_str());
+				PathCombine(relName, mediaType.pageList[pageno], mediaName.c_str());
 			}
 			else
 			{
@@ -3040,19 +3075,19 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 					break;
 
 				// Combine the media folder name and media file base name
-				PathCombine(fullName, dir, mediaName.c_str());
+				_tcscpy_s(relName, mediaName.c_str());
 			}
 
 			// get the index of the end of the string
-			size_t endIndex = _tcslen(fullName);
+			size_t endIndex = _tcslen(relName);
 
 			// If the index is non-zero, add it as well.  The zeroeth
 			// item just uses the base name with no index, so we don't
 			// add anything for media index 0.
 			if (mediaIndex != 0)
 			{
-				_stprintf_s(&fullName[endIndex], countof(fullName) - endIndex, _T(" %d"), mediaIndex);
-				endIndex += _tcslen(&fullName[endIndex]);
+				_stprintf_s(&relName[endIndex], countof(relName) - endIndex, _T(" %d"), mediaIndex);
+				endIndex += _tcslen(&relName[endIndex]);
 			}
 
 			// check each extension
@@ -3067,19 +3102,21 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 				{
 					// add this character if there's room
 					if (index + 1 < MAX_PATH)
-						fullName[index++] = *ext;
+						relName[index++] = *ext;
 				}
 
 				// null-terminate the path name
-				fullName[index] = 0;
+				relName[index] = 0;
 
-				// If the file exists, OR we're just getting the default name for
-				// capture purposes, include this name.  For capture, the filename
-				// to use for is always the first extension in the list, and it
-				// doesn't have to exist yet (since the whole point is to capture
-				// it anew), so we can simply return the first filename we form.
-				if (forCapture || FileExists(fullName))
-					filenames.emplace_back(fullName);
+				// build the full name (with the media folder path)
+				TCHAR fullName[MAX_PATH];
+				PathCombine(fullName, dir, relName);
+
+				// Include the file if the GMI_EXISTS flag isn't set (meaning
+				// that we're listing all files, even non-existent ones), or the
+				// file exists.
+				if (!(flags & GMI_EXISTS) || FileExists(fullName))
+					filenames.emplace_back((flags & GMI_REL_PATH) != 0 ? relName : fullName);
 
 				// if we're at a space separator in the extension string, skip it
 				if (*ext == ' ')

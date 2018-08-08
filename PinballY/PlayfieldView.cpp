@@ -41,6 +41,7 @@
 #include "SevenZipIfc.h"
 #include "RealDMD.h"
 #include "VPinMAMEIfc.h"
+#include "DialogWithSavedPos.h"
 #include "../OptionsDialog/OptionsDialogExports.h"
 
 using namespace DirectX;
@@ -62,6 +63,11 @@ namespace ConfigVars
 	static const TCHAR *CreditBalance = _T("CreditBalance");
 	static const TCHAR *MaxCreditBalance = _T("MaxCreditBalance");
 	static const TCHAR *RealDMD = _T("RealDMD");
+	static const TCHAR *GameInfoDialogPos = _T("EditGameInfoDialog.Position");
+	static const TCHAR *CategoryDialogPos = _T("CategoryDialog.Position");
+	static const TCHAR *CatNameDialogPos = _T("CategoryNameDialog.Position");
+	static const TCHAR *OptsDialogPos = _T("OptionsDialog.Position");
+	static const TCHAR *SplashScreen = _T("SplashScreen");
 };
 
 // include the capture-related variables
@@ -411,8 +417,11 @@ void PlayfieldView::OnIdleEvent()
 	SetTimer(hWnd, cleanupTimerID, 1000, 0);
 
 	// Show the about box for a few seconds, as a sort of splash screen
-	ShowAboutBox();
-	SetTimer(hWnd, endSplashTimerID, 5000, 0);
+	if (ConfigManager::GetInstance()->GetBool(ConfigVars::SplashScreen, true))
+	{
+		ShowAboutBox();
+		SetTimer(hWnd, endSplashTimerID, 5000, 0);
+	}
 
 	// We only want a one-shot idle notification, for when the event
 	// queue becomes idle after our initial application startup is
@@ -583,6 +592,10 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_MUTE_VIDEOS:
 		Application::Get()->ToggleMuteVideos();
+		return true;
+
+	case ID_MUTE_TABLE_AUDIO:
+		Application::Get()->ToggleMuteTableAudio();
 		return true;
 
 	case ID_MUTE_BUTTONS:
@@ -784,6 +797,14 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_MEDIA_SEARCH_GO:
 		LaunchMediaSearch();
+		return true;
+
+	case ID_SHOW_MEDIA_FILES:
+		ShowMediaFiles(0);
+		return true;
+
+	case ID_DEL_MEDIA_FILE:
+		DelMediaFile();
 		return true;
 
 	case ID_HIDE_GAME:
@@ -2091,7 +2112,7 @@ void PlayfieldView::ShowGameInfo()
 	popupSprite.Attach(new Sprite());
 	if (!popupSprite->Load(width, height, Draw, eh, _T("Game Info box")))
 	{
-		popupSprite = 0;
+		popupSprite = nullptr;
 		UpdateDrawingList();
 		ShowQueuedError();
 		return;
@@ -2475,7 +2496,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 	// if there's a game, try loading its playfield media
 	Application::InUiErrorHandler uieh;
-	TSTRING video, image;
+	TSTRING video, image, audio;
 	if (IsGameValid(game))
 	{
 		// Retrieve the playfield video path and static image path.
@@ -2484,6 +2505,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		if (Application::Get()->IsEnableVideo())
 			game->GetMediaItem(video, GameListItem::playfieldVideoType);
 		game->GetMediaItem(image, GameListItem::playfieldImageType);
+
+		// try loading the audio
+		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
 	}
 
 	// Asynchronous loader function
@@ -2549,11 +2573,39 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// Kick off the asynchronous load
 	playfieldLoader.AsyncLoad(false, load, done);
 
+	// Load the audio
+	if (audio.length() != 0)
+	{
+		incomingPlayfield.audio.Attach(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
+		{
+			// set the muting mode to match playfield video
+			if (Application::Get()->IsMuteVideos())
+				incomingPlayfield.audio->Mute(true);
+
+			// start playback
+			incomingPlayfield.audio->SetLooping(true);
+			incomingPlayfield.audio->Play(uieh);
+		}
+	}
+
+	// stop any previous playfield audio
+	if (currentPlayfield.audio != nullptr)
+		currentPlayfield.audio->Stop(SilentErrorHandler());
+
 	// update the status line text, in case it mentions the current game selection
 	UpdateAllStatusText();
 
 	// request high scores if we don't already have them
 	RequestHighScores();
+}
+
+void PlayfieldView::MuteTableAudio(bool mute)
+{
+	if (incomingPlayfield.audio != nullptr)
+		incomingPlayfield.audio->Mute(mute);
+	if (currentPlayfield.audio != nullptr)
+		currentPlayfield.audio->Mute(mute);
 }
 
 void PlayfieldView::IncomingPlayfieldMediaDone(VideoSprite *sprite)
@@ -3232,6 +3284,12 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// DMD handler, if present.
 		if (realDMD != nullptr)
 			realDMD->VideoLoopNeeded(wParam);
+
+		// Also loop the table audio, if playing
+		if (auto a = currentPlayfield.audio.Get(); a != nullptr && a->GetCookie() == wParam)
+			a->Replay(SilentErrorHandler());
+		if (auto a = incomingPlayfield.audio.Get(); a != nullptr && a->GetCookie() == wParam)
+			a->Replay(SilentErrorHandler());
 		break;
 
 	case HSMsgHighScores:
@@ -4150,8 +4208,8 @@ void PlayfieldView::StartPlayfieldCrossfade()
 	StartAnimTimer();
 
 	// start the fade in the sprite
-	const DWORD crossFadeTime = 120;
-	incomingPlayfield.sprite->StartFade(1, crossFadeTime);
+	static const DWORD playfieldCrossFadeTime = 120;
+	incomingPlayfield.sprite->StartFade(1, playfieldCrossFadeTime);
 }
 
 // Start the animation timer if it's not already running
@@ -4363,7 +4421,7 @@ void PlayfieldView::UpdateAnimation()
 			updateDrawingList = true;
 
 			// clear the incoming playfield
-			incomingPlayfield.Clear();
+			incomingPlayfield.ClearVideo();
 
 			// Sync the backglass.  Defer this via a posted message so
 			// that we update rendering before we do the sync; this makes
@@ -5096,6 +5154,9 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 			// assume we'll use the "deselect menu" sound
 			const TCHAR *sound = _T("Deselect");
 
+			// assume we'll close the popup
+			bool close = true;
+
 			// check the popup type
 			if (popupType == PopupRateGame)
 			{
@@ -5127,9 +5188,17 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 				captureStartupDelay = adjustedCaptureStartupDelay;
 				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
 			}
+			else if (popupType == PopupMediaList) 
+			{
+				// Media list dialog - exeucte the current command
+				DoMediaListCommand(close);
+			}
 
-			// Popup mode - remove the popup
-			ClosePopup();
+			// if desired, remove the popup
+			if (close)
+				ClosePopup();
+
+			// play the selected button sound
 			PlayButtonSound(sound);
 		}
 		else if (runningGamePopup != nullptr)
@@ -5402,6 +5471,11 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 				ClosePopup();
 				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
 			}
+			else if (popupType == PopupMediaList)
+			{
+				PlayButtonSound(_T("Deselect"));
+				ShowMediaFilesExit();
+			}
 			else
 			{
 				// close the popup sprite
@@ -5520,6 +5594,10 @@ void PlayfieldView::DoCmdNext(bool fast)
 			adjustedCaptureStartupDelay += 1;
 			ShowCaptureDelayDialog(true);
 		}
+		else if (popupType == PopupMediaList)
+		{
+			ShowMediaFiles(1);
+		}
 		else
 		{
 			// for others, just cancel the popup
@@ -5594,6 +5672,10 @@ void PlayfieldView::DoCmdPrev(bool fast)
 			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
 			ShowCaptureDelayDialog(true);
 		}
+		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		{
+			ShowMediaFiles(-1);
+		}
 		else
 		{
 			// for others, just cancel the popup
@@ -5635,6 +5717,10 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			adjustedCaptureStartupDelay += 5;
 			ShowCaptureDelayDialog(true);
 		}
+		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		{
+			ShowMediaFiles(2);
+		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat it as a regular 'next'
@@ -5674,6 +5760,10 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 			adjustedCaptureStartupDelay -= 5;
 			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
 			ShowCaptureDelayDialog(true);
+		}
+		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		{
+			ShowMediaFiles(-2);
 		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
@@ -6056,6 +6146,8 @@ void PlayfieldView::ShowOperatorMenu()
 		Application::Get()->IsEnableVideo() ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_MUTEVIDEOS),
 		ID_MUTE_VIDEOS, Application::Get()->IsMuteVideos() ? MenuChecked : 0);
+	md.emplace_back(LoadStringT(IDS_MENU_MUTETABLEAUDIO),
+		ID_MUTE_TABLE_AUDIO, Application::Get()->IsMuteTableAudio() ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_MUTEBUTTONS), ID_MUTE_BUTTONS,
 		muteButtons ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_MUTEATTRACTMODE), ID_MUTE_ATTRACTMODE,
@@ -6113,6 +6205,7 @@ void PlayfieldView::ShowGameSetupMenu()
 
 	md.emplace_back(LoadStringT(IDS_MENU_CAPTURE_MEDIA), ID_CAPTURE_MEDIA);
 	md.emplace_back(LoadStringT(IDS_MENU_FIND_MEDIA), ID_FIND_MEDIA);
+	md.emplace_back(LoadStringT(IDS_MENU_SHOW_MEDIA), ID_SHOW_MEDIA_FILES);
 	
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(IDS_MENU_HIDE_GAME), ID_HIDE_GAME,
@@ -6135,10 +6228,11 @@ void PlayfieldView::EditGameInfo()
 	static const UINT MsgInitThreadDone = PrivateDialogMessageFirst;
 	static const UINT MsgFixTitle = PrivateDialogMessageFirst + 1;
 
-	class EditGameDialog : public RefCounted, public Dialog
+	class EditGameDialog : public RefCounted, public DialogWithSavedPos
 	{
 	public:
 		EditGameDialog(PlayfieldView *pfv, GameListItem *game) : 
+			DialogWithSavedPos(ConfigVars::GameInfoDialogPos),
 			pfv(pfv), game(game), gameFile(game->filename), saved(false)
 		{ 
 			// build the full path to the table file
@@ -7020,14 +7114,20 @@ void PlayfieldView::SaveCategoryEdits()
 
 void PlayfieldView::EditCategories()
 {
-	class CatDialog : public Dialog
+	class CatDialog : public DialogWithSavedPos
 	{
+	public:
+		CatDialog() : DialogWithSavedPos(ConfigVars::CategoryDialogPos) { }
+
 	protected:
-		class NameDialog : public Dialog
+		class NameDialog : public DialogWithSavedPos
 		{
 		public:
 			typedef std::function<bool(const TCHAR*)> OKCallback;
-			NameDialog(OKCallback onOk, const TCHAR *initName) : onOk(onOk), initName(initName) { }
+			NameDialog(OKCallback onOk, const TCHAR *initName) : 
+				DialogWithSavedPos(ConfigVars::CatNameDialogPos),
+				onOk(onOk), initName(initName) 
+			{ }
 
 		protected:
 			OKCallback onOk;
@@ -7198,6 +7298,545 @@ void PlayfieldView::EditCategories()
 	dlg.Show(IDD_EDIT_CATEGORIES);
 }
 
+void PlayfieldView::ShowMediaFiles(int dir)
+{
+	// get the current game
+	auto gl = GameList::Get();
+	auto game = gl->GetNthGame(0);
+	if (!IsGameValid(game))
+		return;
+
+	// if it's unconfigured, there's nothing to show
+	if (!game->isConfigured || game->system == nullptr)
+	{
+		ShowError(EIT_Error, LoadStringT(IDS_SHOWMEDIA_UNCONFIG));
+		return;
+	}
+
+	// button list for the current selected item, if any
+	struct ItemButton
+	{
+		ItemButton(int strId, ShowMediaState::Command cmd) : strId(strId), cmd(cmd) { }
+		int strId;
+		ShowMediaState::Command cmd;
+	};
+	std::vector<ItemButton> itemButtons;
+	int activeItemButton = -1;
+
+	// index in the list of the next and previous folder items relative
+	// to the current selection
+	int prevFolderIndex = -1, nextFolderIndex = -1, lastFolderIndex = -1;
+
+	// draw the media file list
+	int width = 972, height = 2000;
+	int pass = 1;
+	int itemCount = 0;
+	auto Draw = [gl, game, this, width, &height,
+		&itemCount, &prevFolderIndex, &nextFolderIndex, &lastFolderIndex,
+		&itemButtons, &activeItemButton, &pass]
+	(HDC hdc, HBITMAP)
+	{
+		// set up a GDI+ drawing context
+		Gdiplus::Graphics g(hdc);
+
+		// start at the first item
+		int itemIndex = 0;
+
+		// draw the background and borders
+		const float margin = 16.0f;
+		const int borderWidth = 2;
+		Gdiplus::SolidBrush bkgbr(Gdiplus::Color(224, 0, 0, 0));
+		Gdiplus::Pen pen(Gdiplus::Color(0xE0, 0xFF, 0xFF, 0xFF), (float)borderWidth);
+		g.FillRectangle(&bkgbr, Gdiplus::RectF(0.0f, 0.0f, (float)width, (float)height));
+		g.DrawRectangle(&pen, Gdiplus::Rect(borderWidth/2, borderWidth/2, width - borderWidth, height - borderWidth));
+
+		// set up for text drawing
+		GPDrawString gds(g, Gdiplus::RectF(margin, margin, (float)width - 2.0f*margin, (float)height - 2.0f*margin));
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 20, 400));
+		std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 12, 400));
+		Gdiplus::SolidBrush textbr(Gdiplus::Color(255, 255, 255));
+		Gdiplus::SolidBrush graybr(Gdiplus::Color(128, 128, 128));
+		Gdiplus::SolidBrush hilitebr(Gdiplus::Color(0, 128, 255));
+
+		// show the caption
+		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_CAPTION, game->title.c_str()), titleFont.get(), &textbr);
+		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_TEMPLATE, game->mediaName.c_str()), textFont.get(), &textbr);
+		gds.VertSpace(margin / 2.0f);
+
+		// draw a button
+		auto DrawButton = [this, &g, &gds, &textFont, &textbr, &hilitebr, &itemIndex]
+		(const TCHAR *name, ShowMediaState::Command command)
+		{
+			// check if this is the selected button
+			if (command == showMedia.command)
+			{
+				// draw the highlight
+				Gdiplus::RectF txtrc;
+				g.MeasureString(name, -1, textFont.get(), gds.curOrigin, &txtrc);
+				g.FillRectangle(&hilitebr, Gdiplus::RectF(
+					gds.curOrigin.X, gds.curOrigin.Y, txtrc.Width, txtrc.Height));
+
+				// set this as the selected command
+				showMedia.command = command;
+			}
+
+			// draw the text
+			gds.DrawString(name, textFont.get(), &textbr, false);
+			gds.curOrigin.X += 16;
+		};
+
+		// draw a file/folder item
+		std::unique_ptr<Gdiplus::Bitmap> folderIcon(GPBitmapFromPNG(IDB_FOLDER_ICON));
+		std::unique_ptr<Gdiplus::Bitmap> audioIcon(GPBitmapFromPNG(IDB_AUDIO_FILE_ICON));
+		std::unique_ptr<Gdiplus::Bitmap> imageIcon(GPBitmapFromPNG(IDB_IMAGE_FILE_ICON));
+		std::unique_ptr<Gdiplus::Bitmap> videoIcon(GPBitmapFromPNG(IDB_VIDEO_FILE_ICON));
+		auto DrawFile = [this, &g, &gds, &pass, &textFont, &textbr, &hilitebr,
+			&itemIndex, &itemButtons, &activeItemButton, 
+			&prevFolderIndex, &nextFolderIndex, &lastFolderIndex,
+			&DrawButton]
+		(int indentLevel, Gdiplus::Bitmap *icon, const MediaType *mediaType, const TCHAR *name, const TCHAR *parentPath)
+		{
+			// it's a folder if it doesn't have a media type
+			bool isFolder = (mediaType == nullptr);
+
+			// advance by the indent level
+			gds.curOrigin.X += (float)(indentLevel * 16);
+
+			// Figure the icon position to center relative to the text.
+			// If the icon is taller than the text, add whitespace around
+			// the text and draw the folder at the current y position; if
+			// the text is taller than the icon, adjust the icon down
+			// by half the height difference.
+			int textHt = (int)textFont->GetHeight(&g);
+			int iconHt = icon->GetHeight();
+			int iconY = (int)gds.curOrigin.Y;
+			float boxY = gds.curOrigin.Y;
+			int lineHt = textHt;
+			if (iconHt + 4 > textHt)
+			{
+				lineHt = iconHt + 4;
+				iconY += 2;
+				gds.VertSpace(float((lineHt - textHt)/2));
+			}
+			else
+			{
+				iconY += (textHt - iconHt)/2;
+			}
+
+			// on the first pass, if this is the selected item, build the button list
+			if (pass == 1 && itemIndex == showMedia.sel)
+			{
+				// build the appropriate button list according to the item type
+				if (isFolder)
+				{
+					itemButtons.emplace_back(IDS_SHOWMEDIA_OPEN, ShowMediaState::OpenFolder);
+					itemButtons.emplace_back(IDS_SHOWMEDIA_CANCEL, ShowMediaState::Return);
+				}
+				else
+				{
+					itemButtons.emplace_back(IDS_SHOWMEDIA_SHOW, ShowMediaState::ShowFile);
+					itemButtons.emplace_back(IDS_SHOWMEDIA_DEL, ShowMediaState::DelFile);
+					itemButtons.emplace_back(IDS_SHOWMEDIA_CANCEL, ShowMediaState::Return);
+				}
+
+				// note if one of our buttons is selected
+				for (size_t i = 0 ; i < itemButtons.size(); ++i)
+				{
+					// if this command is active, we're in one of these buttons
+					if (itemButtons[i].cmd == showMedia.command)
+					{
+						activeItemButton = (int)i;
+						break;
+					}
+				}
+			}
+
+			// if the item selected (but not one of its buttons), draw the
+			// highlighted background for the whole item
+			if (itemIndex == showMedia.sel && activeItemButton < 0)
+			{
+				Gdiplus::RectF txtrc;
+				g.MeasureString(name, -1, textFont.get(), gds.curOrigin, &txtrc);
+				g.FillRectangle(&hilitebr, Gdiplus::RectF(
+					gds.curOrigin.X, boxY, txtrc.Width + float(icon->GetWidth() + 10), (float)lineHt));
+			}
+
+			// draw the folder icon
+			g.DrawImage(icon, (int)gds.curOrigin.X, iconY);
+			gds.curOrigin.X += icon->GetWidth() + 10;
+
+			// draw the folder name
+			gds.DrawString(name, textFont.get(), &textbr, false);
+
+			// if one of our buttons is active, draw the buttons
+			if (itemIndex == showMedia.sel && activeItemButton >= 0)
+			{
+				// add some padding before the buttons
+				gds.curOrigin.X += 36;
+
+				// draw the buttons
+				for (auto &b : itemButtons)
+					DrawButton(LoadStringT(b.strId), b.cmd);
+			}
+
+			// add a newline at the end of the line
+			gds.DrawString(_T(" "), textFont.get(), &textbr, true);
+
+			// if the icon is taller than the text, add whitespace at
+			// the bottom to compensate
+			if (gds.curOrigin.Y < boxY + lineHt)
+				gds.VertSpace(float(boxY + lineHt) - gds.curOrigin.Y);
+
+			// if this is a folder, update the relative folder indices
+			// if necessary
+			if (isFolder)
+			{
+				// if we haven't reached the selected item yet, update
+				// the "previous folder" to this item - it's not necessarily
+				// the last previous folder, but it's the last one so far
+				if (itemIndex < showMedia.sel)
+					prevFolderIndex = itemIndex;
+
+				// if we're past the selected item, and we haven't set the
+				// "next folder" yet, set it to this item
+				if (itemIndex > showMedia.sel && nextFolderIndex < 0)
+					nextFolderIndex = itemIndex;
+
+				// this is the last folder so far
+				lastFolderIndex = itemIndex;
+			}
+
+			// if this is the selected item, store it in the current
+			// selection
+			if (showMedia.sel == itemIndex)
+			{
+				TCHAR fullPath[MAX_PATH];
+				PathCombine(fullPath, parentPath, name);
+				showMedia.file = fullPath;
+			}
+
+			// count the item 
+			++itemIndex;
+		};
+
+		// show the root media folder path first
+		DrawFile(0, folderIcon.get(), nullptr, gl->GetMediaPath(), _T(""));
+
+		// show items for a media type
+		auto ShowItems = [this, margin, &g, &gds, game, &DrawFile,
+			&folderIcon, &imageIcon, &audioIcon, &videoIcon]
+			(bool perSystem, int indent)
+		{
+			// scan all media types
+			for (auto mediaType : GameListItem::allMediaTypes)
+			{
+				// show this type if it matches the perSystem criterion
+				if (mediaType->perSystem == perSystem)
+				{
+					// get the media folder
+					TCHAR mediaDir[MAX_PATH];
+					mediaType->GetMediaPath(mediaDir, game->system->mediaDir.c_str());
+
+					// show the folder
+					TCHAR mediaParentDir[MAX_PATH];
+					_tcscpy_s(mediaParentDir, mediaDir);
+					PathRemoveFileSpec(mediaParentDir);
+					DrawFile(indent, folderIcon.get(), nullptr, mediaType->subdir, mediaParentDir);
+
+					// Get the list of the game's extant media files of this type
+					std::list<TSTRING> files;
+					game->GetMediaItems(files, *mediaType, GameListItem::GMI_EXISTS | GameListItem::GMI_REL_PATH);
+
+					// show each file
+					for (auto &file : files)
+					{
+						// start the full path at the media folder
+						TCHAR subParentPath[MAX_PATH];
+						_tcscpy_s(subParentPath, mediaDir);
+
+						// break it into path elements
+						int subIndent = 1;
+						const TCHAR *p = file.c_str();
+						for (const TCHAR *sl = _tcschr(p, '\\'); sl != nullptr; ++subIndent)
+						{
+							// show this element
+							TSTRING subfolder(p, sl - p);
+							DrawFile(indent + subIndent, folderIcon.get(), nullptr, subfolder.c_str(), subParentPath);
+
+							// add it to the sub-parent path
+							PathAppend(subParentPath, subfolder.c_str());
+							
+							// find the next path element
+							p = sl + 1;
+							sl = _tcschr(p, '\\');
+						}
+
+						// draw the file
+						Gdiplus::Bitmap *icon = mediaType->format == MediaType::Audio ? audioIcon.get() :
+							mediaType->format == MediaType::Image ? imageIcon.get() : videoIcon.get();
+						DrawFile(indent + subIndent, icon, mediaType, p, subParentPath);
+					}
+				}
+			}
+
+			// add some vertical space
+			gds.VertSpace(4.0f);
+		};
+		
+		// draw the generic items first
+		ShowItems(false, 1);
+
+		// show the per-system items next
+		DrawFile(1, folderIcon.get(), nullptr, game->system->mediaDir.c_str(), gl->GetMediaPath());
+		ShowItems(true, 2);
+
+		// show instructions
+		gds.VertSpace(12);
+		gds.DrawString(LoadStringT(IDS_SHOWMEDIA_INSTRS), textFont.get(), &textbr);
+
+		// show the "close" button
+		gds.VertSpace(12);
+		DrawButton(LoadStringT(IDS_SHOWMEDIA_CLOSE), ShowMediaState::CloseDialog);
+		
+		// end the button line
+		gds.DrawString(_T(" "), textFont.get(), &textbr);
+
+		// flush the bitmap
+		g.Flush();
+
+		// count the pass
+		++pass;
+
+		// note the final height and item count
+		height = (int)(gds.curOrigin.Y + margin);
+		itemCount = itemIndex;
+	};
+
+	// do one drawing pass to a dummy context first, to measure the height
+	// and count items
+	MemoryDC memdc;
+	Draw(memdc, NULL);
+
+	// if we're changing buttons or items, update the item position
+	if (activeItemButton >= 0)
+	{
+		// change to a new button
+		if (dir > 0)
+		{
+			if (++activeItemButton >= (int)itemButtons.size())
+				activeItemButton = 0;
+		}
+		else if (dir < 0)
+		{
+			if (--activeItemButton < 0)
+				activeItemButton = (int)(itemButtons.size() - 1);
+		}
+		showMedia.command = itemButtons[activeItemButton].cmd;
+	}
+	else
+	{
+		// change to a new item
+		switch (dir)
+		{
+		case -1:
+			// Previous item.  Wrap from the top list item at 0 to the Close button
+			// at position -1, then to the last item.
+			showMedia.sel -= 1;
+			if (showMedia.sel < -1)
+				showMedia.sel = itemCount - 1;
+
+			// set the new command
+			showMedia.OnSelectItem();
+			break;
+
+		case 1:
+			// Next item.  Wrap from the last list item to the Close button at -1,
+			// then to the top list item at 0.
+			showMedia.sel += 1;
+			if (showMedia.sel >= itemCount)
+				showMedia.sel = -1;
+
+			// set the new command
+			showMedia.OnSelectItem();
+			break;
+
+		case -2:
+			// Previous folder item.  This skips to the nearest previous folder.
+			showMedia.sel = prevFolderIndex >= 0 ? prevFolderIndex : lastFolderIndex;
+			showMedia.OnSelectItem(); 
+			break;
+
+		case 2:
+			// Next folder item.
+			showMedia.sel = nextFolderIndex >= 0 ? nextFolderIndex : 0;
+			showMedia.OnSelectItem();
+			break;
+		}
+	}
+
+	// do the actual drawing
+	Application::InUiErrorHandler eh;
+	popupSprite.Attach(new Sprite());
+	if (!popupSprite->Load(width, height, Draw, eh, _T("Media File Info")))
+	{
+		popupSprite = nullptr;
+		UpdateDrawingList();
+		ShowQueuedError();
+		return;
+	}
+
+	// adjust it to canonical sprite position
+	AdjustSpritePosition(popupSprite);
+
+	// start the animation
+	// start the animation
+	if (popupType != PopupMediaList)
+		StartPopupAnimation(PopupMediaList, true);
+
+	// put the new sprite in the drawing list
+	UpdateDrawingList();
+
+	// treat it as a Game Information event in DOF
+	QueueDOFPulse(L"PBYGameInfo");
+}
+
+void PlayfieldView::ShowMediaFilesExit()
+{
+	switch (showMedia.command)
+	{
+	case ShowMediaState::SelectItem:
+	case ShowMediaState::CloseDialog:
+		// a file item or the close button is selected - simply
+		// exit out of the dialog
+		showMedia.OnCloseDialog();
+		ClosePopup();
+		break;
+
+	default:
+		// some other button is selected - return to the selected item
+		showMedia.command = ShowMediaState::SelectItem;
+		ShowMediaFiles(0);
+		break;
+	}
+}
+
+void PlayfieldView::DoMediaListCommand(bool &closePopup)
+{
+	// presume we won't close the popup
+	closePopup = false;
+
+	// for commands that do a ShellExecute, do this in a thread, as it
+	// can be rather slow
+	class ShellLauncher
+	{
+	public:
+		static void Do(HWND hwndPar, const TCHAR *file, const TCHAR *params)
+		{
+			// create the new object and launch the thread
+			ShellLauncher *sl = new ShellLauncher(hwndPar, file, params);
+			sl->hThread = CreateThread(NULL, 0, ThreadMain, sl, 0, &sl->tid);
+
+			// if the thread launch failed, do the thread work inline instead
+			if (sl->hThread == NULL)
+				ThreadMain(sl);
+		}
+
+	protected:
+		HandleHolder hThread;
+		DWORD tid;
+
+		ShellLauncher(HWND hwndPar, const TCHAR *file, const TCHAR *params) : 
+			file(file), params(params) { }
+
+		static DWORD WINAPI ThreadMain(LPVOID lParam)
+		{
+			// get 'self'
+			auto self = static_cast<ShellLauncher*>(lParam);
+
+			// execute the shell command
+			ShellExecute(self->hwndPar, _T("open"), self->file.c_str(), 
+				self->params.length() != 0 ? self->params.c_str() : NULL, 
+				NULL, SW_SHOW);
+
+			// done - delete 'self' and exit the thread
+			delete self;
+			return 0;
+		}
+
+		HWND hwndPar;
+		TSTRING file;
+		TSTRING params;
+	};
+
+	// execute the current command
+	switch (showMedia.command)
+	{
+	case ShowMediaState::SelectItem:
+		// switch to the current item's "return" button
+		showMedia.command = ShowMediaState::Return;
+		ShowMediaFiles(0);
+		break;
+
+	case ShowMediaState::CloseDialog:
+		// close the dialog
+		closePopup = true;
+		break;
+
+	case ShowMediaState::Return:
+		// return to the current item selection
+		showMedia.command = ShowMediaState::SelectItem;
+		ShowMediaFiles(0);
+		break;
+
+	case ShowMediaState::ShowFile:
+		ShellLauncher::Do(GetParent(hWnd), _T("explorer"), MsgFmt(_T("/select,%s"), showMedia.file.c_str()));
+		showMedia.command = ShowMediaState::SelectItem;
+		ShowMediaFiles(0);
+		break;
+
+	case ShowMediaState::DelFile:
+		// hide the media list while the menu is up
+		ClosePopup();
+
+		// show the confirmation menu
+		{
+			std::list<MenuItemDesc> md;
+			md.emplace_back(MsgFmt(IDS_SHOWMEDIA_CONFIRM_DEL, showMedia.file.c_str()), -1);
+			md.emplace_back(_T(""), -1);
+			md.emplace_back(LoadStringT(IDS_SHOWMEDIA_CONFIRM_DEL_YES), ID_DEL_MEDIA_FILE);
+			md.emplace_back(LoadStringT(IDS_SHOWMEDIA_CONFIRM_DEL_NO), ID_SHOW_MEDIA_FILES);
+			ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+		}
+
+		// return to the selection when we get back to the dialog
+		showMedia.command = ShowMediaState::SelectItem;
+		break;
+
+	case ShowMediaState::OpenFolder:
+		// open the folder in Windows Explorer
+		ShellLauncher::Do(GetParent(hWnd), showMedia.file.c_str(), _T(""));;
+
+		// return to the item selection
+		showMedia.command = ShowMediaState::SelectItem;
+		ShowMediaFiles(0);
+		break;
+	}
+}
+
+void PlayfieldView::DelMediaFile()
+{
+	if (DeleteFile(showMedia.file.c_str()))
+	{
+		ShowMediaFiles(0);
+	}
+	else
+	{
+		WindowsErrorMessage err;
+		ShowSysError(LoadStringT(IDS_ERR_DEL_MEDIA_FILE),
+			MsgFmt(_T("File %s: %s"), showMedia.file.c_str(), err.Get()));
+	}
+}
+
 bool PlayfieldView::CanAddMedia(GameListItem *game)
 {
 	// check if the game is configured
@@ -7257,6 +7896,7 @@ void PlayfieldView::CaptureMediaSetup()
 			//  - KEEP if the item exists
 			//  - CAPTURE WITH AUDIO if it's a video with audio enabled
 			//  - CAPTURE for other types
+			//
 			int mode = exists ? IDS_CAPTURE_KEEP :
 				mediaType.format == MediaType::VideoWithAudio ? IDS_CAPTURE_WITH_AUDIO :
 				IDS_CAPTURE_CAPTURE;
@@ -7267,6 +7907,7 @@ void PlayfieldView::CaptureMediaSetup()
 	};
 	AddItem(this, GameListItem::playfieldImageType);
 	AddItem(this, GameListItem::playfieldVideoType);
+	AddItem(this, GameListItem::playfieldAudioType);
 	AddItem(Application::Get()->GetBackglassView(), GameListItem::backglassImageType);
 	AddItem(Application::Get()->GetBackglassView(), GameListItem::backglassVideoType);
 	AddItem(Application::Get()->GetDMDView(), GameListItem::dmdImageType);
@@ -7733,40 +8374,25 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget)
 				if (isDir)
 					return;
 
-				// run through the media types and see if we can find a match
-				auto Match = [this, fname, entryName, idx, game](const MediaType &mediaType)
+				// check each media type
+				for (auto &mediaType : GameListItem::allMediaTypes)
 				{
 					// check for a valid implied game name
 					TSTRING impliedGameName;
-					if (GetImpliedGameName(impliedGameName, entryName, &mediaType))
+					if (GetImpliedGameName(impliedGameName, entryName, mediaType))
 					{
-						// It's a match - add it as this media type.
+						// It's a match - add it as this media type
 						dropList.emplace_back(fname, idx, impliedGameName.c_str(),
-							game->GetDropDestFile(entryName, mediaType).c_str(),
-							&mediaType, game->MediaExists(mediaType));
-						return true;
-					}
+							game->GetDropDestFile(entryName, *mediaType).c_str(),
+							mediaType, game->MediaExists(*mediaType));
 
-					// not matched
-					return false;
-				};
-				if (Match(GameListItem::playfieldImageType)
-					|| Match(GameListItem::playfieldVideoType)
-					|| Match(GameListItem::backglassImageType)
-					|| Match(GameListItem::backglassVideoType)
-					|| Match(GameListItem::dmdImageType)
-					|| Match(GameListItem::dmdVideoType)
-					|| Match(GameListItem::topperImageType)
-					|| Match(GameListItem::topperVideoType)
-					|| Match(GameListItem::wheelImageType)
-					|| Match(GameListItem::instructionCardImageType)
-					|| Match(GameListItem::flyerImageType)
-					|| Match(GameListItem::launchAudioType)
-					|| Match(GameListItem::realDMDImageType)
-					|| Match(GameListItem::realDMDColorImageType)
-					|| Match(GameListItem::realDMDVideoType)
-					|| Match(GameListItem::realDMDColorVideoType))
-					++nMatched;
+						// count it
+						++nMatched;
+
+						// no need to look for other types
+						break;
+					}
+				}
 			});
 		}
 
@@ -8274,11 +8900,30 @@ void PlayfieldView::ShowSettingsDialog()
 	const TCHAR *progress = _T("");
 	if (showOptionsDialog == NULL)
 	{
+		// load the DLL
 		if (dll == NULL)
 		{
 			progress = _T("loading OptionsDialog.dll");
 			dll = LoadLibrary(_T("OptionsDialog.dll"));
 		}
+
+		// Verify the DLL interface version.  This makes sure that the 
+		// install folder has a matching copy of the DLL (not an old copy
+		// from a previous program version, for example, which could cause
+		// mysterious crashes due to mismatched function parameters or the
+		// like).
+		if (dll != NULL)
+		{
+			auto getVer = reinterpret_cast<decltype(GetOptionsDialogVersion)*>(GetProcAddress(dll, "GetOptionsDialogVersion"));
+			if (getVer == NULL || getVer() != PINBALLY_OPTIONS_DIALOG_IFC_VSN)
+			{
+				Application::InUiErrorHandler eh;
+				eh.Error(LoadStringT(IDS_ERR_OPTS_DIALOG_DLL_VER));
+				return;
+			}
+		}
+
+		// retrieve the ShowOptionsDialog() entrypoint
 		if (dll != NULL)
 		{
 			progress = _T("binding to OptionsDialog.dll!ShowOptionsDialog()");
@@ -8311,7 +8956,14 @@ void PlayfieldView::ShowSettingsDialog()
 
 		// Run the dialog.   Provide a callback that reloads the config if the
 		// dialog saves changes.
-		showOptionsDialog([this]() { Application::Get()->ReloadConfig(); });
+		RECT finalDialogRect;
+		showOptionsDialog(
+			[this]() { Application::Get()->ReloadConfig(); },
+			[this](HWND hWnd) { Application::Get()->InitDialogPos(hWnd, ConfigVars::OptsDialogPos); },
+			&finalDialogRect);
+
+		// save the final dialog position
+		ConfigManager::GetInstance()->Set(ConfigVars::OptsDialogPos, finalDialogRect);
 
 		// re-enable windows
 		Application::Get()->EnableSecondaryWindows(true);
@@ -8332,6 +8984,7 @@ void PlayfieldView::ShowSettingsDialog()
 	}
 	else
 	{
+		// The options dialog DLL isn't available - show an error
 		WindowsErrorMessage winErr;
 		Application::InUiErrorHandler eh;
 		eh.SysError(LoadStringT(IDS_ERR_OPTS_DIALOG_DLL),

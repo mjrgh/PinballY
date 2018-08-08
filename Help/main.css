@@ -39,6 +39,11 @@ li {
     margin-bottom: 1em;
 }
 
+.singleSpace li {
+    margin-top: .25ex;
+    margin-bottom: .25ex;
+}
+
 li.toc {
     margin-top: 0.5ex;
     margin-bottom: 0.5ex;

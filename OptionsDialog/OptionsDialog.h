@@ -7,6 +7,7 @@
 
 #pragma once
 #include "TreePropSheet/TreePropSheet.h"
+#include "OptionsDialogExports.h"
 
 
 class CMainFrame;
@@ -99,7 +100,10 @@ protected:
 class MainOptionsDialog : public OptionsDialog
 {
 public:
-	MainOptionsDialog(int startPage = DefaultStartPage);
+	MainOptionsDialog(
+		InitializeDialogPositionCallback initPosCallback,
+		RECT *pFinalDialogRect,
+		int startPage = DefaultStartPage);
 	~MainOptionsDialog();
 
 	// StartPage IDs.  These are unique identifiers for the property
@@ -143,11 +147,18 @@ public:
 	void DeleteSystem(SystemDialog *sysDlg);
 
 protected:
+	// callback to set the initial dailog position
+	InitializeDialogPositionCallback initPosCallback;
+
+	// caller RECT to fill in with final dialog position on closing
+	RECT *pFinalDialogRect;
+
 	virtual const char *GetDialogID() const override { return "MainOptionsDialog"; }
 	virtual const TCHAR *DefaultHelpPage() { return _T("Options.html"); }
 
 	DECLARE_MESSAGE_MAP()
 	afx_msg LRESULT OnDeleteSystemPage(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnDestroy();
 
 	// refill the page tree
 	virtual void RefillPageTree() override;

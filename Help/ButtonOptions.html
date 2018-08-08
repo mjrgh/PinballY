@@ -35,17 +35,28 @@
    keys, so you can assign (say) the Left Shift and Right
    Shift keys to separate commands.
 </p>
+
+<h3>Why can't I assign Ctrl+X, Alt+X, etc?</h3>
 <p>
-   Note that you can only assign individual keys, not "chords"
-   or keys such as Ctrl+A or Alt+Shift+X.  That's the tradeoff
-   for being able to assign the Shift, Alt, and Ctrl keys as
-   separate keys: they can't be combined to form combinations
-   the way they can in more typical Windows productivity apps.
-   We use this different approach because it's the way that
-   most of the pinball programs (e.g., Visual Pinball) work.
-   In fact, Windows games of all kinds typically work this way,
-   so even though it would be out of place in a productivity app,
-   it's pretty standard in a gaming context.
+   Because the Shift, Ctrl, Alt, and Windows keys can
+   all be assigned as command keys in their own right.  As soon as
+   you press a key - even a modifier key like Shift or Ctrl - it
+   immediately carries out its assigned command.  That prevents
+   using the modifier keys to form combinations with other keys.
+</p>
+<p>
+   This is different from Windows productivity apps, where
+   it's more common to use combinations like Ctrl+X and Alt+X
+   for command keys.   But it's common in Windows games; it's
+   the way that all of the pinball simulators (Visual Pinball,
+   Future Pinball, etc) treat the keyboard during play.  That's
+   one reason that we use this approach: it makes for a more
+   consistent experience switching back and forth between
+   PinballY and game players.  It also works better for
+   pin cabs, which is PinballY's primary audience, since
+   pin cab users want to be able to operate everything with
+   the cabinet buttons; they don't want to have to get out a
+   keyboard to access Ctrl/Shift/Alt combinations.
 </p>
 
 <h2>Multiple keys per command</h2>

@@ -116,6 +116,9 @@ public:
 	// change video enabling status
 	virtual void OnEnableVideos(bool enable) override;
 
+	// mute/unmute table audio
+	void MuteTableAudio(bool mute);
+
 	// clear media
 	void ClearMedia();
 
@@ -575,6 +578,63 @@ protected:
 	// launch a Web browser to search for game media
 	void LaunchMediaSearch();
 
+	// Show media files for the current game.  'dir' is:
+	//
+	//  0   - do the initial display
+	//  +1  - select the next item
+	//  -1  - select the previous item
+	//  +2  - page down (go to next folder)
+	//  -2  - page up (go to previous folder)
+	//
+	void ShowMediaFiles(int dir);
+
+	// media file dialog state
+	struct ShowMediaState
+	{
+		ShowMediaState() : sel(-1), command(CloseDialog) { }
+
+		// Current item selection index in dialog.  -1 means that
+		// the "close" button is selected, otherwise this is an
+		// index in the folder/file list.
+		int sel;
+
+		// current folder/file selection in the dialog
+		TSTRING file;
+
+		// Command to perform when current button is pressed
+		enum Command
+		{
+			SelectItem,     // select the current item
+			CloseDialog,	// close the dialog
+			Return,			// return to selection
+			DelFile,	 	// delete file
+			ShowFile,       // show file in Explorer
+			OpenFolder		// open folder in Explorer
+
+		} command;
+
+		void OnSelectItem()
+		{
+			command = sel < 0 ? CloseDialog : SelectItem;
+		}
+
+		void OnCloseDialog()
+		{
+			sel = -1;
+			command = CloseDialog;
+		}
+
+	} showMedia;
+
+	// execute the currently selected media item command
+	void DoMediaListCommand(bool &closePopup);
+
+	// 'exit' key when media list is showing
+	void ShowMediaFilesExit();
+
+	// delete the current media file
+	void DelMediaFile();
+
 	// hide/show the current game
 	void ToggleHideGame();
 
@@ -714,10 +774,18 @@ protected:
 		{
 			game = 0;
 			sprite = 0;
+			audio = nullptr;
+		}
+
+		void ClearVideo()
+		{
+			game = 0;
+			sprite = 0;
 		}
 		
 		GameListItem *game;
 		RefPtr<SpriteType> sprite;
+		RefPtr<AudioVideoPlayer> audio;
 	};
 	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield;
 
@@ -759,7 +827,8 @@ protected:
 		PopupErrorMessage,	// error message alert
 		PopupRateGame,		// enter game rating "dialog"
 		PopupHighScores,    // high scores list
-		PopupCaptureDelay   // capture delay dialog
+		PopupCaptureDelay,  // capture delay dialog
+		PopupMediaList      // game media list dialog
 	} 
 	popupType;
 

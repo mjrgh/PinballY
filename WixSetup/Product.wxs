@@ -91,6 +91,7 @@
         <File Id="MainEXE" Source="$(var.PinballY.TargetPath)" />
         <File Source="$(var.PinballY Admin Mode.TargetPath)" />
         <File Source="$(var.OptionsDialog.TargetPath)" />
+        <File Id="WatchdogEXE" Source="$(var.PinballY Watchdog.TargetPath)" />
         <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
         <File Source="$(var.SolutionDir)DefaultSettings.txt" />
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />

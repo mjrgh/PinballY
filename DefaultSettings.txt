@@ -118,6 +118,13 @@ AutoLaunch = 0
 #
 WaitForMonitors = 1 monitor, 10 seconds
 
+
+# Splash screen.  If true (1), the program displays a "splash screen"
+# briefly at program startup, showing the program name and version.
+# Set to false (0) to disable this.
+SplashScreen = 1
+
+
 # Real DMD setup.  This is for real pinball-style Dot Matrix Display
 # devices.  (It's NOT for normal video monitors used to display simulated
 # DMD images; it's only for physical DMD devices, such as the commercial
@@ -204,6 +211,10 @@ InstructionCardLocation = Backglass
 # backglass, DMD).  You can change this while the program is running,
 # using the "Exit" menu.
 Video.Mute = 0
+
+# Mute table audio.  This controls playback on table audio media,
+# separately from the video muting.
+TableAudio.Mute = 0
 
 # Enable videos.  This allows using video media for the playfield,
 # backglass, etc when available.  If this is set to 0, still images

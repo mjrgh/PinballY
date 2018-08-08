@@ -16,6 +16,7 @@
 #include "stdafx.h"
 #include "SevenZipIfc.h"
 #include "DialogResource.h"
+#include "DialogWithSavedPos.h"
 #include "../LZMA/CPP/7zip/Common/FileStreams.h"
 #include "../LZMA/CPP/7zip/IPassword.h"
 #include "../LZMA/CPP/7zip/Archive/iArchive.h"
@@ -28,10 +29,11 @@
 
 static HRESULT RunPasswordDialog(BSTR *pbstrPassword, const TCHAR *archiveFilename, const TCHAR *entryName)
 {
-	class PasswordDialog : public Dialog
+	class PasswordDialog : public DialogWithSavedPos
 	{
 	public:
 		PasswordDialog(const TCHAR *archiveFilename, const TCHAR *entryName) :
+			DialogWithSavedPos(_T("SevenZipPasswordDialog.Position")),
 			archiveFilename(archiveFilename),
 			entryName(entryName)
 		{ 

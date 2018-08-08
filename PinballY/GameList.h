@@ -262,6 +262,7 @@ public:
 	// Media types
 	static const MediaType playfieldImageType;
 	static const MediaType playfieldVideoType;
+	static const MediaType playfieldAudioType;
 	static const MediaType backglassImageType;
 	static const MediaType backglassVideoType;
 	static const MediaType dmdImageType;
@@ -276,6 +277,10 @@ public:
 	static const MediaType realDMDColorImageType;
 	static const MediaType realDMDVideoType;
 	static const MediaType realDMDColorVideoType;
+
+	// Master list of media types
+	static std::list<const MediaType*> allMediaTypes;
+	static void InitMediaTypeList();
 
 	// Get media item filenames.
 	//
@@ -305,7 +310,22 @@ public:
 
 	// Get the list of media items for the given type
 	bool GetMediaItems(std::list<TSTRING> &filenames, 
-		const MediaType &mediaType, bool forCapture = false) const;
+		const MediaType &mediaType, DWORD flags = GMI_EXISTS) const;
+
+	//
+	// GetMediaItems flags
+	//
+	
+	// Include only existing files
+	static const DWORD GMI_EXISTS = 0x0001;
+
+	// Relative path: return the filename relative to the media type's 
+	// media folder path.  In most cases, this will return only the
+	// bare filename, since most media files are directly in their
+	// media type folder.  The exception is "paged" items (e.g., Flyer
+	// Images), which will include the page folder.
+	static const DWORD GMI_REL_PATH = 0x0002;
+
 
 	// Get the destination file for a given drop file
 	TSTRING GetDropDestFile(const TCHAR *droppedFile, const MediaType &mediaType) const;

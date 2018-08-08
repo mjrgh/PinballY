@@ -63,3 +63,6 @@ for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin64% %%i
 rem  Copy the MSI installers
 copy "WixSetup\bin\x86-Release\PinballY Setup.msi" Builds\PinballY-%ReleaseDate%.msi
 copy "WixSetup\bin\x64-Release\PinballY Setup.msi" Builds\PinballY-64bit-%ReleaseDate%.msi
+
+rem  Copy the release notes
+copy /y VersionHistory.txt Builds\*.*

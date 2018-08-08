@@ -77,6 +77,7 @@
 namespace ConfigVars
 {
 	static const TCHAR *MuteVideos = _T("Video.Mute");
+	static const TCHAR *MuteTableAudio = _T("TableAudio.Mute");
 	static const TCHAR *EnableVideos = _T("Video.Enable");
 	static const TCHAR *MuteAttractMode = _T("AttractMode.Mute");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
@@ -334,6 +335,9 @@ int Application::EventLoop(int nCmdShow)
 	// usually won't happen right away.
 	refTableList->Init();
 
+	// launch the watchdog process
+	watchdog.Launch();
+
 	// run the main window's message loop
 	int retcode = D3DView::MessageLoop();
 
@@ -507,6 +511,7 @@ Application::Application()
 {
 	// initialize variables
 	muteVideos = false;
+	muteTableAudio = false;
 	muteAttractMode = true;
 	enableVideos = true;
 
@@ -528,6 +533,9 @@ bool Application::Init()
 {
 	// load the app title string
 	Title.Load(IDS_APP_TITLE);
+
+	// initialize the media type list
+	GameListItem::InitMediaTypeList();
 
 	// set up the config manager
 	ConfigManager::Init();
@@ -694,6 +702,7 @@ void Application::OnConfigChange()
 	ConfigManager *cfg = ConfigManager::GetInstance();
 	enableVideos = cfg->GetBool(ConfigVars::EnableVideos, true);
 	muteVideos = cfg->GetBool(ConfigVars::MuteVideos, false);
+	muteTableAudio = cfg->GetBool(ConfigVars::MuteTableAudio, false);
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
 	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
 }
@@ -905,6 +914,95 @@ void Application::SyncSelectedGame()
 		topperWin->GetView()->SendMessage(WM_COMMAND, ID_SYNC_GAME);
 	if (instCardWin != 0 && instCardWin->GetView() != 0)
 		instCardWin->GetView()->SendMessage(WM_COMMAND, ID_SYNC_GAME);
+}
+
+void Application::InitDialogPos(HWND hDlg, const TCHAR *configVar)
+{
+	// get the dialog's default location
+	RECT winrc;
+	GetWindowRect(hDlg, &winrc);
+
+	// note its size
+	int winwid = winrc.right - winrc.left, winht = winrc.bottom - winrc.top;
+
+	// look for a saved location
+	RECT savedrc;
+	if (savedrc = ConfigManager::GetInstance()->GetRect(configVar); !IsRectEmpty(&savedrc))
+	{
+		// We have a saved position - restore it, with one adjustment.
+		// The saved rect might be from an earlier version where the
+		// dialog size was different, so the position might be a bit
+		// off when applied to the new dialog.  So intead of using
+		// the upper left coordinates of the saved position, use the
+		// center coordinates.  That is, center the new dialog on the
+		// center position of the old dialog.  In cases where the new
+		// and old dialog sizes are the same, this will yield exactly
+		// the same position; when the size has changed, this should
+		// yield a position that looks the same to the eye.  In any
+		// case, we further adjust the position below to ensure that
+		// the final window position is within the viewable screen
+		// area, so if our screen layout has changed since the rect
+		// was saved, or the new size adjustment pushes it out of
+		// bounds, we'll correct for that.
+		winrc.left = (savedrc.left + savedrc.right)/2 - winwid/2;
+		winrc.top = (savedrc.top + savedrc.bottom)/2 - winht/2;
+		winrc.right = winrc.left + winwid;
+		winrc.bottom = winrc.top + winht;
+	}
+	else
+	{
+		// There's no saved position.  Look for an open window that's not 
+		// rotated and that's big enough to contain the dialog.  If we find
+		// one, position the dialog centered over that window.
+		auto TestWin = [hDlg, &winrc, winwid, winht](D3DView *view)
+		{
+			// don't use this window if it's not open
+			HWND hwndView = view->GetHWnd();
+			HWND hwndPar = GetParent(hwndView);
+			if (!IsWindow(hwndPar) || !IsWindowVisible(hwndPar) || IsIconic(hwndPar))
+				return false;
+
+			// don't use this window if it's rotated
+			if (view->GetRotation() != 0)
+				return false;
+
+			// don't use this window if it's too small to contain the dialog
+			RECT parrc;
+			GetWindowRect(hwndPar, &parrc);
+			int parwid = parrc.right - parrc.left, parht = parrc.bottom - parrc.top;
+			if (parwid < winwid || parht < winht)
+				return false;
+
+			// looks good - center it over this window
+			int left = parrc.left + (parwid - winwid)/2;
+			int top = parrc.top + (parht - winht)/2;
+			SetRect(&winrc, left, top, left + winwid, top + winht);
+			return true;
+		};
+		
+		// try each window in turn; if we don't find a suitable destination
+		// window, simply leave the dialog at its default position
+		if (!TestWin(GetPlayfieldView())
+			&& !TestWin(GetBackglassView())
+			&& !TestWin(GetDMDView())
+			&& !TestWin(GetTopperView())
+			&& !TestWin(GetInstCardView()))
+			return;
+	}
+
+	// force the final location into view
+	ForceRectIntoWorkArea(winrc, false);
+
+	// set the location
+	SetWindowPos(hDlg, NULL, winrc.left, winrc.top, -1, -1,
+		SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+}
+
+void Application::SaveDialogPos(HWND hDlg, const TCHAR *configVar)
+{
+	RECT rc;
+	GetWindowRect(hDlg, &rc);
+	ConfigManager::GetInstance()->Set(configVar, rc);
 }
 
 void Application::ShowWindow(FrameWin *win)
@@ -1168,6 +1266,23 @@ void Application::MuteVideos(bool mute)
 
 		// update the muting status for running videos
 		UpdateVideoMuting();
+	}
+}
+
+void Application::MuteTableAudio(bool mute)
+{
+	// update the status if it's changing
+	if (mute != muteTableAudio)
+	{
+		// remember the new setting
+		muteTableAudio = mute;
+
+		// save it in the config
+		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteTableAudio, mute);
+
+		// update muting status in the playfield
+		if (auto pfv = GetPlayfieldView(); pfv != nullptr)
+			pfv->MuteTableAudio(mute);
 	}
 }
 
@@ -1823,6 +1938,9 @@ DWORD Application::GameMonitorThread::Main()
 
 		void Show(int nCmdShow)
 		{
+			// notify the watchdog process
+			Application::Get()->watchdog.Notify(nCmdShow == SW_HIDE ? "Hide Taskbar" : "Restore Taskbar");
+
 			// hide/show all top-level windows with a given class name
 			auto ShowTopLevelWindows = [nCmdShow](const TCHAR *className)
 			{
@@ -2595,8 +2713,9 @@ DWORD Application::GameMonitorThread::Main()
 			// different names for the same devices.  For example, dshow 
 			// truncates long device names in different ways on different
 			// Windows versions.
-			if (item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio
-				&& audioCaptureDevice.length() == 0)
+			bool hasAudio =	(item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio)
+				|| item.mediaType.format == MediaType::Audio;
+			if (hasAudio && audioCaptureDevice.length() == 0)
 			{
 				// friendly name pattern we're scanning for
 				std::basic_regex<WCHAR> stmixPat(L"\\bstereo mix\\b", std::regex_constants::icase);
@@ -2631,6 +2750,14 @@ DWORD Application::GameMonitorThread::Main()
 						}
 					}
 				}
+
+				// if a capture device isn't available, skip this item
+				if (audioCaptureDevice.length() == 0)
+				{
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_NO_AUDIO_DEV).c_str()));
+					captureOkay = false;
+					continue;
+				}
 			}
 
 			// save (by renaming) any existing files of the type we're about to capture
@@ -2663,40 +2790,58 @@ DWORD Application::GameMonitorThread::Main()
 				continue;
 			}
 
-			// Figure the required image/video rotation parameter for ffmpeg
+			// Figure the required image/video rotation parameter for ffmpeg.
+			// Note that this doesn't apply to audio-only capture.
 			int rotate = item.mediaRotation - item.windowRotation;
 			const TCHAR *rotateOpt = _T("");
-			switch ((rotate + 360) % 360)
+			if (item.mediaType.format != MediaType::Audio)
 			{
-			case 90:
-				rotateOpt = _T("-vf \"transpose=1\"");  // 90 degrees clockwise
-				break;
+				switch ((rotate + 360) % 360)
+				{
+				case 90:
+					rotateOpt = _T("-vf \"transpose=1\"");  // 90 degrees clockwise
+					break;
 
-			case 180:
-				rotateOpt = _T("-vf \"hflip,vflip\"");  // mirror both axes
-				break;
+				case 180:
+					rotateOpt = _T("-vf \"hflip,vflip\"");  // mirror both axes
+					break;
 
-			case 270:
-				rotateOpt = _T("-vf \"transpose=2\"");	// 90 degrees counterclockwise
+				case 270:
+					rotateOpt = _T("-vf \"transpose=2\"");	// 90 degrees counterclockwise
+					break;
+				}
+			}
+
+			// set up the image format options, if we're capturing a still
+			// image or a video
+			TSTRINGEx imageOpts;
+			switch (item.mediaType.format)
+			{
+			case MediaType::Image:
+			case MediaType::SilentVideo:
+			case MediaType::VideoWithAudio:
+				imageOpts.Format(
+					_T(" -f gdigrab")
+					_T(" -framerate 30")
+					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop"),
+					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top);
 				break;
 			}
 
-			// set up the ffmpeg command line
+			// set up format-dependent options
 			TSTRINGEx audioOpts;
-			const TCHAR *framerateOpt = _T("");
 			TSTRINGEx timeLimitOpt;
 			bool isVideo = false;
 			switch (item.mediaType.format)
 			{
 			case MediaType::Image:
 				// image capture - capture one frame only (-vframes 1)
-				audioOpts = _T("-vframes 1");
+				timeLimitOpt = _T("-vframes 1");
 				break;
 
 			case MediaType::SilentVideo:
 				// video capture, no audio
 				isVideo = true;
-				framerateOpt = _T("-framerate 30");
 				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				audioOpts = _T("-c:a none");
 				break;
@@ -2704,17 +2849,22 @@ DWORD Application::GameMonitorThread::Main()
 			case MediaType::VideoWithAudio:
 				// video capture with optional audio
 				isVideo = true;
-				framerateOpt = _T("-framerate 30");
 				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
-				if (item.enableAudio && audioCaptureDevice.length() != 0)
+				if (item.enableAudio)
 					audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
 				else
 					audioOpts = _T("-c:a none");
 				break;
+
+			case MediaType::Audio:
+				// audio only
+				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
+				audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
+				break;
 			}
 
-			// Build the full command line, depending on whether we're in 
-			// normal one-pass mode or two-pass video mode.
+			// Build the FFMPEG command line for either normal one-pass mode or 
+			// two-pass video mode.
 			TSTRINGEx cmdline1;
 			TSTRINGEx cmdline2;
 			TSTRINGEx tmpfile;
@@ -2726,32 +2876,32 @@ DWORD Application::GameMonitorThread::Main()
 				// in the second pass.
 				tmpfile = std::regex_replace(item.filename, std::basic_regex<TCHAR>(_T("\\.([^.]+)$")), _T(".tmp.$1"));
 				cmdline1.Format(_T("\"%s\" -loglevel error")
-					_T(" -f gdigrab %s")
-					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
-					_T(" %s %s -c:v libx264 -crf 0 -preset ultrafast \"%s\""),
-					ffmpeg, framerateOpt,
-					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top,
-					audioOpts.c_str(), timeLimitOpt.c_str(), tmpfile.c_str());
+					_T(" %s %s %s %s -c:v libx264 -crf 0 -preset ultrafast \"%s\""),
+					ffmpeg, 
+					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(), tmpfile.c_str());
 
 				// Format the command line for the second pass while we're here
 				cmdline2.Format(_T("\"%s\" -loglevel error")
 					_T(" -i \"%s\"")
-					_T(" %s -c:a copy -max_muxing_queue_size 1024 \"%s\""),
+					_T(" %s -c:a copy -max_muxing_queue_size 1024")
+					_T(" \"%s\""),
 					ffmpeg,
 					tmpfile.c_str(),
-					rotateOpt, item.filename.c_str());
+					rotateOpt, 
+					item.filename.c_str());
 			}
 			else
 			{
 				// normal one-pass encoding - include all options and encode
 				// directly to the desired output file
 				cmdline1.Format(_T("\"%s\" -loglevel error")
-					_T(" -f gdigrab %s")
-					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop")
-					_T(" %s %s %s \"%s\""),
-					ffmpeg, framerateOpt,
-					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top,
-					audioOpts.c_str(), rotateOpt, timeLimitOpt.c_str(), item.filename.c_str());
+					_T(" %s %s")
+					_T(" %s %s")
+					_T(" \"%s\""),
+					ffmpeg, 
+					imageOpts.c_str(), audioOpts.c_str(), 
+					rotateOpt, timeLimitOpt.c_str(), 
+					item.filename.c_str());
 			}
 
 			auto RunFFMPEG = [this, &statusList, &curStatus, &itemDesc, &captureOkay, &abortCapture](TSTRINGEx &cmdline, bool logSuccess)
@@ -2833,8 +2983,10 @@ DWORD Application::GameMonitorThread::Main()
 				return result;
 			};
 
-			// run the first pass
-			if (RunFFMPEG(cmdline1, cmdline1.length() == 0))
+			// Run the first pass.  Only show the success status for the first pass
+			// if there will be no second pass, since we won't know if the overall
+			// operation is successful until after the second pass, if there is one.
+			if (RunFFMPEG(cmdline1, cmdline2.length() == 0))
 			{
 				// success - if there's a second pass, run it
 				if (cmdline2.length() != 0)
@@ -3621,4 +3773,70 @@ DWORD Application::NewFileScanThread::Main()
 
 	// done (the thread return value isn't used)
 	return 0;
+}
+
+// -----------------------------------------------------------------------
+//
+// Watchdog process interface
+//
+
+
+
+void Application::Watchdog::Launch()
+{
+	// create the pipes for communicating with the watchdog process
+	SECURITY_ATTRIBUTES sa;
+	sa.nLength = sizeof(sa);
+	sa.lpSecurityDescriptor = NULL;
+	sa.bInheritHandle = TRUE;
+	HandleHolder hChildInRead, hChildOutWrite;
+	if (!CreatePipe(&hPipeRead, &hChildOutWrite, &sa, 1024)
+		|| !CreatePipe(&hChildInRead, &hPipeWrite, &sa, 1024))
+		return;
+
+	// turn off handle inheritance for our ends of the pipes
+	SetHandleInformation(hPipeRead, HANDLE_FLAG_INHERIT, 0);
+	SetHandleInformation(hPipeWrite, HANDLE_FLAG_INHERIT, 0);
+
+	// build the watchdog exe name
+	TCHAR exe[MAX_PATH];
+	GetExeFilePath(exe, countof(exe));
+	PathAppend(exe, _T("PinballY Watchdog.exe"));
+
+	// set up the command line
+	TSTRINGEx cmdline;
+	cmdline.Format(_T(" -pid=%d"), GetCurrentProcessId());
+
+	// set up the startup info
+	STARTUPINFO si;
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	si.dwFlags = STARTF_USESTDHANDLES | STARTF_FORCEOFFFEEDBACK | STARTF_USESHOWWINDOW;
+	si.wShowWindow = SW_HIDE;
+	si.hStdInput = hChildInRead;
+	si.hStdOutput = hChildOutWrite;
+	si.hStdError = hChildOutWrite;
+
+	// launch the process
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&pi, sizeof(pi));
+	if (!CreateProcess(exe, cmdline.data(), NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+	{
+		hPipeRead = NULL;
+		hPipeWrite = NULL;
+		return;
+	}
+
+	// remember the process handle, forget the thread handle
+	hProc = pi.hProcess;
+	CloseHandle(pi.hThread);
+}
+
+void Application::Watchdog::Notify(const char *msg)
+{
+	if (hPipeWrite != NULL)
+	{
+		DWORD actual;
+		WriteFile(hPipeWrite, msg, (DWORD)strlen(msg) + 1, &actual, NULL);
+	}
 }

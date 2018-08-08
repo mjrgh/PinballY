@@ -110,6 +110,7 @@ typedef SSIZE_T ssize_t;
 // Define pointers the libvlc entrypoints we use
 #define LIBVLC_ENTRYPOINT(func) static decltype(func) *func##_;
 LIBVLC_ENTRYPOINT(libvlc_audio_set_mute)
+LIBVLC_ENTRYPOINT(libvlc_audio_set_volume)
 LIBVLC_ENTRYPOINT(libvlc_errmsg)
 LIBVLC_ENTRYPOINT(libvlc_event_attach)
 LIBVLC_ENTRYPOINT(libvlc_get_version)
@@ -197,6 +198,7 @@ static bool LoadLibvlc(ErrorHandler &eh)
 		return Failure(_T("Unable to bind libvlc function ") _T(#func) _T("()"));
 
 	LIBVLC_BIND(libvlc_audio_set_mute)
+	LIBVLC_BIND(libvlc_audio_set_volume)
     LIBVLC_BIND(libvlc_errmsg)
     LIBVLC_BIND(libvlc_event_attach)
 	LIBVLC_BIND(libvlc_get_version)
@@ -499,6 +501,12 @@ void VLCAudioVideoPlayer::Mute(bool f)
 	// set muting on the player, if present
 	if (player != nullptr)
 		libvlc_audio_set_mute_(player, f);
+}
+
+void VLCAudioVideoPlayer::SetVolume(int pctVol)
+{
+	if (player != nullptr)
+		libvlc_audio_set_volume_(player, pctVol);
 }
 
 void VLCAudioVideoPlayer::SetLooping(bool f)

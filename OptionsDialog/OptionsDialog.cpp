@@ -280,11 +280,17 @@ void OptionsDialog::OnInputDeviceChange(USHORT what, HANDLE hDevice)
 
 BEGIN_MESSAGE_MAP(MainOptionsDialog, OptionsDialog)
 	ON_MESSAGE(MsgDeleteSystemPage, OnDeleteSystemPage)
+	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
 
-MainOptionsDialog::MainOptionsDialog(int startPage)
-	: OptionsDialog(startPage)
+MainOptionsDialog::MainOptionsDialog(
+	InitializeDialogPositionCallback initPosCallback, 
+	RECT *pFinalDialogRect,
+	int startPage)
+	: OptionsDialog(startPage),
+	initPosCallback(initPosCallback),
+	pFinalDialogRect(pFinalDialogRect)
 {
 	// Create the pages.  Note that the order of page creation doesn't
 	// affect the display order, since we sort the tree dynamically into
@@ -339,6 +345,9 @@ BOOL MainOptionsDialog::OnInitDialog()
 {
 	// do the base class initialization
 	BOOL result = __super::OnInitDialog();
+
+	// let the caller select an initial window position
+	initPosCallback(GetSafeHwnd());
 
 	// If raw input isn't initialized, handle messages ourselves.
 	InputManager *im = InputManager::GetInstance();
@@ -621,4 +630,14 @@ bool MainOptionsDialog::TreeItemSorter(const CString &a, const CString &b)
 				return false;
 		}
 	}
+}
+
+void MainOptionsDialog::OnDestroy()
+{
+	// pass the final window rect back to the host
+	if (pFinalDialogRect != nullptr)
+		GetWindowRect(pFinalDialogRect);
+
+	// do the base class work
+	__super::OnDestroy();
 }

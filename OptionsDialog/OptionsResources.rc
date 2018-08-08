@@ -4,6 +4,45 @@
 
 #include "Resource.h"
 #include "../Utilities/UtilResource.h"
+#include "../VersionInfoUpdater/Generated/VersionInfo.rc"
+#include "targetver.h"
+#include "windows.h"
+
+// file version data
+VS_VERSION_INFO VERSIONINFO
+  FILEVERSION      PINBALLY_CORE_VERSION_LIST
+  PRODUCTVERSION   PINBALLY_CORE_VERSION_LIST
+  FILEFLAGSMASK    0x3fL
+#ifdef _DEBUG
+  FILEFLAGS        VS_FF_DEBUG | PINBALLY_VERSIONINFO_FILEFLAGS
+#else
+  FILEFLAGS        PINBALLY_VERSIONINFO_FILEFLAGS
+#endif
+  FILEOS           0x40004L
+  FILETYPE         0x1L
+  FILESUBTYPE      0x0L
+  BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Pinscape Labs"
+            VALUE "FileDescription", "PinballY Options Dialog"
+            VALUE "FileVersion", PINBALLY_CORE_VERSION_STRING
+            VALUE "InternalName", "OptionsDialog.dll"
+            VALUE "LegalCopyright", PINBALLY_COPYRIGHT ", GPLv3 or later"
+            VALUE "OriginalFilename", "OptionsDialog.dll"
+            VALUE "ProductName", "PinballY"
+            VALUE "ProductVersion", PINBALLY_CORE_VERSION_STRING
+            VALUE "Comments", "Build ID " PINBALLY_BUILD_GUID
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+  END
+
 
 // strings
 STRINGTABLE

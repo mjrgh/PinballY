@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a>
+</div>
+
+<h1>Files &amp; Folders</h1>
+
+<p>
+   PinballY stores a bunch of files to keep track of your list of
+   games and their media files.  Ideally, you shouldn't have to know
+   anything about these files or where they're stored, because PinballY
+   tries to make all of its internal storage details as invisible as
+   possible.  But "invisible" is only good when things are working.
+   It backfires when something goes wrong, because it's hard to troubleshoot
+   what you can't see.  
+</p>
+<p>
+   So, for the sake of troubleshooting, this section gives you the
+   details on where PinballY stores its various files.   Hopefully, this
+   will let you figure out what PinballY is thinking when looking for
+   a particular file, so that you can figure out why PinballY can't find
+   it, is finding the wrong copy, or whatever else seems to be wrong.
+</p>
+
+<h2>Media Files</h2>
+
+<p>
+   PinballY uses the same media folder structure that HyperPin and
+   PinballX use, to make it easier to use existing files that
+   you already have installed from one of those programs.
+</p>
+<p>
+   <b>Main media folder location:</b>  All media files are stored within
+   the main Media folder, which you can configure via your settings
+   (see <a href="PathOptions.html">Folder Options</a>).  You
+   can choose a specific folder location in the settings if you wish, but
+   I'd recommend using the default setting.  Here's how the default
+   setting works:
+</p>
+<ul>
+   <li>If PinballX is installed on your system, the main media
+      folder is <b>&lt;PinballX install folder&gt;\Media</b>
+
+   <li>Otherwise, it's <b>&lt;PinballY install folder&gt;\Media</b>
+</ul>
+
+<p>
+   <b>System folders:</b>  Each "system" (that is, pinball player
+   program, like Visual Pinball 9 or Future Pinball) has its own
+   subfolder under this main media folder.  By default, this folder has
+   the same name as the system, but you can set it for each
+   system individually using the options dialog.
+</p>
+<p>
+   So, for example, the system folder for Visual Pinball 9 might be
+   <b>&lt;PinballX install folder&gt;\Media\Visual Pinball 9</b>.
+</p>
+<p>
+   <b>Media type folders:</b>  Each "media type" has its own
+   subfolder.  Things get a little hairy(ier) here, because some
+   media types are "generic", meaning that they're not differentiated
+   by system, and others are system-specific.  I probably wouldn't
+   have made this distinction if it weren't already the way that
+   PinballX and HyperPin did it, but I carried it over for the sake
+   of compatibility; such is the cost of easy migration.
+</p>
+<p>
+   The "generic" media types have their type folders directly under
+   the main Media folder.  These are as follows:
+</p>
+<ul class="singleSpace">
+   <li>Media\Flyer Images
+   <ul class="singleSpace">
+      <li>Front
+      <li>Inside1
+      <li>Inside2
+      <li>Inside3
+      <li>Inside5
+      <li>Inside6
+      <li>Back
+   </ul>
+   <li>Media\Instruction Cards
+</ul>
+
+<p>
+   Note that the Flyer Images folder has its own subfolders, which
+   store the individual pages of the flyers, one page per image and
+   one image per folder.
+</p>
+
+<p>
+   The system-specific media types are nested under the system
+   folder for each system:
+</p>
+<ul class="singleSpace">
+   <li>Media\&lt;system folder&gt;\Backglass Images
+   <li>Media\&lt;system folder&gt;\Backglass Videos
+   <li>Media\&lt;system folder&gt;\DMD Images
+   <li>Media\&lt;system folder&gt;\DMD Videos
+   <li>Media\&lt;system folder&gt;\Launch Audio
+   <li>Media\&lt;system folder&gt;\Real DMD Color Images
+   <li>Media\&lt;system folder&gt;\Real DMD Color Videos
+   <li>Media\&lt;system folder&gt;\Real DMD Images
+   <li>Media\&lt;system folder&gt;\Real DMD Videos
+   <li>Media\&lt;system folder&gt;\Table Audio
+   <li>Media\&lt;system folder&gt;\Table Images
+   <li>Media\&lt;system folder&gt;\Table Videos
+   <li>Media\&lt;system folder&gt;\Topper Images
+   <li>Media\&lt;system folder&gt;\Topper Videos
+   <li>Media\&lt;system folder&gt;\Wheel Images
+</ul>
+
+<p>
+   The &lt;system folder&gt; path element is replaced by the "Media Subfolder"
+   name for the system, which you can view and change via the options dialog.
+   The default subfolder name is the same as the system's name (e.g., "Visual Pinball"
+   or "Future Pinball").
+</p>
+
+<p>
+   <b>Media files:</b>
+   The individual media files (images, videos, audio files) 
+   are distributed among the media folders listed above according to their
+   function: the main playfield image goes in the Table Images folder, the
+   backglass video goes in Backglass Images, and so on.
+</p>
+<p>
+   To display the actual base filename used for a game's media files,
+   select the "Information" command in the main menu to bring up the
+   game info box.  The base media filename is displayed in the box.
+</p>
+<p>
+   All of the files for a given game have the same name, based on this pattern:
+</p>
+<div style="margin-left: 2em;">
+   Game Title (Manufacturer Year).ext
+</div>
+
+<p>
+   For example, the playfield image for Funhouse might be called
+   <b>Funhouse (Williams 1990).jpg</b>.  The backglass and DMD images
+   for Funhouse could have <i>exactly the same names</i>, since,
+   remember, the same naming pattern is used for all files for a
+   given game.  PinballY tells all of these like-named files apart
+   by their folder location.
+</p>
+<p>
+   This scheme of using the same base name for all of a game's
+   files might seem kind of crazy; it might seem like it would be
+   easier to keep track of everything if the different files
+   (playfield, backglass, DMD) had different filenames rather than
+   being distinguishable only by folder location.  I'd completely
+   agree.  The only reason PinballY does it this way is that it
+   allows instant reuse of existing HyperPin and PinballX media
+   folder trees, since those programs used this same naming rule.
+</p>
+
+
+<h2>Table Databases</h2>
+
+<p>
+   PinballY keeps track of the games displayed in the "game wheel"
+   via a set of table database files.  These files use the conventions
+   used by HyperPin and PinballX, because we wanted you to be able to
+   use your existing files if you already had one of those systems
+   previously installed.
+</p>
+<p>
+   <b>Main table database folder location:</b>
+   The table databases are all stored within
+   the main Table Databases folder, which you can configure via your
+   settings (see <a href="PathOptions.html">Folder Options</a>).
+   You can choose a specific folder location in the settings
+   if you wish, but I'd recommend using the default setting.  Here's
+   how the default setting works:
+</p>
+<ul>
+   <li>If PinballX is installed on your system, the main table database
+      folder is <b>&lt;PinballX install folder&gt;\Databases</b>
+
+   <li>Otherwise, it's <b>&lt;PinballY install folder&gt;\Databases</b>
+</ul>
+<p>
+   <b>System folders:</b>  Each "system" (that is, pinball player
+   program, like Visual Pinball 9 or Future Pinball) has its own
+   subfolder under this main database folder.  By default, a
+   system folder has the same name as the system, but you can
+   set it for each system individually using the options dialog.
+</p>
+<p>
+   So, for example, the system folder for Visual Pinball 9 might be
+   <b>&lt;PinballX install folder&gt;\Databases\Visual Pinball 9</b>.
+</p>
+<p>
+   <b>XML files:</b>  Finally, we come to the actual files!  Each table
+   database file is an XML file.  You'll find one or more of these
+   in the system folder for each system.
+</p>
+<p>
+   Each system has one "main" XML file.  This is the "main" file because
+   it has the exact same name as the system folder, plus of course
+   the .xml suffix.  For example, the Visual Pinball 9 main file might be
+   <b>&lt;PinballX install folder&gt;\Databases\Visual Pinball 9\Visual Pinball 9.xml</b>.
+</p>
+<p>
+   In addition to the "main" file, you can have any number of additional
+   .xml files with other names.  PinballX used these files to represent
+   "lists", which is PinballX's version of a category.  PinballY 
+   recognizes these files and treats them as categories as well, so
+   that your existing PinballX data gets treated the same way in PinballY.
+   PinballY automatically creates a category for each .xml file it finds
+   apart from the "main" file for each system.  All known categories are
+   available as filters in the main menu, so that you can limit the
+   view to games in a given category.
+</p>
+<p>
+   Apart from the category identification, PinballY treats all of the XML
+   files in a single system folder as one big list of that system's games.
+   So the games that you should see listed in the "game wheel" for a
+   given system should be the combination of all of the contents of
+   all of the XML files in that system's database folder.
+</p>
+<p>
+   The XML files follow the HyperPin and PinballX XML format, which looks
+   like this:
+</p>
+<pre>
+    &lt;menu&gt;
+        &lt;game name="Hot Shot (Gottlieb) (1973)"&gt;
+            &lt;description&gt;Hot Shot (Gottlieb 1973)&lt;/description&gt;
+            &lt;rom&gt;&lt;/rom&gt;
+            &lt;manufacturer&gt;Gottlieb&lt;/manufacturer&gt;
+            &lt;year&gt;1973&lt;/year&gt;
+            &lt;type&gt;EM&lt;/type&gt;
+            &lt;hidedmd&gt;True&lt;/hidedmd&gt;
+            &lt;hidetopper&gt;True&lt;/hidetopper&gt;
+            &lt;hidebackglass&gt;True&lt;/hidebackglass&gt;
+            &lt;enabled&gt;True&lt;/enabled&gt;
+            &lt;rating&gt;3.5&lt;/rating&gt;
+        &lt;/game&gt;
+    &lt;/menu&gt;
+</pre>
+
+<p>
+   It's better not to edit these files by hand, since it's easy to
+   miss a &lt; or &gt; or otherwise mess up the rigid XML format.
+   It's better to edit the game information via the Game Setup dialog,
+   which you can access from the Operator Menu in the program.
+   But these files are pretty easy to read, so it's helpful to
+   know where they are, and to be able to take a look inside,
+   if you're trying to troubleshoot a problem.  You can view
+   their contents with any text editor.
+</p>
+   
+
+<h2>Table Statistics</h2>
+
+<p>
+   In addition to the table database files above, PinballY keeps a separate
+   collection of information on tables in a file called <b>GameStats.csv</b>,
+   in the main PinballY install folder.  This file stores additional
+   information on the tables beyond what the HyperPin/PinballX 
+   database format can store.
+</p>
+<p>
+   This file is in an all-text format, so you can view it with any text
+   editor, but it uses a structured format that makes it kind of hard
+   to read (and I definitely wouldn't recommend editing it by hand).
+   The file uses the CSV (comma-separated value) format, which was
+   designed for data exchange between programs like spreadsheets and
+   database managers that work with tabular data.  If you do want to
+   view it, the first line of the file gives a list of column names
+   that describe the structure of the data, and each line after that
+   is a "database row" that contains the data for one game, in the
+   column format described by that first column name line.
+</p>
+
+<h2>Settings</h2>
+
+<p>
+   All of PinballY's option settings are in the file <b>Settings.txt</b>,
+   stored in the main PinballY install folder.  This is a human-readable,
+   plain text file that you can peruse and edit by hand if you wish.
+   You shouldn't need to edit options this way, because all of the options
+   are configurable through the program (via the Options dialog or via
+   various menus), but it can be handy for troubleshooting purposes
+   because it lets you see all of your settings in one place.
+</p>
+<p>
+   <b>Resetting to defaults:</b>
+   If you think you've done something to muck up your settings beyond
+   repair, and you want to restore the original factory defaults,
+   simply delete Settings.txt.  There's no need to uninstall the program
+   if you just want to reset the options, since all of the changeable
+   settings are in that single Settings.txt file.
+</p>
+
+<h2>Windows Registry</h2>
+
+<p>
+   PinballY stores absolutely nothing in the Windows Registry.
+</p>
+<p>
+   (I point this out only because I bet you assumed PinballY must
+   write something to the registry!  That's just what Windows
+   programs do.  But really, it doesn't.  The registry is such a
+   source of misery that I avoided it entirely.  One of my core
+   engineering principles is that software should be as self-contained
+   as possible and shouldn't spread its tentacles all over the system.
+   The only use PinballY makes of the registry is
+   to look at keys other programs might have put there, for the sake of
+   interoperating with other software, such as PinballX and VPinMAME.)
+</p>
+

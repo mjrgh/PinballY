@@ -20,6 +20,7 @@ StartupDialog::~StartupDialog()
 void StartupDialog::InitVarMap()
 {
 	varMap.emplace_back(new CkBoxMap(_T("AutoLaunch"), IDC_CK_AUTOLAUNCH, false));
+	varMap.emplace_back(new CkBoxMap(_T("SplashScreen"), IDC_CK_SPLASH_SCREEN, true));
 	varMap.emplace_back(new EditStrMap(_T("RunAtStartup"), IDC_EDIT_RUN_AT_STARTUP, _T("")));
 	varMap.emplace_back(new EditStrMap(_T("RunAtExit"), IDC_EDIT_RUN_AT_EXIT, _T("")));
 	varMap.emplace_back(new MonVars(_T("WaitForMonitors"), IDC_CK_MONITOR_WAIT, 
