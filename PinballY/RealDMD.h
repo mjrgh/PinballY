@@ -5,6 +5,7 @@
 
 #pragma once
 #include "VLCAudioVideoPlayer.h"
+#include "DmdDeviceDll.h"
 
 class ErrorHandler;
 class GameListItem;
@@ -106,8 +107,26 @@ protected:
 	// Have we attempted to load the DLL yet?
 	static bool dllLoaded;
 
+	// is the DLL valid?
+	static bool IsDllValid() { return hmodDll != NULL; }
+
 	// DLL module handle
 	static HMODULE hmodDll;
+
+	// Information on the dmd-extensions version of dmddevice.dll
+	struct DmdExtInfo
+	{
+		DmdExtInfo() : matched(false), settingsFix(false) { }
+
+		// Is this the dmd-extensions version of dmddevice.dll?
+		bool matched;
+
+		// Does this version of the DLL have the PM_GameSettings()
+		// fix?  Older versions of the DLL crashed if we call
+		// PM_GameSettings().  Releases from 1.7.3 have a fix.
+		bool settingsFix;
+
+	} dmdExtInfo;
 
 	// vertical/horizontal mirroring
 	bool mirrorHorz;

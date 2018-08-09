@@ -3,6 +3,7 @@
 //
 #include "stdafx.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/FileUtil.h"
 #include "RealDMD.h"
 #include "GameList.h"
 #include "HighScores.h"
@@ -15,66 +16,8 @@
 #include "DMDFont.h"
 
 
-// We access the DMD device through VPinMAME's DLL interface.  That
-// interface has been implemented for all of the DMD device types
-// used in pin cabs, so it provides good device independence, and
-// any pin cab with a DMD will almost certainly have it installed,
-// so we can access the DMD without requiring any adidtional setup
-// or configuration steps.
-//
-// The VPM DMD DLL interface is defined in a header file in the 
-// VPinMAME source tree (ext/dmddevice/dmddevice.h), but we don't
-// want to include that header directly because it creates compile-
-// time links to the DLL imports.  We don't want to be hard-wired
-// to the DLL like that.  Instead, we reproduce the necessary
-// structures here, and then do the DLL loading and entrypoint
-// imports explicitly at run-time.
-//
-// Note that this will have to be kept in sync with any future 
-// changes to the VPM DLL ABI, but the nature of DLLs makes it
-// difficult to make incompatible changes without breaking lots
-// of user installations, so in practical terms the interface is
-// more or less frozen anyway.
-namespace DMDDevice
-{
-	// PinMAME options settings struct, to initialize the DLL
-	typedef struct tPMoptions {
-		int dmd_red, dmd_green, dmd_blue;			// monochrome base color at 100% brightness
-		int dmd_perc66, dmd_perc33, dmd_perc0;		// monochrome brightness levels for 4-level display
-		int dmd_only, dmd_compact, dmd_antialias;
-		int dmd_colorize;							// colorize mode enabled
-		int dmd_red66, dmd_green66, dmd_blue66;		// colorized RGB for brightness level 2/66%
-		int dmd_red33, dmd_green33, dmd_blue33;		// colorized RGB for brightness level 1/33%
-		int dmd_red0, dmd_green0, dmd_blue0;        // colorized RGB for brightness level 0/0%
-	} tPMoptions;
-
-	// RGB color
-	typedef struct rgb24 {
-		unsigned char red;
-		unsigned char green;
-		unsigned char blue;
-	} rgb24;
-
-	// DMD DLL entrypoints.  
-	// NOTE: These are just extern declarations that are never actually
-	// linked.  DON'T call these directly!  Doing so will cause linker
-	// errors, which we DO NOT want to satisfy by binding these to any
-	// actual imports, ESPECIALLY NOT DLL imports!  We don't want to
-	// statically bind the .exe to DmdDevice.dll because we explicitly
-	// want to allow that file to be ENTIRELY MISSING at run-time.  The
-	// only reason we include these extern refs at all is for their type
-	// declarations, which we use to create the dynamically bound symbols.
-	#define DMDDEV extern
-	DMDDEV int Open();
-	DMDDEV bool Close();
-	DMDDEV void Set_4_Colors_Palette(rgb24 color0, rgb24 color33, rgb24 color66, rgb24 color100);
-	DMDDEV void Set_16_Colors_Palette(rgb24 *color);
-	DMDDEV void PM_GameSettings(const char* GameName, UINT64 HardwareGeneration, const tPMoptions &Options);
-	DMDDEV void Render_4_Shades(UINT16 width, UINT16 height, UINT8 *currbuffer);
-	DMDDEV void Render_16_Shades(UINT16 width, UINT16 height, UINT8 *currbuffer);
-	DMDDEV void Render_RGB24(UINT16 width, UINT16 height, rgb24 *currbuffer);
-	DMDDEV void Console_Data(UINT8 data);
-}
+// library inclusion for GetFileVersionInfo et al
+#pragma comment(lib, "version.lib")
 
 // DLL name
 #ifdef _WIN64
@@ -83,30 +26,10 @@ namespace DMDDevice
 #define DMD_DLL_FILE _T("DmdDevice.dll")
 #endif
 
+// define the externs for the dmddevice.dll imports
+#define DMDDEVICEDLL_DEFINE_EXTERNS
+#include "DMDDeviceDll.h"
 using namespace DMDDevice;
-
-// Run-time DMD DLL imports
-//
-// We call all DLL entrypoints through function pointers that we
-// bind at run-time when we first load the DLL.  To set up an
-// import, add the following two lines of code:
-//
-// - a DMDDEV_ENTRYPOINT() line in the list immediately below
-//
-// - a DMDDEV_BIND() line in the similar list a little later
-// 
-// When calling these functions, call the Xxx_() version
-// instead of the static extern version defined above.
-
-// Define static pointers to the DMD DLL entrypoints we use
-#define DMDDEV_ENTRYPOINT(func) static decltype(DMDDevice::func) *func##_;
-DMDDEV_ENTRYPOINT(Open)
-DMDDEV_ENTRYPOINT(Close)
-DMDDEV_ENTRYPOINT(PM_GameSettings)
-DMDDEV_ENTRYPOINT(Render_4_Shades)
-DMDDEV_ENTRYPOINT(Render_16_Shades)
-DMDDEV_ENTRYPOINT(Render_RGB24)
-
 
 // -----------------------------------------------------------------------
 //
@@ -169,10 +92,21 @@ bool RealDMD::FindDLL()
 	if (dllPath.length() != 0)
 		return true;
 
-	// find the library path
+	// Look for the DLL in our own program folder first.  This allows
+	// using a specific version of the DLL with PinballY, without
+	// affecting the VPinMAME configuration, simply by copying the
+	// desired DLL into the PinballY program folder.
 	TCHAR buf[MAX_PATH] = { 0 };
+	GetModuleFileName(G_hInstance, buf, countof(dllPath));
+	PathRemoveFileSpec(buf);
+	PathAppend(buf, DMD_DLL_FILE);
+	if (FileExists(buf))
+	{
+		dllPath = buf;
+		return true;
+	}
 
-	// The DMD DLL should be in the same folder as the VPinMAME DLL.
+	// Now try the folder containing the VPinMAME COM object DLL.
 	// We can find that from its COM InProcServer registration under 
 	// its CLSID GUID, {F389C8B7-144F-4C63-A2E3-246D168F9D39}.  Start
 	// by querying the length of the value.
@@ -198,20 +132,6 @@ bool RealDMD::FindDLL()
 				return true;
 			}
 		}
-	}
-
-	// We didn't find the DLL via the VPinMAME COM object registration.
-	// Try loading it from our own program folder instead.  Get our .EXE
-	// full path, and replace the file spec with the DLL name.
-	GetModuleFileName(G_hInstance, buf, countof(dllPath));
-	PathRemoveFileSpec(buf);
-	PathAppend(buf, DMD_DLL_FILE);
-
-	// Use this path if it exists
-	if (FileExists(buf))
-	{
-		dllPath = buf;
-		return true;
 	}
 
 	// No DLL found
@@ -247,7 +167,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 {
 	// do nothing if we've already loaded the DLL
 	if (dllLoaded)
-		return hmodDll != NULL;
+		return IsDllValid();
 
 	// we've now made the attempt, even if it fails
 	dllLoaded = true;
@@ -274,7 +194,187 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 		return false;
 	};
 
-	// Now load the DLL.  Tell the loader to include the DLL's own folder
+	// Before loading the library, check to see if it's the dmd-extensions
+	// version.  That's becoming common because it's included in recent
+	// (2018) VP distributions, so we can't rely on our original strategy
+	// of assuming that the presence of a DMD DLL implies the presence of
+	// a DMD device.  Thanks to the VP distribution, the dmd-ext version 
+	// could be installed even if the user doesn't need it, doesn't want
+	// it, hasn't enabled it, and doesn't know it's there.  Early PinballY
+	// testing revealed this when a mysterious second DMD window started
+	// showing up on some people's machines, because dmd-ext's default
+	// behavior is to show a fake DMD window.  This doesn't happen by
+	// default in basic VP and VPinMAME installations because you have
+	// to explicitly configure VPM to look for dmddevice.dll; people who
+	// don't need and don't want the fake video DMD thus won't know it's
+	// there unless they go looking for it.  Or, in early PBY alphas,
+	// until they ran PinballY.
+	//
+	// To sense the dmd-ext DLL, check the product name and copyright
+	// strings in the .dll file's VERSION_INFO resource.  The dmd-ext DLL
+	// reports (at least currently) "Universal DmdDevice.dll for Visual 
+	// PinMAME" as the product string, and "Copyright © 20xx freezy@vpdb.io"
+	// as the copyright string.  To be flexible against future changes,
+	// we'll only look for some distinctive fragments of these strings (such
+	// as "universal" and "freezy") rather than holding out for an exact 
+	// match.
+	//
+	DWORD vsInfoHandle;
+	DWORD vsInfoSize = GetFileVersionInfoSize(dllPath.c_str(), &vsInfoHandle);
+	if (vsInfoSize != 0)
+	{
+		// load the version info
+		std::unique_ptr<BYTE> vsInfo(new BYTE[vsInfoSize]);
+		if (GetFileVersionInfo(dllPath.c_str(), vsInfoHandle, vsInfoSize, vsInfo.get()))
+		{
+			// read the ProductName and LegalCopyright strings
+			TSTRING name, cpr;
+			LPCTSTR nameBuf = nullptr, cprBuf = nullptr;
+			UINT nameLen = 0, cprLen = 0;
+			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\ProductName"), (LPVOID*)&nameBuf, &nameLen)
+				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\ProductName"), (LPVOID*)&nameBuf, &nameLen))
+				name.assign(nameBuf, nameLen);
+			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\LegalCopyright"), (LPVOID*)&cprBuf, &cprLen)
+				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\LegalCopyright"), (LPVOID*)&cprBuf, &cprLen))
+				cpr.assign(cprBuf, cprLen);
+
+			// Look for "universal" in the product string and "freezy" in the
+			// copyright string, insensitive to case.
+			if (std::regex_search(name, std::basic_regex<TCHAR>(_T("\\buniversal\\b"), std::regex_constants::icase))
+				|| std::regex_search(name, std::basic_regex<TCHAR>(_T("\\bfreezy\\b"), std::regex_constants::icase)))
+			{
+				// It's the dmd-extensions version of the DLL.  So note.
+				dmdExtInfo.matched = true;
+
+				// Check the product version to see if it's a newer version
+				// wiht the fix for a bug that caused the DLL to crash if we
+				// called PM_GameSettings().
+				VS_FIXEDFILEINFO *vsFixedInfo;
+				UINT vsFixedInfoLen;
+				if (VerQueryValue(vsInfo.get(), _T("\\"), (LPVOID*)&vsFixedInfo, &vsFixedInfoLen))
+				{
+					// check if the version is 1.7.3 or later
+					if (vsFixedInfo->dwProductVersionMS > 0x00010007
+						|| (vsFixedInfo->dwProductVersionMS == 0x00010007
+							&& vsFixedInfo->dwProductVersionLS >= 0x00030000))
+					{
+						// the settings fix is available
+						dmdExtInfo.settingsFix = true;
+					}
+				}
+			}
+		}
+	}
+
+	// If it's the dmd-extensions DLL, check its .ini file before
+	// loading it.  If its "virtual DMD" (that is, its on-screen
+	// video emulation of a DMD) is enabled, suppress loading the
+	// DLL unless the config setting is explicitly ON (not AUTO).
+	// Why?  Because "virtual" means that the DLL provides a fake
+	// video DMD, not a real DMD.  We have a perfectly nice fake
+	// DMD window of our own, thank you very much, and most users
+	// find it confusing and ugly to have two fake DMD windows 
+	// appear.  The point of the RealDMD module is Real DMD 
+	// support; make sure that's what this DLL is actually for.
+	if (dmdExtInfo.matched)
+	{
+		// The dmd-ext default setting for the fake DMD is "enabled", 
+		// so we have to assume it's disabled unless we find an
+		// explicit setting saying otherwise.
+		bool virtualEnabled = true;
+
+		// Try loading its dmddevice.ini file.  The .ini file is at
+		// the path given by the DMDDEVICE_CONFIG environment variable
+		// if set, otherwise in the same folder as the .dll file.
+		TCHAR cfgbuf[MAX_PATH];
+		size_t cfglen;
+		if (_tgetenv_s(&cfglen, cfgbuf, _T("DMDDEVICE_CONFIG")) || cfglen == 0)
+		{
+			// the environment variable isn't defined - try the DLL path
+			_tcscpy_s(cfgbuf, dllPath.c_str());
+			PathRemoveFileSpec(cfgbuf);
+			PathAppend(cfgbuf, _T("DmdDevice.ini"));
+		}
+
+		// try reading the file
+		long len;
+		std::unique_ptr<WCHAR> ini(ReadFileAsWStr(cfgbuf, SilentErrorHandler(), len,
+			ReadFileAsStr_NewlineTerm | ReadFileAsStr_NullTerm));
+		if (ini != nullptr)
+		{
+			// scan for [virtualdmd] enabled=0
+			WSTRING sect;
+			for (WCHAR *p = ini.get(); *p != 0; )
+			{
+				// find the end of the line
+				WCHAR *eol;
+				for (eol = p; *eol != 0 && *eol != '\n' && *eol != '\r'; ++eol);
+
+				// find the start of the next line
+				WCHAR *nextLine;
+				if (*eol == 0)
+					nextLine = eol;
+				else if ((*eol == '\n' && *(eol + 1) == '\r') || (*eol == '\r' && *(eol + 1) == '\n'))
+					nextLine = eol + 2;
+				else
+					nextLine = eol + 1;
+
+				// null-terminate the current line
+				*eol = 0;
+
+				// check the pattern
+				std::match_results<const WCHAR*> m;
+				if (std::regex_match(p, std::basic_regex<WCHAR>(L"\\s*;.*")))
+				{
+					// comment line - ignore it
+				}
+				else if (std::regex_match(p, m, std::basic_regex<WCHAR>(L"\\s*\\[\\s*([^\\]]*?)\\s*\\]\\s*")))
+				{
+					// it's a section marker
+					sect = m[1].str();
+				}
+				else if (std::regex_match(p, m, std::basic_regex<WCHAR>(L"\\s*([^=]*?)\\s*=\\s*(.*?)\\s*")))
+				{
+					// It's a name=value line.  If we're in the [virtualdmd]
+					// section, check for enabled=(true|false); if we find 
+					// that, it's disabled if the value is false, otherwise
+					// it's enabled.  Note that the dmd-ext config reader
+					// uses the default for invalid values, and the default
+					// for this one is true, so it has to be explicitly
+					// "false" to be disabled.
+					if (_wcsicmp(sect.c_str(), L"virtualdmd") == 0
+						&& _wcsicmp(m[1].str().c_str(), L"enabled") == 0)
+					{
+						virtualEnabled = (_wcsicmp(m[2].str().c_str(), L"false") != 0);
+					}
+				}
+
+				// advance to the next line
+				p = nextLine;
+			}
+		}
+
+		// If we didn't find a config setting explicitly disabling
+		// the virtual DMD, we can't load the DLL in-process.
+		if (virtualEnabled)
+		{
+			// Unless the config setting is explicitly ON (not AUTO),
+			// don't load the DLL.  
+			if (auto cv = ConfigManager::GetInstance()->Get(_T("RealDMD"), nullptr);
+				cv != nullptr && (_tcsicmp(cv, _T("on")) == 0 || _tcsicmp(cv, _T("enabled")) == 0 || _ttoi(cv) != 0))
+			{
+				// it's explicitly on - continue with the loading
+			}
+			else
+			{
+				// It's AUTO (explicitly or by default).  Suppress loading
+				// the DLL.
+				return false;
+			}
+		}
+	}
+
+	// Load the DLL.  Tell the loader to include the DLL's own folder
 	// (along with the normal locations) when searching for additional
 	// dependencies the DLL itself imports.
 	hmodDll = LoadLibraryEx(dllPath.c_str(), NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
@@ -292,6 +392,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	DMDDEV_BIND(Render_4_Shades, true)
 	DMDDEV_BIND(Render_16_Shades, true)
 	DMDDEV_BIND(Render_RGB24, false)
+#undef DMDDEV_BIND
 
 	// success
 	return true;
@@ -312,7 +413,7 @@ void RealDMD::Shutdown()
 	WaitForSingleObject(hWriterThread, 250);
 
 	// close the underlying device
-	if (hmodDll != NULL)
+	if (IsDllValid())
 		Close_();
 }
 
@@ -378,7 +479,7 @@ void RealDMD::ClearMedia()
 void RealDMD::UpdateGame()
 {
 	// do nothing if the DLL isn't loaded
-	if (hmodDll == NULL)
+	if (!IsDllValid())
 		return;
 		
 	// update our game if the selection in the game list has changed
@@ -472,8 +573,18 @@ void RealDMD::UpdateGame()
 			// the WPC95 generation is suitable.  (Note that if we didn't
 			// load any registry settings, we'll still have valid defaults
 			// to send from initializing the struct earlier.)
-			const UINT64 GEN_WPC95 = 0x0000000000080LL;
-			PM_GameSettings_(TSTRINGToCSTRING(rom).c_str(), GEN_WPC95, opts);
+			//
+			// The dmd-extensions version of the DLL had a bug in versions
+			// prior to 1.7.3 that causes the DLL to crash if we call this.
+			// So skip the call entirely in that case.  That loses the game
+			// context sensitivity for coloring, but that's a fairly small
+			// loss of functionality to avoid crashing the process.
+			bool safeToCall = !dmdExtInfo.matched || dmdExtInfo.settingsFix;
+			if (safeToCall)
+			{
+				const UINT64 GEN_WPC95 = 0x0000000000080LL;
+				PM_GameSettings_(TSTRINGToCSTRING(rom).c_str(), GEN_WPC95, opts);
+			}
 
 			// remember the base color option
 			baseColor = RGB(opts.dmd_red, opts.dmd_green, opts.dmd_blue);
@@ -1181,4 +1292,3 @@ void RealDMD::VideoLoopNeeded(WPARAM cookie)
 			videoPlayer->Replay(SilentErrorHandler());
 	}
 }
-

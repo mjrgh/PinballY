@@ -266,6 +266,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="DialogResource.h" />
     <ClInclude Include="DialogWithSavedPos.h" />
     <ClInclude Include="DiceCoefficient.h" />
+    <ClInclude Include="DmdDeviceDll.h" />
     <ClInclude Include="DMDFont.h" />
     <ClInclude Include="DMDShader.h" />
     <ClInclude Include="DMDView.h" />

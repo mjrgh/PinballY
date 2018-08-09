@@ -416,8 +416,10 @@ void PlayfieldView::OnIdleEvent()
 	// start the cleanup timer
 	SetTimer(hWnd, cleanupTimerID, 1000, 0);
 
-	// Show the about box for a few seconds, as a sort of splash screen
-	if (ConfigManager::GetInstance()->GetBool(ConfigVars::SplashScreen, true))
+	// Show the about box for a few seconds, as a sort of splash screen.
+	// Skip this if an error message is showing.
+	if (popupType != PopupErrorMessage
+		&& ConfigManager::GetInstance()->GetBool(ConfigVars::SplashScreen, true))
 	{
 		ShowAboutBox();
 		SetTimer(hWnd, endSplashTimerID, 5000, 0);

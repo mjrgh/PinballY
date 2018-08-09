@@ -1,5 +1,24 @@
 PinballY Update History
 
+??-??-???? (1.0.0 Alpha 7)
+
+* Look for dmddevice.dll in the PinballY program folder first, then in
+the VPinMAME folder.  This allows using a specific version of the DLL
+with PinballY, without affecting what VPM uses, simply by copying the
+desired DLL into the PinballY install folder.
+
+* Detect the dmd-extensions version of dmdevice.dll, and check if its
+"virtual" device (the fake on-screen DMD window) is enabled.  If so,
+suppress loading the DLL unless the config setting for RealDMD is
+explicitly ON; skip it on AUTO.
+
+* Detect the dmd-extensions version of dmddevice.dll and work around
+the crash bug in the DLL if we identify it.  (I found the problem in
+the DLL and sent a pull request to freezy with the fix, but that will
+take a while to propagate around, so for the time being we have to
+deal with the existing buggy version of the DLL.)
+
+
 08-07-2018 (1.0.0 Alpha 6)
 
 * Added media file viewer: select via the Game Setup menu; shows

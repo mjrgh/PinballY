@@ -389,6 +389,9 @@
     <ClInclude Include="DialogWithSavedPos.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DmdDeviceDll.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="TextShaderVS.hlsl">
