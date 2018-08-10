@@ -22,6 +22,42 @@ UpdateTime = Sat 28 Apr 2018 11:51:48
 FirstRunTime =
 
 
+# Log file features.  PinballY writes certain information to a log file
+# as it runs ("PinballY.log", in the PinballY install folder).  This is
+# a simple human-readable text file with information on certain events 
+# that occur as the program runs, with some internal details of the
+# program's operation.  The idea is to store away some additional
+# information that would be too technical and unfriendly to report in
+# the graphical UI, but that are occasionally useful for troubleshooting
+# purposes.  The main UI intentionally tries to hide a lot of technical
+# detail for the sake of a friendly and game-like playing experience,
+# but when something goes wrong, it's nice to have a more transparent
+# view of the inner workings of the program.
+#
+# The program normally writes very little information to the log file,
+# since we don't want to create additional work for the CPU and waste
+# a bunch of disk space on pointless messages when things are working
+# properly.  The log file is really here for troubleshooting.  So we
+# provide a number of "feature flags" that let you enable particular
+# types of log information:
+#
+# Log.MediaFiles - media file searching
+#
+# Log.SystemSetup - player system setup and table file searches
+#
+# Log.MediaCapture - media capture
+#
+# Log.TableLaunch - table launch (running a game)
+#
+# Log.RealDMD - real DMD device setup
+#
+Log.MediaFiles = 0
+Log.SystemSetup = 0 
+Log.MediaCapture = 1
+Log.TableLaunch = 0
+Log.RealDMD = 1
+
+
 # Media folder path.  This is the root of the our media folder tree, where
 # we look for the various table media files (images, videos, sounds, etc).
 # We use the same subfolder structure as HyperPin and PinballX, so you 

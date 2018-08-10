@@ -45,6 +45,7 @@
 #define IDB_IMAGE_FILE_ICON             172
 #define IDB_VIDEO_FILE_ICON             173
 #define IDB_AUDIO_FILE_ICON             174
+#define IDB_MNU_HELP                    175
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
@@ -138,6 +139,7 @@
 #define IDS_MENU_RATE_GAME              408
 #define IDS_MENU_HIGH_SCORES            409
 
+#define IDS_MENU_HELP                   418
 #define IDS_MENU_MUTETABLEAUDIO         419
 #define IDS_MENU_EXIT                   420
 #define IDS_MENU_SHUTDOWN               421
@@ -304,6 +306,8 @@
 #define IDS_ERR_OPTS_DIALOG_DLL_VER     688
 #define IDS_ERR_CAP_NO_AUDIO_DEV        689
 #define IDS_ERR_DEL_MEDIA_FILE          690
+#define IDS_ERR_STEAM_MISSING           691
+#define IDS_ERR_CAP_ITEM_FFMPEG_ERR     692
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
@@ -447,6 +451,7 @@
 #define ID_MUTE_TABLE_AUDIO             32850
 #define ID_SHOW_MEDIA_FILES             32851
 #define ID_DEL_MEDIA_FILE               32852
+#define ID_HELP                         32853
 
 
 // Next default values for new objects
@@ -455,7 +460,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32853
+#define _APS_NEXT_COMMAND_VALUE         32854
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

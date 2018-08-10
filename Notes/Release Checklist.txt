@@ -1,6 +1,6 @@
 PinballY Release Checklist
 
-- Edit VersionHistory.txt with notes on what's new in this release
+- Edit VersionHistory.txt with the date, version, and notes on what's new
 
 - Open the solution in Visual Studio
 

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Log File Options</h1>
+
+<p>
+   PinballY writes some internal technical information to a "log file" while
+   running.  This is a simple human-readable text file that you can review
+   to see the additional technical detail.  This is mostly intended for
+   troubleshooting purposes, to provide more transparency on the inner
+   workings of the program when something goes wrong.  PinballY tries to
+   keep the graphical part of the UI friendly and non-technical, but that
+   has the tradeoff that it hides a lot of information about what's
+   going on inside the program.  The log file is meant to help fill in
+   the missing pieces when necessary.
+</p>
+<p>
+   The dialog shows the location and name of the log file, in case you want
+   to inspect its contents.  You can simply click on the link to open the
+   file in Notepad.
+</p>
+
+<h2>Enabling individual features</h2>
+
+<p>
+   You can select the type of information included in the log file.  The
+   default settings exclude most items, to keep the log file as small as
+   possible.  Writing more information to the file slows down the program
+   a little and obviously uses more disk space, plus it's harder to
+   find the information you're looking for if you have to sift through
+   tons of unrelated information.  So the program lets you turn individual
+   logging features on and off.  When things are working well, you can turn
+   everything off to minimize overhead and disk space, but if you're having
+   a problem with a particular area, you can enable logging for that feature.
+</p>
+
+<p>
+   <b>Player system setup:</b>  Information on setting up the configured
+   pinball player systems, and for the process of searching for their
+   table files and table databases.  This gives you detailed
+   information about how the system is interpreting the settings
+   information for each system, such as all of the folder paths
+   involved, and shows where it's looking for table files and
+   table information databases.  This can be helpful if PinballY
+   isn't finding all of your tables or isn't finding bibliographic
+   information that you've previously entered (titles, manufacturers,
+   years, etc).  It can also help figure out the problem if
+   you can't launch (play) any of a system's tables successfully.
+</p>
+
+<p>
+   <b>Real DMD:</b>  Information about detecting and setting up
+   your real DMD device, if any.
+</p>
+
+<p>
+   <b>Media file searches:</b>  Enables logging for media file searches,
+   showing where PinballY is looking for media files to display when
+   games are selected in the "wheel".  This can help track down why
+   images or videos aren't showing up in the UI when they should be.
+</p>
+
+<p>
+   <b>Media capture:</b> Logs information when capturing screen
+   shots and videos for your games.  This lets you see any error
+   messages from FFMPEG.  This can be helpful if the capture
+   process is producing empty files or blank images.
+</p>
+
+<p>
+   <b>Table launch:</b>  Logs details when trying to launch
+   a table with a player system.  This can be helpful if a
+   particular game won't launch correctly.  (If none of the
+   tables for a particular system will launch correctly, you
+   might also try enabling "player system setup" logging
+   above to see how the system is being configured overall.)
+</p>
+
+</body>
+</html>

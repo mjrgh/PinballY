@@ -66,6 +66,15 @@ protected:
 	// singleton instance
 	static RealDMD *inst;
 
+	// Test runtime conditions to determine if the DMD should be
+	// enabled.
+	static bool ShouldEnable();
+
+	// Is the DMD enabled?  We might disable the DMD even if we
+	// successfully loaded the DLL, such as when dmd-extensions is
+	// used and it's in virtual mode.
+	bool enabled;
+
 	// Color space for a stored image.  This specifies the type of
 	// pixel data stored in the image, and the render function we 
 	// use to display it.
@@ -98,11 +107,14 @@ protected:
 	// Write queue lock
 	CriticalSection writeFrameLock;
 
-	// DLL location - set by FindDLL()
-	TSTRING dllPath;
-
 	// load the DLL
 	bool LoadDLL(ErrorHandler &eh);
+
+	// DLL location - set by FindDLL()
+	static TSTRING dllPath;
+
+	// DLL module handle
+	static HMODULE hmodDll;
 
 	// Have we attempted to load the DLL yet?
 	static bool dllLoaded;
@@ -110,16 +122,16 @@ protected:
 	// is the DLL valid?
 	static bool IsDllValid() { return hmodDll != NULL; }
 
-	// DLL module handle
-	static HMODULE hmodDll;
-
 	// Information on the dmd-extensions version of dmddevice.dll
-	struct DmdExtInfo
+	static struct DmdExtInfo
 	{
-		DmdExtInfo() : matched(false), settingsFix(false) { }
+		DmdExtInfo() : matched(false), virtualEnabled(true), settingsFix(false) { }
 
 		// Is this the dmd-extensions version of dmddevice.dll?
 		bool matched;
+
+		// Is the virtual DMD enabled?
+		bool virtualEnabled;
 
 		// Does this version of the DLL have the PM_GameSettings()
 		// fix?  Older versions of the DLL crashed if we call
@@ -224,4 +236,8 @@ protected:
 
 	// timer event handler
 	static VOID CALLBACK SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
+
+	// log a DMD-related event
+	static void LogGroup();
+	static void Log(const TCHAR *msg, ...);
 };

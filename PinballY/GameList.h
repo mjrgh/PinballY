@@ -1220,6 +1220,10 @@ public:
 	int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext, 
 		const std::list<TSTRING> newFiles);
 
+	// Logging for system setup events
+	static void Log(const TCHAR *msg, ...);
+	static void LogGroup();
+
 protected:
 	GameList();
 	~GameList();

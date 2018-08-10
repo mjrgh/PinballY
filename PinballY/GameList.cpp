@@ -13,6 +13,7 @@
 #include "GameList.h"
 #include "DateUtil.h"
 #include "Application.h"
+#include "LogFile.h"
 
 #include <filesystem>
 namespace fs = std::experimental::filesystem;
@@ -860,25 +861,49 @@ bool GameList::InitFromPinballX(ErrorHandler &eh)
 	return true;
 }
 
+void GameList::Log(const TCHAR *msg, ...)
+{
+	va_list ap;
+	va_start(ap, msg);
+	LogFile::Get()->WriteV(false, LogFile::SystemSetupLogging, msg, ap);
+	va_end(ap);
+}
+
+void GameList::LogGroup()
+{
+	LogFile::Get()->Group(LogFile::SystemSetupLogging);
+}
+
 bool GameList::InitFromConfig(ErrorHandler &eh)
 {
+	LogGroup();
+	Log(_T("Starting pinball player system setup\n"));
+
 	// Get the database folder, using "data folder" rules
 	TSTRING dbDir = GetDataFilePath(_T("TableDatabasePath"), _T("Databases"));
-
+	Log(_T("The main table database folder is %s\n"), dbDir.c_str());
+	
 	// Run through the SystemN variables to see what's populated.
 	ConfigManager *cfg = ConfigManager::GetInstance();
 	for (int n = 0; n <= PinballY::Constants::MaxSystemNum; ++n)
 	{
-		// Check if there's an entry for "SystemN".  If so, populate
-		// it as long as it's not disabled.
+		// Check if there's an entry for "SystemN"
 		MsgFmt sysvar(_T("System%d"), n);
 		MsgFmt enabled(_T("%s.Enabled"), sysvar.Get());
-		if (const TCHAR *systemName = cfg->Get(sysvar); systemName != 0 && cfg->GetBool(enabled, true))
+		const TCHAR *systemName = cfg->Get(sysvar);
+		bool systemEnabled = cfg->GetBool(enabled, true);
+
+		// log disabled systems
+		if (systemName != nullptr && !systemEnabled)
+			Log(_T("Pinball player system \"%s\" is disabled; skipping\n"), systemName);
+
+		// if this one has a system name, and it's enabled, configure it
+		if (systemName != nullptr && systemEnabled)
 		{
-			// There's an enabled entry for this system slot.  First,
-			// get its table database folder so that we can populate its 
-			// game list.  Note that the system's display name is the 
-			// default media folder name, if SystemN.DatabaseDir isn't
+			// There's an enabled entry for this system slot.  
+			// First, get the system's table database folder so that we can 
+			// populate its game list.  Note that the system's display name 
+			// is the default media folder name, if SystemN.DatabaseDir isn't
 			// separately specified.
 			const TCHAR *databaseDir = cfg->Get(MsgFmt(_T("%s.DatabaseDir"), sysvar.Get()), _T(""));
 			if (databaseDir[0] == 0)
@@ -889,6 +914,11 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			PathCombine(sysDbDirOrig, dbDir.c_str(), databaseDir);
 			PathCanonicalize(sysDbDir, sysDbDirOrig);
 
+			// log the database folder information
+			LogGroup();
+			Log(_T("Configuring pinball player system \"%s\"\n"), systemName);
+			Log(_T("+ database folder = %s\n"), sysDbDir);
+
 			// The database directory has to be unique per system
 			bool dbDirClash = false;
 			for (auto &otherSys : systems)
@@ -897,6 +927,8 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				if (_tcsicmp(otherSys.second.databaseDir.c_str(), databaseDir) == 0)
 				{
 					// uh oh - flag an error and continue
+					LogFile::Get()->Write(_T("Error: Table database folder clash: system %s (%s) clashes with %s (%s)\n"),
+						systemName, databaseDir, otherSys.second.displayName.c_str(), otherSys.second.databaseDir.c_str());
 					eh.Error(MsgFmt(IDS_ERR_DBDIRCLASH, otherSys.second.displayName.c_str(), systemName, systemName));
 					dbDirClash = true;
 					break;
@@ -928,6 +960,10 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					sysClass = _T("VP");
 				else if (std::regex_match(systemName, fpNamePat))
 					sysClass = _T("FP");
+
+				// log it
+				Log(_T("+ no system class specified; class inferred from name is %s\n"), 
+					sysClass[0] != 0 ? sysClass : _T("(unknown)"));
 			}
 
 			// if we still don't know the system class, try to infer it from 
@@ -940,6 +976,10 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					sysClass = _T("VPX");
 				else if (_tcsicmp(defExt, _T(".fpt")) == 0)
 					sysClass = _T("FP");
+
+				// log it
+				Log(_T("+ system class inferred from table extension is %s\n"),
+					sysClass[0] != 0 ? sysClass : _T("(unknown"));
 			}
 
 			// if the system class is still a mystery, try to infer it 
@@ -955,6 +995,10 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					sysClass = _T("VP");
 				else if (std::regex_match(exe, fpExePat))
 					sysClass = _T("FP");
+
+				// log it
+				Log(_T("+ system class inferred from system executable is %s\n"),
+					sysClass[0] != 0 ? sysClass : _T("(unknown"));
 			}
 
 			// supply the suitable default extension for the system, if
@@ -967,6 +1011,10 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					defExt = _T(".vpt");
 				else if (_tcsicmp(sysClass, _T("FP")) == 0)
 					defExt = _T(".fpt");
+
+				// log it
+				Log(_T("+ no table file extension specified; ext inferred from system class is %s\n"),
+					defExt[0] != 0 ? defExt : _T("(unknown"));
 			}
 
 			// Figure the full name of the program executable:
@@ -991,9 +1039,18 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				// This is shorthand for the Steam executable as specified
 				// in the registry, under the "Steam" program ID.
 				DWORD len = countof(exeBuf);
-				if (SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+				if (!SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
 					_T("steam"), _T("Open"), exeBuf, &len)))
-					exe = exeBuf;
+				{
+					LogFile::Get()->Write(_T("Error: system %s uses [STEAM] executable, but Steam ")
+						_T("wasn't found in the Windows registry\n"), systemName);
+					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName));
+					continue;
+				}
+
+				// use the steam executable
+				exe = exeBuf;
+				Log(_T("+ [STEAM] executable specified, full path is %s\n"), exe);
 			}
 			else if ((exe[0] == 0 || PathIsRelative(exe)) && GetProgramForExt(registeredExe, defExt))
 			{
@@ -1018,11 +1075,15 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					PathAppend(exeBuf, exe);
 					exe = exeBuf;
 				}
+
+				// log it
+				Log(_T("+ full executable path to player program is %s\n"), exe);
 			}
 
 			// the working directory is the folder containing the executable
 			const TCHAR *exeFileName = PathFindFileName(exe);
 			TSTRING workingPath(exe, exeFileName - exe);
+			Log(_T("+ working path when launching player program is %s\n"), workingPath.c_str());
 
 			// If the table path is in relative notation, it's relative to the
 			// system's program folder.  Expand it to an absolute path.
@@ -1039,18 +1100,20 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				// store the result back in the table path
 				tablePath = tablePathBuf;
 			}
+			Log(_T("+ full table path (folder containing this system's table files) is %s\n"), tablePath);
 
 			// create the system object
 			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath, defExt);
 
 			// Load the config variables for the system
+			const TCHAR *mediaDirVar = cfg->Get(MsgFmt(_T("%s.MediaDir"), sysvar.Get()), _T(""));
 			system->databaseDir = databaseDir;
 			system->exe = exe;
 			system->defExt = defExt;
 			system->systemClass = sysClass;
 			system->tablePath = tablePath;
 			system->workingPath = workingPath;
-			system->mediaDir = cfg->Get(MsgFmt(_T("%s.MediaDir"), sysvar.Get()), systemName);
+			system->mediaDir = mediaDirVar[0] != 0 ? mediaDirVar : systemName;
 			system->params = cfg->Get(MsgFmt(_T("%s.Parameters"), sysvar.Get()), _T(""));
 			system->process = cfg->Get(MsgFmt(_T("%s.Process"), sysvar.Get()), _T(""));
 			system->startupKeys = cfg->Get(MsgFmt(_T("%s.StartupKeys"), sysvar.Get()), _T(""));
@@ -1059,8 +1122,15 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->runAfter = cfg->Get(MsgFmt(_T("%s.RunAfter"), sysvar.Get()), _T(""));
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 
+			Log(_T("+ media folder base name is %s, full path is %s\\%s; %s\n"),
+				system->mediaDir.c_str(), GetMediaPath(), system->mediaDir.c_str(),
+				mediaDirVar[0] == 0 ? 
+				_T("this folder name is defaulted from the system name" :
+				_T("this folder name was specified in the settings")));
+
 			// Search the system's database directory for .XML files.  These 
 			// contain the table metadata for the system's tables.
+			Log(_T("+ searching folder %s for table database .XML files\n"), sysDbDir);
 			for (auto &file : fs::directory_iterator(sysDbDir))
 			{
 				// check if it's an XML file
@@ -1069,6 +1139,8 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				if (std::regex_match(fname, xmlExtPat))
 				{
 					// it's an XML file - load the table list
+					LogGroup();
+					Log(_T("+ System \"%s\": loading table database file %s\n"), systemName, fname);
 					if (!LoadGameDatabaseFile(fname, databaseDir, system, eh))
 						return false;
 				}
@@ -1365,8 +1437,7 @@ GameSystem *GameList::CreateSystem(
 	// Get the system
 	GameSystem *system = &it->second;
 
-	// Look up the table file set object for the system's table
-	// file pattern
+	// Look up the table file set object for the system's table file pattern
 	TSTRING key = TableFileSet::GetKey(tablePath, defExt);
 	auto itfs = tableFileSets.find(key);
 	if (itfs == tableFileSets.end())
@@ -1376,6 +1447,15 @@ GameSystem *GameList::CreateSystem(
 			std::piecewise_construct,
 			std::forward_as_tuple(key),
 			std::forward_as_tuple(tablePath, defExt)).first;
+	}
+	else if (defExt != nullptr && defExt[0] != 0)
+	{
+		Log(_T("+ This system uses a folder that has already been scanned (%s\\*%s)\n"),
+			tablePath, defExt);
+	}
+	else
+	{
+		Log(_T("+ NOT scanning for this system's tables files, because its default extension is empty\n"));
 	}
 
 	// cross-reference the system and the table file set
@@ -1391,17 +1471,33 @@ bool GameList::LoadGameDatabaseFile(
 	const TCHAR *filename, const TCHAR *parentFolder,
 	GameSystem *system, ErrorHandler &eh)
 {
+	// set up for logging
+	auto Log = [](const TCHAR *msg, ...)
+	{
+		va_list ap;
+		va_start(ap, msg);
+		LogFile::Get()->WriteV(false, LogFile::SystemSetupLogging, msg, ap);
+		va_end(ap);
+	};
+	auto LogGroup = []() { LogFile::Get()->Group(LogFile::SystemSetupLogging); };
+
 	// read and parse the XML
 	std::unique_ptr<GameDatabaseFile> xml(new GameDatabaseFile());
 	if (!xml->Load(filename, eh))
+	{
+		Log(_T("++ XML parse failed\n"));
 		return false;
+	}
 
 	// make sure it has the root <menu> node
 	typedef xml_node<char> node;
 	typedef xml_attribute<char> attr;
 	node *menu = xml->doc.first_node("menu");
 	if (menu == nullptr)
+	{
+		Log(_T("++ Root <menu> node not found in XML; assuming this isn't a table database file\n"));
 		return false;
+	}
 
 	// Determine if the file defines a "category".
 	//
@@ -1457,6 +1553,16 @@ bool GameList::LoadGameDatabaseFile(
 		catNameNodeVal = AnsiToTSTRING(catNameNode->value());
 		categoryName = catNameNodeVal.c_str();
 	}
+
+	// log the category information
+	if (categoryName != nullptr)
+		Log(_T("++ This file defines category \"%s\" for the games it contains; %s\n"), 
+			categoryName, 
+			catNameNodeVal.length() != 0 ? 
+			_T("the name comes from the explicit <CategoryName> tag in file") :
+			_T("the category name is based on the XML file name"));
+	else
+		Log(_T("++ This is the main file for this system (it doesn't define a category)\n"));
 
 	// If we found a category name, find or create the category
 	// object
@@ -1613,6 +1719,10 @@ bool GameList::LoadGameDatabaseFile(
 				GameListItem &g = games.emplace_back(
 					mediaName.c_str(), title.c_str(), name, manuf, year, tableType,
 					rom, system, enabled, gridPos);
+
+				// log it
+				Log(_T("++ adding game %hs, table file %hs, media file base name %s\n"),
+					title.c_str(), name, mediaName.c_str());
 
 				// remember the table file set for the system, and set the file
 				// entry in the system's table file list (if one exists) to point
@@ -3029,6 +3139,18 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 	if (!GetMediaItems(lst, mediaType, flags) || lst.size() == 0)
 		return false;
 
+	// log the lookup
+	if (LogFile::Get()->IsFeatureEnabled(LogFile::MediaFileLogging))
+	{
+		TCHAR dir[MAX_PATH];
+		mediaType.GetMediaPath(dir, system != nullptr ? system->mediaDir.c_str() : nullptr);
+		LogFile::Get()->Group();
+		LogFile::Get()->Write(_T("Media file lookup for %s%s: %s, path %s, found %s\n"),
+			title.c_str(), forCapture ? _T(", for capture") : _T(""),
+			LoadStringT(mediaType.nameStrId).c_str(),
+			dir, lst.size() == 0 ? _T("no matches") : lst.front().c_str());
+	}
+
 	// return the first item in the list
 	filename = lst.front();
 	return true;
@@ -3658,7 +3780,11 @@ TableFileSet::TableFileSet(const TCHAR *tablePath, const TCHAR *defExt) :
 	tablePath(tablePath), defExt(defExt)
 {
 	// build our initial file set from a directory scan
-	ScanFolder(tablePath, defExt, [this](const TCHAR *filename) { AddFile(filename); });
+	ScanFolder(tablePath, defExt, [this](const TCHAR *filename) 
+	{
+		GameList::Log(_T("++ found file:  %s\n"), filename);
+		AddFile(filename);
+	});
 }
 
 void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
@@ -3672,6 +3798,9 @@ void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
 	// of selecting all files.
 	if (ext != nullptr && ext[0] != 0)
 	{
+		// note what's going on
+		GameList::Log(_T("+ scanning for table files: %s\\*%s\n"), path, ext);
+			
 		// note if we're dealing with the all-file wildcard
 		bool dotStar = (_tcscmp(ext, _T(".*")) == 0);
 
@@ -3689,6 +3818,10 @@ void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
 				func(WSTRINGToTSTRING(file.path().filename().wstring()).c_str());
 		}
 	}
+	else
+	{
+		GameList::Log(_T("+ NOT scanning for this system's table files (because its default table file extension is empty)\n"));
+	}
 }
 
 TSTRING TableFileSet::GetKey(const TCHAR *tablePath, const TCHAR *defExt)
@@ -3699,7 +3832,7 @@ TSTRING TableFileSet::GetKey(const TCHAR *tablePath, const TCHAR *defExt)
 
 	// append *.<defExt>
 	PathAppend(buf, _T("*"));
-	_tcscat_s(buf, defExt);
+	_tcscat_s(buf, defExt != nullptr && defExt[0] != 0 ? defExt : _T(".*"));
 
 	// convert it all to lower-case
 	_tcslwr_s(buf);

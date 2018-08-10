@@ -524,12 +524,16 @@ bool FrameWin::DoCommand(int cmd)
 	switch (cmd)
 	{
 	case ID_ABOUT:
-		if (PlayfieldView *pfv = Application::Get()->GetPlayfieldView(); pfv != 0)
-			pfv->SendMessage(WM_COMMAND, ID_ABOUT);
+	case ID_HELP:
+	case ID_OPTIONS:
+		// forward to the main playfield view
+		if (PlayfieldView *pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			pfv->SendMessage(WM_COMMAND, cmd);
 		return true;
 
 	case ID_EXIT:
-		if (PlayfieldWin *pfw = Application::Get()->GetPlayfieldWin(); pfw != 0)
+		// close the main playfield window
+		if (PlayfieldWin *pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
 			pfw->PostMessage(WM_CLOSE);
 		return true;
 
@@ -539,12 +543,6 @@ bool FrameWin::DoCommand(int cmd)
 
 	case ID_FULL_SCREEN:
 		ToggleFullScreen();
-		return true;
-
-	case ID_OPTIONS:
-		// send these to the playfield view
-		if (PlayfieldView *pfv = Application::Get()->GetPlayfieldView(); pfv != 0)
-			pfv->SendMessage(WM_COMMAND, cmd);
 		return true;
 
 	case ID_VIEW_BACKGLASS:
@@ -569,8 +567,8 @@ bool FrameWin::DoCommand(int cmd)
 
 	case ID_FPS:
 	case ID_ROTATE_CW:
-		// forward these to the child view
-		if (view != 0)
+		// forward these to our child view
+		if (view != nullptr)
             view->SendMessage(WM_COMMAND, cmd);
 		return true;
 

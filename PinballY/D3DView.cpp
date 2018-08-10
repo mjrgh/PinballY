@@ -92,6 +92,7 @@ bool D3DView::InitWin()
 
 	// load the menu icons
 	LoadMenuIcon(ID_ABOUT, IDB_MNU_ABOUT);
+	LoadMenuIcon(ID_HELP, IDB_MNU_HELP);
 	LoadMenuIcon(ID_ROTATE_CW, IDB_MNU_ROTATE);
 	LoadMenuIcon(ID_EXIT, IDB_MNU_EXIT);
 	LoadMenuIcon(ID_FULL_SCREEN, IDB_MNU_FULLSCREEN);

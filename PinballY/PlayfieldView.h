@@ -259,6 +259,12 @@ protected:
 	// about box
 	void ShowAboutBox();
 
+	// help
+	void ShowHelp();
+
+	// open a file or program via ShellExecute
+	void ShellExec(const TCHAR *file, const TCHAR *params = _T(""));
+
 	// commands on the current game
 	void PlayGame(int cmd, int systemIndex = -1);
 	void ShowFlyer(int pageNumber = 0);

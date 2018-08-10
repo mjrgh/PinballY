@@ -5,12 +5,16 @@
 // one singleton instance.
 //
 #pragma once
+#include "../Utilities/Config.h"
 
-class LogFile
+class LogFile : public ConfigManager::Subscriber
 {
 public:
 	// Initialize - creates the global singleton
 	static void Init();
+
+	// initialize with config settings
+	void InitConfig();
 
 	// Shut down
 	static void Shutdown();
@@ -18,19 +22,71 @@ public:
 	// get the global singleton instance
 	static LogFile *Get() { return inst; }
 
+	// Feature flags.  These allow messages to be conditionally
+	// displayed according to which features are enabled.
+	static const DWORD BaseLogging        = 0x00000001;   // basic logging; always enabled
+	static const DWORD MediaFileLogging   = 0x00000002;   // media file setup
+	static const DWORD SystemSetupLogging = 0x00000004;   // system setup and table search
+	static const DWORD CaptureLogging     = 0x00000008;   // media capture
+	static const DWORD TableLaunchLogging = 0x00000010;   // table launch
+	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
+
+	// is a feature enabled?
+	bool IsFeatureEnabled(DWORD feature) { return (enabledFeatures & feature) != 0; }
+
 	// write a message
 	void Write(const TCHAR *fmt, ...);
 
-	// get the underlying OS file handle
-	HANDLE GetFileHandle() const { return h; }
+	// Write a message if logging for the given feature is enabled.
+	//
+	// (This AND's the feature flag against the current enable mask,
+	// and writes the message only if the result is nonzero.  Note
+	// that this means you can pass an OR combination of feature bits
+	// if desired; the message is written if any of the bits are set
+	// in the enable mask.)
+	void Write(DWORD feature, const TCHAR *fmt, ...);
+
+	// write a message with a timestamp
+	void WriteTimestamp(const TCHAR *fmt, ...);
+	void WriteTimestamp(DWORD feature, const TCHAR *fmt, ...);
+
+	// common write handler with formatting, feature flag testing,
+	// and optional timestamps
+	void WriteV(bool timestamp, DWORD features, const TCHAR *fmt, va_list ap);
+
+	// basic string writer
+	void WriteStr(const TCHAR *str);
+	void WriteStrA(const CHAR *str);
+
+	// Start a group.  This adds a blank line if any non-empty lines
+	// have been written since the last group start.  If the feature
+	// mask is given, the group is only started if the feature bit is
+	// set in the feature enable mask.
+	void Group(DWORD feature = BaseLogging);
 
 protected:
 	LogFile();
 	~LogFile();
 
-	// OS file handle
+	// config file notifications
+	virtual void OnConfigReload() override;
+
+	// critical section for writing
+	CriticalSection lock;
+
+	// OS file handle for the log file
 	HandleHolder h;
+
+	// Feature enable mask.  This is a bitwise combination of feature
+	// flags determining which features are enabled for logging.
+	DWORD enabledFeatures;
 
 	// global singleton instance
 	static LogFile *inst;
+
+	// Number of consecutive newlines at end of output.  We keep track
+	// of this for the Group() function, so that we know how many 
+	// newlines we need to add to ensure there's a blank line at the
+	// end of the output.
+	int nNewlines;
 };

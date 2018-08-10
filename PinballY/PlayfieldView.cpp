@@ -203,27 +203,24 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 			newStat == RealDMDAuto ? _T("auto") :
 			newStat == RealDMDEnable ? _T("on") : _T("off"));
 
-		// activate or deactivate the DMD according to the new status
-		if (newStat == RealDMDDisable)
+		// shut down any existing DMD session
+		if (realDMD != nullptr)
 		{
-			// disabling the DMD - delete the support object if activated
-			if (realDMD != nullptr)
-			{
-				realDMD->ClearMedia();
-				realDMD.reset();
-			}
+			realDMD->ClearMedia();
+			realDMD.reset();
 		}
-		else
+
+		// activate or deactivate the DMD according to the new status
+		if (newStat != RealDMDDisable)
 		{
 			// enabling or auto-sensing - try initializing if it's not
 			// already running
-			if (realDMD == nullptr)
-				InitRealDMD(Application::InUiErrorHandler());
-
-			// load media
-			if (realDMD != nullptr)
-				realDMD->UpdateGame();
+			InitRealDMD(Application::InUiErrorHandler());
 		}
+
+		// load media, if the DMD is now active
+		if (realDMD != nullptr)
+			realDMD->UpdateGame();
 	}
 }
 
@@ -578,6 +575,10 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_ABOUT:
 		ShowAboutBox();
+		return true;
+
+	case ID_HELP:
+		ShowHelp();
 		return true;
 
 	case ID_EXIT:
@@ -1078,6 +1079,14 @@ void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<K
 
 	// process the command queue
 	ProcessKeyQueue();
+}
+
+void PlayfieldView::ShowHelp()
+{
+	// open the main help file in a browser window
+	TCHAR helpFile[MAX_PATH];
+	GetDeployedFilePath(helpFile, _T("Help\\PinballY.html"), _T(""));
+	ShellExec(helpFile);
 }
 
 void PlayfieldView::ShowAboutBox()
@@ -5506,6 +5515,7 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 
 			// add the About block
 			md.emplace_back(_T(""), -1);
+			md.emplace_back(LoadStringT(IDS_MENU_HELP), ID_HELP);
 			md.emplace_back(LoadStringT(IDS_MENU_ABOUT), ID_ABOUT);
 
 			// add the Cancel block
@@ -6173,7 +6183,8 @@ void PlayfieldView::ShowOperatorMenu()
 		md.emplace_back(_T(""), -1);
 	}
 
-	// About box
+	// Help/About block
+	md.emplace_back(LoadStringT(IDS_MENU_HELP), ID_HELP);
 	md.emplace_back(LoadStringT(IDS_MENU_ABOUT), ID_ABOUT);
 	md.emplace_back(_T(""), -1);
 
@@ -7722,11 +7733,8 @@ void PlayfieldView::ShowMediaFilesExit()
 	}
 }
 
-void PlayfieldView::DoMediaListCommand(bool &closePopup)
+void PlayfieldView::ShellExec(const TCHAR *file, const TCHAR *params)
 {
-	// presume we won't close the popup
-	closePopup = false;
-
 	// for commands that do a ShellExecute, do this in a thread, as it
 	// can be rather slow
 	class ShellLauncher
@@ -7747,7 +7755,7 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 		HandleHolder hThread;
 		DWORD tid;
 
-		ShellLauncher(HWND hwndPar, const TCHAR *file, const TCHAR *params) : 
+		ShellLauncher(HWND hwndPar, const TCHAR *file, const TCHAR *params) :
 			file(file), params(params) { }
 
 		static DWORD WINAPI ThreadMain(LPVOID lParam)
@@ -7756,8 +7764,8 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 			auto self = static_cast<ShellLauncher*>(lParam);
 
 			// execute the shell command
-			ShellExecute(self->hwndPar, _T("open"), self->file.c_str(), 
-				self->params.length() != 0 ? self->params.c_str() : NULL, 
+			ShellExecute(self->hwndPar, _T("open"), self->file.c_str(),
+				self->params.length() != 0 ? self->params.c_str() : NULL,
 				NULL, SW_SHOW);
 
 			// done - delete 'self' and exit the thread
@@ -7769,6 +7777,14 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 		TSTRING file;
 		TSTRING params;
 	};
+
+	ShellLauncher::Do(GetParent(hWnd), file, params);
+}
+
+void PlayfieldView::DoMediaListCommand(bool &closePopup)
+{
+	// presume we won't close the popup
+	closePopup = false;
 
 	// execute the current command
 	switch (showMedia.command)
@@ -7791,7 +7807,7 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 		break;
 
 	case ShowMediaState::ShowFile:
-		ShellLauncher::Do(GetParent(hWnd), _T("explorer"), MsgFmt(_T("/select,%s"), showMedia.file.c_str()));
+		ShellExec(_T("explorer"), MsgFmt(_T("/select,%s"), showMedia.file.c_str()));
 		showMedia.command = ShowMediaState::SelectItem;
 		ShowMediaFiles(0);
 		break;
@@ -7816,7 +7832,7 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 
 	case ShowMediaState::OpenFolder:
 		// open the folder in Windows Explorer
-		ShellLauncher::Do(GetParent(hWnd), showMedia.file.c_str(), _T(""));;
+		ShellExec(showMedia.file.c_str());;
 
 		// return to the item selection
 		showMedia.command = ShowMediaState::SelectItem;
@@ -8186,7 +8202,7 @@ void PlayfieldView::LaunchMediaSearch()
 		UrlParamEncode(game->mediaName).c_str());
 
 	// launch the search
-	ShellExecute(GetParent(hWnd), _T("open"), search, NULL, NULL, SW_SHOW);
+	ShellExec(search);
 
 	// Show a message explaining that a media pack ZIP file can be
 	// dropped.  This doesn't put us into any special mode, as we 

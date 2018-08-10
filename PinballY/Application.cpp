@@ -534,14 +534,19 @@ bool Application::Init()
 	// load the app title string
 	Title.Load(IDS_APP_TITLE);
 
-	// initialize the media type list
-	GameListItem::InitMediaTypeList();
+	// initialize the log file - do this first, so that other subsystems
+	// can log messages during initialization if desired
+	LogFile::Init();
 
-	// set up the config manager
+	// Set up the config manager.  Do this as the first thing after
+	// setting up the log file.
 	ConfigManager::Init();
 
-	// initialize the log file
-	LogFile::Init();
+	// let the log file load any config data it needs
+	LogFile::Get()->InitConfig();
+
+	// initialize the media type list
+	GameListItem::InitMediaTypeList();
 
 	// initialize D3D
 	if (!D3D::Init())
@@ -1552,6 +1557,12 @@ bool Application::GameMonitorThread::Launch(
 	this->hideTaskbar = cfg->GetBool(ConfigVars::HideTaskbarDuringGame, true);
 	this->gameInactivityTimeout.Format(_T("%ld"), cfg->GetInt(ConfigVars::GameTimeout, 0) * 1000);
 
+	// log the launch start
+	LogFile::Get()->Group(LogFile::TableLaunchLogging);
+	LogFile::Get()->Write(LogFile::TableLaunchLogging,
+		_T("Table launch: %s, table file %s, system %s\n"),
+		game->title.c_str(), game->filename.c_str(), system->displayName.c_str());
+
 	// If the launch is for the sake of capturing screenshots of the
 	// running game, pre-figure the capture details for all of the
 	// requested capture items.  We store all of the details in the
@@ -1643,6 +1654,7 @@ bool Application::GameMonitorThread::Launch(
 	{
 		// flag the error
 		WindowsErrorMessage sysErr;
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ failed to create monitor thread: %s\n"), sysErr.Get());
 		eh.SysError(LoadStringT(IDS_ERR_LAUNCHGAME), MsgFmt(_T("Monitor thread creation failed: %s"), sysErr.Get()));
 		
 		// remove the thread's reference, since there's no thread
@@ -1692,6 +1704,7 @@ DWORD Application::GameMonitorThread::Main()
 	TSTRING gameFile = game.filename;
 	TCHAR gameFileWithPath[MAX_PATH];
 	PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFile.c_str());
+	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ launch: full table path %s\n"), gameFileWithPath);
 
 	// If PinVol is running, send it a message on its mailslot with the
 	// game file and title.  This lets it show the title in its on-screen
@@ -1818,6 +1831,9 @@ DWORD Application::GameMonitorThread::Main()
 		// Parse option flags
 		RunOptions options(gameSys.runBefore);
 
+		// log the launch
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch:\n> %s\n"), options.command.c_str());
+
 		// Launch the program without waiting
 		AsyncErrorHandler aeh;
 		if (!Application::RunCommand(SubstituteVars(options.command).c_str(), 
@@ -1838,6 +1854,7 @@ DWORD Application::GameMonitorThread::Main()
 			// the user wants us to simply launch the process and
 			// leave it running, so we can close the process handle
 			// now and let the process run independently from now on.
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: [NOWAIT] specified, continuing\n"));
 			if (!options.terminate)
 				hRunBeforeProc = NULL;
 		}
@@ -1845,6 +1862,7 @@ DWORD Application::GameMonitorThread::Main()
 		{
 			// Wait mode.  Wait for the process to exit, or for a 
 			// close-game or application-wide shutdown signal.
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: waiting for command to finish\n"));
 			HANDLE waitEvents[] = { hRunBeforeProc, shutdownEvent, closeEvent };
 			switch (WaitForMultipleObjects(countof(waitEvents), waitEvents, FALSE, INFINITE))
 			{
@@ -1852,6 +1870,7 @@ DWORD Application::GameMonitorThread::Main()
 				// The RunBefore process exited.  This is what we were
 				// hoping for; proceed to run the game.  Close the child
 				// process handle and continue.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: command finished\n"));
 				hRunBeforeProc = NULL;
 				break;
 
@@ -1884,6 +1903,8 @@ DWORD Application::GameMonitorThread::Main()
 				// process handle in hRunBeforeProc.  The game monitor thread
 				// object destructor will use that to kill the process if it's
 				// still running, as soon as the thread exits.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+					_T("+ run before launch: Run Before command interrupted; aborting launch\n"));
 				return 0;
 			}
 		}		
@@ -1912,15 +1933,42 @@ DWORD Application::GameMonitorThread::Main()
 	// Check if the file exists.  If not, add the default extension.
 	if (!FileExists(gameFileWithPath) && gameSys.defExt.length() != 0)
 	{
-		// Try adding the extension.  If that file exists, add the extension to
-		// the base filename as well.
-		_tcscat_s(gameFileWithPath, gameSys.defExt.c_str());
-		if (FileExists(gameFileWithPath))
+		// The file doesn't exist.  Try adding the default extension.
+		TCHAR gameFileWithPathExt[MAX_PATH];
+		_stprintf_s(gameFileWithPathExt, _T("%s%s"), gameFileWithPath, gameSys.defExt.c_str());
+
+		// log the attempt
+		LogFile::Get()->Write(LogFile::TableLaunchLogging,
+			_T("+ table launch: table file %s doesn't exist; try adding extension -> %s\n"),
+			gameFileWithPath, gameFileWithPathExt);
+
+		// if the file + extension exists, use that instead of the original
+		if (FileExists(gameFileWithPathExt))
+		{
+			// log it
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+				_T("+ table launch: file + extension (%s) exists, using it\n"), gameFileWithPathExt);
+
+			// use the path + extension version, and also add the extension
+			// to the base game file name
+			_tcscpy_s(gameFileWithPath, gameFileWithPathExt);
 			gameFile.append(gameSys.defExt);
+		}
+		else
+		{
+			// log that neither file exists
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch: file + extension (%s) doesn't exist either; sticking with original name (%s)\n"), 
+					gameFileWithPathExt, gameFileWithPath);
+		}
 	}
 
 	// Replace substitution variables in the command-line parameters
 	TSTRING cmdline = SubstituteVars(gameSys.params);
+	LogFile::Get()->Write(LogFile::TableLaunchLogging,
+		_T("+ table launch: executable: %s\n")
+		_T("+ table launch: applying command line variable substitutions:\n+ Original> %s\n+ Final   > %s\n"),
+		exe, gameSys.params.c_str(), cmdline.c_str());
 
 	// set up the startup information struct
 	STARTUPINFO startupInfo;
@@ -1972,6 +2020,7 @@ DWORD Application::GameMonitorThread::Main()
 	{
 		// failed - get the error
 		WindowsErrorMessage sysErr;
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch failed: %s\n"), sysErr.Get());
 
 		// If it's "elevation required", we have an exe that's marked as
 		// requesting or requiring elevated privileges.  CreateProcess()
@@ -2000,6 +2049,7 @@ DWORD Application::GameMonitorThread::Main()
 			// manifest), then the "as invoker" attempt will fail with
 			// another ELEVATION REQUIRED error, since in this case
 			// elevation is truly required.
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: retrying launch As Invoker\n"));
 			if (!CreateProcessAsInvoker(
 				exe, cmdline.data(), 0, 0, false, 0, 0,
 				gameSys.workingPath.c_str(), &startupInfo, &procInfo))
@@ -2016,8 +2066,8 @@ DWORD Application::GameMonitorThread::Main()
 		// elevated privileges via the Admin Host process.
 		//
 		// Note that we require the user to approve elevation per system
-		// during each session, so only proceed with this if the user
-		// has 
+		// during each session, so only proceed if the user has approved 
+		// elevation for this system previously.
 		if (procInfo.hProcess == NULL
 			&& sysErr.GetCode() == ERROR_ELEVATION_REQUIRED
 			&& Application::Get()->adminHost.IsAvailable()
@@ -2026,6 +2076,8 @@ DWORD Application::GameMonitorThread::Main()
 			// The Admin Host is running - we can proxy the request
 			// to launch an Administrator mode process through it.
 			auto& adminHost = Application::Get()->adminHost;
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch: re-launching in Administrator mode via PinballY Admin Mode host\n"));
 
 			// flag that we're in admin mode
 			isAdminMode = true;
@@ -2065,6 +2117,7 @@ DWORD Application::GameMonitorThread::Main()
 					// to emulate normal process creation.  Leave the thread
 					// handle empty.
 					//
+					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Admin mode launch succeeded\n"));
 					procInfo.dwProcessId = (DWORD)_ttol(reply[1].c_str());
 					procInfo.hProcess = OpenProcess(
 						SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, 
@@ -2075,9 +2128,13 @@ DWORD Application::GameMonitorThread::Main()
 				else if (reply[0] == _T("error") && reply.size() >= 2)
 				{
 					// Error, with technical error text in the first parameter
+					const TCHAR *errmsg = reply[1].c_str();
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ table launch: Admin launch failed: %s\n"), errmsg);
+ 
+					// send the error to the playfield view for display
 					if (playfieldView != nullptr)
-						playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
-							reinterpret_cast<LPARAM>(reply[1].c_str()));
+						playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(errmsg));
 
 					// return failure
 					return 0;
@@ -2085,10 +2142,15 @@ DWORD Application::GameMonitorThread::Main()
 				else
 				{
 					// Unknown response
+					const TCHAR *unk = reply[0].c_str();
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ table launch: Admin launch failed: unexpected response from Admin Host \"%s\"\n"), unk);
+
+					// send the error to the playfield view for display
 					if (playfieldView != nullptr)
 						playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
 							reinterpret_cast<LPARAM>(MsgFmt(
-								_T("Unexpected response from Admin Host: \"%s\""), reply[0].c_str()).Get()));
+								_T("Unexpected response from Admin Host: \"%s\""), unk).Get()));
 
 					// return failure
 					return 0;
@@ -2099,6 +2161,9 @@ DWORD Application::GameMonitorThread::Main()
 		// Check to see if we finally managed to create a process
 		if (procInfo.hProcess == NULL)
 		{
+			// launch failed
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch failed: %s\n"), sysErr.Get());
+				
 			// Report the error.  Call out "elevation required" as a
 			// separate error, since we can offer special workarounds
 			// for that error (namely re-launching our own process in
@@ -2129,7 +2194,6 @@ DWORD Application::GameMonitorThread::Main()
 		}
 	}
 
-	// Successful launch!
 	// We don't need the thread handle - close it immediately
 	if (procInfo.hThread != NULL)
 		CloseHandle(procInfo.hThread);
@@ -2149,7 +2213,11 @@ DWORD Application::GameMonitorThread::Main()
 		// or Close Game signal
 		HANDLE waitHandles[] = { shutdownEvent, closeEvent };
 		if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 500) != WAIT_TIMEOUT)
+		{
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch interrupted (waiting for first window in child process to open)\n"));
 			return 0;
+		}
 	}
 
 	// The Steam-based systems use a staged launch, where we launch
@@ -2160,6 +2228,10 @@ DWORD Application::GameMonitorThread::Main()
 	// monitor a different process from the one we actually launched.
 	if (gameSys.process.length() != 0)
 	{
+		// we're going to wait for a second process
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+			_T("+ table launch: waiting for secondary process %s to start\n"), gameSys.process.c_str());
+
 		// keep going until the process launches, the launcher process
 		// dies, or we get an abort signal
 		HandleHolder snapshot;
@@ -2169,10 +2241,17 @@ DWORD Application::GameMonitorThread::Main()
 			snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 			if (snapshot == 0)
 			{
+				// get the error and log it
 				WindowsErrorMessage sysErr;
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: error getting process snapshot: %s\n"), sysErr.Get());
+
+				// display it in the playfield view if possible
 				if (playfieldView != nullptr)
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
 					(LPARAM)MsgFmt(_T("Error getting process snapshot: %s"), sysErr.Get()).Get());
+
+				// abort the launch
 				return 0;
 			}
 
@@ -2198,10 +2277,14 @@ DWORD Application::GameMonitorThread::Main()
 							&& GetProcessTimes(newProc, &createTime, &exitTime, &kernelTime, &userTime)
 							&& CompareFileTime(&createTime, &t0) > 0)
 						{
+							LogFile::Get()->Write(LogFile::TableLaunchLogging,
+								_T("+ table launch: found matching process %d\n"), (int)procInfo.th32ProcessID);
+
 							// It has the right name and was created after we launched
 							// the first stage, so assume it's the one we're looking
 							// for.  Replace the monitor process handle with this new
 							// process handle.
+							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ using this process\n"));
 							hGameProc = newProc.Detach();
 
 							// make sure this process has finished starting up
@@ -2219,13 +2302,24 @@ DWORD Application::GameMonitorThread::Main()
 								// or Close Game signal
 								HANDLE waitHandles[] = { shutdownEvent, closeEvent };
 								if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 500) != WAIT_TIMEOUT)
+								{
+									LogFile::Get()->Write(LogFile::TableLaunchLogging,
+										_T("+ table launch: interrupted waiting for first child process window to open; aborting launch\n"));
 									return 0;
+								}
 							}
 
 							// Process search success - exit the process search loop
 							found = true;
 							break;
 						}						
+						else
+						{
+							// log why we're skipping it
+							LogFile::Get()->Write(LogFile::TableLaunchLogging,
+								_T("+ table launch: found matching process name %d, but process was pre-existing; skipping\n"), 
+								(int)procInfo.th32ProcessID);
+						}
 					}
 				} while (Process32Next(snapshot, &procInfo));
 			}
@@ -2247,6 +2341,12 @@ DWORD Application::GameMonitorThread::Main()
 				if (playfieldView != nullptr)
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
 					(LPARAM)MsgFmt(_T("Launcher process exited, target process %s hasn't started"), gameSys.process.c_str()).Get());
+
+				// abort the launch
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: launcher process exited, target process %s hasn't started;")
+					_T(" assuming failure and aborting launch\n"),
+					gameSys.process.c_str());
 				return 0;
 			}
 
@@ -2255,13 +2355,17 @@ DWORD Application::GameMonitorThread::Main()
 			if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 1000) != WAIT_TIMEOUT)
 			{
 				// uh oh - one of the exit events has fired; abort immediately
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: interrupted waiting for target process to start; aborting launch\n"));
 				return 0;
 			}
 		}
 	}
 
-	// Okay, the game has actually launched.  Count this as the starting
-	// time for the game session.
+	// Successful launch!
+	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: process launch succeeded\n"));
+
+	// Count this as the starting time for the actual game session
 	launchTime = GetTickCount64();
 
 	// switch the playfield view to Running mode
@@ -2271,6 +2375,8 @@ DWORD Application::GameMonitorThread::Main()
 	// If the game system has a startup key sequence, send it
 	if (gameSys.startupKeys.length() != 0)
 	{
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ sending startup key sequence\n"));
+
 		// Key names for use in the startupKeys list
 		struct KbKey
 		{
@@ -2912,7 +3018,10 @@ DWORD Application::GameMonitorThread::Main()
 				// Log the command for debugging purposes, as there's a lot that
 				// can go wrong here and little information back from ffmpeg that
 				// we can analyze mechanically.
-				LogFile::Get()->Write(_T("%s:\n> %s\n"), curStatus.c_str(), cmdline.c_str());
+				LogFile::Get()->Group(LogFile::CaptureLogging);
+				LogFile::Get()->WriteTimestamp(LogFile::CaptureLogging, 
+					_T("Media capture for %s: launching FFMPEG\n> %s\n"), 
+					curStatus.c_str(), cmdline.c_str());
 
 				// open the NUL file as stdin for the child
 				SECURITY_ATTRIBUTES sa;
@@ -2920,6 +3029,38 @@ DWORD Application::GameMonitorThread::Main()
 				sa.lpSecurityDescriptor = NULL;
 				sa.bInheritHandle = TRUE;
 				HandleHolder hNulIn = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
+
+				// Set up a temp file to capture output from FFMPEG, so that
+				// we can then copy it to the log file.  Only do this if logging
+				// is enabled; if not, discard output by sending it to NUL.
+				HandleHolder hStdOut;
+				TSTRING fnameStdOut;
+				if (LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging))
+				{
+					// we're logging it - capture to a temp file
+					TCHAR tmpPath[MAX_PATH] = _T("<no temp path>"), tmpName[MAX_PATH] = _T("<no temp name>");
+					GetTempPath(countof(tmpPath), tmpPath);
+					GetTempFileName(tmpPath, _T("PBYCap"), 0, tmpName);
+					hStdOut = CreateFile(tmpName, GENERIC_WRITE, 0, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+					// log an error if that failed, but continue with the capture
+					if (hStdOut == NULL)
+					{
+						WindowsErrorMessage err;
+						LogFile::Get()->Write(LogFile::CaptureLogging,
+							_T("+ Unable to log FFMPEG output: error opening temp file %s (error %d: %s)\n"),
+							tmpName, err.GetCode(), err.Get());
+					}
+					else
+					{
+						// successfully opened the file - remember its name
+						fnameStdOut = tmpName;
+					}
+				}
+
+				// if we didn't open an output file, discard output by sending it to NUL
+				if (hStdOut == NULL)
+					hStdOut = CreateFile(_T("NUL"), GENERIC_WRITE, 0, &sa, OPEN_EXISTING, 0, NULL);
 
 				// Set up the startup info.  Use Show-No-Activate to try to keep
 				// the game window activated and in the foreground, since VP (and
@@ -2930,7 +3071,7 @@ DWORD Application::GameMonitorThread::Main()
 				startupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
 				startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
 				startupInfo.hStdInput = hNulIn;
-				startupInfo.hStdOutput = startupInfo.hStdError = LogFile::Get()->GetFileHandle();
+				startupInfo.hStdOutput = hStdOut;
 
 				// launch the process
 				PROCESS_INFORMATION procInfo;
@@ -2945,10 +3086,21 @@ DWORD Application::GameMonitorThread::Main()
 					switch (WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
 					{
 					case WAIT_OBJECT_0:
-						// ffmpeg finished.  Count this as a success.
-						if (logSuccess)
-							statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
-						result = true;
+						// The ffmpeg process finished
+						{
+							// retrieve the process exit code
+							DWORD exitCode;
+							GetExitCodeProcess(hGameProc, &exitCode);
+							LogFile::Get()->Write(LogFile::CaptureLogging,
+								_T("+ FFMPEG completed: process exit code %d\n"), (int)exitCode);
+
+							// consider this a success
+							result = true;
+
+							// log successful completion if desired
+							if (logSuccess)
+								statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
+						}
 						break;
 
 					case WAIT_OBJECT_0 + 1:
@@ -2957,10 +3109,46 @@ DWORD Application::GameMonitorThread::Main()
 					default:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
+						LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ capture interrupted\n"));
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;
 						abortCapture = true;
 						break;
+					}
+
+					// Whatever happened, we managed to launch the process, so
+					// there might be at least some information in the log file
+					// indicating what went wrong.  
+					hStdOut = nullptr;
+					if (fnameStdOut.length() != 0)
+					{
+						// read the file
+						long len;
+						std::unique_ptr<BYTE> txt(ReadFileAsStr(fnameStdOut.c_str(), SilentErrorHandler(),
+							len, ReadFileAsStr_NewlineTerm | ReadFileAsStr_NullTerm));
+
+						// copy it to the log file
+						if (txt != nullptr)
+						{
+							// in case the log file contains null bytes, write it piecewise
+							// in null-terminated chunks
+							const BYTE *endp = txt.get() + len;
+							for (const BYTE *p = txt.get(); p < endp; )
+							{
+								// find the end of this null-terminated chunk
+								const BYTE *q;
+								for (q = p; q != endp && *q != 0; ++q);
+
+								// write this chunk
+								LogFile::Get()->WriteStrA((const char *)p);
+
+								// skip the null byte
+								p = q + 1;
+							}
+						}
+
+						// delete the temp file
+						DeleteFile(fnameStdOut.c_str());
 					}
 				}
 				else
@@ -2971,13 +3159,16 @@ DWORD Application::GameMonitorThread::Main()
 					// installed where we expect it to be installed, or there's
 					// a file permissions problem).  So skip any remaining items
 					// by setting the 'abort' flag.
+					WindowsErrorMessage err;
+					LogFile::Get()->Write(LogFile::CaptureLogging, 
+						_T("+ error lauching FFMPEG: error %d, %s\n"), err.GetCode(), err.Get());
 					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
 					captureOkay = false;
 					abortCapture = true;
 				}
 
-				// add a blank line to the log for readability 
-				LogFile::Get()->Write(_T("\n"));
+				// add a blank line to the log after the FFMPEG output, for readability 
+				LogFile::Get()->Group(LogFile::CaptureLogging);
 
 				// return the status
 				return result;
@@ -3032,11 +3223,13 @@ DWORD Application::GameMonitorThread::Main()
 	{
 	case WAIT_OBJECT_0:
 		// The running game process exited.
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: child process exited normally\n"));
 		break;
 
 	case WAIT_OBJECT_0 + 1:
 		// The shutdown event triggered - the program is exiting.  Simply
 		// exit the thread so that the program can terminate normally.
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: interrupted by PinballY shutdown\n"));
 		break;
 
 	case WAIT_OBJECT_0 + 2:
@@ -3048,9 +3241,24 @@ DWORD Application::GameMonitorThread::Main()
 		// Shutdown event: that means the user has quit out of the
 		// program, so we'll leave it to them to finish cleaning up
 		// any processes that are still running.
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Close Game command received\n"));
 		{
 			HANDLE h2[] = { hGameProc, shutdownEvent };
-			WaitForMultipleObjects(countof(h2), h2, FALSE, 5000);
+			switch (WaitForMultipleObjects(countof(h2), h2, FALSE, 5000))
+			{
+			case WAIT_OBJECT_0:
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: game exited normally\n"));
+				break;
+
+			case WAIT_OBJECT_0 + 1:
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: application shutting down; not waiting for game to exit\n"));
+				break;
+
+			default:
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: error waiting for game to exit\n"));
+				break;
+			}
 		}
 		break;
 
@@ -3060,6 +3268,7 @@ DWORD Application::GameMonitorThread::Main()
 	default:
 		// Error, abandoned handle, or other.  Something must be wrong;
 		// simply exit the thread.
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: error waiting for child process to exit\n"));
 		break;
 	}
 
@@ -3071,6 +3280,8 @@ DWORD Application::GameMonitorThread::Main()
 	{
 		// Parse option flags
 		RunOptions options(gameSys.runAfter);
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+			_T("+ table launch: Run After command:\n> %s\n"), options.command.c_str());
 
 		// run the command with no waiting
 		AsyncErrorHandler aeh;
@@ -3108,6 +3319,7 @@ DWORD Application::GameMonitorThread::Main()
 			case WAIT_OBJECT_0:
 				// Tun RunAfter process exited.  Close the process handle
 				// and proceed.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Run After command finished\n"));
 				hRunAfterProc = NULL;
 				break;
 
@@ -3123,12 +3335,14 @@ DWORD Application::GameMonitorThread::Main()
 				// would normally make the RunAfter program exit on its own
 				// might not exist, so it seems safest to let the thread
 				// cleanup code terminate the process explicitly.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Run After command interrupted\n"));
 				return 0;
 			}
 		}
 	}
 
 	// done
+	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch finished successfully\n"));
 	return 0;
 }
 
@@ -3717,6 +3931,10 @@ namespace fs = std::experimental::filesystem;
 
 DWORD Application::NewFileScanThread::Main()
 {
+	// log the scan
+	GameList::LogGroup();
+	GameList::Log(_T("Re-scanning for all systems' table files due to application activation\n"));
+		
 	// scan each directory in our list
 	for (auto &d : dirs)
 	{
@@ -3730,7 +3948,10 @@ DWORD Application::NewFileScanThread::Main()
 
 			// if it's not in the old file set, add it to the new file list
 			if (d.oldFiles.find(key) == d.oldFiles.end())
+			{
+				GameList::Log(_T("+ New file found: %s\n"), filename);
 				d.newFiles.emplace_back(filename);
+			}
 		});
 	}
 

@@ -14,6 +14,7 @@
 #include "VPinMAMEIfc.h"
 #include "DMDView.h"
 #include "DMDFont.h"
+#include "LogFile.h"
 
 
 // library inclusion for GetFileVersionInfo et al
@@ -50,6 +51,8 @@ namespace ConfigVars
 RealDMD *RealDMD::inst = nullptr;
 bool RealDMD::dllLoaded = false;
 HMODULE RealDMD::hmodDll = NULL;
+TSTRING RealDMD::dllPath;
+RealDMD::DmdExtInfo RealDMD::dmdExtInfo;
 
 // native device size
 static const int dmdWidth = 128, dmdHeight = 32;
@@ -59,7 +62,8 @@ RealDMD::RealDMD() :
 	mirrorHorz(false),
 	mirrorVert(false),
 	slideShowTimerID(0),
-	slideShowPos(slideShow.end())
+	slideShowPos(slideShow.end()),
+	enabled(false)
 {
 	// if there's no singleton instance yet, we're it
 	if (inst == nullptr)
@@ -102,7 +106,9 @@ bool RealDMD::FindDLL()
 	PathAppend(buf, DMD_DLL_FILE);
 	if (FileExists(buf))
 	{
+		// got it - use this copy
 		dllPath = buf;
+		Log(_T("+ Found the DLL in the PinballY folder: %s\n"), buf);
 		return true;
 	}
 
@@ -112,6 +118,7 @@ bool RealDMD::FindDLL()
 	// by querying the length of the value.
 	LONG valLen = 0;
 	const TCHAR *vpmKey = _T("CLSID\\{F389C8B7-144F-4C63-A2E3-246D168F9D39}\\InProcServer32");
+	Log(_T("+ No DLL found in the PinballY folder; checking for a VPinMAME folder\n"));
 	if (RegQueryValue(HKEY_CLASSES_ROOT, vpmKey, NULL, &valLen) == ERROR_SUCCESS)
 	{
 		// allocate space and query the value
@@ -119,20 +126,26 @@ bool RealDMD::FindDLL()
 		std::unique_ptr<TCHAR> val(new TCHAR[valLen]);
 		if (RegQueryValue(HKEY_CLASSES_ROOT, vpmKey, val.get(), &valLen) == ERROR_SUCCESS)
 		{
-			// got it - remove the DLL file spec to get its path
+			// got it
+			Log(_T("+ VPinMAME COM object registration found at %s\n"), val.get());
+
+			// remove the DLL file spec to get its path
 			PathRemoveFileSpec(val.get());
 
 			// combine the path and the DLL name
 			PathCombine(buf, val.get(), DMD_DLL_FILE);
 
 			// if the file exists, use this path
-			if (FileExists(buf)) 
+			if (FileExists(buf))
 			{
+				Log(_T("+ DLL found in VPinMAME folder at %s\n"), buf);
 				dllPath = buf;
 				return true;
 			}
 		}
 	}
+	else
+		Log(_T("+ VPinMAME COM object registration not found in Windows registry\n"));
 
 	// No DLL found
 	return false;
@@ -141,8 +154,23 @@ bool RealDMD::FindDLL()
 // Initialize
 bool RealDMD::Init(ErrorHandler &eh)
 {
+	// log the setup process
+	LogGroup();
+	Log(_T("Detecting and configuring real DMD device\n"));
+
+	// presume that we're disabled
+	enabled = false;
+
 	// try loading the DLL, if we haven't already done so
 	if (!LoadDLL(eh))
+		return false;
+
+	// Check if the DMD should be enabled.  Note that we will
+	// have already tested this in LoadDLL(), but we need a
+	// separate test here, because we might be re-initializing
+	// due to a change in option settings.  The DLL loading only
+	// happens once for the whole process run
+	if (!ShouldEnable())
 		return false;
 
 	// open the DLL session
@@ -159,6 +187,7 @@ bool RealDMD::Init(ErrorHandler &eh)
 	hWriterThread = CreateThread(NULL, 0, &SWriterThreadMain, this, 0, &tid);
 
 	// success
+	enabled = true;
 	return true;
 }
 
@@ -168,6 +197,9 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	// do nothing if we've already loaded the DLL
 	if (dllLoaded)
 		return IsDllValid();
+
+	// log it
+	Log(_T("+ Searching for dmddevice.dll\n"));
 
 	// we've now made the attempt, even if it fails
 	dllLoaded = true;
@@ -179,11 +211,15 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 		return false;
 	}
 
+	// log that we found the DLL
+	Log(_T("+ found DMD interface DLL: %s\n"), dllPath.c_str());
+
 	// internal function to log a system error and return false
-	auto Failure = [&eh](const TCHAR *desc)
+	auto Failure = [&eh, this](const TCHAR *desc)
 	{
 		// log the error
 		WindowsErrorMessage winErr;
+		Log(_T("+ DMD setup failed: %s: Windows error %d, %s\n"), desc, winErr.GetCode(), winErr.Get());
 		eh.SysError(LoadStringT(IDS_ERR_DMDSYSERR),
 			MsgFmt(_T("%s: Windows error %d, %s"), desc, winErr.GetCode(), winErr.Get()));
 
@@ -225,6 +261,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	{
 		// load the version info
 		std::unique_ptr<BYTE> vsInfo(new BYTE[vsInfoSize]);
+		Log(_T("+ retrieving file version info for DLL, to check for special handling\n"), dllPath.c_str());
 		if (GetFileVersionInfo(dllPath.c_str(), vsInfoHandle, vsInfoSize, vsInfo.get()))
 		{
 			// read the ProductName and LegalCopyright strings
@@ -238,29 +275,44 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\LegalCopyright"), (LPVOID*)&cprBuf, &cprLen))
 				cpr.assign(cprBuf, cprLen);
 
+			// retrieve the fixed data portion
+			VS_FIXEDFILEINFO *vsFixedInfo = nullptr;
+			UINT vsFixedInfoLen;
+			if (!VerQueryValue(vsInfo.get(), _T("\\"), (LPVOID*)&vsFixedInfo, &vsFixedInfoLen))
+				vsFixedInfo = nullptr;
+
+			// pull out the major.minor.maint.patch as a 64-bit int
+			ULONGLONG vsnNum = 0;
+			auto vsnPart = [&vsnNum](int bitOfs) { return (int)((vsnNum >> bitOfs) & 0xFFFF); };
+			if (vsFixedInfo != nullptr)
+				vsnNum = (((ULONGLONG)vsFixedInfo->dwProductVersionMS) << 32) | vsFixedInfo->dwProductVersionLS;
+
+			// log the strings we read
+			Log(_T("+ Version Info data: version=%d.%d.%d.%d, product name=\"%s\", copyright=\"%s\"\n"),
+				vsnPart(48), vsnPart(32), vsnPart(16), vsnPart(0), name.c_str(), cpr.c_str());
+
 			// Look for "universal" in the product string and "freezy" in the
 			// copyright string, insensitive to case.
 			if (std::regex_search(name, std::basic_regex<TCHAR>(_T("\\buniversal\\b"), std::regex_constants::icase))
 				|| std::regex_search(name, std::basic_regex<TCHAR>(_T("\\bfreezy\\b"), std::regex_constants::icase)))
 			{
 				// It's the dmd-extensions version of the DLL.  So note.
+				Log(_T("+ This appears to be the dmd-extensions version of the DLL, based on the product/copyright strings\n"));
 				dmdExtInfo.matched = true;
 
 				// Check the product version to see if it's a newer version
 				// wiht the fix for a bug that caused the DLL to crash if we
-				// called PM_GameSettings().
-				VS_FIXEDFILEINFO *vsFixedInfo;
-				UINT vsFixedInfoLen;
-				if (VerQueryValue(vsInfo.get(), _T("\\"), (LPVOID*)&vsFixedInfo, &vsFixedInfoLen))
+				// called PM_GameSettings().  The fix is in 1.7.3 and later.
+				if (vsnNum >= 0x0001000700030000UL)
 				{
-					// check if the version is 1.7.3 or later
-					if (vsFixedInfo->dwProductVersionMS > 0x00010007
-						|| (vsFixedInfo->dwProductVersionMS == 0x00010007
-							&& vsFixedInfo->dwProductVersionLS >= 0x00030000))
-					{
-						// the settings fix is available
-						dmdExtInfo.settingsFix = true;
-					}
+					Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
+					dmdExtInfo.settingsFix = true;
+				}
+				else
+				{
+					Log(_T("+ Based on the version number, this version has a bug in PM_GameSettings,\n")
+						_T("  so we won't call that function; as a result, per-game coloring from your\n")
+						_T("  VPinMAME settings won't be used during this session \n"));
 				}
 			}
 		}
@@ -278,22 +330,30 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	// support; make sure that's what this DLL is actually for.
 	if (dmdExtInfo.matched)
 	{
+		Log(_T("+ Checking if dmd-extensions virtual DMD mode is enabled\n"));
+
 		// The dmd-ext default setting for the fake DMD is "enabled", 
 		// so we have to assume it's disabled unless we find an
 		// explicit setting saying otherwise.
-		bool virtualEnabled = true;
+		dmdExtInfo.virtualEnabled = true;
 
 		// Try loading its dmddevice.ini file.  The .ini file is at
 		// the path given by the DMDDEVICE_CONFIG environment variable
 		// if set, otherwise in the same folder as the .dll file.
 		TCHAR cfgbuf[MAX_PATH];
 		size_t cfglen;
-		if (_tgetenv_s(&cfglen, cfgbuf, _T("DMDDEVICE_CONFIG")) || cfglen == 0)
+		if (_tgetenv_s(&cfglen, cfgbuf, _T("DMDDEVICE_CONFIG")) == 0 && cfglen != 0 && cfglen <= countof(cfgbuf))
+		{
+			// successfully retrieved the environment variable
+			Log(_T("+ DMDDEVICE_CONFIG environment variable found (%s)\n"), cfgbuf);
+		}
+		else
 		{
 			// the environment variable isn't defined - try the DLL path
 			_tcscpy_s(cfgbuf, dllPath.c_str());
 			PathRemoveFileSpec(cfgbuf);
 			PathAppend(cfgbuf, _T("DmdDevice.ini"));
+			Log(_T("+ Loading DmdDevice.ini from DLL folder (%s)\n"), cfgbuf);
 		}
 
 		// try reading the file
@@ -303,6 +363,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 		if (ini != nullptr)
 		{
 			// scan for [virtualdmd] enabled=0
+			Log(_T("+ DmdDevice.ini successfully loaded; scanning\n"));
 			WSTRING sect;
 			for (WCHAR *p = ini.get(); *p != 0; )
 			{
@@ -345,7 +406,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 					if (_wcsicmp(sect.c_str(), L"virtualdmd") == 0
 						&& _wcsicmp(m[1].str().c_str(), L"enabled") == 0)
 					{
-						virtualEnabled = (_wcsicmp(m[2].str().c_str(), L"false") != 0);
+						dmdExtInfo.virtualEnabled = (_wcsicmp(m[2].str().c_str(), L"false") != 0);
 					}
 				}
 
@@ -353,25 +414,29 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				p = nextLine;
 			}
 		}
-
-		// If we didn't find a config setting explicitly disabling
-		// the virtual DMD, we can't load the DLL in-process.
-		if (virtualEnabled)
+		else
 		{
-			// Unless the config setting is explicitly ON (not AUTO),
-			// don't load the DLL.  
-			if (auto cv = ConfigManager::GetInstance()->Get(_T("RealDMD"), nullptr);
-				cv != nullptr && (_tcsicmp(cv, _T("on")) == 0 || _tcsicmp(cv, _T("enabled")) == 0 || _ttoi(cv) != 0))
-			{
-				// it's explicitly on - continue with the loading
-			}
-			else
-			{
-				// It's AUTO (explicitly or by default).  Suppress loading
-				// the DLL.
-				return false;
-			}
+			Log(_T("+ DmdDevice.ini not found or load failed; assuming default settings (with virtual dmd enabled)\n"));
 		}
+	}
+
+	// Test to see if the DMD should be enabled.  If not, don't even
+	// load the DLL.  This is important for dmd-extensions in virtual
+	// mode, because if we load the DLL at all, it'll display its
+	// fake on-screen DMD window, and we don't want that to appear
+	// at all if we're just going to disable it.  So we need to
+	// short-circuit the whole load process in that case.
+	if (!ShouldEnable())
+	{
+		// Pretend that we didn't even try loading the DLL, so that
+		// we can try again on a future pass if conditions change.
+		// For example, the user might change the DMD-enable option
+		// from AUTO to ALWAYS ON, which would change the Should
+		// Enable determination.
+		dllLoaded = false;
+
+		// fail silently, as though the DLL isn't even installed
+		return false;
 	}
 
 	// Load the DLL.  Tell the loader to include the DLL's own folder
@@ -395,6 +460,50 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 #undef DMDDEV_BIND
 
 	// success
+	Log(_T("+ dmddevice.dll successfully loaded\n"));
+	return true;
+}
+
+bool RealDMD::ShouldEnable()
+{
+	// If it's the dmd-extensions DLL, and and the virtual DMD is enabled,
+	// suppress it if we're in AUTO mode.
+	if (dmdExtInfo.matched)
+	{
+		if (dmdExtInfo.virtualEnabled)
+		{
+			// Unless the config setting is explicitly ON (not AUTO),
+			// don't load the DLL.  
+			if (auto cv = ConfigManager::GetInstance()->Get(_T("RealDMD"), nullptr);
+			cv != nullptr && (_tcsicmp(cv, _T("on")) == 0 || _tcsicmp(cv, _T("enabled")) == 0 || _ttoi(cv) != 0))
+			{
+				// it's explicitly on - continue with the loading
+				Log(_T("+ It looks like virtual dmd mode is enabled in the dmd-extensions DLL.  Your\n")
+					_T("  PinballY real DMD setting is \"Always On\", so we're going to use the DLL\n")
+					_T("  anyway.  Note that you'll see two simulated DMDs on the screen - one from\n")
+					_T("  the DLL, and another from PinballY's built-in DMD window.  If you want to\n")
+					_T("  get rid of the one from the DLL, change its virtual dmd setting to disabled\n")
+					_T("  in the DLL's DmdDevice.ini file.\n"));
+			}
+			else
+			{
+				// It's AUTO (explicitly or by default).  Suppress loading
+				// the DLL.
+				Log(_T("+ It looks like virtual dmd mode is enabled in the dmd-extensions DLL.  Your\n")
+					_T("  PinballY real DMD setting is \"Auto\", so we're NOT using the real DMD\n")
+					_T("  for this session, to avoid showing a second on-screen virtual DMD from\n")
+					_T("  the DLL in addition to PinballY's built-in DMD simulation.  If you want\n")
+					_T("  to use the DLL anyway, change your PinballY real DMD setting to \"Always On\".\n"));
+				return false;
+			}
+		}
+		else
+		{
+			Log(_T("+ It looks like virtual dmd mode is disabled in the dmd-extensions DLL, so we're enabling the DLL.\n"));
+		}
+	}
+
+	// no disabling conditions found
 	return true;
 }
 
@@ -407,13 +516,29 @@ void RealDMD::Shutdown()
 		videoPlayer = nullptr;
 	}
 
-	// shut down the writer thread
-	writerThreadQuit = true;
-	SetEvent(hWriterEvent);
-	WaitForSingleObject(hWriterThread, 250);
+	// shut down the writer thread, if there is one
+	if (hWriterThread != NULL)
+	{
+		// signal for the thread to shut down
+		writerThreadQuit = true;
+		SetEvent(hWriterEvent);
 
-	// close the underlying device
-	if (IsDllValid())
+		// wait for it to exit
+		WaitForSingleObject(hWriterThread, 250);
+
+		// forget the thread handle
+		hWriterThread = nullptr;
+	}
+
+	// blank the DMD before we detach from it
+	if (Render_16_Shades_ != NULL && emptySlide != nullptr)
+		Render_16_Shades_(dmdWidth, dmdHeight, emptySlide->pix.get());
+
+	// Close the underlying device.  The dmd-extensions DLL can crash
+	// if we close it, so don't do that.  That unfortunately will leave
+	// the virtual DMD window on the screen if we ever opened it, but
+	// that's better than crashing.
+	if (IsDllValid() && enabled && !dmdExtInfo.matched)
 		Close_();
 }
 
@@ -479,7 +604,7 @@ void RealDMD::ClearMedia()
 void RealDMD::UpdateGame()
 {
 	// do nothing if the DLL isn't loaded
-	if (!IsDllValid())
+	if (!(IsDllValid() && enabled))
 		return;
 		
 	// update our game if the selection in the game list has changed
@@ -1291,4 +1416,17 @@ void RealDMD::VideoLoopNeeded(WPARAM cookie)
 		else
 			videoPlayer->Replay(SilentErrorHandler());
 	}
+}
+
+void RealDMD::Log(const TCHAR *msg, ...)
+{
+	va_list ap;
+	va_start(ap, msg);
+	LogFile::Get()->WriteV(false, LogFile::DmdLogging, msg, ap);
+	va_end(ap);
+}
+
+void RealDMD::LogGroup()
+{
+	LogFile::Get()->Group(LogFile::DmdLogging);
 }

@@ -21,6 +21,7 @@
 #include "SysGroupDialog.h"
 #include "SystemDialog.h"
 #include "AudioVideoDialog.h"
+#include "LogFileDialog.h"
 
 using namespace TreePropSheet;
 
@@ -310,6 +311,7 @@ MainOptionsDialog::MainOptionsDialog(
 	AddPage(new PathsDialog(IDD_PATHS), PathsPage, _T("PathOptions.html"));
 	AddPage(new StartupDialog(IDD_STARTUP), StartupPage, _T("StartupOptions.html"));
 	AddPage(new StatuslineDialog(IDD_STATUSLINE), StatuslinePage, _T("StatuslineOptions.html"));
+	AddPage(new LogFileDialog(IDD_LOGGING), LogFilePage, _T("LogFileOptions.html"));
 	AddPage(sysGroupDialog = new SysGroupDialog(IDD_SYSTEM_GROUP), SysGroupPage, _T("SystemOptions.html"));
 
 	// Add pages for the systems

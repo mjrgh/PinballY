@@ -1,6 +1,12 @@
 PinballY Update History
 
-??-??-???? (1.0.0 Alpha 7)
+08-10-2018 (1.0.0 Alpha 7)
+
+* Added several new logging options, to get (lots) more detail about
+various operations.  See the new Log File page in the options dialog.
+Some of the new options add a lot of extra information to the log
+file, so it's best to keep them disabled unless you're trying to
+debug something in that particular area.
 
 * Look for dmddevice.dll in the PinballY program folder first, then in
 the VPinMAME folder.  This allows using a specific version of the DLL
@@ -13,10 +19,14 @@ suppress loading the DLL unless the config setting for RealDMD is
 explicitly ON; skip it on AUTO.
 
 * Detect the dmd-extensions version of dmddevice.dll and work around
-the crash bug in the DLL if we identify it.  (I found the problem in
+a crash bug in the DLL if we identify it.  (I found the problem in
 the DLL and sent a pull request to freezy with the fix, but that will
 take a while to propagate around, so for the time being we have to
-deal with the existing buggy version of the DLL.)
+deal with the existing buggy version of the DLL.)  If you ran into
+a problem in the past where PinballY (a) showed a second DMD window 
+on the screen that was stuck on top, and (b) tended to crash the
+first time you switched to a different game in the wheel UI, this
+should fix it.
 
 
 08-07-2018 (1.0.0 Alpha 6)

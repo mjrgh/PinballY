@@ -206,6 +206,7 @@
     <ClCompile Include="KeyboardDialog.cpp" />
     <ClCompile Include="ListCtrlEx.cpp" />
     <ClCompile Include="InstCardDialog.cpp" />
+    <ClCompile Include="LogFileDialog.cpp" />
     <ClCompile Include="MenuDialog.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="OptionsDialogDll.cpp" />
@@ -242,6 +243,7 @@
     <ClInclude Include="KeyboardDialog.h" />
     <ClInclude Include="ListCtrlEx.h" />
     <ClInclude Include="InstCardDialog.h" />
+    <ClInclude Include="LogFileDialog.h" />
     <ClInclude Include="MenuDialog.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="OptionsDialogDll.h" />

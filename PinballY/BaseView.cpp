@@ -87,8 +87,11 @@ bool BaseView::OnCommand(int cmd, int source, HWND hwndControl)
 	switch (cmd)
 	{
 	case ID_ABOUT:
+	case ID_HELP:
+	case ID_OPTIONS:
+		// forward to the main playfield view
 		if (PlayfieldView *v = Application::Get()->GetPlayfieldView(); v != 0)
-			v->SendMessage(WM_COMMAND, ID_ABOUT);
+			v->SendMessage(WM_COMMAND, cmd);
 		return true;
 
 	case ID_VIEW_BACKGLASS:
