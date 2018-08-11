@@ -18,7 +18,13 @@ global environment variable to its install directory:
 
   set DXSDK_DIR=C:\DXSDK\
 
-The variable MUST include the trailing backslash.
+The variable MUST include the trailing backslash.  To set this:
+
+  - Go to the System Properties (aka Advanced System Settings) control panel
+  - click Environment Variables
+  - In the top half of the dialog ("User variables for <user>"), click New
+  - Enter DXSDK_DIR as the new variable name, and enter the path with 
+    trailing backslash
 
 Why do you have to install the old SDK?  If you're familiar with the
 modern DirectX technologies, you're aware that there's no longer a

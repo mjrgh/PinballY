@@ -1,3 +1,6 @@
+- Batch media capture - start a media capture process and run it for
+all tables, or some selectable subset of tables.
+
 - *IF* people get stuck looking for a dialog box where you type in the
 window layout numbers, and don't immediately recognize that you
 position the windows the "normal" way, add a tip popup that appears

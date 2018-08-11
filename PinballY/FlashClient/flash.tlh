@@ -726,7 +726,7 @@ extern "C" const GUID __declspec(selectany) CLSID_FlashObject =
 // Wrapper method implementations
 //
 
-#include "d:\per\temp\test\activexwin\flash.tli"
+#include "flash.tli"
 
 } // namespace ShockwaveFlashObjects
 

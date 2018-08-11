@@ -109,8 +109,8 @@ public:
 	{
 		S sprefix(prefix);
 		size_t prefixLen = sprefix.length();
-		return length() >= prefixLen
-			&& memcmp(prefix, c_str(), prefixLen * sizeof(S::value_type)) == 0;
+		return this->length() >= prefixLen
+			&& memcmp(prefix, this->c_str(), prefixLen * sizeof(S::value_type)) == 0;
 	}
 
 	StringEx &Format(const typename S::value_type *format, ...)
