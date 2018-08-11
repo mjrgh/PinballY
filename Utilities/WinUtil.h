@@ -220,7 +220,10 @@ struct HandleHolder
 	}
 };
 
+// -----------------------------------------------------------------------
+//
 // Registry key handler holder
+//
 struct HKEYHolder
 {
 	HKEYHolder() : hkey(NULL) { }
@@ -254,6 +257,21 @@ struct HKEYHolder
 		return ret;
 	}
 };
+
+// 
+// Bit-ness (32/64) dependent Windows registry base key path for Windows
+// system regsitry entries.
+//
+// Some HKLM\SOFTWARE\Microsoft\Windows subkeys use a different root path
+// for 64-bit programs.  This macro uses the right path for the current
+// target platform.
+//
+#ifdef _M_X64
+#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\WOW6432Node\\Microsoft\\Windows");
+#else
+#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\Microsoft\\Windows");
+#endif
+
 
 // -----------------------------------------------------------------------
 //

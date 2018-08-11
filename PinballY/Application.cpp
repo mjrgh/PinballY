@@ -834,7 +834,7 @@ bool Application::SyncAutoLaunchInRegistry(ErrorHandler &eh)
 
 	// open the relevant registry key
 	HKEYHolder hkey;
-	const TCHAR *keyName = _T("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
+	const TCHAR *keyName = HKLM_SOFTWARE_Microsoft_Windows _T("\\CurrentVersion\\Run");		
 	if ((err = RegOpenKey(HKEY_CURRENT_USER, keyName, &hkey)) != ERROR_SUCCESS)
 		return ReturnError(MsgFmt(_T("Opening %s"), keyName));
 
@@ -3078,16 +3078,25 @@ DWORD Application::GameMonitorThread::Main()
 				if (CreateProcess(NULL, cmdline.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW, 
 					NULL, NULL, &startupInfo, &procInfo))
 				{
-					// ffmpeg launched successfully.  Wait for ffmpeg to finish, for
-					// the game to exit, or for one of our  cancellation events.
+					// ffmpeg launched successfully.  Put the handles in holders
+					// so that we auto-close the handles when done with them.
 					HandleHolder hFfmpegProc(procInfo.hProcess);
-					CloseHandle(procInfo.hThread);
+					HandleHolder hFfmpegThread(procInfo.hThread);
+
+					// wait for the process to finish, or for a shutdown or
+					// close-game event to interrupt it
 					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
 					switch (WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
 					{
 					case WAIT_OBJECT_0:
 						// The ffmpeg process finished
 						{
+							// Make sure the main thread exited.  We seem to get exit
+							// code 259 (STILL_ACTIVE) in some cases even after the
+							// process handle has become signalled (which is the only
+							// way we get here).
+							WaitForSingleObject(hFfmpegThread, 5000);
+
 							// retrieve the process exit code
 							DWORD exitCode;
 							GetExitCodeProcess(hGameProc, &exitCode);

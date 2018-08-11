@@ -16,7 +16,7 @@
 # that actually needs to be rebuilt.
 #
 # 3. The build number update itself must not itself trigger any 
-# unnecessary builds of the rest of the system as a side effect.
+# rebuilding anything else that didn't need rebuilding anyway.
 #
 # 4. All outputs (that is, all separate .EXEs) of a given build end
 # up with the same version data.
@@ -62,7 +62,7 @@
 #
 
 BinDir = .\bin
-ObjDir = $(BinDir)\$(Platform)
+ObjDir = $(BinDir)\$(Configuration)
 GenDir = .\Generated
 
 all: directories $(ObjDir)\VersionInfo.obj
@@ -76,5 +76,6 @@ $(ObjDir)\VersionInfo.obj: $(GenDir)\VersionInfo.cpp
     cl -MT -Zl -c -Fo$@ $**
 
 $(GenDir)\VersionInfo.cpp $(GenDir)\VersionInfo.rc: \
-    ..\PinballY\*.cpp ..\PinballY\*.h ..\PinballY\*.rc 
+    ..\PinballY\*.cpp ..\PinballY\*.h ..\PinballY\*.rc \
+    ..\OptionsDialog\*.cpp ..\OptionsDialog\*.h ..\OptionsDialog\*.rc
 	$(BinDir)\VersionInfoUpdater -in .\..\PinballY\VersionInfo.h -cpp $(GenDir)\VersionInfo.cpp -rc $(GenDir)\VersionInfo.rc

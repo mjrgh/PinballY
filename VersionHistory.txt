@@ -1,5 +1,23 @@
 PinballY Update History
 
+08-11-2018 (1.0.0 Alpha 8)
+
+* Change the minimum video card "shader model" required to shader
+model 4 (from 4.1), for compatibility with older video cards.  (The
+shader model is basically a Microsoft-defined API that has to be
+implemented in the video card hardware and/or device drivers, so
+higher shader models generally require newer or more powerful video
+cards.  My goal is to be compatible with anything that can run Windows
+7 SP1 and Direct3D 11, but it's not quite that simple because the
+shader model is an additional dimension of system requirements that
+depends entirely on the video card, regardless of how up-to-date your
+Windows and D3D software are.)
+
+* Use the correct auto-launching registry key for 64-bit builds.
+32- and 64-bit programs are auto-launched with different registry keys:
+64-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Run
+32-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
+
 08-10-2018 (1.0.0 Alpha 7)
 
 * Added several new logging options, to get (lots) more detail about

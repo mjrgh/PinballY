@@ -616,8 +616,8 @@ int D3DView::MessageLoop()
 		}
 
 		// advance to the next render window for the next pass
-		curRenderWinIndex += 1;
-		curRenderWinIndex %= activeD3DViews.size();
+		if (++curRenderWinIndex >= (int)activeD3DViews.size())
+			curRenderWinIndex = 0;
 
 		// call idle event subscribers
 		for (auto it = idleEventSubscribers.begin(); it != idleEventSubscribers.end(); )

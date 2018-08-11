@@ -97,13 +97,13 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo "Configuration=$(Configuration)" "Platform=$(Platform)" -f MakeVersionInfo.mak &amp;&amp; popd)
+      <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
 (pushd DMDFonts &amp;&amp; nmake /nologo "OutDir=$(OutDir)." -f makefile &amp;&amp; popd)
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
@@ -121,12 +121,12 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo "Configuration=$(Configuration)" "Platform=$(Platform)" -f MakeVersionInfo.mak &amp;&amp; popd)
+      <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
 (pushd DMDFonts &amp;&amp; nmake /nologo "OutDir=$(OutDir)." -f makefile &amp;&amp; popd)
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
@@ -148,13 +148,13 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo "Configuration=$(Configuration)" "Platform=$(Platform)" -f MakeVersionInfo.mak &amp;&amp; popd)
+      <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
 (pushd DMDFonts &amp;&amp; nmake /nologo "OutDir=$(OutDir)." -f makefile &amp;&amp; popd)
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
@@ -176,12 +176,12 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>
     <PreBuildEvent>
-      <Command>(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo "Configuration=$(Configuration)" "Platform=$(Platform)" -f MakeVersionInfo.mak &amp;&amp; popd)
+      <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
 (pushd DMDFonts &amp;&amp; nmake /nologo "OutDir=$(OutDir)." -f makefile &amp;&amp; popd)
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
@@ -393,10 +393,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <HeaderFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">shaders\%(Filename).h</HeaderFileOutput>
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ObjectFileOutput>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.1</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.1</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">5.0</ShaderModel>
-      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">5.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">4.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">4.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4.0</ShaderModel>
+      <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4.0</ShaderModel>
     </FxCompile>
     <FxCompile Include="I420ShaderPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Pixel</ShaderType>
