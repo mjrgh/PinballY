@@ -834,7 +834,7 @@ bool Application::SyncAutoLaunchInRegistry(ErrorHandler &eh)
 
 	// open the relevant registry key
 	HKEYHolder hkey;
-	const TCHAR *keyName = HKLM_SOFTWARE_Microsoft_Windows _T("\\CurrentVersion\\Run");		
+	const TCHAR *keyName = HKLM_SOFTWARE_Microsoft_Windows _T("\\Run");		
 	if ((err = RegOpenKey(HKEY_CURRENT_USER, keyName, &hkey)) != ERROR_SUCCESS)
 		return ReturnError(MsgFmt(_T("Opening %s"), keyName));
 

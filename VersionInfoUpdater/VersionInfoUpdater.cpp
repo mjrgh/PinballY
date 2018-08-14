@@ -8,6 +8,7 @@
 //
 //   VersionInfo.cpp - version extern variable definitions
 //   VersionInfo.rc  - include header for RC version resources
+//   VersionInfo.wxi - include header for the Wix setup builder
 // 
 // The main version number (the "1.2.3" number) is manually defined and
 // manually maintained.  This program takes those numbers as defined in
@@ -19,6 +20,16 @@
 // Additionally, this program produces some separate numbers that are
 // automatically updated on every build, such as a build number (a serial
 // number incremented on each build) and a timestamp.
+//
+// For WiX purposes, we use the fourth dotted portion of the version
+// number to encode the release level and the pre-release sequence number,
+// as follows:
+//
+//     dev builds -> build number
+//     alpha      -> 30000 + pre-release sequence number
+//     beta       -> 40000 + pre-release sequence number
+//     RC         -> 50000 + pre-release sequence number
+//     release    -> 60000
 
 #include <stdio.h>
 #include <string.h>
@@ -66,6 +77,7 @@ int main(int argc, char **argv)
 	const char *inFilename = 0;
 	const char *cppFilename = 0;
 	const char *rcFilename = 0;
+	const char *wxiFilename = 0;
 	for (int i = 1; i < argc; ++i)
 	{
 		const char *ap = argv[i];
@@ -75,6 +87,8 @@ int main(int argc, char **argv)
 			cppFilename = argv[++i];
 		else if (strcmp(ap, "-rc") == 0 && i + 1 < argc)
 			rcFilename = argv[++i];
+		else if (strcmp(ap, "-wxi") == 0 && i + 1 < argc)
+			wxiFilename = argv[++i];
 		else
 		{
 			printf("Invalid argument \"%s\"", ap);
@@ -89,7 +103,9 @@ int main(int argc, char **argv)
 		errexit(1002, "Missing cpp filename; specify with '-cpp filename'\n");
 	if (rcFilename == 0)
 		errexit(1003, "Missing rc filename; specify with '-rc filename'\n");
-
+	if (wxiFilename == 0)
+		errexit(1004, "Missing wxi filename; specify with '-wxi filename'\n");
+		
 	// announce what we're doing
 	printf("BuildInfo: %s -> (cpp=%s, rc=%s)\n", inFilename, cppFilename, rcFilename);
 
@@ -279,6 +295,32 @@ int main(int argc, char **argv)
 		fclose(fp);
 	}
 
+	// Figure the fourth dotted version element for WiX purposes.
+	// This encodes the release level and pre-release sequence number.
+	int wixLevelNumber = 0;
+	switch (releaseStatus)
+	{
+	case 'A':
+		wixLevelNumber = 30000 + prereleaseSeqno;
+		break;
+
+	case 'B':
+		wixLevelNumber = 40000 + prereleaseSeqno;
+		break;
+
+	case 'C':
+		wixLevelNumber = 50000 + prereleaseSeqno;
+		break;
+
+	case 'D':
+		wixLevelNumber = buildNo;
+		break;
+
+	case 'R':
+		wixLevelNumber = 60000;
+		break;
+	}
+
 	// open the derived .cpp file for writing
 	if (fopen_s(&fp, cppFilename, "w"))
 		errexit(1200, "Can't open .cpp file %s for writing\n", cppFilename);
@@ -357,7 +399,7 @@ int main(int argc, char **argv)
 		// -alpha).
 		//
 		// 1.2.3-alpha+Fork.1563.20170901T1900 (pre-release version)
-		// 1.2.3+Fork.1563.20170901T1900       (real release)
+		// 1.2.3+Fork.1563.20170901T1900       (regular release)
 		//
 		sprintf_s(semanticVer, "%d.%d.%d%s+%s%d.%s",
 			versionNumber[0], versionNumber[1], versionNumber[2],
@@ -465,6 +507,30 @@ int main(int argc, char **argv)
 	fputs("\n", fp);
 
 	// done with the .rc file
+	fclose(fp);
+
+	// open the WXI file
+	if (fopen_s(&fp, wxiFilename, "w"))
+	{
+		printf("Can't open Wix version header .wxi file %s\n", wxiFilename);
+		exit(2);
+	}
+
+	// write the WXI information
+	fputs("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n", fp);
+	fputs("<Include>\n", fp);
+	fputs(
+		"<!--\n"
+		"  PinballY setup version information.\n"
+		"  This file was generated mechanically.  Do not edit.\n"
+		"-->\n", fp);
+	fprintf(fp, "<?define MajorVersion=\"%d\" ?>\n", versionNumber[0]);
+	fprintf(fp, "<?define MinorVersion=\"%d\" ?>\n", versionNumber[1]);
+	fprintf(fp, "<?define BuildVersion=\"%d\" ?>\n", versionNumber[2]);
+	fprintf(fp, "<?define LevelVersion=\"%d\" ?>\n", wixLevelNumber);
+	fputs("</Include>\n", fp);
+
+	// done with the .wxi file
 	fclose(fp);
 
 	// success

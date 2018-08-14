@@ -1,5 +1,27 @@
 PinballY Update History
 
+08-13-2018 (1.0.0 Alpha 9)
+
+* Added the table type (Solid State, Electromechanical, Mechanical) to
+the "Information" display box
+
+* Added support for manufacturer and system logos.  Place PNG logo
+files in <media path>\Company Logos and <media path>\System Logos.
+For the manufacturers, the files are matched based on the company
+name in the game database, but you can also create different logos
+for different eras by using this format for the file names:
+Gottlieb (1971-1982).png.  For games where the release year is
+known, PinballY will try to match a logo for the era containing
+that year.  For systems, the system name as defined in the options
+is matched.  Systems will also be matched by prefix when there's
+no exact match, so the file "Visual Pinball.png" will match 
+systems "Visual Pinball 9.2", "Visual Pinball X", etc.  This
+lets you create different logos for different system versions
+if you like, but also lets you use a common logo for all
+versions, as long as you follow the naming convention of placing
+the version at the end of the system name.
+
+
 08-11-2018 (1.0.0 Alpha 8)
 
 * Change the minimum video card "shader model" required to shader

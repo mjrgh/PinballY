@@ -123,6 +123,9 @@
 #define IDS_GAMEINFO_FAV                382
 #define IDS_GAMEINFO_NVRAM              383
 #define IDS_GAMEINFO_MEDIANAME          384
+#define IDS_GAMEINFO_TYPE_SS            385
+#define IDS_GAMEINFO_TYPE_EM            386
+#define IDS_GAMEINFO_TYPE_ME            387
 
 #define IDS_N_CREDITS                   390
 #define IDS_1_CREDIT                    391

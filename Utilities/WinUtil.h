@@ -267,9 +267,9 @@ struct HKEYHolder
 // target platform.
 //
 #ifdef _M_X64
-#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\WOW6432Node\\Microsoft\\Windows");
+#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion");
 #else
-#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\Microsoft\\Windows");
+#define HKLM_SOFTWARE_Microsoft_Windows _T("SOFTWARE\\Microsoft\\Windows\\CurrentVersion");
 #endif
 
 

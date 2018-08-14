@@ -1140,6 +1140,21 @@ protected:
 	// update the info box animation
 	void UpdateInfoBoxAnimation();
 
+	// get a maunfacturer/system logo file
+	bool GetManufacturerLogo(TSTRING &file, const GameManufacturer *manuf, int year);
+	bool GetSystemLogo(TSTRING &file, const GameSystem *system);
+
+	// Load a manufacturer/system logo file.  These logos are stored
+	// in our logo caches (below), so the caller must not delete them.
+	bool LoadManufacturerLogo(Gdiplus::Image* &image, const GameManufacturer *manuf, int year);
+	bool LoadSystemLogo(Gdiplus::Image* &image, const GameSystem *system);
+
+	// Caches for the logos.  We cache these files as we find matches,
+	// since it takes a little work to search the file system and load
+	// the image data.
+	std::unordered_map<TSTRING, std::unique_ptr<Gdiplus::Image>> manufacturerLogoMap;
+	std::unordered_map<TSTRING, std::unique_ptr<Gdiplus::Image>> systemLogoMap;
+
 	// Start a playfield crossfade.  This is a separate mode from the
 	// other animations, as it can run in parallel.
 	void StartPlayfieldCrossfade();

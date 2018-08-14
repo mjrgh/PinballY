@@ -78,4 +78,4 @@ $(ObjDir)\VersionInfo.obj: $(GenDir)\VersionInfo.cpp
 $(GenDir)\VersionInfo.cpp $(GenDir)\VersionInfo.rc: \
     ..\PinballY\*.cpp ..\PinballY\*.h ..\PinballY\*.rc \
     ..\OptionsDialog\*.cpp ..\OptionsDialog\*.h ..\OptionsDialog\*.rc
-	$(BinDir)\VersionInfoUpdater -in .\..\PinballY\VersionInfo.h -cpp $(GenDir)\VersionInfo.cpp -rc $(GenDir)\VersionInfo.rc
+	$(BinDir)\VersionInfoUpdater -in .\..\PinballY\VersionInfo.h -cpp $(GenDir)\VersionInfo.cpp -rc $(GenDir)\VersionInfo.rc -wxi $(GenDir)\VersionInfo.wxi

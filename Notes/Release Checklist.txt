@@ -1,10 +1,10 @@
 PinballY Release Checklist
 
+- Edit PinballY\VersionInfo.h - update the version data as needed
+
 - Edit VersionHistory.txt with the date, version, and notes on what's new
 
 - Open the solution in Visual Studio
-
-- Edit PinballY\VersionInfo.h - update the version data as needed
 
 - Select the Release | x86 configuration
   - Build > Clean Solution

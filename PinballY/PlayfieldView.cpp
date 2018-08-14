@@ -5,6 +5,7 @@
 
 #include "stdafx.h"
 #include <mmsystem.h>
+#include <filesystem>
 #include <Dwmapi.h>
 #include <d3d11_1.h>
 #include <gdiplus.h>
@@ -1946,19 +1947,36 @@ void PlayfieldView::ShowGameInfo()
 		GPDrawString gds(g);
 		DrawInfoBoxCommon(game, g, width, height, margin, gds);
 
-		// write the bibliographic details
+		// set up fonts and colors
 		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
 		std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400));
+		std::unique_ptr<Gdiplus::Font> smallerTextFont(CreateGPFont(_T("Tahoma"), 20, 400));
 		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(_T("Tahoma"), 18, 400));
 		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), 18, 400));
 		std::unique_ptr<Gdiplus::Font> symFont3(CreateGPFont(_T("Wingdings 3"), 18, 400));
+		
+		//
+		// Main bibliographic details section
+		//
+
+		// manufacturer and/or year - "Manufacturer, Year" or just one or the other
 		if (game->manufacturer != nullptr)
 			gds.DrawString(MsgFmt(_T("%s, %d"), game->manufacturer->manufacturer.c_str(), game->year),
 				textFont.get(), &textBr);
 		else if (game->year != 0)
 			gds.DrawString(MsgFmt(_T("%d"), game->year), textFont.get(), &textBr);
+
+		// table type
+		if (_tcsicmp(game->tableType.c_str(), _T("ss")) == 0)
+			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_SS), smallerTextFont.get(), &textBr);
+		else if (_tcsicmp(game->tableType.c_str(), _T("em")) == 0)
+			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_EM), smallerTextFont.get(), &textBr);
+		if (_tcsicmp(game->tableType.c_str(), _T("me")) == 0)
+			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_ME), smallerTextFont.get(), &textBr);
+
+		// system
 		if (game->system != nullptr)
-			gds.DrawString(game->system->displayName.c_str(), textFont.get(), &textBr);
+			gds.DrawString(game->system->displayName.c_str(), smallerTextFont.get(), &textBr);
 
 		// show the personal rating
 		float rating = gl->GetRating(game);
@@ -1992,6 +2010,10 @@ void PlayfieldView::ShowGameInfo()
 			// make sure we moved past the stars vertically
 			gds.curOrigin.Y = fmaxf(y0 + starHt, gds.curOrigin.Y);
 		}
+
+		//
+		// Statistics section
+		//
 
 		// add the play date/count/time statistics, if it's ever been played
 		gds.VertSpace(16.0f);
@@ -2041,11 +2063,13 @@ void PlayfieldView::ShowGameInfo()
 		if (gl->IsFavorite(game))
 			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont.get(), &textBr);
 
-		// start the details section
+		//
+		// Technical details section
+		//
 		gds.VertSpace(16.0f);
 		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(0xff, 0xA0, 0xA0, 0xA0));
 
-		// add the date added
+		// date added
 		if (DateTime dateAdded = gl->GetDateAdded(game); dateAdded.IsValid())
 			gds.DrawString(MsgFmt(IDS_DATE_ADDED, dateAdded.FormatLocalDate().c_str()), detailsFont.get(), &detailsBr);
 
@@ -4294,13 +4318,58 @@ void PlayfieldView::SyncInfoBox()
 				GPDrawStringAdv(g, game->title.c_str(), titleFont.get(), &txt, origin, rcLayout);
 				origin.Y += 12;
 
-				// add the system, manufacturer, and year
+				// add the manufacturer and year
 				std::unique_ptr<Gdiplus::Font> txtFont(CreateGPFont(_T("Tahoma"), 28, 500));
-				if (game->manufacturer != nullptr)
+				if (Gdiplus::Image *manufLogo; LoadManufacturerLogo(manufLogo, game->manufacturer, game->year))
+				{
+					// scale the image according to the text height
+					float txtHt = txtFont->GetHeight(&g);
+					float ht = txtHt * 1.4f;
+					float wid = (float)manufLogo->GetWidth()/(float)manufLogo->GetHeight() * ht;
+					g.DrawImage(manufLogo, origin.X, origin.Y, wid, ht);
+
+					// add the year, if known
+					if (game->year != 0)
+						g.DrawString(MsgFmt(_T("  (%d)"), game->year), -1, txtFont.get(),
+							Gdiplus::PointF(origin.X + wid, origin.Y + txtHt * .2f), &txt);
+
+					// advance past it
+					origin.Y += ht + 10;
+				}
+				else if (game->manufacturer != nullptr && game->year != 0)
+				{
+					// draw the manufacturer and year as text
 					GPDrawStringAdv(g, MsgFmt(_T("%s (%d)"), game->manufacturer->manufacturer.c_str(), game->year),
 						txtFont.get(), &txt, origin, rcLayout);
-				if (game->system != nullptr)
+				}
+				else if (game->manufacturer != nullptr)
+				{
+					// draw the manufacturer as text
+					GPDrawStringAdv(g, game->manufacturer->manufacturer.c_str(), txtFont.get(), &txt, origin, rcLayout);
+				}
+				else if (game->year != 0)
+				{
+					// draw the year as text
+					GPDrawStringAdv(g, MsgFmt(_T("%d"), game->year), txtFont.get(), &txt, origin, rcLayout);
+				}
+
+				// add the system
+				if (Gdiplus::Image *systemLogo; LoadSystemLogo(systemLogo, game->system))
+				{
+					// scale it to the text height
+					float txtHt = txtFont->GetHeight(&g);
+					float ht = txtHt;
+					float wid = (float)systemLogo->GetWidth() / (float)systemLogo->GetHeight() * ht;
+					g.DrawImage(systemLogo, origin.X, origin.Y, wid, ht);
+
+					// advance past it
+					origin.Y += ht + 10;
+				}
+				else if (game->system != nullptr)
+				{
+					// draw the system name as text
 					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont.get(), &txt, origin, rcLayout);
+				}
 
 				// add the rating, if set
 				float rating = GameList::Get()->GetRating(game);
@@ -4385,6 +4454,238 @@ void PlayfieldView::UpdateInfoBoxAnimation()
 		lastTimer = 0;
 		KillTimer(hWnd, infoBoxFadeTimerID);
 	}
+}
+
+bool PlayfieldView::LoadManufacturerLogo(Gdiplus::Image* &image, const GameManufacturer *manuf, int year)
+{
+	// fail if there's no manufacturer
+	if (manuf == nullptr)
+		return nullptr;
+
+	// try a cache lookup first
+	if (auto it = manufacturerLogoMap.find(manuf->manufacturer); it != manufacturerLogoMap.end())
+	{
+		image = it->second.get();
+		return true;
+	}
+
+	// look up the file
+	TSTRING filename;
+	if (GetManufacturerLogo(filename, manuf, year))
+	{
+		// try loading the image
+		if (auto i = Gdiplus::Bitmap::FromFile(filename.c_str()); i != nullptr)
+		{
+			// add it to the cache
+			manufacturerLogoMap.emplace(manuf->manufacturer, i);
+
+			// return the image pointer
+			image = i;
+			return true;
+		}
+	}
+
+	// not found or failed to load
+	return false;
+}
+
+bool PlayfieldView::LoadSystemLogo(Gdiplus::Image* &image, const GameSystem *system)
+{
+	// fail if there's no system
+	if (system == nullptr)
+		return nullptr;
+
+	// try a cache lookup first
+	if (auto it = systemLogoMap.find(system->displayName); it != systemLogoMap.end())
+	{
+		image = it->second.get();
+		return true;
+	}
+
+	// look up the file
+	TSTRING filename;
+	if (GetSystemLogo(filename, system))
+	{
+		// try loading the image
+		if (auto i = Gdiplus::Bitmap::FromFile(filename.c_str()); i != nullptr)
+		{
+			// cache it
+			systemLogoMap.emplace(system->displayName, i);
+
+			// return it
+			image = i;
+			return true;
+		}
+	}
+
+	// not found or failed to load
+	return false;
+}
+
+bool PlayfieldView::GetManufacturerLogo(TSTRING &result, const GameManufacturer *manuf, int year)
+{
+	// if there's no manufacturer, there's no logo
+	if (manuf == nullptr)
+		return false;
+
+	// get the Company Logos media folder
+	TCHAR folder[MAX_PATH];
+	PathCombine(folder, GameList::Get()->GetMediaPath(), _T("Company Logos"));
+
+	// We scan for files with names of these forms:
+	//
+	//   Gottlieb (1990-1997).png  - matches Gottlieb for years 1990 through 1997
+	//   Gottlieb (-1990).png      - matches Gottlieb for all years through 1990
+	//   Gottlieb (1990-).png      - matches Gottlieb for all years 1990 and later
+	//   Gottlieb (1990).png       - matches Gottlieb for year 1990 only
+	//   Gottlieb.png              - matches company name Gottlieb, any year
+	//
+	// If the year passed in is non-zero, we'll match the first file we find
+	// with a year span that includes the given year.  If the year given is 
+	// zero, we'll match the file with the year span with the highest ending
+	// year.  In either case, if we don't find a matching file with a year
+	// span, we'll match the file (if any) that exactly matches the company 
+	// name.
+	TSTRING exactMatch;
+	TSTRING highestYearMatch;
+	int highestEndingYear = 0;
+
+	// scan files in the media folder
+	namespace fs = std::experimental::filesystem;
+	for (auto &f : fs::directory_iterator(folder))
+	{
+		// only consider ordinary files with appropriate image extensions
+		static const std::basic_regex<wchar_t> extPat(L"(.*)\\.(png)", std::regex_constants::icase);
+		std::match_results<const wchar_t*> m; 
+		WSTRING fname = f.path().filename().wstring();
+		if (f.status().type() == fs::file_type::regular	&& std::regex_match(fname.c_str(), m, extPat))
+		{
+			// pull out the base filename
+			WSTRING basename = m[1].str();
+
+			// Check for a year span pattern
+			static const std::basic_regex<wchar_t> yearPat(L"(.*)\\s*\\((\\d{4})?(-)?(\\d{4})?\\)");
+			if (std::regex_match(basename.c_str(), m, yearPat))
+			{
+				// reject this one out of hand if the name doesn't match
+				if (_tcsicmp(WSTRINGToTSTRING(m[1].str()).c_str(), manuf->manufacturer.c_str()) != 0)
+					continue;
+
+				// get the starting year if matched, otherwise 0 for the beginning of time
+				int startYear =  m[2].matched ? _wtoi(m[2].str().c_str()) : 0;
+
+				// If '-' was present: if there's an explicit ending year, get it, 
+				// otherwise use 9999 for the end of time.  If no '-' is present,
+				// it's a one-year span, so end year == start year.
+				int endYear = m[3].matched ? (m[4].matched ? _wtoi(m[4].str().c_str()) : 9999) : startYear;
+
+				// If a year was given, and it's within the span, this is
+				// automatically the best match.
+				if (year != 0 && year >= startYear && year <= endYear)
+				{
+					result = WideToTSTRING(f.path().c_str());
+					return true;
+				}
+
+				// If a year was specified, and it's not later than the
+				// end date of this span, and this span is the latest we've
+				// seen so far, remember it as the closest match.  Or, if
+				// no year was specified, just remember the highest ending
+				// year.
+				if (endYear > highestEndingYear
+					&& ((year != 0 && year < endYear) || year == 0))
+				{
+					highestYearMatch = f.path();
+					highestEndingYear = endYear;
+				}
+			}
+			else if (_tcsicmp(WSTRINGToTSTRING(basename).c_str(), manuf->manufacturer.c_str()) == 0)
+			{
+				// This is an exact match for the name, but it has no year.
+				// If no year was specified in the query, use this as the
+				// automatic match.
+				if (year == 0)
+				{
+					result = WideToTSTRING(f.path().c_str());
+					return true;
+				}
+
+				// remember it as the exact match
+				exactMatch = f.path();
+			}
+		}
+	}
+
+	// We didn't find an exact match for the year, so return the next
+	// best thing.  If we found any year matches the manufacturer, use
+	// the one with the highest ending year of the candidates we found.
+	// If not, use the exact match, if we found one.
+	if (highestYearMatch.length() != 0)
+	{
+		result = WSTRINGToTSTRING(highestYearMatch);
+		return true;
+	}
+	if (exactMatch.length() != 0)
+	{
+		result = WSTRINGToTSTRING(exactMatch);
+		return true;
+	}
+
+	// no results found
+	return false;
+}
+
+bool PlayfieldView::GetSystemLogo(TSTRING &result, const GameSystem *system)
+{
+	// if there's no system, there's no logo
+	if (system == nullptr)
+		return false;
+
+	// get the System Logos media folder
+	TCHAR folder[MAX_PATH];
+	PathCombine(folder, GameList::Get()->GetMediaPath(), _T("System Logos"));
+
+	// Prefix match.  If we find a file whose name is a leading
+	// substring of the system name, keep it as a partial match.
+	// This allows matching a generic "Visual Pinball.png" file
+	// to "Visual Pinball 9.2" and other similar versioned system
+	// names.
+	WSTRING prefixMatch;
+
+	// scan files in the media folder
+	namespace fs = std::experimental::filesystem;
+	for (auto &f : fs::directory_iterator(folder))
+	{
+		// only consider ordinary files with appropriate image extensions
+		static const std::basic_regex<WCHAR> extPat(_T("(.*)\\.(png)"), std::regex_constants::icase);
+		std::match_results<std::wstring::const_iterator> m;
+		WSTRING path = f.path().filename().wstring();
+		if (f.status().type() == fs::file_type::regular
+			&& std::regex_match(path, m, extPat))
+		{
+			// check for an exact match
+			TSTRING basename = WSTRINGToTSTRING(m[1].str());
+			if (_tcsicmp(basename.c_str(), system->displayName.c_str()) == 0)
+			{
+				result = WideToTSTRING(f.path().c_str());
+				return true;
+			}
+
+			// check for a prefix match
+			if (tstriStartsWith(system->displayName.c_str(), basename.c_str()))
+				prefixMatch = f.path().c_str();
+		}
+	}
+
+	// no exact match found; if we found a prefix match, use that
+	if (prefixMatch.length() != 0)
+	{
+		result = WSTRINGToTSTRING(prefixMatch);
+		return true;
+	}
+
+	// no match
+	return false;
 }
 
 void PlayfieldView::EndAnimation()

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?include $(sys.CURRENTDIR)..\VersionInfoUpdater\generated\VersionInfo.wxi ?>
   <Product
     Id="*"
     Name="PinballY"
     Language="1033"
-    Version="1.0.0"
+    Version="$(var.MajorVersion).$(var.MinorVersion).$(var.BuildVersion).$(var.LevelVersion)"
     Manufacturer="Pinscape Labs"
     UpgradeCode="fba66d28-bdeb-491a-986b-2491b43f8399">
 
