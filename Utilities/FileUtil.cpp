@@ -319,7 +319,7 @@ DWORD SafeGetModuleFileName(HMODULE hModule, TCHAR *buf, DWORD buflen)
 DWORD GetExeFilePath(TCHAR *buf, DWORD buflen)
 {
 	// get the full EXE file name
-	DWORD result = SafeGetModuleFileName(0, buf, buflen);
+	DWORD result = SafeGetModuleFileName(NULL, buf, buflen);
 
 	// check for error
 	if (result == 0 || result == buflen)

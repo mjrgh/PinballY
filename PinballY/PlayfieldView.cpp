@@ -96,6 +96,7 @@ PlayfieldView::PlayfieldView() :
 	bankedCredits = 0.0f;
 	maxCredits = 0.0f;
 	lastInputEventTime = GetTickCount();
+	settingsDialogOpen = false;
 	
 	// note the exit key mode
 	TSTRING exitMode = ConfigManager::GetInstance()->Get(ConfigVars::ExitKeyMode, _T("select"));
@@ -613,10 +614,6 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_PINSCAPE_NIGHT_MODE:
 		Application::Get()->TogglePinscapeNightMode();
-		return true;
-
-	case ID_AUTOLAUNCH:
-		Application::Get()->SetAutoLaunch(!Application::Get()->IsAutoLaunch());
 		return true;
 
 	case ID_OPTIONS:
@@ -6449,8 +6446,6 @@ void PlayfieldView::ShowOperatorMenu()
 
 	// add the miscellaneous setup options
 	md.emplace_back(LoadStringT(IDS_MENU_CLEAR_CREDITS), ID_CLEAR_CREDITS);
-	md.emplace_back(LoadStringT(IDS_MENU_AUTOLAUNCH), ID_AUTOLAUNCH,
-		Application::Get()->IsAutoLaunch() ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_OPTIONS), ID_OPTIONS);
 	md.emplace_back(_T(""), -1);
 
@@ -9273,16 +9268,77 @@ void PlayfieldView::ShowSettingsDialog()
 		// disable windows
 		Application::Get()->EnableSecondaryWindows(false);
 
-		// Run the dialog.   Provide a callback that reloads the config if the
-		// dialog saves changes.
+		// final dialog location, for saving later
+		RECT initDialogRect = ConfigManager::GetInstance()->GetRect(ConfigVars::OptsDialogPos);
 		RECT finalDialogRect;
-		showOptionsDialog(
-			[this]() { Application::Get()->ReloadConfig(); },
-			[this](HWND hWnd) { Application::Get()->InitDialogPos(hWnd, ConfigVars::OptsDialogPos); },
-			&finalDialogRect);
 
-		// save the final dialog position
-		ConfigManager::GetInstance()->Set(ConfigVars::OptsDialogPos, finalDialogRect);
+		// Admin Auto Run setup callback
+		auto setUpAdminAutoRun = [this]()
+		{
+			// send an installAutoLaunch request to the Admin Host
+			static const TCHAR *request[] = { _T("installAutoLaunch") };
+			std::vector<TSTRING> reply;
+			if (Application::Get()->SendAdminHostRequest(request, countof(request), reply))
+			{
+				// check the reply
+				if (reply.size() == 0)
+				{
+					// no reply
+					LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), _T("No reply from Admin Host"));
+					return false;
+				}
+				else if (reply[0] == _T("ok"))
+				{
+					// success
+					return true;
+				}
+				else if (reply[0] == _T("error") && reply.size() >= 2)
+				{
+					if (reply.size() >= 3)
+						LogSysError(EIT_Error, reply[1].c_str(), reply[2].c_str());
+					else
+						LogError(EIT_Error, reply[1].c_str());
+					return false;
+				}
+				else 
+				{
+					LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
+						MsgFmt(_T("Unexpected reply from Admin Host: %s"), reply[0]));
+					return false;
+				}
+			}
+			else
+			{
+				// couldn't send the request at all - provide our own error message
+				LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), _T("Admin Host send failed"));
+				return false;
+			}
+		};
+
+		// create a scope for the dialog tracker
+		{
+			// track that the dialog is open
+			struct DialogTracker
+			{
+				DialogTracker(PlayfieldView *pfv) : pfv(pfv) { pfv->settingsDialogOpen = true; }
+				~DialogTracker() { pfv->settingsDialogOpen = false; }
+				PlayfieldView *pfv;
+			};
+			DialogTracker dialogTracker(this);
+
+			// Run the dialog.   Provide a callback that reloads the config if the
+			// dialog saves changes.
+			showOptionsDialog(
+				[this]() { Application::Get()->ReloadConfig(); },
+				[this](HWND hWnd) { Application::Get()->InitDialogPos(hWnd, ConfigVars::OptsDialogPos); },
+				Application::Get()->IsAdminHostAvailable(),
+				setUpAdminAutoRun,
+				&finalDialogRect);
+		}
+
+		// save the final dialog position if it changed
+		if (initDialogRect != finalDialogRect)
+			ConfigManager::GetInstance()->Set(ConfigVars::OptsDialogPos, finalDialogRect);
 
 		// re-enable windows
 		Application::Get()->EnableSecondaryWindows(true);

@@ -18,6 +18,7 @@
 #include "../Utilities/Joystick.h"
 #include "../Utilities/KeyInput.h"
 #include "../Utilities/ComUtil.h"
+#include "../Utilities/AutoRun.h"
 #include "DateUtil.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
@@ -117,7 +118,7 @@ bool Application::isInForeground = true;
 //
 // Run the application
 //
-int Application::Main(HINSTANCE hInstance, LPTSTR /*lpCmdLine*/, int nCmdShow)
+int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 {
 	// remember the instance handle globally
 	G_hInstance = hInstance;
@@ -134,6 +135,21 @@ int Application::Main(HINSTANCE hInstance, LPTSTR /*lpCmdLine*/, int nCmdShow)
 		LogSysError(EIT_Error, LoadStringT(IDS_ERR_COINIT),
 			MsgFmt(_T("CoInitializeEx failed, error %lx"), hr));
 		return 0;
+	}
+
+	// check for special launch modes
+	if (std::regex_match(lpCmdLine, std::basic_regex<TCHAR>(_T("\\s*/AutoLaunch=AdminMode\\s*"))))
+	{
+		// Set up admin mode auto launch.  This sets up auto launch for
+		// our "PinballY Admin Mode" executable instead of the regular
+		// PinballY executable.
+		TCHAR exe[MAX_PATH];
+		GetExeFilePath(exe, countof(exe));
+		PathAppend(exe, _T("PinballY Admin Mode.exe"));
+		bool ok = SetUpAutoRun(true, _T("PinballY"), exe, nullptr, true, InteractiveErrorHandler());
+
+		// indicate success/failure via the exit code
+		return ok ? 0 : 2;
 	}
 
 	// initialize common controls
@@ -383,24 +399,6 @@ int Application::EventLoop(int nCmdShow)
 
 	// check for a RunAfter program
 	CheckRunAtExit();
-
-	// Update the registry with our current Auto Launch setting.
-	// Do this just before exiting, to avoid the potential problem
-	// mentioned in the Windows API docs.  The docs warn that an
-	// auto-launched program shouldn't change its own status by
-	// writing to the auto-launch registry keys, because doing so
-	// can interfere with the launching of other programs under
-	// the same key.  Presumably, the issue is that editing a 
-	// key's value can interrupt an enumeration of the values 
-	// already in progress.  Assuming that's the problem, it
-	// really should only be an issue during the early part of
-	// our session, maybe the first 60 seconds or so, while the
-	// shell is actively working through the auto-launch list.
-	// Once the shell is done with that phase, it should be safe
-	// to edit the list freely.  Waiting until we're about to
-	// quit should almost always get us past that interval
-	// where the updates could be problematic.
-	SyncAutoLaunchInRegistry(InteractiveErrorHandler());
 
 	// return the Quit message parameter, if we got one
 	return retcode;
@@ -714,6 +712,12 @@ void Application::OnConfigChange()
 
 void Application::SaveFiles()
 {
+	// Skip this if the options dialog is showing.  The options dialog
+	// also accesses the config file, so give it exclusive access while
+	// it's running.
+	if (auto pfv = inst->GetPlayfieldView(); pfv != nullptr && pfv->IsSettingsDialogOpen())
+		return;
+
 	// save any statistics database updates
 	GameList::Get()->SaveStatsDb();
 
@@ -804,109 +808,6 @@ bool Application::RunCommand(const TCHAR *cmd,
 		// the process was successfully launched
 		return true;
 	}
-}
-
-bool Application::SyncAutoLaunchInRegistry(ErrorHandler &eh)
-{
-	LONG err;
-	auto ReturnError = [&err, &eh](const TCHAR *where)
-	{
-		WindowsErrorMessage sysErr(err);
-		eh.SysError(LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
-			MsgFmt(_T("%s: system error %d: %s"), where, err, sysErr.Get()));
-		return false;
-	};
-
-	// get the current auto-launch status
-	bool autoLaunch = IsAutoLaunch();
-
-	// If auto-launch is on, figure the new launch command.
-	TSTRINGEx launchCmd;
-	if (autoLaunch)
-	{
-		// get the executable path
-		TCHAR exe[MAX_PATH];
-		GetModuleFileName(G_hInstance, exe, MAX_PATH);
-
-		// build the command string
-		launchCmd.Format(_T("\"%s\""), exe);
-	}
-
-	// open the relevant registry key
-	HKEYHolder hkey;
-	const TCHAR *keyName = HKLM_SOFTWARE_Microsoft_Windows _T("\\Run");		
-	if ((err = RegOpenKey(HKEY_CURRENT_USER, keyName, &hkey)) != ERROR_SUCCESS)
-		return ReturnError(MsgFmt(_T("Opening %s"), keyName));
-
-	// presume we'll need to update the value
-	bool needUpdate = true;
-
-	// query the current value
-	DWORD typ;
-	DWORD len;
-	const TCHAR *valName = _T("PinballY");
-	err = RegQueryValueEx(hkey, valName, NULL, &typ, NULL, &len);
-	if (err == ERROR_SUCCESS)
-	{
-		// The value is present.  If auto-launch is turned off, simply delete
-		// the value. 
-		if (!autoLaunch)
-		{
-			// delete the key
-			if ((err = RegDeleteValue(hkey, valName)) != ERROR_SUCCESS)
-				return ReturnError(MsgFmt(_T("Deleting %s[%s]"), keyName, valName));
-
-			// success
-			return true;
-		}
-		else
-		{
-			// The key is present, so determine if it already has the correct value. 
-			// If it's not a string value, it's definitely wrong; otherwise, retrieve
-			// the string and compare it to the new setting.
-			if (typ == REG_SZ)
-			{
-				// allocate space and retrieve the value
-				std::unique_ptr<TCHAR> oldval((TCHAR*)new BYTE[len]);
-				if ((err = RegQueryValueEx(hkey, valName, NULL, &typ, (LPBYTE)oldval.get(), &len)) != ERROR_SUCCESS)
-					return ReturnError(MsgFmt(_T("Value query for %s[%s]"), keyName, valName));
-
-				// we need an update if the value doesn't match the new command
-				needUpdate = _tcsicmp(oldval.get(), launchCmd.c_str()) != 0;
-			}
-		}
-	}
-	else if (err == ERROR_FILE_NOT_FOUND)
-	{
-		// The key doesn't exist.  We'll need to update it if auto-launch
-		// is turned on.
-		needUpdate = autoLaunch;
-	}
-	else
-		return ReturnError(MsgFmt(_T("Initial value query for %s[%s]"), keyName, valName));
-
-	// If auto-launch is turned on and a registry update is needed, 
-	// write the new value
-	if (autoLaunch && needUpdate)
-	{
-		// write the value
-		if ((err = RegSetValueEx(hkey, valName, 0, REG_SZ, (BYTE*)launchCmd.c_str(),
-			(DWORD)((launchCmd.length() + 1) * sizeof(TCHAR)))) != ERROR_SUCCESS)
-			return ReturnError(MsgFmt(_T("Updating %s[%s] to %s"), keyName, valName, launchCmd.c_str()));
-	}
-
-	// success
-	return true;
-}
-
-bool Application::IsAutoLaunch() const
-{
-	return ConfigManager::GetInstance()->GetBool(_T("AutoLaunch"), false);
-}
-
-void Application::SetAutoLaunch(bool f)
-{
-	ConfigManager::GetInstance()->SetBool(_T("AutoLaunch"), f);
 }
 
 void Application::SyncSelectedGame()
@@ -3573,6 +3474,14 @@ void Application::AdminHost::PostRequest(const TCHAR *const *request, size_t nIt
 
 	// wake up the pipe manager thread
 	SetEvent(hRequestEvent);
+}
+
+bool Application::SendAdminHostRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply)
+{
+	if (adminHost.IsAvailable())
+		return adminHost.SendRequest(request, nItems, reply);
+	else
+		return false;
 }
 
 bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply)

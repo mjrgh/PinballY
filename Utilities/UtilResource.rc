@@ -88,6 +88,9 @@ BEGIN
     IDS_ERR_CONFIGWRITE      "An error occurred updating the program settings file (%s).  You might be low on disk space, or you might not have permission to access this folder."
     IDS_CFG_COMMENT1         "# PinballY settings"
     IDS_CFG_COMMENT2         "# PinballY program writes to this file, so don't edit it while the program is open."
+    IDS_ERR_SYNCAUTOLAUNCHREG "An error occurred trying to update Windows Task Scheduler with your Auto Launch preferences."
+    IDS_ERR_CLEANAUTOLAUNCHREG "An error occurred trying to remove old ""run at startup"" settings from the Windows registry.  The old auto-launch settings might incorrectly remain in effect."
+    IDS_ERR_GETAUTOLAUNCHREG "An error occurred retrieving Windows Task Scheduler information for task ""%ws""."
 
 END
 

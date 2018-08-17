@@ -33,6 +33,12 @@ protected:
 
 	// apply changes
 	BOOL OnApply();
+
+	// Handle OnApply failure.  OnApply overrides can call this before
+	// returning to re-mark the page as dirty and try to select it in
+	// the UI, to direct the user's attention to the locus of the 
+	// failure.
+	BOOL OnApplyFail();
 		
 	// Set the dirty (modified) flag
 	void SetDirty(BOOL dirty = TRUE);

@@ -24,6 +24,9 @@
 #define IDS_ERR_CONFIGWRITE             17211
 #define IDS_CFG_COMMENT1                17212
 #define IDS_CFG_COMMENT2                17213
+#define IDS_ERR_SYNCAUTOLAUNCHREG       17214
+#define IDS_ERR_CLEANAUTOLAUNCHREG      17215
+#define IDS_ERR_GETAUTOLAUNCHREG        17216
 
 
 #define IDC_SHOW_DETAILS                17300

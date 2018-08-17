@@ -192,27 +192,36 @@ BOOL OptionsDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 	// pass it along to the base class handler
 	BOOL result = __super::OnCommand(wParam, lParam);
 
-	// On Apply, post a message to self to save the config file.  The
-	// default window proc will handle the current Apply button click
-	// message by calling OnApply in each page, which will flush their
-	// changes to the in-memory config.  That will leave the in-memory
-	// config dirty and in need of saving to the file.  But none of 
-	// that will happen until after we return from this handler, since
-	// the OnApply events are generated from the default window proc,
-	// which is called after we return.  So we have to follow up with
-	// an additional posted message, which will be processed after the
-	// current event handler finishes.  Note that "OK" will have the
-	// same effect of updating the config via the OnApply methods in
-	// the pages, but that will also dismiss the dialog, so we don't
-	// have to worry about saving the file here; we'll do a separate
-	// check for unsaved changes after the dialog exits.
+	// On Apply, invoke the default window proc ourselves rather than
+	// letting the caller handle it.  The default window proc for the
+	// Apply button sends PSN_APPLY notifications to all of the child
+	// windows, which invokes the OnApply handlers for pages with
+	// outstanding changes, which update the in-memory config object.
+	// When that process is finished, we want to save changes to the
+	// in-memory config object to the on-disk config file to make the
+	// changes permanent, which is the point of Apply.  There's no
+	// separate notification for when the PSN_APPLY processing is
+	// done, so the only way to hook into its completion is to call
+	// that process explicitly as a subroutine, which we can do by
+	// invoking the default window proc here.  That normally happens
+	// in our caller (in MFC code), but we can prevent our caller
+	// from redundantly calling it by returning TRUE, which means
+	// that we've fully handled the message and don't want the def
+	// window proc called.
 	if (nCode == BN_CLICKED && nID == ID_APPLY_NOW)
-		PostMessage(WM_COMMAND, ID_SAVE_IF_DIRTY);
+	{
+		// Apply - invoke the default window proc
+		DefWindowProc(WM_COMMAND, wParam, lParam);
 
-	// Now check if this is the "save if dirty" message we posted
-	// on a recent Apply click!
-	if (nID == ID_SAVE_IF_DIRTY)
+		// All dirty pages have now been applied.  Save any changes
+		// to the in-memory config.
 		ConfigManager::GetInstance()->SaveIfDirty();
+
+		// this message has been fully processed - return TRUE to
+		// tell MFC not to call the def window proc (as we've just
+		// done that ourselves)
+		return TRUE;
+	}
 
 	// return the result from the base class handler
 	return result;
@@ -287,10 +296,14 @@ END_MESSAGE_MAP()
 
 MainOptionsDialog::MainOptionsDialog(
 	InitializeDialogPositionCallback initPosCallback, 
+	bool isAdminHostRunning,
+	SetUpAdminAutoRunCallback setUpAdminAutoRunCallback,
 	RECT *pFinalDialogRect,
 	int startPage)
 	: OptionsDialog(startPage),
 	initPosCallback(initPosCallback),
+	isAdminHostRunning(isAdminHostRunning),
+	setUpAdminAutoRunCallback(setUpAdminAutoRunCallback),
 	pFinalDialogRect(pFinalDialogRect)
 {
 	// Create the pages.  Note that the order of page creation doesn't

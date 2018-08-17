@@ -13,19 +13,42 @@
 <h1>Startup Options</h1>
 
 <p>
-   This dialog lets you customize what happens when PinballY starts up.
+   This dialog lets you customize how PinballY gets launched, and gives
+   you some options for what happens each time the program starts running.
 </p>
 
-<h2>Run at startup</h2>
+<h2>How to start PinballY</h2>
 
 <p>
-   Check this box to start PinballY automatically each time you start Windows.
-   Un-check the box to disable the automatic launch.
+   <b>Manually:</b>  Select this option if you want to start the program
+   manually from the Windows desktop each time.
+</p>
+
+<p>
+   <b>Automatically:</b>  Select this to make the program start automatically
+   each time you log in to Windows.  Pin cab users will usually want to select
+   this option, since it launches PinballY as soon as you boot up your system,
+   so that you never have to interact with the normal Windows desktop during a
+   gaming session.
+</p>
+
+<p>
+   <b>Automatic Administrator mode:</b>  Like the previous option, this
+   setting launches PinballY automatically when you log in, but in this case
+   the program is launched with Administrator privileges.  This allows
+   PinballY to launch games in Admin mode without any Windows UAC (User
+   Access Control) warnings.  That makes for a smoother playing experience
+   if you have any games that in fact require Admin privileges.
 </p>
 <p>
-   This option adds an entry to the list of startup programs in the
-   Windows registry.  Windows launches the programs listed there when
-   you first log in to your user account.
+   Even if you're accustomed to having to use Administrator mode with
+   PinballX or other systems, I'd recommend trying to run PinballY in
+   normal user mode first, to make sure you really need Admin mode.
+   PinballY has special awareness of the privilege modes required by
+   the game programs it launches, so it should be able to tell you
+   if you run anything actually requiring Admin mode.  It's better to
+   run in normal user mode unless PinballY explicitly tells you that
+   Admin mode is required for a particular program.
 </p>
 
 <h2>Wait for monitors</h2>

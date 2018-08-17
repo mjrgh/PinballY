@@ -113,12 +113,13 @@ void GameList::SaveConfig()
 
 	// if it's different from the value stored in the config, update the config
 	ConfigManager *cfg = ConfigManager::GetInstance();
-	const TCHAR *cfgSel = cfg->Get(ConfigVars::CurGame, _T(""));
-	if (_tcscmp(cfgSel, newSel.c_str()) != 0)
+	if (_tcscmp(cfg->Get(ConfigVars::CurGame, _T("")), newSel.c_str()) != 0)
 		cfg->Set(ConfigVars::CurGame, newSel.c_str());
 
 	// save the current filter
-	cfg->Set(ConfigVars::CurFilter, curFilter->GetFilterId().c_str());
+	auto curFilterId = curFilter->GetFilterId().c_str();
+	if (_tcscmp(cfg->Get(ConfigVars::CurFilter, _T("")), curFilterId) != 0)
+		cfg->Set(ConfigVars::CurFilter, curFilterId);
 
 	// Figure out which categories are "empty" - i.e., no games are
 	// assigned to them.  Categories used in games will be naturally
@@ -158,7 +159,8 @@ void GameList::SaveConfig()
 	});
 
 	// store the value
-	cfg->Set(ConfigVars::EmptyCategories, val.c_str());
+	if (_tcsicmp(cfg->Get(ConfigVars::EmptyCategories, _T("")), val.c_str()) != 0)
+		cfg->Set(ConfigVars::EmptyCategories, val.c_str());
 }
 
 void GameList::SaveStatsDb()

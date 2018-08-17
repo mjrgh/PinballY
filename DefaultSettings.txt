@@ -98,27 +98,28 @@ MediaPath =
 TableDatabasePath =
 
 
-# Should PinballY automatically launch at system startup?  If this is set to 
-# True, PinballY will set the appropriate Windows registry key to tell Windows
-# to start PinballY when you first log in.  PinballY updates the registry
-# key to match the setting given here the next time you run the program, so
-# just be sure to run the program once manually if you change this value.  
+# Should PinballY automatically launch at system startup?
 #
-# The registry key affected is:
+# "off" means that the program doesn't launch automatically.  Use this
+# setting if you want to run it manually from the Windows desktop each
+# time you want to use it.
+#
+# "on" means that the program will launch automatically each time you
+# log in to Windows.  PinballY will arrange for this by updating the
+# following registry key:
+#
 # HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run[PinballY]
 #
-# You can also control this setting interactively while the program is
-# running, via the "Setup" menu.
+# "admin" means that the program will launch automatically in Administrator
+# mode each time you log in.  This creates a Windows Task Scheduler entry 
+# for you named "PinballY Startup Task".  The Task Scheduler entry is used
+# instead of the registry key in this case because the registry key doesn't
+# allow for Admin mode launches.
 #
-# Note that this option can only launch the regular "user mode" version of
-# the program, not the Administrator mode version.  Windows doesn't allow
-# launching Administrator programs using the basic "Run" registry keys,
-# for security reasons.  Instead, you'll have to use the Windows Task 
-# Scheduler program (press Windows+S and search for "Schedule Tasks" or 
-# "taskschd.msc").  Use that to create a task that launches "PinballY 
-# Admin Mode.exe" each time you log in.
-#
-AutoLaunch = 0
+# IMPORTANT:  Unlike most settings, this setting can't be updated by 
+# editing the Settings.txt file manually.  You must use the Options dialog
+# to update this setting, because the setting has to be 
+AutoLaunch = off
 
 
 # Should we wait for monitors to come online at startup?  Most pin cabs
@@ -962,7 +963,7 @@ System4 = Future Pinball
 System4.Class = FP
 System4.Exe =
 System4.TablePath = Tables
-System4.Parameters = /open "[TABLEPATH]\[TABLEFILE]" /play /exit /arcaderender
+System4.Parameters = [TABLEPATH] /open "[TABLEPATH]\[TABLEFILE]" /play /exit /arcaderender
 System4.DefExt = .fpt
 System4.StartupKeys = [click playfield]
 System4.DOFTitlePrefix = FP

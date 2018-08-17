@@ -312,25 +312,10 @@
 </p>
 <p>
    *Okay, what I really meant was <i>nothing of its own</i>.
-   There are actually two keys that PinballY can write to, but they're
-   not keys we invented. They're standard Windows keys, which
-   we have to use if we want to work with the corresponding Windows features.
+   There actually is one keys that might be set if you install PinballY,
+   but it's not really PinballY's doing directly:
 </p>
 <ul>
-   <li>If you enable the "Auto-launch at startup" option, PinballY
-   writes a value to the registry telling Windows to launch the
-   program at system startup.  The key depends on whether you're using
-   the 32-bit or 64-bit version of PinballY:
-
-   <ul>
-      <li>32-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run
-      <li>64-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Run
-   </ul>
-   <p>
-      Under that key, PinballY stores a name/value pair with name <b>PinballY</b>,
-      with the value set to the full path to the PinballY program (.exe) file.
-   </p>
-
    <li>If you use the Windows Setup installer (the .msi file distribution)
    to install PinballY, it creates an "uninstall" key that the
    Windows "Add or Remove Programs" control panel uses to list installed
@@ -339,17 +324,43 @@
    of PinballY:
 
    <ul>
-      <li>32-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
-      <li>64-bit: HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
+      <li>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
+      <li>HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
    </ul>
-
-   <p>The {XXXXX} part is a long sequence of hexadecimal digits enclosed in curly
-   braces, known as a GUID (globally unique identifier).  Each release has a
-   different randomly generated GUID - which isn't our idea, it's a requirement
-   for the Setup process defined by Microsoft.  The easiest way to find the
-   key for your current version is to select the parent ...\Uninstall key
-   in RegEdit, press Ctrl+F to bring up a search box, and type PinballY into
-   the search box.  That should quickly find the right key.
+   <p>
+      Setup uses the first key if you're installing 32-bit PinballY on 32-bit
+      Windows, or 64-bit PinballY on 64-bit Windows.  The second key is used
+      when you install the 32-bit PinballY on 64-bit Windows.
    </p>
-
+   <p>
+      The {XXXXX} part is a long sequence of hexadecimal digits enclosed in curly
+      braces, known as a GUID (globally unique identifier).  Each release has a
+      different randomly generated GUID - which isn't our idea, it's a requirement
+      for the Setup process defined by Microsoft.  The easiest way to find the
+      key for your current version is to select the parent ...\Uninstall key
+      in RegEdit, press Ctrl+F to bring up a search box, and type PinballY into
+      the search box.  That should quickly find the right key.
+   </p>
 </ul>
+
+<h2>Task Scheduler</h2>
+
+<p>
+   If you enable automatic program launch at startup via the Options dialog,
+   PinballY will create a system Task Scheduler task called "PinballY Startup Task".
+   This will appear in the top-level group of system tasks, which you can view by
+   running the Windows Task Scheduler control panel: press Windows+R and type
+   <b>taskschd.msc</b> into the Run box.
+</p>
+<p>
+   You can modify or delete the PinballY startup task using the Task Scheduler
+   control panel, but it's better not to, since it could create a confusing
+   situation where PinballY's notion of the startup task is different from
+   Windows's notion.  It's better to manage everything from the PinballY
+   options dialog, since that will keep PinballY and Windows in sync.
+   The only time you might want to delete the task manually is if you
+   delete PinballY from your system.
+</p>
+
+</body>
+</html>

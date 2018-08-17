@@ -286,21 +286,14 @@ public:
 		ErrorHandler &eh, int friendlyErrorStringId,
 		bool wait = true, HANDLE *phProcess = nullptr);
 
-	// Update the Windows registry with the current auto-launch status,
-	// if it doesn't already match.
-	bool SyncAutoLaunchInRegistry(ErrorHandler &eh);
-
-	// Get/set the auto-launch status in the config.  Note that this
-	// only reads/writes the config settings; it doesn't update the
-	// registry to reflect the new status.  
-	bool IsAutoLaunch() const;
-	void SetAutoLaunch(bool f);
-
 	// Process a WM_ACTIVATEAPP notification to one of our windows
 	void OnActivateApp(BaseWin *win, bool activating, DWORD otherThreadId);
 
 	// Is the Admin Host available?
 	bool IsAdminHostAvailable() const { return adminHost.IsAvailable(); }
+
+	// send a request to the Admin Host
+	bool SendAdminHostRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply);
 
 	// Restart the program in Admin mode.  This attempts to launch the
 	// Admin Host, and if successful, closes the current session.

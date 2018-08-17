@@ -102,6 +102,8 @@ class MainOptionsDialog : public OptionsDialog
 public:
 	MainOptionsDialog(
 		InitializeDialogPositionCallback initPosCallback,
+		bool isAdminHostRunning,
+		SetUpAdminAutoRunCallback setUpAdminAutoRunCallback,
 		RECT *pFinalDialogRect,
 		int startPage = DefaultStartPage);
 	~MainOptionsDialog();
@@ -147,9 +149,18 @@ public:
 	// wait until the Apply/OK step.
 	void DeleteSystem(SystemDialog *sysDlg);
 
+	// is the Admin Host running?
+	bool IsAdminHostRunning() const { return isAdminHostRunning; }
+
+	// callback to set up the Admin mode auto-run through the Admin Host
+	SetUpAdminAutoRunCallback setUpAdminAutoRunCallback;
+
 protected:
 	// callback to set the initial dailog position
 	InitializeDialogPositionCallback initPosCallback;
+
+	// is the Admin Host running?
+	bool isAdminHostRunning;
 
 	// caller RECT to fill in with final dialog position on closing
 	RECT *pFinalDialogRect;

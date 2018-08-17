@@ -54,6 +54,7 @@ BEGIN
     IDS_CUSTOM_PRICING "Custom"
     IDS_ERR_DUP_CMD_KEY "%s is already assigned to this command."
     IDS_CAPTION_ERROR "Error"
+    IDS_ADMIN_LAUNCH_WARNING "You've selected the Administrator mode startup option.  Administrator privileges will be required to put that into effect, so you might see a Windows User Access Control dialog when you click Apply or OK to save changes.  You'll need to approve the User Access Control request to allow the new startup settings to go into effect."
 END
 
 // include the utility resources

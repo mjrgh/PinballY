@@ -13,8 +13,13 @@ public:
 	StartupDialog(int dialogId);
 	virtual ~StartupDialog();
 
+protected:
 	virtual void InitVarMap() override;
 
+	BOOL OnCommand(WPARAM wParam, LPARAM lParam) override;
+
+	BOOL OnApply() override;
+		
 	struct MonVars : VarMap
 	{
 		MonVars(const TCHAR *configVar, int ckid, 
@@ -72,6 +77,18 @@ public:
 		virtual bool IsModifiedFromConfig() override;
 	};
 
+	class AutoLaunchMap : public RadioStrMap
+	{
+	public:
+		AutoLaunchMap(const TCHAR *configVar, int controlID, const TCHAR *defVal, const TCHAR *const *vals, size_t nVals) :
+			RadioStrMap(configVar, controlID, defVal, vals, nVals) { }
+
+		virtual void LoadConfigVar() override;
+		virtual bool IsModifiedFromConfig() override;
+		int ConfigToRadio();
+	};
+
+	AutoLaunchMap *autoLaunchButtons;
 
 };
 

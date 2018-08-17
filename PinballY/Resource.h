@@ -152,7 +152,6 @@
 #define IDS_MENU_MUTEBUTTONS            425
 #define IDS_MENU_MUTEATTRACTMODE        426
 #define IDS_MENU_PINSCAPENIGHTMODE      427
-#define IDS_MENU_AUTOLAUNCH             428
 #define IDS_MENU_OPERATOR               429
 
 #define IDS_MENU_SHUTDOWN_CONFIRM       430
@@ -260,7 +259,6 @@
 #define IDS_ERR_WRITEFILE               639
 #define IDS_ERR_RUNATSTARTUP            640
 #define IDS_ERR_RUNATEXIT               641
-#define IDS_ERR_SYNCAUTOLAUNCHREG       642
 #define IDS_ERR_GAMERUNBEFORE           643
 #define IDS_ERR_GAMERUNAFTER            644
 #define IDS_ERR_MONWAITSYNTAX           645
@@ -420,7 +418,6 @@
 #define ID_FILTER_BY_CATEGORY           32816
 #define ID_MUTE_ATTRACTMODE             32817
 #define ID_PINSCAPE_NIGHT_MODE          32818
-#define ID_AUTOLAUNCH                   32819
 #define ID_HIGH_SCORES                  32820
 #define ID_CLEAR_CREDITS                32821
 #define ID_GAME_SETUP                   32822

@@ -1,5 +1,13 @@
 PinballY Update History
 
+08-16-2018 (1.0.0 Alpha 10)
+
+* Changed the Auto Launch feature to use Windows Task Scheduler logon
+tasks instead of the Run registry key.  The registry key didn't work
+with Admin mode launches, and didn't seem reliable on some machines
+even for regular user mode launches.  Task Scheduler tasks should be
+
+
 08-13-2018 (1.0.0 Alpha 9)
 
 * Added the table type (Solid State, Electromechanical, Mechanical) to

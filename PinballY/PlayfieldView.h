@@ -91,6 +91,9 @@ public:
 	// Show the settings dialog
 	void ShowSettingsDialog();
 
+	// Is the settings dialog running?
+	bool IsSettingsDialogOpen() const { return settingsDialogOpen; }
+
 	// Show an error box.  If possible, we'll show it as a sprite
 	// in the main view; if not, we'll show it as a system message box.
 	void ShowError(ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list = 0);
@@ -201,6 +204,9 @@ protected:
 
 	// set internal variables according to the config settings
 	void OnConfigChange();
+
+	// is the settings dialog open?
+	bool settingsDialogOpen;
 
 	// initialize the status lines
 	void InitStatusLines();

@@ -3,6 +3,7 @@
 //
 #include "stdafx.h"
 #include "OptionsPage.h"
+#include "OptionsDialog.h"
 #include "../Utilities/Config.h"
 
 IMPLEMENT_DYNAMIC(OptionsPage, CPropertyPageEx)
@@ -79,6 +80,27 @@ BOOL OptionsPage::OnApply()
 
 	// changes accepted
 	return true;
+}
+
+BOOL OptionsPage::OnApplyFail()
+{
+	// Select this page, to direct the user's attention to the locus
+	// of the validation error
+	if (auto mainDlg = dynamic_cast<MainOptionsDialog*>(GetParent()); mainDlg != nullptr)
+		mainDlg->SetActivePage(this);
+
+	// Since the Apply failed, consider the entire save operation to
+	// have failed atomically, so roll back to the last saved copy
+	// of the configuration
+	ConfigManager::GetInstance()->Reload();
+
+	// mark the page as dirty: whatever change triggered an Apply in
+	// the first place is still outstanding
+	SetDirty(true);
+
+	// return FALSE, so that an OnApply override can return our
+	// return value on its way out
+	return FALSE;
 }
 
 void OptionsPage::SetDirty(BOOL dirty)

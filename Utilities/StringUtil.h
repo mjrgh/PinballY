@@ -129,9 +129,9 @@ public:
 		// text, otherwise use the template string.
 		typename S::value_type *buf = 0;	
 		if (vasprintf(&buf, format, ap) >= 0)
-			assign(buf);
+			this->assign(buf);
 		else
-			assign(format);
+			this->assign(format);
 
 		// free the temp buffer
 		delete[] buf;

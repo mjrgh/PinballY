@@ -615,21 +615,27 @@ void SystemDialog::BrowseExe()
 			}
 			else
 			{
-				// check for a common path prefix
-				TCHAR registeredExePath[MAX_PATH], newPath[MAX_PATH];
+				// Check if the selected executable is in the same folder or a
+				// subfolder of the registered executable.  Start by getting the 
+				// folder containing the registered exe.
+				TCHAR registeredExePath[MAX_PATH];
 				_tcscpy_s(registeredExePath, registeredExe.c_str());
 				PathRemoveFileSpec(registeredExePath);
-				_tcscpy_s(newPath, spath.c_str());
-				PathRemoveFileSpec(newPath);
-				if (registeredExePath[0] != 0 && _tcsicmp(registeredExePath, newPath) == 0)
+
+				// check if the registered exe's folder is a path prefix of the
+				// selected executable path
+				size_t registeredExePathLen = _tcslen(registeredExePath);
+				if (registeredExePathLen != 0 
+					&& registeredExePathLen < spath.length()
+					&& spath[registeredExePathLen] == '\\')
 				{
+					// yes, it's a path prefix - offer to use relative notation
 					RadioButtonDialog dlg(IDC_RB_REL_PATH);
 					dlg.Show(IDD_REL_EXE_PATH);
 					if (dlg.result == IDC_RB_REL_PATH)
 					{
 						// use the relative path only
-						TSTRING relPath = PathFindFileName(spath.c_str());
-						spath = relPath;
+						spath = spath.substr(registeredExePathLen + 1);
 					}
 					else if (dlg.result == IDCANCEL)
 					{

@@ -20,21 +20,33 @@
    workings of the program when something goes wrong.  PinballY tries to
    keep the graphical part of the UI friendly and non-technical, but that
    has the tradeoff that it hides a lot of information about what's
-   going on inside the program.  The log file is meant to help fill in
-   the missing pieces when necessary.
+   going on inside the program.  The log file is meant to help uncover
+   some of that hidden internal detail when necessary, without bothering
+   you with it when it's not.
 </p>
 <p>
    The dialog shows the location and name of the log file, in case you want
-   to inspect its contents.  You can simply click on the link to open the
+   to inspect its contents.  Click on the filename link to open the
    file in Notepad.
 </p>
+<p>
+   Note that PinballY erases any old contents of the log file each time
+   it start up, so that the file doesn't grow to enormous proportions
+   over time.  If you want to save the log output from a particular program
+   session for later review, be sure to move or rename the file before you
+   run PinballY again, so that the new session doesn't erase the
+   old copy that you wanted to save.  The program always writes the log
+   using the same file name, so all you have to do to save a particular
+   copy is rename it or move it to a different folder.
+</p>
+   
 
 <h2>Enabling individual features</h2>
 
 <p>
    You can select the type of information included in the log file.  The
-   default settings exclude most items, to keep the log file as small as
-   possible.  Writing more information to the file slows down the program
+   default settings exclude most items, to reduce the size of the file.
+   Writing more information to the file slows down the program
    a little and obviously uses more disk space, plus it's harder to
    find the information you're looking for if you have to sift through
    tons of unrelated information.  So the program lets you turn individual
