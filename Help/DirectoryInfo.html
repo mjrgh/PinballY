@@ -312,8 +312,8 @@
 </p>
 <p>
    *Okay, what I really meant was <i>nothing of its own</i>.
-   There actually is one keys that might be set if you install PinballY,
-   but it's not really PinballY's doing directly:
+   There actually is one key that might be set, depending on how
+   you installed the program:
 </p>
 <ul>
    <li>If you use the Windows Setup installer (the .msi file distribution)
@@ -335,11 +335,12 @@
    <p>
       The {XXXXX} part is a long sequence of hexadecimal digits enclosed in curly
       braces, known as a GUID (globally unique identifier).  Each release has a
-      different randomly generated GUID - which isn't our idea, it's a requirement
-      for the Setup process defined by Microsoft.  The easiest way to find the
-      key for your current version is to select the parent ...\Uninstall key
+      different randomly generated GUID.  That wasn't our bright idea; it's
+      an artifact of the Windows Setup process.  The easiest way to find the
+      key for your current version is to select the parent Uninstall key
       in RegEdit, press Ctrl+F to bring up a search box, and type PinballY into
-      the search box.  That should quickly find the right key.
+      the search box.  That will find a "DisplayName" property under the
+      right key, which will let you see the install GUID.
    </p>
 </ul>
 
@@ -354,12 +355,10 @@
 </p>
 <p>
    You can modify or delete the PinballY startup task using the Task Scheduler
-   control panel, but it's better not to, since it could create a confusing
-   situation where PinballY's notion of the startup task is different from
-   Windows's notion.  It's better to manage everything from the PinballY
-   options dialog, since that will keep PinballY and Windows in sync.
-   The only time you might want to delete the task manually is if you
-   delete PinballY from your system.
+   control panel.  It's better to let PinballY manage it, so that you don't
+   accidentally make a change that makes the task stop working, but it's
+   perfectly safe to simply delete the task if you want to turn off the
+   automatic launch.
 </p>
 
 </body>

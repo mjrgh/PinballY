@@ -5,7 +5,9 @@ PinballY Update History
 * Changed the Auto Launch feature to use Windows Task Scheduler logon
 tasks instead of the Run registry key.  The registry key didn't work
 with Admin mode launches, and didn't seem reliable on some machines
-even for regular user mode launches.  Task Scheduler tasks should be
+even for regular user mode launches, especially with the 64-bit
+version.  Task Scheduler is the more officially supported way to do
+these sorts of launches, so it should be reliable for all cases.
 
 
 08-13-2018 (1.0.0 Alpha 9)

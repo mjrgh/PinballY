@@ -90,13 +90,14 @@
     <DirectoryRef Id="PBYDIR">
       <Component Id="PinballY" Guid="15AEC001-F02E-4F1A-B94F-0FCEC8D3B140">
         <File Id="MainEXE" Source="$(var.PinballY.TargetPath)" />
-        <File Source="$(var.PinballY Admin Mode.TargetPath)" />
-        <File Source="$(var.OptionsDialog.TargetPath)" />
+        <File Id="AdminModeEXE" Source="$(var.PinballY Admin Mode.TargetPath)" />
+        <File Id="OptionsDialogDLL" Source="$(var.OptionsDialog.TargetPath)" />
         <File Id="WatchdogEXE" Source="$(var.PinballY Watchdog.TargetPath)" />
         <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
-        <File Source="$(var.SolutionDir)DefaultSettings.txt" />
+        <File Id="MainDefaultSettings" Source="$(var.SolutionDir)DefaultSettings.txt" />
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
-        <File Source="$(var.SolutionDir)Third Party Licenses.txt" />
+        <File Id="MainThirdPartyLicenses" Source="$(var.SolutionDir)Third Party Licenses.txt" />
+        <File Id="MainVersionHistory" Source="$(var.SolutionDir)VersionHistory.txt" />
       </Component>
     </DirectoryRef>
 
