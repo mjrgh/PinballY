@@ -1,5 +1,13 @@
 PinballY Update History
 
+08-17-2018 (1.0.0 Alpha 11)
+
+* If a real DMD is active, close our connection to it whenever we
+launch a game, to avoid contention with the game for access to the
+device.  (Exception: we don't do this when using dmd-extensions in
+virtual mode, due to a problem in the DLL that crashes the process in
+this situation.)
+
 08-16-2018 (1.0.0 Alpha 10)
 
 * Changed the Auto Launch feature to use Windows Task Scheduler logon

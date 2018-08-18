@@ -2921,7 +2921,7 @@ DWORD Application::GameMonitorThread::Main()
 				// we can analyze mechanically.
 				LogFile::Get()->Group(LogFile::CaptureLogging);
 				LogFile::Get()->WriteTimestamp(LogFile::CaptureLogging, 
-					_T("Media capture for %s: launching FFMPEG\n> %s\n"), 
+					_T("Media capture: %s: launching FFMPEG\n> %s\n"), 
 					curStatus.c_str(), cmdline.c_str());
 
 				// open the NUL file as stdin for the child

@@ -35,6 +35,12 @@ public:
 	// to the display while the game might be using it.
 	void ClearMedia();
 
+	// Enter/exit running game mode.  If possible, we'll close our
+	// session with the DMD while a game is running, to avoid any
+	// contention with the game over access to the physical device.
+	void BeginRunningGameMode();
+	void EndRunningGameMode();
+
 	// Receive notification that new high scores have been received
 	// for a given game.
 	void OnUpdateHighScores(GameListItem *game);

@@ -3020,7 +3020,7 @@ void PlayfieldView::BeginRunningGameMode()
 
 	// remove media from the real DMD if present
 	if (realDMD != nullptr)
-		realDMD->ClearMedia();
+		realDMD->BeginRunningGameMode();
 
 	// animate the popup opening
 	runningGamePopup->alpha = 0;
@@ -3095,6 +3095,10 @@ void PlayfieldView::EndRunningGameMode()
 	// Only proceed if we're in running game mode
 	if (runningGamePopup == nullptr)
 		return;
+
+	// tell the DMD that we're back
+	if (realDMD != nullptr)
+		realDMD->EndRunningGameMode();
 
 	// Clear the keyboard queue
 	keyQueue.clear();
