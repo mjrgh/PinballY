@@ -1,5 +1,11 @@
 PinballY Update History
 
+08-18-2018 (1.0.0 Alpha 12)
+
+* Update libvlc 32-bit to 3.0.3
+
+* Switch to 64-bit ffmpeg in 64-bit release bundle
+
 08-17-2018 (1.0.0 Alpha 11)
 
 * If a real DMD is active, close our connection to it whenever we

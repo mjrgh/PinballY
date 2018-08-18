@@ -2789,12 +2789,17 @@ DWORD Application::GameMonitorThread::Main()
 			TCHAR dir[MAX_PATH];
 			_tcscpy_s(dir, item.filename.c_str());
 			PathRemoveFileSpec(dir);
-			if (!DirectoryExists(dir) && !CreateSubDirectory(dir, _T(""), NULL))
+			if (!DirectoryExists(dir))
 			{
-				WindowsErrorMessage winErr;
-				statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), winErr.Get()));
-				captureOkay = false;
-				continue;
+				LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ Media folder doesn't exist, creating it: %s\n"), dir);
+				if (!CreateSubDirectory(dir, _T(""), NULL))
+				{
+					WindowsErrorMessage winErr;
+					LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ Media folder creation failed: %s, error %s\n"), dir, winErr.Get());
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), winErr.Get()));
+					captureOkay = false;
+					continue;
+				}
 			}
 
 			// Figure the required image/video rotation parameter for ffmpeg.
@@ -2987,29 +2992,35 @@ DWORD Application::GameMonitorThread::Main()
 					// wait for the process to finish, or for a shutdown or
 					// close-game event to interrupt it
 					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
-					switch (WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
+					switch (DWORD waitResult = WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
 					{
 					case WAIT_OBJECT_0:
 						// The ffmpeg process finished
 						{
-							// Make sure the main thread exited.  We seem to get exit
-							// code 259 (STILL_ACTIVE) in some cases even after the
-							// process handle has become signalled (which is the only
-							// way we get here).
-							WaitForSingleObject(hFfmpegThread, 5000);
-
 							// retrieve the process exit code
 							DWORD exitCode;
-							GetExitCodeProcess(hGameProc, &exitCode);
+							GetExitCodeProcess(hFfmpegProc, &exitCode);
 							LogFile::Get()->Write(LogFile::CaptureLogging,
 								_T("+ FFMPEG completed: process exit code %d\n"), (int)exitCode);
 
-							// consider this a success
-							result = true;
+							// consider this a success if the exit code was 0, otherwise consider
+							// it an error
+							if (exitCode == 0)
+							{
+								// success
+								result = true;
 
-							// log successful completion if desired
-							if (logSuccess)
-								statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
+								// log successful completion if desired
+								if (logSuccess)
+									statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
+							}
+							else
+							{
+								// log the error
+								statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(),
+									MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_ERR, (int)exitCode).Get()));
+								captureOkay = false;
+							}
 						}
 						break;
 
@@ -3019,7 +3030,10 @@ DWORD Application::GameMonitorThread::Main()
 					default:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
-						LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ capture interrupted\n"));
+						static const TCHAR *waitName[] = {
+							_T("ffmpeg exited"), _T("game exited"), _T("app shutdown"), _T("user Exit Game command")
+						};
+						LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;
 						abortCapture = true;

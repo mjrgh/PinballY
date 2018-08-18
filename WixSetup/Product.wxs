@@ -106,12 +106,19 @@
         <File Source="$(var.SolutionDir)7-Zip\7z.dll" />
       </Component>
     </DirectoryRef>
-    
+
     <DirectoryRef Id="FFMPEGDIR">
       <Component Id="ffmpeg" Guid="726673D1-7AD0-4197-ACED-626B53951149">
-        <File Source="$(var.SolutionDir)ffmpeg\ffmpeg.exe" />
-        <File Id="ffmpegLicense" Source="$(var.SolutionDir)ffmpeg\LICENSE.txt" />
-        <File Id="ffmpegReadme" Source="$(var.SolutionDir)ffmpeg\README.txt" />
+        <?if $(var.Platform) = x86 ?>
+          <File Source="$(var.SolutionDir)ffmpeg\ffmpeg.exe" />
+          <File Id="ffmpegLicense" Source="$(var.SolutionDir)ffmpeg\LICENSE.txt" />
+          <File Id="ffmpegReadme" Source="$(var.SolutionDir)ffmpeg\README.txt" />
+        <?endif?>
+        <?if $(var.Platform) = x64 ?>
+          <File Source="$(var.SolutionDir)ffmpeg64\ffmpeg.exe" />
+          <File Id="ffmpegLicense" Source="$(var.SolutionDir)ffmpeg64\LICENSE.txt" />
+          <File Id="ffmpegReadme" Source="$(var.SolutionDir)ffmpeg64\README.txt" />
+        <?endif?>
       </Component>
     </DirectoryRef>
 

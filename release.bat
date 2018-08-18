@@ -35,6 +35,7 @@ if exist %ReleaseZipFull% del %ReleaseZipFull%
 for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC32.txt) do zip %ReleaseZipFull% %%i
+for /f "delims=" %%i in (ReleaseManifestFFmpeg32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull% %%i
 
 rem  Build the "Min" ZIP.  This uses only the "Min" manifest.
@@ -51,6 +52,7 @@ rem  Build the Full 64-bit ZIP
 if exist %ReleaseZipFull64% del %ReleaseZipFull64%
 for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull64% %%i
+for /f "delims=" %%i in (ReleaseManifestFFmpeg64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull64% %%i
 

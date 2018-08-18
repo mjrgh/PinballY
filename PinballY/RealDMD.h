@@ -76,6 +76,9 @@ protected:
 	// enabled.
 	static bool ShouldEnable();
 
+	// close the session with the DLL
+	void CloseSession();
+
 	// Is the DMD enabled?  We might disable the DMD even if we
 	// successfully loaded the DLL, such as when dmd-extensions is
 	// used and it's in virtual mode.

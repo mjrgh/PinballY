@@ -534,12 +534,29 @@ void RealDMD::Shutdown()
 	if (Render_16_Shades_ != NULL && emptySlide != nullptr)
 		Render_16_Shades_(dmdWidth, dmdHeight, emptySlide->pix.get());
 
-	// Close the underlying device.  The dmd-extensions DLL can crash
-	// if we close it, so don't do that.  That unfortunately will leave
-	// the virtual DMD window on the screen if we ever opened it, but
-	// that's better than crashing.
-	if (IsDllValid() && enabled && !dmdExtInfo.matched)
-		Close_();
+	// close the session with the underlying device
+	CloseSession();
+}
+
+void RealDMD::CloseSession()
+{
+	if (IsDllValid() && enabled && Close_ != NULL)
+	{
+		// check what kind of DLL we're talking to
+		if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled)
+		{
+			// It's the dmd-extensions library with its virtual DMD enabled.
+			// There's a bug in the DLL that crashes the process if we close
+			// the session and re-open it, so we'll have to leave it open.
+		}
+		else
+		{
+			// for anything else, it should be safe to close the session,
+			// which hopefully will release any USB connection and allow
+			// other processes to access the DMD
+			Close_();
+		}
+	}
 }
 
 void RealDMD::SetMirrorHorz(bool f)
@@ -570,37 +587,17 @@ void RealDMD::SetMirrorVert(bool f)
 
 void RealDMD::BeginRunningGameMode()
 {
-	// check what kind of DLL we're talking to
-	if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled)
-	{
-		// It's the dmd-extensions library with its virtual DMD enabled.
-		// There's a bug in the DLL that crashes the process if we close
-		// the session and re-open it, so we'll have to leave it open.
-	}
-	else
-	{
-		// for anything else, it should be safe to close the session,
-		// which hopefully will release any USB connection and allow
-		// other processes to access the DMD
-		if (Close_ != NULL)
-			Close_();
-	}
+	// clear media while running
+	ClearMedia();
+
+	// close the session
+	CloseSession();
 }
 
 void RealDMD::EndRunningGameMode()
 {
-	// check what kind of DLL we're talking to
-	if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled)
-	{
-		// we never close the session in this scenario because of a crash
-		// crash bug in the DLL if we did, so there's no need to reopen it
-	}
-	else
-	{
-		// reopen the session
-		if (Open_ != NULL)
-			Open_();
-	}
+	// reopen the session
+	Open_();
 }
 
 void RealDMD::ReloadGame()
