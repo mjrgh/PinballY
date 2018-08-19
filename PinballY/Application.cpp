@@ -1324,12 +1324,12 @@ Application::GameMonitorThread::~GameMonitorThread()
 
 bool Application::GameMonitorThread::IsThreadRunning()
 {
-	return hThread != 0 && WaitForSingleObject(hThread, 0) == WAIT_TIMEOUT;
+	return hThread != NULL && WaitForSingleObject(hThread, 0) == WAIT_TIMEOUT;
 }
 
-bool Application::GameMonitorThread::IsGameRunning()
+bool Application::GameMonitorThread::IsGameRunning() const
 {
-	return hGameProc != 0 && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT;
+	return hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT;
 }
 
 void Application::GameMonitorThread::CloseGame()
@@ -2651,9 +2651,11 @@ DWORD Application::GameMonitorThread::Main()
 			}
 		}
 
-		// Get the path to ffmpeg.exe
+		// Get the path to ffmpeg.exe.  Note that this is always called 
+		// ffmpeg\\ffmpeg.exe in a deployed system, but the development
+		// build system has separate 32-bit and 64-bit copies.
 		TCHAR ffmpeg[MAX_PATH];
-		GetDeployedFilePath(ffmpeg, _T("ffmpeg\\ffmpeg.exe"), _T(""));
+		GetDeployedFilePath(ffmpeg, _T("ffmpeg\\ffmpeg.exe"), _T("$(SolutionDir)ffmpeg$(64)\\ffmpeg.exe"));
 
 		// Audio capture device name, to pass to ffmpeg.  We populate
 		// this the first time we need it.
@@ -2840,9 +2842,14 @@ DWORD Application::GameMonitorThread::Main()
 				break;
 			}
 
+			// if we're on a 64-bit build, use a very large realtime input 
+			// buffer to reduce the chance dropped frames
+			TSTRINGEx rtbufsizeOpts(IF_32_64(_T(""), _T("-rtbufsize 2000M")));
+
 			// set up format-dependent options
 			TSTRINGEx audioOpts;
 			TSTRINGEx timeLimitOpt;
+			TSTRINGEx acodecOpts;
 			bool isVideo = false;
 			switch (item.mediaType.format)
 			{
@@ -2863,7 +2870,10 @@ DWORD Application::GameMonitorThread::Main()
 				isVideo = true;
 				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				if (item.enableAudio)
+				{
+					acodecOpts.Format(_T("-c:a aac -b:a 128k"));
 					audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
+				}
 				else
 					audioOpts = _T("-c:a none");
 				break;
@@ -2882,18 +2892,24 @@ DWORD Application::GameMonitorThread::Main()
 			TSTRINGEx tmpfile;
 			if (isVideo && capture.twoPassEncoding)
 			{
-				// Two-pass encoding.  Capture the video with the lossless h265
+				// Two-pass encoding.  Capture the video with the lossless h264
 				// code in the fastest mode, with no rotation, to a temp file.
 				// We'll re-encode to the actual output file and apply rotations
 				// in the second pass.
-				tmpfile = std::regex_replace(item.filename, std::basic_regex<TCHAR>(_T("\\.([^.]+)$")), _T(".tmp.$1"));
-				cmdline1.Format(_T("\"%s\" -loglevel error")
-					_T(" %s %s %s %s -c:v libx264 -crf 0 -preset ultrafast \"%s\""),
+				tmpfile = std::regex_replace(item.filename, std::basic_regex<TCHAR>(_T("\\.([^.]+)$")), _T(".tmp.mkv"));
+				cmdline1.Format(_T("\"%s\" -y -loglevel warning -thread_queue_size 32")
+					_T(" %s %s %s")
+					_T(" -probesize 30M")
+					_T(" %s -c:v libx264 %s -threads 8 -qp 0 -preset ultrafast")
+					_T(" \"%s\""),
 					ffmpeg, 
-					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(), tmpfile.c_str());
+					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(), 
+					rtbufsizeOpts.c_str(),
+					acodecOpts.c_str(),
+					tmpfile.c_str());
 
 				// Format the command line for the second pass while we're here
-				cmdline2.Format(_T("\"%s\" -loglevel error")
+				cmdline2.Format(_T("\"%s\" -y -loglevel warning")
 					_T(" -i \"%s\"")
 					_T(" %s -c:a copy -max_muxing_queue_size 1024")
 					_T(" \"%s\""),
@@ -2906,13 +2922,13 @@ DWORD Application::GameMonitorThread::Main()
 			{
 				// normal one-pass encoding - include all options and encode
 				// directly to the desired output file
-				cmdline1.Format(_T("\"%s\" -loglevel error")
+				cmdline1.Format(_T("\"%s\" -y -loglevel warning -probesize 30M -thread_queue_size 32")
 					_T(" %s %s")
-					_T(" %s %s")
+					_T(" %s %s %s %s")
 					_T(" \"%s\""),
 					ffmpeg, 
-					imageOpts.c_str(), audioOpts.c_str(), 
-					rotateOpt, timeLimitOpt.c_str(), 
+					imageOpts.c_str(), audioOpts.c_str(), acodecOpts.c_str(),
+					rotateOpt, timeLimitOpt.c_str(), rtbufsizeOpts.c_str(),
 					item.filename.c_str());
 			}
 
@@ -2978,6 +2994,7 @@ DWORD Application::GameMonitorThread::Main()
 				startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
 				startupInfo.hStdInput = hNulIn;
 				startupInfo.hStdOutput = hStdOut;
+				startupInfo.hStdError = hStdOut;
 
 				// launch the process
 				PROCESS_INFORMATION procInfo;
@@ -2989,19 +3006,64 @@ DWORD Application::GameMonitorThread::Main()
 					HandleHolder hFfmpegProc(procInfo.hProcess);
 					HandleHolder hFfmpegThread(procInfo.hThread);
 
+					// copy the ffmpeg output log file to our log, if capturing a log
+					auto CopyOutputToLog = [&hStdOut, &fnameStdOut]()
+					{
+						// Whatever happened, we managed to launch the process, so
+						// there might be at least some information in the log file
+						// indicating what went wrong.  
+						hStdOut = nullptr;
+						if (fnameStdOut.length() != 0)
+						{
+							// read the file
+							long len;
+							std::unique_ptr<BYTE> txt(ReadFileAsStr(fnameStdOut.c_str(), SilentErrorHandler(),
+								len, ReadFileAsStr_NewlineTerm | ReadFileAsStr_NullTerm));
+
+							// copy it to the log file
+							if (txt != nullptr)
+							{
+								// in case the log file contains null bytes, write it piecewise
+								// in null-terminated chunks
+								const BYTE *endp = txt.get() + len;
+								for (const BYTE *p = txt.get(); p < endp; )
+								{
+									// find the end of this null-terminated chunk
+									const BYTE *q;
+									for (q = p; q != endp && *q != 0; ++q);
+
+									// write this chunk
+									LogFile::Get()->WriteStrA((const char *)p);
+
+									// skip the null byte
+									p = q + 1;
+								}
+							}
+
+							// delete the temp file
+							DeleteFile(fnameStdOut.c_str());
+						}
+					};
+
 					// wait for the process to finish, or for a shutdown or
 					// close-game event to interrupt it
 					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
+					static const TCHAR *waitName[] = {
+						_T("ffmpeg exited"), _T("game exited"), _T("app shutdown"), _T("user Exit Game command")
+					};
 					switch (DWORD waitResult = WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
 					{
 					case WAIT_OBJECT_0:
 						// The ffmpeg process finished
 						{
+							// copy the output to the log
+							CopyOutputToLog();
+
 							// retrieve the process exit code
 							DWORD exitCode;
 							GetExitCodeProcess(hFfmpegProc, &exitCode);
 							LogFile::Get()->Write(LogFile::CaptureLogging,
-								_T("+ FFMPEG completed: process exit code %d\n"), (int)exitCode);
+								_T("\n+ FFMPEG completed: process exit code %d\n"), (int)exitCode);
 
 							// consider this a success if the exit code was 0, otherwise consider
 							// it an error
@@ -3018,7 +3080,9 @@ DWORD Application::GameMonitorThread::Main()
 							{
 								// log the error
 								statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(),
-									MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_ERR, (int)exitCode).Get()));
+									MsgFmt(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging)
+										? IDS_ERR_CAP_ITEM_FFMPEG_ERR_LOGGED : IDS_ERR_CAP_ITEM_FFMPEG_ERR_UNLOGGED,
+										(int)exitCode).Get()));
 								captureOkay = false;
 							}
 						}
@@ -3030,49 +3094,12 @@ DWORD Application::GameMonitorThread::Main()
 					default:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
-						static const TCHAR *waitName[] = {
-							_T("ffmpeg exited"), _T("game exited"), _T("app shutdown"), _T("user Exit Game command")
-						};
-						LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
+						CopyOutputToLog();
+						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;
 						abortCapture = true;
 						break;
-					}
-
-					// Whatever happened, we managed to launch the process, so
-					// there might be at least some information in the log file
-					// indicating what went wrong.  
-					hStdOut = nullptr;
-					if (fnameStdOut.length() != 0)
-					{
-						// read the file
-						long len;
-						std::unique_ptr<BYTE> txt(ReadFileAsStr(fnameStdOut.c_str(), SilentErrorHandler(),
-							len, ReadFileAsStr_NewlineTerm | ReadFileAsStr_NullTerm));
-
-						// copy it to the log file
-						if (txt != nullptr)
-						{
-							// in case the log file contains null bytes, write it piecewise
-							// in null-terminated chunks
-							const BYTE *endp = txt.get() + len;
-							for (const BYTE *p = txt.get(); p < endp; )
-							{
-								// find the end of this null-terminated chunk
-								const BYTE *q;
-								for (q = p; q != endp && *q != 0; ++q);
-
-								// write this chunk
-								LogFile::Get()->WriteStrA((const char *)p);
-
-								// skip the null byte
-								p = q + 1;
-							}
-						}
-
-						// delete the temp file
-						DeleteFile(fnameStdOut.c_str());
 					}
 				}
 				else
@@ -3084,9 +3111,8 @@ DWORD Application::GameMonitorThread::Main()
 					// a file permissions problem).  So skip any remaining items
 					// by setting the 'abort' flag.
 					WindowsErrorMessage err;
-					LogFile::Get()->Write(LogFile::CaptureLogging, 
-						_T("+ error lauching FFMPEG: error %d, %s\n"), err.GetCode(), err.Get());
-					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
+					LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ FFMPEG launch failed: Win32 error %d, %s\n"), err.GetCode(), err.Get());
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(),	MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_LAUNCH, err.Get()).Get()));
 					captureOkay = false;
 					abortCapture = true;
 				}

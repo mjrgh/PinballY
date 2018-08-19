@@ -2947,7 +2947,7 @@ TSTRING GameListItem::CleanMediaName(const TCHAR *src)
 // default capture format for that type.
 //
 #define ImageExtensions  _T(".png .jpg .jpeg")
-#define VideoExtensions  _T(".mp4 .mpg .mkv .wmv .f4v .m4v .avi")
+#define VideoExtensions  _T(".f4v .mp4 .mpg .mkv .wmv .m4v .avi")
 #define AudioExtensions  _T(".mp3 .wav")
 
 // Flyer images are arranged into subfolders by page.  (Note that these

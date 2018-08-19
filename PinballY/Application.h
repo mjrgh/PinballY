@@ -191,7 +191,7 @@ public:
 	void ResumeGame();
 
 	// Is a game running?
-	bool IsGameRunning() const { return gameMonitor != nullptr; }
+	bool IsGameRunning() const { return gameMonitor != nullptr && gameMonitor->IsGameRunning(); }
 
 	// Is the game running in Admin mode?
 	bool IsGameInAdminMode() const { return gameMonitor != nullptr && gameMonitor->IsAdminMode(); }
@@ -475,7 +475,7 @@ protected:
 		bool IsThreadRunning();
 
 		// is the game still running?
-		bool IsGameRunning();
+		bool IsGameRunning() const;
 
 		// is it running in Admin mode?
 		bool IsAdminMode() const { return isAdminMode; }

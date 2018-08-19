@@ -270,26 +270,17 @@ DWORD GetExeFilePath(TCHAR *buf, DWORD buflen);
 // be used if we determine that we're running in the folder where the
 // program was last actually built.
 //
-// IMPORTANT!  Per Windows conventions, all files in the program
-// folder tree must be READ-ONLY.  Never store any writable files in
-// the deployment folder structure.  Storing writable files in the
-// program folder tree creates two huge problems for users.  First, it
-// makes it impossible for users to deploy a shared copy of the program
-// in a shared local folder for multiple users or on a network share,
-// because the multiple users would be constantly overwrite each other's
-// data in the shared writable files.  Second, Windows versions since
-// Vista give special "sandbox" status to the Program Files folder tree
-// as an anti-malware security measure.  Programs that write to these
-// locations can trigger security warning dialogs and can lose written
-// data because of the way Windows does the sandboxing: writes that
-// appear to work at an API level might only work as far as writing to
-// a temp file that's deleted at the end of the session.  Store all
-// writable files in appropriate locations that conform to the Windows
-// rules for program data, such as in the Program Data folder tree or
-// the user's Documents folder, according to the type of data.  Note
-// that we're talking purely about fixed folder paths baked into the
-// program here; you don't have to police the user's choice of folders
-// when the user specifies file locations interactively.
+// 
+// Substitution variables:  devSysPath can be specified as a complete
+// path instead of an add-on path, by using one or more substitution
+// variables within the path.  If any substitution variables are used,
+// when we're running under the build system, relativeFilename is
+// completely ignored and devSysPath is used as the entire name.
+//
+//  $(SolutionDir)  -> solution folder, absolute fully qualified path
+//  $(Bits)         -> "32" or "64", per build configuration
+//  $(32)           -> "32" for a 32-bit build, empty otherwise
+//  $(64)           -> "64" for a 64-bit build, empty otherwise
 //
 void GetDeployedFilePath(
 	TCHAR *result /* must be >= MAX_PATH characters long */, 

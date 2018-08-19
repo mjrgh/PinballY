@@ -394,10 +394,35 @@ void GetDeployedFilePath(TCHAR *result, const TCHAR *relFilePath, const TCHAR *d
 		// path, just combine the solution dir with the file path.
 		if (devPath != 0 && devPath[0] != 0)
 		{
-			// there's a dev path - combine solution + dev + file
-			TCHAR tmp[MAX_PATH];
-			PathCombine(tmp, solDir, devPath);
-			PathCombine(result, tmp, relFilePath);
+			// There's a dev path.  Check for substitution variables.
+			if (_tcsstr(devPath, _T("$(")) != nullptr)
+			{
+				// Substitution variables are present.  Apply the 
+				// substitutions.
+				TSTRING tmp = regex_replace(TSTRING(devPath), std::basic_regex<TCHAR>(_T("\\$\\((\\w+)\\)")), 
+					[](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+				{
+					if (m[1].str() == _T("SolutionDir"))
+						return solDir;
+					else if (m[1].str() == _T("Bits"))
+						return IF_32_64(_T("32"), _T("64"));
+					else if (m[1].str() == _T("32"))
+						return IF_32_64(_T("32"), _T(""));
+					else if (m[1].str() == _T("64"))
+						return IF_32_64(_T(""), _T("64"));
+					else
+						return m[0].str();
+				});
+				_tcscpy_s(result, MAX_PATH, tmp.c_str());
+			}
+			else
+			{
+				// No substutition variables.  Simply combine the paths:
+				// solution dir + dev path + relative file path
+				TCHAR tmp[MAX_PATH];
+				PathCombine(tmp, solDir, devPath);
+				PathCombine(result, tmp, relFilePath);
+			}
 		}
 		else
 		{

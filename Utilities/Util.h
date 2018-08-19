@@ -18,6 +18,15 @@
 # define IF_DEBUG(code)
 #endif
 
+// Conditional code for bitness of the build.
+#if defined(_M_IX86)
+#define IF_32_64(valFor32Bits, valFor64Bits) valFor32Bits
+#elif defined(_M_X64)
+#define IF_32_64(valFor32Bits, valFor64Bits) valFor64Bits
+#else
+#define IF_32_64(valFor32Bits, valFor64Bits) Error_Unknown_Bitness
+#endif
+
 // array element count
 #define countof(array) (sizeof(array)/sizeof((array)[0]))
 

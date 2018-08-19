@@ -2,9 +2,18 @@ PinballY Update History
 
 08-18-2018 (1.0.0 Alpha 12)
 
-* Update libvlc 32-bit to 3.0.3
+* Tweaked ffmpeg parameters per STV's findings to try to get 4K
+capture working
+
+* Fix error message logging and process exit code recognition in ffmpeg launch
 
 * Switch to 64-bit ffmpeg in 64-bit release bundle
+
+* Update libvlc 32-bit to 3.0.3
+
+* Clear media on real DMD during game play (restores previous behavior
+broken in alpha 11)
+
 
 08-17-2018 (1.0.0 Alpha 11)
 
