@@ -1,5 +1,18 @@
 PinballY Update History
 
+??-??-2018 (1.0.0 Alpha 13)
+
+* Try to work around a dmd-extensions problem (dmd-ext issue #125,
+crash if no game name set; workaround is to set a dummy game name
+after startup, taking care not to do this more than once to avoid
+triggering issue dmd-ext #123).
+
+* Log FFmpeg results to log file whenever FFmpeg fails, even if Media
+Capture logging is disabled in the options.  You'll probably want to
+see any FFmpeg errors even if you don't normally need any capture
+logging information, to help diagnose whatever went wrong.
+
+
 08-18-2018 (1.0.0 Alpha 12)
 
 * Tweaked ffmpeg parameters per STV's findings to try to get 4K

@@ -2940,10 +2940,18 @@ DWORD Application::GameMonitorThread::Main()
 				// Log the command for debugging purposes, as there's a lot that
 				// can go wrong here and little information back from ffmpeg that
 				// we can analyze mechanically.
-				LogFile::Get()->Group(LogFile::CaptureLogging);
-				LogFile::Get()->WriteTimestamp(LogFile::CaptureLogging, 
-					_T("Media capture: %s: launching FFMPEG\n> %s\n"), 
-					curStatus.c_str(), cmdline.c_str());
+				auto LogCommandLine = [&curStatus, &cmdline](bool log)
+				{
+					if (log)
+					{
+						LogFile::Get()->Group();
+						LogFile::Get()->Write(_T("Media capture: %s: launching FFMPEG\n> %s\n"),
+							curStatus.c_str(), cmdline.c_str());
+					}
+				};
+
+				// log the command line information if logging is enabled
+				LogCommandLine(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging));
 
 				// open the NUL file as stdin for the child
 				SECURITY_ATTRIBUTES sa;
@@ -2952,12 +2960,14 @@ DWORD Application::GameMonitorThread::Main()
 				sa.bInheritHandle = TRUE;
 				HandleHolder hNulIn = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
 
-				// Set up a temp file to capture output from FFMPEG, so that
-				// we can then copy it to the log file.  Only do this if logging
-				// is enabled; if not, discard output by sending it to NUL.
+				// Set up a temp file to capture output from FFmpeg, so that we can
+				// copy it to the log file after the capture is done.  Do this whether
+				// or not capture logging is enabled; if the capture fails due to an
+				// FFmpeg error, we'll log the FFmpeg output regardless of the log
+				// settings, to give the user a chance to see what went wrong even
+				// if they weren't anticipating anything going wrong.
 				HandleHolder hStdOut;
 				TSTRING fnameStdOut;
-				if (LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging))
 				{
 					// we're logging it - capture to a temp file
 					TCHAR tmpPath[MAX_PATH] = _T("<no temp path>"), tmpName[MAX_PATH] = _T("<no temp name>");
@@ -2968,10 +2978,14 @@ DWORD Application::GameMonitorThread::Main()
 					// log an error if that failed, but continue with the capture
 					if (hStdOut == NULL)
 					{
+						// log the error
 						WindowsErrorMessage err;
 						LogFile::Get()->Write(LogFile::CaptureLogging,
 							_T("+ Unable to log FFMPEG output: error opening temp file %s (error %d: %s)\n"),
 							tmpName, err.GetCode(), err.Get());
+
+						// direct FFmpeg output to NUL
+						hStdOut = CreateFile(_T("NUL"), GENERIC_WRITE, 0, &sa, OPEN_EXISTING, 0, NULL);
 					}
 					else
 					{
@@ -2979,10 +2993,6 @@ DWORD Application::GameMonitorThread::Main()
 						fnameStdOut = tmpName;
 					}
 				}
-
-				// if we didn't open an output file, discard output by sending it to NUL
-				if (hStdOut == NULL)
-					hStdOut = CreateFile(_T("NUL"), GENERIC_WRITE, 0, &sa, OPEN_EXISTING, 0, NULL);
 
 				// Set up the startup info.  Use Show-No-Activate to try to keep
 				// the game window activated and in the foreground, since VP (and
@@ -3007,12 +3017,32 @@ DWORD Application::GameMonitorThread::Main()
 					HandleHolder hFfmpegThread(procInfo.hThread);
 
 					// copy the ffmpeg output log file to our log, if capturing a log
-					auto CopyOutputToLog = [&hStdOut, &fnameStdOut]()
+					auto CopyOutputToLog = [&hStdOut, &fnameStdOut, &LogCommandLine](bool force)
 					{
-						// Whatever happened, we managed to launch the process, so
-						// there might be at least some information in the log file
-						// indicating what went wrong.  
+						// close our copy of the output file handle to make sure the
+						// file is really closed
 						hStdOut = nullptr;
+
+						// check if we're include capture logging
+						if (!LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging))
+						{
+							// Capture logging is disabled, so we're not logging this by
+							// default.  Check for a 'force' override.
+							if (force)
+							{
+								// We're forcing the output, due to an error in the capture.
+								// In this case, we won't have logged the command line earlier,
+								// so do so now.
+								LogCommandLine(true);
+							}
+							else
+							{
+								// capture logging disabled, not forcing it; don't copy the output
+								return;
+							}
+						}
+
+						// if there's a log file, copy it
 						if (fnameStdOut.length() != 0)
 						{
 							// read the file
@@ -3056,12 +3086,17 @@ DWORD Application::GameMonitorThread::Main()
 					case WAIT_OBJECT_0:
 						// The ffmpeg process finished
 						{
-							// copy the output to the log
-							CopyOutputToLog();
-
 							// retrieve the process exit code
 							DWORD exitCode;
 							GetExitCodeProcess(hFfmpegProc, &exitCode);
+
+							// Copy the output to the log.  If the FFmpeg exit code was non-zero,
+							// log it even if capture logging is turned off in the options, since
+							// the error information is too useful to discard just because the
+							// user wasn't anticipating an error.
+							CopyOutputToLog(exitCode != 0);
+
+							// log the process exit code
 							LogFile::Get()->Write(LogFile::CaptureLogging,
 								_T("\n+ FFMPEG completed: process exit code %d\n"), (int)exitCode);
 
@@ -3094,7 +3129,7 @@ DWORD Application::GameMonitorThread::Main()
 					default:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
-						CopyOutputToLog();
+						CopyOutputToLog(false);
 						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;

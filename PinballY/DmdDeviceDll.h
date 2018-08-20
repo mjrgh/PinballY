@@ -42,6 +42,9 @@ namespace DMDDevice
 		int dmd_red0, dmd_green0, dmd_blue0;        // colorized RGB for brightness level 0/0%
 	} tPMoptions;
 
+	// DMD hardware generation codes
+	const UINT64 GEN_WPC95 = 0x0000000000080LL;     // WPC95
+
 	// RGB color
 	typedef struct rgb24 {
 		unsigned char red;

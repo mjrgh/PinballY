@@ -76,8 +76,14 @@ protected:
 	// enabled.
 	static bool ShouldEnable();
 
+	// open the session with the DLL
+	void OpenSession();
+
 	// close the session with the DLL
 	void CloseSession();
+
+	// set the game settings in the DLL
+	void SetGameSettings(const char *gameName, const DMDDevice::tPMoptions &opts);
 
 	// Is the DMD enabled?  We might disable the DMD even if we
 	// successfully loaded the DLL, such as when dmd-extensions is
@@ -93,6 +99,9 @@ protected:
 		DMD_COLOR_MONO16,		// 16-shade grayscale
 		DMD_COLOR_RGB			// 24-bit RGB
 	};
+
+	// default PM_GameSettings options
+	static const DMDDevice::tPMoptions defaultOpts;
 
 	// Device writer thread.  Some device-specific dmddevice.dll
 	// implementations might block on the data transfer to the 

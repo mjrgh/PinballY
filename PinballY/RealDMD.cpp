@@ -54,6 +54,17 @@ HMODULE RealDMD::hmodDll = NULL;
 TSTRING RealDMD::dllPath;
 RealDMD::DmdExtInfo RealDMD::dmdExtInfo;
 
+// default options
+const tPMoptions RealDMD::defaultOpts = {
+	255, 88, 32,		// monochrome color at 100% - R, G, B
+	67, 33, 20,			// monochrome brightness levels 66%, 33%, 0%
+	1, 0, 50,			// DMD only, compact mode, antialias
+	0,					// colorize mode
+	225, 15, 193,		// colorized level 2 (66%) - R, G, B
+	6, 0, 214,			// colorized level 1 (33%) - R, G, B
+	0, 0, 0				// colorized level 0 (0%) - R, G, B
+};
+
 // native device size
 static const int dmdWidth = 128, dmdHeight = 32;
 
@@ -174,7 +185,7 @@ bool RealDMD::Init(ErrorHandler &eh)
 		return false;
 
 	// open the DLL session
-	Open_();
+	OpenSession();
 
 	// load the mirroring status from the config
 	auto cfg = ConfigManager::GetInstance();
@@ -538,6 +549,53 @@ void RealDMD::Shutdown()
 	CloseSession();
 }
 
+void RealDMD::OpenSession()
+{
+	// open the DLL session
+	if (Open_ != NULL)
+		Open_();
+
+	// Set a dummy ROM initially.  dmd-extensions will crash in some
+	// cases if we make other calls before setting a game, since it
+	// assumes from the VPM usage pattern that a ROM is always set
+	// exactly once per session as the second call.
+	SetGameSettings("PinballY", defaultOpts);
+}
+
+void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
+{
+	if (PM_GameSettings_ != NULL)
+	{
+		// The dmd-extensions version of the DLL had a bug in versions
+		// prior to 1.7.3 that causes the DLL to crash if the DLL is in
+		// "virtual dmd" mode AND we call this function after making any 
+		// other call to the DLL other than Open().  We take care to 
+		// call this immediately after each Open() call we make, so the
+		// very first call here is always safe.  After that, we can
+		// repeat the call unless we're talking to a pre-1.7.3 version
+		// of dmd-extensions, in which case we have to skip it.  Skipping
+		// the call loses a small amount of functionality, namely the
+		// ability of the DLL to apply per-game colorization settings.
+		// But that's much better than crashing the whole process.
+		static int nCalls = 0;
+		bool safeToCall = nCalls == 0 || !dmdExtInfo.matched || !dmdExtInfo.virtualEnabled || dmdExtInfo.settingsFix;
+		if (safeToCall)
+		{
+			// Send the settings to the device.  Note that the generation
+			// is chosen for the way we're going to use the device, not for
+			// how the associated game would use it, since the game isn't
+			// actually sending the device data - we are.  For our purposes,
+			// the WPC95 generation is suitable.  (Note that if we didn't
+			// load any registry settings, we'll still have valid defaults
+			// to send from initializing the struct earlier.)
+			PM_GameSettings_(gameName, GEN_WPC95, opts);
+
+			// count the call
+			++nCalls;
+		}
+	}
+}
+
 void RealDMD::CloseSession()
 {
 	if (IsDllValid() && enabled && Close_ != NULL)
@@ -597,7 +655,7 @@ void RealDMD::BeginRunningGameMode()
 void RealDMD::EndRunningGameMode()
 {
 	// reopen the session
-	Open_();
+	OpenSession();
 }
 
 void RealDMD::ReloadGame()
@@ -677,15 +735,7 @@ void RealDMD::UpdateGame()
 
 			// set up the default device settings, in case we didn't get
 			// a key at all, or for any missing values in the registry
-			tPMoptions opts = {
-				255, 88, 32,		// monochrome color at 100% - R, G, B
-				67, 33, 20,			// monochrome brightness levels 66%, 33%, 0%
-				1, 0, 50,			// DMD only, compact mode, antialias
-				0,					// colorize mode
-				225, 15, 193,		// colorized level 2 (66%) - R, G, B
-				6, 0, 214,			// colorized level 1 (33%) - R, G, B
-				0, 0, 0				// colorized level 0 (0%) - R, G, B
-			};
+			tPMoptions opts = defaultOpts;
 
 			// if we got the key, load the registry values
 			if (keyOk)
@@ -723,25 +773,8 @@ void RealDMD::UpdateGame()
 				Query(antialias);
 			}
 
-			// Send the settings to the device.  Note that the generation
-			// is chosen for the way we're going to use the device, not for
-			// how the associated game would use it, since the game isn't
-			// actually sending the device data - we are.  For our purposes,
-			// the WPC95 generation is suitable.  (Note that if we didn't
-			// load any registry settings, we'll still have valid defaults
-			// to send from initializing the struct earlier.)
-			//
-			// The dmd-extensions version of the DLL had a bug in versions
-			// prior to 1.7.3 that causes the DLL to crash if we call this.
-			// So skip the call entirely in that case.  That loses the game
-			// context sensitivity for coloring, but that's a fairly small
-			// loss of functionality to avoid crashing the process.
-			bool safeToCall = !dmdExtInfo.matched || dmdExtInfo.settingsFix;
-			if (safeToCall)
-			{
-				const UINT64 GEN_WPC95 = 0x0000000000080LL;
-				PM_GameSettings_(TSTRINGToCSTRING(rom).c_str(), GEN_WPC95, opts);
-			}
+			// send the settings to the device
+			SetGameSettings(TSTRINGToCSTRING(rom).c_str(), opts);
 
 			// remember the base color option
 			baseColor = RGB(opts.dmd_red, opts.dmd_green, opts.dmd_blue);
