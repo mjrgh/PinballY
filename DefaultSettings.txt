@@ -228,6 +228,38 @@ RunAtStartup =
 RunAtExit = 
 
 
+# Popup info box settings.  Whenever a game is selected in the "wheel",
+# the program normally pops up a little box near the top of the playfield
+# window showing basic information on the game.  These settings control
+# whether the box is shown at all, and if so, which items it displays.
+#
+# InfoBox.Show -> controls whehtehr or not the box is shown at all
+# .Title -> include the game's title in the box
+# .GameLogo -> use the game's logo graphics in place of the title, when available
+# .Manufacturer -> show the manufacturer name
+# .ManufacturerLogo -> use the manufaturer's logo graphics in place of the name, when available
+# .System -> show the player system name (Visual Pinball, etc)
+# .SystemLogo -> use logo graphics for the system when available
+# .Year -> show the original release year of the real pinball machine
+# .TableType -> show the table type (Solid State, etc)
+# .TableTypeAbbr -> use the abbreviated table type (SS, EM, etc) instead of the full type name
+# .Rating -> show the star rating
+# .TableFile -> show the table file name (.vpt, .vpx, .fpt, etc)
+#
+InfoBox.Show = 1
+InfoBox.Title = 1
+InfoBox.GameLogo = 0
+InfoBox.Manufacturer = 1
+InfoBox.ManufacturerLogo = 1
+InfoBox.Year = 1
+InfoBox.System = 1
+InfoBox.SystemLogo = 1
+InfoBox.TableType = 0
+InfoBox.TableTypeAbbr = 0
+InfoBox.Rating = 1
+InfoBox.TableFile = 0
+
+
 # Where should instruction card pop-up images be displayed?  Enter 
 # Playfield, Topper, or Backglass to select the desired display window.
 # (If the window you designate here isn't visible when you ask to 

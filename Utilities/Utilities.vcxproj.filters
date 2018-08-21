@@ -78,6 +78,9 @@
     <ClInclude Include="AutoRun.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProcUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -120,6 +123,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AutoRun.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

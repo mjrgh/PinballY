@@ -212,6 +212,7 @@
 #define IDS_MENU_HIDE_GAME              525
 #define IDS_MENU_SETUP_RETURN           526
 #define IDS_MENU_ENABLE_GAME_VIDEO      527
+#define IDS_MENU_DEL_GAME_INFO          528
 
 #define IDS_MENU_SAVE_CATEGORIES        540
 #define IDS_MENU_CXL_CATEGORIES         541
@@ -224,6 +225,10 @@
 #define IDS_MENU_CXL_RUN_AS_ADMIN       556
 #define IDS_MENU_RUN_GAME_ADMIN         557
 #define IDS_MENU_CXL_RUN_GAME_ADMIN     558
+
+#define IDS_CONFIRM_DEL_GAME_INFO       570
+#define IDS_CONFIRM_DEL_GAME_YES        571
+#define IDS_CONFIRM_DEL_GAME_NO         572
 
 #define IDS_DEFAULT_STATUS_UPPER        590
 #define IDS_DEFAULT_STATUS_LOWER        591
@@ -309,8 +314,7 @@
 #define IDS_ERR_DEL_MEDIA_FILE          690
 #define IDS_ERR_STEAM_MISSING           691
 #define IDS_ERR_CAP_ITEM_FFMPEG_ERR_LOGGED  692
-#define IDS_ERR_CAP_ITEM_FFMPEG_ERR_UNLOGGED 693
-#define IDS_ERR_CAP_ITEM_FFMPEG_LAUNCH  694
+#define IDS_ERR_CAP_ITEM_FFMPEG_LAUNCH  693
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
@@ -454,6 +458,8 @@
 #define ID_SHOW_MEDIA_FILES             32851
 #define ID_DEL_MEDIA_FILE               32852
 #define ID_HELP                         32853
+#define ID_DEL_GAME_INFO                32854
+#define ID_CONFIRM_DEL_GAME_INFO        32855
 
 
 // Next default values for new objects
@@ -462,7 +468,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32854
+#define _APS_NEXT_COMMAND_VALUE         32856
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

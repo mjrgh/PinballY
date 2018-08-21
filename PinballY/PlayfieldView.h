@@ -371,6 +371,9 @@ protected:
 	// show the game setup dialog
 	void EditGameInfo();
 
+	// delete the game details
+	void DelGameInfo(bool confirmed = false);
+
 	// toggle a given category in the edit list
 	void ToggleCategoryInEditList(int cmd);
 
@@ -1145,6 +1148,27 @@ protected:
 
 	// update the info box animation
 	void UpdateInfoBoxAnimation();
+
+	// Info box display options
+	struct
+	{
+		bool show;					// show/hide the whole box
+		bool title;					// include the game title
+		bool gameLogo;				// use the game logo in place of the title
+		bool manuf;					// include the manufacturer name
+		bool manufLogo;				// use the manufacturer logo in place of the name
+		bool year;					// include the release year
+		bool system;				// include the player system name
+		bool systemLogo;			// use the sysetm logo in place of the name
+		bool tableType;				// show the table type
+		bool tableTypeAbbr;			// use the abbreviated table type
+		bool tableFile;				// include the table file name
+		bool rating;                // include the star rating
+
+	} infoBoxOpts;
+
+	// map of table type (SS, EM, ME) to full name; keyed by upper-case type abbreviation
+	std::unordered_map<TSTRING, TSTRING> tableTypeNameMap;
 
 	// get a maunfacturer/system logo file
 	bool GetManufacturerLogo(TSTRING &file, const GameManufacturer *manuf, int year);

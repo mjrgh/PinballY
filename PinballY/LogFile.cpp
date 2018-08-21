@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include "LogFile.h"
 #include "DateUtil.h"
+#include "VersionInfo.h"
 
 // statics
 LogFile *LogFile::inst = nullptr;
@@ -19,14 +20,8 @@ LogFile::LogFile() :
 	GetExeFilePath(fname, countof(fname));
 	PathAppend(fname, _T("PinballY.log"));
 
-	// Open it with an inheritable handle.  This allows passing the handle
-	// to a child process as stdout/stderr, to redirect the output from the
-	// child process in the log file.
-	SECURITY_ATTRIBUTES sa;
-	sa.nLength = sizeof(sa);
-	sa.bInheritHandle = TRUE;
-	sa.lpSecurityDescriptor = NULL;
-	h = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, &sa,
+	// open the file, overwriting any existing copy
+	h = CreateFile(fname, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL,
 		CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 	// the start of the file counts as preceded by an infinite
@@ -34,7 +29,9 @@ LogFile::LogFile() :
 	nNewlines = 2;
 
 	// write the starting time
-	WriteTimestamp(_T("PinballY session started\n\n"));
+	WriteTimestamp(_T("Session started\nPinballY %hs, build %d (%s, %hs)\n\n"), 
+		G_VersionInfo.fullVerWithStat, G_VersionInfo.buildNo, 
+		IF_32_64(_T("x86"), _T("x64")), G_VersionInfo.date);
 }
 
 LogFile::~LogFile()

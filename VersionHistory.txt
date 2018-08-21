@@ -2,10 +2,21 @@ PinballY Update History
 
 ??-??-2018 (1.0.0 Alpha 13)
 
+* Add "Delete Game Details" command to the game setup menu, to delete
+the bibliographic database entry for the selected game.
+
+* Add "Info Box" options page, with options for what to show in the
+auto popup info box (and whether to show it at all).  Most details can
+now be separately enabled or disabled.  Also added options for showing
+the game wheel logo in place of the plain text title; showing the
+table file name; showing the table type (solid state, etc), in full or
+abbreviated; and for whether or not to use graphical logos for the
+manufacturer and system type.
+
 * Try to work around a dmd-extensions problem (dmd-ext issue #125,
-crash if no game name set; workaround is to set a dummy game name
+crash if no game name set: workaround is to set a dummy game name
 after startup, taking care not to do this more than once to avoid
-triggering issue dmd-ext #123).
+the separate dmd-ext issue #123).
 
 * Log FFmpeg results to log file whenever FFmpeg fails, even if Media
 Capture logging is disabled in the options.  You'll probably want to

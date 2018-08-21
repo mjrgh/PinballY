@@ -2606,6 +2606,46 @@ void GameList::ChangeSystem(GameListItem *game, GameSystem *newSystem)
 	}
 }
 
+void GameList::DeleteXml(GameListItem *game)
+{
+	// There's nothing to do if the game isn't in a db file or doesn't
+	// have an XML record.
+	if (game->dbFile == nullptr || game->gameXmlNode == nullptr)
+		return;
+
+	// get the document and parent node
+	auto &doc = game->dbFile->doc;
+	auto par = game->gameXmlNode->parent();
+	if (par != nullptr)
+	{
+		// remove the node from its parent
+		par->remove_node(game->gameXmlNode);
+
+		// clear the node from the game
+		game->gameXmlNode = nullptr;
+
+		// the database file now has unsaved changes
+		game->dbFile->isDirty = true;
+
+		// clear the XML-derived fields from the game record
+		game->title = game->filename;
+		game->system = nullptr;
+		game->manufacturer = nullptr;
+		game->isConfigured = false;
+		game->tableType = _T("");
+		game->rom = _T("");
+		game->year = 0;
+		game->gridPos.col = game->gridPos.row = 0;
+		game->UpdateMediaName(nullptr);
+		
+		// commit the change to the game ID
+		FlushGameIdChange(game);
+
+		// rebuild the title index
+		BuildTitleIndex();
+	}
+}
+
 void GameList::FlushToXml(GameListItem *game)
 {
 	// There's nothing to do if the game isn't in a db file
@@ -2631,7 +2671,7 @@ void GameList::FlushToXml(GameListItem *game)
 		// only necessary when creating a NEW node, since we otherwise
 		// keep <enabled> in sync on any update, and it's only necessary
 		// if the game is hidden, since <enabled>true</enabled> is the
-		// default in the absence of the tag.
+ 		// default in the absence of the tag.
 		if (game->IsHidden())
 			par->append_node(doc.allocate_node(rapidxml::node_element, "enabled", "False"));
 	}

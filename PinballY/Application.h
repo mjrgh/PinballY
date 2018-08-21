@@ -308,6 +308,9 @@ public:
 	// Reference table list object
 	std::unique_ptr<RefTableList> refTableList;
 
+	// get the FFmpeg version string
+	const CHAR *GetFFmpegVersion() const { return ffmpegVersion.c_str(); }
+
 protected:
 	Application();
 
@@ -453,6 +456,9 @@ protected:
 		newFileScanThread = nullptr;
 		return false;
 	}
+
+	// FFmpeg version, if available
+	CSTRING ffmpegVersion;
 
 	// Game monitor thread.  We launch a game by creating a monitor
 	// thread, which does the actual process launch and then monitors

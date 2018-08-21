@@ -69,6 +69,19 @@ namespace ConfigVars
 	static const TCHAR *CatNameDialogPos = _T("CategoryNameDialog.Position");
 	static const TCHAR *OptsDialogPos = _T("OptionsDialog.Position");
 	static const TCHAR *SplashScreen = _T("SplashScreen");
+
+	static const TCHAR *InfoBoxShow = _T("InfoBox.Show");
+	static const TCHAR *InfoBoxTitle = _T("InfoBox.Title");
+	static const TCHAR *InfoBoxGameLogo = _T("InfoBox.GameLogo");
+	static const TCHAR *InfoBoxManufacturer = _T("InfoBox.Manufacturer");
+	static const TCHAR *InfoBoxManufacturerLogo = _T("InfoBox.ManufacturerLogo");
+	static const TCHAR *InfoBoxYear = _T("InfoBox.Year");
+	static const TCHAR *InfoBoxSystem = _T("InfoBox.System");
+	static const TCHAR *InfoBoxSystemLogo = _T("InfoBox.SystemLogo");
+	static const TCHAR *InfoBoxTableType = _T("InfoBox.TableType");
+	static const TCHAR *InfoBoxTableTypeAbbr = _T("InfoBox.TableTypeAbbr");
+	static const TCHAR *InfoBoxRating = _T("InfoBox.Rating");
+	static const TCHAR *InfoBoxTableFile = _T("InfoBox.TableFile");
 };
 
 // include the capture-related variables
@@ -133,6 +146,11 @@ PlayfieldView::PlayfieldView() :
 	commandNameToMenuID.emplace(_T("FullScreen"), ID_FULL_SCREEN);
 	commandNameToMenuID.emplace(_T("Settings"), ID_OPTIONS);
 	commandNameToMenuID.emplace(_T("FrameCounter"), ID_FPS);
+
+	// populate the table type name map
+	tableTypeNameMap.emplace(_T("SS"), LoadStringT(IDS_GAMEINFO_TYPE_SS));
+	tableTypeNameMap.emplace(_T("EM"), LoadStringT(IDS_GAMEINFO_TYPE_EM));
+	tableTypeNameMap.emplace(_T("ME"), LoadStringT(IDS_GAMEINFO_TYPE_ME));
 
 	// subscribe for joystick events
 	JoystickManager::GetInstance()->SubscribeJoystickEvents(this);
@@ -764,6 +782,14 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		EditGameInfo();
 		return true;
 
+	case ID_DEL_GAME_INFO:
+		DelGameInfo();
+		return true;
+
+	case ID_CONFIRM_DEL_GAME_INFO:
+		DelGameInfo(true);
+		return true;
+
 	case ID_SET_CATEGORIES:
 		ShowGameCategoriesMenu();
 		return true;
@@ -1123,8 +1149,8 @@ void PlayfieldView::ShowAboutBox()
 		std::unique_ptr<Gdiplus::Font> smallFont(CreateGPFont(_T("Segoe UI"), 14, 400));
 		GPDrawStringAdv(g, MsgFmt(_T("Version %hs"), G_VersionInfo.fullVerWithStat),
 			verFont.get(), &br, origin, bbox);
-		GPDrawStringAdv(g, MsgFmt(_T("Build %d (%hs)"),
-			G_VersionInfo.buildNo, G_VersionInfo.date),
+		GPDrawStringAdv(g, MsgFmt(_T("Build %d (%s, %hs)"),
+			G_VersionInfo.buildNo, IF_32_64(_T("x86"), _T("x64")), G_VersionInfo.date),
 			smallFont.get(), &br, origin, bbox);
 
 		// add the DOF version if present
@@ -1141,6 +1167,11 @@ void PlayfieldView::ShowAboutBox()
 		// add the libvlc version if available
 		if (const char *libvlcVer = VLCAudioVideoPlayer::GetLibVersion(); libvlcVer != nullptr)
 			GPDrawStringAdv(g, MsgFmt(_T("Libvlc version %hs"), libvlcVer),
+				smallerFont.get(), &br, origin, bbox);
+
+		// add the ffmpeg version if available
+		if (const char *ffmpegVer = Application::Get()->GetFFmpegVersion(); ffmpegVer != nullptr)
+			GPDrawStringAdv(g, MsgFmt(_T("FFmpeg version %hs"), ffmpegVer),
 				smallerFont.get(), &br, origin, bbox);
 
 		// draw the copyright details, bottom-justified
@@ -1964,12 +1995,8 @@ void PlayfieldView::ShowGameInfo()
 			gds.DrawString(MsgFmt(_T("%d"), game->year), textFont.get(), &textBr);
 
 		// table type
-		if (_tcsicmp(game->tableType.c_str(), _T("ss")) == 0)
-			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_SS), smallerTextFont.get(), &textBr);
-		else if (_tcsicmp(game->tableType.c_str(), _T("em")) == 0)
-			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_EM), smallerTextFont.get(), &textBr);
-		if (_tcsicmp(game->tableType.c_str(), _T("me")) == 0)
-			gds.DrawString(LoadStringT(IDS_GAMEINFO_TYPE_ME), smallerTextFont.get(), &textBr);
+		if (auto tt = tableTypeNameMap.find(game->tableType); tt != tableTypeNameMap.end())
+			gds.DrawString(tt->second.c_str(), smallerTextFont.get(), &textBr);
 
 		// system
 		if (game->system != nullptr)
@@ -4281,6 +4308,10 @@ void PlayfieldView::SyncInfoBox()
 	if (isAnimTimerRunning || popupSprite != 0 || curMenu != 0 || attractMode.active)
 		return;
 
+	// skip the info box if it's disabled in the options
+	if (!infoBoxOpts.show)
+		return;
+
 	// get the current selection and check for a change
 	GameListItem *game = GameList::Get()->GetNthGame(0);
 	if (game != infoBox.game)
@@ -4314,14 +4345,53 @@ void PlayfieldView::SyncInfoBox()
 				Gdiplus::RectF rcLayout((float)marginX, (float)marginY, (float)(width - 2*marginX), (float)(height - 2*marginY));
 				Gdiplus::PointF origin((float)marginX, (float)marginY);
 
-				// add the title
+				// add the logo or title, if desired
 				std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 38, 500));
-				GPDrawStringAdv(g, game->title.c_str(), titleFont.get(), &txt, origin, rcLayout);
-				origin.Y += 12;
+				TSTRING wheelFile;
+				std::unique_ptr<Gdiplus::Bitmap> wheelImage;
+				if (infoBoxOpts.gameLogo
+					&& game->GetMediaItem(wheelFile, GameListItem::wheelImageType)
+					&& (wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str())), wheelImage != nullptr))
+				{
+					// scale the logo to the text height
+					float txtHt = titleFont->GetHeight(&g);
+					float ht = txtHt * 1.4f;
+					float wid = (float)wheelImage->GetWidth() / (float)wheelImage->GetHeight() * ht;
+					g.DrawImage(wheelImage.get(), origin.X, origin.Y, wid, ht);
+					origin.Y += ht + 12;
+				}
+				else if (infoBoxOpts.title)
+				{
+					// draw the title as text
+					GPDrawStringAdv(g, game->title.c_str(), titleFont.get(), &txt, origin, rcLayout);
+					origin.Y += 12;
+				}
 
-				// add the manufacturer and year
+				// build the machine type + year string: start with the type
+				TSTRING typeAndYear;
+				if (game->tableType.length() != 0)
+				{
+					if (infoBoxOpts.tableTypeAbbr)
+						typeAndYear += game->tableType;
+					else if (infoBoxOpts.tableType)
+					{
+						if (auto tt = tableTypeNameMap.find(game->tableType); tt != tableTypeNameMap.end())
+							typeAndYear += tt->second;
+					}
+				}
+
+				// add the year
+				if (game->year != 0 && infoBoxOpts.year != 0)
+				{
+					if (typeAndYear.length() != 0)
+						typeAndYear += _T(", ");
+					typeAndYear += MsgFmt(_T("%d"), game->year);
+				}
+
+				// add the manufacturer, type, and year
 				std::unique_ptr<Gdiplus::Font> txtFont(CreateGPFont(_T("Tahoma"), 28, 500));
-				if (Gdiplus::Image *manufLogo; LoadManufacturerLogo(manufLogo, game->manufacturer, game->year))
+				Gdiplus::Image *manufLogo;
+				if (infoBoxOpts.manufLogo && LoadManufacturerLogo(manufLogo, game->manufacturer, game->year))
 				{
 					// scale the image according to the text height
 					float txtHt = txtFont->GetHeight(&g);
@@ -4329,33 +4399,38 @@ void PlayfieldView::SyncInfoBox()
 					float wid = (float)manufLogo->GetWidth()/(float)manufLogo->GetHeight() * ht;
 					g.DrawImage(manufLogo, origin.X, origin.Y, wid, ht);
 
-					// add the year, if known
-					if (game->year != 0)
-						g.DrawString(MsgFmt(_T("  (%d)"), game->year), -1, txtFont.get(),
+					// add the type and year, if non-empty
+					if (typeAndYear.length() != 0)
+						g.DrawString(MsgFmt(_T("  (%s)"), typeAndYear.c_str()), -1, txtFont.get(),
 							Gdiplus::PointF(origin.X + wid, origin.Y + txtHt * .2f), &txt);
 
 					// advance past it
 					origin.Y += ht + 10;
 				}
-				else if (game->manufacturer != nullptr && game->year != 0)
-				{
-					// draw the manufacturer and year as text
-					GPDrawStringAdv(g, MsgFmt(_T("%s (%d)"), game->manufacturer->manufacturer.c_str(), game->year),
-						txtFont.get(), &txt, origin, rcLayout);
-				}
-				else if (game->manufacturer != nullptr)
+				else if (infoBoxOpts.manuf && game->manufacturer != nullptr)
 				{
 					// draw the manufacturer as text
-					GPDrawStringAdv(g, game->manufacturer->manufacturer.c_str(), txtFont.get(), &txt, origin, rcLayout);
+					GPDrawString gp(g, rcLayout);
+					gp.curOrigin = origin;
+					gp.DrawString(game->manufacturer->manufacturer.c_str(), txtFont.get(), &txt, false);
+
+					// add the type and year, if non-empty
+					if (typeAndYear.length() != 0)
+						gp.DrawString(MsgFmt(_T(" (%s)"), typeAndYear.c_str()), txtFont.get(), &txt, false);
+
+					// add the newline
+					gp.DrawString(_T(" "), txtFont.get(), &txt, true);
+					origin = gp.curOrigin;
 				}
-				else if (game->year != 0)
+				else if (typeAndYear.length() != 0)
 				{
-					// draw the year as text
-					GPDrawStringAdv(g, MsgFmt(_T("%d"), game->year), txtFont.get(), &txt, origin, rcLayout);
+					// draw just the type and year string
+					GPDrawStringAdv(g, typeAndYear.c_str(), txtFont.get(), &txt, origin, rcLayout);
 				}
 
 				// add the system
-				if (Gdiplus::Image *systemLogo; LoadSystemLogo(systemLogo, game->system))
+				Gdiplus::Image *systemLogo;
+				if (infoBoxOpts.systemLogo && LoadSystemLogo(systemLogo, game->system))
 				{
 					// scale it to the text height
 					float txtHt = txtFont->GetHeight(&g);
@@ -4366,16 +4441,27 @@ void PlayfieldView::SyncInfoBox()
 					// advance past it
 					origin.Y += ht + 10;
 				}
-				else if (game->system != nullptr)
+				else if (infoBoxOpts.system && game->system != nullptr)
 				{
 					// draw the system name as text
 					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont.get(), &txt, origin, rcLayout);
 				}
 
-				// add the rating, if set
-				float rating = GameList::Get()->GetRating(game);
-				if (stars != nullptr && rating >= 0)
+				// add the game file name
+				if (infoBoxOpts.tableFile && game->filename.length() != 0)
 				{
+					std::unique_ptr<Gdiplus::Font> smallFont(CreateGPFont(_T("Tahoma"), 16, 500));
+					Gdiplus::SolidBrush gray(Gdiplus::Color(255, 192, 192, 192));
+					GPDrawStringAdv(g, game->filename.c_str(), smallFont.get(), &gray, origin, rcLayout);
+				}
+
+				// add the rating, if set
+				float rating;
+				if (infoBoxOpts.rating 
+					&& stars != nullptr 
+					&& (rating = GameList::Get()->GetRating(game)) >= 0)
+				{
+					origin.Y += stars.get()->GetHeight()/3;
 					DrawStars(g, origin.X, origin.Y, rating);
 					origin.Y += stars.get()->GetHeight();
 				}
@@ -5386,6 +5472,20 @@ void PlayfieldView::OnConfigChange()
 
 	// update the Admin Host with the new EXIT GAME key mappings
 	Application::Get()->SendExitGameKeysToAdminHost(adminHostExitKeys);
+
+	// load the info box options
+	infoBoxOpts.show = cfg->GetBool(ConfigVars::InfoBoxShow, true);
+	infoBoxOpts.title = cfg->GetBool(ConfigVars::InfoBoxTitle, true);
+	infoBoxOpts.gameLogo = cfg->GetBool(ConfigVars::InfoBoxGameLogo, false);
+	infoBoxOpts.manuf = cfg->GetBool(ConfigVars::InfoBoxManufacturer, true);
+	infoBoxOpts.manufLogo = cfg->GetBool(ConfigVars::InfoBoxManufacturerLogo, true);
+	infoBoxOpts.year = cfg->GetBool(ConfigVars::InfoBoxYear, true);
+	infoBoxOpts.system = cfg->GetBool(ConfigVars::InfoBoxSystem, true);
+	infoBoxOpts.systemLogo = cfg->GetBool(ConfigVars::InfoBoxSystemLogo, true);
+	infoBoxOpts.tableType = cfg->GetBool(ConfigVars::InfoBoxTableType, false);
+	infoBoxOpts.tableTypeAbbr = cfg->GetBool(ConfigVars::InfoBoxTableTypeAbbr, false);
+	infoBoxOpts.rating = cfg->GetBool(ConfigVars::InfoBoxRating, true);
+	infoBoxOpts.tableFile = cfg->GetBool(ConfigVars::InfoBoxTableFile, false);
 }
 
 void PlayfieldView::AddJsCommand(int unit, int button, KeyCommandFunc func)
@@ -6513,6 +6613,8 @@ void PlayfieldView::ShowGameSetupMenu()
 	std::list<MenuItemDesc> md;
 
 	md.emplace_back(LoadStringT(IDS_MENU_EDIT_GAME_INFO), ID_EDIT_GAME_INFO);
+	if (game->gameXmlNode != nullptr)
+		md.emplace_back(LoadStringT(IDS_MENU_DEL_GAME_INFO), ID_DEL_GAME_INFO);
 	md.emplace_back(LoadStringT(IDS_MENU_SET_CATEGORIES), ID_SET_CATEGORIES);
 	md.emplace_back(_T(""), -1);
 
@@ -7285,6 +7387,43 @@ void PlayfieldView::EditGameInfo()
 			UpdateAllStatusText();
 			infoBox.game = nullptr;
 		}
+	}
+}
+
+void PlayfieldView::DelGameInfo(bool confirmed)
+{
+	// get the current game
+	auto gl = GameList::Get();
+	auto game = gl->GetNthGame(0);
+	if (!IsGameValid(game))
+		return;
+
+	// check if they've confirmed the deletion
+	if (confirmed)
+	{
+		// confirmed - actually delete the game record from the XML
+		gl->DeleteXml(game);
+
+		// Refresh the game filter, since the game could now be excluded
+		// due to a change in manufacturer, year, or system)
+		GameList::Get()->RefreshFilter();
+
+		// Reload the wheel, status text, and info box, since any of these
+		// could be affected by updates we made even if the game's filter
+		// selection status didn't change.
+		UpdateSelection();
+		UpdateAllStatusText();
+		infoBox.game = nullptr;
+	}
+	else
+	{
+		// first pass - ask for confirmation
+		std::list<MenuItemDesc> md;
+		md.emplace_back(MsgFmt(IDS_CONFIRM_DEL_GAME_INFO, game->title.c_str()), -1);
+		md.emplace_back(_T(""), -1);
+		md.emplace_back(LoadStringT(IDS_CONFIRM_DEL_GAME_YES), ID_CONFIRM_DEL_GAME_INFO);
+		md.emplace_back(LoadStringT(IDS_CONFIRM_DEL_GAME_NO), ID_MENU_RETURN, MenuSelected);
+		ShowMenu(md, SHOWMENU_DIALOG_STYLE);
 	}
 }
 

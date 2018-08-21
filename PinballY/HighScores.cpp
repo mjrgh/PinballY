@@ -3,6 +3,7 @@
 //
 #include "stdafx.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/ProcUtil.h"
 #include "HighScores.h"
 #include "GameList.h"
 #include "Application.h"

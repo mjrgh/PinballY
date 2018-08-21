@@ -1194,6 +1194,9 @@ public:
 	// Flush an ID change to the stats db
 	void FlushGameIdChange(GameListItem *game);
 
+	// Delete a game's XML entry
+	void DeleteXml(GameListItem *game);
+
 	// Build/rebuild the title index
 	void BuildTitleIndex();
 

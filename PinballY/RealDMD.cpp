@@ -107,6 +107,9 @@ bool RealDMD::FindDLL()
 	if (dllPath.length() != 0)
 		return true;
 
+	LogGroup();
+	Log(_T("Searching for real DMD device DLL\n"));
+	
 	// Look for the DLL in our own program folder first.  This allows
 	// using a specific version of the DLL with PinballY, without
 	// affecting the VPinMAME configuration, simply by copying the

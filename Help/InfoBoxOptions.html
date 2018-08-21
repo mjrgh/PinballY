@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a> &gt; <a href="Options.html">Option Settings</a>
+</div>
+<h1>Info Box Options</h1>
+
+<p>
+   This dialog lets you customize the information box that normally
+   pops up whenever a game is selected.  (These settings don't affect
+   the "full" information box that you can access via the "Information"
+   command on the main menu.  These only affect the automatic box
+   that pops up on its own when a game is selected.)
+</p>
+
+<p>
+   <b>Show the automatic game info box:</b>  This box controls
+   whether or not the box is shown at all.  This is checked by
+   default.  Un-check the box if you want to remove the box entirely.
+</p>
+
+<p>
+   <b>Include the game title:</b>  Includes the game title in the
+   box.
+</p>
+<p>
+   <b>Use the game's logo graphics:</b>  Shows the game's logo (the
+   same graphics that appear in the middle of the screen) in place
+   of the plain text title.
+</p>
+<p>
+   <b>Include the manufacturer's name:</b>  Shows the name of the
+   company that originally made the machine.
+</p>
+<p>
+   <b>Use the manufacturer's logo:</b>  Shows the manufacturer's
+   company logo instead of the plain text of the company name,
+   if the graphics are available.
+</p>
+<p>
+   <b>Include the system name:</b>  Shows the name of the
+   pinball player program that the table was created with
+   (Visual Pinball, Future Pinball, etc).
+</p>
+<p>
+   <b>Use the system logo:</b>  Shows the logo graphics for
+   the system in place of the plain text name, when available.
+</p>
+<p>
+   <b>Include the release year:</b>  Shows the year of release of
+   the original arcade machine title.
+</p>
+<p>
+   <b>Include the table type:</b>  Includes the machine type
+   in the box (Solid State, Electromechanical, Mechanical).
+</p>
+<p>
+   <b>Use the table type abbreviation:</b>  Uses an abbreviation
+   for the table type (SS, EM, ME).
+</p>
+<p>
+   <b>Include the rating:</b> Shows the "star" rating for the game.
+<p>
+   <b>Include the table file name:</b> Shows the name of the table
+   file for the game, if applicable.  This is the .vpt, .vpx, .fpt,
+   or other system-specific file that contains the game.
+</p>
+
+
+<h2>Manufacturer logos</h2>
+
+<p>
+   PinballY doesn't come with graphics for the manufacturer company
+   logos, since most of the logos are official trademarks.  If you
+   wish to provide your own graphics files for the company logos, though,
+   it's easy to install them.
+</p>
+<p>
+   File formats:  use PNG files for all logos.  Use transparency ("alpha")
+   as desired.
+</p>
+<p>
+   Location:  place all company logo files in the <b>Company Logos</bL
+   subfolder of your main Media folder, as set in your Folders options.
+</p>
+<p>
+   Name: simply use the manufacturer name as the file name (before the .png
+   suffix), as in <b>Gottlieb.png</b> or <b>Williams.png</b>.
+</p>
+<p>
+   Era-specific files:  many company logos change over the years.  You can
+   create separate logos for a manufacturer over different time periods
+   by adding a year range suffix to the filename, as in
+   <b>Gottlieb (1971-1980).png</b>.  You can use as many different time
+   periods as necessary for each company.  Use a range like <b>(1980-)</b>
+   to mean "1980 and later".
+</p>
+
+<h2>System logos</h2>
+
+<p>
+   You can create your own system logos for the player systems (Visual
+   Pinball, etc) as follows:
+</p>
+<p>
+   File formats: use PNG files.  Use transparency ("alpha") as desired.
+</p>
+<p>
+   Location: place all system logos in the <b>System Logos</b> subfolder
+   of your main Media folder, as set in your Folders options.
+</p>
+<p>
+   Name: simply use the system name as the file name (before the .png
+   suffix), as in <b>Visual Pinball.png</b>.  The name should match
+   the display name in the option settings for the system.
+</p>
+<p>
+   Version-specific and version-independent names:  Names are matched
+   by prefix, so a file named <b>Visual Pinball.png</b> will match
+   systems named <b>Visual Pinball 9</b>, <b>Visual Pinball X</b>, etc.
+   If there's an exact match, as in <b>Visual Pinball X.png</b>, that
+   will take precedence over a generic prefix match.
+</p>
+
+
+</body>
+</html>

@@ -19,6 +19,7 @@
 #include "../Utilities/KeyInput.h"
 #include "../Utilities/ComUtil.h"
 #include "../Utilities/AutoRun.h"
+#include "../Utilities/ProcUtil.h"
 #include "DateUtil.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
@@ -267,6 +268,24 @@ int Application::EventLoop(int nCmdShow)
 	dmdWin.Attach(new DMDWin());
 	topperWin.Attach(new TopperWin());
 	instCardWin.Attach(new InstCardWin());
+
+	// get the FFmpeg version by running FFmpeg with no arguments and
+	// finding the version string in the stdout results
+	{
+		// run FFmpeg (32- or 64-bit version, according to our build type)
+		// with stdout capture
+		TCHAR ffmpeg[MAX_PATH];
+		GetDeployedFilePath(ffmpeg, _T("ffmpeg\\ffmpeg.exe"), _T("$(SolutionDir)ffmpeg$(64)\\ffmpeg.exe"));
+		CreateProcessCaptureStdout(ffmpeg, _T(""), 5000,
+			[this](const BYTE *stdoutContents, long len)
+		{
+			// find "ffmpeg version <xxx>"
+			CSTRING buf((const CHAR *)stdoutContents, (size_t)len);
+			std::match_results<CSTRING::const_iterator> m;
+			if (std::regex_search(buf, m, std::regex("ffmpeg version (\\S+)", std::regex_constants::icase)))
+				ffmpegVersion = m[1].str();
+		}, [](const TCHAR *) {});
+	}
 
 	// open the UI windows
 	bool ok = true;
@@ -2953,11 +2972,16 @@ DWORD Application::GameMonitorThread::Main()
 				// log the command line information if logging is enabled
 				LogCommandLine(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging));
 
-				// open the NUL file as stdin for the child
+				// Set up an "inheritable handle" security attributes struct,
+				// for creating the stdin and stdout/stderr handles for the
+				// child process.  These need to be inheritable so that we 
+				// can open the files and pass the handles to the child.
 				SECURITY_ATTRIBUTES sa;
 				sa.nLength = sizeof(sa);
 				sa.lpSecurityDescriptor = NULL;
 				sa.bInheritHandle = TRUE;
+
+				// open the NUL file as stdin for the child
 				HandleHolder hNulIn = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
 
 				// Set up a temp file to capture output from FFmpeg, so that we can
@@ -3115,9 +3139,7 @@ DWORD Application::GameMonitorThread::Main()
 							{
 								// log the error
 								statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(),
-									MsgFmt(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging)
-										? IDS_ERR_CAP_ITEM_FFMPEG_ERR_LOGGED : IDS_ERR_CAP_ITEM_FFMPEG_ERR_UNLOGGED,
-										(int)exitCode).Get()));
+									MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_ERR_LOGGED, (int)exitCode).Get()));
 								captureOkay = false;
 							}
 						}

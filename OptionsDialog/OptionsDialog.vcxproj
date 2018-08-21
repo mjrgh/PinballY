@@ -214,6 +214,7 @@
     <ClCompile Include="DMDDialog.cpp" />
     <ClCompile Include="GameLaunchDialog.cpp" />
     <ClCompile Include="GameWheelDialog.cpp" />
+    <ClCompile Include="InfoBoxDialog.cpp" />
     <ClCompile Include="KeyAssignCtrl.cpp" />
     <ClCompile Include="KeyboardDialog.cpp" />
     <ClCompile Include="ListCtrlEx.cpp" />
@@ -251,6 +252,7 @@
     <ClInclude Include="GameLaunchDialog.h" />
     <ClInclude Include="GameWheelDialog.h" />
     <ClInclude Include="GroupComboBox\ShellDlgFont.h" />
+    <ClInclude Include="InfoBoxDialog.h" />
     <ClInclude Include="KeyAssignCtrl.h" />
     <ClInclude Include="KeyboardDialog.h" />
     <ClInclude Include="ListCtrlEx.h" />
