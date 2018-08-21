@@ -29,6 +29,10 @@ public:
 	// Set the drawing rotation, in degrees
 	void SetRotation(float angle);
 
+	// Set the mirroring
+	void SetMirrorVert(bool f);
+	void SetMirrorHorz(bool f);
+
 protected:
 	// width and height
 	static const int winWidth = 520;
@@ -68,6 +72,10 @@ protected:
 
 	// current drawing rotation
 	float rotation;
+
+	// mirroring
+	bool mirrorHorz;
+	bool mirrorVert;
 
 	// lock for thread access
 	CriticalSection lock;

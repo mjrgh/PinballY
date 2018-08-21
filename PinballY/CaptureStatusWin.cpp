@@ -10,15 +10,22 @@
 #include "PlayfieldView.h"
 
 
-
 CaptureStatusWin::CaptureStatusWin() : 
 	BaseWin(0),
 	curOpTime(0),
-	totalTime(0)
+	totalTime(0),
+	rotation(0),
+	mirrorHorz(false),
+	mirrorVert(false)
 {
-	// set the initial rotation to match the playfield window,
-	// since we'll be displayed there initially
-	rotation = (float)Application::Get()->GetPlayfieldView()->GetRotation();
+	// set the initial rotation and mirroring to match the playfield
+	// window, since we'll be displayed there initially
+	if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+	{
+		rotation = (float)pfv->GetRotation();
+		mirrorHorz = pfv->IsMirrorHorz();
+		mirrorVert = pfv->IsMirrorVert();
+	}
 
 	// load the initial status string
 	status = LoadStringT(IDS_CAPSTAT_STARTING);
@@ -52,6 +59,20 @@ void CaptureStatusWin::SetRotation(float angle)
 	InvalidateRect(hWnd, NULL, FALSE);
 }
 
+// Set the mirroring
+void CaptureStatusWin::SetMirrorHorz(bool f)
+{
+	CriticalSectionLocker locker(lock);
+	mirrorHorz = f;
+	InvalidateRect(hWnd, NULL, FALSE);
+}
+
+void CaptureStatusWin::SetMirrorVert(bool f)
+{
+	CriticalSectionLocker locker(lock);
+	mirrorVert = f;
+	InvalidateRect(hWnd, NULL, FALSE);
+}
 
 RECT CaptureStatusWin::GetCreateWindowPos(int &nCmdShow)
 {
@@ -84,13 +105,22 @@ void CaptureStatusWin::PositionOver(FrameWin *win)
 	RECT overrc;
 	GetWindowRect(win->GetHWnd(), &overrc);
 
-	// set our rotation to match window we're over
-	float newRot = (float)dynamic_cast<D3DView*>(win->GetView())->GetRotation();
+	// set our rotation to match the window we're over
+	bool inval = false;
+	auto view = dynamic_cast<D3DView*>(win->GetView());
+	float newRot = (float)view->GetRotation();
 	if (newRot != rotation)
-	{
-		rotation = newRot;
+		rotation = newRot, inval = true;
+
+	// set our mirroring to match the window we're over
+	if (auto mv = view->IsMirrorVert(); mv != mirrorVert)
+		mirrorVert = mv, inval = true;
+	if (auto mh = view->IsMirrorHorz(); mh != mirrorHorz)
+		mirrorHorz = mh, inval = true;
+
+	// invalidate the drawing area if we changed anything
+	if (inval)
 		InvalidateRect(hWnd, NULL, FALSE);
-	}
 
 	// figure the window width and height for the rotation
 	int width = winWidth, height = winHeight;
@@ -148,6 +178,18 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 		// center of the window and set the rotation.
 		g.RotateTransform(-rotation);
 		g.TranslateTransform(float(cx/2), float(cy/2), Gdiplus::MatrixOrder::MatrixOrderAppend);
+
+		// apply mirroring transforms as needed
+		if (mirrorHorz)
+		{
+			g.ScaleTransform(-1, 1, Gdiplus::MatrixOrderAppend);
+			g.TranslateTransform(float(cx), 0, Gdiplus::MatrixOrder::MatrixOrderAppend);
+		}
+		if (mirrorVert)
+		{
+			g.ScaleTransform(1, -1, Gdiplus::MatrixOrderAppend);
+			g.TranslateTransform(0, float(cy), Gdiplus::MatrixOrder::MatrixOrderAppend);
+		}
 
 		// set up a centering text formatter
 		Gdiplus::StringFormat format(Gdiplus::StringFormat::GenericTypographic());

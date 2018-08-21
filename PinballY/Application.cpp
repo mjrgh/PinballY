@@ -1544,6 +1544,8 @@ bool Application::GameMonitorThread::Launch(
 
 			// get the source window's rotation
 			item.windowRotation = cap.win->GetRotation();
+			item.windowMirrorVert = cap.win->IsMirrorVert();
+			item.windowMirrorHorz = cap.win->IsMirrorHorz();
 
 			// remember the desired rotation for the stored image
 			item.mediaRotation = cap.mediaType.rotation;
@@ -2823,27 +2825,63 @@ DWORD Application::GameMonitorThread::Main()
 				}
 			}
 
-			// Figure the required image/video rotation parameter for ffmpeg.
-			// Note that this doesn't apply to audio-only capture.
-			int rotate = item.mediaRotation - item.windowRotation;
-			const TCHAR *rotateOpt = _T("");
-			if (item.mediaType.format != MediaType::Audio)
+			// Figure the ffmpeg transforms to apply to the captured screen
+			// images to get the final video in the correct orientation.  We
+			// need to invert the transformations we apply to our display
+			// images, so that an image captured from a screen that appears
+			// as we display it gets stored in a format that yields that same
+			// screen display appearance after applying our display transforms.
+			// We apply our mirror/flip transforms last, so apply the reverse
+			// mirror/flip transforms first in the capture.  (The mirror/flip
+			// transforms are mutually commutative, so it doesn't matter
+			// which one goes first.)
+			TSTRING transforms;
+			auto AddTransform = [&transforms, &item](const TCHAR *t) 
 			{
-				switch ((rotate + 360) % 360)
+				// add visual transforms for visual media only
+				if (item.mediaType.format != MediaType::Audio)
 				{
-				case 90:
-					rotateOpt = _T("-vf \"transpose=1\"");  // 90 degrees clockwise
-					break;
+					// add the -vf switch before the first item; add commas
+					// before subsequent items
+					if (transforms.length() == 0)
+						transforms = _T("-vf \"");
+					else
+						transforms += _T(",");
 
-				case 180:
-					rotateOpt = _T("-vf \"hflip,vflip\"");  // mirror both axes
-					break;
-
-				case 270:
-					rotateOpt = _T("-vf \"transpose=2\"");	// 90 degrees counterclockwise
-					break;
+					// add the new transform
+					transforms += t;
 				}
+			};
+			if (item.windowMirrorVert)
+				AddTransform(_T("vflip"));
+			if (item.windowMirrorHorz)
+				AddTransform(_T("hflip"));
+
+			// Now add the rotation transform.  We need to figure the total
+			// rotation as the difference between the normal rotation for the
+			// media type and the window rotation.  And then we have to apply
+			// that rotation in the opposite direction.  Our display transforms
+			// are all clockwise, so we need counter-clockwise rotations for
+			// the reversals.
+			int rotate = item.mediaRotation - item.windowRotation;
+			switch ((rotate + 360) % 360)
+			{
+			case 90:
+				AddTransform(_T("transpose=2"));  // 90 degrees counter-clockwise
+				break;
+
+			case 180:
+				AddTransform(_T("transpose=1,transpose=1"));  // 90 degrees twice -> 180 degrees
+				break;
+
+			case 270:
+				AddTransform(_T("transpose=1"));  // 90 degrees clockwise
+				break;
 			}
+
+			// add the close quote to the transforms if applicable
+			if (transforms.length() != 0)
+				transforms += _T("\"");
 
 			// set up the image format options, if we're capturing a still
 			// image or a video
@@ -2934,7 +2972,7 @@ DWORD Application::GameMonitorThread::Main()
 					_T(" \"%s\""),
 					ffmpeg,
 					tmpfile.c_str(),
-					rotateOpt, 
+					transforms.c_str(), 
 					item.filename.c_str());
 			}
 			else
@@ -2947,7 +2985,7 @@ DWORD Application::GameMonitorThread::Main()
 					_T(" \"%s\""),
 					ffmpeg, 
 					imageOpts.c_str(), audioOpts.c_str(), acodecOpts.c_str(),
-					rotateOpt, timeLimitOpt.c_str(), rtbufsizeOpts.c_str(),
+					transforms.c_str(), timeLimitOpt.c_str(), rtbufsizeOpts.c_str(),
 					item.filename.c_str());
 			}
 

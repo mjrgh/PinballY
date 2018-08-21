@@ -1,6 +1,6 @@
 PinballY Update History
 
-??-??-2018 (1.0.0 Alpha 13)
+08-21-2018 (1.0.0 Alpha 13)
 
 * Add "Delete Game Details" command to the game setup menu, to delete
 the bibliographic database entry for the selected game.
@@ -12,6 +12,19 @@ the game wheel logo in place of the plain text title; showing the
 table file name; showing the table type (solid state, etc), in full or
 abbreviated; and for whether or not to use graphical logos for the
 manufacturer and system type.
+
+* Take the mirror/flip display transformations into account during
+video capture.
+
+* Reverse the 90- and 270- degree rotation senses for the capture.
+These were backwards in past versions.
+
+* Mirror/flip the capture status box to match the settings of the
+window it's over.
+
+* When deleting media from the "Show Media Files" list, stop video
+playback to ensure that we don't create our own sharing conflict with
+the file by holding it open for video playback.
 
 * Try to work around a dmd-extensions problem (dmd-ext issue #125,
 crash if no game name set: workaround is to set a dummy game name

@@ -8282,15 +8282,39 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 
 void PlayfieldView::DelMediaFile()
 {
-	if (DeleteFile(showMedia.file.c_str()))
+	// clear all media for the current game, to make sure the file
+	// we're trying to delete isn't in use by the video player
+	Application::Get()->ClearMedia();
+
+	// try a few times if we get a "busy" error
+	for (int tries = 0; ; ++tries)
 	{
-		ShowMediaFiles(0);
-	}
-	else
-	{
-		WindowsErrorMessage err;
-		ShowSysError(LoadStringT(IDS_ERR_DEL_MEDIA_FILE),
-			MsgFmt(_T("File %s: %s"), showMedia.file.c_str(), err.Get()));
+		// try deleting the file
+		if (DeleteFile(showMedia.file.c_str()))
+		{
+			// success - sync media and re-show the media menu
+			SyncPlayfield(SyncDelMedia);
+			ShowMediaFiles(0);
+			break;
+		}
+		else
+		{
+			// chcck the error
+			WindowsErrorMessage err;
+			if (tries < 3 && (err.GetCode() == ERROR_SHARING_VIOLATION || err.GetCode() == ERROR_LOCK_VIOLATION))
+			{
+				// Pause briefly and retry.  The video player stops
+				// asynchronously, so it might hold the file open
+				// briefly after we initially clear the media.
+				Sleep(250);
+			}
+			else
+			{
+				// other error, or no more retries left - show the error
+				ShowSysError(LoadStringT(IDS_ERR_DEL_MEDIA_FILE),
+					MsgFmt(_T("File %s: %s"), showMedia.file.c_str(), err.Get()));
+			}
+		}
 	}
 }
 

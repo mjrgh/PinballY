@@ -355,7 +355,8 @@ protected:
 	enum SyncPlayfieldMode
 	{
 		SyncByTimer,
-		SyncEndGame
+		SyncEndGame,
+		SyncDelMedia
 	};
 	void SyncPlayfield(SyncPlayfieldMode mode);
 

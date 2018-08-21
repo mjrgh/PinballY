@@ -533,6 +533,8 @@ protected:
 				mediaType(mediaType),
 				enableAudio(enableAudio),
 				windowRotation(0),
+				windowMirrorVert(false),
+				windowMirrorHorz(false),
 				mediaRotation(0),
 				captureTime(0)
 			{ }
@@ -556,6 +558,10 @@ protected:
 			// (so that the bottom of the playfield image is drawn
 			// at the right edge of the window).
 			int windowRotation;
+
+			// Current mirroring settings for this window
+			bool windowMirrorVert;
+			bool windowMirrorHorz;
 
 			// Target rotation for this media type, in degrees.  This
 			// is the rotation used for media of this type as stored
