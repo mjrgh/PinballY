@@ -125,6 +125,9 @@ protected:
 	// Write queue lock
 	CriticalSection writeFrameLock;
 
+	// DMD DLL access lock
+	static CriticalSection dmdLock;
+
 	// load the DLL
 	bool LoadDLL(ErrorHandler &eh);
 
@@ -143,7 +146,12 @@ protected:
 	// Information on the dmd-extensions version of dmddevice.dll
 	static struct DmdExtInfo
 	{
-		DmdExtInfo() : matched(false), virtualEnabled(true), settingsFix(false) { }
+		DmdExtInfo() : 
+			matched(false), 
+			virtualEnabled(true),
+			settingsFix(false),
+			virtualCloseFix(false)
+		{ }
 
 		// Is this the dmd-extensions version of dmddevice.dll?
 		bool matched;
@@ -152,9 +160,16 @@ protected:
 		bool virtualEnabled;
 
 		// Does this version of the DLL have the PM_GameSettings()
-		// fix?  Older versions of the DLL crashed if we call
-		// PM_GameSettings().  Releases from 1.7.3 have a fix.
+		// fix?  Older versions of the DLL crashed if we called
+		// PM_GameSettings() more than once per process lifetime.
+		// Releases from 1.7.3 have a fix.
 		bool settingsFix;
+
+		// Does this version of the DLL have the Close()/Open()
+		// fix?  Older versions of the DLL crashed if we called
+		// Close() and then called Open() again within the
+		// process lifetime.  Releases from 1.7.3 have a fix.
+		bool virtualCloseFix;
 
 	} dmdExtInfo;
 

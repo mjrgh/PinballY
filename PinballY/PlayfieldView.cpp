@@ -253,29 +253,37 @@ void PlayfieldView::InitRealDMD(ErrorHandler &eh)
 	auto mode = GetRealDMDStatus();
 	if (mode == RealDMDEnable || mode == RealDMDAuto)
 	{
-		// proceed with initialization
+		// presume failure
 		bool ok = false;
-		do
+
+		// create the interface object
+		realDMD.reset(new RealDMD());
+
+		// if we're in AUTO mode, check first to see if the DLL
+		// exists, and fail silently if not (since AUTO means that
+		// the DMD is enabled according to whether or not the DLL
+		// can be found)
+		if (mode == RealDMDAuto && !realDMD->FindDLL())
 		{
-			// create the interface object
-			realDMD.reset(new RealDMD());
-
-			// if we're in AUTO mode, check first to see if the DLL
-			// exists, and fail silently if not (since AUTO means that
-			// the DMD is enabled according to whether or not the DLL
-			// can be found)
-			if (mode == RealDMDAuto && !realDMD->FindDLL())
-				break;
-
+			// auto mode, no DLL -> fail silently
+		}
+		else
+		{
 			// try initializing the DLL
 			ok = realDMD->Init(eh);
+		}
 
-		} while (false);
-
-		// if initialization failed (or if we didn't even attempt it due
-		// to a missing DLL), forget the DMD interface
-		if (!ok)
+		// check what happened
+		if (ok)
+		{
+			// loaded successfully - sync media in the DMD
+			realDMD->UpdateGame();
+		}
+		else
+		{
+			// failed or not attempted - forget the DMD interface
 			realDMD.reset(nullptr);
+		}
 	}
 }
 
@@ -2206,10 +2214,14 @@ void PlayfieldView::ShowHighScores()
 	// high score data when we receive it.
 	RequestHighScores();
 
+	// set up the default font
+	int textFontPts = 24;
+	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), textFontPts, 400));
+
 	// drawing function
 	int width = 972, height = 2000;
 	int pass = 1;
-	auto Draw = [gl, game, this, width, &height, &pass](HDC hdc, HBITMAP)
+	auto Draw = [gl, game, this, width, &height, &pass, &textFont](HDC hdc, HBITMAP)
 	{
 		// set up a GDI+ drawing context
 		Gdiplus::Graphics g(hdc);
@@ -2223,9 +2235,8 @@ void PlayfieldView::ShowHighScores()
 
 		// write the high score information
 		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-		std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400));
 		for (auto const &txt : game->highScores)
-			gds.DrawString(txt.c_str(), textFont.get(), &textBr);
+			gds.DrawString(txt.length() == 0 ? _T(" ") : txt.c_str(), textFont.get(), &textBr);
 
 		// add some vertical whitespace
 		gds.curOrigin.Y += margin * 2;
@@ -2252,18 +2263,33 @@ void PlayfieldView::ShowHighScores()
 
 		// set the final height and count the drawing pass
 		height = (int)(gds.curOrigin.Y + margin);
-		++pass;
 
 		// close out the drawing context
 		g.Flush();
 	};
 
-	// Draw it to a dummy DC to figure the required height.  This will
-	// adjust 'height' to the actual required height.
-	MemoryDC memdc;
-	Draw(memdc, NULL);
-	
-	// set a minimum drawing height
+	// Keep going until we find a font size that makes all of the text fit.
+	// Some games (I'm looking at you, Medieval Madness) have insanely long
+	// high score lists that need to be squeezed a bit to fit a reasonable
+	// window height.
+	while (textFontPts > 12)
+	{
+		// Draw it to a dummy DC to figure the required height.  This will
+		// adjust 'height' to the actual required height.
+		MemoryDC memdc;
+		Draw(memdc, NULL);
+
+		// if it fits 80% of our reference window height, it's a fit
+		if (height < 1536)
+			break;
+
+		// reduce the font size slightly and try again
+		textFontPts -= 4;
+		textFont.reset(CreateGPFont(_T("Tahoma"), textFontPts, 400));
+	}
+
+	// set a minimum height, so that the box doesn't look too squat for
+	// older games with one-liner high scores
 	height = max(500, height);
 
 	// If there's a game info popup currently showing, we must be switching
@@ -2276,6 +2302,7 @@ void PlayfieldView::ShowHighScores()
 		height = max(height, (int)(popupSprite->loadSize.y * 1920.0f));
 
 	// Now create the sprite and draw it for real at the final height
+	++pass;
 	Application::InUiErrorHandler eh;
 	popupSprite.Attach(new Sprite());
 	if (!popupSprite->Load(width, height, Draw, eh, _T("High Scores box")))
@@ -3559,9 +3586,9 @@ void PlayfieldView::AdjustSpritePosition(Sprite *sprite)
 	float loadHt = sprite->loadSize.y;
 
 	// Figure the Y offset that leaves at least a top margin of
-	// at least 1/8 of the screen height.  This will be the minimum
+	// at least 1/16 of the screen height.  This will be the minimum
 	// Y offset.
-	float yOfsMin = 0.5f - loadHt/2.0f - .125f;
+	float yOfsMin = 0.5f - loadHt/2.0f - .0625f;
 
 	// The sprite will be centered in the top half of the screen if
 	// we offset it to a normalized position of +.25.  Apply this

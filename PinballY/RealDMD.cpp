@@ -53,6 +53,7 @@ bool RealDMD::dllLoaded = false;
 HMODULE RealDMD::hmodDll = NULL;
 TSTRING RealDMD::dllPath;
 RealDMD::DmdExtInfo RealDMD::dmdExtInfo;
+CriticalSection RealDMD::dmdLock;
 
 // default options
 const tPMoptions RealDMD::defaultOpts = {
@@ -109,13 +110,13 @@ bool RealDMD::FindDLL()
 
 	LogGroup();
 	Log(_T("Searching for real DMD device DLL\n"));
-	
+
 	// Look for the DLL in our own program folder first.  This allows
 	// using a specific version of the DLL with PinballY, without
 	// affecting the VPinMAME configuration, simply by copying the
 	// desired DLL into the PinballY program folder.
 	TCHAR buf[MAX_PATH] = { 0 };
-	GetModuleFileName(G_hInstance, buf, countof(dllPath));
+	GetModuleFileName(G_hInstance, buf, countof(buf));
 	PathRemoveFileSpec(buf);
 	PathAppend(buf, DMD_DLL_FILE);
 	if (FileExists(buf))
@@ -316,7 +317,8 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 
 				// Check the product version to see if it's a newer version
 				// wiht the fix for a bug that caused the DLL to crash if we
-				// called PM_GameSettings().  The fix is in 1.7.3 and later.
+				// called PM_GameSettings() more than once per process
+				// lifetime.  The fix is in 1.7.3 and later.
 				if (vsnNum >= 0x0001000700030000UL)
 				{
 					Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
@@ -324,9 +326,28 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				}
 				else
 				{
-					Log(_T("+ Based on the version number, this version has a bug in PM_GameSettings,\n")
-						_T("  so we won't call that function; as a result, per-game coloring from your\n")
-						_T("  VPinMAME settings won't be used during this session \n"));
+					Log(_T("+ Based on the version number, this version of the DLL has a bug in PM_GameSettings,\n")
+						_T("  so we won't call that function; as a result, per-game coloring from your VPinMAME\n")
+						_T("  settings won't be used during this session.\n"));
+				}
+
+				// Check the product version to see if it has a fix for the
+				// Close/Open bug, which makes the DLL crash if we try to close
+				// and reopen it more than once per process lifetime.   This is
+				// fixed in 1.7.3 and later.
+				if (vsnNum >= 0x0001000700030000UL)
+				{
+					Log(_T("+ Based on the version number, this version has the fix for the Open/Close bug\n"));
+					dmdExtInfo.virtualCloseFix = true;
+				}
+				else
+				{
+					Log(_T("+ Based on the version number, this version of the DLL has a bug that crashes\n")
+						_T("  the process if we try to close and later reopen the DLL session.  As a result,\n")
+						_T("  we'll leave the session open permanently once opened.  This may result in the\n")
+						_T("  DLL's virtual DMD window remaining visible even if you explicitly disable the\n")
+						_T("  real DMD feature in the options.  Close PinballY and restart it to get rid of\n")
+						_T("  the extra window."));
 				}
 			}
 		}
@@ -545,8 +566,11 @@ void RealDMD::Shutdown()
 	}
 
 	// blank the DMD before we detach from it
-	if (Render_16_Shades_ != NULL && emptySlide != nullptr)
+	if (enabled && Render_16_Shades_ != NULL && emptySlide != nullptr)
+	{
+		CriticalSectionLocker dmdLocker(dmdLock);
 		Render_16_Shades_(dmdWidth, dmdHeight, emptySlide->pix.get());
+	}
 
 	// close the session with the underlying device
 	CloseSession();
@@ -556,7 +580,10 @@ void RealDMD::OpenSession()
 {
 	// open the DLL session
 	if (Open_ != NULL)
+	{
+		CriticalSectionLocker dmdLocker(dmdLock);
 		Open_();
+	}
 
 	// Set a dummy ROM initially.  dmd-extensions will crash in some
 	// cases if we make other calls before setting a game, since it
@@ -581,7 +608,8 @@ void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
 		// ability of the DLL to apply per-game colorization settings.
 		// But that's much better than crashing the whole process.
 		static int nCalls = 0;
-		bool safeToCall = nCalls == 0 || !dmdExtInfo.matched || !dmdExtInfo.virtualEnabled || dmdExtInfo.settingsFix;
+		bool hasNthCallBug = dmdExtInfo.matched && dmdExtInfo.virtualEnabled && !dmdExtInfo.settingsFix;
+		bool safeToCall = nCalls == 0 || !hasNthCallBug;
 		if (safeToCall)
 		{
 			// Send the settings to the device.  Note that the generation
@@ -591,11 +619,13 @@ void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
 			// the WPC95 generation is suitable.  (Note that if we didn't
 			// load any registry settings, we'll still have valid defaults
 			// to send from initializing the struct earlier.)
+			CriticalSectionLocker dmdLocker(dmdLock);
 			PM_GameSettings_(gameName, GEN_WPC95, opts);
 
 			// count the call
 			++nCalls;
 		}
+		Sleep(250);
 	}
 }
 
@@ -604,7 +634,7 @@ void RealDMD::CloseSession()
 	if (IsDllValid() && enabled && Close_ != NULL)
 	{
 		// check what kind of DLL we're talking to
-		if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled)
+		if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled && !dmdExtInfo.virtualCloseFix)
 		{
 			// It's the dmd-extensions library with its virtual DMD enabled.
 			// There's a bug in the DLL that crashes the process if we close
@@ -615,6 +645,7 @@ void RealDMD::CloseSession()
 			// for anything else, it should be safe to close the session,
 			// which hopefully will release any USB connection and allow
 			// other processes to access the DMD
+			CriticalSectionLocker dmdLocker(dmdLock);
 			Close_();
 		}
 	}
@@ -1120,7 +1151,7 @@ DWORD RealDMD::WriterThreadMain()
 			RefPtr<Slide> frame;
 			{
 				// lock the queue
-				CriticalSectionLocker locker(writeFrameLock);
+				CriticalSectionLocker frameLocker(writeFrameLock);
 
 				// if there's no frame, there's nothing to do
 				if (writerFrame == nullptr)
@@ -1131,19 +1162,22 @@ DWORD RealDMD::WriterThreadMain()
 			}
 
 			// send the frame to the device
-			switch (frame->colorSpace)
 			{
-			case DMD_COLOR_MONO4:
-				Render_4_Shades_(dmdWidth, dmdHeight, frame->pix.get());
-				break;
+				CriticalSectionLocker dmdLocker(dmdLock);
+				switch (frame->colorSpace)
+				{
+				case DMD_COLOR_MONO4:
+					Render_4_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+					break;
 
-			case DMD_COLOR_MONO16:
-				Render_16_Shades_(dmdWidth, dmdHeight, frame->pix.get());
-				break;
+				case DMD_COLOR_MONO16:
+					Render_16_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+					break;
 
-			case DMD_COLOR_RGB:
-				Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<DMDDevice::rgb24*>(frame->pix.get()));
-				break;
+				case DMD_COLOR_RGB:
+					Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<DMDDevice::rgb24*>(frame->pix.get()));
+					break;
+				}
 			}
 		}
 	}
@@ -1187,7 +1221,8 @@ void RealDMD::GenerateHighScoreGraphics()
 			return;
 
 		// generate the graphics for each high score text group
-		curGame->DispHighScoreGroups([this](const std::list<const TSTRING*> &group)
+		int nSlides = 0;
+		curGame->DispHighScoreGroups([this, &nSlides](const std::list<const TSTRING*> &group)
 		{
 			// allocate a buffer for the image and clear it to all "off" pixels
 			const int dmdBytes = dmdWidth * dmdHeight;
@@ -1255,7 +1290,14 @@ void RealDMD::GenerateHighScoreGraphics()
 			// add this screen to our list, transferring ownership of the pixel
 			// buffer to the list
 			slideShow.emplace_back(new Slide(DMD_COLOR_MONO16, pix.release(), 3500, Slide::HighScoreSlide));
+
+			// count the slides we added
+			++nSlides;
 		});
+
+		// if we only generated one slide, extend its display time
+		if (nSlides == 1)
+			slideShow.back()->displayTime += 2000;
 	}
 
 	// reset the slide show pointer
@@ -1341,6 +1383,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			}
 
 			// display it
+			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_16_Shades_(dmdWidth, dmdHeight, gray);
 		}
 		else if (width == dmdWidth && height == dmdHeight)
@@ -1361,6 +1404,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			}
 
 			// display it
+			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_16_Shades_(dmdWidth, dmdHeight, gray);
 		}
 		break;
@@ -1422,6 +1466,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			}
 
 			// display it
+			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_RGB24_(dmdWidth, dmdHeight, rgb);
 		}
 		else if (width == dmdWidth && height == dmdHeight)
@@ -1464,6 +1509,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			}
 
 			// display it
+			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_RGB24_(dmdWidth, dmdHeight, rgb);
 		}
 		break;

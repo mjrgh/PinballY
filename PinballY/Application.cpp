@@ -327,13 +327,13 @@ int Application::EventLoop(int nCmdShow)
 	if (ok)
 		ok = InputManager::GetInstance()->InitRawInput(playfieldWin->GetHWnd());
 
-	// try setting up real DMD support
-	if (ok)
-		GetPlayfieldView()->InitRealDMD(InUiErrorHandler());
-
 	// create the high scores reader object
 	highScores.Attach(new HighScores());
 	highScores->Init();
+
+	// try setting up real DMD support
+	if (ok)
+		GetPlayfieldView()->InitRealDMD(InUiErrorHandler());
 
 	// Generate a PINemHi version request on behalf of the main window
 	highScores->GetVersion(GetPlayfieldView()->GetHWnd());
@@ -1359,6 +1359,26 @@ void Application::GameMonitorThread::CloseGame()
 	// if the game is running, close its windows
 	if (IsGameRunning())
 	{
+		// Try bringing our main window to the foreground before 
+		// closing the game program's window(s), so that the taskbar 
+		// doesn't reappear between closing the game and activating
+		// our window, assuming we're in full-screen mode.  Explorer 
+		// normally hides the taskbar when a full-screen window is
+		// in front, but only when it's in front.
+		if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
+		{
+			// inject a call to the child process to set our window
+			// as the foreground
+			DWORD tid;
+			HandleHolder hRemoteThread = CreateRemoteThread(
+				hGameProc, NULL, 0,
+				(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
+				0, &tid);
+
+			// explicitly set our foreground window
+			SetForegroundWindow(pfw->GetHWnd());
+		}
+
 		// Try closing one game window at a time.  Repeat until we
 		// don't find any windows to close, or we reach a maximum
 		// retry limit (so that we don't get stuck if the game 
@@ -1368,61 +1388,43 @@ void Application::GameMonitorThread::CloseGame()
 			// look for a window to close
 			struct CloseContext
 			{
-				CloseContext(HANDLE hGameProc) : found(false), hGameProc(hGameProc) { }
-				bool found;
-				HANDLE hGameProc;
-			} closeCtx(hGameProc);
+				std::list<HWND> windows;
+			} closeCtx;
 			EnumThreadWindows(tidMainGameThread, [](HWND hWnd, LPARAM lParam)
 			{
 				// get the context
 				auto ctx = reinterpret_cast<CloseContext*>(lParam);
-
-				// Try bringing our main window to the foreground before 
-				// closing the game window, so that the taskbar doesn't
-				// reappear between closing the game window and activating
-				// our window, assuming we're in full-screen mode.  Explorer 
-				// normally hides the taskbar when a full-screen window is
-				// in front, but only when it's in front.
-				if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
-				{
-					// inject a call to the child process to set our window
-					// as the foreground
-					DWORD tid;
-					HandleHolder hRemoteThread = CreateRemoteThread(
-						ctx->hGameProc, NULL, 0,
-						(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
-						0, &tid);
-
-					// explicitly set our foreground window
-					SetForegroundWindow(pfw->GetHWnd());
-				}
-
-				// If the window is visible and enabled, close it.  Don't try 
-				// to close hidden or disabled windows; doing so can crash VP
-				// if it's showing a dialog.
+				
+				// Only include windows that are visible and enabled.  VP will
+				// crash if we try to close disabled windows while a dialog is
+				// showing.
 				if (IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
-				{
-					// this window looks safe to close - try closing it
-					SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
-
-					// note that we found something to close, and stop the
-					// enumeration
-					ctx->found = true;
-					return FALSE;
-				}
+					ctx->windows.push_back(hWnd);
 
 				// continue the enumeration
 				return TRUE;
 			}, reinterpret_cast<LPARAM>(&closeCtx));
 
-			// if we didn't find any windows to close on this pass, stop
-			// looping
-			if (!closeCtx.found)
+			// if we didn't find any windows to close, stop trying to
+			// close windows
+			if (closeCtx.windows.size() == 0)
 				break;
+
+			// try closing each window we found
+			for (auto hWnd : closeCtx.windows)
+			{
+				// try closing this window
+				SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+
+				// If it's still there, send it an ordinary WM_CLOSE as well.
+				// Some windows don't response to SC_CLOSE.
+				if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
+					SendMessage(hWnd, WM_CLOSE, 0, 0);
+			}
 
 			// pause briefly between iterations to give the program a chance
 			// to update its windows; stop if the process exits
-			if (hGameProc == NULL || WaitForSingleObject(hGameProc, 1000) != WAIT_TIMEOUT)
+			if (hGameProc == NULL || WaitForSingleObject(hGameProc, 100) != WAIT_TIMEOUT)
 				break;
 		}
 
@@ -3019,8 +3021,19 @@ DWORD Application::GameMonitorThread::Main()
 				sa.lpSecurityDescriptor = NULL;
 				sa.bInheritHandle = TRUE;
 
-				// open the NUL file as stdin for the child
-				HandleHolder hNulIn = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
+				// Create a pipe for the ffmpeg stdin.  This will let us send
+				// a "q" key to cancel the capture prematurely if necessary.
+				HandleHolder hStdinRead, hStdinWrite;
+				if (CreatePipe(&hStdinRead, &hStdinWrite, &sa, 1024))
+				{
+					// don't let the child inherit our end of the pipe
+					SetHandleInformation(hStdinWrite, HANDLE_FLAG_INHERIT, 0);
+				}
+				else
+				{
+					// failed to create the pipe - just pass the NUL device
+					hStdinRead = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
+				}
 
 				// Set up a temp file to capture output from FFmpeg, so that we can
 				// copy it to the log file after the capture is done.  Do this whether
@@ -3064,7 +3077,7 @@ DWORD Application::GameMonitorThread::Main()
 				startupInfo.cb = sizeof(startupInfo);
 				startupInfo.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
 				startupInfo.wShowWindow = SW_SHOWNOACTIVATE;
-				startupInfo.hStdInput = hNulIn;
+				startupInfo.hStdInput = hStdinRead;
 				startupInfo.hStdOutput = hStdOut;
 				startupInfo.hStdError = hStdOut;
 
@@ -3077,6 +3090,9 @@ DWORD Application::GameMonitorThread::Main()
 					// so that we auto-close the handles when done with them.
 					HandleHolder hFfmpegProc(procInfo.hProcess);
 					HandleHolder hFfmpegThread(procInfo.hThread);
+
+					// close our copy of the child's stdin read handle
+					hStdinRead = NULL;
 
 					// copy the ffmpeg output log file to our log, if capturing a log
 					auto CopyOutputToLog = [&hStdOut, &fnameStdOut, &LogCommandLine](bool force)
@@ -3189,11 +3205,22 @@ DWORD Application::GameMonitorThread::Main()
 					default:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
-						CopyOutputToLog(false);
-						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 						captureOkay = false;
 						abortCapture = true;
+
+						// log it
+						CopyOutputToLog(false);
+						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
+
+						// Send ffmpeg a "Q" key press on its stdin to try to shut
+						// it down immediately
+						if (hStdinWrite != NULL)
+						{
+							static const char msg[] = "q\n";
+							DWORD actual;
+							WriteFile(hStdinWrite, msg, sizeof(msg) - 1, &actual, NULL);
+						}
 						break;
 					}
 				}

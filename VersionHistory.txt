@@ -1,5 +1,29 @@
 PinballY Update History
 
+08-22-2018 (1.0.0 Alpha 14)
+
+* Speed up VP X exit times.  (In the past, VP X exit was really slow
+due to a workaround we were using for a VP 9 problem that made VP 9
+crash if we closed it while it was showing a dialog.  The workaround
+had to do with the order of closing the child app's windows.  The new
+approach is safe against the VP 9 crash problem but lets VP X exit
+quickly.)
+
+* Explicitly terminate ffmpeg capture when the game exits prematurely
+or the user cancels the operation.  (In the past, we didn't try to
+terminate ffmpeg separately, so it could sometimes keep recording the
+screen even though the game wasn't running any more.)
+
+* Include blank lines between sections in the high scores box.
+
+* Reduce the high score box font size as needed to make it fit a
+reasonable window height for games with unusually long high score
+lists (I'm looking at you, Medieval Madness).
+
+* Clean up some anomalies with on-the-fly changes to the real DMD
+enable/disable status when dmd-extensions is in use.
+
+
 08-21-2018 (1.0.0 Alpha 13)
 
 * Add "Delete Game Details" command to the game setup menu, to delete
