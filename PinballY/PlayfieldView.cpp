@@ -2603,10 +2603,22 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
 	}
 
+	// Figure the aspect ratio to use for displaying the playfield
+	// Use 16:9 by default, since that's the standard aspect ratio
+	// for HD monitors, and it's the target display format that most
+	// full-screen games are designed for.  However, if the window
+	// is in full-screen mode and portrait orientation, it looks
+	// nice if we fit the video to the monitor, so use the window's
+	// actual aspect ratio in this case.
+	float aspectRatio = 9.0f/16.0f;
+	if (auto pfw = Application::Get()->GetPlayfieldWin(); 
+	   pfw != nullptr && pfw->IsFullScreen() && szLayout.cx < szLayout.cy)
+		aspectRatio = (float)szLayout.cx / (float)szLayout.cy;
+
 	// Asynchronous loader function
 	HWND hWnd = this->hWnd;
 	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, szLayout](VideoSprite *sprite)
+	auto load = [hWnd, video, image, szLayout, aspectRatio](VideoSprite *sprite)
 	{
 		// nothing loaded yet
 		bool ok = false;
@@ -2615,12 +2627,13 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		sprite->alpha = 0;
 
 		// First try loading a playfield video.  Load it at the window
-		// height and proportional width for 16:9 presentation.  (Playfield
-		// images and videos are stored "sideways", so the nominal height
-		// is actually the image width and vice versa.)
+		// height and proportional width for the aspect ratio we determine
+		// above.  Playfield and images and videos are stored "sideways"
+		// (rotated 90 degrees clockwise), so the display height is the
+		// image width, and vice versa.
 		Application::AsyncErrorHandler eh;
 		if (video.length() != 0
-			&& sprite->LoadVideo(video, hWnd, { 1.0f, 9.0f/16.0f }, eh, _T("Playfield Video")))
+			&& sprite->LoadVideo(video, hWnd, { 1.0f, aspectRatio }, eh, _T("Playfield Video")))
 			ok = true;
 
 		// If there's no video, try a static image
@@ -2648,10 +2661,10 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		{
 			TCHAR buf[MAX_PATH];
 			GetDeployedFilePath(buf, _T("assets\\DefaultPlayfield.png"), _T(""));
-			sprite->Load(buf, { 1.0f, 9.0f / 16.0f }, { szLayout.cx, (int)(szLayout.cx * 9.0f / 16.0f) }, eh);
+			sprite->Load(buf, { 1.0f, aspectRatio }, { szLayout.cx, (int)(szLayout.cx * aspectRatio) }, eh);
 		}
 
-		// PinballX playfield images are oriented sideways, with the bottom
+		// HyperPin/PBX playfield images are oriented sideways, with the bottom
 		// at the left.  Rotate 90 degrees clockwise to orient it vertically.
 		// The actual display will of course orient it according to the camera
 		// view, but it makes things easier to think about if we orient all

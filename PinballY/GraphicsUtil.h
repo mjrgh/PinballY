@@ -79,10 +79,17 @@ void DrawOffScreen(int width, int height,
 // Simplified GDI+ font creation.  This uses the typical defaults for
 // most settings, to avoid the need to fill out a LOGFONT struct to
 // initialize a font object.
-Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight);
+//
+// If hdc is non-null, we'll scale the font according to the pixel
+// pitch for the given device, otherwise we'll use the reference size
+// of 96 dpi.  The reference size should be used for most of our D3D
+// graphics, since we prepare those in device-independent format at a
+// reference scale.
+Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc = NULL);
 
-// Create a GDI+ font at a given pixel height
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight);
+// Create a GDI+ font at a given pixel height.  If a DC is provided,
+// we'll scale 
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, HDC hdc = NULL);
 
 // Draw a string via GDI+, advancing the origin to the next line
 // vertically.

@@ -116,43 +116,38 @@ Gdiplus::Bitmap *GPBitmapFromPNG(int resid)
 	return bmp;
 }
 
-Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight)
+Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc)
 {
-	// set up a memory DC, to create a font suitable for the display
-	MemoryDC memdc;
+	// Figure the pixel pitch in pix/inch.  If a DC was specified, use
+	// its pixel pitch, otherwise use the reference 96 dpi.
+	int dpi = hdc != NULL ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
 
-	// set up a logical font
-	LOGFONT lf;
-	lf.lfHeight = -MulDiv(pointSize, GetDeviceCaps(memdc, LOGPIXELSY), 72);
-	lf.lfWidth = 0;
-	lf.lfEscapement = 0;
-	lf.lfOrientation = 0;
-	lf.lfWeight = weight;
-	lf.lfItalic = FALSE;
-	lf.lfUnderline = FALSE;
-	lf.lfStrikeOut = FALSE;
-	lf.lfCharSet = DEFAULT_CHARSET;
-	lf.lfOutPrecision = OUT_DEFAULT_PRECIS;
-	lf.lfClipPrecision = CLIP_DEFAULT_PRECIS;
-	lf.lfQuality = CLEARTYPE_QUALITY;
-	lf.lfPitchAndFamily = DEFAULT_PITCH;
-	_tcscpy_s(lf.lfFaceName, faceName);
+	// figure the em size in pixels: 1 point = 1/72"
+	float emSize = (float)pointSize * (float)dpi / (float)72.0f;
 
-	// create the font
-	return new Gdiplus::Font(memdc, &lf);
-}
-
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight)
-{
-	// set up a memory DC, to create a font suitable for the display
-	MemoryDC memdc;
-
-	// scale the height for the monitor DPI
-	float emSize = 96.0f/float(::GetDeviceCaps(memdc, LOGPIXELSY)) * float(pixHeight);
+	// figure the style
+	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
 
 	// create the font
 	Gdiplus::FontFamily family(faceName);
-	return new Gdiplus::Font(&family, emSize, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+	return new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel);
+}
+
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, HDC hdc)
+{
+	// figure the pixel pitch in pix/inch: use the pixel pitch specific
+	// to the device if a DC was provided, otherwise use the reference 96dpi
+	int dpi = hdc != NULL ? GetDeviceCaps(hdc, LOGPIXELSY) : 96;
+
+	// scale the height for the monitor DPI
+	float emSize = 96.0f/float(dpi) * float(pixHeight);
+
+	// figure the style
+	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
+
+	// create the font
+	Gdiplus::FontFamily family(faceName);
+	return new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel);
 }
 
 void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,

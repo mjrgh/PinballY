@@ -249,6 +249,20 @@ protected:
 	// the device before the next frame arrives.
 	RefPtr<Slide> writerFrame;
 
+	// Game settings, to send via the writer thread.  The DLL export
+	// can be quite slow in some implementations (about 250ms in
+	// dmd-extensions), so, as with the video frames, we want to
+	// make these calls from our background thread to avoid blocking
+	// the UI.
+	struct GameSettings
+	{
+		GameSettings(const char *gameName, const DMDDevice::tPMoptions &opts) :
+			gameName(gameName), opts(opts) { }
+		CSTRING gameName;
+		DMDDevice::tPMoptions opts;
+	};
+	std::unique_ptr<GameSettings> writerSettings;
+
 	// send a frame to the writer
 	void SendWriterFrame(Slide *slide);
 

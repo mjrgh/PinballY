@@ -1,5 +1,27 @@
 PinballY Update History
 
+08-24-2018 (1.0.0 Alpha 16)
+
+* Try fixing font scaling for high-DPI monitors
+
+* Recognize the temporary mjr test build of dmd-extensions as
+containing fixes
+
+* Fix slight UI pause during game switching when real DMD is in use
+
+* Use actual monitor aspect ratio for playfield background videos and
+images when in full-screen portrait mode.  (A fixed 16:9 aspect ratio
+is still used in other cases.)  Some computer monitors have slightly
+different aspect ratios (e.g., 16:10) from the HD standard; using the
+live monitor's actual aspect ratio fills the screen, which is usually
+preferable to letterboxing or windowboxing the image when the monitor
+is close to but not exactly 16:9.  (This probably won't affect many
+people, because 16:9 is practically universal as far as pin cab
+monitors go.  But if there actually is anyone out there with a
+non-16:9 pin cab monitor, and you think this makes it look worse, this
+could easily be turned into an option.)
+
+
 08-23-2018 (1.0.0 Alpha 15)
 
 * For testing: Mark program as DPI-aware, for (hopefully) better

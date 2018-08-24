@@ -279,16 +279,19 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 		Log(_T("+ retrieving file version info for DLL, to check for special handling\n"), dllPath.c_str());
 		if (GetFileVersionInfo(dllPath.c_str(), vsInfoHandle, vsInfoSize, vsInfo.get()))
 		{
-			// read the ProductName and LegalCopyright strings
-			TSTRING name, cpr;
-			LPCTSTR nameBuf = nullptr, cprBuf = nullptr;
-			UINT nameLen = 0, cprLen = 0;
+			// read the ProductName, Comments, and LegalCopyright strings
+			TSTRING name, comments, cpr;
+			LPCTSTR nameBuf = nullptr;
+			UINT nameLen = 0;
 			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\ProductName"), (LPVOID*)&nameBuf, &nameLen)
 				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\ProductName"), (LPVOID*)&nameBuf, &nameLen))
 				name.assign(nameBuf, nameLen);
-			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\LegalCopyright"), (LPVOID*)&cprBuf, &cprLen)
-				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\LegalCopyright"), (LPVOID*)&cprBuf, &cprLen))
-				cpr.assign(cprBuf, cprLen);
+			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\Comment"), (LPVOID*)&nameBuf, &nameLen)
+				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\Comments"), (LPVOID*)&nameBuf, &nameLen))
+				comments.assign(nameBuf, nameLen);
+			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\LegalCopyright"), (LPVOID*)&nameBuf, &nameLen)
+				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\LegalCopyright"), (LPVOID*)&nameBuf, &nameLen))
+				cpr.assign(nameBuf, nameLen);
 
 			// retrieve the fixed data portion
 			VS_FIXEDFILEINFO *vsFixedInfo = nullptr;
@@ -318,8 +321,10 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				// Check the product version to see if it's a newer version
 				// wiht the fix for a bug that caused the DLL to crash if we
 				// called PM_GameSettings() more than once per process
-				// lifetime.  The fix is in 1.7.3 and later.
-				if (vsnNum >= 0x0001000700030000UL)
+				// lifetime.  The fix is pull request #122, which is in
+				// official releases 1.7.3 and later.
+				if (vsnNum >= 0x0001000700030000UL 
+					|| std::regex_search(comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#122\\b"))))
 				{
 					Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
 					dmdExtInfo.settingsFix = true;
@@ -334,8 +339,10 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				// Check the product version to see if it has a fix for the
 				// Close/Open bug, which makes the DLL crash if we try to close
 				// and reopen it more than once per process lifetime.   This is
-				// fixed in 1.7.3 and later.
-				if (vsnNum >= 0x0001000700030000UL)
+				// fixed in pull request #127, which is in official releases
+				// 1.7.3 and later.
+				if (vsnNum >= 0x0001000700030000UL
+					|| std::regex_search(comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#127\\b"))))
 				{
 					Log(_T("+ Based on the version number, this version has the fix for the Open/Close bug\n"));
 					dmdExtInfo.virtualCloseFix = true;
@@ -612,20 +619,15 @@ void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
 		bool safeToCall = nCalls == 0 || !hasNthCallBug;
 		if (safeToCall)
 		{
-			// Send the settings to the device.  Note that the generation
-			// is chosen for the way we're going to use the device, not for
-			// how the associated game would use it, since the game isn't
-			// actually sending the device data - we are.  For our purposes,
-			// the WPC95 generation is suitable.  (Note that if we didn't
-			// load any registry settings, we'll still have valid defaults
-			// to send from initializing the struct earlier.)
-			CriticalSectionLocker dmdLocker(dmdLock);
-			PM_GameSettings_(gameName, GEN_WPC95, opts);
-
 			// count the call
 			++nCalls;
+
+			// Post a settings object to the writer thread.  Don't do this
+			// inline, since the settings call in the DLL might be slow.
+			CriticalSectionLocker locker(writeFrameLock);
+			writerSettings.reset(new GameSettings(gameName, opts));
+			SetEvent(hWriterEvent);
 		}
-		Sleep(250);
 	}
 }
 
@@ -1147,21 +1149,40 @@ DWORD RealDMD::WriterThreadMain()
 		// send frames to the device
 		for (;;)
 		{
-			// Pull the latest frame off the queue
+			// get the latest video frame and settings data
 			RefPtr<Slide> frame;
+			std::unique_ptr<GameSettings> settings;
 			{
 				// lock the queue
 				CriticalSectionLocker frameLocker(writeFrameLock);
 
-				// if there's no frame, there's nothing to do
-				if (writerFrame == nullptr)
+				// if we have no work to do, we're done for this round
+				if (writerFrame == nullptr && writerSettings == nullptr)
 					break;
 
-				// grab the pending frame, taking over its reference count
+				// grab the pending video frame, taking over its reference count
 				frame.Attach(writerFrame.Detach());
+
+				// grab the pending settings
+				settings.reset(writerSettings.release());
 			}
 
-			// send the frame to the device
+			// send the settings to the device
+			if (settings != nullptr)
+			{
+				// Send the settings to the device.  Note that the generation
+				// is chosen for the way we're going to use the device, not for
+				// how the associated game would use it, since the game isn't
+				// actually sending the device data - we are.  For our purposes,
+				// the WPC95 generation is suitable.  (Note that if we didn't
+				// load any registry settings, we'll still have valid defaults
+				// to send from initializing the struct earlier.)
+				CriticalSectionLocker dmdLocker(dmdLock);
+				PM_GameSettings_(settings->gameName.c_str(), GEN_WPC95, settings->opts);
+			}
+
+			// send the video frame to the device
+			if (frame != nullptr)
 			{
 				CriticalSectionLocker dmdLocker(dmdLock);
 				switch (frame->colorSpace)
