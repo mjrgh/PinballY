@@ -224,6 +224,9 @@ protected:
 	// Handle a WM_SIZE event for minimizing the window
 	virtual void OnMinimize() { }
 
+	// Handle a DPI change event
+	virtual void OnDpiChanged(int dpiX, int dpiY, LPCRECT prcNewPos);
+
 	// Process WM_ERASEBKGND.  By default, we set curMsg->lResult to TRUE
 	// before calling this, since the only reason you'd normally want to
 	// override this is to do whatever erasing needs to be done.  It's

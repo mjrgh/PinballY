@@ -1,5 +1,14 @@
 PinballY Update History
 
+08-23-2018 (1.0.0 Alpha 15)
+
+* For testing: Mark program as DPI-aware, for (hopefully) better
+behavior on 4K monitors and other high-DPI monitors.
+
+* Fixed line wrapping of very long manufacturer names in the popup
+game info box.
+
+
 08-22-2018 (1.0.0 Alpha 14)
 
 * Speed up VP X exit times.  (In the past, VP X exit was really slow

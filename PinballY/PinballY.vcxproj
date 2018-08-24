@@ -108,6 +108,10 @@
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
     </PreBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>false</EnableDpiAwareness>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -131,6 +135,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
     </PreBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>false</EnableDpiAwareness>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -159,6 +167,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
     </PreBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>false</EnableDpiAwareness>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -186,6 +198,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
 </Command>
     </PreBuildEvent>
+    <Manifest>
+      <EnableDpiAwareness>false</EnableDpiAwareness>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+    </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
@@ -548,6 +564,9 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <Image Include="res\MenuIconOptions.png" />
     <Image Include="res\MenuIconRotate.png" />
     <Image Include="res\ProgIcon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="ManifestDPIAwareness.xml" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

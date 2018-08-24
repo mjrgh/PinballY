@@ -1995,12 +1995,19 @@ void PlayfieldView::ShowGameInfo()
 		// Main bibliographic details section
 		//
 
-		// manufacturer and/or year - "Manufacturer, Year" or just one or the other
+		// Manufacturer and/or year - "Manufacturer, Year" or just one or the other.
+		// Draw this in the left 2/3 minus a little margin, to avoid overlapping the
+		// wheel icon at upper right.
+		auto origWidth = gds.bbox.Width;
+		gds.bbox.Width = gds.bbox.Width*2/3 - 16;
 		if (game->manufacturer != nullptr)
 			gds.DrawString(MsgFmt(_T("%s, %d"), game->manufacturer->manufacturer.c_str(), game->year),
 				textFont.get(), &textBr);
 		else if (game->year != 0)
 			gds.DrawString(MsgFmt(_T("%d"), game->year), textFont.get(), &textBr);
+
+		// restore the bounding box
+		gds.bbox.Width = origWidth;
 
 		// table type
 		if (auto tt = tableTypeNameMap.find(game->tableType); tt != tableTypeNameMap.end())
@@ -4349,11 +4356,11 @@ void PlayfieldView::SyncInfoBox()
 			// request high score information if we don't already have it
 			RequestHighScores();
 
-			// create the new sprite
-			Application::InUiErrorHandler eh;
-			infoBox.sprite.Attach(new Sprite());
-			const int width = 712, height = 343;
-			infoBox.sprite->Load(width, height, [this, game, width, height](HDC hdc, HBITMAP)
+			// set our initial proposed width and height
+			int width = 712, height = 343;
+
+			// draw the box contents
+			auto Draw = [this, game, &width, &height](HDC hdc, HBITMAP)
 			{
 				// set up a GDI+ drawing context on the DC
 				Gdiplus::Graphics g(hdc);
@@ -4436,17 +4443,19 @@ void PlayfieldView::SyncInfoBox()
 				}
 				else if (infoBoxOpts.manuf && game->manufacturer != nullptr)
 				{
-					// draw the manufacturer as text
+					// Set up the string to draw
+					TSTRING str = game->manufacturer->manufacturer;
+					if (typeAndYear.length() != 0)
+					{
+						str += _T(" (");
+						str += typeAndYear;
+						str += _T(")");
+					}
+
+					// draw the combined tstring
 					GPDrawString gp(g, rcLayout);
 					gp.curOrigin = origin;
-					gp.DrawString(game->manufacturer->manufacturer.c_str(), txtFont.get(), &txt, false);
-
-					// add the type and year, if non-empty
-					if (typeAndYear.length() != 0)
-						gp.DrawString(MsgFmt(_T(" (%s)"), typeAndYear.c_str()), txtFont.get(), &txt, false);
-
-					// add the newline
-					gp.DrawString(_T(" "), txtFont.get(), &txt, true);
+					gp.DrawString(str.c_str(), txtFont.get(), &txt);
 					origin = gp.curOrigin;
 				}
 				else if (typeAndYear.length() != 0)
@@ -4490,12 +4499,27 @@ void PlayfieldView::SyncInfoBox()
 				{
 					origin.Y += stars.get()->GetHeight()/3;
 					DrawStars(g, origin.X, origin.Y, rating);
-					origin.Y += stars.get()->GetHeight();
+					origin.Y += stars.get()->GetHeight()*4/3;
 				}
+
+				// if the actual height is more than the original proposed
+				// height, increase the box height
+				int actualHeight = (int)ceilf(origin.Y + marginY) + 4;
+				if (actualHeight > height)
+					height = actualHeight;
 
 				// make sure the bitmap is updated
 				g.Flush();
-			}, eh, _T("Info Box"));
+			};
+
+			// do one drawing pass to a memory DC, just to measure the height
+			MemoryDC memdc;
+			Draw(memdc, NULL);
+			
+			// create the new sprite
+			Application::InUiErrorHandler eh;
+			infoBox.sprite.Attach(new Sprite());
+			infoBox.sprite->Load(width, height, Draw, eh, _T("Info Box"));
 
 			// move it up towards the top of the screen
 			infoBox.sprite->offset.y = 0.25f;

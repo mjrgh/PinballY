@@ -597,3 +597,11 @@ bool BaseWin::OnEnterIdle(int /*code*/, HWND /*hwndSrc*/)
 	// consider it handled
 	return true;
 }
+
+void BaseWin::OnDpiChanged(int dpiX, int dpiY, LPCRECT prcNewPos)
+{
+	// resize the window based on the suggested size from Windows
+	SetWindowPos(hWnd, NULL, prcNewPos->left, prcNewPos->top,
+		prcNewPos->right - prcNewPos->left, prcNewPos->bottom - prcNewPos->top,
+		SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+}

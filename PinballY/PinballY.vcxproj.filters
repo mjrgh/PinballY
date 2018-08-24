@@ -456,4 +456,7 @@
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
+  <ItemGroup>
+    <Xml Include="ManifestDPIAwareness.xml" />
+  </ItemGroup>
 </Project>
