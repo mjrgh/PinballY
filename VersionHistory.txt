@@ -1,6 +1,6 @@
 PinballY Update History
 
-08-24-2018 (1.0.0 Alpha 16)
+08-25-2018 (1.0.0 Alpha 16)
 
 * Try fixing font scaling for high-DPI monitors
 

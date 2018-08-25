@@ -1047,6 +1047,15 @@ System5.Process = PinballArcade.exe
 #
 System5.StartupKeys = [pace 250] [pause 25] {intro screen} [click] [pause 5] {main menu OR announcement dialog - try going to Settings} up up right right right right right [click] [pause 5] {now in settings OR main dialog - select arcade icon at top} up up left left left left left right [click] [pause 10] {now on grid screen - go to the sorting row and select Alphabetical} up left left left left left [click] [pause 5] [pace 1000] down [gridpos down right] [click] [pause 3] [click]
 
+# Pinball FX3
+System6 = Pinball FX3
+System6.Class = STEAM
+System6.Exe = [STEAM]
+System6.DefExt =
+System6.Parameters = -applaunch 442120 "-table_[TABLEFILE]"
+System6.Process = Pinball FX3.exe
+System5.DOFTitlePrefix = FX3
+
 
 # Empty categories.  Categories are user-defined tags that can be assigned
 # to games, via the Game Setup menu in the main window.  These can then be 
