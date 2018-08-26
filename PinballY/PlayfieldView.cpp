@@ -3663,7 +3663,8 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 	// set up a generic typographic formatter
 	Gdiplus::StringFormat tformat(Gdiplus::StringFormat::GenericTypographic());
 	tformat.SetAlignment(Gdiplus::StringAlignmentCenter);
-	tformat.SetFormatFlags(tformat.GetFormatFlags() & ~Gdiplus::StringFormatFlagsLineLimit);
+	tformat.SetFormatFlags((tformat.GetFormatFlags() & ~Gdiplus::StringFormatFlagsLineLimit)
+		| Gdiplus::StringFormatFlagsMeasureTrailingSpaces);
 
 	// set up our main text font and checkmark font
 	const int ptSize = 42, dlgPtSize = 36, weight = 500;
@@ -3996,7 +3997,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 				g.MeasureString(mark, -1, symfont.get(), pt, &tformat, &ckrc);
 
 				// draw it to the left of the text box
-				Gdiplus::PointF ptck(pt.X - ckrc.Width - 6, pt.Y + rc.Height - ckrc.Height + 4);
+				Gdiplus::PointF ptck(pt.X - ckrc.Width - 6, pt.Y + lineHt - ckrc.Height + 4);
 				g.DrawString(mark, -1, symfont.get(), ptck, br);
 			}
 

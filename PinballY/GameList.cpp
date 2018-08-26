@@ -2463,7 +2463,7 @@ bool GameList::IsUncategorized(GameListItem *game)
 void GameList::ParseCategoryList(int row)
 {
 	// get the string data from the row
-	if (const TCHAR *txt = categoriesCol->Get(row, nullptr); txt != nullptr)
+	if (const TCHAR *txt = categoriesCol->Get(row, nullptr); txt != nullptr && txt[0] != 0)
 	{
 		// create a category list data object to store in the stats row
 		std::unique_ptr<ParsedCategoryData> data(new ParsedCategoryData());
