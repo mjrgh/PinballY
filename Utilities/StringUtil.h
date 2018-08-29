@@ -24,8 +24,8 @@ typedef std::basic_string<CHAR, std::char_traits<CHAR>> CSTRING;
 typedef std::basic_string<WCHAR, std::char_traits<WCHAR>> WSTRING;
 
 // Convert a wide string to ANSI multibyte and vice versa
-CSTRING WideToAnsi(const WCHAR *wstr);
-WSTRING AnsiToWide(const CHAR *astr);
+CSTRING WideToAnsi(const WCHAR *wstr, UINT codePage = CP_ACP);
+WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 
 #ifdef UNICODE
 #define WideToTSTRING(/*const WCHAR* */ wstr) TSTRING(wstr)

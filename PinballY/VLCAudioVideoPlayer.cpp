@@ -361,7 +361,7 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 		}
 
 		// Create a media item from the file path
-		if ((media = libvlc_media_new_path_(vlcInst, WideToAnsi(path).c_str())) == nullptr)
+		if ((media = libvlc_media_new_path_(vlcInst, WideToAnsi(path, CP_UTF8).c_str())) == nullptr)
 		{
 			eh.SysError(LoadStringT(IDS_ERR_VIDEOPLAYERSYSERR),
 				MsgFmt(_T("Creating media item for %s: %hs"), path, libvlc_errmsg_()));

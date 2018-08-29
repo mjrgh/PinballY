@@ -1046,7 +1046,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				{
 					LogFile::Get()->Write(_T("Error: system %s uses [STEAM] executable, but Steam ")
 						_T("wasn't found in the Windows registry\n"), systemName);
-					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName));
+					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName, systemName, systemName));
 					continue;
 				}
 
@@ -3143,6 +3143,7 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 			// add all matching media items to the rename list
 			AddItems(playfieldImageType);
 			AddItems(playfieldVideoType);
+			AddItems(playfieldAudioType);
 			AddItems(backglassImageType);
 			AddItems(backglassVideoType);
 			AddItems(dmdImageType);
@@ -3192,6 +3193,38 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 			LoadStringT(mediaType.nameStrId).c_str(),
 			dir, lst.size() == 0 ? _T("no matches") : lst.front().c_str());
 	}
+
+	// If we're not in capture mode, return the newest file in the list
+	// (newest in the sense of modification timestamp).  In cases where
+	// there are multiple matches with different formats (e.g., PNG and 
+	// JPG images), this will pick out the one most recently installed.
+	if (!forCapture && lst.size() > 1)
+	{
+		FILETIME newestTime = { 0, 0 };
+		const TSTRING *newest = nullptr;
+		for (auto const &f : lst)
+		{
+			// get the file's attributes
+			WIN32_FILE_ATTRIBUTE_DATA attrs;
+			if (GetFileAttributesEx(f.c_str(), GetFileExInfoStandard, &attrs))
+			{
+				// if this is the last modified so far, remember it
+				if (newest == nullptr || CompareFileTime(&attrs.ftLastWriteTime, &newestTime) > 0)
+				{
+					newest = &f;
+					newestTime = attrs.ftLastWriteTime;
+				}
+			}
+		}
+
+		// return the newest file
+		if (newest != nullptr)
+		{
+			filename = *newest;
+			return true;
+		}
+	}
+
 
 	// return the first item in the list
 	filename = lst.front();

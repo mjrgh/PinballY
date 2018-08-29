@@ -12,6 +12,33 @@
 #include <memory>
 #include "FileUtil.h"
 #include "UtilResource.h"
+#include "WinUtil.h"
+
+// Touch a file
+bool TouchFile(const TCHAR *filename)
+{
+	// presume failure
+	bool ok = false;
+
+	// open the file to write attributes
+	HandleHolder hFile = CreateFile(filename, FILE_WRITE_ATTRIBUTES, 0, NULL,
+		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile != NULL && hFile != INVALID_HANDLE_VALUE)
+	{
+		// get the current time, as a FILETIME value
+		SYSTEMTIME st;
+		FILETIME ft;
+		GetSystemTime(&st);
+		SystemTimeToFileTime(&st, &ft);
+
+		// set the last write time
+		if (SetFileTime(hFile, NULL, NULL, &ft))
+			ok = true;
+	}
+
+	// return the result
+	return ok;
+}
 
 // Create a subdirectory, including intermediate directories as needed.
 BOOL CreateSubDirectory(

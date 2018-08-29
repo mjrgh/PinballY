@@ -76,8 +76,19 @@
    The "generic" media types have their type folders directly under
    the main Media folder.  These are as follows:
 </p>
-<ul class="singleSpace">
-   <li>Media\Flyer Images
+
+<style type="text/css">
+.mediaFolderList span {
+    font: 90% Georgia;
+    font-style: italic;
+    color: #606060;
+    margin-left: 1em;
+}
+</style>
+
+<ul class="singleSpace mediaFolderList">
+   <li>Media\Company Logos <span>(PNG files with manufacturer logos: Williams, Gottlieb, etc)</span>
+   <li>Media\Flyer Images  <span>(pictures of promotional flyers for the games)</span>
    <ul class="singleSpace">
       <li>Front
       <li>Inside1
@@ -88,6 +99,7 @@
       <li>Back
    </ul>
    <li>Media\Instruction Cards
+   <li>Media\System Logos <span>(PNG files with game system logos: Visual Pinball, etc)</span>
 </ul>
 
 <p>
@@ -126,19 +138,15 @@
 </p>
 
 <p>
-   <b>Media files:</b>
-   The individual media files (images, videos, audio files) 
+   <b>Media files for each game:</b>
+   The media files for a game (the playfield image, backglass image, etc) 
    are distributed among the media folders listed above according to their
    function: the main playfield image goes in the Table Images folder, the
    backglass video goes in Backglass Images, and so on.
 </p>
 <p>
-   To display the actual base filename used for a game's media files,
-   select the "Information" command in the main menu to bring up the
-   game info box.  The base media filename is displayed in the box.
-</p>
-<p>
-   All of the files for a given game have the same name, based on this pattern:
+   Within those folders, all of the files for a given game have the same
+   name, based on this pattern:
 </p>
 <div style="margin-left: 2em;">
    Game Title (Manufacturer Year).ext
@@ -147,20 +155,46 @@
 <p>
    For example, the playfield image for Funhouse might be called
    <b>Funhouse (Williams 1990).jpg</b>.  The backglass and DMD images
-   for Funhouse could have <i>exactly the same names</i>, since,
-   remember, the same naming pattern is used for all files for a
-   given game.  PinballY tells all of these like-named files apart
-   by their folder location.
+   for Funhouse could have <i>exactly the same name</i>, since
+   the naming pattern is based purely on the game, not the file
+   function.  The only way you can tell which file is which is
+   by their folder locations.
 </p>
 <p>
-   This scheme of using the same base name for all of a game's
-   files might seem kind of crazy; it might seem like it would be
-   easier to keep track of everything if the different files
-   (playfield, backglass, DMD) had different filenames rather than
-   being distinguishable only by folder location.  I'd completely
-   agree.  The only reason PinballY does it this way is that it
-   allows instant reuse of existing HyperPin and PinballX media
-   folder trees, since those programs used this same naming rule.
+   To display the exact base filename used for a game's media files,
+   select the "Information" command in the main menu to bring up the
+   game info box.  The base media filename is displayed in the box.
+   You can also get a full list of the specific media files that
+   PinballY found for the current game, with full names and folder
+   locations, using the "Show Media Files" command in the Game
+   Setup Menu (reachable from the Operator Menu).
+</p>
+<p>
+   Why we use this crazy "same name for everything" format:
+   Blame history.
+   This scheme of using the same name for multiple files might
+   seem rather confusing, especially when you're
+   trying to manage the files manually in Windows Explorer.  It
+   might seem more logical to use different names for each file.
+   I'd completely agree.  But the reason we do it this way is
+   that there's a large collection of existing files out there
+   that already use this scheme.  This format became so widely used for
+   media packs on the Web because it's the format that HyperPin
+   used.  HyperPin was the original front end, and the only one
+   around for many years, so it quickly became the standard format
+   by default.  When PinballX came along, it used the same format
+   for the sake of compatibility, so that people could use all of
+   those existing media pack files from HyperPin.  We're continuing
+   the tradition for the same reason.
+</p>
+
+<p>
+   <b>Manufacturer logos:</b>  Please see <a href="InfoBoxOptions.html#ManufacturerLogos">Info Box Options</a>
+   for details on how to set up manufacturer logo files.
+</p>
+<p>
+   <b>System logos:</b>  Please see <a href="InfoBoxOptions.html#SystemLogos">Info Box Options</a>
+   for details on how to set up manufacturer logo files.
 </p>
 
 

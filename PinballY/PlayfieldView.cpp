@@ -110,6 +110,7 @@ PlayfieldView::PlayfieldView() :
 	maxCredits = 0.0f;
 	lastInputEventTime = GetTickCount();
 	settingsDialogOpen = false;
+	mediaDropTargetGame = nullptr;
 	
 	// note the exit key mode
 	TSTRING exitMode = ConfigManager::GetInstance()->Get(ConfigVars::ExitKeyMode, _T("select"));
@@ -223,31 +224,39 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 			newStat == RealDMDAuto ? _T("auto") :
 			newStat == RealDMDEnable ? _T("on") : _T("off"));
 
-		// shut down any existing DMD session
-		if (realDMD != nullptr)
+		// If we're not currently running a game, dynamically attach
+		// to or detach from the DMD device.  Don't do this when a
+		// game is running, as the game owns the DMD device for the
+		// duration of the run; we'll reattach if appropriate when
+		// the game exits and we take over the UI again.
+		if (runningGamePopup == nullptr)
 		{
-			realDMD->ClearMedia();
-			realDMD.reset();
-		}
+			// shut down any existing DMD session
+			if (realDMD != nullptr)
+			{
+				realDMD->ClearMedia();
+				realDMD.reset();
+			}
 
-		// activate or deactivate the DMD according to the new status
-		if (newStat != RealDMDDisable)
-		{
-			// enabling or auto-sensing - try initializing if it's not
-			// already running
-			InitRealDMD(Application::InUiErrorHandler());
-		}
+			// Activate or deactivate the DMD according to the new status
+			if (newStat != RealDMDDisable)
+			{
+				// enabling or auto-sensing - try initializing if it's not
+				// already running
+				InitRealDMD(Application::InUiErrorHandler());
+			}
 
-		// load media, if the DMD is now active
-		if (realDMD != nullptr)
-			realDMD->UpdateGame();
+			// load media, if the DMD is now active
+			if (realDMD != nullptr)
+				realDMD->UpdateGame();
+		}
 	}
 }
 
 void PlayfieldView::InitRealDMD(ErrorHandler &eh)
 {
 	// Delete any previous DMD support object
-	realDMD.reset();
+	realDMD.reset(nullptr);
 
 	// if we're in ON or AUTO mode, try loading the DMD DLL
 	auto mode = GetRealDMDStatus();
@@ -393,22 +402,8 @@ bool PlayfieldView::OnCreate(CREATESTRUCT *cs)
 	// seconds, to allow the UI to stabilize.
 	SetTimer(hWnd, startupTimerID, 1000, 0);
 
-	// register as a drop target
-	RefPtr<MediaDropTarget> target(new MediaDropTarget(
-		&GameListItem::playfieldImageType, &GameListItem::playfieldVideoType));
-	RegisterDragDrop(hWnd, target);
-
 	// return the inherited result
 	return ret;
-}
-
-bool PlayfieldView::OnDestroy()
-{
-	// revoke our drop target registration
-	RevokeDragDrop(hWnd);
-
-	// inherit the base class handling
-	return __super::OnDestroy();
 }
 
 void PlayfieldView::OnIdleEvent()
@@ -553,7 +548,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, timer);
 		return true;
 
-	case restoreDOFTimerID:
+	case restoreDOFAndDMDTimerID:
 		// reinitialize the DOF client
 		if (DOFClient::Init(Application::InUiErrorHandler()))
 		{
@@ -563,6 +558,11 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 			dof.SyncSelectedGame();
 		}
 
+		// reinstate the real DMD
+		InitRealDMD(SilentErrorHandler());
+		if (realDMD != nullptr)
+			realDMD->EndRunningGameMode();
+
 		// this is a one-shot
 		KillTimer(hWnd, timer);
 		return true;
@@ -570,6 +570,19 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case cleanupTimerID:
 		// process pending audio/video player deletions
 		AudioVideoPlayer::ProcessDeletionQueue();
+		return true;
+		
+	case mediaDropTimerID:
+		// continue media drop processing
+		KillTimer(hWnd, timer);
+		MediaDropGo();
+		return true;
+
+	case autoDismissMsgTimerID:
+		// if there's a message popup, remove it
+		KillTimer(hWnd, timer);
+		if (popupType == PopupErrorMessage)
+			ClosePopup();
 		return true;
 	}
 
@@ -835,6 +848,7 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_SHOW_MEDIA_FILES:
+		showMedia.ResetDialog();
 		ShowMediaFiles(0);
 		return true;
 
@@ -1406,6 +1420,13 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 		dof.SetUIContext(_T(""));
 		DOFClient::Shutdown();
 
+		// Also shut down the real DMD, so that the game can take it over
+		if (realDMD != nullptr)
+		{
+			realDMD->BeginRunningGameMode();
+			realDMD.reset(nullptr);
+		}
+
 		// try launching the game
 		Application::InUiErrorHandler eh;
 		if (Application::Get()->Launch(cmd, game, system, &launchCaptureList, captureStartupDelay, eh))
@@ -1445,7 +1466,7 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 		else
 		{
 			// launch failed - reinstate the DOF client
-			SetTimer(hWnd, restoreDOFTimerID, 100, NULL);
+			SetTimer(hWnd, restoreDOFAndDMDTimerID, 100, NULL);
 		}
 	}
 }
@@ -2558,6 +2579,8 @@ void PlayfieldView::UpdateSelection()
 
 	// Load the adjacent wheel images
 	wheelImages.clear();
+	animAddedToWheel = 0;
+	animFirstInWheel = -2;
 	for (int i = -2; i <= 2; ++i)
 	{
 		// look up the wheel image media
@@ -2601,6 +2624,26 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 		// try loading the audio
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
+	}
+
+	// stop any previous playfield audio
+	if (currentPlayfield.audio != nullptr)
+		currentPlayfield.audio->Stop(SilentErrorHandler());
+
+	// Load the audio
+	if (audio.length() != 0)
+	{
+		incomingPlayfield.audio.Attach(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
+		{
+			// set the muting mode to match playfield video
+			if (Application::Get()->IsMuteVideos())
+				incomingPlayfield.audio->Mute(true);
+
+			// start playback
+			incomingPlayfield.audio->SetLooping(true);
+			incomingPlayfield.audio->Play(uieh);
+		}
 	}
 
 	// Figure the aspect ratio to use for displaying the playfield
@@ -2678,26 +2721,6 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 	// Kick off the asynchronous load
 	playfieldLoader.AsyncLoad(false, load, done);
-
-	// Load the audio
-	if (audio.length() != 0)
-	{
-		incomingPlayfield.audio.Attach(new VLCAudioVideoPlayer(hWnd, hWnd, true));
-		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
-		{
-			// set the muting mode to match playfield video
-			if (Application::Get()->IsMuteVideos())
-				incomingPlayfield.audio->Mute(true);
-
-			// start playback
-			incomingPlayfield.audio->SetLooping(true);
-			incomingPlayfield.audio->Play(uieh);
-		}
-	}
-
-	// stop any previous playfield audio
-	if (currentPlayfield.audio != nullptr)
-		currentPlayfield.audio->Stop(SilentErrorHandler());
 
 	// update the status line text, in case it mentions the current game selection
 	UpdateAllStatusText();
@@ -3006,6 +3029,12 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 		animWheelDistance = dn * 5;
 	}
 
+	// If we don't already have five images in the wheel, something
+	// must be out of sync - repopulate the list so that we're starting
+	// from the correct baseline.
+	if (wheelImages.size() < 5)
+		UpdateSelection();
+
 	// add the selected items to the wheel
 	animAddedToWheel = 0;
 	animFirstInWheel = -2;
@@ -3069,8 +3098,12 @@ void PlayfieldView::ClearMedia()
 	currentPlayfield.Clear();
 	incomingPlayfield.Clear();
 
+	// clear the info box
+	infoBox.Clear();
+
 	// remove all wheel images
 	wheelImages.clear();
+	animAddedToWheel = 0;
 
 	// update the drawing list for the change
 	UpdateDrawingList();
@@ -3091,10 +3124,6 @@ void PlayfieldView::BeginRunningGameMode()
 {
 	// set up the "Loading" message
 	ShowRunningGameMessage(LoadStringT(lastPlayGameCmd == ID_CAPTURE_GO ? IDS_CAPTURE_LOADING : IDS_GAME_LOADING), 48);
-
-	// remove media from the real DMD if present
-	if (realDMD != nullptr)
-		realDMD->BeginRunningGameMode();
 
 	// animate the popup opening
 	runningGamePopup->alpha = 0;
@@ -3170,10 +3199,6 @@ void PlayfieldView::EndRunningGameMode()
 	if (runningGamePopup == nullptr)
 		return;
 
-	// tell the DMD that we're back
-	if (realDMD != nullptr)
-		realDMD->EndRunningGameMode();
-
 	// Clear the keyboard queue
 	keyQueue.clear();
 
@@ -3221,7 +3246,7 @@ void PlayfieldView::EndRunningGameMode()
 	// wire before we start sending our own DOF packets, to avoid
 	// the packet sequencing problems mentioned above.  So set a
 	// short timer for doing our DOF re-connect.
-	SetTimer(hWnd, restoreDOFTimerID, 500, NULL);
+	SetTimer(hWnd, restoreDOFAndDMDTimerID, 500, NULL);
 
 	// cancel any keyboard/joystick auto-repeat
 	StopAutoRepeat();
@@ -3432,8 +3457,13 @@ void PlayfieldView::ShowSysError(const TCHAR *msg, const TCHAR *details)
 // same video game-style interface as the rest of the UI.
 void PlayfieldView::ShowError(ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list)
 {
+	ShowErrorAutoDismiss(INFINITE, iconType, groupMsg, list);
+}
+
+void PlayfieldView::ShowErrorAutoDismiss(DWORD timeout, ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list)
+{
 	// queue the error
-	queuedErrors.emplace_back(iconType, groupMsg, list);
+	queuedErrors.emplace_back(timeout, iconType, groupMsg, list);
 
 	// If there's not already an error display in progress, show the new
 	// error.  Otherwise just leave it in the queue for display when the
@@ -3448,8 +3478,15 @@ void PlayfieldView::ShowQueuedError()
 	if (queuedErrors.size() == 0)
 		return;
 
+	// remove any previous auto-dismiss timer
+	KillTimer(hWnd, autoDismissMsgTimerID);
+
 	// get the first error
 	const QueuedError &err = queuedErrors.front();
+
+	// if this message has a timeout, set a timer for it
+	if (err.timeout != INFINITE)
+		SetTimer(hWnd, autoDismissMsgTimerID, err.timeout, NULL);
 
 	// build the message list
 	std::list<TSTRING> messages;
@@ -4277,6 +4314,10 @@ void PlayfieldView::UpdateDrawingList()
 	if (creditsSprite != nullptr)
 		sprites.push_back(creditsSprite);
 
+	// add the drop target overlay
+	if (dropTargetSprite != nullptr)
+		sprites.push_back(dropTargetSprite);
+
 	// rescale sprites that vary by window size
 	ScaleSprites();
 }
@@ -4297,6 +4338,7 @@ void PlayfieldView::ScaleSprites()
 	// maintaining the original aspect ratio
 	ScaleSprite(currentPlayfield.sprite, 1.0f, true);
 	ScaleSprite(incomingPlayfield.sprite, 1.0f, true);
+	ScaleSprite(dropTargetSprite, 1.0f, true);
 }
 
 // Start a menu animation
@@ -4547,7 +4589,7 @@ void PlayfieldView::SyncInfoBox()
 		else
 		{
 			// no new game - simply remove the box
-			infoBox.sprite = 0;
+			infoBox.sprite = nullptr;
 		}
 
 		// set the new game
@@ -4556,7 +4598,7 @@ void PlayfieldView::SyncInfoBox()
 		// the drawing list has changed
 		UpdateDrawingList();
 	}
-	else if (infoBox.sprite != 0 && infoBox.sprite->alpha == 0.0f)
+	else if (infoBox.sprite != nullptr && infoBox.sprite->alpha == 0.0f)
 	{
 		// start the fade
 		SetTimer(hWnd, infoBoxFadeTimerID, AnimTimerInterval, 0);
@@ -4885,7 +4927,7 @@ void PlayfieldView::UpdateAnimation()
 			updateDrawingList = true;
 
 			// clear the incoming playfield
-			incomingPlayfield.ClearVideo();
+			incomingPlayfield.Clear();
 
 			// Sync the backglass.  Defer this via a posted message so
 			// that we update rendering before we do the sync; this makes
@@ -8359,6 +8401,7 @@ void PlayfieldView::DelMediaFile()
 		{
 			// success - sync media and re-show the media menu
 			SyncPlayfield(SyncDelMedia);
+			UpdateSelection();
 			ShowMediaFiles(0);
 			break;
 		}
@@ -8761,7 +8804,7 @@ void PlayfieldView::LaunchMediaSearch()
 // the intended game name even for standalone files that aren't in a
 // media folder tree.
 //
-bool GetImpliedGameName(TSTRING &gameName, const TCHAR *fname, const MediaType *mediaType)
+static bool GetImpliedGameName(TSTRING &gameName, const TCHAR *fname, const MediaType *mediaType)
 {
 	// we obviously can't proceed if there's not a media type
 	if (mediaType == nullptr)
@@ -8856,28 +8899,55 @@ bool GetImpliedGameName(TSTRING &gameName, const TCHAR *fname, const MediaType *
 	return false;
 }
 
-bool PlayfieldView::CanDropFile(const TCHAR *fname, MediaDropTarget *dropTarget)
+const MediaType *PlayfieldView::GetBackgroundImageType() const
 {
-	// If it's an archive file of a type we can unpack, assume it's 
-	// acceptable.  Don't scan it now, since this test is done on the 
-	// initial drag entry and thus needs to be quick.  If they end up
-	// dropping the file and it doesn't contain anything useful, we'll 
-	// report an error at that point.  Just make the judgment based on
-	// the filename extension.
-	if (tstriEndsWith(fname, _T(".zip"))
-		|| tstriEndsWith(fname, _T(".rar"))
-		|| tstriEndsWith(fname, _T(".7z")))
-		return true;
+	return &GameListItem::playfieldImageType;
+}
 
-	// Check for image or video files matching the background media 
-	// types used for the target window, again based purely on the
-	// filename extension.
-	if (dropTarget->GetImageMediaType()->MatchExt(fname)
-		|| dropTarget->GetVideoMediaType()->MatchExt(fname))
-		return true;
+const MediaType *PlayfieldView::GetBackgroundVideoType() const
+{
+	return &GameListItem::playfieldVideoType;
+}
 
-	// we can't handle this drop
-	return false;
+bool PlayfieldView::BuildDropAreaList(const TCHAR *filename)
+{
+	// set up a rect for a button in the middle of the screen
+	const int btnHt = 300;
+	RECT rc = { szLayout.cx*2/10, szLayout.cy/2 - btnHt/2, szLayout.cx*8/10, szLayout.cy/2 + btnHt/2 };
+
+	// Check to see if this file is compatible with the wheel image.
+	// If so, it can be dropped as a wheel image or background image.
+	if (GameListItem::wheelImageType.MatchExt(filename))
+	{
+		// add the window background as the background image drop area
+		// (NB: build the list in painting order -> background first)
+		dropAreas.emplace_back(&GameListItem::playfieldImageType, true);
+
+		// add a button for the wheel image in the center of the window
+		dropAreas.emplace_back(rc, &GameListItem::wheelImageType);
+
+		// done
+		return true;
+	}
+
+	// Check to see if this can be used as a launch audio or table
+	// audio file.
+	if (GameListItem::launchAudioType.MatchExt(filename)
+		|| GameListItem::playfieldAudioType.MatchExt(filename))
+	{
+		// add the main table audio as the background image drop area
+		// (NB: build the list in painting order -> background first)
+		dropAreas.emplace_back(&GameListItem::playfieldAudioType, true);
+
+		// add a button for the launch audio
+		dropAreas.emplace_back(rc, &GameListItem::launchAudioType);
+
+		// done
+		return true;
+	}
+
+	// it's not a special type - use the default handling
+	return __super::BuildDropAreaList(filename);
 }
 
 void PlayfieldView::BeginFileDrop()
@@ -8890,7 +8960,7 @@ void PlayfieldView::BeginFileDrop()
 	CloseMenusAndPopups();
 }
 
-bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget)
+bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, const MediaType *mediaType)
 {
 	// get the selected game; fail if there isn't one, as dropped
 	// media are added to the selected game
@@ -8946,32 +9016,22 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget)
 		return nMatched != 0;
 	}
 
-	// Check if it matches the image or video media type for the target window
-	auto AddSingle = [this, fname, game](const MediaType *t)
+	// Check if it matches the target media type for the drop area
+	if (mediaType != nullptr && mediaType->MatchExt(fname))
 	{
-		// check for an extension match
-		if (t != nullptr && t->MatchExt(fname))
-		{
-			// Get the implied game name.  Since the user explicitly
-			// dropped this individual file, it's okay if we can't
-			// determine the game name - the intention was clear.
-			TSTRING impliedGameName;
-			GetImpliedGameName(impliedGameName, fname, t);
+		// Get the implied game name.  Since the user explicitly
+		// dropped this individual file, it's okay if we can't
+		// determine the game name - the intention was clear.
+		TSTRING impliedGameName;
+		GetImpliedGameName(impliedGameName, fname, mediaType);
 
-			// add the item
-			dropList.emplace_back(fname, -1, impliedGameName.c_str(), 
-				game->GetDropDestFile(fname, *t).c_str(), t, game->MediaExists(*t));
+		// add the item
+		dropList.emplace_back(fname, -1, impliedGameName.c_str(), 
+			game->GetDropDestFile(fname, *mediaType).c_str(), mediaType, game->MediaExists(*mediaType));
 
-			// matched
-			return true;
-		}
-
-		// not matched
-		return false;
-	};
-	if (AddSingle(dropTarget->GetImageMediaType())
-		|| AddSingle(dropTarget->GetVideoMediaType()))
+		// matched
 		return true;
+	}
 
 	// we don't know how to handle it
 	return false;
@@ -8991,6 +9051,12 @@ void PlayfieldView::EndFileDrop()
 		ShowError(EIT_Error, LoadStringT(IDS_ERR_DROP_NO_GAME));
 		return;
 	}
+
+	// Remember the target game for the drop.  Processing the drop can
+	// require several UI steps and/or timer delays, so we want to make
+	// sure that the user doesn't sneak a control input into the UI that
+	// changes the game selection in the course of the processing.
+	mediaDropTargetGame = game;
 
 	// check if the game is configured enough to have a valid media name
 	if (game->system == nullptr || game->manufacturer == nullptr || game->year == 0)
@@ -9025,8 +9091,10 @@ void PlayfieldView::EndFileDrop()
 	{
 		// Get the destination filename minus its extension.  Since we
 		// can only display one backglass image or one playfield video,
-		// a PNG and a JPG in the same folder are effectively duplicates,
-		// in that one of them will be unusable.
+		// files of different types (e.g., PNG and JPG) going into the
+		// same functional slot (e.g., playfield video) are effectively
+		// duplicates for our purposes, even though the file system 
+		// stores the files separately.
 		std::basic_regex<TCHAR> extPat(_T("\\.[^.\\\\]+$"));
 		TSTRING baseName = std::regex_replace(d.destFile, extPat, _T(""));
 
@@ -9141,16 +9209,69 @@ void PlayfieldView::MediaDropPhase2()
 		}
 	}
 
+	// If they dropped an individual media file (not a media pack),
+	// and it's for a media item that doesn't already exist, don't
+	// bother with a confirmation prompt; just to ahead and add the
+	// item.  And if the item does exist, show a simple confirmation
+	// prompt rather than the more complex menu for a multi-file
+	// media pack installation.
+	if (dropList.size() == 1)
+	{
+		// check if it's an individual media item rather than a media pack
+		auto &d = dropList.front();
+		if (!d.IsFromMediaPack())
+		{
+			// check if it exists
+			if (d.exists)
+			{
+				// The item exists, so show a simple confirmation prompt.
+				std::list<MenuItemDesc> md;
+				md.emplace_back(MsgFmt(IDS_MEDIA_DROP_REPLACE_PROMPT, LoadStringT(d.mediaType->nameStrId).c_str()), -1);
+				md.emplace_back(_T(""), -1);
+				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_YES), ID_MEDIA_DROP_GO);
+				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_NO), ID_MENU_RETURN);
+				ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+			}
+			else
+			{
+				// there's no media item for this type yet, so we won't
+				// be replacing anything.  No need to confirm this; just
+				// go ahead and add the file.
+				MediaDropGo();
+			}
+
+			// in either case we're done for now
+			return;
+		}
+	}
+
 	// show the menu of dropped items
 	DisplayDropMediaMenu(false, 0);
 }
 
 void PlayfieldView::MediaDropGo()
 {
-	// get the game we're working on
+	// clear all media before we begin, so that we don't run into any
+	// file conflicts with video/audio files currently being played
+	Application::Get()->ClearMedia();
+
+	// Get the selected game.  If there isn't one, or it's different
+	// from the one in effect when we started processing the drop,
+	// abort.
 	auto game = GameList::Get()->GetNthGame(0);
-	if (game == nullptr || game->system == nullptr)
+	if (game == nullptr || game->system == nullptr || game != mediaDropTargetGame)
+	{
+		mediaDropTargetGame = nullptr;
 		return;
+	}
+
+	// If there are any videos pending deletion, wait for them to be
+	// cleaned up.
+	if (AudioVideoPlayer::ProcessDeletionQueue())
+	{
+		SetTimer(hWnd, mediaDropTimerID, 50, NULL);
+		return;
+	}
 
 	// compile a list of errors as we go
 	CapturingErrorHandler eh;
@@ -9211,6 +9332,10 @@ void PlayfieldView::MediaDropGo()
 				// success - count the file installed
 				++nInstalled;
 				ok = true;
+
+				// set the file's modify time to now, so that we know this
+				// is the most recently installed file
+				TouchFile(d.destFile.c_str());
 			}
 		}
 		else
@@ -9221,6 +9346,9 @@ void PlayfieldView::MediaDropGo()
 				// success - count the file installed
 				++nInstalled;
 				ok = true;
+
+				// mark the file as just modified
+				TouchFile(d.destFile.c_str());
 			}
 			else
 			{
@@ -9246,13 +9374,15 @@ void PlayfieldView::MediaDropGo()
 	if (eh.CountErrors() != 0)
 		ShowError(EIT_Error, LoadStringT(IDS_ERR_DROP_FAILED), &eh);
 	else if (nInstalled != 0)
-		ShowError(EIT_Information, LoadStringT(IDS_MEDIA_DROP_SUCCESS));
+		ShowErrorAutoDismiss(nInstalled == 1 ? 2500 : 5000, EIT_Information, LoadStringT(IDS_MEDIA_DROP_SUCCESS));
 	else
-		ShowError(EIT_Information, LoadStringT(IDS_MEDIA_DROP_ALL_SKIPPED));
+		ShowErrorAutoDismiss(5000, EIT_Information, LoadStringT(IDS_MEDIA_DROP_ALL_SKIPPED));
 
 	// Make sure the on-screen media are updated with the new media
-	Application::Get()->ClearMedia();
 	UpdateSelection();
+
+	// forget the target game
+	mediaDropTargetGame = nullptr;
 }
 
 void PlayfieldView::InvertMediaDropState(int cmd)

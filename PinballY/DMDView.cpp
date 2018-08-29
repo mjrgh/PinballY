@@ -191,7 +191,7 @@ void DMDView::GenerateHighScoreImages()
 				// from alphanumeric to DMD.  Check for the handful of alpha
 				// titles from this year.
 				const static std::basic_regex<TCHAR> an1991Titles(
-					_T("funhouse|harley.*davidson|bride\\s*of\\s*pinbot"),
+					_T("funhouse|harley.*davidson|bride\\s*of\\s*pin.?bot"),
 					std::regex_constants::icase);
 				if (std::regex_search(game->title, an1991Titles))
 					style = _T("Alpha");

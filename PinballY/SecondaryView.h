@@ -57,9 +57,7 @@ protected:
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }
 
-	// Media information for the main background image/video
-	virtual const MediaType *GetBackgroundImageType() const = 0;
-	virtual const MediaType *GetBackgroundVideoType() const = 0;
+	// get my default background image
 	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
 
 	// Get the media files for the background for the given game
@@ -81,12 +79,6 @@ protected:
 	// Update the animation.  Returns true if the animation is still
 	// running after this call, false if not.
 	virtual bool UpdateAnimation();
-
-	// window creation
-	virtual bool OnCreate(CREATESTRUCT *cs) override;
-
-	// window destruction
-	virtual bool OnDestroy() override;
 
 	// process a command
 	virtual bool OnCommand(int cmd, int source, HWND hwndControl) override;

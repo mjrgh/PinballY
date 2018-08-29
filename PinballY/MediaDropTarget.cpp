@@ -6,18 +6,35 @@
 #include <ShlObj.h>
 #include "MediaDropTarget.h"
 #include "GameList.h"
-#include "Application.h"
-#include "PlayfieldView.h"
+#include "BaseView.h"
 
-MediaDropTarget::MediaDropTarget(const MediaType *imageType, const MediaType *videoType) :
-	lastDropEffect(DROPEFFECT_NONE),
-	imageType(imageType),
-	videoType(videoType)
+MediaDropTarget::MediaDropTarget(BaseView *view) :
+	lastDropEffect(DROPEFFECT_NONE)
 {
+	// explicitly assign the view pointer, to count the reference
+	this->view = view;
+
+	// register the drop target with Windows
+	RegisterDragDrop(view->GetHWnd(), this);
 }
 
 MediaDropTarget::~MediaDropTarget()
 {
+}
+
+void MediaDropTarget::OnDestroyWindow()
+{
+	RevokeDragDrop(view->GetHWnd());
+}
+
+const MediaType *MediaDropTarget::GetBackgroundImageType() const
+{
+	return view->GetBackgroundImageType();
+}
+
+const MediaType *MediaDropTarget::GetBackgroundVideoType() const
+{
+	return view->GetBackgroundVideoType();
 }
 
 HRESULT MediaDropTarget::QueryInterface(REFIID iid, LPVOID *ppUnk)
@@ -33,32 +50,50 @@ HRESULT MediaDropTarget::QueryInterface(REFIID iid, LPVOID *ppUnk)
 	return S_OK;
 }
 
-// process files in the drop through a callback
-static void ProcessFileDrop(IDataObject *pDataObj, std::function<void(const TCHAR*)> func)
+bool MediaDropTarget::FileDrop::Init(IDataObject *pDataObj)
 {
-	// check for a file drop
+	// clear fields
+	Clear();
+
+	// remember the data object
+	this->pDataObj = pDataObj;
+
+	// get the file drop handle
 	STGMEDIUM stg;
 	stg.tymed = TYMED_HGLOBAL;
 	FORMATETC fmt = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
 	if (SUCCEEDED(pDataObj->GetData(&fmt, &stg)))
 	{
-		// get the file drop descriptor handle (HDROP)
-		HDROP hDrop = (HDROP)stg.hGlobal;
+		// get the file drop handle
+		hDrop = (HDROP)stg.hGlobal;
 
-		// process the files
-		UINT nFiles = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
-		for (UINT i = 0; i < nFiles; ++i)
+		// get the number of files
+		nFiles = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+
+		// success
+		return true;
+	}
+	else
+	{
+		// no file drop information - forget the data object and return failure
+		this->pDataObj = nullptr;
+		return false;
+	}
+}
+
+void MediaDropTarget::FileDrop::EnumFiles(std::function<void(const TCHAR*)> func) const
+{
+	for (UINT i = 0; i < nFiles; ++i)
+	{
+		// get this file's name length
+		if (UINT len = DragQueryFile(hDrop, i, NULL, 0); len != 0)
 		{
-			// get this file's name length
-			if (UINT len = DragQueryFile(hDrop, i, NULL, 0); len != 0)
-			{
-				// allocate space and retrieve the filename
-				std::unique_ptr<TCHAR> fname(new TCHAR[++len]);
-				DragQueryFile(hDrop, i, fname.get(), len);
+			// allocate space and retrieve the filename
+			std::unique_ptr<TCHAR> fname(new TCHAR[++len]);
+			DragQueryFile(hDrop, i, fname.get(), len);
 
-				// process the file through the callback
-				func(fname.get());
-			}
+			// process the file through the callback
+			func(fname.get());
 		}
 	}
 }
@@ -68,81 +103,90 @@ HRESULT MediaDropTarget::DragEnter(IDataObject *pDataObj, DWORD grfKeyState, POI
 	// presume we won't accept the drop
 	lastDropEffect = DROPEFFECT_NONE;
 
-	// all drops are processed through the playfield view, so we
-	// can't proceed unless that's available
-	auto pfv = Application::Get()->GetPlayfieldView();
-	if (pfv == nullptr)
-	{
-		*pdwEffect = DROPEFFECT_NONE;
-		return S_OK;
-	}
-
-	// check for a file drop
-	FORMATETC fmt = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-	if (SUCCEEDED(pDataObj->QueryGetData(&fmt)))
-	{
-		// scan the files to determine if any are acceptable
-		int nFilesAccepted = 0;
-		ProcessFileDrop(pDataObj, [this, pfv, &nFilesAccepted](const TCHAR *fname)
-		{
-			// try processing it through the playfield view
-			if (pfv->CanDropFile(fname, this))
-				++nFilesAccepted;
-		});
-
-		// if we accepted any files, set the 'copy' effect
-		if (nFilesAccepted != 0)
-			lastDropEffect = DROPEFFECT_COPY;
-	}
+	// get the drop information; if successful, pass it to the view for processing
+	if (fileDrop.Init(pDataObj))
+		view->ShowDropTargets(fileDrop, ScreenToView(pt), &lastDropEffect);
 
 	// success
 	*pdwEffect = lastDropEffect;
-	return S_OK;
-}
-
-HRESULT MediaDropTarget::DragLeave()
-{
 	return S_OK;
 }
 
 HRESULT MediaDropTarget::DragOver(DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
 {
+	// if there's a data object, pass it to the view for processing
+	if (fileDrop.IsValid())
+		view->UpdateDropTargets(fileDrop, ScreenToView(pt), &lastDropEffect);
+
+	// set the drop effect
 	*pdwEffect = lastDropEffect;
+
+	// done
+	return S_OK;
+}
+
+HRESULT MediaDropTarget::DragLeave()
+{
+	// remove the drop target info from the window
+	if (fileDrop.IsValid())
+		view->RemoveDropTargets();
+
+	// clear the file drop object
+	fileDrop.Clear();
+
+	// done
 	return S_OK;
 }
 
 HRESULT MediaDropTarget::Drop(IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
 {
-	// no files processed yet
-	int nFilesProcessed = 0;
+	// presume failure
 	*pdwEffect = DROPEFFECT_NONE;
 
-	// all drops are processed through the playfield view, so we
-	// can't proceed unless that's available
-	auto pfv = Application::Get()->GetPlayfieldView();
-	if (pfv == nullptr)
-		return S_OK;
-
-	// begin the file drop operation
-	pfv->BeginFileDrop();
-
-	// process the dropped files
-	ProcessFileDrop(pDataObj, [this, pfv, &nFilesProcessed](const TCHAR *fname)
+	// refresh the drop object
+	if (fileDrop.Init(pDataObj))
 	{
-		// try processing it through the playfield view
-		if (pfv->DropFile(fname, this))
-			++nFilesProcessed;
-	});
+		// pass it to the view for processing
+		*pdwEffect = lastDropEffect;
+		view->DoMediaDrop(fileDrop, ScreenToView(pt), pdwEffect);
+	}
 
-	// end the drop operation
-	pfv->EndFileDrop();
-
-	// if we dropped any files, set the drop effect to 'copy' for the
-	// caller's benefit, in case they want to show different feedback
-	// for different results
-	if (nFilesProcessed != 0)
-		*pdwEffect = DROPEFFECT_COPY;
+	// remove any drop area visual effects from the target window
+	view->RemoveDropTargets();
 
 	// success
 	return S_OK;
+}
+
+POINT MediaDropTarget::ScreenToView(POINTL ptl) const
+{
+	// convert to a regular POINT
+	POINT pt = { ptl.x, ptl.y };
+
+	// convert to client coordinates
+	ScreenToClient(view->GetHWnd(), &pt);
+
+	// adjust for mirroring
+	RECT rc;
+	GetClientRect(view->GetHWnd(), &rc);
+	if (view->IsMirrorHorz())
+		pt.x = rc.right - pt.x;
+	if (view->IsMirrorVert())
+		pt.y = rc.bottom - pt.y;
+
+	// adjust for rotation
+	switch (view->GetRotation())
+	{
+	default:
+		return pt;
+
+	case 90:
+		return { rc.bottom - pt.y, rc.left + pt.x };
+
+	case 180:
+		return { rc.right - pt.x, rc.bottom - pt.y };
+
+	case 270:
+		return { rc.top + pt.y, rc.right - pt.x };
+	}
 }

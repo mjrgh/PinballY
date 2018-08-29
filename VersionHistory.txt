@@ -1,5 +1,54 @@
 PinballY Update History
 
+??-??-2018 (1.0.0 Alpha 18)
+
+* Improve the drag-and-drop UI for dropping individual media files:
+
+  - Add visual drop areas for different media types when a file 
+    could be used in different ways.  For example, when dragging a
+    PNG file onto the playfield window, it could be used as the 
+    table background image or as a wheel logo image.  The new
+    on-screen display lets you specify which to use by dropping 
+    the file onto the appropriate area.
+
+  - Audio files can now be dropped onto the playfield window to
+    add table audio and launch audio to a table.
+
+  - Skip menu prompts when dropping a media file into a role
+    where there isn't any existing file; just add the file.  Only
+    prompt when an existing media file would be replaced, and then
+    use a simple confirmation prompt (rather than the more complex
+    menu shown for media packs, which are necessarily more elaborate
+    because they have to deal with multiple files).
+
+  - Automatically remove the result message after a few seconds
+    when the drop succeeds (rather than forcing the user to dismiss
+    it manually), since it's usually obvious enough that the drop
+    succeeded in that the dropped item(s) will appear in the UI
+    immediately.
+
+* In cases where there are two or more files for a given media type of
+different formats (e.g., two table background images for the same
+table, one JPG and one PNG), the one with the latest timestamp is
+used.  When installing files via drag-and-drop, files are always
+updated with the current time when installed, so this ensures that the
+most recently installed file is displayed when there are multiple
+matching files.
+
+* Fix libvlc video/audio media loading for filenames that contain
+non-ASCII characters (by converting filename strings passed to libvlc
+to UTF-8).
+
+
+08-27-2018 (1.0.0 Alpha 17)
+
+* Try to fix problem releasing real DMD device while a game is running
+(so that the game can take it over)
+
+* Stop including an empty category name in the category selection list
+in the game setup menu
+
+
 08-25-2018 (1.0.0 Alpha 16)
 
 * Try fixing font scaling for high-DPI monitors

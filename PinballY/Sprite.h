@@ -66,6 +66,10 @@ public:
 	bool Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
 		ErrorHandler &eh, const TCHAR *descForErrors);
 
+	// Load by drawing into an off-screen Gdiplus::Graphics contxt
+	bool Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics &g)> drawingFunc,
+		ErrorHandler &eh, const TCHAR *descForErrors);
+
 	// Render the sprite
 	virtual void Render(Camera *camera);
 

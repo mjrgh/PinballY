@@ -566,7 +566,7 @@ void RealDMD::Shutdown()
 		SetEvent(hWriterEvent);
 
 		// wait for it to exit
-		WaitForSingleObject(hWriterThread, 250);
+		WaitForSingleObject(hWriterThread, 2500);
 
 		// forget the thread handle
 		hWriterThread = nullptr;

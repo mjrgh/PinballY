@@ -154,6 +154,22 @@ bool Sprite::CreateStagingTexture(int pixWidth, int pixHeight, ErrorHandler &eh)
 	return true;
 }
 
+bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics&)> drawingFunc,
+	ErrorHandler &eh, const TCHAR *descForErrors)
+{
+	return Load(pixWidth, pixHeight, [&drawingFunc](HDC hdc, HBITMAP)
+	{
+		// set up the Gdiplus context from the HDC
+		Gdiplus::Graphics g(hdc);
+
+		// do the drawing through the user's callback
+		drawingFunc(g);
+
+		// flush the Gdiplus context to the underlying bitmap
+		g.Flush();
+	}, eh, descForErrors);
+}
+
 bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
 	ErrorHandler &eh, const TCHAR *descForErrors)
 {

@@ -31,28 +31,6 @@ SecondaryView::SecondaryView(int contextMenuId, const TCHAR *winConfigVarPrefix)
 {
 }
 
-bool SecondaryView::OnCreate(CREATESTRUCT *cs)
-{
-	// do the base class work
-	bool ret = __super::OnCreate(cs);
-
-	// register our media drop target
-	RefPtr<MediaDropTarget> target(new MediaDropTarget(GetBackgroundImageType(), GetBackgroundVideoType()));
-	RegisterDragDrop(hWnd, target);
-
-	// return the base class result
-	return ret;
-}
-
-bool SecondaryView::OnDestroy()
-{
-	// unregister our drop target
-	RevokeDragDrop(hWnd);
-
-	// do the base class work
-	return __super::OnDestroy();
-}
-
 void SecondaryView::GetMediaFiles(const GameListItem *game,
 	TSTRING &video, TSTRING &image, TSTRING &defaultImage)
 {
@@ -80,6 +58,10 @@ void SecondaryView::UpdateDrawingList()
 	if (incomingBackground.sprite != 0)
 		sprites.push_back(incomingBackground.sprite);
 
+	// add the drop effect overlay
+	if (dropTargetSprite != nullptr)
+		sprites.push_back(dropTargetSprite);
+
 	// update sprite scaling
 	ScaleSprites();
 }
@@ -96,6 +78,7 @@ void SecondaryView::ScaleSprites()
 	// stretch the topper images to exactly fill the window
 	ScaleSprite(currentBackground.sprite, 1.0f, false);
 	ScaleSprite(incomingBackground.sprite, 1.0f, false);
+	ScaleSprite(dropTargetSprite, 1.0f, true);
 }
 
 void SecondaryView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)

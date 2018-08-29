@@ -9,14 +9,17 @@
 
 #include "D3DView.h"
 #include "PrivateWindowMessages.h"
+#include "Sprite.h"
+#include "MediaDropTarget.h"
 
-class Sprite;
 
 class BaseView : public D3DView
 {
 public:
-	BaseView(int contextMenuId, const TCHAR *winConfigVarPrefix)
-		: D3DView(contextMenuId, winConfigVarPrefix) { }
+	BaseView(int contextMenuId, const TCHAR *winConfigVarPrefix) :
+		D3DView(contextMenuId, winConfigVarPrefix),
+		activeDropArea(nullptr)
+	{ }
 
 	// window creation
 	bool Create(HWND parent, const TCHAR *title);
@@ -24,7 +27,22 @@ public:
 	// enclosing frame window is being shown/hidden
 	virtual void OnShowHideFrameWindow(bool show) = 0;
 
+	// Drag-and-drop mouse event handlers.  These provide live
+	// feedback during the drag process for dropping different
+	// types of media.  The POINT is in local coordinates,
+	// adjusted for the window rotation and reflection.
+	virtual void ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void UpdateDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void DoMediaDrop(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void RemoveDropTargets();
+
+	// Media information for the main background image/video
+	virtual const MediaType *GetBackgroundImageType() const = 0;
+	virtual const MediaType *GetBackgroundVideoType() const = 0;
+
 protected:
+	~BaseView();
+
 	// Instruction card display setup.  Returns a new sprite on
 	// success, null on failure.
 	Sprite *PrepInstructionCard(const TCHAR *filename);
@@ -151,6 +169,12 @@ protected:
 		void OnAsyncSpriteLoadDone(VideoSprite *sprite, Thread *thread);
 	};
 
+	// create the window
+	virtual bool OnCreate(CREATESTRUCT *cs) override;
+
+	// destroy the window
+	virtual bool OnDestroy() override;
+
 	// Handle a Windows keyboard event
 	virtual bool OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam) override;
 	virtual bool OnSysKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam) override;
@@ -161,4 +185,70 @@ protected:
 
 	// user message handling
 	virtual bool OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+	// Drop area.  This describes a target area within the window where
+	// a media file can be dropped to install it as a particular media
+	// type.  For example, in the main playfield window, a PNG file 
+	// could be used as the playfield background image or the wheel 
+	// logo image for the game, so we set up drop areas for each type
+	// to let the user indicate how the file will be installed.
+	struct MediaDropArea
+	{
+		MediaDropArea(const TCHAR *label) :
+			mediaType(nullptr), label(label), hilite(false)
+		{
+			SetRectEmpty(&rc);
+		}
+
+		MediaDropArea(const MediaType *mediaType, bool hilite = false) :
+			mediaType(mediaType), hilite(hilite)
+		{
+			SetRectEmpty(&rc);
+		}
+
+		MediaDropArea(const RECT &rc, const MediaType *mediaType) :
+			rc(rc), mediaType(mediaType), hilite(true)
+		{
+		}
+
+		MediaDropArea(const RECT &rc, const MediaType *mediaType, const TCHAR *label, bool hilite) :
+			rc(rc), mediaType(mediaType), label(label), hilite(hilite)
+		{
+		}
+
+		// drop area, in client coordinates
+		RECT rc;
+
+		// media type for this area
+		const MediaType *mediaType;
+
+		// label text
+		TSTRING label;
+
+		// hilite this area when over it?
+		bool hilite;
+
+	};
+	std::list<MediaDropArea> dropAreas;
+	
+	// the drop area we're currently hovering over
+	MediaDropArea *activeDropArea;
+
+	// Get the drop area list for a given media file.  Populates
+	// the drop target area list with a suitable list of drop areas
+	// for the given type.
+	virtual bool BuildDropAreaList(const TCHAR *filename);
+
+	// Find the drop button containing the given point (in local
+	// window coordinates, adjusted for monitor rotation)
+	MediaDropArea *FindDropAreaHit(POINT pt);
+
+	// draw the drop area list
+	void DrawDropAreaList(POINT pt);
+
+	// current drop target feedback overlay
+	RefPtr<Sprite> dropTargetSprite;
+
+	// media drop target object
+	RefPtr<MediaDropTarget> dropTarget;
 };

@@ -6,6 +6,11 @@
 #include "Application.h"
 #include "PlayfieldView.h"
 #include "VideoSprite.h"
+#include "MediaDropTarget.h"
+
+BaseView::~BaseView()
+{
+}
 
 bool BaseView::Create(HWND parent, const TCHAR *title)
 {
@@ -38,6 +43,31 @@ bool BaseView::Create(HWND parent, const TCHAR *title)
 
 	// success
 	return true;
+}
+
+bool BaseView::OnCreate(CREATESTRUCT *cs)
+{
+	// do the base class work
+	bool ret = __super::OnCreate(cs);
+
+	// register our media drop target
+	dropTarget.Attach(new MediaDropTarget(this));
+
+	// return the base class result
+	return ret;
+}
+
+bool BaseView::OnDestroy()
+{
+	// revoke our system drop target
+	if (dropTarget != nullptr)
+	{
+		dropTarget->OnDestroyWindow();
+		dropTarget = nullptr; 
+	}
+
+	// do the base class work
+	return __super::OnDestroy();
 }
 
 bool BaseView::OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
@@ -319,5 +349,241 @@ void BaseView::AsyncSpriteLoader::OnAsyncSpriteLoadDone(VideoSprite *sprite, Thr
 		// we're now done tracking this thread - forget it
 		thread = nullptr;
 	}
+}
+
+void BaseView::DrawDropAreaList(POINT pt)
+{
+	// set up the drop feedback sprite
+	int width = szLayout.cx, height = szLayout.cy;
+	dropTargetSprite.Attach(new Sprite());
+	dropTargetSprite->Load(width, height, [this, pt, width, height](Gdiplus::Graphics &g)
+	{
+		// fill the window
+		Gdiplus::SolidBrush bkg(Gdiplus::Color(128, 0, 0, 0));
+		Gdiplus::SolidBrush hibr(Gdiplus::Color(128, 0, 0, 255));
+		Gdiplus::Pen pen(Gdiplus::Color(128, 255, 255, 255), 2);
+		g.FillRectangle(&bkg, 0, 0, width, height);
+
+		// set up for text drawing
+		Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
+		fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+		fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+		Gdiplus::SolidBrush txtbr(Gdiplus::Color(255, 255, 255, 255));
+		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), 36, 400));
+
+		// Find the drop area at the current mouse location
+		activeDropArea = FindDropAreaHit(pt);
+
+		// Figure the top location of the uppermost button with a specific
+		// button area.  We'll draw the background button caption above 
+		// this area to make sure it doesn't overlap any of the buttons.
+		int topBtn = height;
+		for (auto const &a : dropAreas)
+		{
+			if (!IsRectEmpty(&a.rc) && a.rc.top < topBtn)
+				topBtn = a.rc.top;
+		}
+
+		// draw each area, from back to front
+		for (auto const &a : dropAreas)
+		{
+			// Get the area.  An empty rect means to use the whole window.
+			Gdiplus::RectF rc;
+			if (IsRectEmpty(&a.rc))
+				rc = { 0.0f, 0.0f, (float)width, (float)height };
+			else
+				rc = { (float)a.rc.left, (float)a.rc.top, (float)(a.rc.right - a.rc.left), (float)(a.rc.bottom - a.rc.top) };
+
+			// fill the background
+			g.FillRectangle(&a == activeDropArea && a.hilite ? &hibr : &bkg, rc);
+
+			// draw an outline around this area
+			g.DrawRectangle(&pen, rc);
+
+			// Figure the label.  If a string was provided directly, use that.
+			// Otherwise, if a media type was provided, say "Drop <media type> here".
+			const TCHAR *label = nullptr;
+			TSTRINGEx typeLabel;
+			if (a.label.length() != 0)
+			{
+				// use the provided literal label text
+				label = a.label.c_str();
+			}
+			else if (a.mediaType != nullptr)
+			{
+				// generate a label from the media type name
+				typeLabel.Format(LoadStringT(IDS_MEDIA_DROP_TYPE_HERE), LoadStringT(a.mediaType->nameStrId).c_str());
+				label = typeLabel.c_str();
+			}
+
+			// draw the caption
+			if (label != nullptr)
+			{
+				// start with the button rect
+				Gdiplus::RectF rcTxt(rc);
+
+				// if this is the background button, draw above the top button
+				if (IsRectEmpty(&a.rc))
+					rcTxt.Height = (float)topBtn;
+
+				// insert a bit for a margin
+				rcTxt.Inflate(-16.0f, -16.0f);
+
+				// draw it
+				g.DrawString(label, -1, font.get(), rcTxt, &fmt, &txtbr);
+			}
+
+		}
+
+	}, Application::InUiErrorHandler(), _T("drop target sprite"));
+
+	// update the drawing list with the new sprite
+	UpdateDrawingList();
+}
+
+void BaseView::ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+{
+	// presume that we won't accept the drop
+	*pdwEffect = DROPEFFECT_NONE;
+
+	// clear out any old drop area list
+	dropAreas.clear();
+
+	// by default, drops are processed through the playfield view, so we
+	// can't proceed unless that's available
+	auto pfv = Application::Get()->GetPlayfieldView();
+	if (pfv == nullptr)
+		return;
+
+	// If more than one file is being dropped, reject it
+	if (fd.GetNumFiles() > 1)
+	{
+		dropAreas.emplace_back(LoadStringT(IDS_MEDIA_DROP_ONE_AT_A_TIME).c_str());
+		DrawDropAreaList(pt);
+		return;
+	}
+
+	// Process the file (we already know there's only one)
+	fd.EnumFiles([this, pdwEffect, pt](const TCHAR *fname)
+	{
+		// If it's an archive file of a type we can unpack, assume it's 
+		// acceptable.  Don't scan it now, since this test is done on the 
+		// initial drag entry and thus needs to be quick.  If the user ends
+		// up dropping the file and it doesn't contain anything useful, 
+		// we'll report an error at that point.  Make the initial judgment
+		// based simply on the filename extension.
+		if (tstriEndsWith(fname, _T(".zip"))
+			|| tstriEndsWith(fname, _T(".rar"))
+			|| tstriEndsWith(fname, _T(".7z")))
+		{
+			// It's an archive file.  Assume it's a media pack.
+			dropAreas.emplace_back(LoadStringT(IDS_MEDIA_DROP_MEDIA_PACK).c_str());
+			DrawDropAreaList(pt);
+			*pdwEffect = DROPEFFECT_COPY;
+			return;
+		}
+
+		// It's not a media type.  Try building a drop area list.
+		if (BuildDropAreaList(fname))
+		{
+			// success - draw the sprite
+			DrawDropAreaList(pt);
+			*pdwEffect = DROPEFFECT_COPY;
+			return;
+		}
+	});
+}
+
+bool BaseView::BuildDropAreaList(const TCHAR *filename)
+{
+	// Check for image or video files matching the background media 
+	// types used for the target window, again based purely on the
+	// filename extension.
+	const MediaType *mt = nullptr;
+	if (((mt = GetBackgroundImageType()) != nullptr && mt->MatchExt(filename))
+		|| ((mt = GetBackgroundVideoType()) != nullptr && mt->MatchExt(filename)))
+	{
+		dropAreas.emplace_back(mt);
+		return true;
+	}
+
+	// no match
+	return false;
+}
+
+void BaseView::UpdateDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+{
+	// if there's a drop area list, find the active area under the mouse
+	if (dropAreas.size() != 0)
+	{
+		// find the drop area we're over
+		if (auto a = FindDropAreaHit(pt); a != activeDropArea)
+			DrawDropAreaList(pt);
+	}
+}
+
+BaseView::MediaDropArea *BaseView::FindDropAreaHit(POINT pt)
+{
+	// Scan for a hit starting at the end of the list.  The list is in
+	// Z order from background to foreground, so we want to work backwards
+	// through the list to find the frontmost object containing the point.
+	for (auto it = dropAreas.rbegin(); it != dropAreas.rend(); ++it)
+	{
+		// If it's an empty rect, it represents the background object
+		// that covers the whole window, so it's always a hit.  Otherwise,
+		// it's a hit if the point is within the button wrectangle.
+		if (IsRectEmpty(&it->rc) || PtInRect(&it->rc, pt))
+			return &*it;
+	}
+
+	// no hit
+	return nullptr;
+}
+
+void BaseView::RemoveDropTargets()
+{
+	// remove the drop target feedback sprite
+	dropTargetSprite = nullptr;
+	UpdateDrawingList();
+
+	// clear the drop area list
+	dropAreas.clear();
+	activeDropArea = nullptr;
+}
+
+void BaseView::DoMediaDrop(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+{
+	// no files processed yet
+	int nFilesProcessed = 0;
+	*pdwEffect = DROPEFFECT_NONE;
+
+	// all drops are processed through the playfield view, so we
+	// can't proceed unless that's available
+	auto pfv = Application::Get()->GetPlayfieldView();
+	if (pfv == nullptr)
+		return;
+
+	// get the current drop area
+	MediaDropArea *area = FindDropAreaHit(pt);
+
+	// begin the file drop operation
+	pfv->BeginFileDrop();
+
+	// process the dropped files
+	fd.EnumFiles([this, pfv, &nFilesProcessed, area](const TCHAR *fname)
+	{
+		// try processing it through the playfield view
+		if (pfv->DropFile(fname, dropTarget, area != nullptr ? area->mediaType : nullptr))
+			++nFilesProcessed;
+	});
+
+	// end the drop operation
+	pfv->EndFileDrop();
+
+	// if we dropped any files, set the drop effect to 'copy' for the
+	// caller's benefit, in case they want to show different feedback
+	// for different results
+	if (nFilesProcessed != 0)
+		*pdwEffect = DROPEFFECT_COPY;
 }
 

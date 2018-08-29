@@ -17,7 +17,7 @@
 //
 #define PINBALLY_VERSION            "1.0.0"
 #define PINBALLY_RELEASE_STATUS     STATUS_ALPHA
-#define PINBALLY_PRERELEASE_SEQNO   16
+#define PINBALLY_PRERELEASE_SEQNO   18
 #define PINBALLY_COPYRIGHT_OWNERS   "Michael J Roberts"
 #define PINBALLY_FORK_ID            ""
 
@@ -85,40 +85,46 @@
 // 
 // This specifies the release status - alpha, beta, etc.
 // 
-// In a sense, the release status is kind of moot with open source,
-// because an open source project is in a perpetual "beta" mode by its
-// very nature.  In commercial software development, the release level
-// typically has a formal meaning, often contractual, that defines the
-// type of support and warranty service that customers will receive 
-// during a testing cycle.  A testing release also typicall restricts
-// the number and type of customers who will have access to the release.
-// None of these factors are relevant to open-source projects, where 
-// anyone can generally download any testing version and where the
-// software is explicitly distributed with no warranty or support.
+// To some degree, the traditional alpha/beta/production release cycle
+// is meaningless in an open source pboject, because such a project is
+// aguably in a perpetual "beta" state by its very nature.  In commercial
+// software, the release level often has a formal meaning, defined at
+// least internally and often spelled out in sales contracts, that 
+// defines the type of support and warranty service that customers will 
+// receive during a testing cycle.  A testing release also typically
+// restricts the number and type of customers who will have access to 
+// the release.  None of these factors are relevant to open-source
+// software, where anyone can generally download any testing version
+// and where the software is explicitly distributed without warranty 
+// or support service at *any* point in its lifecycle.
 // 
-// Even so, the release status is informative and useful, to both users
-// and the developers.  For users, it gives them an idea of how much
-// testing a release has had and how stable it's considered to be by
-// the developers.  This lets users opt in to releases according to 
-// their tolerance for bugs and instability vs. their desire for the 
-// latest features.  For the developers, the release status is useful 
-// for gauging how much risk they should be willing to take (in terms 
-// of the potential for breaking existing functionality and introducing
-// new instability) when considering what sorts of changes to include
-// in a particular build.
+// Even so, the commercial lifecycle is so widely used and understood
+// that it's still useful and informative for open source projects, even
+// if it's used more loosely and informally.  For users, it provides an
+// indication of how much testing a release has had and how stable the
+// developers consider it to be.  This lets users opt in to releases
+// according to their individual tolerance for bugs and instability vs.
+// their desire to have access to the latest features and their interest
+// in helping with the testing process.  For the developers, the release
+// status is useful for gauging how much risk they should be willing to 
+// take (in terms of the potential for breaking existing functionality 
+// and introducing new instability) when considering what sorts of 
+// changes to include in a particular build.
 // 
 // As with the version numbering scheme, there's not a precise or
 // universal set of rules for the release lifecycle, even in the
-// commercial software sphere.  But as with version numbering, there's
-// enough commonality to industry practice that most users have fairly 
-// consistent expectations about what the terms mean.  We recommend 
-// using the common progression of Dev, Alpha, Beta, RC, Production:
+// commercial software world.  But there's enough commonality in
+// industry practice that most users have at least intuitive 
+// understandings of the terms.  We recommend using the common 
+// progression of Dev, Alpha, Beta, RC, Production:
 // 
 // STATUS_DEVELOPMENT
 // Development = in the development stages, incomplete and possibly
-//    non-functional; at this stage, the only builds made are usually the
-//    ones the developers create for their own use as they work on the
-//    code, and these aren't usually distributed to anyone else.
+//    non-functional.  At this stage, no official release packages
+//    are ever created; builds are for the developers' own use as they 
+//    work on the code.  The only distribution might be to individual
+//    users who are helping to test particular features or config-
+//    urations.  This stage is also sometimes called pre-alpha.
 // 
 // STATUS_ALPHA
 // Alpha = early testing version, incomplete or not fully functional;
@@ -142,15 +148,18 @@
 //    another beta or an RC).
 // 
 // STATUS_RELEASE
-// Release = official release version, usually known in software
-//    industry parlance as Production or General Availability.  We use
-//    the term Release rather than Production or GA, since those have
-//    plain-meaning connotations that are more suitable in a commercial
-//    context than open source.
+// Release = official release version, usually known in commercial
+//    sofwtare parlance as Production or General Availability.  We use
+//    the term Release rather than Production or GA, since those terms
+//    seem a little off for open source.  Release versions are considered
+//    to be complete, fully functional, well tested, and stable enough
+//    that users at any experience level (to the extent that they're 
+//    part of the product's target audience, anyway) would be able to 
+//    successfully use this version.
 // 
-// Note that use one-character codes for these internally, to allow for
-// easy use in #if tests (in case we want to put some code in only for
-// Beta versions, say).  The full words should be used in anything
+// Note that we use one-character codes for these internally, to allow 
+// for easy use in #if tests (in case we want to put some code in only 
+// for Beta versions, say).  The full words should be used in anything
 // displayed to users.
 // 
 // 
@@ -184,29 +193,46 @@
 //
 // If you're forking the repository and creating your own separate
 // release of the code, you can add your name (or organization name) to
-// the copyright.  Current copyright laws in most countries grant
-// automatic ownership of copyright to the author of a new work at the
-// the moment of its creation.  So you automatically own the copyright
-// to any original, new code you add to the project.  This of course
-// doesn't change the copyright of the existing code that you added to.
-// That creates a complication common to open-source projects with
-// multiple contributors, in that it would be impractical to keep track
-// of and credit authorship of every bit of code on a line-by-line
-// basis.  So most open-source projects do one of two things with regard
-// to new code.  First, they might ask that all contributers assign the
-// copyright in new code to the original authors, so that the copyright
-// status of the overall work is simple and predictable over time.  (You
-// automatically own the copyright in new work you create, but that also
-// gives you the right to assign it to someone else.)  You can use this
-// option for any new code you add to this project, if you wish, simply
-// by leaving the copyright owner name unchanged here, and publishing
-// your new forked version of the project under the original copyright.
-// Authors who add small changes on the order of bug fixes might find
-// that option preferable.  The other option that some projects use is
-// collective copyrights, where the copyright to the overall project is
-// owned by all of the contributing authors together.  You can use this
-// option for your forked version, if you wish, simply by adding your
-// name to the copyright alongside the original authors already listed.
+// the copyright.  (You can't remove the existing copyright holder
+// names, though; you can only add your name to the existing names.)
+// 
+// The reason you can add your name is that international copyright
+// conventions and most national copyright laws automatically grant
+// the copyright in any new, original work to its author.  This is
+// automatic and inherent in the creation of the new work.  That means
+// that any original code you create and add to this project is under
+// your copyright by virtue of your having written the code.  Now,
+// this naturally doesn't in any way affect the copyright ownership
+// of the existing code that you added to; it only applies to the
+// portion of it that is your original contribution.  This creates a 
+// complication for open-source projects with many contributors, which
+// is that it would be impractical to keep track of and credit 
+// authorship of every bit of code on a line-by-line basis.  So most
+// open-source projects do one of two things with regard to new code.
+// The first option is that they might ask all contributers to assign
+// the copyright in any new code to the original authors, so that the 
+// copyright ownership of the overall work remains the same over time.
+// This works because the owner of a copyright (such as the automatic
+// copyright you get when you create a new work) can always assign that
+// copyright to someone else.  For PinballY, you can use this option 
+// for any new code you add simply by using the current copyright owner
+// name(s) in all attributions within your new code, and leaving the
+// normal copyright notice intact if you create a forked version with
+// its own separate distribution.  Authors who add small changes on
+// the order of bug fixes might find this option preferable.  The 
+// second option that some projects use is a collective copyright,
+// where the copyright to the overall project is owned by all of the
+// contributing authors together.  You can use this option for your 
+// forked version, if you wish, by adding your name to the copyright 
+// alongside the original authors already listed.  This might be
+// suitable if you make a significant addition to the program.
+//
+// Whatever you do about a copyright notice in a new forked version
+// you create, please note that the license terms are a separate
+// matter.  This particular project is distributed under GPL, which
+// requires that all derivative versions must also be under GPL.
+// So while you can add your name to the copyright, you can't add,
+// remove, or modify any license terms.
 //
 // 
 // VII.  Forked Project Versioning

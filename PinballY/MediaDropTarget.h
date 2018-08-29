@@ -7,16 +7,27 @@
 
 #pragma once
 #include <ShlObj.h>
+#include <Shellapi.h>
 #include "../Utilities/Pointers.h"
 
 struct MediaType;
+class BaseView;
 
+// Media Drop Target. 
+//
+// Each window that handles media file drag-and-drop creates one of 
+// these objects and registers it with Windows as the IDropTarget for
+// the window handle.  This implements the IDropTarget methods, which
+// Windows calls during drag events that target our window.
+//
 class MediaDropTarget : public RefCounted, public IDropTarget
 {
 public:
-	// When creating a drop target, provide the video and image media
-	// type information for the 
-	MediaDropTarget(const MediaType *imageType, const MediaType *videoType);
+	MediaDropTarget(BaseView *win);
+
+	// Receive notification that the window is being destroyed.  This
+	// revokes the drop target with the system.
+	void OnDestroyWindow();
 
 	// IUnknown implementation
 	virtual ULONG STDMETHODCALLTYPE AddRef() override { return RefCounted::AddRef(); }
@@ -32,12 +43,53 @@ public:
 	virtual HRESULT STDMETHODCALLTYPE Drop(
 		IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) override;
 
-	// Get the media types for the associated window
-	const MediaType *GetImageMediaType() const { return imageType; }
-	const MediaType *GetVideoMediaType() const { return videoType; }
+	// get the background image/video types for this window
+	const MediaType *GetBackgroundImageType() const;
+	const MediaType *GetBackgroundVideoType() const;
+
+	// Convenience interface for IDataObject -> HDROP
+	class FileDrop
+	{
+	public:
+		FileDrop() : hDrop(NULL), nFiles(0) { }
+		
+		// initialize from an IDataObject interface
+		bool Init(IDataObject *pDataObj);
+
+		// clear fields
+		void Clear()
+		{
+			pDataObj = nullptr;
+			hDrop = NULL;
+			nFiles = 0;
+		}
+
+		// is it valid?
+		bool IsValid() const { return hDrop != NULL; }
+
+		// get the number of files
+		int GetNumFiles() const { return nFiles; }
+
+		// iterate over the files
+		void EnumFiles(std::function<void(const TCHAR *filename)> func) const;
+
+	protected:
+		// the file drop handle
+		HDROP hDrop;
+
+		// number of files
+		UINT nFiles;
+
+		// underlying pDataObj
+		RefPtr<IDataObject> pDataObj;
+	};
 
 protected:
 	~MediaDropTarget();
+
+	// Current FileDrop object.  This is initialized from the IDataObject
+	// when DragEnter() is called.
+	FileDrop fileDrop;
 
 	// Last drop effect.  We cache this when DragEnter() is called, and
 	// continue to return it throughout the drag operation for DragOver()
@@ -45,8 +97,11 @@ protected:
 	// effect shouldn't change in the course of a drag operation.
 	DWORD lastDropEffect;
 
-	// Image and video types for this window's main background media
-	const MediaType *imageType;
-	const MediaType *videoType;
+	// target view
+	RefPtr<BaseView> view;
+
+	// adjust screen coordinates to local coordinates in the view,
+	// adjusted for rotation and reflection
+	POINT ScreenToView(POINTL pt) const;
 };
 

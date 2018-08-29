@@ -40,6 +40,9 @@ class PlayfieldView : public BaseView,
 	ConfigManager::Subscriber,
 	D3DView::IdleEventSubscriber
 {
+	// our drop bridge object is essentially an extension of this object
+	friend class PlayfieldViewDropBridge;
+
 public:
 	PlayfieldView();
 
@@ -99,6 +102,10 @@ public:
 	void ShowError(ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list = 0);
 	void ShowSysError(const TCHAR *msg, const TCHAR *details);
 
+	// Show an error with automatic dismissal after a given timeout
+	void ShowErrorAutoDismiss(DWORD timeout_ms, ErrorIconType iconType,
+		const TCHAR *groupMsg, const ErrorList *list = 0);
+
 	// enter/leave running game mode
 	void BeginRunningGameMode();
 	void EndRunningGameMode();
@@ -125,11 +132,6 @@ public:
 	// clear media
 	void ClearMedia();
 
-	// Determine if a file being dropped is a recognized type.  This
-	// returns true if we're dropping a ZIP file or a media file of a
-	// type accepted by the target window.
-	bool CanDropFile(const TCHAR *fname, MediaDropTarget *dropTarget);
-
 	// Begin a file drop operation.  Call this at the start of a 
 	// group of DropFile() calls to reset the internal records of
 	// the files being handled.
@@ -139,7 +141,16 @@ public:
 	// dropping a ZIP file containing a HyperPin media pack, or any
 	// media file accepted by the target window.  Returns true if
 	// the file was a recognized type, false if not.
-	bool DropFile(const TCHAR *fname, MediaDropTarget *dropTarget);
+	//
+	// mediaType gives the media type implied by the location of the
+	// drop.  When a given file type could be used for multiple media
+	// types (e.g., background image or wheel logo), we draw "buttons"
+	// during the drop letting the user indicate the media type by
+	// dropping the file onto the appropriate button area.  The 
+	// mediaType value gives us that result.  Null means that the
+	// drop area didn't have an associated media type, which in turn
+	// normally means that they're dropping a Media Pack file.
+	bool DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, const MediaType *mediaType);
 
 	// End a file drop operation
 	void EndFileDrop();
@@ -150,6 +161,10 @@ public:
 
 	// Handle a change to the game list manager
 	void OnGameListRebuild();
+
+	// Media information for the main background image/video
+	virtual const MediaType *GetBackgroundImageType() const override;
+	virtual const MediaType *GetBackgroundVideoType() const override;
 
 protected:
 	// destruction - called internally when the reference count reaches zero
@@ -175,9 +190,6 @@ protected:
 
 	// window creation
 	virtual bool OnCreate(CREATESTRUCT *cs) override;
-
-	// window destruction
-	virtual bool OnDestroy() override;
 
 	// process a command
 	virtual bool OnCommand(int cmd, int source, HWND hwndControl) override;
@@ -232,8 +244,10 @@ protected:
 	static const int creditsDispTimerID = 113;	  // number of credits display overlay timer
 	static const int gameTimeoutTimerID = 114;    // game inactivity timeout timer
 	static const int endSplashTimerID = 115;      // remove the "splash screen"
-	static const int restoreDOFTimerID = 116;     // restore DOF access after a game terminates
+	static const int restoreDOFAndDMDTimerID = 116; // restore DOF and DMD access after a game terminates
 	static const int cleanupTimerID = 117;        // periodic cleanup tasks
+	static const int mediaDropTimerID = 118;      // media drop continuation timer
+	static const int autoDismissMsgTimerID = 119;  // auto dismiss a message dialog
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -464,7 +478,10 @@ protected:
 	// Show/update the capture startup delay dialog
 	void ShowCaptureDelayDialog(bool update);
 
-	// Media drop list.  
+	// Get the drop area list for a given media file
+	virtual bool BuildDropAreaList(const TCHAR *filename) override;
+
+	// Media drop list
 	struct MediaDropItem
 	{
 		MediaDropItem(const TCHAR *filename, int zipIndex, 
@@ -490,6 +507,9 @@ protected:
 		// Index of the item in a ZIP file, or -1 for a media file
 		// dropped directly.
 		int zipIndex;
+
+		// Is this from a media pack?
+		bool IsFromMediaPack() const { return zipIndex >= 0; }
 		
 		// Implied game name.  This is the game name implied by the
 		// filename, as interpreted through the naming conventions for
@@ -564,6 +584,9 @@ protected:
 	};
 	std::list<MediaDropItem> dropList;
 
+	// target game for the current media drop
+	GameListItem *mediaDropTargetGame;
+
 	// Media drop phase 2: show the selection menu.  This is broken out
 	// from the initial drop processing, because that can be interrupted
 	// by a confirmation prompt if the game name looks wrong in the 
@@ -635,6 +658,11 @@ protected:
 		}
 
 		void OnCloseDialog()
+		{
+			ResetDialog();
+		}
+
+		void ResetDialog()
 		{
 			sel = -1;
 			command = CloseDialog;
@@ -784,19 +812,19 @@ protected:
 	// drawn in front of it with gradually increasing opacity.
 	template<class SpriteType> struct GameMedia
 	{
-		GameMedia() : game(0) { }
+		GameMedia() : game(nullptr) { }
 
 		void Clear()
 		{
-			game = 0;
-			sprite = 0;
+			game = nullptr;
+			sprite = nullptr;
 			audio = nullptr;
 		}
 
 		void ClearVideo()
 		{
-			game = 0;
-			sprite = 0;
+			game = nullptr;
+			sprite = nullptr;
 		}
 		
 		GameListItem *game;
@@ -905,8 +933,9 @@ protected:
 	// error is dismissed.
 	struct QueuedError
 	{
-		QueuedError(ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list)
-			: iconType(iconType)
+		QueuedError(DWORD timeout, ErrorIconType iconType, 
+			const TCHAR *groupMsg, const ErrorList *list)
+			: timeout(timeout), iconType(iconType)
 		{
 			// set the group message, if present
 			if (groupMsg != nullptr)
@@ -917,6 +946,7 @@ protected:
 				this->list.Add(list);
 		}
 
+		DWORD timeout;
 		ErrorIconType iconType;
 		TSTRING groupMsg;
 		SimpleErrorList list;

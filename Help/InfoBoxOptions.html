@@ -74,6 +74,7 @@
 </p>
 
 
+<a name="ManufacturerLogos"></a>
 <h2>Manufacturer logos</h2>
 
 <p>
@@ -84,25 +85,42 @@
 </p>
 <p>
    File formats:  use PNG files for all logos.  Use transparency ("alpha")
-   as desired.
+   as desired.  (PNG is the only format allowed for logos, since it's the
+   only format that supports transparency well.)
 </p>
 <p>
-   Location:  place all company logo files in the <b>Company Logos</bL
+   Location:  place all company logo files in the <b>Company Logos</b>
    subfolder of your main Media folder, as set in your Folders options.
+   (The Company Logos folder goes directly in the main Media folder.
+   It doesn't need to go in a game system-specific subfolder.)
 </p>
 <p>
    Name: simply use the manufacturer name as the file name (before the .png
-   suffix), as in <b>Gottlieb.png</b> or <b>Williams.png</b>.
+   suffix), as in <b>Gottlieb.png</b> or <b>Williams.png</b>. 
 </p>
 <p>
-   Era-specific files:  many company logos change over the years.  You can
-   create separate logos for a manufacturer over different time periods
-   by adding a year range suffix to the filename, as in
+   <b>Era-specific logos:</b>  many of the pinball companies used different logos
+   over the years.  You might prefer to have each pinball table shown with
+   the manufacturer's logo that was appropriate to the table's era.  PinballY
+   lets you create different logos for the same manufacturer, and identify
+   the years they were in use.  If you do this, the program will pick out
+   the appropriate era-specific logo to display for each table based on the
+   release year for the table, as specified in the table's database details.
+</p>
+<p>
+   To create separate logos for one manufacturer for different time periods,
+   simply add a year range suffix to the filename, as in
    <b>Gottlieb (1971-1980).png</b>.  You can use as many different time
    periods as necessary for each company.  Use a range like <b>(1980-)</b>
-   to mean "1980 and later".
+   to mean "1980 and later", and use <b>(-1980)</b> to mean "1980 and earlier".
+   If you provide one or more files with specific time periods for a manufacturer,
+   and you also include a "generic" file with no time period, the program will
+   always give the era-specific files precedence, but will use the generic
+   file as a fallback whenever it can't find an era-specific
+   file that matches the release year it's looking for.
 </p>
 
+<a name="SystemLogos"></a>
 <h2>System logos</h2>
 
 <p>
@@ -111,10 +129,14 @@
 </p>
 <p>
    File formats: use PNG files.  Use transparency ("alpha") as desired.
+  (PNG is the only format allowed for logos, since it's the
+   only format that supports transparency well.)
 </p>
 <p>
    Location: place all system logos in the <b>System Logos</b> subfolder
    of your main Media folder, as set in your Folders options.
+   (This folder goes directly in the main Media folder.
+   It doesn't need to go in a game system-specific subfolder.)
 </p>
 <p>
    Name: simply use the system name as the file name (before the .png

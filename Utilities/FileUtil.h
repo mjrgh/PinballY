@@ -10,7 +10,10 @@
 #include <vector>
 #include <iterator>
 
+// -----------------------------------------------------------------------
+//
 // Does a file exist?
+//
 template<typename CHARTYPE>
 bool FileExists(const CHARTYPE *filename)
 {
@@ -24,13 +27,21 @@ bool FileExists(const CHARTYPE *filename)
 		&& !(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
 }
 
+//
 // Does a directory exist?
+//
 inline bool DirectoryExists(const TCHAR *filename)
 {
 	DWORD dwAttrib = GetFileAttributes(filename);
 	return (dwAttrib != INVALID_FILE_ATTRIBUTES
 		&& (dwAttrib & FILE_ATTRIBUTE_DIRECTORY) != 0);
 }
+
+// -----------------------------------------------------------------------
+// 
+// "Touch" a file - set the modified date to the current time
+//
+bool TouchFile(const TCHAR *filename);
 
 // -----------------------------------------------------------------------
 //
