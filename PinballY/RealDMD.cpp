@@ -20,12 +20,16 @@
 // library inclusion for GetFileVersionInfo et al
 #pragma comment(lib, "version.lib")
 
-// DLL name
-#ifdef _WIN64
-#define DMD_DLL_FILE _T("DmdDevice64.dll")
-#else
-#define DMD_DLL_FILE _T("DmdDevice.dll")
+// DLL name.  In most cases, we load DmdDevice.dll.  When running
+// in 64-bit mode, we'll look for DmdDevice64.dll first, and load
+// that instead if present, falling back on DmdDevice.dll if that
+// doesn't exist.  That allows installing the 32-bit and 64-bit
+// versions of the DLL alongside one another for compatibility
+// with a mix of 32- and 64-bit clients.
+#ifdef _M_X64
+#define DMD_DLL64_FILE _T("DmdDevice64.dll")
 #endif
+#define DMD_DLL_FILE   _T("DmdDevice.dll")
 
 // define the externs for the dmddevice.dll imports
 #define DMDDEVICEDLL_DEFINE_EXTERNS
@@ -111,30 +115,77 @@ bool RealDMD::FindDLL()
 	LogGroup();
 	Log(_T("Searching for real DMD device DLL\n"));
 
+	// look for the DLL file in a given folder
+	auto TryFolder = [](TCHAR *buf /*[MAX_PATH]*/, const TCHAR *folderDesc)
+	{
+		auto TryFile = [buf, folderDesc](const TCHAR *dllName, const TCHAR *fileDesc)
+		{
+			// replace the filename in the buffer with the current filename
+			PathRemoveFileSpec(buf);
+			PathAppend(buf, dllName);
+
+			// check if it exists
+			if (FileExists(buf))
+			{
+				// got it - use this copy
+				dllPath = buf;
+				Log(_T("+ Found %s in the %s folder: %s\n"), fileDesc, folderDesc, buf);
+				return true;
+			}
+
+			// not found
+			return false;
+		};
+
+#ifdef DMD_DLL64_FILE
+		// We're in 64-bit mode - try the 64-bit version first
+		if (TryFile(DMD_DLL64_FILE, _T("the 64-bit DLL")))
+			return true;
+#endif
+
+		// Try the normal DmdDevice.dll file
+		if (TryFile(DMD_DLL_FILE, _T("the DLL")))
+			return true;
+
+		// no luck
+		return false;
+	};
+
 	// Look for the DLL in our own program folder first.  This allows
 	// using a specific version of the DLL with PinballY, without
 	// affecting the VPinMAME configuration, simply by copying the
 	// desired DLL into the PinballY program folder.
 	TCHAR buf[MAX_PATH] = { 0 };
 	GetModuleFileName(G_hInstance, buf, countof(buf));
-	PathRemoveFileSpec(buf);
-	PathAppend(buf, DMD_DLL_FILE);
-	if (FileExists(buf))
-	{
-		// got it - use this copy
-		dllPath = buf;
-		Log(_T("+ Found the DLL in the PinballY folder: %s\n"), buf);
+	if (TryFolder(buf, _T("PinballY")))
 		return true;
-	}
 
 	// Now try the folder containing the VPinMAME COM object DLL.
 	// We can find that from its COM InProcServer registration under 
 	// its CLSID GUID, {F389C8B7-144F-4C63-A2E3-246D168F9D39}.  Start
 	// by querying the length of the value.
+	//
+	// If we're on a 64-bit Windows system, Windows maintains two 
+	// parallel trees of CLSID keys: one under HKCR\Wow3264Node\CLSID 
+	// for 32-bit COM objects, and one under HKCR\CLSID for 64-bit 
+	// COM objects.  But wait, it gets more complex than that!  If
+	// *this process* is running in 32-bit mode on 64-bit Windows,
+	// Windows will redirect all registry inquires to HKCR\CLSID to
+	// the shadow copy under HKCR\Wow3264Node\CLSID, so that we get
+	// the 32-bit COM object pointer automatically.  If the process
+	// is in 64-bit mode, it'll gives us the HKCR\CLSID key instead.
+	// That means that if we're in 64-bit mode, and 32-bit VPinMAME 
+	// is installed, we won't see the VPM key under HKCR\CLSID.  So
+	// in this one special case, explicitly try the Wow3264Node
+	// shadow copy as a separate query.
+	// 
 	LONG valLen = 0;
-	const TCHAR *vpmKey = _T("CLSID\\{F389C8B7-144F-4C63-A2E3-246D168F9D39}\\InProcServer32");
+	const TCHAR *vpmKey = nullptr;
+	const TCHAR *vpmKey32 = _T("CLSID\\{F389C8B7-144F-4C63-A2E3-246D168F9D39}\\InProcServer32");
+	const TCHAR *vpmKey64 = _T("Wow6432Node\\CLSID\\{F389C8B7-144F-4C63-A2E3-246D168F9D39}\\InProcServer32");
 	Log(_T("+ No DLL found in the PinballY folder; checking for a VPinMAME folder\n"));
-	if (RegQueryValue(HKEY_CLASSES_ROOT, vpmKey, NULL, &valLen) == ERROR_SUCCESS)
+	if (RegQueryValue(HKEY_CLASSES_ROOT, vpmKey = vpmKey32, NULL, &valLen) == ERROR_SUCCESS
+		|| RegQueryValue(HKEY_CLASSES_ROOT, vpmKey = vpmKey64, NULL, &valLen) == ERROR_SUCCESS)
 	{
 		// allocate space and query the value
 		++valLen;
@@ -144,19 +195,10 @@ bool RealDMD::FindDLL()
 			// got it
 			Log(_T("+ VPinMAME COM object registration found at %s\n"), val.get());
 
-			// remove the DLL file spec to get its path
-			PathRemoveFileSpec(val.get());
-
-			// combine the path and the DLL name
-			PathCombine(buf, val.get(), DMD_DLL_FILE);
-
-			// if the file exists, use this path
-			if (FileExists(buf))
-			{
-				Log(_T("+ DLL found in VPinMAME folder at %s\n"), buf);
-				dllPath = buf;
+			// try this path
+			_tcscpy_s(buf, val.get());
+			if (TryFolder(buf, _T("VPinMAME")))
 				return true;
-			}
 		}
 	}
 	else
@@ -229,11 +271,9 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	// log that we found the DLL
 	Log(_T("+ found DMD interface DLL: %s\n"), dllPath.c_str());
 
-	// internal function to log a system error and return false
-	auto Failure = [&eh, this](const TCHAR *desc)
+	// internal functions to log a system error and return false
+	auto Failure2 = [&eh](const TCHAR *desc, WindowsErrorMessage &winErr)
 	{
-		// log the error
-		WindowsErrorMessage winErr;
 		Log(_T("+ DMD setup failed: %s: Windows error %d, %s\n"), desc, winErr.GetCode(), winErr.Get());
 		eh.SysError(LoadStringT(IDS_ERR_DMDSYSERR),
 			MsgFmt(_T("%s: Windows error %d, %s"), desc, winErr.GetCode(), winErr.Get()));
@@ -243,6 +283,11 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 
 		// return failure
 		return false;
+	};
+	auto Failure = [&Failure2](const TCHAR *desc)
+	{
+		WindowsErrorMessage winErr;
+		return Failure2(desc, winErr);
 	};
 
 	// Before loading the library, check to see if it's the dmd-extensions
@@ -306,8 +351,8 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				vsnNum = (((ULONGLONG)vsFixedInfo->dwProductVersionMS) << 32) | vsFixedInfo->dwProductVersionLS;
 
 			// log the strings we read
-			Log(_T("+ Version Info data: version=%d.%d.%d.%d, product name=\"%s\", copyright=\"%s\"\n"),
-				vsnPart(48), vsnPart(32), vsnPart(16), vsnPart(0), name.c_str(), cpr.c_str());
+			Log(_T("+ Version Info data: version=%d.%d.%d.%d, product name=\"%s\", comments=\"%s\", copyright=\"%s\"\n"),
+				vsnPart(48), vsnPart(32), vsnPart(16), vsnPart(0), name.c_str(), comments.c_str(), cpr.c_str());
 
 			// Look for "universal" in the product string and "freezy" in the
 			// copyright string, insensitive to case.
@@ -486,7 +531,34 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	// dependencies the DLL itself imports.
 	hmodDll = LoadLibraryEx(dllPath.c_str(), NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	if (hmodDll == NULL)
-		return Failure(MsgFmt(_T("Unable to load %s"), dllPath.c_str()));
+	{
+		// If we're in 64-bit mode, and the error is BAD EXE FORMAT, we're
+		// probably trying to load the 32-bit DLL from 64-bit code.  Provide
+		// a specific explanation of how to fix this.
+		WindowsErrorMessage winErr;
+#ifdef _M_X64
+		if (winErr.GetCode() == ERROR_BAD_EXE_FORMAT)
+		{
+			eh.Error(MsgFmt(IDS_ERR_DMD_3264, dllPath.c_str()));
+			Log(_T("+ The DLL (%s)\n")
+				_T("  can't be loaded because it appears to be a 32-bit DLL, and this\n")
+				_T("  is the 64-bit version of PinballY.  Windows doesn't allow mixing\n")
+				_T("  32-bit and 64-bit modules.  You'll have to get a copy of the 64-bit\n")
+				_T("  version of DmdDevice.dll.  You don't have to replace your current\n")
+				_T("  32-bit version, though!  You can install the 64-bit version alongside\n")
+				_T("  it and keep both, which you should do to maintain compatibility with\n")
+				_T("  any other programs that you're currently using that require the 32-bit\n")
+				_T("  DLL.  To install the 32-bit and 64-bit DLLs side by side: download the\n")
+				_T("  64-bit DLL, RENAME IT to DmdDevice64.dll, and copy it into the same\n")
+				_T("  folder as your current 32-bit DLL.\n"),
+				dllPath.c_str());
+			return false;
+		}
+#endif
+
+		// other error - return a generic failure
+		return Failure2(MsgFmt(_T("Unable to load %s"), dllPath.c_str()), winErr);
+	}
 
 	// Bind the entrypoints we access
 #define DMDDEV_BIND(func, required) \

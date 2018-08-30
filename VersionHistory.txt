@@ -39,6 +39,34 @@ matching files.
 non-ASCII characters (by converting filename strings passed to libvlc
 to UTF-8).
 
+* Improve the way that DmdDevice.dll is found and loaded when using
+the 64-bit version of PinballY:
+
+  - If a 32-bit version of VPinMAME is installed, PinballY will still
+    be able to find it, even when running in 64-bit mode.  In the
+    past, 64-bit PinballY could only find 64-bit VPinMAME, which is
+    rarely installed.
+
+  - You can now install 32-bit and 64-bit versions of DmdDevice.dll
+    side by side, for compatibility with 32-bit and 64-bit clients.
+    Most people use the 32-bit version of Visual Pinball and VPinMAME,
+    which require the 32-bit version of the DLL, because Windows
+    doesn't allow mixing 32- and 64-bit code - the DLL and EXE type
+    always have to match.  That created a problem if you wanted to
+    use 64-bit PinballY, for the same reason.  The solution is that
+    you can now install BOTH the 32- and 64-bit version of the DMD
+    DLL, and you can install them side by side in the VPinMAME folder.
+    Simply install the original 32-bit version as usual, and then 
+    ALSO copy the 64-bit version of DmdDevice.dll into the same
+    folder, RENAMING IT to DmdDevice64.dll.  
+
+    64-bit PinballY will always look for DmdDevice64.dll first, and
+    use that file if it exists.  If not, it looks for DmdDevice.dll
+    as usual.  So if you're already using 64-bit VPinMAME, there's
+    no need to rename anything or create extra copies of the DLL.
+    The extra DmdDevice64.dll is only needed if you need BOTH the
+    32-bit and 64-bit versions to be installed simultaneously.
+
 
 08-27-2018 (1.0.0 Alpha 17)
 
