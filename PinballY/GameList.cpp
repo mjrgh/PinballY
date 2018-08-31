@@ -1120,8 +1120,10 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->process = cfg->Get(MsgFmt(_T("%s.Process"), sysvar.Get()), _T(""));
 			system->startupKeys = cfg->Get(MsgFmt(_T("%s.StartupKeys"), sysvar.Get()), _T(""));
 			system->dofTitlePrefix = cfg->Get(MsgFmt(_T("%s.DOFTitlePrefix"), sysvar.Get()), _T(""));
+			system->runBeforePre = cfg->Get(MsgFmt(_T("%s.RunBeforePre"), sysvar.Get()), _T(""));
 			system->runBefore = cfg->Get(MsgFmt(_T("%s.RunBefore"), sysvar.Get()), _T(""));
 			system->runAfter = cfg->Get(MsgFmt(_T("%s.RunAfter"), sysvar.Get()), _T(""));
+			system->runAfterPost = cfg->Get(MsgFmt(_T("%s.RunAfterPost"), sysvar.Get()), _T(""));
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 
 			Log(_T("+ media folder base name is %s, full path is %s\\%s; %s\n"),

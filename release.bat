@@ -26,6 +26,11 @@ set ReleaseZipFull64=Builds\PinballY-64bit-%ReleaseDate%.zip
 set ReleaseZipMin64=Builds\PinballY-64bit-Min-%ReleaseDate%.zip
 
 
+rem  Make sure our custom FFMPEG manifests are in place
+release\FfmpegManifestUpdater ffmpeg\ffmpeg.exe
+release\FfmpegManifestUpdater ffmpeg64\ffmpeg.exe
+
+
 rem  Build the full ZIP.  Note that this includes BOTH the "Full"
 rem  and "Min" manifest files, since the "Full" manifest is really
 rem  the delta between Min and Full.  (The manifest files are just
@@ -43,10 +48,6 @@ if exist %ReleaseZipMin% del %ReleaseZipMin%
 for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipMin% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin% %%i
 
-
-rem  *** Build the 64-bit releases ***
-set ReleasePlatformDir=x64\release
-set ReleaseVLCDir=VLC64
 
 rem  Build the Full 64-bit ZIP
 if exist %ReleaseZipFull64% del %ReleaseZipFull64%

@@ -280,10 +280,6 @@ void DMDView::GenerateHighScoreImages()
 				// that are fully "off".
 				RGBQUAD bgColor = { (BYTE)(txtColor.rgbBlue / 10), (BYTE)(txtColor.rgbGreen / 10), (BYTE)(txtColor.rgbRed / 10) };
 
-				// Set up the 128x32 32bpp pixel array buffer
-				static const int dmdBytes = dmdWidth * dmdHeight * 4;
-				BYTE pix[dmdBytes];
-
 				// Set up a DIB descriptor for the 32bpp bitmap.  We'll use this
 				// to create the D3D texture for the DMD sprite.
 				BITMAPINFO bmi;
@@ -426,8 +422,33 @@ void DMDView::GenerateHighScoreImages()
 					// note the number of lines in this message
 					int nLines = (int)group.size();
 
+					// draw into the image, creating a new DIB of the given size for it
+					auto DrawToImage = [&images](int width, int height, std::function<void(Gdiplus::Graphics&)> drawFunc)
+					{
+						// emplace a new high-score image in the list
+						images.emplace_back(3500);
+						HighScoreImage &image = images.back();
+
+						// draw the image into a new DIB through the callback
+						DrawOffScreen(&image.hbmp, width, height, [&image, &drawFunc]
+						    (HDC hdc, HBITMAP, const void *dibits, const BITMAPINFO &bmi)
+						{
+							// save the bitmap data to the image object
+							image.dibits = dibits;
+							memcpy(&image.bmi, &bmi, sizeof(bmi));
+
+							// set up the GDI+ context
+							Gdiplus::Graphics g(hdc);
+
+							// do the caller's drawing
+							drawFunc(g);
+
+							// flush the bitmap
+							g.Flush();
+						});
+					};
+
 					// create a graphic according to the style
-					RefPtr<Sprite> sprite;
 					if (_tcsicmp(style.c_str(), _T("alpha")) == 0)
 					{
 						// Alphanumeric segmented display style
@@ -480,16 +501,11 @@ void DMDView::GenerateHighScoreImages()
 						}
 
 						// create the image
-						sprite.Attach(new Sprite());
-						SilentErrorHandler eh;
-						sprite->Load(pixWid, pixHt, [&alphanumImage, &group,
+						DrawToImage(pixWid, pixHt, [&alphanumImage, &group,
 							pixWid, pixHt, charCellWid, charCellHt, alphaGridWid, alphaGridHt,
 							x0, y0, yPadding, &CountAlphaCells]
-							(HDC hdc, HBITMAP)
+							(Gdiplus::Graphics &g)
 						{
-							// set up the GDI+ context
-							Gdiplus::Graphics g(hdc);
-
 							// fill the background with black
 							Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 0, 0));
 							g.FillRectangle(&bkg, 0, 0, charCellWid, charCellHt);
@@ -576,11 +592,7 @@ void DMDView::GenerateHighScoreImages()
 								// advance to the next line
 								y += charCellHt + yPadding;
 							}
-
-							// flush the bitmap
-							g.Flush();
-
-						}, eh, _T("Alphanumeric-style high score graphics"));
+						});
 					}
 					else if (_tcsicmp(style.c_str(), _T("tt")) == 0)
 					{
@@ -591,13 +603,8 @@ void DMDView::GenerateHighScoreImages()
 						int ht = ttBkgImage.get()->GetHeight();
 
 						// draw the image
-						sprite.Attach(new Sprite());
-						SilentErrorHandler eh;
-						sprite->Load(wid, ht, [&group, wid, ht, &ttBkgImage](HDC hdc, HBITMAP)
+						DrawToImage(wid, ht, [&group, wid, ht, &ttBkgImage](Gdiplus::Graphics &g)
 						{
-							// set up the GDI+ context
-							Gdiplus::Graphics g(hdc);
-
 							// copy the background
 							g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
 
@@ -619,16 +626,15 @@ void DMDView::GenerateHighScoreImages()
 							fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 							Gdiplus::SolidBrush br(Gdiplus::Color(32, 32, 32));
 							g.DrawString(txt.c_str(), -1, font.get(), Gdiplus::RectF(0, 0, (float)wid, (float)ht), &fmt, &br);
-
-							// flush graphics to the bitmap
-							g.Flush();
-
-						}, eh, _T("Typewriter-style high score graphic"));
+						});
 					}
 					else
 					{
 						// DMD style (this is also the default if the style setting
 						// isn't recognized)
+
+						// create the DIB buffer at 4 bytes per pixel
+						BYTE *pix = new BYTE[dmdWidth*dmdHeight * 4];
 
 						// clear the buffer to the background color
 						BYTE *dst = pix;
@@ -656,15 +662,9 @@ void DMDView::GenerateHighScoreImages()
 							y += font->cellHeight;
 						}
 
-						// create the sprite
-						sprite.Attach(new DMDSprite());
-						SilentErrorHandler eh;
-						sprite->Load(bmi, pix, eh, _T("DMD-style high score graphics"));
+						// store the image
+						images.emplace_back(bmi, pix, 3500);
 					}
-
-					// add the sprite to the list, handing over our reference on the sprite
-					if (sprite != nullptr)
-						images.emplace_back(sprite.Detach(), 3500);
 				}
 
 				// Send the sprite list back to the window
@@ -737,7 +737,7 @@ void DMDView::SetHighScoreImages(DWORD seqno, std::list<HighScoreImage> *images)
 	{
 		// transfer the images to our high score list
 		for (auto &i : *images)
-			highScoreImages.emplace_back(i.sprite.Detach(), i.displayTime);
+			highScoreImages.emplace_back(i);
 
 		// If there's only one item in the list, display it for longer than
 		// the default, which assumes that it's only one of several items.
@@ -920,9 +920,28 @@ void DMDView::AddBackgroundToDrawingList()
 	// if we have a high score image, draw that; otherwise use the
 	// base background image
 	if (highScoreImages.size() != 0 && highScorePos != highScoreImages.end())
-		sprites.push_back(highScorePos->sprite);
+	{
+		// if we haven't created a sprite for this background yet, do so now
+		if (highScorePos->sprite == nullptr)
+		{
+			// try creating the sprite
+			highScorePos->sprite.Attach(new DMDSprite());
+			if (!highScorePos->sprite->Load(highScorePos->bmi, highScorePos->dibits, SilentErrorHandler(), _T("high score slide")))
+			{
+				// failed to create the sprite
+				highScorePos->sprite = nullptr;
+			}
+		}
+
+		// add it to the sprite list
+		if (highScorePos->sprite != nullptr)
+			sprites.push_back(highScorePos->sprite);
+	}
 	else
+	{
+		// no high score image to display - use the default background
 		__super::AddBackgroundToDrawingList();
+	}
 }
 
 void DMDView::ScaleSprites()

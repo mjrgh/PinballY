@@ -110,7 +110,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -137,7 +137,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -169,7 +169,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -200,7 +200,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>

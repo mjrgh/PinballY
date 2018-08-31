@@ -3122,8 +3122,8 @@ void PlayfieldView::OnNewFilesAdded()
 // Show the "game running" popup
 void PlayfieldView::BeginRunningGameMode()
 {
-	// set up the "Loading" message
-	ShowRunningGameMessage(LoadStringT(lastPlayGameCmd == ID_CAPTURE_GO ? IDS_CAPTURE_LOADING : IDS_GAME_LOADING), 48);
+	// show the initial blank screen
+	ShowRunningGameMessage(nullptr, 0);
 
 	// animate the popup opening
 	runningGamePopup->alpha = 0;
@@ -3149,44 +3149,43 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 	runningGamePopup.Attach(new Sprite());
 	const int width = 1200, height = 1920;
 	Application::InUiErrorHandler eh;
-	runningGamePopup->Load(width, height, [width, height, msg, ptSize](HDC hdc, HBITMAP)
+	runningGamePopup->Load(width, height, [width, height, msg, ptSize](Gdiplus::Graphics &g)
 	{
-		// set up for GDI+ drawing
-		Gdiplus::Graphics g(hdc);
-
 		// fill the background
 		Gdiplus::SolidBrush bkg(Gdiplus::Color(255, 30, 30, 30));
 		g.FillRectangle(&bkg, 0, 0, width, height);
 
-		// load the wheel image, if available
-        std::unique_ptr<Gdiplus::Bitmap> wheelImage;
-		SIZE wheelImageSize = { 0, 0 };
-		auto game = GameList::Get()->GetNthGame(0);
-		TSTRING wheelFile;
-		if (IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
-            wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str()));
-
-		// draw the wheel image, if available
-		if (wheelImage != nullptr)
+		// If there's a message, draw the wheel image and the message.
+		// If the message is null, leave the screen blank.
+		if (msg != nullptr)
 		{
-			wheelImageSize = { (LONG)wheelImage->GetWidth(), (LONG)wheelImage->GetHeight() };
-			float aspect = wheelImageSize.cx != 0 ? float(wheelImageSize.cy) / float(wheelImageSize.cx) : 1.0f;
-			int dispWidth = 844, dispHeight = int(dispWidth * aspect);
-            g.DrawImage(wheelImage.get(), Gdiplus::Rect((width - dispWidth) / 2, (height - dispHeight) / 2, dispWidth, dispHeight));
+			// load the wheel image, if available
+			std::unique_ptr<Gdiplus::Bitmap> wheelImage;
+			SIZE wheelImageSize = { 0, 0 };
+			auto game = GameList::Get()->GetNthGame(0);
+			TSTRING wheelFile;
+			if (IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
+				wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str()));
+
+			// draw the wheel image, if available
+			if (wheelImage != nullptr)
+			{
+				wheelImageSize = { (LONG)wheelImage->GetWidth(), (LONG)wheelImage->GetHeight() };
+				float aspect = wheelImageSize.cx != 0 ? float(wheelImageSize.cy) / float(wheelImageSize.cx) : 1.0f;
+				int dispWidth = 844, dispHeight = int(dispWidth * aspect);
+				g.DrawImage(wheelImage.get(), Gdiplus::Rect((width - dispWidth) / 2, (height - dispHeight) / 2, dispWidth, dispHeight));
+			}
+
+			// draw the text, centered above the wheel image
+			std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), ptSize, 400));
+			Gdiplus::SolidBrush fg(Gdiplus::Color(255, 255, 255, 255));
+			Gdiplus::RectF bbox;
+			g.MeasureString(msg, -1, font.get(), Gdiplus::PointF(0, 0), &bbox);
+			g.DrawString(msg, -1, font.get(), Gdiplus::PointF(
+				(float)(width - bbox.Width) / 2.0f,
+				(float)(height - wheelImageSize.cy) / 2.0f - bbox.Height - 60),
+				&fg);
 		}
-
-		// draw the text, centered above the wheel image
-		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), ptSize, 400));
-		Gdiplus::SolidBrush fg(Gdiplus::Color(255, 255, 255, 255));
-		Gdiplus::RectF bbox;
-		g.MeasureString(msg, -1, font.get(), Gdiplus::PointF(0, 0), &bbox);
-		g.DrawString(msg, -1, font.get(), Gdiplus::PointF(
-			(float)(width - bbox.Width) / 2.0f, 
-			(float)(height - wheelImageSize.cy) / 2.0f - bbox.Height - 60),
-			&fg);
-
-		// update the bitmap bits
-		g.Flush();
 	}, eh, _T("Game Running Popup"));
 
 	// udpate the drawing list with the new sprite
@@ -3256,6 +3255,20 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
+	case PFVMsgGameRunBefore:
+		// The RunBeforePre command has finished, and we're about to run
+		// the RunBefore command.  Show the "Launching Game" message while
+		// this runs and the game loads.
+		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_LOADING : IDS_GAME_LOADING), 48);
+		return true;
+
+	case PFVMsgGameRunAfter:
+		// We're finished the RunAfter command, and we're about to run the
+		// RunAfterPost command.  Switch to a blank screen for the remainder
+		// of running game mode.
+		ShowRunningGameMessage(nullptr, 0);
+		return true;
+
 	case PFVMsgGameLoaded:
 		// switch to "Running" mode in the UI
 		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING), 48);

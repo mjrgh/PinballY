@@ -27,20 +27,31 @@
 void DrawOffScreen(int width, int height, 
 	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func)
 {
+	// do the drawing into a new bitmap
+	HBITMAP hbmp;
+	DrawOffScreen(&hbmp, width, height, func);
+
+	// delete the bitmap
+	DeleteObject(hbmp);
+}
+
+// Perform off-screen drawing, returning the HBITMAP to the caller.
+void DrawOffScreen(HBITMAP *phBitmap, int width, int height, 
+	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func)
+{
 	// create a memory DC
 	MemoryDC memdc;
 
 	// create and select a DIB of the desired size
 	void *dibits = 0;
 	BITMAPINFO bmi;
-	HBITMAP hbmp = memdc.CreateDIB(width, height, dibits, bmi);
+	*phBitmap = memdc.CreateDIB(width, height, dibits, bmi);
 
 	// invoke the callback to carry out the drawing
-	func(memdc, hbmp, dibits, bmi);
+	func(memdc, *phBitmap, dibits, bmi);
 
 	// done with the bitmap
 	SelectObject(memdc, memdc.oldbmp);
-	DeleteObject(hbmp);
 }
 
 

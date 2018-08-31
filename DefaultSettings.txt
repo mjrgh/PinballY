@@ -867,6 +867,8 @@ HideTaskbarDuringGame = 1
 #
 #   [TABLEPATH] = the path from SystemN.TablePath 
 #   [TABLEFILE] = the filename of the table being launched
+#   [LB]        = a literal left square bracket, [
+#   [RB]        = a literal right square bracket, ]
 #
 # SystemN.DefExt = default filename extension ("." suffix) for table files
 # The launcher will add this to the table filenames in the table database 
@@ -937,6 +939,15 @@ HideTaskbarDuringGame = 1
 # if you can, because it's one less thing to keep track of if you ever 
 # rearrange folder paths.
 #
+# SystemN.RunBeforePre = a command to run before the RunBefore command.
+# (Yes, the name is awkward, but it seems better than RunBeforeBefore.)
+# This command does essentially the same thing as RunBefore, but it has
+# the important distinction that PinballY displays a completely blank,
+# black screen in the playfield window while running this command.  This
+# is a good place to put any command that changes the system-wide monitor
+# layout, since the blank playfield window will help make the transition
+# smoother by concealing the visual change.
+#
 # SystemN.RunBefore = a command to run just before launching a game using
 # this system.  This is a command line of the sort that you could type into
 # the Windows "Run" box.  Use the same rules as for the RunAtStartup option.
@@ -958,6 +969,11 @@ HideTaskbarDuringGame = 1
 # want PinballY to return to resume immediately, without waiting for the 
 # program to finish.  By default, PinballY will wait for this program to
 # exit before returning to its normal user interface.
+#
+# SystemN.RunAfterPost = a command to run after the RunAfter command. 
+# As with RunBeforePre, this command is executed with a blank, black
+# screen shown in the playfield window, so it's a good place to put any
+# command that changes the system-wide monitor layout.
 
 
 # VP 9

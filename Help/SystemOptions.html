@@ -463,6 +463,10 @@
    game you're running, without any path prefix.  For example, for
    a Visual Pinball version of <i>Funhouse</i>, this might be something
    like <tt>funhouse_v2.vpt</tt>.
+
+   <li><b>[LB]</b>: a literal left square bracket, <b>[</b>.
+
+   <li><b>[RB]</b>: a literal right square bracket, <b>]</b>.
 </ul>
 
 <h3>Process name</h3>
@@ -649,24 +653,94 @@
 </ul>
 
 
-<h3>Run before</h3>
+<h3>Run Before</h3>
 <p>
-   This is a command to run just before launching the game.  Use the normal Windows
-   command syntax, as though typing a command into the Windows+R "Run" box.
+   The Run Before (1) and (2) boxes let you enter commands to run just
+   before launching a game, each time a game using this system is launched.
+   You can use these to do any preparation needed before this system
+   starts up, such as modifying the monitor layout, resetting hardware
+   devices, or starting background tasks that run concurrently with
+   the game.
 </p>
 <p>
-   You can put a special "flags" string at the very beginning of the command
-   to control how the command is processed:
+   The commands in the (1) and (2) slots are executed in sequence,
+   under slightly different visual display conditions.  Here's the
+   exact sequence of events:
 </p>
 <ul>
-   <li><b>[NOWAIT]</b>: PinballY will execute the command and leave it running.
-   If you don't specify this, PinballY will wait for the program to exit before
-   proceeding to the next step.
+   <li>The user selects "Play Game" from the menu to launch the game
+   <li>PinballY updates the playfield window to show a completely blank, black display
+   <li>The command in slot (1) is executed
+   <li>PinballY displays a "Launching game" message in the playfield window
+   <li>The command in slot (2) is executed
+   <li>The game is launched
+</ul>
 
-   <li><b>[NOWAIT TERMINATE]</b>: PinballY will execute the command and leave
-   it running, and will then explicitly terminate the running process as soon
-   as the game exits.  Use this for a program that you want to leave running
-   while the game runs, but <i>only</i> while the game runs.
+<p>
+   The important distinction between the (1) and (2) slots is that
+   the command in the (1) slot is executed with a completely blank,
+   black playfield window, whereas the command in the (2) slot is
+   executed after the "Launching game" message has been displayed.
+   This might be important to you if the command you're launching
+   does something that affects the system-wide visual layout of the
+   monitors, such as changing the rotation or scaling factors.
+   You might prefer to take that sort of action in phase (1),
+   since the blank playfield window will help make the transition
+   to the new visual layout smoother by avoiding any obvious 
+   change in the on-screen graphics.  A completely black screen
+   looks the same at any rotation or scale, so the moment when
+   the layout changes won't be visually apparent to the user.
+</p>
+<p>
+   You can use each slot to launch just about any Windows program.
+   Use the standard Windows command line syntax, as though typing a
+   command into the Windows+R "Run" box.  If you want to run a series
+   of commands, the easiest approach is to create a .BAT file containing
+   the commands, and run that with a command line like this:
+</p>
+<pre>    CMD /c c:\users\bob\BatchFile.bat
+</pre>
+<p>
+   The .BAT format is a standard way in Windows to write a simple command
+   script to carry out a series of commands.  If you're not familiar with the
+   .BAT format, you can find lots of information about it on the Web by
+   searching for "Windows batch script".
+</p>
+<p>
+   You can put a special "flags" string at the very start of the
+   command line to control how the command is processed.  The flags are
+   specified in square brackets, at the very start of the command.  You
+   can use any mix of the following, separated by spaces:
+</p>
+<ul>
+   <li><b>NOWAIT:</b> PinballY will execute the command and leave it running.
+   If you don't specify this, PinballY will wait for the program to exit before
+   proceeding to the next step.  The benefit of NOWAIT is that it can make
+   the game start up more quickly, since the game launch doesn't have to wait
+   for this pre-launch task to finish.  Be careful with this, though, because
+   it will leave the program running until it exits on its own.  If you launch
+   a program with NOWAIT, and that program doesn't exit on its own in a
+   reasonable amount of time, you could end up with many copies of the program
+   running, since a new copy will be launched every time you start a new game.  
+   You also shouldn't use NOWAIT if the program does something that needs
+   to be finished before the game starts, because the whole point of NOWAIT
+   is that it doesn't force the game to wait for the task to finish.
+
+   <li><b>TERMINATE:</b>  PinballY will explicitly terminate the running process
+   as soon as the game exits.  Use this in combination with WAIT (that is,
+   specify [NOWAIT TERMINATE]) for a program that you want to leave running to
+   carry out some background task throughout the game session, but that you want to shut down as soon as the game finishes.
+   This is often a better option than the plain NOWAIT, since it ensures that
+   each copy of the program launched is terminated when the game ends.
+
+   <li><b>HIDE:</b>  Launches the command with its window hidden.  This is
+   useful for CMD scripts, so that you don't see a DOS box window pop
+   up briefly while the script is running.
+
+   <li><b>MINIMIZE:</b>  Launches the command with its window minimized.
+   This is useful for a background task that you want to leave running
+   (via NOWAIT), so that its window doesn't appear in the UI but is
+   still accessible through the Windows desktop if necessary.
 </ul>
 <p>
    There are also some "substitution variables" you can use anywhere within
@@ -682,18 +756,56 @@
    game you're running, without any path prefix.  For example, for
    a Visual Pinball version of <i>Funhouse</i>, this might be something
    like <tt>funhouse_v2.vpt</tt>.
+
+   <li><b>[LB]</b>: a literal left square bracket, <b>[</b>.
+
+   <li><b>[RB]</b>: a literal right square bracket, <b>]</b>.
 </ul>
 
 
-<h3>Run after</h3>
+<h3>Run After</h3>
 
 <p>
-   This is a command to run just after a launched game exits.  This is just
-   like the Run Before command above, except that it runs after the game
-   terminates.  You can use the same flags and substitution variables as
-   with Run Before, except that the TERMINATE option obviously doesn't
-   make any sense with this one, since the game has already exited by
-   the time this command is executed.
+   The Run After (1) and (2) boxes let you enter commands to run just
+   after the game exits.  These work very much like the Run Before commands,
+   but run after the game instead of before.
+</p>
+<p>
+   As with the Run Before commands, there are two Run After slots, which
+   run their respective commands under slightly different display conditions.
+   Here's the sequence for the Run After commands:
+</p>
+<ul>
+   <li>The user presses the Exit Game key (or otherwise exits the game)
+   <li>PinballY attempts to bring its window to the foreground (if Windows allows it)
+   <li>PinballY displays the "Exiting game" message in the playfield window
+   <li>PinballY waits for the game program to terminate
+   <li>The command in slot (1) is executed
+   <li>PinballY updates the playfield window to show a blank, black screen
+   <li>The command in slot (2) is executed
+   <li>PinballY restores the normal interactive playfield display
+</ul>
+<p>
+   This sequence is essentially the reverse of the Run Before sequence
+   with respect to the display conditions.  The command in the (2) slot is
+   executed with a blank screen showing in the playfield window, so it's the
+   right place to run any command that will modify the system-wide
+   monitor layout.
+</p>
+<p>
+   You can use the same flags and substitution variables as
+   with Run Before.  As with the Run Before command, you should be careful
+   when using [NOWAIT] that you can count on the program to exit on its
+   own in a reasonable amount of time.
+</p>
+<p>
+   [NOWAIT TERMINATE] is accepted for the Run After commands, but it's not
+   very useful, since the termination condition in this case is the return
+   to the normal PinballY interactive interface.  Since that will happen
+   almost immediately after these commands are launched, they'll only have
+   a few moments to run before PinballY terminates them.  It's difficult
+   to think of a situation where the [NOWAIT TERMINATE] combination would
+   be useful for a Run After command.
 </p>
 
 </body>

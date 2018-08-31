@@ -767,8 +767,10 @@ public:
 	// These are specified using the normal CMD or "Run" dialog command
 	// line syntax, and can use the same substitution variables allowed
 	// in 'params'.
+	TSTRING runBeforePre;
 	TSTRING runBefore;
 	TSTRING runAfter;
+	TSTRING runAfterPost;
 };
 
 // Table File Set.

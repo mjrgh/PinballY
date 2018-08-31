@@ -76,6 +76,12 @@ bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc);
 void DrawOffScreen(int width, int height, 
 	std::function<void(HDC, HBITMAP, const void *dibits, const BITMAPINFO&)> func);
 
+// Draw off-screen into a newly created bitmap, returning the bitmap
+// to the caller.
+void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
+	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
+
+
 // Simplified GDI+ font creation.  This uses the typical defaults for
 // most settings, to avoid the need to fill out a LOGFONT struct to
 // initialize a font object.
@@ -243,9 +249,9 @@ struct HBITMAPHolder
 	bool operator==(HBITMAP h) { return this->h == h; }
 
 	// detach the handle from this holder
-	HANDLE Detach()
+	HBITMAP Detach()
 	{
-		HANDLE ret = h;
+		HBITMAP ret = h;
 		h = NULL;
 		return ret;
 	}

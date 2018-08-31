@@ -766,7 +766,7 @@ void Application::CheckRunAtExit()
 
 bool Application::RunCommand(const TCHAR *cmd,
 	ErrorHandler &eh, int friendlyErrorStringId,
-	bool wait, HANDLE *phProcess)
+	bool wait, HANDLE *phProcess, UINT nShowCmd)
 {
 	// no process handle yet
 	if (phProcess != nullptr)
@@ -776,6 +776,8 @@ bool Application::RunCommand(const TCHAR *cmd,
 	STARTUPINFO startupInfo;
 	ZeroMemory(&startupInfo, sizeof(startupInfo));
 	startupInfo.cb = sizeof(startupInfo);
+	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+	startupInfo.wShowWindow = nShowCmd;
 
 	// CreateProcess requires a writable buffer for the command line, so
 	// copy it into a local string
@@ -1330,6 +1332,8 @@ Application::GameMonitorThread::~GameMonitorThread()
 	// [NOWAIT TERMINATE] mode, which means that we left the program running
 	// while playing the game, and that we're meant to terminate the program
 	// when the game terminates.  
+	if (hRunBeforePreProc != NULL)
+		SaferTerminateProcess(hRunBeforePreProc);
 	if (hRunBeforeProc != NULL)
 		SaferTerminateProcess(hRunBeforeProc);
 
@@ -1339,6 +1343,8 @@ Application::GameMonitorThread::~GameMonitorThread()
 	// the user canceling the game launch.
 	if (hRunAfterProc != NULL)
 		SaferTerminateProcess(hRunAfterProc);
+	if (hRunAfterPostProc != NULL)
+		SaferTerminateProcess(hRunAfterPostProc);
 }
 
 bool Application::GameMonitorThread::IsThreadRunning()
@@ -1473,6 +1479,9 @@ bool Application::GameMonitorThread::Launch(
 	this->gameId = game->GetGameId();
 	this->gameSys = *system;
 	this->elevationApproved = system->elevationApproved;
+
+	// initially assume the game filename is the full name
+	this->gameFileWithExt = game->filename;
 
 	// get config settings needed during the launch
 	auto cfg = ConfigManager::GetInstance();
@@ -1622,12 +1631,45 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	return result;
 }
 
+TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
+{
+	std::basic_regex<TCHAR> pat(_T("\\[(\\w+)\\]"));
+	return regex_replace(str, pat, [this](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+	{
+		// get the variable name in all caps
+		TSTRING var = m[1].str();
+		std::transform(var.begin(), var.end(), var.begin(), ::_totupper);
+
+		// check for known substitution variable names
+		if (var == _T("TABLEPATH"))
+		{
+			return gameSys.tablePath;
+		}
+		else if (var == _T("TABLEFILE"))
+		{
+			return gameFileWithExt;
+		}
+		else if (var == _T("LB"))
+		{
+			return _T("[");
+		}
+		else if (var == _T("RB"))
+		{
+			return _T("]");
+		}
+		else
+		{
+			// not matched - return the full original string unchanged
+			return m[0].str();
+		}
+	});
+}
+
 DWORD Application::GameMonitorThread::Main()
 {
 	// Get the game filename from the database, and build the full path
-	TSTRING gameFile = game.filename;
 	TCHAR gameFileWithPath[MAX_PATH];
-	PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFile.c_str());
+	PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ launch: full table path %s\n"), gameFileWithPath);
 
 	// If PinVol is running, send it a message on its mailslot with the
@@ -1642,7 +1684,7 @@ DWORD Application::GameMonitorThread::Main()
 		// Prepare the message: "game <filename>|<title>", in WCHAR
 		// (16-bit unicode) characters.
 		WSTRINGEx msg;
-		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFile).c_str(), TSTRINGToWSTRING(game.title).c_str());
+		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFileWithExt).c_str(), TSTRINGToWSTRING(game.title).c_str());
 
 		// Write the message to the mailslot.  Ignore errors, as the only
 		// harm if we fail is that PinVol won't have the title to display.
@@ -1669,42 +1711,19 @@ DWORD Application::GameMonitorThread::Main()
 	POINT ptDMDCenter = WinPt(Application::Get()->GetDMDWin(), 320, 650);
 	POINT ptTopperCenter = WinPt(Application::Get()->GetTopperWin(), 950, 650);
 
-	// Substitute parameter variables in a command line
-	auto SubstituteVars = [this, &gameFile](const TSTRING &str) -> TSTRING
-	{
-		std::basic_regex<TCHAR> pat(_T("\\[(\\w+)\\]"));
-		return regex_replace(str, pat, [this, &gameFile](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
-		{
-			// get the variable name in all caps
-			TSTRING var = m[1].str();
-			std::transform(var.begin(), var.end(), var.begin(), ::_totupper);
-
-			// check for known substitution variable names
-			if (var == _T("TABLEPATH"))
-			{
-				return gameSys.tablePath;
-			}
-			else if (var == _T("TABLEFILE"))
-			{
-				return gameFile;
-			}
-			else
-			{
-				// not matched - return the full original string unchanged
-				return m[0].str();
-			}
-		});
-	};
-
 	// RunBefore/RunAfter option flag parser
 	class RunOptions
 	{
 	public:
-		RunOptions(const TSTRING &command) : 
+		RunOptions(GameMonitorThread *monitor, const TSTRING &command) : 
+			monitor(monitor),
 			nowait(false), 
-			terminate(false)
+			terminate(false),
+			hide(false),
+			minimize(false)
 		{
-			std::basic_regex<TCHAR> flagsPat(_T("\\s*\\[((NOWAIT|TERMINATE)(\\s+(NOWAIT|TERMINATE))*)\\]\\s*(.*)"));
+			std::basic_regex<TCHAR> flagsPat(_T("\\s*\\[((NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE)")
+				_T("(\\s+(NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE))*)\\]\\s*(.*)"));
 			std::match_results<TSTRING::const_iterator> m;
 			if (std::regex_match(command, m, flagsPat))
 			{
@@ -1732,6 +1751,10 @@ DWORD Application::GameMonitorThread::Main()
 						nowait = true;
 					else if (_tcsncmp(start, _T("TERMINATE"), len) == 0)
 						terminate = true;
+					else if (_tcsncmp(start, _T("HIDE"), len) == 0)
+						hide = true;
+					else if (_tcsncmp(start, _T("MIN"), len) == 0 || _tcsncmp(start, _T("MINIMIZE"), len) == 0)
+						minimize = true;
 				}
 			}
 			else
@@ -1741,165 +1764,158 @@ DWORD Application::GameMonitorThread::Main()
 			}
 		}
 
+		// Run the command.  Returns true on success, false if a fatal
+		// error occurred (fatal meaning we should abort the rest of the
+		// game launch process).
+		bool Run(const TCHAR *desc, int launchErrorID, HandleHolder &hProc)
+		{
+			// if the command is empty, there's nothing to do - simply return success
+			if (command.length() == 0)
+				return true;
+
+			// log the launch
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> %s\n"), desc, command.c_str());
+
+			// Launch the program without waiting
+			AsyncErrorHandler aeh;
+			if (!Application::RunCommand(monitor->SubstituteVars(command).c_str(), 
+				aeh, launchErrorID, false, &hProc, 
+				hide ? SW_HIDE : minimize ? SW_SHOWMINIMIZED : SW_SHOW))
+			{
+				// failed - abort the launch
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> command execution failed; aborting launch\n"), desc);
+				return false;
+			}
+
+			// Now wait for it, if it's not in NOWAIT mode.  Note that we
+			// have to wait explicitly here, rather than letting RunCommand
+			// handle the wait, because we need to also stop waiting if we
+			// get a shutdown signal.
+			if (nowait)
+			{
+				// NOWAIT mode.  We can simply leave the process running.
+				// If TERMINATE mode is set, leave the process handle in
+				// hRunBeforeProc, so that the thread object destructor
+				// will know to terminate the process when the monitor
+				// thread exits.  If TERMINATE mode isn't set, though, 
+				// the user wants us to simply launch the process and
+				// leave it running, so we can close the process handle
+				// now and let the process run independently from now on.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: [NOWAIT] specified, continuing\n"), desc);
+				if (!terminate)
+					hProc = NULL;
+			}
+			else
+			{
+				// Wait mode.  Wait for the process to exit, or for a 
+				// close-game or application-wide shutdown signal.
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: waiting for command to finish\n"), desc);
+				HANDLE waitEvents[] = { hProc, monitor->shutdownEvent, monitor->closeEvent };
+				switch (WaitForMultipleObjects(countof(waitEvents), waitEvents, FALSE, INFINITE))
+				{
+				case WAIT_OBJECT_0:
+					// The RunBefore process exited.  This is what we were
+					// hoping for; proceed to run the game.  Close the child
+					// process handle and continue.
+					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: command finished normally\n"), desc);
+					hProc = NULL;
+					break;
+
+				case WAIT_OBJECT_0 + 1:
+				case WAIT_OBJECT_0 + 2:
+				default:
+					// The shutdown event fired, the "close game" event fired, or 
+					// an error occurred in the wait.  In any of these cases, shut
+					// down the monitor thread immediately, without proceeding to 
+					// the game launch.  
+					//
+					// What should we do about the RunBefore process?  Given that
+					// the user wanted us to wait for the process, it's highly 
+					// likely that the process is supposed to be something quick 
+					// that does some small amount of work and exits immediately.
+					// The user presumably wouldn't have configured it for waiting 
+					// if it were something long-running.  In any case, by telling
+					// us to wait in the first place, the user told us that the
+					// program was to finish before the game was launched, and by
+					// implication, before we return to the wheel UI.  So if the
+					// process hasn't exited on its own, the reasonable thing to
+					// do is to terminate it explicitly, to meet the user's
+					// expectation that the program is done when we get back to
+					// the wheel UI.  In fact, one reason we might be in this
+					// situation at all is that the RunBefore program might have
+					// gotten stuck, prompting the user to cancel the launch from
+					// the UI, which would have fired the shutdown event and 
+					// landed us right here.  In any case, we can ensure that the
+					// RunBefore process gets terminated explicitly by leaving its
+					// process handle in hRunBeforeProc.  The game monitor thread
+					// object destructor will use that to kill the process if it's
+					// still running, as soon as the thread exits.
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ %s: command interrupted; aborting launch\n"), desc);
+
+					// abort the rest of the launch
+					return false;
+				}
+			}
+
+			// success
+			return true;
+		}
+
+		// the game monitor thread object
+		GameMonitorThread *monitor;
+
 		// updated command string
 		TSTRING command;
 
 		// option flags
 		bool nowait;
 		bool terminate;
+		bool hide;
+		bool minimize;
 	};
 
-	// Before we launch the game, check for a RunBefore command
-	if (gameSys.runBefore.length() != 0)
-	{
-		// Parse option flags
-		RunOptions options(gameSys.runBefore);
-
-		// log the launch
-		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch:\n> %s\n"), options.command.c_str());
-
-		// Launch the program without waiting
-		AsyncErrorHandler aeh;
-		if (!Application::RunCommand(SubstituteVars(options.command).c_str(), 
-			aeh, IDS_ERR_GAMERUNBEFORE, false, &hRunBeforeProc))
-			return 0;
-
-		// Now wait for it, if it's not in NOWAIT mode.  Note that we
-		// have to wait explicitly here, rather than letting RunCommand
-		// handle the wait, because we need to also stop waiting if we
-		// get a shutdown signal.
-		if (options.nowait)
-		{
-			// NOWAIT mode.  We can simply leave the process running.
-			// If TERMINATE mode is set, leave the process handle in
-			// hRunBeforeProc, so that the thread object destructor
-			// will know to terminate the process when the monitor
-			// thread exits.  If TERMINATE mode isn't set, though, 
-			// the user wants us to simply launch the process and
-			// leave it running, so we can close the process handle
-			// now and let the process run independently from now on.
-			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: [NOWAIT] specified, continuing\n"));
-			if (!options.terminate)
-				hRunBeforeProc = NULL;
-		}
-		else
-		{
-			// Wait mode.  Wait for the process to exit, or for a 
-			// close-game or application-wide shutdown signal.
-			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: waiting for command to finish\n"));
-			HANDLE waitEvents[] = { hRunBeforeProc, shutdownEvent, closeEvent };
-			switch (WaitForMultipleObjects(countof(waitEvents), waitEvents, FALSE, INFINITE))
-			{
-			case WAIT_OBJECT_0:
-				// The RunBefore process exited.  This is what we were
-				// hoping for; proceed to run the game.  Close the child
-				// process handle and continue.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ run before launch: command finished\n"));
-				hRunBeforeProc = NULL;
-				break;
-
-			case WAIT_OBJECT_0 + 1:
-			case WAIT_OBJECT_0 + 2:
-			default:
-				// The shutdown event fired, the "close game" event fired, or 
-				// an error occurred in the wait.  In any of these cases, shut
-				// down the monitor thread immediately, without proceeding to 
-				// the game launch.  
-				//
-				// What should we do about the RunBefore process?  Given that
-				// the user wanted us to wait for the process, it's highly 
-				// likely that the process is supposed to be something quick 
-				// that does some small amount of work and exits immediately.
-				// The user presumably wouldn't have configured it for waiting 
-				// if it were something long-running.  In any case, by telling
-				// us to wait in the first place, the user told us that the
-				// program was to finish before the game was launched, and by
-				// implication, before we return to the wheel UI.  So if the
-				// process hasn't exited on its own, the reasonable thing to
-				// do is to terminate it explicitly, to meet the user's
-				// expectation that the program is done when we get back to
-				// the wheel UI.  In fact, one reason we might be in this
-				// situation at all is that the RunBefore program might have
-				// gotten stuck, prompting the user to cancel the launch from
-				// the UI, which would have fired the shutdown event and 
-				// landed us right here.  In any case, we can ensure that the
-				// RunBefore process gets terminated explicitly by leaving its
-				// process handle in hRunBeforeProc.  The game monitor thread
-				// object destructor will use that to kill the process if it's
-				// still running, as soon as the thread exits.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-					_T("+ run before launch: Run Before command interrupted; aborting launch\n"));
-				return 0;
-			}
-		}		
-	}
-
-	// Note the starting time.  We use this to figure the total time the
-	// game was running, for the total play time statistics.  We'll update
-	// the launch time below to the time when the new game process is
-	// actually running, for a more accurate count that doesn't include
-	// the time it takes to start the process, but it's best to get a
-	// provisional starting time now just in case we don't all the way
-	// through the launch process.  That way we'll at least have a valid
-	// starting time if anyone should try to access this value before
-	// we get the more accurate starting time.
-	launchTime = GetTickCount64();
-
-	// Get the current system time in FILETIME format, in case we need
-	// it to look for a recently launched process in the two-stage launch
-	// used by Steam (see below).
-	FILETIME t0;
-	GetSystemTimeAsFileTime(&t0);
-
-	// get the program executable
-	const TCHAR *exe = gameSys.exe.c_str();
-
 	// Check if the file exists.  If not, add the default extension.
-	if (!FileExists(gameFileWithPath) && gameSys.defExt.length() != 0)
+	auto AddGameFileExt = [this, &gameFileWithPath]()
 	{
-		// The file doesn't exist.  Try adding the default extension.
-		TCHAR gameFileWithPathExt[MAX_PATH];
-		_stprintf_s(gameFileWithPathExt, _T("%s%s"), gameFileWithPath, gameSys.defExt.c_str());
-
-		// log the attempt
-		LogFile::Get()->Write(LogFile::TableLaunchLogging,
-			_T("+ table launch: table file %s doesn't exist; try adding extension -> %s\n"),
-			gameFileWithPath, gameFileWithPathExt);
-
-		// if the file + extension exists, use that instead of the original
-		if (FileExists(gameFileWithPathExt))
+		if (!FileExists(gameFileWithPath) && gameSys.defExt.length() != 0)
 		{
-			// log it
-			LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-				_T("+ table launch: file + extension (%s) exists, using it\n"), gameFileWithPathExt);
+			// The file doesn't exist.  Try adding the default extension.
+			TCHAR gameFileWithPathExt[MAX_PATH];
+			_stprintf_s(gameFileWithPathExt, _T("%s%s"), gameFileWithPath, gameSys.defExt.c_str());
 
-			// use the path + extension version, and also add the extension
-			// to the base game file name
-			_tcscpy_s(gameFileWithPath, gameFileWithPathExt);
-			gameFile.append(gameSys.defExt);
-		}
-		else
-		{
-			// log that neither file exists
+			// log the attempt
 			LogFile::Get()->Write(LogFile::TableLaunchLogging,
-				_T("+ table launch: file + extension (%s) doesn't exist either; sticking with original name (%s)\n"), 
+				_T("+ table launch: table file %s doesn't exist; try adding extension -> %s\n"),
+				gameFileWithPath, gameFileWithPathExt);
+
+			// if the file + extension exists, use that instead of the original
+			if (FileExists(gameFileWithPathExt))
+			{
+				// log it
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: file + extension (%s) exists, using it\n"), gameFileWithPathExt);
+
+				// use the path + extension version, and also add the extension
+				// to the base game file name
+				_tcscpy_s(gameFileWithPath, gameFileWithPathExt);
+				gameFileWithExt.append(gameSys.defExt);
+			}
+			else
+			{
+				// log that neither file exists
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: file + extension (%s) doesn't exist either; sticking with original name (%s)\n"),
 					gameFileWithPathExt, gameFileWithPath);
+			}
 		}
-	}
+	};
 
-	// Replace substitution variables in the command-line parameters
-	TSTRING cmdline = SubstituteVars(gameSys.params);
-	LogFile::Get()->Write(LogFile::TableLaunchLogging,
-		_T("+ table launch: executable: %s\n")
-		_T("+ table launch: applying command line variable substitutions:\n+ Original> %s\n+ Final   > %s\n"),
-		exe, gameSys.params.c_str(), cmdline.c_str());
-
-	// set up the startup information struct
-	STARTUPINFO startupInfo;
-	ZeroMemory(&startupInfo, sizeof(startupInfo));
-	startupInfo.cb = sizeof(startupInfo);
-	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-	startupInfo.wShowWindow = SW_SHOWMINIMIZED;
+	// Do an initial check to see if we need to add the default extension
+	// to the game file.  We try this first before the Run Before commands,
+	// so that the Run Before commands get the benefit of the adjusted
+	// filename if available.
+	AddGameFileExt();
 
 	// If desired, hide the taskbar while the game is running
 	class TaskbarHider
@@ -1935,6 +1951,68 @@ DWORD Application::GameMonitorThread::Main()
 	std::unique_ptr<TaskbarHider> taskbarHider;
 	if (hideTaskbar)
 		taskbarHider.reset(new TaskbarHider());
+
+	// Run the RunBeforePre command, if any.  This command is executed with
+	// a completely blank playfield window, before we show the "Launching 
+	// Game" message.  This lets the command make system-wide monitor layout
+	// changes with a minimum of visual fuss, since monitor changes won't
+	// usually cause any visible effect on a blank black screen.
+	if (!RunOptions(this, gameSys.runBeforePre).Run(
+		_T("RunBeforePre (initial pre-launch command)"), IDS_ERR_GAMERUNBEFOREPRE, hRunBeforePreProc))
+		return 0;
+
+	// Display the "Launching Game" message in the main window
+	if (playfieldView != nullptr)
+		playfieldView->SendMessage(PFVMsgGameRunBefore, (WPARAM)cmd);
+
+	// Run the RunBefore command, if any
+	if (!RunOptions(this, gameSys.runBefore).Run(
+		_T("RunBefore (pre-launch command)"), IDS_ERR_GAMERUNBEFORE, hRunBeforeProc))
+		return 0;
+
+	// Do another check for adding a default extension to the game file.
+	// We already did this once, before the Run Before commands, because
+	// we wanted to give the Run Before commands visibility into the
+	// adjusted name, if available.  However, the Run Before commands
+	// could conceivably be used to move or rename the game file into
+	// place in preparation for the game, so the file might not have
+	// actually existed until after those commands finished.  So do
+	// a second check here, in case the file has come into existence.
+	AddGameFileExt();
+
+	// Note the starting time.  We use this to figure the total time the
+	// game was running, for the total play time statistics.  We'll update
+	// the launch time below to the time when the new game process is
+	// actually running, for a more accurate count that doesn't include
+	// the time it takes to start the process, but it's best to get a
+	// provisional starting time now just in case we don't all the way
+	// through the launch process.  That way we'll at least have a valid
+	// starting time if anyone should try to access this value before
+	// we get the more accurate starting time.
+	launchTime = GetTickCount64();
+
+	// Get the current system time in FILETIME format, in case we need
+	// it to look for a recently launched process in the two-stage launch
+	// used by Steam (see below).
+	FILETIME t0;
+	GetSystemTimeAsFileTime(&t0);
+
+	// get the program executable
+	const TCHAR *exe = gameSys.exe.c_str();
+
+	// Replace substitution variables in the command-line parameters
+	TSTRING cmdline = SubstituteVars(gameSys.params);
+	LogFile::Get()->Write(LogFile::TableLaunchLogging,
+		_T("+ table launch: executable: %s\n")
+		_T("+ table launch: applying command line variable substitutions:\n+ Original> %s\n+ Final   > %s\n"),
+		exe, gameSys.params.c_str(), cmdline.c_str());
+
+	// set up the startup information struct
+	STARTUPINFO startupInfo;
+	ZeroMemory(&startupInfo, sizeof(startupInfo));
+	startupInfo.cb = sizeof(startupInfo);
+	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+	startupInfo.wShowWindow = SW_SHOWMINIMIZED;
 
 	// Try launching the new process
 	PROCESS_INFORMATION procInfo;
@@ -2293,7 +2371,7 @@ DWORD Application::GameMonitorThread::Main()
 	launchTime = GetTickCount64();
 
 	// switch the playfield view to Running mode
-	if (playfieldView != 0)
+	if (playfieldView != nullptr)
 		playfieldView->PostMessage(PFVMsgGameLoaded, (WPARAM)cmd);
 
 	// If the game system has a startup key sequence, send it
@@ -3347,71 +3425,28 @@ DWORD Application::GameMonitorThread::Main()
 	// note the exit time
 	exitTime = GetTickCount64();
 
-	// Check for a RunAfter command
-	if (gameSys.runAfter.length() != 0)
-	{
-		// Parse option flags
-		RunOptions options(gameSys.runAfter);
-		LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-			_T("+ table launch: Run After command:\n> %s\n"), options.command.c_str());
+	// Run the RunAfter command, if any.
+	//
+	// Note that the Close event is probably signalled, since that's usually
+	// how the game is terminated.  Reset it before running the RunAfter
+	// command so that we can monitor the event anew, to give the user a
+	// way to cancel out of the RunAfter program should it get stuck.
+	ResetEvent(closeEvent);
+	if (!RunOptions(this, gameSys.runAfter).Run(
+		_T("RunAfter (post-game exit command)"), IDS_ERR_GAMERUNAFTER, hRunAfterProc))
+		return 0;
 
-		// run the command with no waiting
-		AsyncErrorHandler aeh;
-		if (!Application::RunCommand(SubstituteVars(options.command).c_str(),
-			aeh, IDS_ERR_GAMERUNBEFORE, false, &hRunAfterProc))
-			return 0;
+	// remove the "game exiting" message
+	if (playfieldView != nullptr)
+		playfieldView->SendMessage(PFVMsgGameRunAfter, (WPARAM)cmd);
 
-		// if desired, wait for the process to exit on its own
-		if (options.nowait)
-		{
-			// [NOWAIT] was specified, so we're meant to just launch the
-			// process and leave it running.  Forget the process handle,
-			// so that we don't try to kill the process when the monitor
-			// thread exits.
-			hRunAfterProc = NULL;
-		}
-		else
-		{
-			// There's no [NOWAIT], so the default is to wait for the 
-			// process to exit on its own.  Also stop if the 'shutdown' or
-			// 'close' events fire.
-			//
-			// Before doing the wait, reset the Close event.  If we got here
-			// by way of our own Terminate Game command, the Close event will
-			// be set.  But the RunAfter command is a brand new program launch
-			// and a brand new wait, so we want to treat this as a separate
-			// operation.  If the RunAfter command itself gets stuck, this 
-			// gives the user a way to cancel it.  Don't reset the Shutdown 
-			// event, though, as that's a separate matter of quitting out of
-			// our application.
-			ResetEvent(closeEvent);
-			HANDLE waitEvents[] = { hRunAfterProc, shutdownEvent, closeEvent };
-			switch (WaitForMultipleObjects(countof(waitEvents), waitEvents, FALSE, INFINITE))
-			{
-			case WAIT_OBJECT_0:
-				// Tun RunAfter process exited.  Close the process handle
-				// and proceed.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Run After command finished\n"));
-				hRunAfterProc = NULL;
-				break;
-
-			case WAIT_OBJECT_0 + 1:
-			case WAIT_OBJECT_0 + 2:
-			default:
-				// The shutdown or close event fired, or an error occurred in 
-				// the wait.  In either case, shut down the monitor thread 
-				// immediately.  Leave the process handle in hRunAfterProc 
-				// so that the monitor thread object destructor takes care of
-				// terminating the process.  That's desirable in this case 
-				// because we didn't finish up normally.  The conditions that
-				// would normally make the RunAfter program exit on its own
-				// might not exist, so it seems safest to let the thread
-				// cleanup code terminate the process explicitly.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Run After command interrupted\n"));
-				return 0;
-			}
-		}
-	}
+	// Run the RunAfterPost command, if any.  As before, reset the Close
+	// event so that it can be used to cancel out of this command should
+	// it get stuck.
+	ResetEvent(closeEvent);
+	if (!RunOptions(this, gameSys.runAfterPost).Run(
+		_T("RunAfterPost (final post-game exit command)"), IDS_ERR_GAMERUNAFTERPOST, hRunAfterPostProc))
+		return 0;
 
 	// done
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch finished successfully\n"));

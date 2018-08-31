@@ -948,7 +948,37 @@ namespace rapidxml
                 return m_first_node;
         }
 
-        //! Gets last child node, optionally matching node name. 
+		xml_node<Ch> *first_node_no_ns(const Ch *name = 0, std::size_t name_size = 0, bool case_sensitive = true) const
+		{
+			if (name)
+			{
+				if (name_size == 0)
+					name_size = internal::measure(name);
+				for (xml_node<Ch> *child = m_first_node; child; child = child->next_sibling())
+				{
+					const Ch *childName = child->name();
+					std::size_t childNameLen = child->name_size();
+					for (const Ch *p = childName; p < childName + childNameLen; ++p)
+					{
+						if (*p == ':')
+						{
+							++p;
+							childNameLen -= p - childName;
+							childName = p;
+							break;
+						}
+					}
+
+					if (internal::compare(childName, childNameLen, name, name_size, case_sensitive))
+						return child;
+				}
+				return 0;
+			}
+			else
+				return m_first_node;
+		}
+		
+		//! Gets last child node, optionally matching node name. 
         //! Behaviour is undefined if node has no children.
         //! Use first_node() to test if node has children.
         //! \param name Name of child to find, or 0 to return last child regardless of its name; this string doesn't have to be zero-terminated if name_size is non-zero

@@ -284,7 +284,8 @@ public:
 	// on success, false on failure.
 	static bool RunCommand(const TCHAR *cmd, 
 		ErrorHandler &eh, int friendlyErrorStringId,
-		bool wait = true, HANDLE *phProcess = nullptr);
+		bool wait = true, HANDLE *phProcess = nullptr,
+		UINT nShowCmd = SW_SHOW);
 
 	// Process a WM_ACTIVATEAPP notification to one of our windows
 	void OnActivateApp(BaseWin *win, bool activating, DWORD otherThreadId);
@@ -500,6 +501,9 @@ protected:
 		static DWORD WINAPI SMain(LPVOID lpParam);
 		DWORD Main();
 
+		// apply variable substitution to a command line
+		TSTRING SubstituteVars(const TSTRING &str);
+
 		// launch command:
 		//   ID_PLAY_GAME -> normal launch
 		//   ID_CAPTURE_GO -> media capture
@@ -507,6 +511,9 @@ protected:
 
 		// game description
 		GameBaseInfo game;
+
+		// game file with extension
+		TSTRING gameFileWithExt;
 
 		// game ID, for configuration purposes
 		TSTRING gameId;
@@ -602,19 +609,23 @@ protected:
 		// handle to game process
 		HandleHolder hGameProc;
 
-		// Handle to the RunBefore process.  If this is non-null, we'll
-		// terminate the process when the monitor thread exits.  Note that
-		// the handle won't be saved here if we run the process in [NOWAIT]
-		// mode, with no TERMINATE flag, since in that case we're meant to
-		// launch the program and leave it running indefinitely.  In any
-		// other case, we're responsible for making sure the program exits.
+		// Handles to the RunBeforePre and RunBefore processes.  If 
+		// either of these is non-null, we'll terminate the process when
+		// the monitor thread exits.  Note that the handles won't be 
+		// saved here if we run the processes in [NOWAIT] mode, with no
+		// TERMINATE flag, since in that case we're meant to launch the 
+		// program and leave it running indefinitely.  In any other case,
+		// we're responsible for making sure the program exits.
+		HandleHolder hRunBeforePreProc;
 		HandleHolder hRunBeforeProc;
 
-		// Handle to the RunAfter process.  As with RunBefore, we'll use
-		// this to terminate the process when the monitor thread exits.
-		// This handle isn't saved here in [NOWAIT] mode, since in that
-		// case we're meant to leave the program running definitely.
+		// Handles to the RunAfter and RunAfterPost processes.  As with
+		// RunBefore, we'll use these to terminate the processes when the
+		// monitor thread exits.   These handles aren't saved in [NOWAIT]
+		// mode, since in that case we're meant to leave the program running
+		// indefinitely.
 		HandleHolder hRunAfterProc;
+		HandleHolder hRunAfterPostProc;
 
 		// main thread of the game process
 		DWORD tidMainGameThread;

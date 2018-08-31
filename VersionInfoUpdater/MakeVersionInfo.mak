@@ -75,7 +75,7 @@ directories:
 $(ObjDir)\VersionInfo.obj: $(GenDir)\VersionInfo.cpp
     cl -MT -Zl -c -Fo$@ $**
 
-$(GenDir)\VersionInfo.cpp $(GenDir)\VersionInfo.rc: \
+$(GenDir)\VersionInfo.cpp $(GenDir)\VersionInfo.rc $(GenDir)\VersionInfo.wxi $(GenDir)\ManifestVersionInfo.xml: \
     ..\PinballY\*.cpp ..\PinballY\*.h ..\PinballY\*.rc \
     ..\OptionsDialog\*.cpp ..\OptionsDialog\*.h ..\OptionsDialog\*.rc
-	$(BinDir)\VersionInfoUpdater -in .\..\PinballY\VersionInfo.h -cpp $(GenDir)\VersionInfo.cpp -rc $(GenDir)\VersionInfo.rc -wxi $(GenDir)\VersionInfo.wxi
+	$(BinDir)\VersionInfoUpdater -in .\..\PinballY\VersionInfo.h -cpp $(GenDir)\VersionInfo.cpp -rc $(GenDir)\VersionInfo.rc -wxi $(GenDir)\VersionInfo.wxi -manifest $(GenDir)\ManifestVersionInfo.xml

@@ -84,10 +84,59 @@ protected:
 	// high-score graphics list
 	struct HighScoreImage
 	{
-		HighScoreImage(Sprite *sprite, DWORD t) : sprite(sprite), displayTime(t) { }
+		HighScoreImage(DWORD t) :
+			dibits(nullptr), displayTime(t)
+		{ }
+
+		HighScoreImage(Sprite *sprite, DWORD t) : 
+			sprite(sprite), dibits(nullptr), displayTime(t)
+		{ }
+
+		HighScoreImage(const BITMAPINFO &bmi, BYTE *dibits, DWORD t) :
+			displayTime(t), dibits(dibits)
+		{
+			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
+		}
+
+		HighScoreImage(HBITMAP hbmp, const BITMAPINFO &bmi, const void *dibits, DWORD t) :
+			hbmp(hbmp), dibits(dibits), displayTime(t)
+		{
+			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
+		}
+
+		// transfer ownership of resources from another HighScoreImage object
+		HighScoreImage(HighScoreImage &i) :
+			sprite(i.sprite.Detach()), hbmp(i.hbmp.Detach()), dibits(i.dibits), displayTime(i.displayTime)
+		{
+			// copy the bitmap info
+			memcpy(&this->bmi, &i.bmi, sizeof(this->bmi));
+
+			// we've taken ownership of the DIbits - clear it in the source
+			i.dibits = nullptr;
+		}
+
+		~HighScoreImage()
+		{
+			// If we have a dibits array but no bitmap handle, the 
+			// dibits array was separately allocated and we're
+			// responsible for cleaning it up.  If there's a bitmap
+			// handle, the dibits are owned by the bitmap and don't
+			// need to be separately deleted.
+			if (hbmp == NULL && dibits != nullptr)
+				delete[] dibits;
+		}
 
 		// image for this item
 		RefPtr<Sprite> sprite;
+
+		// We create the images in a background thread, staging them
+		// initially to a DIB for later conversion to a D3D image in
+		// the main thread.  The DIB information is saved here until
+		// the renderer needs to display the image, at which point
+		// it's converted into a sprite.
+		HBITMAPHolder hbmp;
+		BITMAPINFO bmi;
+		const void *dibits;
 
 		// time in milliseconds to display this item
 		DWORD displayTime;
@@ -112,5 +161,5 @@ protected:
 	// is ignored when the high score image list is empty.  When
 	// it's non-empty, this points to the current image being
 	// displayed.
-	decltype(highScoreImages)::const_iterator highScorePos;
+	decltype(highScoreImages)::iterator highScorePos;
 };

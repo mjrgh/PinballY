@@ -2,6 +2,23 @@ PinballY Update History
 
 ??-??-2018 (1.0.0 Alpha 18)
 
+* Add a second phase to the Run Before and Run After commands, to
+allow for finer control over visual effects while the commands are
+processed.
+
+* Add [HIDE] and [MINIMIZE] flag options to the Run Before and Run
+After commands, to control the window appearance of the launched
+command.  These are useful to make the visual transitions smoother
+when launching certain types of commands.  [HIDE] launches the program
+with its window hidden; this is useful for CMD scripts, for example,
+to prevent the DOS box from popping briefly into view.  [MINIMIZE]
+launches it with its window initially minimized, which is useful for
+background tasks that you want to leave running during the game
+without seeing their UI.  (You can also use [HIDE], but you might
+prefer [MINIMIZE] for a background task so that you can switch to it
+with the Windows desktop if it becomes necessary to intervene manually
+for some reason.)
+
 * Improve the drag-and-drop UI for dropping individual media files:
 
   - Add visual drop areas for different media types when a file 
@@ -66,6 +83,29 @@ the 64-bit version of PinballY:
     no need to rename anything or create extra copies of the DLL.
     The extra DmdDevice64.dll is only needed if you need BOTH the
     32-bit and 64-bit versions to be installed simultaneously.
+
+* Make capture work properly for Windows 8.1 and 10 systems with
+multiple monitors that use different DPI settings and/or display scale
+settings by marking FFMPEG as "DPI aware".  In the past, FFMPEG
+sometimes reported errors or grabbed the wrong screen area when
+capturing in such setups.  The problem was that the standard build of
+FFMPEG isn't marked as being compatible with the newer "high DPI"
+features in Windows 8.1 and 10 that allow more user control over the
+display layout.  With the compatibility flag missing, Windows was
+forced to "lie" to FFMPEG about the monitor layout, which resulted in
+the errors and mismatched pixel areas when capturing from PinballY.
+The solution was to add the flag to the FFMPEG executable, to allow
+FFMPEG to see the true monitor layout.  The reason Windows has this
+flag in the first place is that older GUI programs that aren't
+programmed for the newer display features sometimes get the UI layout
+wrong, so Windows by default virtualizes the pixel layout for old
+programs to protect them from such anomalies.  But FFMPEG doesn't have
+a GUI, so the virtualization did no good for it and caused us lots of
+problems with capture.  (I personally think the official FFMPEG
+distribution ought to add this same flag, but there might be
+complications for more general uses of FFMPEG that I'm unaware of.
+For our limited purposes of using FFMPEG as a capture tool only, I
+think it's a perfectly safe change.)
 
 
 08-27-2018 (1.0.0 Alpha 17)

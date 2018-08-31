@@ -41,6 +41,14 @@
 #include <Shlwapi.h>
 
 
+#if defined(_M_IX86)
+#define ARCHITECTURE "x86"
+#elif defined(_M_X64)
+#define ARCHITECTURE "ia64"
+#else
+#error Undefined architecture - add an #elif case here as needed
+#endif
+
 template<typename T> static std::string join(std::list<T> &l, const char *separator = ",", const char *empty = "")
 {
 	// check for an empty list
@@ -78,6 +86,7 @@ int main(int argc, char **argv)
 	const char *cppFilename = 0;
 	const char *rcFilename = 0;
 	const char *wxiFilename = 0;
+	const char *mtFilename = 0;
 	for (int i = 1; i < argc; ++i)
 	{
 		const char *ap = argv[i];
@@ -89,6 +98,8 @@ int main(int argc, char **argv)
 			rcFilename = argv[++i];
 		else if (strcmp(ap, "-wxi") == 0 && i + 1 < argc)
 			wxiFilename = argv[++i];
+		else if (strcmp(ap, "-manifest") == 0 && i + 1 < argc)
+			mtFilename = argv[++i];
 		else
 		{
 			printf("Invalid argument \"%s\"", ap);
@@ -105,6 +116,8 @@ int main(int argc, char **argv)
 		errexit(1003, "Missing rc filename; specify with '-rc filename'\n");
 	if (wxiFilename == 0)
 		errexit(1004, "Missing wxi filename; specify with '-wxi filename'\n");
+	if (mtFilename == 0)
+		errexit(1005, "Missing manifest filename; specify with '-manifest filename'\n");
 		
 	// announce what we're doing
 	printf("BuildInfo: %s -> (cpp=%s, rc=%s)\n", inFilename, cppFilename, rcFilename);
@@ -531,6 +544,27 @@ int main(int argc, char **argv)
 	fputs("</Include>\n", fp);
 
 	// done with the .wxi file
+	fclose(fp);
+
+	// open the manifest file
+	if (fopen_s(&fp, mtFilename, "w"))
+	{
+		printf("Can't open manifest version header file %s\n", mtFilename);
+		exit(2);
+	}
+
+	// write the manifest information
+	fputs("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n", fp);
+	fputs("<assembly xmlns=\"urn:schemas-microsoft-com:asm.v1\" manifestVersion=\"1.0\">\n", fp);
+	fprintf(fp, "  <assemblyIdentity "
+		"type=\"win32\" "
+		"name=\"PinscapeLabs.PinballY.PinballY\" "
+		"version=\"%d.%d.%d.%d\" processorArchitecture=\"" ARCHITECTURE "\" "
+		"publicKeyToken=\"0000000000000000\"/>",
+		versionNumber[0], versionNumber[1], versionNumber[2], wixLevelNumber);
+	fputs("</assembly>\n", fp);
+
+	// done with the manifest file
 	fclose(fp);
 
 	// success

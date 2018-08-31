@@ -45,8 +45,23 @@ public:
 
 	// Read a program's manifest.  Populates the internal XML 
 	// document from the manifest.  Returns true on success, 
-	// false on failure.
-	bool Read(const TCHAR *filename);
+	// false on failure. 
+	//
+	// failIfMissing controls the return value if we successfully
+	// load the program file, but it doesn't contain a manifest
+	// resource.  If failIfMissing is true, we'll return failure
+	// in this case; this is the default, since the caller is
+	// usually only interested in knowing whether a manifest was
+	// successfully loaded, and a missing manifest obviously can't
+	// be loaded.  But if failIfMissing is false, we'll return
+	// true if all else goes well but there simply isn't a
+	// manifest resource embedded in the program.  The caller
+	// can determine that the manifest is missing in this case by
+	// checking to see if the text is empty.
+	bool Read(const TCHAR *filename, bool failIfMissing = true);
+
+	// is the text empty?
+	bool IsEmpty() const { return contents.length() == 0; }
 
 	// The manifest as a parsed XML document.  This is populated
 	// on a successful call to Read().

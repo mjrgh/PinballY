@@ -277,7 +277,7 @@ void SaferTerminateProcess(HANDLE hProcess)
 // defined in the Windows SDK docs, but we don't make any attempt
 // to parse the XML or even determine that it is in fact XML.  We
 // simply return the contents of the resource as plain text.
-bool ProgramManifestReader::Read(const TCHAR *filename)
+bool ProgramManifestReader::Read(const TCHAR *filename, bool failIfMissing)
 {
 	// Internal callback for EnumResourceNames
 	struct CallbackContext
@@ -328,9 +328,11 @@ bool ProgramManifestReader::Read(const TCHAR *filename)
 	// we're done with the module
 	FreeLibrary(hModule);
 
-	// if we didn't find anything, return failure
+	// If we didn't find anything, return the appropriate status according
+	// to 'failIfMissing':  if failIfMissing is true, return failure (false),
+	// otherwise return success (true) - so return the inverse of the flag.
 	if (!ctx.found)
-		return false;
+		return !failIfMissing;
 
 	// parse the XML
 	try

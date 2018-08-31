@@ -134,8 +134,10 @@ void SystemDialog::InitVarMap()
 	varMap.emplace_back(new EditStrMap(cv(".NVRAMPath"), IDC_EDIT_NVRAM_FOLDER, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".DefExt"), IDC_EDIT_DEFEXT, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".DOFTitlePrefix"), IDC_EDIT_DOF_PREFIX, _T("")));
-	varMap.emplace_back(new EditStrMap(cv(".RunBefore"), IDC_EDIT_RUN_BEFORE, _T("")));
-	varMap.emplace_back(new EditStrMap(cv(".RunAfter"), IDC_EDIT_RUN_AFTER, _T("")));
+	varMap.emplace_back(new EditStrMap(cv(".RunBeforePre"), IDC_EDIT_RUN_BEFORE1, _T("")));
+	varMap.emplace_back(new EditStrMap(cv(".RunBefore"), IDC_EDIT_RUN_BEFORE2, _T("")));
+	varMap.emplace_back(new EditStrMap(cv(".RunAfter"), IDC_EDIT_RUN_AFTER1, _T("")));
+	varMap.emplace_back(new EditStrMap(cv(".RunAfterPost"), IDC_EDIT_RUN_AFTER2, _T("")));
 }
 
 BOOL SystemDialog::OnInitDialog()
