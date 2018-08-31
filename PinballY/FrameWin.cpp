@@ -109,77 +109,58 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 	// don't find a saved location in the config
 	RECT pos;
 	SetRect(&pos, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0);
-	fullScreenMode = false;
 
-	// If a full-screen window was requested, look up the display by index.
-	// If the lookup fails, revert to the default coordinates.
-	bool cfgFullScreen = ConfigManager::GetInstance()->GetInt(configVarFullScreen) != 0;
-	if (cfgFullScreen)
+	// Get the full screen mode flag.  We won't actually reinstate this
+	// until we've finished creating the window, to work around a mystery
+	// problem with custom caption drawing that seems to occur if we start
+	// with full-screen styles.
+	fullScreenMode = ConfigManager::GetInstance()->GetInt(configVarFullScreen) != 0;
+
+	// get the stored window location
+	RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
+
+	// get the maximized and minimized states
+	if (ConfigManager::GetInstance()->GetInt(configVarMaximized, 0))
+		nCmdShow = SW_MAXIMIZE;
+	else if (ConfigManager::GetInstance()->GetInt(configVarMinimized, 0))
+		nCmdShow = SW_MINIMIZE;
+
+	// see if we read a non-default location
+	if (rc.left != CW_USEDEFAULT || rc.right != CW_USEDEFAULT || rc.right != 0 || rc.bottom != 0)
 	{
-		// get the normal screen area
-		RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
-
-		// find the monitor containing this area
-		HMONITOR hmon;
-		MONITORINFO mi = { sizeof(mi) };
-		if ((hmon = MonitorFromRect(&rc, MONITOR_DEFAULTTONULL)) != 0 && GetMonitorInfo(hmon, &mi))
+		// make sure it's within the virtual screen bounds
+		RECT vsrc;
+		vsrc.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+		vsrc.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+		vsrc.right = vsrc.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+		vsrc.bottom = vsrc.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+		if (rc.right < rc.left + 50)
+			rc.right = rc.left + 50;						// minimum width
+		if (rc.bottom < rc.top + 50)
+			rc.bottom = rc.top + 50;						// minimum height
+		if (rc.left != CW_USEDEFAULT && rc.left < vsrc.left)
 		{
-			// got it - use full-screen mode within this monitor's display area
-			fullScreenMode = true;
-			pos = mi.rcMonitor;
+			rc.right = vsrc.left + (rc.right - rc.left);    // maintain the current width
+			rc.left = vsrc.left;							// force to the left edge of the virtual screen
 		}
-	}
-
-	// if we didn't end up in full-screen mode, look for a window location
-	// in the config instead
-	if (!fullScreenMode)
-	{
-		// get the stored window location
-		RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
-
-		// get the maximized and minimized states
-		if (ConfigManager::GetInstance()->GetInt(configVarMaximized, 0))
-			nCmdShow = SW_MAXIMIZE;
-		else if (ConfigManager::GetInstance()->GetInt(configVarMinimized, 0))
-			nCmdShow = SW_MINIMIZE;
-
-		// see if we read a non-default location
-		if (rc.left != CW_USEDEFAULT || rc.right != CW_USEDEFAULT || rc.right != 0 || rc.bottom != 0)
+		if (rc.top != CW_USEDEFAULT && rc.top < vsrc.top)
 		{
-			// make sure it's within the virtual screen bounds
-			RECT vsrc;
-			vsrc.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
-			vsrc.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
-			vsrc.right = vsrc.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
-			vsrc.bottom = vsrc.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
-			if (rc.right < rc.left + 50)
-				rc.right = rc.left + 50;						// minimum width
-			if (rc.bottom < rc.top + 50)
-				rc.bottom = rc.top + 50;						// minimum height
-			if (rc.left != CW_USEDEFAULT && rc.left < vsrc.left)
-			{
-				rc.right = vsrc.left + (rc.right - rc.left);    // maintain the current width
-				rc.left = vsrc.left;							// force to the left edge of the virtual screen
-			}
-			if (rc.top != CW_USEDEFAULT && rc.top < vsrc.top)
-			{
-				rc.bottom = vsrc.top + (rc.bottom - rc.top);	// maintain the current height
-				rc.top = vsrc.top;								// force to the top edge of the virtual screen
-			}
-			if (rc.left != CW_USEDEFAULT && rc.right != 0 && rc.right > vsrc.right)
-			{
-				rc.left = vsrc.right - (rc.right - rc.left);	// maintain the current width
-				rc.right = vsrc.right;							// force to the right edge of the virtual screen
-			}
-			if (rc.top != CW_USEDEFAULT && rc.bottom != 0 && rc.bottom > vsrc.bottom)
-			{
-				rc.top = vsrc.bottom - (rc.bottom - rc.top);	// maintain the current height
-				rc.bottom = vsrc.bottom;						// force to the bottom edge of the virtual screen
-			}
-
-			// apply the new size
-			pos = rc;
+			rc.bottom = vsrc.top + (rc.bottom - rc.top);	// maintain the current height
+			rc.top = vsrc.top;								// force to the top edge of the virtual screen
 		}
+		if (rc.left != CW_USEDEFAULT && rc.right != 0 && rc.right > vsrc.right)
+		{
+			rc.left = vsrc.right - (rc.right - rc.left);	// maintain the current width
+			rc.right = vsrc.right;							// force to the right edge of the virtual screen
+		}
+		if (rc.top != CW_USEDEFAULT && rc.bottom != 0 && rc.bottom > vsrc.bottom)
+		{
+			rc.top = vsrc.bottom - (rc.bottom - rc.top);	// maintain the current height
+			rc.bottom = vsrc.bottom;						// force to the bottom edge of the virtual screen
+		}
+
+		// apply the new size
+		pos = rc;
 	}
 
 	// return the position
@@ -198,25 +179,28 @@ bool FrameWin::InitWin()
 	if (view == 0)
 		return false;
 
-	// switch to full-screen style if initially in full-screen mode
+	// If we're starting in full-screen mode, post a command to self to
+	// switch to full screen mode, and do the rest of the initialization
+	// as a normal window.  Initializing the window in full-screen mode
+	// causes a weird redraw problem in our custom frame area after
+	// returning to normal window mode, for reasons I haven't been able
+	// to determine.  To all appearances, the window is identical either
+	// way in all of the API attributes I can see, so my best guess is
+	// that there's something that sticks in the internal DWM structs
+	// for the record at window creation time, that can't be cleared up
+	// with any of the later changes we make when switching from full-
+	// screen to windowed.  (Weirdly, minimizing and then restoring the
+	// window will un-stick whatever's stuck, but that's not a viable
+	// workaround.)  The solution seems to be to defer our full-screen
+	// style switching until after window creation has been completed.
 	if (fullScreenMode)
 	{
-		// set styles for full-screen mode
-		SetWindowLong(hWnd, GWL_STYLE,
-			(GetWindowLong(hWnd, GWL_STYLE) & ~WS_OVERLAPPEDWINDOW) | WS_POPUP);
-
-		// refigure the frame borders
-		SetWindowPos(
-			hWnd, NULL, -1, -1, -1, -1,
-			SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED);
-
+		fullScreenMode = false;
+		PostMessage(WM_COMMAND, ID_FULL_SCREEN, 0);
 	}
 
-	// If we're not starting in full-screen mode, initialize the system menu.
-	// There's no need to do this in full-screen mode because there's no system
-	// menu at all in FS mode.
-	if (!fullScreenMode)
-		CustomizeSystemMenu(GetSystemMenu(hWnd, FALSE));
+	// customize the system menu
+	CustomizeSystemMenu(GetSystemMenu(hWnd, FALSE));
 
 	// update the frame layout
     FigureFrameParams();
@@ -231,7 +215,7 @@ bool FrameWin::CreateWin(HWND parent, int nCmdShow, const TCHAR *title)
 {
 	// figure the normal style
 	normalWindowStyle = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU
-		| WS_SIZEBOX | WS_MAXIMIZEBOX | WS_MINIMIZEBOX;
+		| WS_SIZEBOX | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CLIPSIBLINGS;
 
 	// if it's initially hidden, change the show command to SW_HIDE
 	bool visible = ConfigManager::GetInstance()->GetInt(configVarVisible, 1) != 0;
@@ -373,15 +357,23 @@ void FrameWin::ToggleFullScreen()
 	// check the current mode
 	if (!fullScreenMode)
 	{
-		// We're currently in windowed mode - switch to full screen.
-		// Remember the current window placement so that we can restore it if we
-		// later switch back to windowed mode.  Then determine which monitor the
-		// window currently occupies, using the primary monitor by default.
+		// We're currently in windowed mode - switch to full screen.  Remember
+		// the windowed position, so that we can restore the same position if
+		// we switch back to windowed mode later.
 		normalWindowStyle = style;
 		normalWindowPlacement.length = sizeof(normalWindowPlacement);
 		MONITORINFO mi = { sizeof(mi) };
-		if (GetWindowPlacement(hWnd, &normalWindowPlacement)
-			&& GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+		if (!GetWindowPlacement(hWnd, &normalWindowPlacement))
+		{
+			// that failed - flag that the placement is invalid by zeroing
+			// the length field
+			normalWindowPlacement.length = 0;
+		}
+
+		// Determine which monitor the window currently occupies, using the 
+		// primary monitor by default.  Take over the whole viewing area of
+		// that monitor.
+		if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
 		{
 			// we're now in full-screen mode
 			fullScreenMode = true;
@@ -402,7 +394,7 @@ void FrameWin::ToggleFullScreen()
 	}
 	else
 	{
-		// We're currently in full screen mode - switch to windowed mode.
+		// We're currently in full screen mode - switch to windowed mode
 		fullScreenMode = false;
 
 		// Switch to an overlapped window
@@ -423,7 +415,7 @@ void FrameWin::ToggleFullScreen()
 			SetWindowPos(
 				hWnd, HWND_TOP,
 				rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
-				SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_DRAWFRAME);
+				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 		}
 
 		// update the config to remove the full-screen mode
@@ -442,6 +434,10 @@ void FrameWin::ToggleFullScreen()
 
 	// redo the internal client layout
 	UpdateLayout();
+
+	// make sure the frame is redrawn
+	SetWindowPos(hWnd, NULL, -1, -1, -1, -1,
+		SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOSIZE | SWP_FRAMECHANGED);
 }
 
 // Add our custom items to the system menu.  

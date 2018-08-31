@@ -426,7 +426,7 @@ void DMDView::GenerateHighScoreImages()
 					auto DrawToImage = [&images](int width, int height, std::function<void(Gdiplus::Graphics&)> drawFunc)
 					{
 						// emplace a new high-score image in the list
-						images.emplace_back(3500);
+						images.emplace_back(HighScoreImage::NormalSpriteType, 3500);
 						HighScoreImage &image = images.back();
 
 						// draw the image into a new DIB through the callback
@@ -663,7 +663,7 @@ void DMDView::GenerateHighScoreImages()
 						}
 
 						// store the image
-						images.emplace_back(bmi, pix, 3500);
+						images.emplace_back(HighScoreImage::DMDSpriteType, bmi, pix, 3500);
 					}
 				}
 
@@ -925,7 +925,7 @@ void DMDView::AddBackgroundToDrawingList()
 		if (highScorePos->sprite == nullptr)
 		{
 			// try creating the sprite
-			highScorePos->sprite.Attach(new DMDSprite());
+			highScorePos->sprite.Attach(highScorePos->spriteType == HighScoreImage::DMDSpriteType ? new DMDSprite() : new Sprite());
 			if (!highScorePos->sprite->Load(highScorePos->bmi, highScorePos->dibits, SilentErrorHandler(), _T("high score slide")))
 			{
 				// failed to create the sprite

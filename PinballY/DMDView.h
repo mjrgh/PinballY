@@ -84,29 +84,41 @@ protected:
 	// high-score graphics list
 	struct HighScoreImage
 	{
-		HighScoreImage(DWORD t) :
-			dibits(nullptr), displayTime(t)
+		// sprite type, for deferred sprite creation from a bitmap
+		enum SpriteType
+		{
+			NoSpriteType,
+			NormalSpriteType,
+			DMDSpriteType
+		};
+
+		HighScoreImage(SpriteType spriteType, DWORD t) :
+			spriteType(spriteType), dibits(nullptr), displayTime(t)
 		{ }
 
 		HighScoreImage(Sprite *sprite, DWORD t) : 
-			sprite(sprite), dibits(nullptr), displayTime(t)
+			spriteType(NoSpriteType), sprite(sprite), dibits(nullptr), displayTime(t)
 		{ }
 
-		HighScoreImage(const BITMAPINFO &bmi, BYTE *dibits, DWORD t) :
-			displayTime(t), dibits(dibits)
+		HighScoreImage(SpriteType spriteType, const BITMAPINFO &bmi, BYTE *dibits, DWORD t) :
+			spriteType(spriteType), dibits(dibits), displayTime(t)
 		{
 			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
 		}
 
-		HighScoreImage(HBITMAP hbmp, const BITMAPINFO &bmi, const void *dibits, DWORD t) :
-			hbmp(hbmp), dibits(dibits), displayTime(t)
+		HighScoreImage(SpriteType spriteType, HBITMAP hbmp, const BITMAPINFO &bmi, const void *dibits, DWORD t) :
+			spriteType(spriteType), hbmp(hbmp), dibits(dibits), displayTime(t)
 		{
 			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
 		}
 
 		// transfer ownership of resources from another HighScoreImage object
 		HighScoreImage(HighScoreImage &i) :
-			sprite(i.sprite.Detach()), hbmp(i.hbmp.Detach()), dibits(i.dibits), displayTime(i.displayTime)
+			spriteType(i.spriteType),
+			sprite(i.sprite.Detach()), 
+			hbmp(i.hbmp.Detach()), 
+			dibits(i.dibits), 
+			displayTime(i.displayTime)
 		{
 			// copy the bitmap info
 			memcpy(&this->bmi, &i.bmi, sizeof(this->bmi));
@@ -125,6 +137,9 @@ protected:
 			if (hbmp == NULL && dibits != nullptr)
 				delete[] dibits;
 		}
+
+		// for deferred sprite creation, the type of Sprite object to create
+		SpriteType spriteType;
 
 		// image for this item
 		RefPtr<Sprite> sprite;
