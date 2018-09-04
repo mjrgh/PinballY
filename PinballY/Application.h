@@ -638,14 +638,73 @@ protected:
 		// this event when the user closes the game through the UI.
 		HandleHolder closeEvent;
 
-		// playfield window
+		// Set the close event
+		void SetCloseEvent() { SetEvent(closeEvent); }
+
+		// test the close event
+		bool IsCloseEventSet() { return WaitForSingleObject(closeEvent, 0) == WAIT_OBJECT_0; }
+
+		// Test and reset the close event.  This atomically retrieves 
+		// the current event state and then resets it.
+		void ResetCloseEvent() { ResetEvent(closeEvent); }
+
+		// game windows
 		RefPtr<PlayfieldView> playfieldView;
+		RefPtr<D3DView> backglassView;
+		RefPtr<D3DView> dmdView;
+		RefPtr<D3DView> topperView;
+		RefPtr<D3DView> instCardView;
 
 		// launch time
 		ULONGLONG launchTime;
 
 		// exit time
 		ULONGLONG exitTime;
+
+		// Window rotation manager.  The RunBefore/RunAfter commands can rotate
+		// any of the UI windows via the [ROTATE(window,theta)] flags.  This object
+		// keeps track of all rotations applied so far, so that we can undo any
+		// outstanding rotation before we return.
+		class RotationManager
+		{
+		public:
+			RotationManager(GameMonitorThread *monitor) : monitor(monitor) { }
+			~RotationManager()
+			{
+				// on exit, restore all windows to their original rotations
+				for (auto const &r : rotations)
+				{
+					int theta = r.second;
+					if (theta != 0)
+						RotateNoStore(r.first, -theta);
+				}
+			}
+
+			// rotate a window
+			void Rotate(TSTRING &winName, int theta)
+			{
+				// do the rotation
+				RotateNoStore(winName, theta);
+
+				// add this to the cumulative rotation for the window
+				auto it = rotations.find(winName);
+				if (it != rotations.end())
+					it->second = (it->second + theta) % 360;
+				else
+					rotations.emplace(winName, theta);
+			}
+
+		private:
+			// rotate a window without storing the result
+			void RotateNoStore(const TSTRING &winName, int theta);
+
+			// table of windows and cumulative rotations applied so far
+			std::unordered_map<TSTRING, int> rotations;
+
+			// containing game monitor thread object
+			GameMonitorThread *monitor;
+		};
+		RotationManager rotationManager;
 	};
 
 	// current game monitor thread

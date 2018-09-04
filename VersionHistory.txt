@@ -14,6 +14,13 @@ commands for game launches.  These allow rotating UI windows during
 the launch to compensate for system monitor layout changes made by the
 commands.
 
+* Ensure that the Run Before and Run After commands are always paired,
+to allow the After commands to clean up any system-wide settings
+changes made in the Before commands.  In particular:
+
+  - Run After (2) will always run if Run Before (1) is executed
+  - Run After (1) will always run if Run Before (2) is executed
+
 
 08-31-2018 (1.0.0 Alpha 18)
 

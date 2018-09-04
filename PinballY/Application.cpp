@@ -1315,15 +1315,19 @@ void Application::TogglePinscapeNightMode()
 
 Application::GameMonitorThread::GameMonitorThread() :
 	isAdminMode(false),
-	hideTaskbar(false)
+	hideTaskbar(false),
+	rotationManager(this)
 {
 	// create the shutdown and close-game event objects
 	shutdownEvent = CreateEvent(0, TRUE, FALSE, 0);
 	closeEvent = CreateEvent(0, TRUE, FALSE, 0);
 
-	// keep a reference on the playfield view, since we send it messages
-	// about our status
+	// keep references to the game views
 	playfieldView = Application::Get()->GetPlayfieldView();
+	backglassView = Application::Get()->GetBackglassView();
+	dmdView = Application::Get()->GetDMDView();
+	topperView = Application::Get()->GetTopperView();
+	instCardView = Application::Get()->GetInstCardView();
 }
 
 Application::GameMonitorThread::~GameMonitorThread()
@@ -1360,7 +1364,7 @@ bool Application::GameMonitorThread::IsGameRunning() const
 void Application::GameMonitorThread::CloseGame()
 {
 	// signal the close-game event
-	SetEvent(closeEvent);
+	SetCloseEvent();
 
 	// if the game is running, close its windows
 	if (IsGameRunning())
@@ -1711,76 +1715,23 @@ DWORD Application::GameMonitorThread::Main()
 	POINT ptDMDCenter = WinPt(Application::Get()->GetDMDWin(), 320, 650);
 	POINT ptTopperCenter = WinPt(Application::Get()->GetTopperWin(), 950, 650);
 
-	// Window rotation manager.  The RunBefore/RunAfter commands can rotate
-	// any of the UI windows via the [ROTATE(window,theta)] flags.  This object
-	// keeps track of all rotations applied so far, so that we can undo any
-	// outstanding rotation before we return.
-	class RotationManager
-	{
-	public:
-		~RotationManager()
-		{
-			// on exit, restore all windows to their original rotations
-			for (auto const &r : rotations)
-			{
-				int theta = r.second;
-				if (theta != 0)
-					RotateNoStore(r.first, -theta);
-			}
-		}
-
-		// rotate a window
-		void Rotate(TSTRING &winName, int theta)
-		{
-			// do the rotation
-			RotateNoStore(winName, theta);
-
-			// add this to the cumulative rotation for the window
-			auto it = rotations.find(winName);
-			if (it != rotations.end())
-				it->second += theta;
-			else
-				rotations.emplace(winName, theta);
-		}
-
-	private:
-		// rotate a window without storing the result
-		void RotateNoStore(const TSTRING &winName, int theta)
-		{
-			// find the window by name
-			D3DView *pwnd = nullptr;
-			if (winName == _T("PLAYFIELD"))
-				pwnd = Application::Get()->GetPlayfieldView();
-			else if (winName == _T("BACKGLASS"))
-				pwnd = Application::Get()->GetBackglassView();
-			else if (winName == _T("DMD"))
-				pwnd = Application::Get()->GetDMDView();
-			else if (winName == _T("TOPPER"))
-				pwnd = Application::Get()->GetTopperView();
-			else if (winName == _T("INSTRUCTIONS"))
-				pwnd = Application::Get()->GetInstCardView();
-
-			// if we found it, apply the rotation
-			if (pwnd != nullptr)
-				pwnd->SetRotation((pwnd->GetRotation() + theta + 360) % 360);
-		}
-
-		// table of windows and cumulative rotations applied so far
-		std::unordered_map<TSTRING, int> rotations;
-	};
-	RotationManager rotationManager;
-
 	// RunBefore/RunAfter option flag parser
-	class RunOptions
+	class RunBeforeAfterParser
 	{
 	public:
-		RunOptions(GameMonitorThread *monitor, const TSTRING &command, RotationManager &rotationManager) : 
+		RunBeforeAfterParser(GameMonitorThread *monitor, HandleHolder &hProc,
+			const TCHAR *desc, int launchErrorId, const TSTRING &command, bool continueAfterClose) :
 			monitor(monitor),
-			nowait(false), 
+			hProc(hProc),
+			desc(desc),
+			launchErrorId(launchErrorId),
+			returnStatusOnClose(continueAfterClose),
+			nowait(false),
 			terminate(false),
 			hide(false),
 			minimize(false),
-			rotationManager(rotationManager)
+			executed(false),
+			canceled(false)
 		{
 			std::basic_regex<TCHAR> flagsPat(
 				_T("\\s*\\[((NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE|ROTATE\\(\\w+,\\d+\\))")
@@ -1827,17 +1778,45 @@ DWORD Application::GameMonitorThread::Main()
 			}
 		}
 
+		~RunBeforeAfterParser()
+		{
+			// if we haven't executed the command yet, do so now
+			if (!executed && !canceled)
+				Run();
+		}
+
+		// Cancel the command.  Once the command object is instantiated, it's
+		// guaranteed to execute, UNLESS it's explicitly canceled.  The guaranteed
+		// execution occurs when the object is destroyed, if an explicit call to
+		// Run() wasn't made earlier.  This is designed so that the caller has
+		// control over the timing of the execution when everything goes to plan,
+		// but can be assured that the command will execute if the caller exits 
+		// prematurely due to an error.
+		void Cancel() { canceled = true; }
+
 		// Run the command.  Returns true on success, false if a fatal
 		// error occurred (fatal meaning we should abort the rest of the
 		// game launch process).
-		bool Run(const TCHAR *desc, int launchErrorID, HandleHolder &hProc)
+		bool Run()
 		{
 			// if the command is empty, there's nothing to do - simply return success
 			if (command.length() == 0)
 				return true;
 
-			// log the launch
-			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> %s\n"), desc, command.c_str());
+			// the command has now been executed (the attempt counts as 
+			// execution, whether or not it succeeds)
+			executed = true;
+
+			// log the command
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> %s\n"), desc.c_str(), command.c_str());
+
+			// Reset the Close event.  The Close event can be used to terminate
+			// any step of the launch sequence, including Run Before and Run After
+			// commands.  But it only cancels the step in effect when it was used;
+			// it doesn't cancel any subsequent steps.  So count this as the start
+			// of the current step, and therefore clear any Close event that was
+			// previously signaled.
+			monitor->ResetCloseEvent();
 
 			// apply window rotations
 			for (auto const &s : rotate)
@@ -1847,18 +1826,19 @@ DWORD Application::GameMonitorThread::Main()
 				{
 					TSTRING windowName = m[1].str();
 					int theta = _ttoi(m[2].str().c_str());
-					rotationManager.Rotate(windowName, theta);
+					monitor->rotationManager.Rotate(windowName, theta);
 				}
 			}
 
 			// Launch the program without waiting
 			AsyncErrorHandler aeh;
 			if (!Application::RunCommand(monitor->SubstituteVars(command).c_str(), 
-				aeh, launchErrorID, false, &hProc, 
+				aeh, launchErrorId, false, &hProc, 
 				hide ? SW_HIDE : minimize ? SW_SHOWMINIMIZED : SW_SHOW))
 			{
 				// failed - abort the launch
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> command execution failed; aborting launch\n"), desc);
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+					_T("+ %s:\n> command execution failed; aborting launch\n"), desc.c_str());
 				return false;
 			}
 
@@ -1876,7 +1856,7 @@ DWORD Application::GameMonitorThread::Main()
 				// the user wants us to simply launch the process and
 				// leave it running, so we can close the process handle
 				// now and let the process run independently from now on.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: [NOWAIT] specified, continuing\n"), desc);
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: [NOWAIT] specified, continuing\n"), desc.c_str());
 				if (!terminate)
 					hProc = NULL;
 			}
@@ -1884,7 +1864,7 @@ DWORD Application::GameMonitorThread::Main()
 			{
 				// Wait mode.  Wait for the process to exit, or for a 
 				// close-game or application-wide shutdown signal.
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: waiting for command to finish\n"), desc);
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: waiting for command to finish\n"), desc.c_str());
 				HANDLE waitEvents[] = { hProc, monitor->shutdownEvent, monitor->closeEvent };
 				switch (WaitForMultipleObjects(countof(waitEvents), waitEvents, FALSE, INFINITE))
 				{
@@ -1892,55 +1872,52 @@ DWORD Application::GameMonitorThread::Main()
 					// The RunBefore process exited.  This is what we were
 					// hoping for; proceed to run the game.  Close the child
 					// process handle and continue.
-					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: command finished normally\n"), desc);
+					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s: command finished normally\n"), desc.c_str());
 					hProc = NULL;
 					break;
 
 				case WAIT_OBJECT_0 + 1:
-				case WAIT_OBJECT_0 + 2:
-				default:
-					// The shutdown event fired, the "close game" event fired, or 
-					// an error occurred in the wait.  In any of these cases, shut
-					// down the monitor thread immediately, without proceeding to 
-					// the game launch.  
-					//
-					// What should we do about the RunBefore process?  Given that
-					// the user wanted us to wait for the process, it's highly 
-					// likely that the process is supposed to be something quick 
-					// that does some small amount of work and exits immediately.
-					// The user presumably wouldn't have configured it for waiting 
-					// if it were something long-running.  In any case, by telling
-					// us to wait in the first place, the user told us that the
-					// program was to finish before the game was launched, and by
-					// implication, before we return to the wheel UI.  So if the
-					// process hasn't exited on its own, the reasonable thing to
-					// do is to terminate it explicitly, to meet the user's
-					// expectation that the program is done when we get back to
-					// the wheel UI.  In fact, one reason we might be in this
-					// situation at all is that the RunBefore program might have
-					// gotten stuck, prompting the user to cancel the launch from
-					// the UI, which would have fired the shutdown event and 
-					// landed us right here.  In any case, we can ensure that the
-					// RunBefore process gets terminated explicitly by leaving its
-					// process handle in hRunBeforeProc.  The game monitor thread
-					// object destructor will use that to kill the process if it's
-					// still running, as soon as the thread exits.
+					// The Shutdown event fired.  Shut down immediately without
+					// processing any remaining steps in the launch.
 					LogFile::Get()->Write(LogFile::TableLaunchLogging,
-						_T("+ %s: command interrupted; aborting launch\n"), desc);
+						_T("+ %s: command interrupted because PinballY is exiting; aborting launch\n"), desc.c_str());
+					return false;
 
-					// abort the rest of the launch
+				case WAIT_OBJECT_0 + 2:
+					// The Close event fired.  Terminate the current step, and return
+					// the caller's desired return status on close.
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ %s: command interrupted by Exit Game event\n"), desc.c_str());
+					return returnStatusOnClose;
+
+				default:
+					// An error occurred in the wait.  Abort the launch.
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ %s: wait failed; aborting launch\n"), desc.c_str());
 					return false;
 				}
 			}
 
-			// success
+			// Success
 			return true;
 		}
 
 		// the game monitor thread object
 		GameMonitorThread *monitor;
 
-		// updated command string
+		// description for log messages
+		TSTRING desc;
+
+		// error string ID to use for launch errors
+		int launchErrorId;
+
+		// Run() return status on Close event
+		bool returnStatusOnClose;
+
+		// process handle holder
+		HandleHolder &hProc;
+
+		// final command string, with all flags parsed out and substitutions applied
 		TSTRING command;
 
 		// option flags
@@ -1949,11 +1926,14 @@ DWORD Application::GameMonitorThread::Main()
 		bool hide;
 		bool minimize;
 
+		// has the command been executed yet?
+		bool executed;
+
+		// has the command been canceled?
+		bool canceled;
+
 		// rotation command list
 		std::list<TSTRING> rotate;
-
-		// rotation manager
-		RotationManager &rotationManager;
 	};
 
 	// Check if the file exists.  If not, add the default extension.
@@ -2033,22 +2013,40 @@ DWORD Application::GameMonitorThread::Main()
 	if (hideTaskbar)
 		taskbarHider.reset(new TaskbarHider());
 
+	// Once RunBeforePre runs, we wish to guarantee that RunAfterPost runs,
+	// so that it can undo the RunBeforePre operation.  Instantate the 
+	// RunAfterPost command, which will guarantee execution if we exit
+	// prematurely due to another error in the course of the game launch.
+	//
+	// A Close event in an After command only cancels the current step, so
+	// continue if a close event occurs.
+	RunBeforeAfterParser runAfterPostCmd(this, hRunAfterPostProc, _T("RunAfterPost (final post-game exit command)"),
+		IDS_ERR_GAMERUNAFTERPOST, gameSys.runAfterPost, true);
+
 	// Run the RunBeforePre command, if any.  This command is executed with
 	// a completely blank playfield window, before we show the "Launching 
 	// Game" message.  This lets the command make system-wide monitor layout
 	// changes with a minimum of visual fuss, since monitor changes won't
 	// usually cause any visible effect on a blank black screen.
-	if (!RunOptions(this, gameSys.runBeforePre, rotationManager).Run(
-		_T("RunBeforePre (initial pre-launch command)"), IDS_ERR_GAMERUNBEFOREPRE, hRunBeforePreProc))
+	//
+	// A Close event in a Before command cancels the game launch, so don't
+	// continue if Close is signaled.
+	if (!RunBeforeAfterParser(this, hRunBeforePreProc, _T("RunBeforePre (initial pre-launch command)"),
+		IDS_ERR_GAMERUNBEFOREPRE, gameSys.runBeforePre, false).Run())
 		return 0;
 
 	// Display the "Launching Game" message in the main window
 	if (playfieldView != nullptr)
 		playfieldView->SendMessage(PFVMsgGameRunBefore, (WPARAM)cmd);
 
+	// Set up guaranteed execution for the RunAfter command, now that
+	// we're about to fire RunBefore.
+	RunBeforeAfterParser runAfterCmd(this, hRunAfterProc, _T("RunAfter (post-game exit command)"),
+		IDS_ERR_GAMERUNAFTER, gameSys.runAfter, true);
+
 	// Run the RunBefore command, if any
-	if (!RunOptions(this, gameSys.runBefore, rotationManager).Run(
-		_T("RunBefore (pre-launch command)"), IDS_ERR_GAMERUNBEFORE, hRunBeforeProc))
+	if (!RunBeforeAfterParser(this, hRunBeforeProc, _T("RunBefore (pre-launch command)"),
+		IDS_ERR_GAMERUNBEFORE, gameSys.runBefore, false).Run())
 		return 0;
 
 	// Do another check for adding a default extension to the game file.
@@ -3507,26 +3505,15 @@ DWORD Application::GameMonitorThread::Main()
 	exitTime = GetTickCount64();
 
 	// Run the RunAfter command, if any.
-	//
-	// Note that the Close event is probably signalled, since that's usually
-	// how the game is terminated.  Reset it before running the RunAfter
-	// command so that we can monitor the event anew, to give the user a
-	// way to cancel out of the RunAfter program should it get stuck.
-	ResetEvent(closeEvent);
-	if (!RunOptions(this, gameSys.runAfter, rotationManager).Run(
-		_T("RunAfter (post-game exit command)"), IDS_ERR_GAMERUNAFTER, hRunAfterProc))
+	if (!runAfterCmd.Run())
 		return 0;
 
 	// remove the "game exiting" message
 	if (playfieldView != nullptr)
 		playfieldView->SendMessage(PFVMsgGameRunAfter, (WPARAM)cmd);
 
-	// Run the RunAfterPost command, if any.  As before, reset the Close
-	// event so that it can be used to cancel out of this command should
-	// it get stuck.
-	ResetEvent(closeEvent);
-	if (!RunOptions(this, gameSys.runAfterPost, rotationManager).Run(
-		_T("RunAfterPost (final post-game exit command)"), IDS_ERR_GAMERUNAFTERPOST, hRunAfterPostProc))
+	// Run the RunAfterPost command, if any
+	if (!runAfterPostCmd.Run())
 		return 0;
 
 	// done
@@ -3588,6 +3575,26 @@ bool Application::GameMonitorThread::Shutdown(ErrorHandler &eh, DWORD timeout, b
 
 	// return failure, since the thread didn't terminate on its own
 	return false;
+}
+
+void Application::GameMonitorThread::RotationManager::RotateNoStore(const TSTRING &winName, int theta)
+{
+	// find the window by name
+	D3DView *pwnd = nullptr;
+	if (winName == _T("PLAYFIELD"))
+		pwnd = monitor->playfieldView;
+	else if (winName == _T("BACKGLASS"))
+		pwnd = monitor->backglassView;
+	else if (winName == _T("DMD"))
+		pwnd = monitor->dmdView;
+	else if (winName == _T("TOPPER"))
+		pwnd = monitor->topperView;
+	else if (winName == _T("INSTRUCTIONS"))
+		pwnd = monitor->instCardView;
+
+	// if we found it, apply the rotation
+	if (pwnd != nullptr)
+		pwnd->SetRotation((pwnd->GetRotation() + theta + 360) % 360);
 }
 
 // -----------------------------------------------------------------------

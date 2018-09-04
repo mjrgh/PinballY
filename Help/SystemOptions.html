@@ -859,5 +859,64 @@
    be useful for a Run After command.
 </p>
 
+<h3>Run Before/After pairings</h3>
+
+<p>
+   The overall sequence of the launch is as follows:
+</p>
+<ul>
+   <li>Run Before (1)
+   <ul>
+      <li>Run Before (2)
+      <ul>
+         <li>Game
+      </ul>
+      <li>Run After (1)
+      </ul>
+   <li>Run After (2)
+</ul>
+
+<p>
+   It's best to think of these as "nested" steps, as suggested by
+   the indentation in the list above.  The Run Before (1) and
+   Run After (2) are the "outer" steps:  they're done first and last.
+   The Run Before (2) and Run After (1) steps are the "inner" steps,
+   done just before and just after the game runs.  And the game itself
+   is the "innermost" step, nested within the others.
+</p>
+<p>
+   The point of this nested view of the steps is that it should help
+   you decide where to put any necessary cleanup tasks when you're
+   arranging your command sequence.  If Run Before (1)
+   makes any system-wide changes, they should be undone in Run After (2),
+   since that's the matching After step for Run Before (1) in the
+   nested view.  Similarly, any system-wide
+   changes made in Run Before (2) does should be undone in
+   Run After (1).   Cleanup is necessary for any
+   system-wide changes you make, such as changes to the monitor
+   layout, or changes to your mouse or keyboard settings.  You'll
+   need to reverse such changes before the main PinballY window
+   returns, so that settings are back to normal after the game
+   finishes.  
+</p>
+<p>
+   PinballY tries to help ensure that any cleanup steps are
+   properly executed by always running the paired commands
+   suggested in the nesting diagram above.  In particular,
+   the following pairings are guaranteed:
+</p>
+<ul>
+   <li>If Run Before (1) is executed, Run After (2) will also be executed
+   <li>If Run Before (2) is executed, Run After (1) will also be executed
+</ul>
+<p>
+   The steps will always be carried out in those matched pairs, even in
+   case of error, and even if the user manually interrupts the game launch
+   by pressing the Exit Game button during one of the early steps.  This
+   should help ensure that your commands will always have a chance to
+   undo any system-wide setting changes made during the launch process
+   so that everything is returned to normal after each game session.
+</p>
+
 </body>
 </html>
