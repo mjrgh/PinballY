@@ -2,12 +2,17 @@ PinballY Update History
 
 ?????????? (1.0.0 Alpha 19)
 
-* Added DOF support to the 64-bit version.  (DOF is implemented
-as a 32-bit COM object, so special handling is required for the
-64-bit version of the program.)
+* Added DOF support to the 64-bit version.  (DOF is implemented as a
+32-bit COM object, so special handling is required for the 64-bit
+version of the program.)
 
-* Added DOF logging to the options, and added logging for DOF
-setup events.
+* Added DOF logging to the options, and added logging for DOF setup
+events.
+
+* Added [ROTATE(window,angle)] commands for Run Before and Run After
+commands for game launches.  These allow rotating UI windows during
+the launch to compensate for system monitor layout changes made by the
+commands.
 
 
 08-31-2018 (1.0.0 Alpha 18)

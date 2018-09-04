@@ -1711,19 +1711,80 @@ DWORD Application::GameMonitorThread::Main()
 	POINT ptDMDCenter = WinPt(Application::Get()->GetDMDWin(), 320, 650);
 	POINT ptTopperCenter = WinPt(Application::Get()->GetTopperWin(), 950, 650);
 
+	// Window rotation manager.  The RunBefore/RunAfter commands can rotate
+	// any of the UI windows via the [ROTATE(window,theta)] flags.  This object
+	// keeps track of all rotations applied so far, so that we can undo any
+	// outstanding rotation before we return.
+	class RotationManager
+	{
+	public:
+		~RotationManager()
+		{
+			// on exit, restore all windows to their original rotations
+			for (auto const &r : rotations)
+			{
+				int theta = r.second;
+				if (theta != 0)
+					RotateNoStore(r.first, -theta);
+			}
+		}
+
+		// rotate a window
+		void Rotate(TSTRING &winName, int theta)
+		{
+			// do the rotation
+			RotateNoStore(winName, theta);
+
+			// add this to the cumulative rotation for the window
+			auto it = rotations.find(winName);
+			if (it != rotations.end())
+				it->second += theta;
+			else
+				rotations.emplace(winName, theta);
+		}
+
+	private:
+		// rotate a window without storing the result
+		void RotateNoStore(const TSTRING &winName, int theta)
+		{
+			// find the window by name
+			D3DView *pwnd = nullptr;
+			if (winName == _T("PLAYFIELD"))
+				pwnd = Application::Get()->GetPlayfieldView();
+			else if (winName == _T("BACKGLASS"))
+				pwnd = Application::Get()->GetBackglassView();
+			else if (winName == _T("DMD"))
+				pwnd = Application::Get()->GetDMDView();
+			else if (winName == _T("TOPPER"))
+				pwnd = Application::Get()->GetTopperView();
+			else if (winName == _T("INSTRUCTIONS"))
+				pwnd = Application::Get()->GetInstCardView();
+
+			// if we found it, apply the rotation
+			if (pwnd != nullptr)
+				pwnd->SetRotation((pwnd->GetRotation() + theta + 360) % 360);
+		}
+
+		// table of windows and cumulative rotations applied so far
+		std::unordered_map<TSTRING, int> rotations;
+	};
+	RotationManager rotationManager;
+
 	// RunBefore/RunAfter option flag parser
 	class RunOptions
 	{
 	public:
-		RunOptions(GameMonitorThread *monitor, const TSTRING &command) : 
+		RunOptions(GameMonitorThread *monitor, const TSTRING &command, RotationManager &rotationManager) : 
 			monitor(monitor),
 			nowait(false), 
 			terminate(false),
 			hide(false),
-			minimize(false)
+			minimize(false),
+			rotationManager(rotationManager)
 		{
-			std::basic_regex<TCHAR> flagsPat(_T("\\s*\\[((NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE)")
-				_T("(\\s+(NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE))*)\\]\\s*(.*)"));
+			std::basic_regex<TCHAR> flagsPat(
+				_T("\\s*\\[((NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE|ROTATE\\(\\w+,\\d+\\))")
+				_T("(\\s+(NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE|ROTATE\\(\\w+,\\d+\\)))*)\\]\\s*(.*)"));
 			std::match_results<TSTRING::const_iterator> m;
 			if (std::regex_match(command, m, flagsPat))
 			{
@@ -1755,6 +1816,8 @@ DWORD Application::GameMonitorThread::Main()
 						hide = true;
 					else if (_tcsncmp(start, _T("MIN"), len) == 0 || _tcsncmp(start, _T("MINIMIZE"), len) == 0)
 						minimize = true;
+					else if (_tcsncmp(start, _T("ROTATE("), 7) == 0)
+						rotate.emplace_back(start + 7, len - 8);
 				}
 			}
 			else
@@ -1775,6 +1838,18 @@ DWORD Application::GameMonitorThread::Main()
 
 			// log the launch
 			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> %s\n"), desc, command.c_str());
+
+			// apply window rotations
+			for (auto const &s : rotate)
+			{
+				std::match_results<TSTRING::const_iterator> m;
+				if (std::regex_match(s, m, std::basic_regex<TCHAR>(_T("(\\w+),(90|180|270)"))))
+				{
+					TSTRING windowName = m[1].str();
+					int theta = _ttoi(m[2].str().c_str());
+					rotationManager.Rotate(windowName, theta);
+				}
+			}
 
 			// Launch the program without waiting
 			AsyncErrorHandler aeh;
@@ -1873,6 +1948,12 @@ DWORD Application::GameMonitorThread::Main()
 		bool terminate;
 		bool hide;
 		bool minimize;
+
+		// rotation command list
+		std::list<TSTRING> rotate;
+
+		// rotation manager
+		RotationManager &rotationManager;
 	};
 
 	// Check if the file exists.  If not, add the default extension.
@@ -1957,7 +2038,7 @@ DWORD Application::GameMonitorThread::Main()
 	// Game" message.  This lets the command make system-wide monitor layout
 	// changes with a minimum of visual fuss, since monitor changes won't
 	// usually cause any visible effect on a blank black screen.
-	if (!RunOptions(this, gameSys.runBeforePre).Run(
+	if (!RunOptions(this, gameSys.runBeforePre, rotationManager).Run(
 		_T("RunBeforePre (initial pre-launch command)"), IDS_ERR_GAMERUNBEFOREPRE, hRunBeforePreProc))
 		return 0;
 
@@ -1966,7 +2047,7 @@ DWORD Application::GameMonitorThread::Main()
 		playfieldView->SendMessage(PFVMsgGameRunBefore, (WPARAM)cmd);
 
 	// Run the RunBefore command, if any
-	if (!RunOptions(this, gameSys.runBefore).Run(
+	if (!RunOptions(this, gameSys.runBefore, rotationManager).Run(
 		_T("RunBefore (pre-launch command)"), IDS_ERR_GAMERUNBEFORE, hRunBeforeProc))
 		return 0;
 
@@ -3432,7 +3513,7 @@ DWORD Application::GameMonitorThread::Main()
 	// command so that we can monitor the event anew, to give the user a
 	// way to cancel out of the RunAfter program should it get stuck.
 	ResetEvent(closeEvent);
-	if (!RunOptions(this, gameSys.runAfter).Run(
+	if (!RunOptions(this, gameSys.runAfter, rotationManager).Run(
 		_T("RunAfter (post-game exit command)"), IDS_ERR_GAMERUNAFTER, hRunAfterProc))
 		return 0;
 
@@ -3444,7 +3525,7 @@ DWORD Application::GameMonitorThread::Main()
 	// event so that it can be used to cancel out of this command should
 	// it get stuck.
 	ResetEvent(closeEvent);
-	if (!RunOptions(this, gameSys.runAfterPost).Run(
+	if (!RunOptions(this, gameSys.runAfterPost, rotationManager).Run(
 		_T("RunAfterPost (final post-game exit command)"), IDS_ERR_GAMERUNAFTERPOST, hRunAfterPostProc))
 		return 0;
 

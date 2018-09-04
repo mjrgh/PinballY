@@ -728,8 +728,8 @@
 <p>
    You can put a special "flags" string at the very start of the
    command line to control how the command is processed.  The flags are
-   specified in square brackets, at the very start of the command.  You
-   can use any mix of the following, separated by spaces:
+   specified in square brackets, at the very start of the command.
+   The flag keywords are:
 </p>
 <ul>
    <li><b>NOWAIT:</b> PinballY will execute the command and leave it running.
@@ -760,7 +760,39 @@
    This is useful for a background task that you want to leave running
    (via NOWAIT), so that its window doesn't appear in the UI but is
    still accessible through the Windows desktop if necessary.
+
+   <li><b>ROTATE(<i>window</i>,<i>angle</i>):</b> Rotate the given UI
+   window by the given angle just before executing the command. 
+   The <i>window</i> can be PLAYFIELD, BACKGLASS, DMD, TOPPER, or
+   INSTRUCTIONS.  The <i>angle</i> is always clockwise, and can be
+   90, 180, or 270.  Note that there must be <b>no
+   spaces</b> in the whole construct.  For example, to rotate the playfield
+   window by 90 degrees clockwise, write [ROTATE(PLAYFIELD,90)]. 
+   If you need to do a counter-clockwise rotation, just remember
+   that 90 degrees counter-clockwise is the same as 270 degrees
+   clockwise, and vice versa, and 180 degrees is the same in
+   either direction.
+   <p>
+      The system automatically undoes the cumulative rotation
+      for all windows after the game exits, just before returning to
+      the main UI after the game exits.  This means that it's not
+      strictly necessary to use a ROTATE flag in the Run After to
+      compensate for one in the Run Before.  But you're certainly
+      free to write one anyway, so that you can control the timing
+      of the change.  For example, if you place [ROTATE(PLAYFIELD,90)]
+      in the Run Before (1) command, you'd usually place
+      [ROTATE(PLAYFIELD,270)] in the Run After(2) to cancel out
+      the change and return to the original rotation.  
+   </p>
 </ul>
+<p>
+   The flags must be in <b>all upper-case</b>.  You can specify multiple
+   flags for the same command by writing a series of the flag keywords
+   within the single pair of square brackets, separating the keywords by spaces.
+   For example:
+</p>
+<pre>    [HIDE ROTATE(PLAYFIELD,90) ROTATE(BACKGLASS,180)] cmd /c ...
+</pre>
 <p>
    There are also some "substitution variables" you can use anywhere within
    the command string:
