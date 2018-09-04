@@ -98,7 +98,12 @@
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
         <File Id="MainThirdPartyLicenses" Source="$(var.SolutionDir)Third Party Licenses.txt" />
         <File Id="MainVersionHistory" Source="$(var.SolutionDir)VersionHistory.txt" />
-      </Component>
+
+				<!-- the 64/32-bit DOF COM proxy is required for 64-bit builds only -->
+				<?if $(var.Platform) = x64 ?>
+					<File Id="Dof6432Surrogate" Source="$(var.Dof3264Surrogate.TargetPath)" />
+				<?endif?>
+			</Component>
     </DirectoryRef>
 
     <DirectoryRef Id="SEVENZIPDIR">

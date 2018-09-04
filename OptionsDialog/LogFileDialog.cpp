@@ -25,6 +25,7 @@ void LogFileDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Log.MediaCapture"), IDC_CK_LOG_MEDIA_CAPTURE, true));
 	varMap.emplace_back(new CkBoxMap(_T("Log.TableLaunch"), IDC_CK_LOG_TABLE_LAUNCH, false));
 	varMap.emplace_back(new CkBoxMap(_T("Log.RealDMD"), IDC_CK_LOG_DMD, true));
+	varMap.emplace_back(new CkBoxMap(_T("Log.DOF"), IDC_CK_LOG_DOF, true));
 }
 
 BOOL LogFileDialog::OnInitDialog()

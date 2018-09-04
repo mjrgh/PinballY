@@ -601,7 +601,7 @@ bool Application::Init()
 Application::~Application()
 {
 	// shut down the DOF client
-	DOFClient::Shutdown();
+	DOFClient::Shutdown(true);
 
 	// delete the game list
 	GameList::Shutdown();

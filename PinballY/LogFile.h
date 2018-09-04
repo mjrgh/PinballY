@@ -30,6 +30,7 @@ public:
 	static const DWORD CaptureLogging     = 0x00000008;   // media capture
 	static const DWORD TableLaunchLogging = 0x00000010;   // table launch
 	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
+	static const DWORD DofLogging         = 0x00000040;   // DOF
 
 	// is a feature enabled?
 	bool IsFeatureEnabled(DWORD feature) { return (enabledFeatures & feature) != 0; }

@@ -197,7 +197,7 @@ bool ParseGuid(const TCHAR *guidString, GUID &guid)
 	return true;
 }
 
-TSTRING FormatGuid(GUID &guid)
+TSTRING FormatGuid(const GUID &guid)
 {
 	// format it
 	TCHAR buf[40];

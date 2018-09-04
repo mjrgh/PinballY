@@ -20,10 +20,16 @@ public:
 	DOFClient();
 	~DOFClient();
 
-	// global singleton management
+	// create the singleton
 	static bool Init(ErrorHandler &eh);
-	static void Shutdown();
+
+	// get the singleton
 	static DOFClient *Get() { return inst; }
+
+	// Destroy the singleton.  If 'final' is true, the process is
+	// exiting, so do full global cleanup of all static state as
+	// well as destroying the singleton.  
+	static void Shutdown(bool final);
 
 	// get the DOF version
 	const TCHAR *GetDOFVersion() const { return version.c_str(); }
@@ -63,6 +69,31 @@ public:
 protected:
 	// global singleton instance
 	static DOFClient *inst;
+
+	// Surrogate process for 64-bit mode.  When we're in 64-bit mode,
+	// we can't create the DOF COM object directly, since it's 32-bit
+	// code; it doesn't register as a 64-bit object, and can't be loaded
+	// as an in-process server in 64-bit code due to the Windows rules 
+	// against mixing 32-bit and 64-bit code in a single process.  To
+	// deal with this, the 64-bit version launches a 32-bit child
+	// process to serve as a surrogate for creating the DOF COM object.
+	// The surrogate registers a proxy class factory that loads the
+	// 32-bit DOF COM object into the surrogate process and passes it
+	// back to us via the COM marshalling mechanism, which can move
+	// interface objects between processes.
+#ifdef _M_X64
+	// Have we initialized the surrogate yet?
+	static bool surrogateStarted;
+
+	// "Done" event in our 64/32-bit surrogate process.
+	static HandleHolder hSurrogateDoneEvent;
+
+	// Class ID of the proxy class that the surrogate exposes through
+	// its class factory.  We randomly generated this for each instance
+	// of the application, to make the surrogate private to this process.
+	// That avoids any conflicts if multiple instances are running.
+	static CLSID clsidProxyClass;
+#endif
 
 	// IDispatch interface to DOF object
 	RefPtr<IDispatch> pDispatch;

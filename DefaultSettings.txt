@@ -49,13 +49,16 @@ FirstRunTime =
 #
 # Log.TableLaunch - table launch (running a game)
 #
-# Log.RealDMD - real DMD device setup
+# Log.RealDMD - real DMD (dot matrix display) device operations
+#
+# Log.DOF - DOF (DirectOutput feedback device control) operations
 #
 Log.MediaFiles = 0
 Log.SystemSetup = 0 
 Log.MediaCapture = 1
 Log.TableLaunch = 0
 Log.RealDMD = 1
+Log.DOF = 1
 
 
 # Media folder path.  This is the root of the our media folder tree, where
@@ -1067,10 +1070,21 @@ System5.StartupKeys = [pace 250] [pause 25] {intro screen} [click] [pause 5] {ma
 System6 = Pinball FX3
 System6.Class = STEAM
 System6.Exe = [STEAM]
-System6.DefExt =
+System6.TablePath = steamapps\common\Pinball FX3\data\steam
+System6.DefExt = .pxp
 System6.Parameters = -applaunch 442120 "-table_[TABLEFILE]"
 System6.Process = Pinball FX3.exe
-System5.DOFTitlePrefix = FX3
+System6.DOFTitlePrefix = FX3
+
+# Pinball FX2
+System7 = Pinball FX2
+System7.Class = STEAM
+System7.Exe = [STEAM]
+System7.TablePath = steamapps\common\Pinball FX2\data\steam
+System7.DefExt = .pxp
+System7.Parameters = -applaunch 226980 "-table_[TABLEFILE]"
+System7.Process = Pinball FX2.exe
+System7.DOFTitlePrefix = FX2
 
 
 # Empty categories.  Categories are user-defined tags that can be assigned

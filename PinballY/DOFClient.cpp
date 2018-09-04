@@ -4,20 +4,117 @@
 #include "stdafx.h"
 #include <oleidl.h>
 #include <propvarutil.h>
+#include "../rapidxml/rapidxml.hpp"
 #include "../Utilities/ComUtil.h"
+#include "../Utilities/ProcUtil.h"
 #include "DOFClient.h"
 #include "DiceCoefficient.h"
 #include "GameList.h"
-#include "../rapidxml/rapidxml.hpp"
+#include "LogFile.h"
 
 #pragma comment(lib, "Propsys.lib")
 
 // statics
 DOFClient *DOFClient::inst;
 
+// 64-bit-only statics
+#ifdef _M_X64
+bool DOFClient::surrogateStarted;
+HandleHolder DOFClient::hSurrogateDoneEvent;
+CLSID DOFClient::clsidProxyClass;
+#endif
+
 // initialize
 bool DOFClient::Init(ErrorHandler &eh)
 {
+	LogFile::Get()->Group(LogFile::DofLogging);
+	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF (DirectOutput): initializing DOF client\n"));
+
+	// If we're in 64-bit mode, we need to create our surrogate
+	// process for loading the DOF DLL.
+#ifdef _M_X64
+	if (!surrogateStarted)
+	{
+		// flag that we've at least tried to start the surrogate
+		surrogateStarted = true;
+
+		// Generate a random GUID for the proxy class.  We use a random GUID
+		// to make the proxy private to this application instance, to avoid any 
+		// collisions with other running instances.
+		CoCreateGuid(&clsidProxyClass);
+
+		// Create the events to coordinate with the child process.  These are
+		// passed by name, with the name generated from our process ID.
+		DWORD pid = GetCurrentProcessId();
+		TCHAR readyEventName[128], doneEventName[128];
+		_stprintf_s(readyEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Ready"), pid);
+		_stprintf_s(doneEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Done"), pid);
+
+		HandleHolder hSurrogateReadyEvent = CreateEvent(NULL, FALSE, FALSE, readyEventName);
+		hSurrogateDoneEvent = CreateEvent(NULL, FALSE, FALSE, doneEventName);
+
+		// get the surrogate exe name
+		TCHAR surrogateExe[MAX_PATH];
+		GetDeployedFilePath(surrogateExe, _T("Dof3264Surrogate.exe"), _T("$(SolutionDir)$(Configuration)\\Dof3264Surrogate.exe"));
+
+		// build the command line
+		TSTRINGEx cmdline;
+		cmdline.Format(_T(" -parent_pid=%ld -clsid=%s"),
+			pid, FormatGuid(clsidProxyClass).c_str());
+
+		// set up the launch information
+		STARTUPINFO si;
+		ZeroMemory(&si, sizeof(si));
+		si.dwFlags = STARTF_USESHOWWINDOW;
+		si.wShowWindow = SW_HIDE;
+
+		// log the proxy setup
+		LogFile::Get()->Write(LogFile::DofLogging,
+			_T("+ Launching DOF surrogate process.  This is required because PinballY is running\n")
+			_T("  in 64-bit, and DOF is a 32-bit COM object.  Surrogate command line:\n")
+			_T("  >\"%s\" %s\n"), surrogateExe, cmdline.c_str());
+			
+		// launch it
+		PROCESS_INFORMATION pi;
+		if (!CreateProcess(surrogateExe, cmdline.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+		{
+			WindowsErrorMessage err;
+			eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("Surrogate process (\"%s\" %s) launch failed: %s"), 
+				surrogateExe, cmdline.c_str(), err.Get()));
+
+			LogFile::Get()->Group();
+			LogFile::Get()->Write(_T("DOF surrogate launch failed:\n")
+				_T("  Command line: \"%s\" %s\n")
+				_T("  CreateProcess Error: %s\n"),
+				surrogateExe, cmdline.c_str(), err.Get());
+		}
+		else
+		{
+			// wait for the process to declare itself ready
+			if (WaitForSingleObject(hSurrogateReadyEvent, 5000) != WAIT_OBJECT_0)
+			{
+				eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), _T("Surrogate process isn't responding (ready wait timed out"));
+				LogFile::Get()->Group();
+				LogFile::Get()->Write(_T("DOF surrogate process isn't responding (ready wait timed out)\n")
+					_T("Command line: \"%s\" %s\n"),
+					surrogateExe, cmdline.c_str());
+
+				// set the 'done' event to try to make the surrogate shut down
+				SetEvent(hSurrogateDoneEvent);
+				hSurrogateDoneEvent = NULL;
+
+				// give it a moment to shut down on its own, then try to kill it
+				Sleep(250);
+				SaferTerminateProcess(pi.hProcess);
+			}
+
+			// close the process and thread handles
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+		}
+	}
+#endif
+
 	// if there's not an instance yet, create and initialize it
 	if (inst == nullptr)
 	{
@@ -36,12 +133,28 @@ bool DOFClient::Init(ErrorHandler &eh)
 }
 
 // shut down
-void DOFClient::Shutdown()
+void DOFClient::Shutdown(bool final)
 {
+	LogFile::Get()->Group(LogFile::DofLogging);
+	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: shutting down DOF client\n"));
+
 	if (inst != nullptr)
 	{
 		delete inst;
 		inst = nullptr;
+	}
+
+	// check for application terminal ('final' mode)
+	if (final)
+	{
+#ifdef _M_X64
+		// 64-bit mode - shut down the surrogate process
+		if (hSurrogateDoneEvent != NULL)
+		{
+			SetEvent(hSurrogateDoneEvent);
+			hSurrogateDoneEvent = NULL;
+		}
+#endif
 	}
 }
 
@@ -80,22 +193,40 @@ void DOFClient::SetNamedState(const WCHAR *name, int val)
 }
 
 // DOF COM object GUIDs
-static const CLSID CLSID_DirectOutputComObject = __uuidof(DirectOutputComObject);
 static IID IID_Dof = { 0x63dc1112, 0x571f, 0x4a49, { 0xb2, 0xfd, 0xcf, 0x98, 0xc0, 0x2b, 0xf5, 0xd4 } };
 static IID IID_Events = { 0xa5ff940d, 0x41d4, 0x4dad, { 0x80, 0xaf, 0x46, 0x88, 0xe3, 0xf7, 0x37, 0xc1 } };
+class __declspec(uuid("{D744EE13-4C70-474D-8FB1-8295C350FB07}")) DOFProxy64;
 
 // Initialize
 bool DOFClient::InitInst(ErrorHandler &eh)
 {
-	// get the IUnknown interface
+	LogFile::Get()->Group(LogFile::DofLogging);
+	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: creating DOF COM object (%s)\n"),
+		FormatGuid(__uuidof(DirectOutputComObject)).c_str());
+
+	// Create an instance of the DOF COM object.  DOF is implemented as a
+	// 32-bit COM object, so we can use a simple in-process server (i.e.,
+	// load it as a DLL) if this process is in 32-bit mode.  For 64-bit
+	// mode, we have to load it out-of-process as a local server instead,
+	// since Windows doesn't allow a 64-bit EXE to load a 32-bit DLL.
+	// Do this by creating the proxy class provided by the surrogate
+	// COM factory process we launched at startup.
 	RefPtr<IUnknown> pUnknown;
-	HRESULT hr = CoCreateInstance(CLSID_DirectOutputComObject, nullptr, CLSCTX_INPROC_SERVER, IID_Dof, (void **)&pUnknown);
+	HRESULT hr = CoCreateInstance(
+		IF_32_64(__uuidof(DirectOutputComObject), clsidProxyClass), nullptr,
+		IF_32_64(CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER),
+		IID_Dof, (void **)&pUnknown);
 
 	// If the error is Class Not Registered, fail silently.  This error means
 	// that DOF isn't installed on this machine, which is prefectly fine: we
 	// just run without any DOF effects.
 	if (hr == REGDB_E_CLASSNOTREG)
+	{
+		LogFile::Get()->Write(LogFile::DofLogging, 
+			_T("DOF: DOF COM object (%s) is not registered on this system; DOF will not be used for this session\n"),
+			FormatGuid(__uuidof(DirectOutputComObject)).c_str());
 		return false;
+	}
 
 	// Generate diagnostics for other errors.  If the DOF COM class is
 	// installed, DOF must be installed, so the user will want to know the
@@ -104,6 +235,8 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	{
 		WindowsErrorMessage err(hr);
 		eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("CoCreateInstance failed: %s"), err.Get()));
+		LogFile::Get()->Write(_T("DOF: CoCreateInstance for DOF COM object (%s) failed: %s\n"),
+			FormatGuid(__uuidof(DirectOutputComObject)).c_str(), err.Get());
 		return false;
 	}
 
@@ -113,6 +246,7 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	{
 		WindowsErrorMessage err(hr);
 		eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("QueryInterface(IDispatch) failed: %s"), err.Get()));
+		LogFile::Get()->Write(_T("DOF: QueryInterface(IDispatch) failed: %s\n"), err.Get());
 		return false;
 	}
 
@@ -137,7 +271,8 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 		if (!SUCCEEDED(hr))
 		{
 			WindowsErrorMessage err(hr);
-			eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("GetIDsOfNames(%s) failed: %s"), lookup[i].name, err.Get()));
+			eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("GetIDsOfNames(%ws) failed: %s"), lookup[i].name, err.Get()));
+			LogFile::Get()->Write(_T("DOF: GetIDsOfNames(%ws) failed: %s\n"), lookup[i].name, err.Get());
 			return false;
 		}
 	}
@@ -165,11 +300,13 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	{
 		WindowsErrorMessage err(hr);
 		eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("DOF Init failed: %s"), err.Get()));
+		LogFile::Get()->Write(_T("DOF: Init() failed: %s\n"), err.Get());
 		return false;
 	}
 	if (exc.wCode != 0 || exc.scode != 0)
 	{
 		eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("DOF Init: exception: %ws"), exc.bstrSource));
+		LogFile::Get()->Write(_T("DOF: Init() exception: %ws\n"), exc.bstrSource);
 		return false;
 	}
 
@@ -186,16 +323,26 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 {
 	// Query the table mapping XML filename from DOF
 	TSTRING filename;
+	HRESULT hr;
 	if (pDispatch != 0)
 	{
 		// invoke TableMappingFileName() to get the name of the file
 		DISPPARAMS args = { nullptr, nullptr, 0, 0 };
 		VARIANTEx result;
 		EXCEPINFOEx exc;
-		if (SUCCEEDED(pDispatch->Invoke(dispidTableMappingFileName, IID_NULL,
+		if (SUCCEEDED(hr = pDispatch->Invoke(dispidTableMappingFileName, IID_NULL,
 			LOCALE_SYSTEM_DEFAULT, DISPATCH_METHOD, &args, &result, &exc, 0))
 			&& result.vt == VT_BSTR)
+		{
 			filename = WideToTSTRING(result.bstrVal);
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: got table mapping file: %s\n"), filename.c_str());
+		}
+		else
+		{
+			WindowsErrorMessage err(hr);
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: unable to get table mapping file: %s\n"),
+				SUCCEEDED(hr) ? _T("result is not BSTR") : err.Get());
+		}
 	}
 
 	// read the file
@@ -204,8 +351,11 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 		// load the file into memory
 		long len = 0;
 		std::unique_ptr<char> xml((char *)ReadFileAsStr(filename.c_str(), eh, len, ReadFileAsStr_NullTerm));
-		if (xml == 0)
+		if (xml == nullptr)
+		{
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: unable to load table mapping file %s\n"), filename.c_str());
 			return;
+		}
 
 		// parse the XML
 		xml_document<char> doc;
@@ -219,6 +369,8 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 			eh.SysError(
 				MsgFmt(IDS_ERR_LOADGAMELIST, filename.c_str()),
 				MsgFmt(_T("XML parsing error: %hs"), exc.what()));
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: unable to parse table mapping file %s as XML: %hs\n"), 
+				filename.c_str(), exc.what());
 			return;
 		}
 
@@ -283,7 +435,7 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 		DISPPARAMS args = { nullptr, nullptr, 0, 0 };
 		VARIANTEx result;
 		EXCEPINFOEx exc;
-		if (SUCCEEDED(pDispatch->Invoke(dispidGetConfiguredTableElmentDescriptors, IID_NULL,
+		if (SUCCEEDED(hr = pDispatch->Invoke(dispidGetConfiguredTableElmentDescriptors, IID_NULL,
 			LOCALE_SYSTEM_DEFAULT, DISPATCH_METHOD, &args, &result, &exc, 0))
 			&& result.vt == (VARTYPE)((DWORD)VT_ARRAY | (DWORD)VT_BSTR))
 		{
@@ -321,6 +473,12 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 			}
 
 			SafeArrayUnlock(result.parray);
+		}
+		else
+		{
+			WindowsErrorMessage err(hr);
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: GetConfiguredTableElmentDescriptors failed: %s\n"),
+				SUCCEEDED(hr) ? _T("result is not array of BSTR") : err.Get());
 		}
 	}
 }

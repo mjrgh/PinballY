@@ -359,6 +359,9 @@ DWORD GetExeFilePath(TCHAR *buf, DWORD buflen)
 	return (DWORD)_tcslen(buf);
 }
 
+// stringize a macro
+#define STRINGIZEX(s) _T(#s)
+#define STRINGIZE(s) STRINGIZEX(s)
 
 // -----------------------------------------------------------------------
 //
@@ -431,6 +434,8 @@ void GetDeployedFilePath(TCHAR *result, const TCHAR *relFilePath, const TCHAR *d
 				{
 					if (m[1].str() == _T("SolutionDir"))
 						return solDir;
+					else if (m[1].str() == _T("Configuration"))
+						return STRINGIZE(BUILD_CONFIGURATION);
 					else if (m[1].str() == _T("Bits"))
 						return IF_32_64(_T("32"), _T("64"));
 					else if (m[1].str() == _T("32"))

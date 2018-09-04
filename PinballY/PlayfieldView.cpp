@@ -1418,7 +1418,7 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 		// can take it over while running.
 		dof.SetRomContext(_T(""));
 		dof.SetUIContext(_T(""));
-		DOFClient::Shutdown();
+		DOFClient::Shutdown(false);
 
 		// Also shut down the real DMD, so that the game can take it over
 		if (realDMD != nullptr)

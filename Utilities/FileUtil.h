@@ -288,10 +288,11 @@ DWORD GetExeFilePath(TCHAR *buf, DWORD buflen);
 // when we're running under the build system, relativeFilename is
 // completely ignored and devSysPath is used as the entire name.
 //
-//  $(SolutionDir)  -> solution folder, absolute fully qualified path
-//  $(Bits)         -> "32" or "64", per build configuration
-//  $(32)           -> "32" for a 32-bit build, empty otherwise
-//  $(64)           -> "64" for a 64-bit build, empty otherwise
+//  $(SolutionDir)   -> solution folder, absolute fully qualified path
+//  $(Configuration) -> Debug, Release
+//  $(Bits)          -> "32" or "64", per build configuration
+//  $(32)            -> "32" for a 32-bit build, empty otherwise
+//  $(64)            -> "64" for a 64-bit build, empty otherwise
 //
 void GetDeployedFilePath(
 	TCHAR *result /* must be >= MAX_PATH characters long */, 

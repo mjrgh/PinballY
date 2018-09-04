@@ -255,7 +255,7 @@ bool ParseGuid(const TCHAR *guidString, GUID &guid);
 // Format a GUID.  Generates the GUID in the standard hex
 // format.  Just the bare GUID string is returned, without
 // braces or other surrounding marks.
-TSTRING FormatGuid(GUID &guid);
+TSTRING FormatGuid(const GUID &guid);
 
 // -------------------------------------------------------------------------
 // 
