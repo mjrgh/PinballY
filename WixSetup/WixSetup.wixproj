@@ -26,6 +26,7 @@
     <Compile Include="Product.wxs" />
     <Compile Include="Generated\Assets.wxs" />
     <Compile Include="Generated\Help.wxs" />
+    <Compile Include="Generated\Farsight.wxs" />
     <Compile Condition=" '$(Platform)' == 'x86' " Include="Generated\VLCPlugins.wxs" />
     <Compile Condition=" '$(Platform)' == 'x64' " Include="Generated\VLC64Plugins.wxs" />
   </ItemGroup>
@@ -101,7 +102,7 @@
 	-->
   <!-- Heat path variables -->
   <PropertyGroup>
-    <DefineConstants>AssetsPath=$(SolutionDir)Assets;HelpPath=$(SolutionDir)Help;VLCPluginsPath=$(SolutionDir)VLC\plugins;VLC64PluginsPath=$(SolutionDir)VLC64\plugins;</DefineConstants>
+    <DefineConstants>AssetsPath=$(SolutionDir)Assets;HelpPath=$(SolutionDir)Help;VLCPluginsPath=$(SolutionDir)VLC\plugins;VLC64PluginsPath=$(SolutionDir)VLC64\plugins;FarsightPath=$(SolutionDir)Farsight;</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
     <DefineConstants>Debug</DefineConstants>
@@ -122,5 +123,6 @@
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Help" PreprocessorVariable="var.HelpPath" OutputFile="Generated\Help.wxs" ComponentGroupName="HeatGeneratedHelp" DirectoryRefId="HELPDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC64\plugins" PreprocessorVariable="var.VLC64PluginsPath" OutputFile="Generated\VLC64Plugins.wxs" ComponentGroupName="HeatGeneratedVLC64Plugins" DirectoryRefId="VLC64PLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
     <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC\plugins" PreprocessorVariable="var.VLCPluginsPath" OutputFile="Generated\VLCPlugins.wxs" ComponentGroupName="HeatGeneratedVLCPlugins" DirectoryRefId="VLCPLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Farsight" PreprocessorVariable="var.FarsightPath" OutputFile="Generated\Farsight.wxs" ComponentGroupName="HeatGeneratedFarsight" DirectoryRefId="FARSIGHTDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
   </Target>
 </Project>

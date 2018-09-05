@@ -25,6 +25,7 @@
       <ComponentRef Id="PINemHi"/>
       <ComponentGroupRef Id="HeatGeneratedAssets" />
       <ComponentGroupRef Id="HeatGeneratedHelp" />
+      <ComponentGroupRef Id="HeatGeneratedFarsight" />
 
       <?if $(var.Platform) = x86 ?>
         <ComponentRef Id="vlc"/>
@@ -71,6 +72,7 @@
           <Directory Id="PBYDIR" >
             <Directory Id="ASSETSDIR" Name="Assets" />
             <Directory Id="HELPDIR" Name="Help" />
+            <Directory Id="FARSIGHTDIR" Name="Farsight" />
             <Directory Id="FFMPEGDIR" Name="ffmpeg" />
             <Directory Id="SEVENZIPDIR" Name="7-Zip" />
             <Directory Id="PINEMHIDIR" Name="PINemHi" />

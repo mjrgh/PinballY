@@ -1023,7 +1023,8 @@ System4.DOFTitlePrefix = FP
 System5 = Pinball Arcade
 System5.Class = STEAM
 System5.Exe = [STEAM]
-System5.DefExt =
+System5.TablePath = [PinballY]\Farsight
+System5.DefExt = .pinballarcade
 System5.Parameters = -applaunch 238260
 System5.Process = PinballArcade.exe
 

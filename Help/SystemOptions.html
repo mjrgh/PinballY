@@ -150,6 +150,10 @@
    won't have to create those yourself.  But you can create as many
    additional entries as you need.
 </p>
+<p>
+   In the system settings lists below, type all of the text
+   literally as shown, even when you see special characters like
+   [square brackets] or "quotes".
 
 <h3>Visual Pinball 10</h3>
 
@@ -186,13 +190,15 @@
    <b>DOF Prefix:</b> FP<br>
 </p>
 
-<h3>Farsight's Pinball Arcade</h3>
+<h3>The Pinball Arcade (Farsight)</h3>
 
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
    <b>Parameters:</b> -applaunch 238260<br>
    <b>Process name:</b> PinballArcade.exe<br>
+   <b>Table folder:</b> [PinballY]\Farsight<br>
+   <b>Table extension:</b> .pinballArcade<br>
    <b>Startup Keys:</b> [pace 250] [pause 25] [click] [pause 5]
      up up right right right right right [click] [pause 5]
      up up left left left left left right [click] [pause 10]
@@ -201,9 +207,26 @@
 </p>
 <p>
    Note that the Program EXE setting should be literally <b>[STEAM]</b>, including
-   the brackets.  I know that looks like one of those "substitute the real name
-   here" formats you see in user manuals, but in this case it's not!  Just type
-   in the literal text <b>[STEAM]</b>.
+   the brackets.
+</p>
+<p>
+   Notes about those Table Folder and Extension settings:
+   <i>Pinball Arcade</i> isn't like most of the other systems,
+   in that it doesn't have "table files" analogous to Visual Pinball's .vpt/.vpx
+   files.  Its tables are more or less built in to the program.  This means that
+   PinballY's normal way of searching for playable table files won't work for
+   this system.  To make up for that, PinballY has its own folder that contains
+   dummy files that list all of the Farsight tables.  These files all have names
+   like <b>The Addams Family (Midway 1992).pinballArcade</b>, so the <b>Table folder</b>
+   and <b>Table extension</b> settings shown above will allow PinballY to find all
+   of these files and thereby recognize the game names.  The files are all empty;
+   all of the information is contained in their names.
+</p>
+<p>
+   Farsight adds new tables from time to time, so your version of TPA might have
+   some tables that haven't made it into the list supplied with PinballY yet.
+   If that happens, you can simply create a new file for the new table by
+   copying one of the old ones and renaming it to reflect the new table's name.
 </p>
 <p>
    The "Startup Keys" sequence is a huge mess, I know, but it seems to be the only
@@ -219,7 +242,7 @@
    <b>Program EXE:</b> [STEAM]<br>
    <b>Parameters:</b> -applaunch 226980<br>
    <b>Process name:</b> Pinball FX2.exe<br>
-   <b>Table folder:</b> steamapps\common\Pinball FX2\data\steam
+   <b>Table folder:</b> steamapps\common\Pinball FX2\data\steam<br>
    <b>Table extension:</b> .pxp<br>
    <b>DOF Prefix:</b> FX2<br>
 </p>
@@ -235,7 +258,7 @@
    <b>Program EXE:</b> [STEAM]<br>
    <b>Parameters:</b> -applaunch 442120<br>
    <b>Process name:</b> Pinball FX3.exe<br>
-   <b>Table folder:</b> steamapps\common\Pinball FX3\data\steam
+   <b>Table folder:</b> steamapps\common\Pinball FX3\data\steam<br>
    <b>Table extension:</b> .pxp<br>
    <b>DOF Prefix:</b> FX3<br>
 </p>
@@ -636,6 +659,19 @@
       PinballY will automatically use whatever main program folder
       is current on each run.
    </p>
+</ul>
+
+<p>
+   Within the folder path, you can use some special substitution
+   variables.  PinballY will replace these with actual file system
+   paths when the program starts up.
+</p>
+<ul>
+   <li><b>[PinballY]</b> is replaced with the full path to the
+   PinballY program folder.  This is in absolute path format, so
+   it can only be used at the start of the folder path.  For example,
+   <b>[PinballY]\Farsight</b> points to the Farsight folder within
+   the PinballY install folder.
 </ul>
 
 <h3>NVRAM folder</h3>

@@ -946,7 +946,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			const TCHAR *sysClass = cfg->Get(MsgFmt(_T("%s.Class"), sysvar.Get()), _T(""));
 			const TCHAR *exe = cfg->Get(MsgFmt(_T("%s.Exe"), sysvar.Get()), _T(""));
 			const TCHAR *defExt = cfg->Get(MsgFmt(_T("%s.DefExt"), sysvar.Get()), _T(""));
-			const TCHAR *tablePath = cfg->Get(MsgFmt(_T("%s.TablePath"), sysvar.Get()), _T(""));
+			TSTRING tablePath = cfg->Get(MsgFmt(_T("%s.TablePath"), sysvar.Get()), _T(""));
 
 			// if no system class is defined, infer it from the name
 			auto icase = std::regex_constants::icase;
@@ -1087,17 +1087,41 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			TSTRING workingPath(exe, exeFileName - exe);
 			Log(_T("+ working path when launching player program is %s\n"), workingPath.c_str());
 
+			// Apply substitution variables to the table path
+			static const std::basic_regex<TCHAR> tablePathVars(_T("\\[(\\w+)\\]"), std::regex_constants::icase);
+			tablePath = regex_replace(tablePath, tablePathVars, 
+				[](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+			{
+				// convert the variable name to lower-case
+				TSTRING v = m[1].str();
+				std::transform(v.begin(), v.end(), v.begin(), ::_totlower);
+
+				// look it up
+				if (v == _T("pinbally"))
+				{
+					// [PinballY] -> program install folder
+					TCHAR path[MAX_PATH];
+					GetDeployedFilePath(path, _T(""), _T(""));
+					return path;
+				}
+				else
+				{
+					// not found - return the original text unchanged
+					return m[0].str();
+				}
+			});
+
 			// If the table path is in relative notation, it's relative to the
 			// system's program folder.  Expand it to an absolute path.
 			TCHAR tablePathBuf[MAX_PATH];
-			if (tablePath[0] == 0 || PathIsRelative(tablePath))
+			if (tablePath.length() == 0 || PathIsRelative(tablePath.c_str()))
 			{
 				// start with the working path
 				_tcscpy_s(tablePathBuf, workingPath.c_str());
 
 				// if a path other than empty or "." was specified, append it
-				if (tablePath[0] != 0 && _tcscmp(tablePath, _T(".")) != 0)
-					PathAppend(tablePathBuf, tablePath);
+				if (tablePath != _T("") && tablePath != _T("."))
+					PathAppend(tablePathBuf, tablePath.c_str());
 
 				// store the result back in the table path
 				tablePath = tablePathBuf;
@@ -1105,7 +1129,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			Log(_T("+ full table path (folder containing this system's table files) is %s\n"), tablePath);
 
 			// create the system object
-			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath, defExt);
+			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath.c_str(), defExt);
 
 			// Load the config variables for the system
 			const TCHAR *mediaDirVar = cfg->Get(MsgFmt(_T("%s.MediaDir"), sysvar.Get()), _T(""));

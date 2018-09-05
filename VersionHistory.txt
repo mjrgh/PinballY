@@ -1,13 +1,15 @@
 PinballY Update History
 
-?????????? (1.0.0 Alpha 19)
+09-04-2018 (1.0.0 Alpha 19)
 
-* Added DOF support to the 64-bit version.  (DOF is implemented as a
-32-bit COM object, so special handling is required for the 64-bit
-version of the program.)
+* Added DOF support to the 64-bit version.  Note that this requires
+installing the latest experimental version of DOF R3++, dated
+2018-09-04 or later.  You can find that here:
 
-* Added DOF logging to the options, and added logging for DOF setup
-events.
+  http://mjrnet.org/pinscape/dll-updates.html
+
+* Added a setting to turn logging for DOF-related messages on and off,
+and added logging for DOF setup events.
 
 * Added [ROTATE(window,angle)] commands for Run Before and Run After
 commands for game launches.  These allow rotating UI windows during
@@ -20,6 +22,31 @@ changes made in the Before commands.  In particular:
 
   - Run After (2) will always run if Run Before (1) is executed
   - Run After (1) will always run if Run Before (2) is executed
+
+* Added substitution variable expansion to the Table Folder in the
+system settings.  Currently, there's just one defined variable:
+
+  - [PinballY] expands to the PinballY install folder, as a full
+    absolute filename path
+
+* Added a [PinballY]\Farsight folder containing ".pinballArcade" files
+for all of the games in the current edition of The Pinball Arcade by
+Farsight Studios.  These are just empty files that are there for the
+sake of their names.  If you own Pinball Arcade, you can use these to
+populate the game wheel with all of the Farsight tables by updating
+the system settings for Pinball Arcade in your options as follows
+(enter the text [PinballY] literally):
+
+  - Table Folder:  [PinballY]\Farsight
+  - Default extension: .pinballArcade
+
+PinballY will use that information to scan the Farsight folder, just
+like it scans the Visual Pinball and Future Pinball table folders for
+their games, which will allow it to discover the list of Farsight
+tables.  This will create standard "unconfigured" entries in the game
+wheel, which you can configure as usual with the Game Setup menu.  You
+can use the "Hide Game" command in the Game Setup menu to hide any of
+the games that you don't own. 
 
 
 08-31-2018 (1.0.0 Alpha 18)

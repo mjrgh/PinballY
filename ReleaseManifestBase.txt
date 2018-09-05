@@ -1,5 +1,6 @@
 assets\*
 Help\*
+Farsight\*.pinballArcade
 README.txt
 DefaultSettings.txt
 License.txt
