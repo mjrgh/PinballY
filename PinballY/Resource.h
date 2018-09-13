@@ -102,12 +102,26 @@
 #define IDS_CAPTURE_RUNNING             305
 #define IDS_CAPTURE_EXITING             306
 
+#define IDS_BATCH_CAPTURE_PROMPT        320
+#define IDS_BATCH_CAPTURE_ALL           321
+#define IDS_BATCH_CAPTURE_MARKED        322
+#define IDS_BATCH_CAPTURE_MEDIA         323
+#define IDS_BATCH_CAPTURE_READY         324
+#define IDS_BATCH_CAPTURE_NEXT          325
+#define IDS_BATCH_CAPTURE_CANCEL        326
+#define IDS_BATCH_CAPTURE_DISPOSITION   327
+#define IDS_BATCH_CAPTURE_GO            328
+#define IDS_BATCH_CAPTURE_VIEW          329
+#define IDS_BATCH_CAPTURE_KEEP          330
+#define IDS_BATCH_CAPTURE_REPLACE       331
+
 #define IDS_RATE_GAME_PROMPT            360
 #define IDS_RATE_GAME_STARS             361
 #define IDS_RATE_GAME_HALFSTAR          362
 #define IDS_RATE_GAME_1STAR             363
 #define IDS_RATE_GAME_UNRATED           364
 
+#define IDS_N_HOURS_EXACTLY             369
 #define IDS_LAST_PLAYED_DATE            370
 #define IDS_LAST_PLAYED_NEVER           371
 #define IDS_TIMES_PLAYED                372
@@ -126,6 +140,8 @@
 #define IDS_GAMEINFO_TYPE_SS            385
 #define IDS_GAMEINFO_TYPE_EM            386
 #define IDS_GAMEINFO_TYPE_ME            387
+#define IDS_1_HOUR_N_MINUTES            388
+#define IDS_N_HOURS_N_MINUTES           389
 
 #define IDS_N_CREDITS                   390
 #define IDS_1_CREDIT                    391
@@ -203,6 +219,7 @@
 #define IDS_MENU_ENABLE_ALL_VIDEO       504
 #define IDS_MENU_SHOW_UNCONFIG          505
 #define IDS_MENU_SHOW_MEDIA             506
+#define IDS_MENU_BATCH_CAPTURE          507
 
 #define IDS_MENU_EDIT_GAME_INFO         520
 #define IDS_MENU_SET_CATEGORIES         521
@@ -213,6 +230,8 @@
 #define IDS_MENU_SETUP_RETURN           526
 #define IDS_MENU_ENABLE_GAME_VIDEO      527
 #define IDS_MENU_DEL_GAME_INFO          528
+#define IDS_MENU_MARK_BATCH             529
+#define IDS_MENU_MARKED_BATCH           530
 
 #define IDS_MENU_SAVE_CATEGORIES        540
 #define IDS_MENU_CXL_CATEGORIES         541
@@ -318,6 +337,14 @@
 #define IDS_ERR_DMD_3264                694
 #define IDS_ERR_GAMERUNBEFOREPRE        695
 #define IDS_ERR_GAMERUNAFTERPOST        696
+#define IDS_ERR_BATCH_CAPTURE_NO_GAMES  697
+#define IDS_ERR_BATCH_CAPTURE_NO_MARKED 698
+#define IDS_ERR_BATCH_CAPTURE_NO_MEDIA  699
+#define IDS_ERR_BATCH_CAPTURE_NO_SEL    700
+#define IDS_ERR_BATCH_CAPTURE_DONE_OK   701
+#define IDS_ERR_BATCH_CAPTURE_DONE_ERR  702
+#define IDS_ERR_CAP_MANUAL_STOP_NO_PIPE 703
+#define IDS_ERR_BATCH_CAPTURE_NO_WORK   704
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
@@ -348,6 +375,23 @@
 #define IDS_CAPSTAT_NONE_SELECTED       875
 #define IDS_CAPSTAT_ENCODING_ITEM       876
 #define IDS_CAPSTAT_INITING             877
+#define IDS_CAPSTAT_BATCH_TITLE         878
+#define IDS_CAPSTAT_EXIT_KEY            879
+#define IDS_CAPSTAT_BATCH_GAME          880
+#define IDS_CAPSTAT_TIMES               881
+#define IDS_CAPSTAT_BATCH_TIMES         882
+#define IDS_CAPSTAT_MANUAL_START        883
+#define IDS_CAPSTAT_EXIT_PENDING        884
+#define IDS_CAPSTAT_BATCH_CONFIRM_CXL   885
+#define IDS_CAPSTAT_CANCELLED           886
+#define IDS_CAPSTAT_MANUAL_START_PROMPT 887
+#define IDS_CAPSTAT_MANUAL_STOP_PROMPT  888
+
+#define IDS_CAPPREVIEW_TITLE            894
+#define IDS_CAPPREVIEW_REPLACE          895
+#define IDS_CAPPREVIEW_KEEP             896
+#define IDS_CAPPREVIEW_NEW              897
+#define IDS_CAPPREVIEW_INSTRS           898
 
 #define IDS_SEARCH_SETUP_MSG            900
 #define IDS_SEARCH_SETUP_GO             901
@@ -469,6 +513,17 @@
 #define ID_HELP                         32853
 #define ID_DEL_GAME_INFO                32854
 #define ID_CONFIRM_DEL_GAME_INFO        32855
+#define ID_MARK_FOR_BATCH_CAPTURE       32856
+#define ID_BATCH_CAPTURE_STEP1          32857
+#define ID_BATCH_CAPTURE_STEP3          32858
+#define ID_BATCH_CAPTURE_STEP4          32859
+#define ID_BATCH_CAPTURE_GO             32860
+#define ID_BATCH_CAPTURE_ALL            32861
+#define ID_BATCH_CAPTURE_MARKED         32862
+#define ID_BATCH_CAPTURE_FILTER         32863
+#define ID_BATCH_CAPTURE_VIEW           32864
+#define ID_BATCH_CAPTURE_NEXT_GAME      32865
+#define ID_PAUSE_GAME                   32866
 
 
 // Next default values for new objects
@@ -477,7 +532,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32856
+#define _APS_NEXT_COMMAND_VALUE         32867
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

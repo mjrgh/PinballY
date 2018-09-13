@@ -40,18 +40,23 @@ public:
 	// is matched.
 	//
 	// The config tool uses these named states for two purposes.  One is
-	// for events, like "go to next wheel item" ($PBXWheelRight) or "go
-	// to previous menu item ($PBXMenuUp).  The other is for table matching,
+	// for events, like "go to next wheel item" ($PBYWheelNext) or "go
+	// to previous menu item ($PBYMenuUp).  The other is for table matching,
 	// which is done by ROM name.
 	//
 	// The state names are arbitrary, but we want to trigger the effects
-	// defined for PinballX in the default config tool database, so we use
-	// the same state names used in the DOF PinballX plugin.  Note that we
-	// don't use that plugin at all, though; we talk directly to the DOF
-	// COM object.  So we could add our own custom effects in addition if
-	// desired, or use a different set of state names entirely if the
-	// config tool were to add a separate database entry for us.
-	//
+	// defined specifically for PinballY in the default config tool database,
+	// so we use special names starting with PBY.  This is just a naming
+	// convention to avoid name collisions with table ROMs.  There's no
+	// guarantee that some table's ROM name won't start with PBY, but it's
+	// pretty unlikely.  Table ROM names are essentially arbitrary, but the
+	// normal convention is to use a short abbreviation of the table name.
+	// For historical reasons (namely, to minimize file exchange hassles
+	// with older operating systems), ROM names are usually limited to 6-8
+	// alphanumeric characters.  Most of our events using longer names
+	// than that, so they're virtually guaranteed to be unique by virtue
+	// of the length alone.  But the PBY prefix further helps avoid
+	// accidental collisions.
 	void SetNamedState(const WCHAR *name, int val);
 
 	// Map a table to a DOF ROM name.  This consults the table/ROM mapping
@@ -122,18 +127,28 @@ protected:
 	// The snag in this approach is that the human-readable titles in 
 	// the front-end table list are also human-written, so there can be
 	// some superficial variation in the exact rendering of the names,
-	// of the sorts that common occur in human-generated text: changes
-	// in capitalization, article elisions, misspellings, etc.  The PBX
-	// plugin deals with this by fuzzy matching.  It would have been
-	// better for DOF to have exposed this as a common service for more
-	// uniform behavior, but it doesn't, so we have to replicate the
-	// behavior here.  
+	// of the sorts common to human-written text: capitalization, 
+	// article elisions, misspellings, etc.  So rather than matching the
+	// title strings as exact literal matches, we use "fuzzy matching",
+	// which allows for approximate matches.
+	//
+	// The DOF PBX plugin actually implements fuzzy matching for titles
+	// that does exactly what we're doing here.  It would have been
+	// better design for DOF to have implemented that code as a core
+	// service that could be exported through the DOF COM object as
+	// well as the PBX plugin, but unfortunately it wasn't implemented
+	// that way, so we have to provide our own similar implementation.
 	//
 	// Because of the need for fuzzy matching to the DOF mapping table,
 	// we store the mapping table as a simple list of title/ROM pairs.
 	// There are ways to index fuzzy-matched data more efficiently than
 	// a linear search, but we have a small data set, so I don't think
-	// it's worth the trouble.
+	// it's worth the trouble.  However, we do at least pre-compute the
+	// bigram set for each title string, which is what the fuzzy
+	// matching algorithm uses to compute the similarity to a subject
+	// string.  The bigram computation is relatively time-consuming,
+	// so it makes the search process much faster if we pre-compute it 
+	// for each string in the index.
 	//
 	// The simplifiedTitle is the title after running it through the
 	// SimplifyTitle() function.  This removes extra spaces and

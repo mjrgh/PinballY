@@ -53,8 +53,27 @@
    and try again.
 </p>
 <p>
-   <b>Video capture times:</b>  These settings let you set the
-   length of the videos captured for the various windows.  When
+   <b>Manual start:</b>  Check this box for a media type to
+   make this item wait for you to press a button before capture
+   starts for the item.  Normally (if the box isn't checked),
+   the capture process proceeds automatically through the list
+   of items to be captured, without requiring any action
+   on your part.  If you check the "Manual start" box for an
+   item, the capture process will stop when it reaches that
+   item and wait for you to press a button.  The capture
+   status window will display a prompt to tell you when
+   the capture process is paused like this.
+</p>
+<p>
+   Manual start mode is useful if you want to time an item
+   so that it starts at a particular point in the game's attract
+   mode display sequence.  For example, you might want a DMD video
+   capture to start at the beginning of the loop of messages that
+   the table's ROM displays on the DMD between games.
+</p>
+<p>
+   <b>Video and audio capture times:</b>  These settings let you set
+   the length of the videos captured for the various windows.  When
    PinballY plays back the videos, they'll all be shown in loops,
    so you effectively get "infinite" video coverage no matter how
    long you make the individual videos.  But it's better to make
@@ -63,13 +82,25 @@
    repetitive, and so that you don't see jumps back to the
    beginning so often that they're distracting.
 </p>
+<p>
+   <b>Manual stop:</b>  For video and audio items, you can choose
+   "Manual stop" mode instead of the automatic timed capture
+   that's used by default.  In manual stop mode, the screen capture
+   doesn't stop when the time limit is reached; instead, it keeps
+   going indefinitely, until you manually intervene by pressing a
+   button.  You can use this in combination with Manual Start mode
+   to set the exact starting and stopping points of a captured
+   video loop.  The capture status window shows a prompt when
+   manual stop mode is in effect, letting you know that you have
+   to press a button to finish the capture.
+</p>
 
 <p>
    <b>Use two-pass video encoding:</b>  Use this option if your
    captured videos look too choppy.  Normally, PinballY tries to
    capture and compress video frames at the same time, in
    a single pass.  This requires a fairly fast machine, though; on
-   slower machines, the compressor might have to drop frames (omit
+   slower machines, the video encoder might drop frames (omit
    them from the resulting video) when it can't keep up with the
    live video rate.  Dropped frames are visible as momentary
    freezes when you play back the video, which can make the
@@ -82,6 +113,16 @@
    This takes longer overall because of the separate second pass,
    but should eliminate (or at least greatly reduce) dropped
    frames in the resulting video.
+</p>
+<p>
+   Optimization tip:
+   If you've tuned your system to give higher priority to pinball
+   software via a tool like <a target="_blank" href="http://mjrnet.org/pinscape/PinAffinity.html">PinAffinity</a>,
+   you should add <b>ffmpeg.exe</b> to the list of programs that
+   receive priority CPU access.  Ffmpeg is the program that
+   PinballY uses to carry out screen capture operations.  Screen
+   capture is inherently CPU-intensive, so ffmpeg will do a better
+   job of capturing if it's given full CPU resources.
 </p>
 
 </body>

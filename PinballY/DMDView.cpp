@@ -684,11 +684,67 @@ void DMDView::GenerateHighScoreImages()
 		ThreadInfo *ti = new ThreadInfo(this, highScoreRequestSeqNo, txtColor, style);
 		
 		// capture the message list to the thread
-		game->DispHighScoreGroups([&ti](const std::list<const TSTRING*> &group)
+		game->DispHighScoreGroups([&ti, &style](const std::list<const TSTRING*> &group)
 		{
-			std::list<TSTRING> &list = ti->messages.emplace_back();
-			for (auto s : group)
-				list.emplace_back(*s);
+			if (_tcsicmp(style, _T("alpha")) == 0 && group.size() > 2)
+			{
+				// We're in alphanumeric mode, so limit messages to two
+				// lines.  For an odd number of lines, add a one liner
+				// first, then add pairs.  Otherwise just add pairs.
+				auto it = group.begin();
+				auto Add = [&it, &ti](int nLines)
+				{
+					// add a message group
+					auto &list = ti->messages.emplace_back();
+					auto AddLine = [&list](const TSTRING *s) { list.emplace_back(*s); };
+
+					// special case: if we're adding one really long line, break it up
+					if (nLines == 1 && (*it)->length() > 16)
+					{
+						// find the last space or punctuation mark before the 16th column
+						const TCHAR *start = (*it)->c_str();
+						const TCHAR *punct = nullptr;
+						for (const TCHAR *p = start; *p != 0 && p - start < 16; ++p)
+						{
+							if (*p == ' ' && p - start <= 16)
+								punct = p;
+							else if (p - start <= 15 && (*p == '.' || *p == ',' || *p == '-'))
+								punct = p;
+						}
+
+						// if we found a break point, break there
+						if (punct != nullptr)
+						{
+							TSTRING l1(start, punct - start + (*punct == ' ' ? 0 : 1));
+							TSTRING l2(punct + 1);
+							AddLine(&l1);
+							AddLine(&l2);
+							++it;
+							return;
+						}
+					}
+
+					// add the lines to the new message group
+					for ( ; nLines != 0 ; --nLines, ++it)					
+						AddLine(*it);
+				};
+
+				// if we have an odd number of lines, add the first line
+				// as its own group
+				if ((group.size() & 1) == 1)
+					Add(1);
+
+				// now add pairs until we exhaust the list
+				while (it != group.end())
+					Add(2);
+			}
+			else
+			{
+				// add the group exactly as it came from PinEMhi
+				auto &list = ti->messages.emplace_back();
+				for (auto s : group)
+					list.emplace_back(*s);
+			}
 		});
 
 		// count the thread

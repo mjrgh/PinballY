@@ -227,6 +227,11 @@ bool Sprite::Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descF
 	return Load(bmi, pixels.get(), eh, descForErrors);
 }
 
+bool Sprite::Load(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors)
+{
+	return Load(dib.bmi, dib.dibits, eh, descForErrors);
+}
+
 bool Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// load the bitmap

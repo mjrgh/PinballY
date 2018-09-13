@@ -54,6 +54,26 @@ void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
 	SelectObject(memdc, memdc.oldbmp);
 }
 
+// Perform off-screen drawing, returning the DIBitmap information
+// to the caller.
+void DrawOffScreen(DIBitmap &dib, int width, int height,
+	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func)
+{
+	// discard any previous bitmap in the caller's struct
+	dib.Clear();
+
+	// create a memory DC
+	MemoryDC memdc;
+
+	// create and select a DIB of the desired size
+	dib.hbitmap = memdc.CreateDIB(width, height, dib.dibits, dib.bmi);
+
+	// invoke the callback to carry out the drawing
+	func(memdc, dib.hbitmap, dib.dibits, dib.bmi);
+
+	// done with the bitmap
+	SelectObject(memdc, memdc.oldbmp);
+}
 
 // -----------------------------------------------------------------------
 //
@@ -168,7 +188,8 @@ void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,
 	// set up the layout rect
 	Gdiplus::RectF layoutRect(
 		origin.X, origin.Y,
-		bbox.Width - origin.X, bbox.Height - origin.Y);
+		bbox.Width - fmaxf(0.0f, origin.X - bbox.X), 
+		bbox.Height - fmaxf(0.0f, origin.Y - bbox.Y));
 
 	// draw the string within the layout rect
 	Gdiplus::StringFormat format(Gdiplus::StringFormat::GenericTypographic());

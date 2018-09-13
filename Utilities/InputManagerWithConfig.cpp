@@ -191,7 +191,7 @@ void InputManagerWithConfig::LoadConfig()
 		// If there's nothing assigned to the button (not even an explicit
 		// "none" entry), and the default key for the command hasn't been
 		// claimed by another command, assign the default key.
-		if (cmd.buttons.size() == 0 && !keyAssigned[cmd.defaultKey])
+		if (cmd.buttons.size() == 0 && cmd.defaultKey != 0 && !keyAssigned[cmd.defaultKey])
 		{
 			// assign the key as (type=keyboard, unit=0, value=cmd.defaultKey)
 			cmd.buttons.emplace_back(Button::TypeKB, 0, cmd.defaultKey);

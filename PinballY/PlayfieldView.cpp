@@ -43,6 +43,7 @@
 #include "RealDMD.h"
 #include "VPinMAMEIfc.h"
 #include "DialogWithSavedPos.h"
+#include "LogFile.h"
 #include "../OptionsDialog/OptionsDialogExports.h"
 
 using namespace DirectX;
@@ -111,6 +112,7 @@ PlayfieldView::PlayfieldView() :
 	lastInputEventTime = GetTickCount();
 	settingsDialogOpen = false;
 	mediaDropTargetGame = nullptr;
+	nextButtonDown = prevButtonDown = false;
 	
 	// note the exit key mode
 	TSTRING exitMode = ConfigManager::GetInstance()->Get(ConfigVars::ExitKeyMode, _T("select"));
@@ -141,6 +143,7 @@ PlayfieldView::PlayfieldView() :
 	commandsByName.emplace(_T("ExitGame"), &PlayfieldView::CmdExitGame);
 	commandsByName.emplace(_T("Information"), &PlayfieldView::CmdGameInfo);
 	commandsByName.emplace(_T("Instructions"), &PlayfieldView::CmdInstCard);
+	commandsByName.emplace(_T("PauseGame"), &PlayfieldView::CmdPauseGame);
 
 	// populate the table of commands with menu associations
 	commandNameToMenuID.emplace(_T("RotateMonitor"), ID_ROTATE_CW);
@@ -584,6 +587,13 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		if (popupType == PopupErrorMessage)
 			ClosePopup();
 		return true;
+
+	case batchCaptureCancelTimerID:
+		// clear the pending cancellation
+		KillTimer(hWnd, timer);
+		batchCaptureMode.cancelPending = false;
+		Application::Get()->BatchCaptureCancelPrompt(false);
+		return true;
 	}
 
 	// use the default handling
@@ -596,6 +606,10 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 	{
 	case ID_PLAY_GAME:
 		PlayGame(cmd);
+		return true;
+
+	case ID_BATCH_CAPTURE_NEXT_GAME:
+		BatchCaptureNextGame();
 		return true;
 
 	case ID_FLYER:
@@ -660,9 +674,37 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_KILL_GAME:
-		// ignore this unless a game is running
+		// check if a game is running
 		if (Application::Get()->IsGameRunning())
 		{
+			// If we're in batch mode, require two cancel commands before we
+			// actually carry it out, to avoid accidental interruption of
+			// what could be a lengthy process.
+			if (batchCaptureMode.active)
+			{
+				// if no cancel is pending, put up the prompt
+				if (!batchCaptureMode.cancelPending)
+				{
+					// mark the cancel as pending
+					batchCaptureMode.cancelPending = true;
+
+					// put up the prompt
+					Application::Get()->BatchCaptureCancelPrompt(true);
+
+					// set a timer to clear the pending status after a few seconds
+					SetTimer(hWnd, batchCaptureCancelTimerID, 3000, NULL);
+
+					// that's it for this command cycle
+					return true;
+				}
+
+				// mark the batch as cancelled
+				batchCaptureMode.cancel = true;
+			}
+
+			// switch to "cancelling" mode
+			Application::Get()->ShowCaptureCancel();
+
 			// send the terminate command to the game
 			Application::Get()->KillGame();
 
@@ -679,8 +721,25 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		}
 		else
 		{
-			// no game is running - end running game mode
+			// No game is running, so there's no game to exit.  Just in case
+			// we're out of sync somehow and the running game popup is showing
+			// despite no game running, explicitly exit running game mode in
+			// the UI.  That hopefully gives the user a way to get things back
+			// in sync if the UI gets stuck in running game mode.
 			EndRunningGameMode();
+		}
+		return true;
+
+	case ID_PAUSE_GAME:
+		// ignore this unless a game is running
+		if (Application::Get()->IsGameRunning())
+		{
+			// try to grab focus from the running game
+			Application::Get()->StealFocusFromGame();
+
+			// process a Select key, to bring up the menu
+			QueuedKey key(hWnd, KeyDown, &PlayfieldView::CmdSelect);
+			CmdSelect(key);
 		}
 		return true;
 
@@ -799,6 +858,32 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		ShowGameSetupMenu();
 		return true;
 
+	case ID_BATCH_CAPTURE_STEP1:
+		BatchCaptureStep1();
+		return true;
+
+	case ID_BATCH_CAPTURE_ALL:
+	case ID_BATCH_CAPTURE_FILTER:
+	case ID_BATCH_CAPTURE_MARKED:
+		BatchCaptureStep2(cmd);
+		return true;
+
+	case ID_BATCH_CAPTURE_STEP3:
+		BatchCaptureStep3();
+		return true;
+
+	case ID_BATCH_CAPTURE_STEP4:
+		BatchCaptureStep4();
+		return true;
+
+	case ID_BATCH_CAPTURE_VIEW:
+		BatchCaptureView();
+		return true;
+
+	case ID_BATCH_CAPTURE_GO:
+		BatchCaptureGo();
+		return true;
+
 	case ID_EDIT_GAME_INFO:
 		EditGameInfo();
 		return true;
@@ -837,6 +922,11 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_CAPTURE_GO:
 		CaptureMediaGo();
+		return true;
+
+	case ID_MARK_FOR_BATCH_CAPTURE:
+		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
+			GameList::Get()->ToggleMarkedForCapture(game);
 		return true;
 
 	case ID_FIND_MEDIA:
@@ -1414,60 +1504,69 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 			}
 		}
 
-		// Before launching, shut down our DOF interface, so that the game
-		// can take it over while running.
-		dof.SetRomContext(_T(""));
-		dof.SetUIContext(_T(""));
-		DOFClient::Shutdown(false);
+		// queue the game for launch, replacing any prior launch queue
+		Application::Get()->ClearLaunchQueue();
+		Application::Get()->QueueLaunch(cmd, game, system, &launchCaptureList, captureStartupDelay);
 
-		// Also shut down the real DMD, so that the game can take it over
-		if (realDMD != nullptr)
+		// launch it
+		LaunchQueuedGame();
+	}
+}
+
+void PlayfieldView::LaunchQueuedGame()
+{
+	// get the next queued game, if available
+	auto game = Application::Get()->GetNextQueuedGame();
+
+	// Before launching, shut down our DOF interface, so that the game
+	// can take it over while running.
+	dof.SetRomContext(_T(""));
+	dof.SetUIContext(_T(""));
+	DOFClient::Shutdown(false);
+
+	// Also shut down the real DMD, so that the game can take it over
+	if (realDMD != nullptr)
+	{
+		realDMD->BeginRunningGameMode();
+		realDMD.reset(nullptr);
+	}
+
+	// kill any pending return-from-game timers, as we're going into a new game
+	KillTimer(hWnd, restoreDOFAndDMDTimerID);
+
+	// try launching the game
+	Application::InUiErrorHandler eh;
+	if (Application::Get()->LaunchNextQueuedGame(eh))
+	{
+		// show the "game running" popup in the main window
+		BeginRunningGameMode(game);
+
+		// check for an audio clip to play on launching the game
+		TSTRING audio;
+		if (game->GetMediaItem(audio, GameListItem::launchAudioType))
 		{
-			realDMD->BeginRunningGameMode();
-			realDMD.reset(nullptr);
-		}
-
-		// try launching the game
-		Application::InUiErrorHandler eh;
-		if (Application::Get()->Launch(cmd, game, system, &launchCaptureList, captureStartupDelay, eh))
-		{
-			// show the "game running" popup in the main window
-			BeginRunningGameMode();
-
-			// check for an audio clip to play on launching the game
-			TSTRING audio;
-			if (game->GetMediaItem(audio, GameListItem::launchAudioType))
+			// Got a clip - set up an Audio Video player for it.  Note that
+			// we need to use an A/V player for it instead of the low-level
+			// Sound Manager, because the latter can only handle uncompressed
+			// PCM formats like WAV.  Launch audio clips are typically MP3s.
+			SilentErrorHandler eh;
+			RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+			if (player->Open(audio.c_str(), eh) && player->Play(eh))
 			{
-				// Got a clip - set up an Audio Video player for it.  Note that
-				// we need to use an A/V player for it instead of the low-level
-				// Sound Manager, because the latter can only handle uncompressed
-				// PCM formats like WAV.  Launch audio clips are typically MP3s.
-				SilentErrorHandler eh;
-				RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
-				if (player->Open(audio.c_str(), eh) && player->Play(eh))
-				{
-					// Playback started.  We'll need to keep this object alive
-					// until playback finishes, then delete it.  The object will
-					// notify us when playback ends via an AVPMsgEndOfPresentation
-					// message to the window.  Keep a reference to the object
-					// until then in our active audio table.
-					activeAudio.emplace(
-						std::piecewise_construct,
-						std::forward_as_tuple(player->GetCookie()),
-						std::forward_as_tuple(player.Get()));
-
-					// The RefPtr constructor in the map doesn't add a reference,
-					// since that's normally used for a newly created object.
-					// Add an explicit reference on its behalf.
-					player->AddRef();
-				}
+				// Playback started.  We'll need to keep this object alive
+				// until playback finishes, then delete it.  The object will
+				// notify us when playback ends via an AVPMsgEndOfPresentation
+				// message to the window.  Keep a reference to the object
+				// until then in our active audio table.
+				DWORD cookie = player->GetCookie();
+				activeAudio.emplace(cookie, player.Detach());
 			}
 		}
-		else
-		{
-			// launch failed - reinstate the DOF client
-			SetTimer(hWnd, restoreDOFAndDMDTimerID, 100, NULL);
-		}
+	}
+	else
+	{
+		// launch failed - reinstate the DOF client
+		SetTimer(hWnd, restoreDOFAndDMDTimerID, 100, NULL);
 	}
 }
 
@@ -3120,8 +3219,11 @@ void PlayfieldView::OnNewFilesAdded()
 }
 
 // Show the "game running" popup
-void PlayfieldView::BeginRunningGameMode()
+void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 {
+	// remember the running game's ID
+	runningGameID = game != nullptr ? game->GetGameId() : _T("");
+
 	// show the initial blank screen
 	ShowRunningGameMessage(nullptr, 0);
 
@@ -3149,7 +3251,7 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 	runningGamePopup.Attach(new Sprite());
 	const int width = 1200, height = 1920;
 	Application::InUiErrorHandler eh;
-	runningGamePopup->Load(width, height, [width, height, msg, ptSize](Gdiplus::Graphics &g)
+	runningGamePopup->Load(width, height, [width, height, msg, ptSize, this](Gdiplus::Graphics &g)
 	{
 		// fill the background
 		Gdiplus::SolidBrush bkg(Gdiplus::Color(255, 30, 30, 30));
@@ -3162,7 +3264,7 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 			// load the wheel image, if available
 			std::unique_ptr<Gdiplus::Bitmap> wheelImage;
 			SIZE wheelImageSize = { 0, 0 };
-			auto game = GameList::Get()->GetNthGame(0);
+			auto game = GameList::Get()->GetGameByID(runningGameID.c_str());
 			TSTRING wheelFile;
 			if (IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
 				wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str()));
@@ -3300,6 +3402,15 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 		// clean up the thread monitor in the application
 		Application::Get()->CleanGameMonitor();
+
+		// launch the next queued game, if in batch capture mode
+		if (batchCaptureMode.active)
+			PostMessage(WM_COMMAND, ID_BATCH_CAPTURE_NEXT_GAME);
+		return true;
+
+	case PFVMsgCaptureDone:
+		// capture done report
+		OnCaptureDone(reinterpret_cast<const CaptureDoneReport*>(wParam));
 		return true;
 
 	case PFVMsgGameLaunchError:
@@ -3519,7 +3630,9 @@ void PlayfieldView::ShowQueuedError()
 
 	// fixed drawing box dimensions
 	const int headerHeight = 60;
-	const int margins = 20;
+	const int margins = 16;
+	const int outline = 4;
+	const int bottomSpacing = 8;  // to compensate for GDI putting all leading at the top of the line
 	const int layoutWidth = 900;
 
 	// set up a font for the error text
@@ -3529,12 +3642,14 @@ void PlayfieldView::ShowQueuedError()
 
 	// figure the height of the error list
 	int ht = 0;
-	Gdiplus::RectF layoutRect(float(margins), 0.0f, float(layoutWidth - margins*2), 600.0f);
+	Gdiplus::RectF layoutRect(float(margins), 0.0f, float(layoutWidth - margins*2 - outline*2), 600.0f);
+	Gdiplus::StringFormat format(Gdiplus::StringFormat::GenericTypographic());
+	format.SetFormatFlags(format.GetFormatFlags() & ~Gdiplus::StringFormatFlagsLineLimit);
 	for (auto const &m: messages)
 	{
 		// measure the text
 		Gdiplus::RectF bbox;
-		g.MeasureString(m.c_str(), -1, font.get(), layoutRect, &bbox);
+		g.MeasureString(m.c_str(), -1, font.get(), layoutRect, &format, &bbox);
 		ht += (int)bbox.Height;
 	};
 
@@ -3570,9 +3685,9 @@ void PlayfieldView::ShowQueuedError()
 
 	// set up the popup
 	popupSprite.Attach(new Sprite());
-	int layoutHeight = headerHeight + 2 * margins + ht;
+	int layoutHeight = headerHeight + 2*margins + outline + ht + bottomSpacing;
 	popupSprite->Load(layoutWidth, layoutHeight, 
-		[&err, &messages, layoutWidth, layoutHeight, headerHeight, spacing, margins, &font]
+		[&err, &messages, layoutWidth, layoutHeight, headerHeight, spacing, margins, outline, &font]
 		(HDC hdc, HBITMAP)
 	{
 		// set up the graphics context
@@ -3607,8 +3722,8 @@ void PlayfieldView::ShowQueuedError()
 		std::unique_ptr<Gdiplus::Bitmap> topbar(GPBitmapFromPNG(iconId));
 
 		// draw the messages
-		Gdiplus::PointF origin((float)margins, (float)(headerHeight + margins + spacing/2));
-		Gdiplus::RectF layoutRect((float)margins, 0, (float)(layoutWidth - 2 * margins), (float)layoutHeight);
+		Gdiplus::PointF origin((float)margins + outline, (float)(headerHeight + margins));
+		Gdiplus::RectF layoutRect((float)margins + outline, 0, (float)(layoutWidth - 2*margins - 2*outline), (float)layoutHeight);
 		Gdiplus::SolidBrush br(Gdiplus::Color(255, 128, 0, 0));
 		int n = 0;
 		for (auto m : messages)
@@ -3617,7 +3732,7 @@ void PlayfieldView::ShowQueuedError()
 			if (n == 1)
 			{
 				Gdiplus::Pen pen(Gdiplus::Color(255, 220, 200, 200), 2.0f);
-				g.DrawLine(&pen, 0, (int)origin.Y - spacing / 2, layoutWidth, (int)origin.Y - spacing / 2);
+				g.DrawLine(&pen, 0, (int)origin.Y - spacing/2, layoutWidth, (int)origin.Y - spacing/2);
 			}
 
 			// draw the message
@@ -3629,11 +3744,11 @@ void PlayfieldView::ShowQueuedError()
 		}
 
 		// draw an outline
-		Gdiplus::Pen pen(frameColor, 4.0f);
-		g.DrawRectangle(&pen, 2, 2, layoutWidth - 4, layoutHeight - 4);
+		Gdiplus::Pen pen(frameColor, (float)outline);
+		g.DrawRectangle(&pen, outline/2, outline/2, layoutWidth - outline, layoutHeight - outline);
 
 		// draw the top bar
-		g.DrawImage(topbar.get(), 0, 0);
+		g.DrawImage(topbar.get(), 0, 0, layoutWidth, headerHeight);
 
 		// sync pixels with the bitmap
 		g.Flush();
@@ -3724,8 +3839,8 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 	std::unique_ptr<Gdiplus::Font> symfont2(CreateGPFont(_T("Wingdings 3"), ptSize, weight));
 
 	// checkmark and bullet characters in Wingdings
-	static const TCHAR *checkmark = _T("\xFC ");
-	static const TCHAR *bullet = _T("\x9F ");
+	static const TCHAR *checkmark = _T("\xFC");
+	static const TCHAR *bullet = _T("\x9F");
 
 	// arrows (in Wingdings3)
 	static const TCHAR *subMenuArrow = _T("\x7D");
@@ -4637,8 +4752,6 @@ void PlayfieldView::UpdateInfoBoxAnimation()
 {
 	static DWORD lastTimer;
 	DWORD thisTimer = GetTickCount();
-	if (lastTimer != 0 && thisTimer - lastTimer > 32)
-		OutputDebugString(L"long delay");
 	lastTimer = thisTimer;
 
 	// make sure there's an info box to update
@@ -5211,26 +5324,32 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 	// special handling as the key will enter our normal event queue.
 	if (rawInputCode == RIM_INPUTSINK)
 	{
-		// If this is a keyboard event, and it's a "make" (key down)
-		// event, queue it as a background key down event.  Note that
-		// the Windows headers are muddled about the bit flags here,
-		// in that they provide the 0 and 1 bit values without the
-		// masks to isolate them.  Specifically, they define
-		// RI_KEY_MAKE as 0 and RI_KEY_BREAK as 1.  So the usual C 
-		// idiom of (x & FLAG) doesn't work here with RI_KEY_MAKE, 
-		// since it's not really a bit flag, it's really a bit value
-		// after masking off the other bits.  I'm not sure why they
-		// bothered to define a bit flag with no bits, but there
-		// it is.  This means the test for MAKE is really !BREAK.
-		if (raw->header.dwType == RIM_TYPEKEYBOARD
-			&& !(raw->data.keyboard.Flags & RI_KEY_BREAK))
+		// If this is a keyboard event, queue it as a background key 
+		// event.
+		if (raw->header.dwType == RIM_TYPEKEYBOARD)
 		{
-			// get the vkey
-			USHORT vkey = raw->data.keyboard.VKey;
+			// get the vkey, translated for special key distinctions
+			// (left/right shift, keypad versions of keys, etc)
+			USHORT vkey = InputManager::GetInstance()->TranslateVKey(raw);
+
+			// Figure if it's a key-down or key-up based on the make/break
+			// state.  Note that the Windows headers are muddled about the 
+			// bit flags here: they provide the 0 and 1 bit values without 
+			// the masks to isolate them.  Specifically, they define
+			// RI_KEY_MAKE as 0 and RI_KEY_BREAK as 1.  So the usual C 
+			// idiom of (x & FLAG) doesn't work here with RI_KEY_MAKE, 
+			// since it's not really a bit flag, it's really a bit value
+			// after masking off the other bits.  I'm not sure why they
+			// bothered to define a bit flag with no bits, but there it is.
+			// This means the test for MAKE is really !BREAK.
+			KeyPressType keyType =
+				((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0) ? KeyBgRepeat :
+				((raw->data.keyboard.Flags & RI_KEY_BREAK) != 0) ? KeyUp : 
+				KeyBgDown;
 
 			// look up the command; if we find a match, process the key press
 			if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
-				ProcessKeyPress(hWnd, KeyBgDown, it->second);
+				ProcessKeyPress(hWnd, keyType, it->second);
 		}
 	}
 
@@ -5501,8 +5620,8 @@ void PlayfieldView::OnConfigChange()
 	//
 	// - Populate an EXIT KEY list to send to the Admin Host, if present
 	//
-	std::list<TSTRING> adminHostExitKeys;
-	InputManager::GetInstance()->EnumButtons([this, numLogJs, &adminHostExitKeys](
+	std::list<TSTRING> adminHostExitKeys, adminHostPauseKeys;
+	InputManager::GetInstance()->EnumButtons([this, numLogJs, &adminHostExitKeys, &adminHostPauseKeys](
 		const InputManager::Command &cmd, const InputManager::Button &btn)
 	{
 		// get the command
@@ -5520,9 +5639,12 @@ void PlayfieldView::OnConfigChange()
 			// Keyboard key.  Assign the command handler in the dispatch table.
 			AddVkeyCommand(btn.code, cmdFunc);
 
-			// if it's an Exit Game key, include it in the list for the admin host
+			// if it's an Exit Game or Pause Game key, include it in the list for
+			// the admin host
 			if (cmdFunc == &PlayfieldView::CmdExitGame)
 				adminHostExitKeys.emplace_back(MsgFmt(_T("kb %d"), btn.code));
+			if (cmdFunc == &PlayfieldView::CmdPauseGame)
+				adminHostPauseKeys.emplace_back(MsgFmt(_T("kb %d"), btn.code));
 
 			// Note the special menu keys: Left Alt, Right Alt, F10.
 			// These require special handling in the window message
@@ -5564,6 +5686,12 @@ void PlayfieldView::OnConfigChange()
 						adminHostExitKeys.emplace_back(
 							MsgFmt(_T("js %d %x %x %s"), btn.code, js->vendorID, js->productID, js->prodName.c_str()));
 					}
+					else if (cmdFunc == &PlayfieldView::CmdPauseGame)
+					{
+						auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
+						adminHostPauseKeys.emplace_back(
+							MsgFmt(_T("js %d %x %x %s"), btn.code, js->vendorID, js->productID, js->prodName.c_str()));
+					}
 				}
 				else
 				{
@@ -5575,6 +5703,8 @@ void PlayfieldView::OnConfigChange()
 					// if it's an Exit Game key, include it in the list for the admin host
 					if (cmdFunc == &PlayfieldView::CmdExitGame)
 						adminHostExitKeys.emplace_back(MsgFmt(_T("js %d"), btn.code));
+					else if (cmdFunc == &PlayfieldView::CmdPauseGame)
+						adminHostPauseKeys.emplace_back(MsgFmt(_T("js %d"), btn.code));
 				}
 			}
 			break;
@@ -5591,7 +5721,7 @@ void PlayfieldView::OnConfigChange()
 		UpdateMenuKeys(parentWindowMenu);
 
 	// update the Admin Host with the new EXIT GAME key mappings
-	Application::Get()->SendExitGameKeysToAdminHost(adminHostExitKeys);
+	Application::Get()->SendExitGameKeysToAdminHost(adminHostExitKeys, adminHostPauseKeys);
 
 	// load the info box options
 	infoBoxOpts.show = cfg->GetBool(ConfigVars::InfoBoxShow, true);
@@ -5725,6 +5855,12 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 			{
 				// Media list dialog - exeucte the current command
 				DoMediaListCommand(close);
+			}
+			else if (popupType == PopupBatchCapturePreview)
+			{
+				ClosePopup();
+				BatchCaptureStep4();
+				return;
 			}
 
 			// if desired, remove the popup
@@ -5974,7 +6110,7 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 		// * Instruction card -> close it
 		// * Nothing -> show exit menu
 		//
-		if (curMenu != 0)
+		if (curMenu != nullptr)
 		{
 			// A menu is showing.  For an Exit menu, the Exit button can
 			// selects menu items, if the configuration says so; for others,
@@ -6008,6 +6144,11 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 			{
 				PlayButtonSound(_T("Deselect"));
 				ShowMediaFilesExit();
+			}
+			else if (popupType == PopupBatchCapturePreview)
+			{
+				ClosePopup();
+				BatchCaptureStep4();
 			}
 			else
 			{
@@ -6083,6 +6224,9 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 		// do the basic Next processing
 		DoCmdNext(key.mode == KeyRepeat);
 	}
+
+	// check for a Manual Go gesture
+	CheckManualGo(nextButtonDown, key);
 }
 
 void PlayfieldView::DoCmdNext(bool fast)
@@ -6094,7 +6238,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 		QueueDOFPulse(L"PBYMenuDown");
 		MenuNext(1);
 	}
-	else if (popupSprite != 0)
+	else if (popupSprite != nullptr)
 	{
 		// check the popup type
 		if (popupType == PopupFlyer)
@@ -6132,6 +6276,12 @@ void PlayfieldView::DoCmdNext(bool fast)
 		{
 			ShowMediaFiles(1);
 		}
+		else if (popupType == PopupBatchCapturePreview)
+		{
+			// scroll down a bit
+			batchViewScrollY += 32;
+			UpdateBatchCaptureView();
+		}
 		else
 		{
 			// for others, just cancel the popup
@@ -6160,6 +6310,24 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 		// carry out the basic command action
 		DoCmdPrev(key.mode == KeyRepeat);
 	}
+
+	// check for a Manual Go gesture
+	CheckManualGo(prevButtonDown, key);
+}
+
+void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
+{
+	// update this button's status
+	thisButtonDown = ((key.mode & (KeyDown | KeyBgDown)) != 0);
+
+	// if we're pressing the button (it's not an auto-repeat), and
+	// the other flipper button is down, count it as a "Manual Go"
+	// for capture mode
+	if (nextButtonDown && prevButtonDown && key.mode == KeyBgDown)
+	{
+		OutputDebugString(_T("Manual Go!\n"));
+		Application::Get()->ManualCaptureGo();
+	}
 }
 
 void PlayfieldView::DoCmdPrev(bool fast)
@@ -6171,7 +6339,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 		QueueDOFPulse(L"PBYMenuUp");
 		MenuNext(-1);
 	}
-	else if (popupSprite != 0)
+	else if (popupSprite != nullptr)
 	{
 		// check the popup type
 		if (popupType == PopupFlyer)
@@ -6209,6 +6377,12 @@ void PlayfieldView::DoCmdPrev(bool fast)
 		else if (popupSprite != nullptr && popupType == PopupMediaList)
 		{
 			ShowMediaFiles(-1);
+		}
+		else if (popupType == PopupBatchCapturePreview)
+		{
+			// scroll up a bit
+			batchViewScrollY -= 32;
+			UpdateBatchCaptureView();
 		}
 		else
 		{
@@ -6255,6 +6429,11 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 		{
 			ShowMediaFiles(2);
 		}
+		else if (popupSprite != nullptr && popupType == PopupBatchCapturePreview)
+		{
+			batchViewScrollY += 1250;
+			UpdateBatchCaptureView();
+		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat it as a regular 'next'
@@ -6299,6 +6478,11 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		{
 			ShowMediaFiles(-2);
 		}
+		else if (popupSprite != nullptr && popupType == PopupBatchCapturePreview)
+		{
+			batchViewScrollY -= 1250;
+			UpdateBatchCaptureView();
+		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat as equivalent to 'previous'
@@ -6341,8 +6525,16 @@ void PlayfieldView::CmdExitGame(const QueuedKey &key)
 {
 	// "Exit Game" Key.  This only applies when we're running in
 	// the background.
-	if ((key.mode & KeyBgDown) != 0)
+	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == KeyBgDown)
 		SendMessage(WM_COMMAND, ID_KILL_GAME);
+}
+
+void PlayfieldView::CmdPauseGame(const QueuedKey &key)
+{
+	// "Pause Game" key.  This only applies when we're running in
+	// the background.
+	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == KeyBgDown)
+		SendMessage(WM_COMMAND, ID_PAUSE_GAME);
 }
 
 // insert coin - slot 1
@@ -6628,12 +6820,15 @@ void PlayfieldView::ShowOperatorMenu()
 	// build the service menu
 	std::list<MenuItemDesc> md;
 
-	// add the 'game setup' options only if a game is active
+	// add the game-specific setup options only if a game is active
 	if (IsGameValid(game))
-	{
 		md.emplace_back(LoadStringT(IDS_MENU_GAME_SETUP), ID_GAME_SETUP);
-		md.emplace_back(_T(""), -1);
-	}
+
+	// add the global game setup options
+	md.emplace_back(LoadStringT(IDS_MENU_BATCH_CAPTURE), ID_BATCH_CAPTURE_STEP1);
+
+	// end the game setup section
+	md.emplace_back(_T(""), -1);
 
 	// Special filters for operator use.  The Hidden Games and Unconfigured
 	// Games filters are unusual in that they appear in this separate menu
@@ -6732,23 +6927,34 @@ void PlayfieldView::ShowGameSetupMenu()
 	// set up the menu
 	std::list<MenuItemDesc> md;
 
+	// basic game commands - edit, delete, categories
 	md.emplace_back(LoadStringT(IDS_MENU_EDIT_GAME_INFO), ID_EDIT_GAME_INFO);
 	if (game->gameXmlNode != nullptr)
 		md.emplace_back(LoadStringT(IDS_MENU_DEL_GAME_INFO), ID_DEL_GAME_INFO);
+	md.emplace_back(LoadStringT(IDS_MENU_HIDE_GAME), ID_HIDE_GAME,
+		gl->IsHidden(game) ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_SET_CATEGORIES), ID_SET_CATEGORIES);
 	md.emplace_back(_T(""), -1);
 
+	// Media commands - capture, mark for batch capture, find media, show media
 	md.emplace_back(LoadStringT(IDS_MENU_CAPTURE_MEDIA), ID_CAPTURE_MEDIA);
+
+	// include batch capture only if the game has been configured
+	if (game->gameXmlNode != nullptr)
+	{
+		if (gl->IsMarkedForCapture(game))
+			md.emplace_back(LoadStringT(IDS_MENU_MARKED_BATCH), ID_MARK_FOR_BATCH_CAPTURE, MenuChecked);
+		else
+			md.emplace_back(LoadStringT(IDS_MENU_MARK_BATCH), ID_MARK_FOR_BATCH_CAPTURE);
+	}
 	md.emplace_back(LoadStringT(IDS_MENU_FIND_MEDIA), ID_FIND_MEDIA);
 	md.emplace_back(LoadStringT(IDS_MENU_SHOW_MEDIA), ID_SHOW_MEDIA_FILES);
-	
 	md.emplace_back(_T(""), -1);
-	md.emplace_back(LoadStringT(IDS_MENU_HIDE_GAME), ID_HIDE_GAME,
-		gl->IsHidden(game) ? MenuChecked : 0);
 
-	md.emplace_back(_T(""), -1);
+	// cancel
 	md.emplace_back(LoadStringT(IDS_MENU_SETUP_RETURN), ID_MENU_RETURN);
 
+	// show the menu
 	ShowMenu(md, 0);
 	QueueDOFPulse(L"PBYMenuOpen");
 }
@@ -8472,6 +8678,15 @@ void PlayfieldView::CaptureMediaSetup()
 	if (!CanAddMedia(game))
 		return;
 
+	// build the capture list for this game
+	InitCaptureList(game);
+
+	// display the menu
+	DisplayCaptureMenu(false, -1, CaptureMenuMode::Single);
+}
+
+void PlayfieldView::InitCaptureList(const GameListItem *game)
+{
 	// set the default capture time to the configured delay time
 	captureStartupDelay = ConfigManager::GetInstance()->GetInt(ConfigVars::CaptureStartupDelay, 5);
 
@@ -8491,7 +8706,7 @@ void PlayfieldView::CaptureMediaSetup()
 		if (view != nullptr && IsWindowVisible(GetParent(view->GetHWnd())))
 		{
 			// determine if the media exists
-			bool exists = game->MediaExists(mediaType);
+			bool exists = game != nullptr && game->MediaExists(mediaType);
 
 			// Set the initial mode:
 			//
@@ -8516,9 +8731,6 @@ void PlayfieldView::CaptureMediaSetup()
 	AddItem(Application::Get()->GetDMDView(), GameListItem::dmdVideoType);
 	AddItem(Application::Get()->GetTopperView(), GameListItem::topperImageType);
 	AddItem(Application::Get()->GetTopperView(), GameListItem::topperVideoType);
-
-	// display the menu
-	DisplayCaptureMenu(false, -1);
 }
 
 void PlayfieldView::ShowCaptureDelayDialog(bool update)
@@ -8587,21 +8799,137 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 	UpdateDrawingList();
 }
 
-void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
+void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMenuMode mode)
 {
-	// Figure the estimated time.  Start with a few seconds on the
-	// clock for the basic launch time, then add the capture time for
-	// each media type selected.  Images don't require any fixed wait
-	// time, since they just need one video frame, but include a
-	// couple of seconds per image in the time estimate to account
-	// for the overhead of launching the capture program.
-	int timeEst = 5;
+	// If we're not updating, and a capture mode was specified,
+	// note the new mode.  We always keep the existing mode when
+	// merely updating the menu with a new checkmark selection.
+	if (!updating && mode != CaptureMenuMode::NA)
+		captureMenuMode = mode;
+
+	// start with an empty menu
+	std::list<MenuItemDesc> md;
+
+	// Add the appropriate prompt message at the top of the menu, depending
+	// on whether we're in single-game capture mode or batch mode.
+	if (captureMenuMode == CaptureMenuMode::Single)
+	{
+		// Single game mode.  Figure the estimated time.
+		int timeEst = EstimateCaptureTime();
+		TSTRINGEx timeEstStr = FormatCaptureTimeEstimate(timeEst);
+
+		// generate the prompt message, incorporating the current time estimate
+		md.emplace_back(MsgFmt(IDS_CAPTURE_SELECT_MEDIA, timeEstStr.c_str()), -1);
+	}
+	else if (captureMenuMode == CaptureMenuMode::Batch1)
+	{
+		// Batch mode, step 1
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_MEDIA), -1);
+	}
+	else if (captureMenuMode == CaptureMenuMode::Batch2)
+	{
+		// Batch mode, step 2
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_DISPOSITION), -1);
+	}
+
+	// add the media items
+	md.emplace_back(_T(""), -1);
+	for (auto &cap: captureList)
+	{
+		// keep the menu open on selecting this item
+		UINT flags = MenuStayOpen;
+
+		// note if this item is initially selected when we draw the menu
+		if (cap.cmd == selectedCmd)
+			flags |= MenuSelected;
+
+		// Build the menu item title
+		TSTRINGEx val;
+		if (captureMenuMode == CaptureMenuMode::Batch2)
+		{
+			// "batch 2" mode 
+			// Skip deselected items in this round, as there's no point in
+			// asking whether we want to keep or replace an item that we're
+			// simply not going to capture at all.
+			if (cap.mode == IDS_CAPTURE_SKIP)
+				continue;
+
+			// show the keep/replace disposition
+			val = LoadStringT(cap.batchReplace ? IDS_BATCH_CAPTURE_REPLACE : IDS_BATCH_CAPTURE_KEEP);
+		}
+		else
+		{
+			// in other modes, show the media type selection options
+			val = LoadStringT(cap.mode).c_str();
+		}
+		md.emplace_back(MsgFmt(_T("%s: %s"), LoadStringT(cap.mediaType.nameStrId).c_str(), val.c_str()), cap.cmd, flags);
+	};
+
+	// add the delay time adjust item (except in the second batch capture step)
+	if (captureMenuMode != CaptureMenuMode::Batch2)
+	{
+		md.emplace_back(_T(""), -1);
+		md.emplace_back(MsgFmt(IDS_CAPTURE_ADJUSTDELAY, captureStartupDelay),
+			ID_CAPTURE_ADJUSTDELAY,
+			selectedCmd == ID_CAPTURE_ADJUSTDELAY ? MenuSelected : 0);
+	}
+
+	// Add the Begin (for single capture) or Next Step (for batch
+	// capture setup) and Cancel items.
+	md.emplace_back(_T(""), -1);
+	switch (captureMenuMode)
+	{
+	case CaptureMenuMode::Single:
+		md.emplace_back(LoadStringT(IDS_CAPTURE_GO), ID_CAPTURE_GO);
+		break;
+
+	case CaptureMenuMode::Batch1:
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP3);
+		break;
+
+	case CaptureMenuMode::Batch2:
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP4);
+		break;
+
+	case CaptureMenuMode::NA:
+		break;
+	}
+
+	// show the menu
+	DWORD flags = SHOWMENU_DIALOG_STYLE;
+	if (updating)
+		flags |= SHOWMENU_NO_ANIMATION;
+	ShowMenu(md, flags);
+}
+
+int PlayfieldView::EstimateCaptureTime(GameListItem *game)
+{
+	// Start with nothing on the clock
+	int timeEst = 0;
+
+	// Add a time allowance for each media type selected.  Images don't 
+	// require any fixed wait time, since they just need one video frame,
+	// but include a couple of seconds per image in the time estimate to
+	// account for the overhead of launching ffmpeg.
 	auto config = ConfigManager::GetInstance();
 	bool twoPass = config->GetInt(ConfigVars::CaptureTwoPassEncoding, false);
 	const int imageTime = 2;
 	const int defaultVideoTime = 30;
 	for (auto &cap : captureList)
 	{
+		// If a game was specified, and we're in batch capture mode, check
+		// to see if we're including this item according to whether or not
+		// the game has the current media type already.
+		if (captureMenuMode != CaptureMenuMode::Single && game != nullptr)
+		{
+			// If this game already has the selected media item, and we're
+			// not in "batch replace" mode, we're going to keep this item,
+			// so don't include it in the time estimate.
+			if (!cap.batchReplace && game->MediaExists(cap.mediaType))
+				continue;
+		}
+
+		// check the capture mode
 		switch (cap.mode)
 		{
 		case IDS_CAPTURE_CAPTURE:
@@ -8609,7 +8937,13 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 		case IDS_CAPTURE_WITH_AUDIO:
 			// If the item has a capture time config variable, use that as
 			// the time estimate.  Otherwise, it must be a still image, so
-			// use the fixed image overhead time.
+			// use the fixed image overhead time.  
+			//
+			// Note that this doesn't take into account manual start/stop mode,
+			// which add indefinite amounts of time.  There's obviously no way
+			// to know in advance how long the user will let those run, so we'll
+			// just take a wild guess, using the fixed time as the guess.  That
+			// should at least be on the right order of magnitude.
 			if (auto cfgvar = cap.mediaType.captureTimeConfigVar; cfgvar != nullptr)
 			{
 				// use the video time
@@ -8629,7 +8963,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 				// running PinballY).  So we'll take the middle of that
 				// band (1x to 2x) as our estimate.
 				if (twoPass)
-					timeEst += videoTime*3/2;
+					timeEst += videoTime * 3 / 2;
 			}
 			else
 			{
@@ -8646,68 +8980,67 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd)
 		}
 	}
 
+	// If the time estimate is non-zero, add a few seconds for the game
+	// launch.  Don't do this if the estimate is exactly zero, as it means
+	// that nothing is selected, so we can skip the entire capture process
+	// for this game.
+	if (timeEst != 0)
+		timeEst += 5;
+
+	// return the time estimate in seconds
+	return timeEst;
+}
+
+TSTRINGEx PlayfieldView::FormatCaptureTimeEstimate(int t)
+{
 	// Adjust the time to a round number, since it's really a very
 	// rough estimate given the number of external factors involved.
+	// Format it to a printable string.
 	TSTRINGEx timeEstStr;
-	if (timeEst < 55)
+	if (t < 55)
 	{
 		// under a minute - round to a 5-second increment, so that
 		// it doesn't sound like one of Lt. Cmdr. Data comically
 		// precise "approximations"
-		timeEstStr.Format(LoadStringT(IDS_N_SECONDS), int(roundf((float)timeEst / 5.0f) * 5.0f));
+		timeEstStr.Format(LoadStringT(IDS_N_SECONDS), int(roundf((float)t / 5.0f) * 5.0f));
 	}
-	else if (timeEst < 75)
+	else if (t < 75)
 	{
 		// it's about one minute
 		timeEstStr.Load(IDS_1_MINUTE);
 	}
+	else if (t < 3600)
+	{
+		// More than a minute, less than an hour.  Round to minutes, but
+		// with a heavy bias towards rounding up:  anything over 15 seconds
+		// rounds up to the next minute.  It's a more pleasant experience 
+		// for the user if the process finishes a bit faster than we led
+		// them to expect.
+		timeEstStr.Format(LoadStringT(IDS_N_MINUTES), (t + 45) / 60);
+	}
 	else
 	{
-		// More than a minute.  Round to minutes, but with a heavy
-		// bias towards rounding up - anything over 15 seconds rounds
-		// up to the next minute.  It's a more pleasant experience for
-		// the user if the process finishes a bit faster than we led
-		// them to expect.
-		timeEstStr.Format(LoadStringT(IDS_N_MINUTES), (timeEst + 45) / 60);
+		// More than an hour.  Figure the time in hours and minutes, but
+		// round to increments of 5 minutes so that we don't sound too
+		// much like Mr. Data.
+		int hh = t / 3600;
+		int mm = (((t % 3600)/60) + 3)/5 * 5;
+		if (mm == 60)
+			++hh, mm = 0;
+
+		// pick a format based on the hours and minutes
+		if (hh == 1 && mm == 0) // 1:00 -> "An hour"
+			timeEstStr.Load(IDS_1_HOUR);
+		else if (hh == 1)       // 1:mm -> "An hour and m minutes"
+			timeEstStr.Format(LoadStringT(IDS_1_HOUR_N_MINUTES), mm);
+		else if (mm == 0)       // h:00 -> "h hours"
+			timeEstStr.Format(LoadStringT(IDS_N_HOURS_EXACTLY), hh);
+		else                    // h:mm -> "h hours and m minutes"
+			timeEstStr.Format(LoadStringT(IDS_N_HOURS_N_MINUTES), hh, mm);
 	}
 
-	// set up the menu
-	std::list<MenuItemDesc> md;
-	md.emplace_back(MsgFmt(IDS_CAPTURE_SELECT_MEDIA, timeEstStr.c_str()), -1);
-	md.emplace_back(_T(""), -1);
-
-	// add the media items
-	for (auto &cap: captureList)
-	{
-		// keep the menu open on selecting this item
-		UINT flags = MenuStayOpen;
-
-		// note if this item is initially selected when we draw the menu
-		if (cap.cmd == selectedCmd)
-			flags |= MenuSelected;
-
-		// Build the menu item title
-		md.emplace_back(
-			MsgFmt(_T("%s: %s"), LoadStringT(cap.mediaType.nameStrId).c_str(), LoadStringT(cap.mode).c_str()),
-			cap.cmd, flags);
-	};
-
-	// add the delay time adjust item
-	md.emplace_back(_T(""), -1);
-	md.emplace_back(MsgFmt(IDS_CAPTURE_ADJUSTDELAY, captureStartupDelay), 
-		ID_CAPTURE_ADJUSTDELAY,
-		selectedCmd == ID_CAPTURE_ADJUSTDELAY ? MenuSelected : 0);
-
-	// add the Begin and Cancel items
-	md.emplace_back(_T(""), -1);
-	md.emplace_back(LoadStringT(IDS_CAPTURE_GO), ID_CAPTURE_GO);
-	md.emplace_back(LoadStringT(IDS_CAPTURE_CANCEL), ID_MENU_RETURN);
-
-	// show the menu
-	DWORD flags = SHOWMENU_DIALOG_STYLE;
-	if (updating)
-		flags |= SHOWMENU_NO_ANIMATION;
-	ShowMenu(md, flags);
+	// return the result
+	return timeEstStr;
 }
 
 void PlayfieldView::AdvanceCaptureItemState(int cmd)
@@ -8717,29 +9050,39 @@ void PlayfieldView::AdvanceCaptureItemState(int cmd)
 	{
 		if (cap.cmd == cmd)
 		{
-			// advance to the next item according to the current state
-			switch (cap.mode)
+			if (captureMenuMode == CaptureMenuMode::Batch2)
 			{
-			case IDS_CAPTURE_KEEP:
-			case IDS_CAPTURE_SKIP:
-				// Advance to "Capture" mode, except for video where we
-				// can optionally capture audio, in which case we advance
-				// to "capture with audio" mode
-				cap.mode = cap.mediaType.format == MediaType::VideoWithAudio ? 
-					IDS_CAPTURE_WITH_AUDIO : IDS_CAPTURE_CAPTURE;
-				break;
+				// "Batch 2" mode - selecting keep/replace dispositions.
+				// The media mode doesn't change in this step; we only change
+				// the batchReplace setting.
+				cap.batchReplace = !cap.batchReplace;
+			}
+			else
+			{
+				// advance to the next item according to the current state
+				switch (cap.mode)
+				{
+				case IDS_CAPTURE_KEEP:
+				case IDS_CAPTURE_SKIP:
+					// Advance to "Capture" mode, except for video where we
+					// can optionally capture audio, in which case we advance
+					// to "capture with audio" mode
+					cap.mode = cap.mediaType.format == MediaType::VideoWithAudio ?
+						IDS_CAPTURE_WITH_AUDIO : IDS_CAPTURE_CAPTURE;
+					break;
 
-			case IDS_CAPTURE_CAPTURE:
-			case IDS_CAPTURE_SILENT:
-				// Advance to "Skip" or "Keep Existing" mode, according to
-				// whether we have existing media for this item
-				cap.mode = cap.exists ? IDS_CAPTURE_KEEP : IDS_CAPTURE_SKIP;
-				break;
+				case IDS_CAPTURE_CAPTURE:
+				case IDS_CAPTURE_SILENT:
+					// Advance to "Skip" or "Keep Existing" mode, according to
+					// whether we have existing media for this item
+					cap.mode = cap.exists ? IDS_CAPTURE_KEEP : IDS_CAPTURE_SKIP;
+					break;
 
-			case IDS_CAPTURE_WITH_AUDIO:
-				// Advance to "Capture Silent" mode
-				cap.mode = IDS_CAPTURE_SILENT;
-				break;
+				case IDS_CAPTURE_WITH_AUDIO:
+					// Advance to "Capture Silent" mode
+					cap.mode = IDS_CAPTURE_SILENT;
+					break;
+				}
 			}
 
 			// found it - stop searching
@@ -8755,6 +9098,36 @@ void PlayfieldView::CaptureMediaGo()
 {
 	// Run the game in media capture mode
 	PlayGame(ID_CAPTURE_GO);
+}
+
+void PlayfieldView::OnCaptureDone(const CaptureDoneReport *report)
+{
+	// on a successful capture, remove any "mark for capture" flag
+	// from the game
+	if (report->ok)
+	{
+		if (auto game = GameList::Get()->GetGameByID(report->gameId.c_str()); game != nullptr)
+			GameList::Get()->MarkForCapture(game, false);
+	}
+
+	// check if we're in batch capture mode
+	if (batchCaptureMode.active)
+	{
+		// Batch capture mode.  Don't show individual game results as popup
+		// messages, as this would be too cumbersome to wade through in the UI.
+		// Instead, just collect aggregate statistics as we go, so that we can
+		// display a single message with the overall results at the end of the
+		// process.
+		batchCaptureMode.nGamesAttempted += 1;
+		if (report->ok)	batchCaptureMode.nGamesOk += 1;
+		batchCaptureMode.nMediaItemsAttempted += report->nMediaItemsAttempted;
+		batchCaptureMode.nMediaItemsOk += report->nMediaItemsOk;
+	}
+	else
+	{
+		// Single game capture mode.  Show the results as a popup message.
+		ShowError(report->ok ? EIT_Information : EIT_Error, LoadStringT(report->overallStatusMsgId), &report->statusList);
+	}
 }
 
 void PlayfieldView::ShowMediaSearchMenu()
@@ -9509,6 +9882,548 @@ void PlayfieldView::DisplayDropMediaMenu(bool updating, int selectedCmd)
 
 	// show the menu
 	ShowMenu(md, flags);
+}
+
+// Batch Capture step 1.  Show the initial menu, which introduces the process
+// and offers selections for All Games, Marked For Capture, and the current
+// game list filter (e.g., 70s Tables, Williams Tables, etc).
+void PlayfieldView::BatchCaptureStep1()
+{
+	// build the menu
+	std::list<MenuItemDesc> md;
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_PROMPT), -1);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_ALL), ID_BATCH_CAPTURE_ALL);
+
+	// if a filter other than "all games" or "unconfigured" is selected, add it
+	auto gl = GameList::Get();
+	auto f = gl->GetCurFilter();
+	if (f != gl->GetAllGamesFilter() && f != gl->GetUnconfiguredGamesFilter())
+		md.emplace_back(f->GetFilterTitle(), ID_BATCH_CAPTURE_FILTER);
+
+	// add the rest of the menu
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_MARKED), ID_BATCH_CAPTURE_MARKED);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_CANCEL), ID_MENU_RETURN);
+
+	// show the menu
+	ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+}
+
+// Batch Capture step 2.  Show the media type selection menu, which lets the
+// user select which items to capture during this batch process.
+void PlayfieldView::BatchCaptureStep2(int cmd)
+{
+	// store the capture command for later use
+	batchCaptureCmd = cmd;
+
+	// Check to see if any games are selected by the filter.  If
+	// not, show an error and abort.
+	int nGames = 0;
+	EnumBatchCaptureGames([&nGames](GameListItem *) { ++nGames; });
+	if (nGames == 0)
+	{
+		int msg = cmd == ID_BATCH_CAPTURE_MARKED ? IDS_ERR_BATCH_CAPTURE_NO_MARKED : IDS_ERR_BATCH_CAPTURE_NO_GAMES;
+		ShowError(EIT_Error, LoadStringT(msg));
+		return;
+	}
+
+	// initialize the media capture list generically (with no game specified)
+	InitCaptureList(nullptr);
+
+	// show the media selection menu
+	DisplayCaptureMenu(false, -1, CaptureMenuMode::Batch1);
+}
+
+// Batch Capture step 3: Show the type selection menu again, but this time
+// only consider items that we're 
+void PlayfieldView::BatchCaptureStep3()
+{
+	// Check to see if any items are selected for capture.  If not, show an
+	// error and exit the capture process.
+	int nMediaTypes = 0;
+	for (auto &c : captureList)
+	{
+		if (c.mode != IDS_CAPTURE_SKIP)
+			++nMediaTypes;
+	}
+	if (nMediaTypes == 0)
+	{
+		ShowError(EIT_Error, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_SEL));
+		return;
+	}
+
+	// show the media selection menu again, this time in the second
+	// phase style to ask for existing item disposition
+	DisplayCaptureMenu(false, -1, CaptureMenuMode::Batch2);
+}
+
+// Get the list of games selected by the batch capture command
+void PlayfieldView::EnumBatchCaptureGames(std::function<void(GameListItem*)> func)
+{
+	// set up a private filter for "marked for batch capture" games
+	class MarkedFilter : public GameListFilter
+	{
+	public:
+		MarkedFilter() { }
+		virtual TSTRING GetFilterId() const override { return _T("MarkedForCapture"); }
+		virtual const TCHAR *GetFilterTitle() const override { return _T("Marked For Capture"); }
+		virtual bool Include(GameListItem *game, DATE midnight) const override
+			{ return GameList::Get()->IsMarkedForCapture(game); }
+	};
+	const MarkedFilter markedFilter;
+
+	// get the filter selected by the batch capture command
+	auto gl = GameList::Get();
+	const GameListFilter *filter =
+		batchCaptureCmd == ID_BATCH_CAPTURE_FILTER ? gl->GetCurFilter() :
+		batchCaptureCmd == ID_BATCH_CAPTURE_MARKED ? &markedFilter :
+		gl->GetAllGamesFilter();
+
+	// enumerate games selected by the filter
+	gl->EnumGames([&func](GameListItem *game)
+	{
+		// we can only capture media for games configured with bibliographic info
+		// and valid systems
+		if (game->gameXmlNode != nullptr && game->system != nullptr)
+			func(game);
+	}, filter);
+}
+
+void PlayfieldView::BatchCaptureStep4()
+{
+	// count games and estimate the running time
+	int nGames = 0;
+	int totalTime = 0;
+	EnumBatchCaptureGames([&nGames, &totalTime, this](GameListItem *game)
+	{
+		// get the time estimate for this game
+		int t = EstimateCaptureTime(game);
+
+		// only count the game if the time is non-zero, as a zero time
+		// means that no media were selected for the game
+		if (t != 0)
+		{
+			// count the game
+			++nGames;
+
+			// count the total time
+			totalTime += t;
+
+			// add the startup wait time
+			totalTime += ConfigManager::GetInstance()->GetInt(ConfigVars::CaptureStartupDelay, 5);
+		}
+	});
+
+	// format the time estimate
+	auto totalTimeStr = FormatCaptureTimeEstimate(totalTime);
+		
+	// build the menu
+	std::list<MenuItemDesc> md;
+	md.emplace_back(MsgFmt(IDS_BATCH_CAPTURE_READY, nGames, totalTimeStr.c_str()), -1);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_VIEW), ID_BATCH_CAPTURE_VIEW);
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_GO), ID_BATCH_CAPTURE_GO);
+	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_CANCEL), ID_MENU_RETURN);
+	ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+}
+
+void PlayfieldView::BatchCaptureView()
+{
+	// remove the menu
+	CloseMenusAndPopups();
+
+	// do a drawing pass
+	int width = 1000, height = 480, contentHeight = 0;
+	auto Draw = [this, &width, &height, &contentHeight](HDC hdc, HBITMAP, const void*, const BITMAPINFO&)
+	{
+		// set up a Gdiplus context for drawing
+		Gdiplus::Graphics g(hdc);
+
+		// margins around all edges
+		float margin = 24.0f;
+
+		// fill the background
+		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(192, 0, 0, 0));
+		g.FillRectangle(&bkgBr, 0, 0, width, height);
+
+		// set up resources for text drawing
+		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(_T("Tahoma"), 16, 400));
+		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(_T("Tahoma"), 12, 400));
+		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(_T("Tahoma"), 14, 400));
+		Gdiplus::SolidBrush gameTitleBr(Gdiplus::Color(255, 255, 255));
+		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(128, 128, 128));
+		Gdiplus::SolidBrush mediaItemBr(Gdiplus::Color(220, 220, 220));
+		Gdiplus::SolidBrush replaceBr(Gdiplus::Color(255, 0, 0));
+		Gdiplus::SolidBrush skipBr(Gdiplus::Color(96, 96, 96));
+		Gdiplus::SolidBrush capNewBr(Gdiplus::Color(255, 255, 255));
+
+		// figure the maximum width of the media items, for setting a "tab stop"
+		float cxCol0 = 0;
+		for (auto &c : captureList)
+		{
+			if (c.mode != IDS_CAPTURE_SKIP)
+			{
+				Gdiplus::RectF bbox;
+				g.MeasureString(LoadStringT(c.mediaType.nameStrId), -1, mediaItemFont.get(), Gdiplus::PointF(0.0f, 0.0f), &bbox);
+				if (bbox.Width > cxCol0)
+					cxCol0 = bbox.Width;
+			}
+		}
+
+		// account for the margins, and add some spacing
+		cxCol0 += margin + 64.0f;
+
+		// Set up the text drawing area.  Leave some extra space at the top for
+		// a title bar in the final display window.
+		GPDrawString s(g, Gdiplus::RectF(margin, margin + 64.0f, (float)width - 2.0f*margin, (float)height - 2.0f*margin - 64.0f));
+
+		// build the list of games and media items to capture
+		EnumBatchCaptureGames([this, &g, &s, &gameTitleFont, &mediaItemFont, &detailsFont,
+			&gameTitleBr, &detailsBr, &mediaItemBr, &replaceBr, &capNewBr, &skipBr, cxCol0]
+		(GameListItem *game)
+		{
+			// start with the game name
+			s.DrawString(game->GetDisplayName().c_str(), gameTitleFont.get(), &gameTitleBr);
+
+			// add some details
+			TSTRINGEx details = game->system->displayName;
+			if (game->filename.length() != 0 && game->tableFileSet != nullptr)
+			{
+				// get the full path
+				TCHAR buf[MAX_PATH];
+				PathCombine(buf, game->tableFileSet->tablePath.c_str(), game->filename.c_str());
+
+				// if it doesn't exist, try adding the default extension
+				if (!FileExists(buf) && game->system->defExt.length() != 0)
+					_tcscat_s(buf, game->system->defExt.c_str());
+
+				// add the path
+				details += _T(", ");
+				details += buf;
+			}
+			s.DrawString(details, detailsFont.get(), &detailsBr);
+			s.curOrigin.Y += 8.0f;
+
+			// add each media item
+			for (auto &c : captureList)
+			{
+				// skip items marked 'skip'
+				if (c.mode == IDS_CAPTURE_SKIP)
+					continue;
+
+				// show the status
+				bool exists = game->MediaExists(c.mediaType);
+				bool replacing = exists && c.batchReplace;
+				bool capturing = !exists || replacing;
+				Gdiplus::PointF pt(cxCol0, s.curOrigin.Y);
+				if (replacing)
+					g.DrawString(LoadStringT(IDS_CAPPREVIEW_REPLACE), -1, mediaItemFont.get(), pt, &replaceBr);
+				else if (exists)
+					g.DrawString(LoadStringT(IDS_CAPPREVIEW_KEEP), -1, mediaItemFont.get(), pt, &skipBr);
+				else
+					g.DrawString(LoadStringT(IDS_CAPPREVIEW_NEW), -1, mediaItemFont.get(), pt, &capNewBr);
+
+				// show the name
+				s.curOrigin.X += 32;
+				s.DrawString(LoadStringT(c.mediaType.nameStrId), mediaItemFont.get(), capturing ? &mediaItemBr : &skipBr);
+			}
+
+			// add a little vertical whitespace between items
+			s.curOrigin.Y += 16;
+		});
+
+		// note the final height, adding in some space at the bottom for the
+		// instructions area if we're scrolling
+		contentHeight = (int)(s.curOrigin.Y + margin + 64.0f);
+
+		// commit the drawing to the bitmap
+		g.Flush();
+	};
+
+	// do a first drawing pass to determine the needed content height
+	DrawOffScreen(width, height, Draw);
+
+	// if the content height exceeded the initial minimum height,
+	// use the content height instead
+	if (contentHeight > height)
+		height = contentHeight;
+
+	// do a second drawing pass now that we know the height, keeping
+	// the resulting bitmap this time
+	DrawOffScreen(batchViewBitmap.dib, width, height, Draw);
+
+	// save it as a Gdiplus bitmap
+	batchViewBitmap.gpbmp.reset(Gdiplus::Bitmap::FromBITMAPINFO(&batchViewBitmap.dib.bmi, batchViewBitmap.dib.dibits));
+
+	// show the bitmap, scrolled to the top
+	batchViewScrollY = 0;
+	UpdateBatchCaptureView();
+}
+
+void PlayfieldView::UpdateBatchCaptureView()
+{
+	// create the popup
+	popupSprite.Attach(new Sprite());
+
+	// figure the popup height:  if the bitmap fits into our maximum height,
+	// use the bitmap height, otherwise use the maximum height and scroll it
+	const int maxHeight = 1500;
+	int width = batchViewBitmap.dib.bmi.bmiHeader.biWidth;
+	int srcHeight = abs(batchViewBitmap.dib.bmi.bmiHeader.biHeight);
+	int height = min(maxHeight, srcHeight);
+
+	// keep the scroll offset in range
+	if (batchViewScrollY < 0)
+		batchViewScrollY = 0;
+	else if (batchViewScrollY > srcHeight - height)
+		batchViewScrollY = srcHeight - height;
+
+	// draw the sprite
+	bool ok = popupSprite->Load(width, height, [this, width, height, maxHeight, srcHeight](Gdiplus::Graphics &g)
+	{
+		// figure the scrolling region
+		float y = srcHeight <= maxHeight ? 0.0f : (float)batchViewScrollY;
+		float drawHeight = (float)height;
+		if (y + drawHeight > srcHeight)
+			drawHeight = (float)srcHeight - y;
+
+		// Draw the image.  If it fits, ignore the scroll offset.
+		g.DrawImage(batchViewBitmap.gpbmp.get(),
+			Gdiplus::RectF(0.0f, 0.0f, (float)width, drawHeight),
+			0.0f, y, (float)width, drawHeight,
+			Gdiplus::UnitPixel);
+
+		// draw the outline
+		float penWid = 4.0f;
+		Gdiplus::Color frameColor(192, 192, 192);
+		Gdiplus::Pen pen(frameColor, penWid);
+		g.DrawRectangle(&pen, penWid/2, penWid/2, (float)width - penWid, (float)height - penWid);
+
+		// centered string formatter
+		Gdiplus::StringFormat centerFmt;
+		centerFmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+		centerFmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+
+		// draw a title bar at the top
+		auto title = LoadStringT(IDS_CAPPREVIEW_TITLE);
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 20, 700));
+		Gdiplus::SolidBrush titleBr(Gdiplus::Color(0, 0, 0));
+		Gdiplus::SolidBrush titleBkg(frameColor);
+		Gdiplus::RectF bbox;
+		g.MeasureString(title, -1, titleFont.get(), Gdiplus::PointF(0.0f, 0.0f), &centerFmt, &bbox);
+		Gdiplus::RectF rcTitle(0.0f, 0.0f, (float)width, bbox.Height*1.4f);
+		g.FillRectangle(&titleBkg, rcTitle);
+		g.DrawString(title, -1, titleFont.get(), rcTitle, &centerFmt, &titleBr);
+
+		// if we're scrollable, show scrolling instructions
+		if (srcHeight > maxHeight)
+		{
+			auto instr = LoadStringT(IDS_CAPPREVIEW_INSTRS);
+			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(_T("Tahoma"), 16, 400));
+			g.MeasureString(instr, -1, instrFont.get(), Gdiplus::PointF(0.0f, 0.0f), &centerFmt, &bbox);
+			Gdiplus::RectF rcInstr(0.0f, (float)height - bbox.Height*1.4f, (float)width, bbox.Height*1.4f);
+			g.FillRectangle(&titleBkg, rcInstr);
+			g.DrawString(instr, -1, instrFont.get(), rcInstr, &centerFmt, &titleBr);
+		}
+
+	}, Application::InUiErrorHandler(), _T("Batch capture preview"));
+
+	// if that failed, abort
+	if (!ok)
+	{
+		popupSprite = nullptr;
+		UpdateDrawingList();
+		return;
+	}
+		
+	// finalize the position
+	AdjustSpritePosition(popupSprite);
+
+	// animate the popup opening if it wasn't already displayed
+	if (popupType != PopupBatchCapturePreview)
+		StartPopupAnimation(PopupBatchCapturePreview, true);
+
+	// update the drawing list
+	UpdateDrawingList();
+}
+
+void PlayfieldView::BatchCaptureGo()
+{
+	// Add up the total time for the whole batch
+	int totalTime = 0;
+	int nGames = 0;
+	EnumBatchCaptureGames([this, &totalTime, &nGames](GameListItem *game) 
+	{
+		if (auto t = EstimateCaptureTime(game); t != 0)
+		{
+			totalTime += t + captureStartupDelay;
+			++nGames;
+		}
+	});
+
+	// if the total time is zero, nothing is selected for capture - fail now
+	if (totalTime == 0)
+	{
+		ShowError(EIT_Information, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_WORK));
+		return;
+	}
+
+	// Get rid of any prior launch queue.  The launch queue should
+	// always be kept clear between batch operations anyway, so this 
+	// really shouldn't be necessary, but out of an abundance of
+	// caution...
+	Application::Get()->ClearLaunchQueue();
+
+	// Queue capture for all games in the capture list
+	int nCurGame = 1;
+	int remainingTime = totalTime;
+	EnumBatchCaptureGames([this, &totalTime, &remainingTime, &nGames, &nCurGame](GameListItem *game)
+	{
+		// build the capture list for the game
+		std::list<Application::LaunchCaptureItem> capList;
+		for (auto &c : captureList)
+		{
+			// skip disabled items
+			if (c.mode == IDS_CAPTURE_SKIP)
+				continue;
+
+			// skip existing items not marked for batch replacement
+			if (!c.batchReplace && game->MediaExists(c.mediaType))
+				continue;
+
+			// add this item to the app capture list
+			capList.emplace_back(c.win, c.mediaType, c.mode == IDS_CAPTURE_WITH_AUDIO);
+		}
+
+		// if we found any capture items for the game, queue the launch
+		if (capList.size() != 0)
+		{
+			// enqueue this launch
+			Application::BatchCaptureInfo bci(nCurGame, nGames, remainingTime, totalTime);
+			Application::Get()->QueueLaunch(ID_CAPTURE_GO, game, game->system, &capList, captureStartupDelay, &bci);
+
+			// deduct this from the remaining time
+			remainingTime -= EstimateCaptureTime(game) + captureStartupDelay;
+			++nCurGame;
+		}
+	});
+
+	// set the play command to 'capture'
+	lastPlayGameCmd = ID_CAPTURE_GO;
+
+	// enter batch capture mode
+	EnterBatchCapture();
+
+	// launch the first queued game
+	BatchCaptureNextGame();
+}
+
+void PlayfieldView::BatchCaptureNextGame()
+{
+	// if we haven't cancelled the whole operation, and the application
+	// still has more queued games, launch the next one
+	if (!batchCaptureMode.cancel && Application::Get()->IsGameQueuedForLaunch())
+		LaunchQueuedGame();
+	else
+		ExitBatchCapture();
+}
+
+void PlayfieldView::EnterBatchCapture()
+{
+	// note that we're in batch capture mode
+	batchCaptureMode.Enter();
+
+	// temporarily enable capture logging
+	auto lf = LogFile::Get();
+	lf->EnableTempFeature(LogFile::CaptureLogging);
+
+	// log the start of the batch capture
+	lf->Group();
+	lf->WriteTimestamp(_T("Batch capture started\n"));
+	lf->Write(_T("Batch capture plan:\n"));
+	EnumBatchCaptureGames([lf, this](GameListItem *game)
+	{
+		// log it
+		lf->Write(_T("  %s (%s%s%s)\n"),
+			game->mediaName.c_str(),
+			game->system->displayName.c_str(),
+			game->filename.length() != 0 ? _T("; ") : _T(""), game->filename.c_str());
+
+		// scan the media items
+		int nItemsInGame = 0;
+		for (auto &c : captureList)
+		{
+			if (c.mode != IDS_CAPTURE_SKIP)
+			{
+				// log it
+				auto exists = game->MediaExists(c.mediaType);
+				auto capture = c.batchReplace || !exists;
+				lf->Write(_T("    %s: %s, %s\n"),
+					LoadStringT(c.mediaType.nameStrId).c_str(),
+					exists ? _T("Exists") : _T("Missing"),
+					capture ? _T("Capturing") : _T("Skipping"));
+
+				// count it, if we're going to capture it
+				if (capture)
+				{
+					batchCaptureMode.nMediaItemsPlanned += 1;
+					nItemsInGame += 1;
+				}
+			}
+		}
+
+		// if we found any media items to capture for this game, count the game
+		if (nItemsInGame != 0)
+			batchCaptureMode.nGamesPlanned += 1;
+	});
+}
+
+void PlayfieldView::ExitBatchCapture()
+{
+	// make sure we're actually in batch capture mode
+	if (!batchCaptureMode.active)
+		return;
+
+	// Clear any queued batch capture items.  If we cancelled
+	// in the middle of a batch, there could still be items queued.
+	// They'd get cleaned up in due course anyway, but there's no
+	// reason to leave them sitting there taking up memory, and it
+	// would probably be confusing in some situation (at the very
+	// least, for a human inspecting things in the debugger, if not
+	// to some other part of the program) to leave them hanging 
+	// around.
+	Application::Get()->ClearLaunchQueue();
+
+	// determine if we attempted all of the games in the capture list
+	bool ok = (batchCaptureMode.nMediaItemsOk == batchCaptureMode.nMediaItemsPlanned
+		&& batchCaptureMode.nGamesOk == batchCaptureMode.nGamesPlanned);
+
+	// show an overall success/failure message
+	if (ok)
+		ShowError(EIT_Information, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_OK,
+			batchCaptureMode.nMediaItemsOk, batchCaptureMode.nGamesOk));
+	else
+		ShowError(EIT_Error, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_ERR,
+			batchCaptureMode.nGamesPlanned, batchCaptureMode.nGamesAttempted, batchCaptureMode.nGamesOk,
+			batchCaptureMode.nMediaItemsPlanned, batchCaptureMode.nMediaItemsAttempted, batchCaptureMode.nMediaItemsOk));
+
+	// log the end of the batch operation
+	auto lf = LogFile::Get();
+	lf->Group();
+	lf->WriteTimestamp(_T("Batch capture %s\n"),
+		ok ? _T("successfully completed") : _T("terminated with errors or interruptions; see individual item results above"));
+	lf->Write(_T("  Games attempted: %d\n"), batchCaptureMode.nGamesAttempted);
+	lf->Write(_T("  Games succeeded: %d\n"), batchCaptureMode.nGamesOk);
+	lf->Write(_T("  Media items attempted: %d\n"), batchCaptureMode.nMediaItemsAttempted);
+	lf->Write(_T("  Media items succeeded: %d\n"), batchCaptureMode.nMediaItemsOk);
+	lf->Group();
+
+	// turn off the temporary capture logging override
+	LogFile::Get()->WithdrawTempFeature(LogFile::CaptureLogging);
+
+	// no longer in batch capture mode
+	batchCaptureMode.Exit();
 }
 
 void PlayfieldView::ToggleHideGame()

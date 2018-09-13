@@ -170,8 +170,18 @@ struct MediaType
 	// Name string resource ID (IDS_MEDIATYPE_xxx)
 	int nameStrId;
 
-	// Config variable name giving the capture time for this type.
-	// This is null for images (for obvious reasons).
+	// Config variable names for capture parameters for this type.
+	//
+	// The Start parameter specifies the start mode, MANUAL or AUTO.
+	// This applies to all media types.
+	//
+	// Stop specifies the start mode, MANUAL or AUTO.  This applies
+	// to videos and audios; it should be null for image types.
+	//
+	// Time specifies the capture time for the type.  This is used
+	// in AUTO mode.  It applies only to videos and audios.
+	const TCHAR *captureStartConfigVar;
+	const TCHAR *captureStopConfigVar;
 	const TCHAR *captureTimeConfigVar;
 
 	// Format type
@@ -247,6 +257,9 @@ public:
 	// use the title plus system name.  That should be both unique and
 	// permanent for a given game.
 	TSTRING GetGameId() const;
+
+	// Get the formatted display name, "Title (Manufacturer Year)".
+	TSTRING GetDisplayName() const;
 
 	// Update the media name.  This builds the root name for the media
 	// files, using the PinballX convention: "Title (Manufacturer Year)".
@@ -1020,6 +1033,9 @@ public:
 	// in wheel order), -2 is the second previous game.
 	GameListItem *GetNthGame(int n);
 
+	// Find a game by ID
+	GameListItem *GetGameByID(const TCHAR *id);
+
 	// Find the next letter group.  This returns the offset from the
 	// current game to the first game whose title starts with a different
 	// letter.
@@ -1072,6 +1088,16 @@ public:
 	// Get the number of games matching the current filter
 	int GetCurFilterCount() const { return (int)byTitleFiltered.size(); }
 
+	// Test to see if a game is selected by a filter.  Note that this
+	// should be used instead of calling filter->Include() directly, 
+	// as we apply some additional tests.  The "short" version can be
+	// used if current default settings for the midnight time and
+	// hide-unconfigured are to be used, but if you're iterating over
+	// a list of games, it's more efficient to store those values in
+	// locals and pass the cached values on each call.
+	bool FilterIncludes(const GameListFilter *filter, GameListItem *game);
+	bool FilterIncludes(const GameListFilter *filter, GameListItem *game, DATE dMidnight, bool hideUnconfigured);
+
 	// columns we use in the database file
 	const CSVFile::Column *gameCol;
 	const CSVFile::Column *lastPlayedCol;
@@ -1083,6 +1109,7 @@ public:
 	const CSVFile::Column *ratingCol;
 	const CSVFile::Column *categoriesCol;
 	const CSVFile::Column *hiddenCol;
+	const CSVFile::Column *markedForCaptureCol;
 
 	// Get/set the Last Played time
 	const TCHAR *GetLastPlayed(GameListItem *game) 
@@ -1131,6 +1158,11 @@ public:
 	float GetRating(GameListItem *game);
 	void SetRating(GameListItem *game, float rating);
 	void ClearRating(GameListItem *game) { ratingCol->Set(GetStatsDbRow(game), -1.0f); }
+
+	// get/set the "Marked for batch capture" flag
+	bool IsMarkedForCapture(GameListItem *game) { return markedForCaptureCol->GetBool(GetStatsDbRow(game)); }
+	void MarkForCapture(GameListItem *game, bool f) { markedForCaptureCol->SetBool(GetStatsDbRow(game, true), f); }
+	void ToggleMarkedForCapture(GameListItem *game) { MarkForCapture(game, !IsMarkedForCapture(game)); }
 
 	// Get/set the Hidden status for a game.  
 	//
@@ -1218,6 +1250,12 @@ public:
 	// enumerate the table files sets
 	void EnumTableFileSets(std::function<void(const TableFileSet&)> func);
 
+	// enumerate all games
+	void EnumGames(std::function<void(GameListItem *)> func);
+
+	// enumerate games selected by a given filter
+	void EnumGames(std::function<void(GameListItem *)> func, const GameListFilter *filter);
+
 	// Add new files discovered dynamically while running.  Returns
 	// the number of new items actually added (which might be less
 	// than the number of items in the list, since the table file
@@ -1228,6 +1266,12 @@ public:
 	// Logging for system setup events
 	static void Log(const TCHAR *msg, ...);
 	static void LogGroup();
+
+	// Get the most recent midnight in the local time zone, expressed
+	// in UTC time.  For example, if it's 7:00pm Pacific Standard Time
+	// on January 1, 2018, the most recent local midnight is 
+	// 2018-01-01 12:00 PST, which is 2018-01-01 08:00 UTC.
+	static DATE GetLocalMidnightUTC();
 
 protected:
 	GameList();

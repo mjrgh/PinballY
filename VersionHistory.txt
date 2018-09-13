@@ -1,5 +1,131 @@
 PinballY Update History
 
+09-13-2018 (1.0.0 Alpha 20)
+
+* Upgrade notice: the Settings.txt file variables for video capture
+times have changed from "Capture.<type>Time" to "Capture.<type>.Time".
+The change is the insertion of the '.' before Time.
+
+ Capture.PlayfieldVideoTime  ->  Capture.PlayfieldVideo.Time.
+ Capture.BackglassVideoTime  ->  Capture.BackglassVideo.Time.
+ Capture.DMDVideoTime        ->  Capture.DMDVideo.Time.
+ Capture.TopperVideoTime     ->  Capture.TopperVideo.Time.
+
+You can either hand-edit Settings.txt to update the variable names, or
+you re-enter settings in the Media Capture section of the options
+dialog.  This change was to make the names more readable and more
+consistent with the new related settings for manual start/stop modes.
+
+
+* Batch capture!  This works a lot like the regular capture process
+for a single game, but lets you apply the operation to more than one
+game at a time.  Batch capture is great for setting up a new machine
+with relatively little manual intervention.  You can also use it from
+time to time to automatically back-fill missing media for games you've
+added recently, since one of the options is to capture only missing
+items.
+
+  - On the Operator Menu, use the Batch Capture command to initiate
+  a batch capture.
+
+  - The Batch Capture command walks you through a multi-step
+  process to select what to capture:
+
+    - Which games to include in the batch  All Games, Games Marked
+      for Capture (see below), and games from the currently active 
+      filter, as set in the main menu (e.g., 70s Tables, Williams 
+      Tables, Favorites, a category filter).
+
+    - Which media types to capture in this batch.  This uses the
+      same selection list as in a regular single game capture.
+
+    - What to do about games with existing media of the selected
+      types: keep existing media (that is, only capture that media
+      item for games that don't already have it) or replace any
+      existing items with a new capture.
+
+  - Once you've selected all of the capture criteria, you'll
+  have a chance to review the items to be captured, and then
+  start (or cancel) the batch operation.
+
+  - On the Game Setup menu, the "Mark for Batch Capture" command
+  flags an individual game for inclusion in a future batch capture.
+  This lets you pick a specific set of games for capture without
+  doing the capture right away.  This is intended to let you flag
+  games that need additional media items as you encounter them
+  during a regular gaming session, without having to interrupt the
+  gaming session to do the capture immediately and without having
+  to scribble down a note somewhere.  Just flag games as you come
+  across them, and then at a convenient later time, fire off a
+  Batch Capture command with the "Games Marked for Capture" subset
+  selection.  
+
+  - After any successful capture operation (batch OR single), the 
+  Mark for Capture flag is automatically removed from the game
+  that was involved in the successful capture.
+
+* All of the capture media types can now be set to manual start and/or
+stop mode, via the Media Capture page in the settings. 
+
+  - "Manual Start" means that the capture process will stop and
+  prompt you to press a button before it starts capturing that
+  particular item.  If Manual Start isn't selected for an item, the
+  capture process simply starts capturing that item immediately as
+  soon as it's that item's turn in the capture sequence.  Manual
+  start is useful if you want to capture at a particular point in
+  the game's attract mode sequence.  This might be especially useful
+  for DMD videos, since most newer machines display a cycle of
+  messages on the DMD between games; you could use this to start the
+  capture at the beginning of a cycle.
+
+  - "Manual Stop" means that a video or audio capture will continue
+  until you manually stop it by pressing a button, rather than using
+  a fixed timer.  The status window will prompt you for this while
+  the capture is taking place, to remind you that you have to
+  intervene when you want the capture to end.  Manual Stop is useful
+  if you want to time a video to end on a good boundary for looping.
+  This is might be especially useful for DMD videos, so that you can
+  capture exactly one attract mode message cycle.
+
+* Added a Pause Game command.  This can be mapped to any keyboard key
+or joystick button, using the normal Buttons page in the options
+dialog.  
+
+When a game is running, PinballY monitors the Pause Game button, just
+like it monitors the Exit Game button.  When you press the assigned
+button, PinballY interrupts the game temporarily by bringing the main
+PinballY window to the foreground.  You can use menu commands to
+switch back to the game when you're ready to resume, or terminate the
+game or exit PinballY.
+
+This is an experimental feature at the moment: it works with VP but
+hasn't been tested with other systems yet.  All it actually does is
+bring PinballY to the foreground.  This happens to work nicely with
+VP, because VP freezes its physics whenever it's in the background.
+If every other system works the same way, great.  If not, we'll have
+to look at adding system setup options to do whatever's needed in
+other systems to effect similar physics freezes.
+
+* For two-stage game launches (where the initial process that PinballY
+launches is actually just a launcher that starts a third process where
+the actual game resides, a la anything Steam-based, or FP + BAM),
+PinballY now waits for the final game process to terminate when you
+press the Exit Game button.  In the past, if you used the Exit Game
+command in the middle of the first stage of the launch, when the
+initial launcher was still working on loading the final game program,
+PinballY would leave the game program running because it only bothered
+to wait for the initial launcher stage to exit.  PinballY now tries to
+wait for the final game to exit, even if you press the Exit Game
+button early on before the actual game process has even started.
+
+* For Alphanumeric style high scores in the video DMD window, limit
+the display to 2 lines at a time, to better match the original style
+of the generation of games that used these displays.
+
+* Fixed drawing problem with message boxes in the main playfield
+window on high-resolution monitors.
+
+
 09-04-2018 (1.0.0 Alpha 19)
 
 * Added DOF support to the 64-bit version.  Note that this requires

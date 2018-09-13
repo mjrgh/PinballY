@@ -81,6 +81,31 @@ void DrawOffScreen(int width, int height,
 void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
 	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
 
+// Draw off-screen into a newly created bitmap, returning the bitmap
+// and its DIB pixel array to the caller
+struct DIBitmap
+{
+	DIBitmap() { hbitmap = NULL; }
+	~DIBitmap() { Clear(); }
+
+	void Clear()
+	{
+		if (hbitmap != NULL)
+		{
+			DeleteObject(hbitmap);
+			hbitmap = NULL;
+			dibits = nullptr;
+		}
+	}
+
+	HBITMAP hbitmap;
+	BITMAPINFO bmi;
+	void *dibits;
+};
+void DrawOffScreen(DIBitmap &dib, int width, int height,
+	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
+
+
 
 // Simplified GDI+ font creation.  This uses the typical defaults for
 // most settings, to avoid the need to fill out a LOGFONT struct to

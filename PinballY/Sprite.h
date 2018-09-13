@@ -31,6 +31,7 @@
 class Camera;
 class FlashClientSite;
 class Shader;
+struct DIBitmap;
 
 class Sprite: public RefCounted
 {
@@ -57,6 +58,8 @@ public:
 
 	// load from a device-independent bitmap pixel array
 	bool Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
+	bool Load(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors);
+
 
 	// Load by drawing into an off-screen HDC.  This allows dynamic content
 	// to be created via GDI or GDI+ and then displayed through a sprite.

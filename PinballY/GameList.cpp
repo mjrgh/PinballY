@@ -67,6 +67,7 @@ GameList::GameList()
 	hiddenCol = statsDb.DefineColumn(_T("Is Hidden"));
 	dateAddedCol = statsDb.DefineColumn(_T("Date Added"));
 	highScoreStyleCol = statsDb.DefineColumn(_T("High Score Style"));
+	markedForCaptureCol = statsDb.DefineColumn(_T("Marked For Capture"));
 
 	// find the game stats database file
 	TCHAR statsFile[MAX_PATH];
@@ -117,9 +118,9 @@ void GameList::SaveConfig()
 		cfg->Set(ConfigVars::CurGame, newSel.c_str());
 
 	// save the current filter
-	auto curFilterId = curFilter->GetFilterId().c_str();
-	if (_tcscmp(cfg->Get(ConfigVars::CurFilter, _T("")), curFilterId) != 0)
-		cfg->Set(ConfigVars::CurFilter, curFilterId);
+	auto curFilterId = curFilter->GetFilterId();
+	if (_tcscmp(cfg->Get(ConfigVars::CurFilter, _T("")), curFilterId.c_str()) != 0)
+		cfg->Set(ConfigVars::CurFilter, curFilterId.c_str());
 
 	// Figure out which categories are "empty" - i.e., no games are
 	// assigned to them.  Categories used in games will be naturally
@@ -437,6 +438,19 @@ GameListItem *GameList::GetNthGame(int n)
 	return byTitleFiltered[Wrap(curGame + n, cnt)];
 }
 
+GameListItem *GameList::GetGameByID(const TCHAR *id)
+{
+	// scan for a game matching the ID
+	for (auto &game : byTitle)
+	{
+		if (game->GetGameId() == id)
+			return game;
+	}
+
+	// not found
+	return nullptr;
+}
+
 int GameList::FindNextLetter()
 {
 	// if there's no current game, no search is possible
@@ -528,55 +542,19 @@ void GameList::RefreshFilter()
 	// note if the "Hide Unconfigured Games" option is set
 	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
 
-	// Figure the UTC timestamp for midnight in the local time zone.
-	// The recency filters require this to determine the time window.
-	// Start with the local system time.  Note that we have to start
-	// with the local time, even though we ultimately want the result
-	// to be in the UTC domain, because we want "today" to have its
-	// plain meaning in terms of the local clock.
-	SYSTEMTIME localNow;
-	GetLocalTime(&localNow);
-
-	// Adjust it to the most recent midnight in local time
-	SYSTEMTIME localMidnight = localNow;
-	localMidnight.wHour = 0;
-	localMidnight.wMinute = 0;
-	localMidnight.wSecond = 0;
-	localMidnight.wMilliseconds = 0;
-
-	// Now we have the midnight local time, expressed in local time.
-	// Get the corresonding UTC time/date.  Note that the UTC value
-	// might be on a different day, since the change from local to
-	// UTC can cross a date boundary (e.g., 23:00 1/1/2019 PST is
-	// 7:00 1/2/2019 UTC).  But that's okay!  It's the absolute
-	// point in time that matters, and we've already figured what
-	// we need to figure in terms of the local clock and calendar.
-	SYSTEMTIME utcMidnight;
-	TzSpecificLocalTimeToSystemTime(NULL, &localMidnight, &utcMidnight);
-
-	// Convert to a Variant DATE value.  This is the ideal format for
-	// our purposes here because it represents the date/time value as a
-	// number of days since an epoch (a fixed zero point in the past).
-	// That makes it easy to work in terms of days between dates.
-	DATE dMidnight;
-	SystemTimeToVariantTime(&utcMidnight, &dMidnight);
+	// Get the most recent local midnight, in UTC time, for use by
+	// recency filters.  This must be passed to all filters for the
+	// sake of a uniform interface, and it has to be pre-computed
+	// for the sake of efficiency, as it's a relatively complex
+	// calculation that would be inefficient to have to repeat on
+	// every iteration.
+	DATE dMidnight = GetLocalMidnightUTC();
 
 	// Construct the new list of games that pass the filter
 	for (auto g : byTitle)
 	{
-		// If this game is hidden or disabled, check to see if the filter passes
-		// hidden games.  If not, skip it.
-		if (g->IsHidden() && !curFilter->IncludeHidden())
-			continue;
-
-		// If the game is unconfigured, and the config options are set to hide
-		// unconfigured games, hide it unless the filter specifically selects
-		// unconfigured.
-		if (!g->isConfigured && hideUnconfigured && !curFilter->IncludeUnconfigured())
-			continue;
-
 		// If this game is included, add it to the list
-		if (curFilter->Include(g, dMidnight))
+		if (FilterIncludes(curFilter, g, dMidnight, hideUnconfigured))
 		{
 			// note its new index, and add it to the list
 			int idx = (int)byTitleFiltered.size();
@@ -638,6 +616,66 @@ void GameList::RefreshFilter()
 	}
 }
 
+bool GameList::FilterIncludes(const GameListFilter *filter, GameListItem *game)
+{
+	return FilterIncludes(filter, game, GetLocalMidnightUTC(), Application::Get()->IsHideUnconfiguredGames());
+}
+
+bool GameList::FilterIncludes(const GameListFilter *filter, GameListItem *game, DATE dMidnight, bool hideUnconfigured)
+{
+	// If this game is hidden or disabled, check to see if the filter passes
+	// hidden games.  If not, skip it.
+	if (game->IsHidden() && !filter->IncludeHidden())
+		return false;
+
+	// If the game is unconfigured, and the config options are set to hide
+	// unconfigured games, hide it unless the filter specifically selects
+	// unconfigured.
+	if (!game->isConfigured && hideUnconfigured && !filter->IncludeUnconfigured())
+		return false;
+
+	// We're not filtering it out for other reasons, so test it via the
+	// filter.
+	return filter->Include(game, dMidnight);
+}
+
+DATE GameList::GetLocalMidnightUTC()
+{
+	// Start with the current local system time.  Note that we have to 
+	// start with the local time, even though we ultimately want the 
+	// result to be in the UTC domain, because we want "today" to have
+	// its plain meaning in terms of the local clock.
+	SYSTEMTIME localNow;
+	GetLocalTime(&localNow);
+
+	// Adjust it to the most recent midnight in local time
+	SYSTEMTIME localMidnight = localNow;
+	localMidnight.wHour = 0;
+	localMidnight.wMinute = 0;
+	localMidnight.wSecond = 0;
+	localMidnight.wMilliseconds = 0;
+
+	// Now we have the most recent midnight in local time, expressed in 
+	// the local time zone.  Convert it to the corresonding UTC time/date.
+	// Note that the UTC value might be on a different day, since the 
+	// change from local to  UTC can cross a date boundary (e.g., 
+	// 2019-01-01 23:00 PST is 2019-01-02 07:00 UTC).  But that's okay!
+	// It's the absolute point in time that matters, and we've already 
+	// figured what we need to figure in terms of the local clock and 
+	// calendar.
+	SYSTEMTIME utcMidnight;
+	TzSpecificLocalTimeToSystemTime(NULL, &localMidnight, &utcMidnight);
+
+	// Convert to a Variant DATE value.  This is the ideal format for
+	// our purposes here because it represents the date/time value as a
+	// number of days since an epoch (a fixed zero point in the past).
+	// That makes it easy to work in terms of days between dates.
+	DATE dMidnight;
+	SystemTimeToVariantTime(&utcMidnight, &dMidnight);
+
+	// return the Variant DATE result
+	return dMidnight;
+}
 
 void GameList::SetFilter(int cmdID)
 {
@@ -1371,6 +1409,28 @@ void GameList::SortTitleIndex()
 	std::sort(byTitle.begin(), byTitle.end(), [](GameListItem* const &a, GameListItem* const &b) {
 		return lstrcmpi(a->title.c_str(), b->title.c_str()) < 0;
 	});
+}
+
+void GameList::EnumGames(std::function<void(GameListItem*)> func)
+{
+	for (auto &game : byTitle)
+		func(game);
+}
+
+void GameList::EnumGames(std::function<void(GameListItem*)> func, const GameListFilter *filter)
+{
+	// note if the "Hide Unconfigured Games" option is set
+	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
+
+	// get the recent local midnight (in UTC time) for use by recency filters
+	DATE dMidnight = GetLocalMidnightUTC();
+
+	// enumerate games that match the filter
+	for (auto &game : byTitle)
+	{
+		if (FilterIncludes(filter, game))
+			func(game);
+	}
 }
 
 void GameList::AddUnconfiguredGames()
@@ -2743,20 +2803,12 @@ void GameList::FlushToXml(GameListItem *game)
 		UpdateChildA(name, TCHARToAnsi(val).c_str());
 	};
 
-	// Build the description - "Title (Manufacturer Year)".  If both
-	// manufacturer and year are missing, just use the title.
-	TSTRINGEx desc;
-	if (game->manufacturer != nullptr && game->year != 0)
-		desc.Format(_T("%s (%s %d)"), game->title.c_str(), game->manufacturer->manufacturer.c_str(), game->year);
-	else if (game->manufacturer != nullptr)
-		desc.Format(_T("%s (%s)"), game->title.c_str(), game->manufacturer->manufacturer.c_str());
-	else if (game->year != 0)
-		desc.Format(_T("%s (%d)"), game->title.c_str(), game->year);
-	else
-		desc = game->title;
+	// Use the display name ("Title (Manufacturer Year)" as the XML
+	// "description" attribute.
+	TSTRING desc = game->GetDisplayName();
 
 	// store the description
-	UpdateChildT("description", desc);
+	UpdateChildT("description", desc.c_str());
 
 	// store the table type
 	UpdateChildT("type", game->tableType.c_str());
@@ -3035,39 +3087,73 @@ static const TCHAR *flyerPages[] = {
 // are explicitly not localized, since they're internal names defined by
 // the HyperPin/PinballX media database structure.
 const MediaType GameListItem::wheelImageType = {
-	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, nullptr, MediaType::Image, 0 };
+	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, 
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::instructionCardImageType = {
-	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, nullptr, MediaType::Image, 0, true };
+	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, 
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0, true };
 const MediaType GameListItem::flyerImageType = {
-	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, nullptr, MediaType::Image, 0, false, flyerPages };
+	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, 
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0, false, flyerPages };
 const MediaType GameListItem::launchAudioType = {
-	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, nullptr, MediaType::Audio, 0 };
+	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, 
+	nullptr, nullptr, nullptr,
+	MediaType::Audio, 0 };
 const MediaType GameListItem::playfieldImageType = {
-	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, nullptr, MediaType::Image, 270 };
+	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, 
+	ConfigVars::CapturePFImageStart, nullptr, nullptr,
+	MediaType::Image, 270 };
 const MediaType GameListItem::playfieldVideoType = {
-	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, ConfigVars::CapturePFVideoTime, MediaType::VideoWithAudio, 270 };
+	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, 
+	ConfigVars::CapturePFVideoStart, ConfigVars::CapturePFVideoStop, ConfigVars::CapturePFVideoTime,
+	MediaType::VideoWithAudio, 270 };
 const MediaType GameListItem::playfieldAudioType = {
-	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, ConfigVars::CapturePFAudioTime, MediaType::Audio, 270 };
+	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, 
+	ConfigVars::CapturePFAudioStart, ConfigVars::CapturePFAudioStop, ConfigVars::CapturePFAudioTime,
+	MediaType::Audio, 270 };
 const MediaType GameListItem::backglassImageType = {
-	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, nullptr, MediaType::Image, 0 };
+	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, 
+	ConfigVars::CaptureBGImageStart, nullptr, nullptr, 
+	MediaType::Image, 0 };
 const MediaType GameListItem::backglassVideoType = {
-	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, ConfigVars::CaptureBGVideoTime, MediaType::SilentVideo, 0 };
+	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID,
+	ConfigVars::CaptureBGVideoStart, ConfigVars::CaptureBGVideoStop, ConfigVars::CaptureBGVideoTime,
+	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::dmdImageType = {
-	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, nullptr, MediaType::Image, 0 };
+	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, 
+	ConfigVars::CaptureDMImageStart, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::dmdVideoType = {
-	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, ConfigVars::CaptureDMVideoTime, MediaType::SilentVideo, 0 };
+	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, 
+	ConfigVars::CaptureDMVideoStart, ConfigVars::CaptureDMVideoStop, ConfigVars::CaptureDMVideoTime,
+	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::topperImageType = {
-	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, nullptr, MediaType::Image, 0 };
+	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC,
+	ConfigVars::CaptureTPImageStart, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::topperVideoType = {
-	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, ConfigVars::CaptureTPVideoTime, MediaType::SilentVideo, 0 };
+	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, 
+	ConfigVars::CaptureTPVideoStart, ConfigVars::CaptureTPVideoStop, ConfigVars::CaptureTPVideoTime,
+	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::realDMDImageType = {
-	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, nullptr, MediaType::Image, 0 };
+	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC,
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorImageType = {
-	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, nullptr, MediaType::Image, 0 };
+	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, 
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDVideoType = {
-	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, nullptr, MediaType::Image, 0 };
+	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID,
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorVideoType = {
-	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, nullptr, MediaType::Image, 0 };
+	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, 
+	nullptr, nullptr, nullptr,
+	MediaType::Image, 0 };
 
 
 bool GameListItem::MediaExists(const MediaType &mediaType) const
@@ -3076,13 +3162,13 @@ bool GameListItem::MediaExists(const MediaType &mediaType) const
 	return GetMediaItem(filename, mediaType, false);
 }
 
-bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList)
+TSTRING GameListItem::GetDisplayName() const 
 {
 	// Figure the new name, base on the the PinballX convention:
 	// "Title (Manufacturer Year)".  If the manufacturer or year
 	// is missing, simply omit that element.  If we don't even
 	// have a title, use the filename minus the default extension.
-	TSTRINGEx newMediaName;
+	TSTRINGEx s;
 	if (title.length() == 0)
 	{
 		// figure the length, minus the default extension if present
@@ -3091,16 +3177,26 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 			len -= tableFileSet->defExt.length();
 
 		// use the filename minus extension
-		newMediaName.assign(filename, len);
+		s.assign(filename, len);
 	}
 	else if (manufacturer != nullptr && year != 0)
-		newMediaName.Format(_T("%s (%s %d)"), title.c_str(), manufacturer->manufacturer.c_str(), year);
+		s.Format(_T("%s (%s %d)"), title.c_str(), manufacturer->manufacturer.c_str(), year);
 	else if (manufacturer != nullptr)
-		newMediaName.Format(_T("%s (%s)"), title.c_str(), manufacturer->manufacturer.c_str());
+		s.Format(_T("%s (%s)"), title.c_str(), manufacturer->manufacturer.c_str());
 	else if (year != 0)
-		newMediaName.Format(_T("%s (%d)"), title.c_str(), year);
+		s.Format(_T("%s (%d)"), title.c_str(), year);
 	else
-		newMediaName = title;
+		s = title;
+
+	// return the result
+	return s;
+}
+
+bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList)
+{
+	// By convention, we use the display name ("Title (Manufacturer Year)")
+	// as the root media name, so get the display name.
+	TSTRING newMediaName = GetDisplayName();
 
 	// clean up the name to remove invalid filename characters
 	newMediaName = CleanMediaName(newMediaName.c_str());

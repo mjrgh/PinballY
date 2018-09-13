@@ -5,6 +5,7 @@
 #include "InputManager.h"
 #include "KeyInput.h"
 #include "Joystick.h"
+#include "WinUtil.h"
 
 InputManager *InputManager::inst = 0;
 
@@ -104,7 +105,8 @@ InputManager::InputManager()
 		{ _T("Frame Counter"),      _T("FrameCounter"),   4000,  VK_F11 },
 		{ _T("Full Screen Toggle"), _T("FullScreen"),     4100,  VK_F12 },
 		{ _T("Settings"),           _T("Settings"),       4200,  'O' },
-		{ _T("Rotate Monitor"),		_T("RotateMonitor"),  4300,  VK_MULTIPLY }
+		{ _T("Rotate Monitor"),		_T("RotateMonitor"),  4300,  VK_MULTIPLY },
+		{ _T("Pause Game"),         _T("PauseGame"),      4400,  0 },
 	};
 
 	// add the commands to the list
@@ -117,6 +119,43 @@ InputManager::InputManager()
 		if (c[i].defaultKey != 0)
 			commands.back().buttons.emplace_back(Button::TypeKB, 0, c[i].defaultKey);
 	}
+
+	// load the scancode map from the system registry
+	HKEYHolder hkey;
+	if (RegOpenKey(HKEY_LOCAL_MACHINE, _T("SYSTEM\\CurrentControlSet\\Control\\Keyboard Layout"), &hkey) == ERROR_SUCCESS)
+	{
+		DWORD typ;
+		DWORD cbData = 0;
+		if (RegQueryValueEx(hkey, _T("Scancode Map"), NULL, &typ, NULL, &cbData) == ERROR_SUCCESS)
+		{
+			std::unique_ptr<BYTE> data(new BYTE[cbData]);
+			if (RegQueryValueEx(hkey, _T("Scancode Map"), NULL, &typ, data.get(), &cbData) == ERROR_SUCCESS)
+			{
+				// the scancode map is a binary struct, arranged as follows:
+				//
+				//  offset  type   description
+				//      0   DWORD  header version, always 0
+				//      4   DWORD  header flags, always 0
+				//      8   DWORD  number of mapping entries
+				//     12   WORD   entry 0 "to" scan code (soft key used in Windows when "from" key is pressed)
+				//     14   WORD   entry 0 "from" scan code (original hardware scan code of key being remapped)
+				//     <repeat pairs of 16-bit WORD entries with from/to pairs>
+				//
+				DWORD n = *(CONST DWORD *)(data.get() + 8);
+				const UINT16 *p = (CONST UINT16 *)(data.get() + 12);
+				for (DWORD i = 0; i < n - 1; ++i)
+				{
+					USHORT to = *(UINT16*)p++;
+					USHORT from = *(UINT16*)p++;
+					scancodeMap[from] = to;
+				}
+			}
+		}
+	}
+
+	// zero the key status maps
+	ZeroMemory(keyDown, sizeof(keyDown));
+	ZeroMemory(extKeyDown, sizeof(extKeyDown));
 }
 
 InputManager::~InputManager() 
@@ -216,6 +255,62 @@ void InputManager::ProcessRawInput(UINT rawInputCode, HRAWINPUT hRawInput)
 	// if it's a HID input, send it to the joystick manager
 	if (raw->header.dwType == RIM_TYPEHID)
 		JoystickManager::GetInstance()->ProcessRawInput(rawInputCode, raw->header.hDevice, raw);
+
+	// If this is a keyboard event, determine if it's an auto-repeat event.
+	// The Raw Input subsystem doesn't track this, so we have to do so
+	// explicitly by keeping track of make/break pairs that we see.  Don't
+	// track keys with the E1 prefix, as those are a few oddball keys that
+	// don't send "break" codes and thus can't meaningfully be tracked for
+	// up/down status.
+	if (raw->header.dwType == RIM_TYPEKEYBOARD && (raw->data.keyboard.Flags & RI_KEY_E1) == 0)
+	{
+		// get the key map according to the code type
+		auto &rawkb = raw->data.keyboard;
+		BYTE *pKeyDown = (rawkb.Flags & RI_KEY_E0) != 0 ? extKeyDown : keyDown;
+
+		// get the scan code, truncating to 8 bits (it should always fit
+		// within 8 bytes anyway, but explicitly truncate it just to be
+		// certain, since we're going to use it as an array index into
+		// a 256-element array)
+		USHORT scanCode = rawkb.MakeCode & 0xFF;
+
+		// Clear our private "repeat" bit in the raw input data.  This is
+		// meant to be a bit that no version of Windows defines, hence Windows
+		// should never set it - but a future version of Windows could define
+		// it.  So clear it.  Note that it's still okay if a future Windows
+		// version does use this bit, since we always set the bit to the 
+		// repeat state and thus it can always be interpreted correctly as
+		// the repeat state.  The only downside is that we won't be able
+		// to use that future Windows meaning of the bit (should one ever
+		// be added), and thus won't be able to access whatever new
+		// functionality or information it represents, because we're 
+		// overwriting it with the repeat status.  If such a bit is ever
+		// added and we actually want to use it, we can do that by moving
+		// our private hijacked bit to a new value, assuming Windows 
+		// doesn't eventually take over all 16 bits of the Flags element.
+		rawkb.Flags &= ~RawInputReceiver::RI_KEY_AUTOREPEAT;
+
+		// Check if this is a "make" or "break".  Note that the RI_KEY_MAKE
+		// flag isn't really a bit mask - it's defined in the Windows headers
+		// as 0 - so don't try to test for it with "&".  Test for the BREAK
+		// bit instead; its absence indicates a "make" event.
+		if ((rawkb.Flags & RI_KEY_BREAK) != 0)
+		{
+			// "break" event - the key is now up
+			pKeyDown[scanCode] = 0;
+		}
+		else
+		{
+			// "Make" event - the key is now down.  If it was already down, this
+			// is a repeat event.  Signify this by adding our private bit to the
+			// raw input data.
+			if (pKeyDown[scanCode])
+				rawkb.Flags |= RawInputReceiver::RI_KEY_AUTOREPEAT;
+
+			// mark the key as down for future repeat events
+			pKeyDown[scanCode] = 1;
+		}
+	}
 
 	// forward the event to raw input subscribers
 	for (auto& sub : rawInputSubscribers)
@@ -358,3 +453,59 @@ void InputManager::AddCommandKey(int commandIndex, Button &button)
 		commands[commandIndex].buttons.emplace_back(button);
 }
 
+USHORT InputManager::TranslateVKey(const RAWINPUT *raw) const
+{
+	// note the extended key bit
+	bool E0 = ((raw->data.keyboard.Flags & RI_KEY_E0) != 0);
+
+	// check the base vkey
+	switch (auto vkey = raw->data.keyboard.VKey)
+	{
+	case VK_SHIFT:
+		// left and right shift keys have distinct scan codes
+		return TranslateScanCode(raw) == 0x36 ? VK_RSHIFT : VK_LSHIFT;
+
+	case VK_CONTROL:
+		// left and right control keys are distinguished by the E0 bit
+		return E0 ? VK_RCONTROL : VK_LCONTROL;
+
+	case VK_MENU:
+		// left and right alt keys are distinguished by the E0 bit
+		return E0 ? VK_RMENU : VK_LMENU;
+
+	case VK_RETURN:
+		// keyboard and keypad Enter keys are distinguished by the E0 bit
+		return E0 ? VKE_NUMPAD_ENTER : vkey;
+
+	case VK_OEM_COMMA:
+		// keyboard and keypad comma are distinguished by the E0 bit
+		return E0 ? VKE_NUMPAD_COMMA : vkey;
+
+	case VK_OEM_PLUS:
+		// keyboard and keypad '+' are distinguished by the E0 bit
+		return E0 ? VKE_NUMPAD_EQUALS : vkey;
+
+	default:
+		return vkey;
+	}
+}
+
+USHORT InputManager::TranslateScanCode(const RAWINPUT *raw) const
+{
+	// get the hardware scan code
+	USHORT scanCode = raw->data.keyboard.MakeCode;
+
+	// If it's an extended scan code, encode the E0/E1 prefix in the
+	// high byte of the scan code.
+	if ((raw->data.keyboard.Flags & RI_KEY_E0) != 0)
+		scanCode |= 0xE000;
+	else if ((raw->data.keyboard.Flags & RI_KEY_E1) != 0)
+		scanCode |= 0xE100;
+
+	// if there's a key mapping in the system scancode map, apply it
+	if (auto it = scancodeMap.find(scanCode); it != scancodeMap.end())
+		scanCode = it->second;
+
+	// return the result
+	return scanCode;
+}

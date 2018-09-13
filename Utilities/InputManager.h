@@ -10,6 +10,7 @@
 #pragma once
 #include "Joystick.h"
 
+
 class InputManager
 {
 	friend class JoystickManager;
@@ -70,6 +71,26 @@ public:
 		// in the list.  Returns false to forward the event
 		// to the next subscriber.
 		virtual bool OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize) = 0;
+
+		// Keyboard auto-repeat event flag
+		//
+		// For raw input keyboard events, we set this special,
+		// private bit to the RAWKEYBOARD::Flags element, to represent
+		// the auto-repeat state of the key.
+		//
+		// This bit is chosen so that it doesn't overlap any of the 
+		// bits currently defined in the Windows headers, so it doesn't
+		// conflict with any information that Windows is passing us
+		// in the RAWKEYBOARD Flags.  We always overwrite this bit
+		// with the auto-repeat status, so even if a future Windows
+		// version defines this same bit for some new purposes, it
+		// won't create a conflict, *unless* we want to access the
+		// new information represented by the new Windows bits.  If
+		// that ever happens, we can redefine this to some other,
+		// still unused bit (or, if no unused bits are available, to
+		// some other Windows-defined bit that we never need to access
+		// in this application).
+		static const USHORT RI_KEY_AUTOREPEAT = 0x0800;
 	};
 
 	// Subscribe to raw input events.  This adds the given
@@ -79,6 +100,35 @@ public:
 
 	// Unsubscribe to raw input events
 	void UnsubscribeRawInput(RawInputReceiver *receiver);
+
+	// Translate virtual key codes in a raw input keyboard event:
+	//
+	// - Translate VK_SHIFT into VK_RSHIFT or VK_LSHIFT
+	// - Translate VK_CONTROL into VK_LCONTROL or VK_RCONTROL
+	// - Translate VK_MENU into VK_LMENU or VK_RMENU
+	// - Translate keypad Enter into VKE_KEYPAD_ENTER 
+	// - Translate keypad '+' into VKE_KEYPAD_PLUS
+	// - Translate keypad ',' into VKE_KEYPAD_COMMA
+	//
+	USHORT TranslateVKey(const RAWINPUT *raw) const;
+
+	// Translate a raw input keyboard scan code (from the "MakeCode"
+	// field of the RAWKEYBOARD struct) from the hardware scan code
+	// to the "soft" scan code that Windows uses.  This applies the
+	// scan code mapping from the registry (HKEY_LOCAL_MACHINE\SYSTEM\
+	// CurrentControlSet\Control\Keyboard Layout[Scancode Map]), which
+	// some users use to remap selected keyboard keys.  Raw input
+	// reports scan codes using the hardware scan codes without any
+	// translation, which is useful if you want to know the true key
+	// pressed, but doesn't always correspond to the way Windows will
+	// interpret the key in WM_KEYxxx messages.  This does the same
+	// mapping that Windows will do to get the soft key that the 
+	// regular WM_KEYxxx messages report.
+	//
+	// If the key uses an extended scan code with E0 or E1 prefix,
+	// the prefix is returned in the high byte of the return value.
+	// E.g., "right control" return 0xE01D.
+	USHORT TranslateScanCode(const RAWINPUT *raw) const;
 
 	// Key/button object.  This represents one input device
 	// button, which can be either a key on the keyboard or a
@@ -218,5 +268,29 @@ protected:
 
 	// raw input message handler window
 	HWND rawInputHWnd;
+
+	// Scan code map from the system registry.  This contains the data from
+	// HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Keyboard Layout\Scancode Map,
+	// arranged into a map keyed by hardware scan code and yielding the soft
+	// scan code that Windows will use for the key.
+	//
+	// We need this to properly translate raw input keyboard events, because
+	// the raw input data reports the original hardware scan code, and we
+	// want to respect the user's soft key mappings.
+	std::unordered_map<USHORT, USHORT> scancodeMap;
+
+	// Map of keys that are currently down.  We use this in the raw input
+	// processor to determine if a "make" code is an auto-repeat key.  This
+	// is called during background processing while a game is running, since
+	// we have to intercept keystrokes in the background to monitor the
+	// keyboard for the Exit Game key, so it's important to have extremely
+	// low overhead.  We therefore use an array rather than a map.  More
+	// specifically, we use two arrays: one for regular keys, and one for
+	// keys with the 0xE0 prefix.  We don't track keys with 0xE1 prefix,
+	// since those are a few unusual keys that don't ever send "break" 
+	// codes when released, and thus can't be meaningfully tracked for
+	// up/down status.
+	BYTE keyDown[256];           // regular keys (no E0 prefix)
+	BYTE extKeyDown[256];        // extended keys (E0 prefix)
 };
 

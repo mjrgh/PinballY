@@ -12,6 +12,7 @@
 #include "../Utilities/Joystick.h"
 #include "../Utilities/KeyInput.h"
 #include "../Utilities/InputManager.h"
+#include "GraphicsUtil.h"
 #include "D3D.h"
 #include "D3DWin.h"
 #include "Camera.h"
@@ -107,7 +108,7 @@ public:
 		const TCHAR *groupMsg, const ErrorList *list = 0);
 
 	// enter/leave running game mode
-	void BeginRunningGameMode();
+	void BeginRunningGameMode(GameListItem *game);
 	void EndRunningGameMode();
 
 	// Application activation change notification.  The app calls this
@@ -165,6 +166,41 @@ public:
 	// Media information for the main background image/video
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
+
+	// Capture Done report, for PFVMsgCaptureDone
+	struct CaptureDoneReport
+	{
+		CaptureDoneReport(const TSTRING &gameId, bool ok, bool cancel,
+			int overallStatusMsgId, CapturingErrorHandler &statusList,
+			int nMediaItemsAttempted, int nMediaItemsOk) :
+			gameId(gameId), 
+			ok(ok),
+			cancel(cancel),
+			overallStatusMsgId(overallStatusMsgId),
+			statusList(statusList),
+			nMediaItemsAttempted(nMediaItemsAttempted),
+			nMediaItemsOk(nMediaItemsOk)
+		{ }
+
+		// game we're capturing
+		TSTRING gameId;
+
+		// overall capture success/failure status
+		bool ok;
+
+		// the operation was cancelled by the user
+		bool cancel;
+
+		// message ID for overall status
+		int overallStatusMsgId;
+
+		// capture message list
+		CapturingErrorHandler &statusList;
+
+		// number of media items attempted/succeeded during this operation
+		int nMediaItemsAttempted;
+		int nMediaItemsOk;
+	};
 
 protected:
 	// destruction - called internally when the reference count reaches zero
@@ -248,6 +284,7 @@ protected:
 	static const int cleanupTimerID = 117;        // periodic cleanup tasks
 	static const int mediaDropTimerID = 118;      // media drop continuation timer
 	static const int autoDismissMsgTimerID = 119;  // auto dismiss a message dialog
+	static const int batchCaptureCancelTimerID = 120;  // batch capture cancel button pushed
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -292,6 +329,9 @@ protected:
 	void ShowInstructionCard(int cardNumber = 0);
 	void RateGame();
 	void ShowHighScores();
+
+	// Launch the next queued game
+	void LaunchQueuedGame();
 
 	// Game inactivity timeout
 	void OnGameTimeout();
@@ -407,8 +447,17 @@ protected:
 	// show the media capture setup menu for the current game
 	void CaptureMediaSetup();
 
+	// Initialize the capture list.  If a game is specified, we'll set
+	// the initial state of each item to "Keep Existing" if the game has
+	// a media file of that type, or to "Capture" if not.  If no game
+	// is specified, we'll set all to "Capture".
+	void InitCaptureList(const GameListItem *game);
+
 	// begin media capture using the menu selections
 	void CaptureMediaGo();
+
+	// process a capture done report from the launch thread
+	void OnCaptureDone(const CaptureDoneReport *report);
 
 	// Media capture list.  This represents the items selected for
 	// screen-shot capture in the menu UI.
@@ -419,7 +468,8 @@ protected:
 			mediaType(mediaType),
 			win(win),
 			exists(exists),
-			mode(mode)
+			mode(mode),
+			batchReplace(false)
 		{
 		}
 
@@ -442,6 +492,13 @@ protected:
 		//
 		int mode;
 
+		// Batch mode for this item: keep or replace.  For batch
+		// captures, 'mode' above is never KEEP, because the setting
+		// applies to the whole list of games and hence can only tell
+		// us the mode for new items.  We have to represent the 
+		// disposition of existing items separately.
+		bool batchReplace;
+
 		// Is there an existing media item for this object?
 		bool exists;
 	};
@@ -452,6 +509,16 @@ protected:
 
 	// adjusted startup delay, in the adjustment dialog
 	int adjustedCaptureStartupDelay;
+
+	// Capture menu mode
+	enum CaptureMenuMode
+	{
+		NA,              // invalid/not applicable
+		Single,          // single game capture
+		Batch1,          // batch capture phase 1 - type selection
+		Batch2           // batch capture phase 2 - disposition of existing items
+	}
+	captureMenuMode;
 
 	// Display/update the capture setup menu.  The menu includes
 	// checkbox items for all of the available media types, and
@@ -470,7 +537,24 @@ protected:
 	// has to be initialized, since we use it to indicate if each
 	// items has an existing file.  This routine merely draws the
 	// menu with the current settings in those structs.
-	void DisplayCaptureMenu(bool updating, int selectedCmd);
+	//
+	// When updating, 'mode' is ignored, as we always keep the
+	// same mode that was used to create the menu initially when
+	// updating.
+	//
+	void DisplayCaptureMenu(bool updating = false, int selectedCmd = -1, 
+		CaptureMenuMode mode = CaptureMenuMode::NA);
+
+	// Estimate the capture time required for the given game.  The
+	// game isn't needed for single capture mode, as the capture
+	// information is all contained in the media list; for batch
+	// captures, we calculate the time according to the existence
+	// of media for this specific game.  Returns the time estimate
+	// in seconds.
+	int EstimateCaptureTime(GameListItem *game = nullptr);
+
+	// Format a capture time estimate to a printable string
+	static TSTRINGEx FormatCaptureTimeEstimate(int t);
 
 	// Advance a capture item to the next state
 	void AdvanceCaptureItemState(int cmd);
@@ -613,6 +697,110 @@ protected:
 
 	// show the "find media online" menu
 	void ShowMediaSearchMenu();
+
+	// Batch capture menu steps:
+	//
+	// Step 1 = select games
+	//
+	// Step 2 = select media types
+	//
+	// Step 3 = select disposition for existing media
+	//
+	// Step 4 = review and confirmation
+	//
+	void BatchCaptureStep1();
+	void BatchCaptureStep2(int cmd);
+	void BatchCaptureStep3();
+	void BatchCaptureStep4();
+
+	// Batch capture go - queue the game list and launch the first game
+	void BatchCaptureGo();
+
+	// Batch capture continue - launch the next queued game
+	void BatchCaptureNextGame();
+
+	// view the batch capture file list
+	void BatchCaptureView();
+
+	// Batch capture view image.  When we open the batch capture view,
+	// we render the capture list to an off-screen bitmap.  This might
+	// exceed the available window space, so when we display it, we
+	// might only display a portion of the bitmap.  The user can then
+	// scroll within the bitmap using the flipper buttons.  We keep
+	// the bitmap through the popup lifetime for quick scrolling; we
+	// just have to create a new D3D texture on each scroll event
+	// showing the new scroll window.
+	struct
+	{
+		DIBitmap dib;                                // as a DIB
+		std::unique_ptr<Gdiplus::Bitmap> gpbmp;      // as a Gdiplus bitmap
+	} batchViewBitmap;
+
+	// current scrolling offset in the bitmap
+	int batchViewScrollY;
+
+	// update the batch capture view, showing it at the new scroll offset
+	void UpdateBatchCaptureView();
+
+	// Begin/end batch capture mode.  We call these to bracket a batch
+	// capture operation, to allow for setting up special state during
+	// the batch operation and restoring normal conditions when done.
+	void EnterBatchCapture();
+	void ExitBatchCapture();
+
+	// Batch capture state
+	struct BatchCaptureMode
+	{
+		BatchCaptureMode() : 
+			active(false)
+		{
+		}
+
+		void Enter()
+		{
+			active = true;
+			nGamesPlanned = 0;
+			nGamesAttempted = 0;
+			nGamesOk = 0;
+			nMediaItemsPlanned = 0;
+			nMediaItemsAttempted = 0;
+			nMediaItemsOk = 0;
+			cancelPending = cancel = false;
+		}
+
+		void Exit()
+		{
+			active = false;
+		}
+
+		// batch capture mode is active
+		bool active;
+
+		// Cancel command is pending.  We require pressing cancel
+		// twice to cancel the batch.
+		bool cancelPending;
+
+		// Batch cancelled.
+		bool cancel;
+
+		// number of games planned, attemped, and succeeded during this batch
+		int nGamesPlanned;
+		int nGamesAttempted;
+		int nGamesOk;
+
+		// number of media items planned, attemped, and succeeded
+		int nMediaItemsPlanned;
+		int nMediaItemsAttempted;
+		int nMediaItemsOk;
+		
+	} batchCaptureMode;
+
+	// enumerate the games selected by the current batch capture command
+	void EnumBatchCaptureGames(std::function<void(GameListItem *)> f);
+
+	// batch capture command (ID_BATCH_CAPTURE_ALL, ID_BATCH_CAPTURE_FILTER,
+	// ID_BATCH_CAPTURE_MARKED)
+	int batchCaptureCmd;
 
 	// launch a Web browser to search for game media
 	void LaunchMediaSearch();
@@ -856,6 +1044,9 @@ protected:
 	// up in front of everything else when we launch a game.
 	RefPtr<Sprite> runningGamePopup;
 
+	// ID of current running game
+	TSTRING runningGameID;
+
 	// boxes, dialogs, etc.
 	RefPtr<Sprite> popupSprite;
 
@@ -863,16 +1054,17 @@ protected:
 	// displayed in the modal popup box.
 	enum PopupType
 	{
-		PopupNone,			// no popup
-		PopupFlyer,			// game flyer
-		PopupGameInfo,		// game info
-		PopupInstructions,  // game instruction card
-		PopupAboutBox,		// about box
-		PopupErrorMessage,	// error message alert
-		PopupRateGame,		// enter game rating "dialog"
-		PopupHighScores,    // high scores list
-		PopupCaptureDelay,  // capture delay dialog
-		PopupMediaList      // game media list dialog
+		PopupNone,			       // no popup
+		PopupFlyer,			       // game flyer
+		PopupGameInfo,		       // game info
+		PopupInstructions,         // game instruction card
+		PopupAboutBox,		       // about box
+		PopupErrorMessage,	       // error message alert
+		PopupRateGame,		       // enter game rating "dialog"
+		PopupHighScores,           // high scores list
+		PopupCaptureDelay,         // capture delay dialog
+		PopupMediaList,            // game media list dialog
+		PopupBatchCapturePreview   // batch capture preview
 	} 
 	popupType;
 
@@ -1517,6 +1709,17 @@ protected:
 	typedef void (PlayfieldView::*KeyCommandFunc)(const QueuedKey &key);
 	std::unordered_map<int, std::list<KeyCommandFunc>> vkeyToCommand;
 
+	// "Manual Go" button state for capture.  To proceed with a capture
+	// operation (manual start or manual stop), we use a two-button
+	// gesture, with both flipper buttons pressed at the same time.
+	// These bits keep track of the up/down states of the buttons.
+	bool prevButtonDown;
+	bool nextButtonDown;
+
+	// Check for a "Manual Go" gesture.  This is called whenever one
+	// of the Next/Prev buttons changes state.
+	void CheckManualGo(bool &thisButtonDown, const QueuedKey &key);
+
 	// add a command to the vkeyToCommand list
 	void AddVkeyCommand(int vkey, KeyCommandFunc func);
 
@@ -1721,6 +1924,7 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
+
 	//
 	// Button command handlers
 	//
@@ -1747,6 +1951,7 @@ protected:
 	void CmdRotateMonitorCCW(const QueuedKey &key);	// Rotate monitor by 90 degrees counter-clockwise
 	void CmdLaunch(const QueuedKey &key);           // Launch game
 	void CmdExitGame(const QueuedKey &key);			// Exit running game
+	void CmdPauseGame(const QueuedKey &key);        // Pause running game
 	void CmdGameInfo(const QueuedKey &key);         // Show game info box
 	void CmdInstCard(const QueuedKey &key);			// Show instruction card
 };

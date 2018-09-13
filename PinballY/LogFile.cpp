@@ -13,7 +13,8 @@
 LogFile *LogFile::inst = nullptr;
 
 LogFile::LogFile() :
-	enabledFeatures(BaseLogging)
+	enabledFeatures(BaseLogging),
+	tempFeatures(0)
 {
 	// build the filename - <program folder>\PinballY.log
 	TCHAR fname[MAX_PATH];
@@ -129,7 +130,8 @@ void LogFile::WriteTimestamp(DWORD feature, const TCHAR *fmt, ...)
 
 void LogFile::WriteV(bool timestamp, DWORD features, const TCHAR *fmt, va_list ap)
 {
-	if (h != NULL && h != INVALID_HANDLE_VALUE && (enabledFeatures & features) != 0)
+	if (h != NULL && h != INVALID_HANDLE_VALUE 
+		&& ((enabledFeatures | tempFeatures) & features) != 0)
 	{
 		// write the timestamp if desired
 		if (timestamp)
@@ -185,7 +187,8 @@ void LogFile::WriteStrA(const CHAR *s)
 void LogFile::Group(DWORD feature)
 {
 	// proceed only if the feature bits are enabled
-	if (h != NULL && h != INVALID_HANDLE_VALUE && (enabledFeatures & feature) != 0)
+	if (h != NULL && h != INVALID_HANDLE_VALUE
+		&& ((enabledFeatures | tempFeatures) & feature) != 0)
 	{
 		// if the last output didn't end with a newline, add two newlines
 		// (one to end the previous line, and another to form a blank line);
@@ -197,4 +200,16 @@ void LogFile::Group(DWORD feature)
 		else if (nNewlines == 1)
 			WriteStrA("\n");
 	}
+}
+
+void LogFile::EnableTempFeature(DWORD feature)
+{
+	CriticalSectionLocker locker(lock);
+	tempFeatures |= feature;
+}
+
+void LogFile::WithdrawTempFeature(DWORD feature)
+{
+	CriticalSectionLocker locker(lock);
+	tempFeatures &= ~feature;
 }

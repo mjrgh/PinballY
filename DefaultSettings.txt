@@ -406,6 +406,12 @@ Buttons.Exit = keyboard Escape
 # to a different key if you prefer, though.
 Buttons.ExitGame = keyboard Escape
 
+# Pause Game = pause the current game.  This brings the PinballY
+# window to the foreground, which has the effect in Visual Pinball
+# (and hopefully other systems) of freezing the game.  PinballY
+# presents a menu with options to resume or terminate the game.
+Buttons.PauseGame =
+
 # Next/Previous = game/menu navigation.  These are normally mapped to
 # the flipper buttons in a cab (Right/Left Shift keys).
 Buttons.Next = keyboard RShift
@@ -630,15 +636,65 @@ GameList.CurrentFilter = All
 # given in seconds.
 Capture.StartupDelay = 10
 
-# The rest of the media capture timing parameters specify the
-# length (in seconds) of video captures.  These should be long
-# enough to cover a typical Attract Mode loop, but short enough
-# that the videos are reasonably compact.  These times are in
-# seconds.
-Capture.PlayfieldVideoTime = 30
-Capture.BackglassVideoTime = 30
-Capture.DMDVideoTime = 30
-Capture.TopperVideoTime = 30
+# Capture timing for individual media types. 
+#
+# For each media type, you can select MANUAL or AUTO capturing:
+#
+# * AUTO means that the capture happens automatically as soon as
+# the media type's turn comes up.  If you set everything to AUTO,
+# the capture will proceed as a wholly automatic process without
+# any action on your part.  
+# 
+# * MANUAL means that you have to press a button combination to 
+# start and/or stop the capture for that media type.  This allows
+# you to control the exact starting point and/or duration of the 
+# capture for that item.
+#
+# All media types let you set the START time to AUTO or MANUAL.
+# An automatic start time makes the capture for that item start
+# as soon as that item is reached in the capture process.  For
+# image types, that's the only timing needed.  For video and
+# audio types, you can also set the STOP mode to AUTO or MANUAL.
+# AUTO STOP mode means that the capture proceeds for the duration
+# set by the TIME value for that type (in seconds), and then
+# automatically stops.  MANUAL STOP means that the capture keeps
+# going until you press the key combination to end that item.
+#
+# During the capture process, a status window appears that shows
+# you the current item being captured, and prompts you to press
+# the manual keys when necessary to start or stop the current
+# item.
+#
+# Note that TIME values are ignored if STOP is set to MANUAL.
+#
+
+Capture.PlayfieldImage.Start = auto
+
+Capture.PlayfieldVideo.Start = auto
+Capture.PlayfieldVideo.Stop = auto
+Capture.PlayfieldVideo.Time = 31
+
+Capture.PlayfieldAudio.Start = auto
+Capture.PlayfieldAudio.Stop = manual
+Capture.PlayfieldAudio.Time = 32
+
+Capture.BackglassImage.Start = manual
+
+Capture.BackglassVideo.Start = manual
+Capture.BackglassVideo.Stop = auto
+Capture.BackglassVideo.Time = 33
+
+Capture.DMDImage.Start = auto
+
+Capture.DMDVideo.Start = manual
+Capture.DMDVideo.Stop = manual
+Capture.DMDVideo.Time = 34
+
+Capture.TopperImage.Start = manual
+
+Capture.TopperVideo.Start = auto
+Capture.TopperVideo.Stop = auto
+Capture.TopperVideo.Time = 35
 
 # Two-pass capture.  Normally, when capturing screen-shot video,
 # we capture and encode (compress) the video in real time.  This

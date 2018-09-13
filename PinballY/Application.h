@@ -184,6 +184,52 @@ public:
 	bool Launch(int cmd, GameListItem *game, GameSystem *system, 
 		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay, ErrorHandler &eh);
 
+	// Batch capture information.  When queueing a game for batch
+	// capture, this provides information on the entry's place in the
+	// overall capture process, for status reporting during the
+	// capture.
+	struct BatchCaptureInfo
+	{
+		BatchCaptureInfo() : nCurGame(0), nGames(0), remainingTime(0), totalTime(0) { }
+
+		BatchCaptureInfo(int nCurGame, int nGames, int remainingTime, int totalTime) :
+			nCurGame(nCurGame), 
+			nGames(nGames), 
+			remainingTime(remainingTime), 
+			totalTime(totalTime)
+		{}
+
+		// index of current game in overall batch (starting at 0)
+		int nCurGame;
+
+		// number of games in overall batch
+		int nGames;
+
+		// estimated remaining time (in seconds) in the overall batch, 
+		// starting with this game and including its estimated capture time
+		int remainingTime;
+
+		// total estimated capture time (in seconds) for the entire batch
+		int totalTime;
+	};
+
+	// Queue a game for launch.  This is used for batch capture.
+	void QueueLaunch(int cmd, GameListItem *game, GameSystem *system,
+		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+		const BatchCaptureInfo *bci = nullptr);
+
+	// clear the launch queue
+	void ClearLaunchQueue() { queuedLaunches.clear(); }
+
+	// get the next queued game
+	GameListItem *GetNextQueuedGame() const;
+
+	// Launch the next game in the queue
+	bool LaunchNextQueuedGame(ErrorHandler &eh);
+
+	// are any games queued?
+	bool IsGameQueuedForLaunch() const { return queuedLaunches.size() != 0; }
+
 	// Kill the running game, if any
 	void KillGame();
 
@@ -195,6 +241,25 @@ public:
 
 	// Is the game running in Admin mode?
 	bool IsGameInAdminMode() const { return gameMonitor != nullptr && gameMonitor->IsAdminMode(); }
+
+	// Try to steal focus from the runing game and set it to our window
+	void StealFocusFromGame();
+
+	// Signal the user button press to end a manual start/stop wait.
+	// The main UI calls this when the user presses the button sequence
+	// to start or stop a manual capture.
+	void ManualCaptureGo();
+
+	// Show or remove the batch capture cancel pending prompt.  The
+	// playfield window calls this when processing the Exit Game 
+	// command during a batch capture, to present a prompt in the 
+	// status window asking if the user really wants to cancel the 
+	// whole batch process.
+	void BatchCaptureCancelPrompt(bool show);
+
+	// Show a "cancellation in progress" prompt in the capture
+	// status window
+	void ShowCaptureCancel();
 
 	// Begin/end running game mode.  The playfield view calls these
 	// when games start and stop.  We manage the visibility of the
@@ -301,7 +366,7 @@ public:
 	void RestartAsAdmin();
 
 	// Send the EXIT GAME key list to the Admin Host
-	void SendExitGameKeysToAdminHost(const std::list<TSTRING> &keys );
+	void SendExitGameKeysToAdminHost(const std::list<TSTRING> &exitKeys, const std::list<TSTRING> &pauseKeys);
 
 	// High scores object
 	RefPtr<HighScores> highScores;
@@ -470,10 +535,19 @@ protected:
 		GameMonitorThread();
 		~GameMonitorThread();
 
-		// launch
+		// prepare the object and launch in one step
 		bool Launch(int cmd, GameListItem *game, GameSystem *system, 
 			const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 			ErrorHandler &eh);
+
+		// Prepare the object and launch as separate steps.  This
+		// can be used to create a deferred launch object, such as
+		// during batch capture, and then launch it when its turn
+		// comes up.
+		void Prepare(int cmd, GameListItem *game, GameSystem *system,
+			const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+			const BatchCaptureInfo *bci = nullptr);
+		bool Launch(ErrorHandler &eh);
 
 		// try shutting down the game thread
 		bool Shutdown(ErrorHandler &eh, DWORD timeout, bool force);
@@ -487,6 +561,9 @@ protected:
 		// is it running in Admin mode?
 		bool IsAdminMode() const { return isAdminMode; }
 
+		// try to steal focus from the game
+		void StealFocusFromGame(HWND hwnd);
+
 		// terminate the game
 		void CloseGame();
 
@@ -495,7 +572,7 @@ protected:
 
 		// wait for the process to start up; returns true on success,
 		// false if an error occurs or we get a shutdown signal
-		bool WaitForStartup();
+		bool WaitForStartup(HANDLE pProc);
 
 		// thread main
 		static DWORD WINAPI SMain(LPVOID lpParam);
@@ -524,6 +601,9 @@ protected:
 		// is this system approved for elevation to Administrator mode?
 		bool elevationApproved;
 
+		// batch capture information
+		BatchCaptureInfo batchCaptureInfo;
+
 		// game inactivity timeout, in milliseconds
 		TSTRINGEx gameInactivityTimeout;
 
@@ -543,7 +623,9 @@ protected:
 				windowMirrorVert(false),
 				windowMirrorHorz(false),
 				mediaRotation(0),
-				captureTime(0)
+				captureTime(0),
+				manualStart(false),
+				manualStop(false)
 			{ }
 
 			// media type
@@ -582,13 +664,23 @@ protected:
 
 			// capture time in milliseconds, for videos
 			DWORD captureTime;
+
+			// manual start/stop mode
+			bool manualStart;
+			bool manualStop;
 		};
 		struct CaptureInfo
 		{
 			CaptureInfo() : startupDelay(5000), twoPassEncoding(false) { }
+			
+			// initialization time (ms)
+			static const DWORD initTime = 3000;
 
 			// startup delay time, in milliseconds
 			DWORD startupDelay;
+
+			// estimated total capture time
+			DWORD totalTime;
 
 			// two-pass encoding mode
 			bool twoPassEncoding;
@@ -608,6 +700,10 @@ protected:
 
 		// handle to game process
 		HandleHolder hGameProc;
+
+		// Have we tried closing the game process in response to 
+		// an Exit Game command?
+		bool closedGameProc;
 
 		// Handles to the RunBeforePre and RunBefore processes.  If 
 		// either of these is non-null, we'll terminate the process when
@@ -629,6 +725,15 @@ protected:
 
 		// main thread of the game process
 		DWORD tidMainGameThread;
+
+		// Start/stop a manual capture.  The application calls this when
+		// the user presses the "proceed" button combination.
+		void ManualCaptureGo();
+
+		// Manual start/stop event.  The main UI uses this to let us know
+		// when the user has pressed the button sequence to un-pause the
+		// current operation.
+		HandleHolder startStopEvent;
 
 		// Shutdown event for this thread.  The application sets this
 		// event when the program is ready to shut down.
@@ -707,8 +812,14 @@ protected:
 		RotationManager rotationManager;
 	};
 
-	// current game monitor thread
+	// launch the game prepared into a game monitor object
+	bool Launch(GameMonitorThread *mon, ErrorHandler &eh);
+
+	// game monitor thread for current running game
 	RefPtr<GameMonitorThread> gameMonitor;
+
+	// queued game launches
+	std::list<RefPtr<GameMonitorThread>> queuedLaunches;
 
 	// Watchdog process interface.  This manages the pipes
 	// related to the watchdog process, which monitors for abnormal

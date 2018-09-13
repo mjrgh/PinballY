@@ -383,6 +383,14 @@ int Application::EventLoop(int nCmdShow)
 		gameMonitor->Shutdown(eh, 5000, true);
 		gameMonitor = nullptr;
 	}
+	
+	// Delete any queued launches.  The only reason we have to do this
+	// explicitly (rather than letting the destructor take care of it) is
+	// that the monitor objects contain D3D window refs, and those will
+	// want to access the D3D subsystem in their destructors, so we have
+	// to make sure they get cleaned up before we shut down the global
+	// D3D object.
+	queuedLaunches.clear();
 
 	// If there's a new file scanner thread running, give it a few seconds
 	// to finish.
@@ -1097,25 +1105,74 @@ void Application::EndRunningGameMode()
 		ic->EndRunningGameMode();
 }
 
-bool Application::Launch(int cmd, GameListItem *game, GameSystem *system, 
-	const std::list<LaunchCaptureItem> *capture, int captureStartupDelay,
+bool Application::Launch(int cmd, GameListItem *game, GameSystem *system,
+	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	ErrorHandler &eh)
 {
+	// prepare a new game monitor object
+	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
+	mon->Prepare(cmd, game, system, captureList, captureStartupDelay);
+
+	// launch it
+	return Launch(mon, eh);
+}
+
+bool Application::Launch(GameMonitorThread *mon, ErrorHandler &eh)
+{
 	// if there's already a game monitor thread, shut it down
-	if (gameMonitor != 0)
+	if (gameMonitor != nullptr)
 	{
 		// shut it down
 		gameMonitor->Shutdown(eh, 500, false);
 
 		// forget it
-		gameMonitor = 0;
+		gameMonitor = nullptr;
 	}
 
-	// create a new monitor thread
-	gameMonitor.Attach(new GameMonitorThread());
+	// make the new one current
+	gameMonitor = mon;
 
 	// launch it
-	return gameMonitor->Launch(cmd, game, system, capture, captureStartupDelay, eh);
+	return mon->Launch(eh);
+}
+
+bool Application::LaunchNextQueuedGame(ErrorHandler &eh)
+{
+	// if there's nothing in the queue, we're done
+	if (queuedLaunches.size() == 0)
+		return false;
+
+	// take the next item off the queue
+	RefPtr<GameMonitorThread> mon(queuedLaunches.front().Detach());
+	queuedLaunches.pop_front();
+
+	// launch it
+	return Launch(mon, eh);
+}
+
+void Application::QueueLaunch(int cmd, GameListItem *game, GameSystem *system,
+	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+	const BatchCaptureInfo *bci)
+{
+	// prepare a new game monitor object
+	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
+	mon->Prepare(cmd, game, system, captureList, captureStartupDelay, bci);
+
+	// queue it, handing over our reference count to the list
+	queuedLaunches.emplace_back(mon.Detach());
+}
+
+GameListItem *Application::GetNextQueuedGame() const
+{
+	// if the queue is empty, there's no game
+	if (queuedLaunches.size() == 0)
+		return nullptr;
+
+	// get the next item
+	auto &q = queuedLaunches.front();
+
+	// look up the game from the stored ID
+	return GameList::Get()->GetGameByID(q->gameId.c_str());
 }
 
 void Application::KillGame()
@@ -1130,6 +1187,51 @@ void Application::ResumeGame()
 	// make sure the process is still running
 	if (gameMonitor != nullptr)
 		gameMonitor->BringToForeground();
+}
+
+void Application::StealFocusFromGame()
+{
+	if (gameMonitor != nullptr)
+	{
+		HWND hwnd = GetPlayfieldWin()->GetHWnd();
+		if (gameMonitor->IsAdminMode() && adminHost.IsAvailable())
+		{
+			// admin mode - we have to proxy this through the admin host
+			TCHAR hwndAsStr[32];
+			_stprintf_s(hwndAsStr, _T("%ld"), (long)hwnd);
+			const TCHAR *req[] = { _T("stealFocus"), hwndAsStr };
+			adminHost.PostRequest(req, countof(req));
+		}
+		else
+		{
+			// it's not in admin mode - we should be able to take focus directly
+			gameMonitor->StealFocusFromGame(hwnd);
+		}
+	}
+}
+
+void Application::ManualCaptureGo()
+{
+	if (gameMonitor != nullptr)
+		gameMonitor->ManualCaptureGo();
+}
+
+void Application::BatchCaptureCancelPrompt(bool show)
+{
+	if (gameMonitor != nullptr)
+	{
+		if (CaptureStatusWin *statusWin = gameMonitor->capture.statusWin; statusWin != nullptr)
+			statusWin->BatchCaptureCancelPrompt(show);
+	}
+}
+
+void Application::ShowCaptureCancel()
+{
+	if (gameMonitor != nullptr)
+	{
+		if (CaptureStatusWin *statusWin = gameMonitor->capture.statusWin; statusWin != nullptr)
+			statusWin->ShowCaptureCancel();
+	}
 }
 
 void Application::CleanGameMonitor()
@@ -1316,9 +1418,11 @@ void Application::TogglePinscapeNightMode()
 Application::GameMonitorThread::GameMonitorThread() :
 	isAdminMode(false),
 	hideTaskbar(false),
-	rotationManager(this)
+	rotationManager(this),
+	closedGameProc(false)
 {
-	// create the shutdown and close-game event objects
+	// create the manual start/stop, shutdown, and close-game event objects
+	startStopEvent = CreateEvent(0, TRUE, FALSE, 0);
 	shutdownEvent = CreateEvent(0, TRUE, FALSE, 0);
 	closeEvent = CreateEvent(0, TRUE, FALSE, 0);
 
@@ -1363,12 +1467,12 @@ bool Application::GameMonitorThread::IsGameRunning() const
 
 void Application::GameMonitorThread::CloseGame()
 {
-	// signal the close-game event
-	SetCloseEvent();
-
 	// if the game is running, close its windows
 	if (IsGameRunning())
 	{
+		// flag that we've tried closing the game
+		closedGameProc = true;
+
 		// Try bringing our main window to the foreground before 
 		// closing the game program's window(s), so that the taskbar 
 		// doesn't reappear between closing the game and activating
@@ -1447,6 +1551,9 @@ void Application::GameMonitorThread::CloseGame()
 		if (hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT)
 			SaferTerminateProcess(hGameProc);
 	}
+
+	// signal the close-game event to the monitor thread
+	SetCloseEvent();
 }
 
 void Application::GameMonitorThread::BringToForeground()
@@ -1473,9 +1580,21 @@ void Application::GameMonitorThread::BringToForeground()
 }
 
 bool Application::GameMonitorThread::Launch(
-	int cmd, GameListItem *game, GameSystem *system, 
+	int cmd, GameListItem *game, GameSystem *system,
 	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	ErrorHandler &eh)
+{
+	// prepare the object
+	Prepare(cmd, game, system, captureList, captureStartupDelay, nullptr);
+
+	// do the launch
+	return Launch(eh);
+}
+
+void Application::GameMonitorThread::Prepare(
+	int cmd, GameListItem *game, GameSystem *system,
+	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
+	const BatchCaptureInfo *bci)
 {
 	// save the game information
 	this->cmd = cmd;
@@ -1483,6 +1602,10 @@ bool Application::GameMonitorThread::Launch(
 	this->gameId = game->GetGameId();
 	this->gameSys = *system;
 	this->elevationApproved = system->elevationApproved;
+
+	// if we're in a batch capture, save the batch info
+	if (bci != nullptr)
+		this->batchCaptureInfo = *bci;
 
 	// initially assume the game filename is the full name
 	this->gameFileWithExt = game->filename;
@@ -1510,12 +1633,12 @@ bool Application::GameMonitorThread::Launch(
 		// Keep a running total of the capture time as we go.  Start
 		// with some fixed overhead for our own initialization.
 		const DWORD initTime = 3000;
-		DWORD totalTime = initTime;
+		capture.totalTime = initTime;
 
 		// remember the startup delay
 		auto cfg = ConfigManager::GetInstance();
 		capture.startupDelay = captureStartupDelay * 1000;
-		totalTime += capture.startupDelay;
+		capture.totalTime += capture.startupDelay;
 
 		// remember the two-pass encoding option
 		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
@@ -1535,9 +1658,19 @@ bool Application::GameMonitorThread::Launch(
 			if (auto cfgvar = item.mediaType.captureTimeConfigVar; cfgvar != nullptr)
 				item.captureTime = cfg->GetInt(cfgvar, 30) * 1000;
 
-			// add it to the total time, plus a couple of seconds of
-			// overhead launching the capture program
-			totalTime += item.captureTime + 2000;
+			// set the manual start/stop modes
+			if (auto cfgvar = item.mediaType.captureStartConfigVar; cfgvar != nullptr)
+				item.manualStart = _tcsicmp(cfg->Get(cfgvar, _T("auto")), _T("manual")) == 0;
+			if (auto cfgvar = item.mediaType.captureStopConfigVar; cfgvar != nullptr)
+				item.manualStop = _tcsicmp(cfg->Get(cfgvar, _T("auto")), _T("manual")) == 0;
+
+			// Add it to the total time, plus a couple of seconds of overhead 
+			// for launching ffmpeg.  Note that there's no way to guess how long
+			// the capture will actually run if we're in manual stop mode, so
+			// we can only make a wild guess, but we'll still use the configured
+			// fixed capture time (as our wild guess, in this case), since that
+			// should at least be on the right order of magnitude.
+			capture.totalTime += item.captureTime + 2000;
 
 			// If we're doing two-pass encoding, add an estimate of the second
 			// pass encoding time.  This option is normally used only on a machine
@@ -1552,10 +1685,10 @@ bool Application::GameMonitorThread::Launch(
 			// decent upper bound.  And of course we've already established that 
 			// a factor of one is a good lower bound if we're using this mode.
 			// So let's just split the difference and call it 1.5x.
-			if (capture.twoPassEncoding 
+			if (capture.twoPassEncoding
 				&& (item.mediaType.format == MediaType::Format::SilentVideo
 					|| item.mediaType.format == MediaType::Format::VideoWithAudio))
-				totalTime += item.captureTime*3/2;
+				capture.totalTime += item.captureTime * 3 / 2;
 
 			// get the source window's rotation
 			item.windowRotation = cap.win->GetRotation();
@@ -1573,12 +1706,21 @@ bool Application::GameMonitorThread::Launch(
 			ClientToScreen(hwndView, &pt);
 			OffsetRect(&item.rc, pt.x, pt.y);
 		}
+	}
+}
 
+bool Application::GameMonitorThread::Launch(ErrorHandler &eh)
+{
+	// check if we're in capture mode
+	if (cmd == ID_CAPTURE_GO && capture.items.size() != 0)
+	{
 		// create the status window
 		capture.statusWin.Attach(new CaptureStatusWin());
 		capture.statusWin->Create(NULL, _T("PinballY"), WS_POPUP, SW_SHOWNOACTIVATE);
-		capture.statusWin->SetTotalTime(totalTime);
-		capture.statusWin->SetCaptureStatus(LoadStringT(IDS_CAPSTAT_INITING), initTime);
+		capture.statusWin->SetTotalTime(capture.totalTime);
+		capture.statusWin->SetBatchInfo(batchCaptureInfo.nCurGame, batchCaptureInfo.nGames, 
+			batchCaptureInfo.remainingTime*1000, batchCaptureInfo.totalTime*1000);
+		capture.statusWin->SetCaptureStatus(LoadStringT(IDS_CAPSTAT_INITING), CaptureInfo::initTime);
 	}
 
 	// Add a reference to myself on behalf of the thread.  This will 
@@ -1601,12 +1743,22 @@ bool Application::GameMonitorThread::Launch(
 		return false;
 	}
 
-	// update the last launch time for the game
+	// Look up the game object by its ID.  (We do it this way
+	// rather than storing a pointer to the game to ensure that
+	// the pointer doesn't go stale between the time the monitor
+	// object was prepared and the time it was launched.)
 	GameList *gl = GameList::Get();
-	gl->SetLastPlayedNow(game);
-
-	// update the play count for the game
-	gl->SetPlayCount(game, gl->GetPlayCount(game) + 1);
+	GameListItem *pgame = gl->GetGameByID(this->gameId.c_str());
+	if (pgame != nullptr)
+	{
+		// If we're in "play" mode, update the game's last launch time
+		// and play count.  Media capture doesn't count as playing.
+		if (cmd == ID_PLAY_GAME)
+		{
+			gl->SetLastPlayedNow(pgame);
+			gl->SetPlayCount(pgame, gl->GetPlayCount(pgame) + 1);
+		}
+	}
 
 	// success - the monitor thread will take it from here
 	return true;
@@ -1623,7 +1775,7 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// Regardless of how we exited, tell the main window that the game
 	// monitor thread is exiting.
 	if (self->playfieldView != 0)
-		self->playfieldView->PostMessage(PFVMsgGameOver);
+		self->playfieldView->SendMessage(PFVMsgGameOver);
 
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
@@ -1668,6 +1820,14 @@ TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
 		}
 	});
 }
+
+void Application::GameMonitorThread::ManualCaptureGo()
+{
+	// set the manual capture event to let the capture thread know it
+	// can proceed with the next step or finish the current step
+	SetEvent(startStopEvent);
+}
+
 
 DWORD Application::GameMonitorThread::Main()
 {
@@ -2169,7 +2329,8 @@ DWORD Application::GameMonitorThread::Main()
 				exe,
 				gameSys.workingPath.c_str(),
 				cmdline.c_str(),
-				gameInactivityTimeout.c_str()
+				gameInactivityTimeout.c_str(),
+				_T("2") // SW_SHOW_MINIMIZED
 			};
 
 			// Allow the admin host to set the foreground window when the
@@ -2181,29 +2342,29 @@ DWORD Application::GameMonitorThread::Main()
 			if (adminHost.SendRequest(request, countof(request), reply))
 			{
 				// successfully sent the launch request - parse the reply
-				if (reply[0] == _T("ok") && reply.size() >= 2)
+				if (reply[0] == _T("ok") && reply.size() >= 3)
 				{
 					// Successful launch.  The first parameter item in the
-					// reply is the process ID of the new process.  We can use
-					// this to open a handle to the process.  Note that this
-					// is allowed even though the new process is elevated: a
-					// non-elevated process is allowed to open a handle to an
-					// elevated process, but there are restrictions on what
-					// types of access we can request.  SYNCHRONIZE (to wait
-					// for the process to exit) is one of the allowed access
-					// rights, as is "query limited information".
+					// reply is the process ID of the new process; the second
+					// is the thread ID.  We can use the process ID to open a
+					// handle to the process.  This is allowed even though the
+					// new process is elevated; a non-elevated process is 
+					// allowed to open a handle to an elevated process, with
+					// restrictions on what types of access we can request. 
+					// SYNCHRONIZE (to waitfor the process to exit) is one of
+					// the allowed access rights, as is "query limited 
+					// information".
 					// 
 					// Plug the process handle into the PROCESS_INFORMATION
 					// struct that we'd normally get back from CreateProcess(),
-					// to emulate normal process creation.  Leave the thread
-					// handle empty.
+					// to emulate normal process creation.  We don't need the
+					// thread handle for anything, so leave it null.
 					//
 					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Admin mode launch succeeded\n"));
 					procInfo.dwProcessId = (DWORD)_ttol(reply[1].c_str());
+					procInfo.dwThreadId = (DWORD)_ttol(reply[2].c_str());
 					procInfo.hProcess = OpenProcess(
-						SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, 
-						procInfo.dwProcessId);
-					procInfo.dwThreadId = 0;
+						SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, procInfo.dwProcessId);
 					procInfo.hThread = NULL;
 				}
 				else if (reply[0] == _T("error") && reply.size() >= 2)
@@ -2279,37 +2440,36 @@ DWORD Application::GameMonitorThread::Main()
 	if (procInfo.hThread != NULL)
 		CloseHandle(procInfo.hThread);
 
-	// remember the new process's handle and main thread ID
-	hGameProc = procInfo.hProcess;
+	// remember main thread ID for the new process
 	tidMainGameThread = procInfo.dwThreadId;
 
+	// remember the first-stage process handle
+	HANDLE hProcFirstStage = procInfo.hProcess;
+
 	// wait for the process to start up
-	if (!WaitForStartup())
+	if (!WaitForStartup(hProcFirstStage))
 		return 0;
 
-	// if we don't know the main thread ID yet, find it
-	while (tidMainGameThread == 0 && FindMainWindowForProcess(GetProcessId(hGameProc), &tidMainGameThread) == NULL)
+	// Some games, such as Steam-based systems or Future Pinball + BAM,
+	// are set up where the program we launch is actually just another
+	// launcher itself.  The program we run isn't the actual game; it
+	// launches the actual game as a separate (third) process.  Some
+	// of these launchers processes exit after launching the actual 
+	// game process, so our normal technique of monitoring the process
+	// we launch to determine when the game is done won't work:  since
+	// the launcher will exit immediately, its termination doesn't tell
+	// us anything about the game process's lifetime.  In these cases,
+	// we have a separate parameter for the game system, "Process name", 
+	// which tells us the EXE name of the actual game process.  
+	// 
+	if (gameSys.process.length() == 0)
 	{
-		// pause for a bit, exiting the thread if we get a Shutdown
-		// or Close Game signal
-		HANDLE waitHandles[] = { shutdownEvent, closeEvent };
-		if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 500) != WAIT_TIMEOUT)
-		{
-			LogFile::Get()->Write(LogFile::TableLaunchLogging,
-				_T("+ table launch interrupted (waiting for first window in child process to open)\n"));
-			return 0;
-		}
+		// Single-stage launch - remember the process handle
+		hGameProc = hProcFirstStage;
 	}
-
-	// The Steam-based systems use a staged launch, where we launch
-	// Steam.exe, and that in turn launches the actual program.  At the
-	// moment, Steam is the only thing that works this way, but for the
-	// sake of generality, we handle this with a "Process" parameter in
-	// the game system configuration, which tells us that we need to
-	// monitor a different process from the one we actually launched.
-	if (gameSys.process.length() != 0)
+	else
 	{
-		// we're going to wait for a second process
+		// Two-stage launch
 		LogFile::Get()->Write(LogFile::TableLaunchLogging, 
 			_T("+ table launch: waiting for secondary process %s to start\n"), gameSys.process.c_str());
 
@@ -2369,7 +2529,7 @@ DWORD Application::GameMonitorThread::Main()
 							hGameProc = newProc.Detach();
 
 							// make sure this process has finished starting up
-							if (!WaitForStartup())
+							if (!WaitForStartup(hGameProc))
 								return false;
 
 							// Find the thread with the UI window(s) for the new process.
@@ -2379,9 +2539,13 @@ DWORD Application::GameMonitorThread::Main()
 							// receive an Application Shutdown or Close Game signal.
 							while (FindMainWindowForProcess(procInfo.th32ProcessID, &tidMainGameThread) == NULL)
 							{
-								// pause for a bit, exiting the thread if we get a Shutdown
-								// or Close Game signal
-								HANDLE waitHandles[] = { shutdownEvent, closeEvent };
+								// Pause for a bit, exiting the thread if we get a Shutdown
+								// signal.  Don't stop on a Close event, though:  that would
+								// leave the second-stage process running.  The two-stage
+								// launch programs generally don't have any UI in the first
+								// stage, so it's best to treat the whole launch as an atomic
+								// operation for the purposes of the Close signal.
+								HANDLE waitHandles[] = { shutdownEvent };
 								if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 500) != WAIT_TIMEOUT)
 								{
 									LogFile::Get()->Write(LogFile::TableLaunchLogging,
@@ -2414,7 +2578,7 @@ DWORD Application::GameMonitorThread::Main()
 			// so we really shouldn't have to go more than one iteration after
 			// it exits to see the new process.  But just in case Windows is a
 			// little slow updating its process list, give it a few tries.
-			if (WaitForSingleObject(hGameProc, 0) == WAIT_OBJECT_0
+			if (WaitForSingleObject(hProcFirstStage, 0) == WAIT_OBJECT_0
 				&& ++triesSinceFirstStageExited > 10)
 			{
 				// It's been too long; we can probably assume the new process
@@ -2431,11 +2595,16 @@ DWORD Application::GameMonitorThread::Main()
 				return 0;
 			}
 
-			// do a brief pause, unless a Shutdown or Close Game event fired
-			HANDLE waitHandles[] = { shutdownEvent, closeEvent };
+			// Do a brief pause, unless a Shutdown event fired.  Don't stop
+			// on a Close event, since we want to treat the two-stage launch
+			// as atomic for the purposes of the Exit Game command; aborting
+			// here would leave the actual game process running indefinitely,
+			// since we haven't identified the process yet and thus can't
+			// explicitly shut it down yet.
+			HANDLE waitHandles[] = { shutdownEvent };
 			if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 1000) != WAIT_TIMEOUT)
 			{
-				// uh oh - one of the exit events has fired; abort immediately
+				// shutting down the app; abort immediately
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
 					_T("+ table launch: interrupted waiting for target process to start; aborting launch\n"));
 				return 0;
@@ -2810,7 +2979,11 @@ DWORD Application::GameMonitorThread::Main()
 
 		// overall capture status
 		TSTRINGEx curStatus;
-		TSTRINGEx overallStatus;
+		int overallStatusMsgId = 0;
+
+		// count of media items attempted/succeeded
+		int nMediaItemsAttempted = 0;
+		int nMediaItemsOk = 0;
 
 		// do the initial startup wait, to allow the game to boot up
 		{
@@ -2825,7 +2998,7 @@ DWORD Application::GameMonitorThread::Main()
 			// interrupted the capture, so stop immediately.
 			if (WaitForMultipleObjects(countof(h), h, FALSE, capture.startupDelay) != WAIT_TIMEOUT)
 			{
-				overallStatus.Load(IDS_ERR_CAP_GAME_EXITED);
+				overallStatusMsgId = IDS_ERR_CAP_GAME_EXITED;
 				captureOkay = false;
 				abortCapture = true;
 			}
@@ -2849,6 +3022,9 @@ DWORD Application::GameMonitorThread::Main()
 		// process, such as the game exiting prematurely.
 		for (auto &item: capture.items)
 		{
+			// count the item attempted
+			nMediaItemsAttempted += 1;
+
 			// get the descriptor for the item, for status messages
 			TSTRINGEx itemDesc;
 			itemDesc.Load(item.mediaType.nameStrId);
@@ -2869,25 +3045,6 @@ DWORD Application::GameMonitorThread::Main()
 			if (abortCapture)
 			{
 				statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_NOT_STARTED).c_str()));
-				break;
-			}
-
-			// set the status window message
-			curStatus.Format(LoadStringT(IDS_CAPSTAT_ITEM), itemDesc.c_str());
-			capture.statusWin->SetCaptureStatus(curStatus, item.captureTime);
-
-			// Move the status window over the playfield window when capturing
-			// in any other window, and move it over the backglass window when
-			// capturing the playfield.
-			switch (item.mediaType.nameStrId)
-			{
-			case IDS_MEDIATYPE_PFPIC:
-			case IDS_MEDIATYPE_PFVID:
-				capture.statusWin->PositionOver(Application::Get()->GetBackglassWin());
-				break;
-
-			default:
-				capture.statusWin->PositionOver(Application::Get()->GetPlayfieldWin());
 				break;
 			}
 
@@ -2949,6 +3106,86 @@ DWORD Application::GameMonitorThread::Main()
 				}
 			}
 
+			// If this item is in Manual Start mode, wait for the start signal
+			if (item.manualStart)
+			{
+				// Move the status window over the playfield window, even if we're
+				// going to capture the playfield.  We're not actually capturing
+				// anything while waiting for the Go signal, so it doesn't matter
+				// if we put the status window in front of the window we're about
+				// to capture, hence we can put it anywhere.  The window is more
+				// than just status in this case - it's showing a prompt - so we
+				// want it to be as conspicuous as possible.  The playfield window
+				// is the best place to make the user notice it.
+				capture.statusWin->PositionOver(Application::Get()->GetPlayfieldWin());
+
+				// put the status window in waiting mode
+				capture.statusWin->SetCaptureStatus(MsgFmt(IDS_CAPSTAT_MANUAL_START, itemDesc.c_str()), item.captureTime);
+				capture.statusWin->SetManualStartMode(true);
+
+				// clear any previous manual start/stop signal
+				ResetEvent(startStopEvent);
+
+				// Wait for the start/stop event
+				HANDLE h[] = { startStopEvent, hGameProc, shutdownEvent, closeEvent };
+				static const TCHAR *hDesc[] = { 
+					_T("Started"), _T("game exited"), _T("PinballY shutting down"), _T("user pressed Exit Game button") 
+				};
+				switch (DWORD result = WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
+				{
+				case WAIT_OBJECT_0:
+					// The user pressed the Go button combo.  Ready to proceed
+					break;
+
+				case WAIT_OBJECT_0 + 1:
+				case WAIT_OBJECT_0 + 2:
+				case WAIT_OBJECT_0 + 3:
+					// The game process exited
+					captureOkay = false;
+					abortCapture = true;
+					LogFile::Get()->Write(LogFile::CaptureLogging, 
+						MsgFmt(_T("+ Capture aborted: %s while waiting for manual start\n"), hDesc[result - WAIT_OBJECT_0]));
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
+					break;
+					
+				default:
+					// error waiting
+					captureOkay = false;
+					abortCapture = true;
+					{
+						WindowsErrorMessage err;
+						LogFile::Get()->Write(LogFile::CaptureLogging,
+							MsgFmt(_T("+ Capture aborted: error waiting: %s\n"), err.Get()));
+					}
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED)));
+					break;
+				}
+			}
+
+			// stop if the capture was aborted
+			if (abortCapture)
+				break;
+
+			// ready to go - set the status window message
+			curStatus.Format(LoadStringT(IDS_CAPSTAT_ITEM), itemDesc.c_str());
+			capture.statusWin->SetCaptureStatus(curStatus, item.captureTime);
+			capture.statusWin->SetManualStartMode(false);
+
+			// Move the status window over the playfield window when capturing
+			// in any other window, and move it over the backglass window when
+			// capturing the playfield.
+			switch (item.mediaType.nameStrId)
+			{
+			case IDS_MEDIATYPE_PFPIC:
+			case IDS_MEDIATYPE_PFVID:
+				capture.statusWin->PositionOver(Application::Get()->GetBackglassWin());
+				break;
+
+			default:
+				capture.statusWin->PositionOver(Application::Get()->GetPlayfieldWin());
+				break;
+			}
+
 			// save (by renaming) any existing files of the type we're about to capture
 			TSTRING oldName;
 			if (FileExists(item.filename.c_str())
@@ -2959,7 +3196,7 @@ DWORD Application::GameMonitorThread::Main()
 				continue;
 			}
 
-			// if the file still exists, skip it
+			// if the file still exists, skip the item
 			if (FileExists(item.filename.c_str()))
 			{
 				statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_EXISTS).c_str()));
@@ -3077,14 +3314,16 @@ DWORD Application::GameMonitorThread::Main()
 			case MediaType::SilentVideo:
 				// video capture, no audio
 				isVideo = true;
-				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
+				if (!item.manualStop)
+					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				audioOpts = _T("-c:a none");
 				break;
 
 			case MediaType::VideoWithAudio:
 				// video capture with optional audio
 				isVideo = true;
-				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
+				if (!item.manualStop)
+					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				if (item.enableAudio)
 				{
 					acodecOpts.Format(_T("-c:a aac -b:a 128k"));
@@ -3096,7 +3335,8 @@ DWORD Application::GameMonitorThread::Main()
 
 			case MediaType::Audio:
 				// audio only
-				timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
+				if (!item.manualStop)
+					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
 				audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
 				break;
 			}
@@ -3148,7 +3388,16 @@ DWORD Application::GameMonitorThread::Main()
 					item.filename.c_str());
 			}
 
-			auto RunFFMPEG = [this, &statusList, &curStatus, &itemDesc, &captureOkay, &abortCapture](TSTRINGEx &cmdline, bool logSuccess)
+			// Run the capture.  'logSuccess' indicates whether or not we'll log
+			// a successful completion; this should be false until the last pass
+			// if we're doing a multi-pass capture, so that we don't roll out the
+			// "mission accomplished" banner prematurely.  'isCapturePass' is true
+			// on the first pass where we actually the capture, and false on
+			// subsequent passes.  This is used for Manual Stop mode: we only pay 
+			// attention to Manual Stop mode on the actual capture pass, not on
+			// subsequent encoding passes.
+			auto RunFFMPEG = [this, &statusList, &curStatus, &item, &itemDesc, &captureOkay, &abortCapture, &nMediaItemsOk]
+				(TSTRINGEx &cmdline, bool logSuccess, bool isCapturePass)
 			{
 				// presume failure
 				bool result = false;
@@ -3190,6 +3439,19 @@ DWORD Application::GameMonitorThread::Main()
 				{
 					// failed to create the pipe - just pass the NUL device
 					hStdinRead = CreateFile(_T("NUL"), GENERIC_READ, 0, &sa, OPEN_EXISTING, 0, NULL);
+
+					// we absolutely need the pipe in Manual Stop mode, since it's
+					// the way we tell ffmpeg to stop the capture
+					if (item.manualStop && isCapturePass)
+					{
+						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_MANUAL_STOP_NO_PIPE).c_str()));
+						LogFile::Get()->Write(LogFile::CaptureLogging,
+							_T("+ Manual Stop isn't possible for this item because an error occurred\n")
+							_T("  trying to create a pipe to send the stop command to ffmpeg; capture aborted\n"));
+						captureOkay = false;
+						abortCapture = true;
+						return false;
+					}
 				}
 
 				// Set up a temp file to capture output from FFmpeg, so that we can
@@ -3201,7 +3463,7 @@ DWORD Application::GameMonitorThread::Main()
 				HandleHolder hStdOut;
 				TSTRING fnameStdOut;
 				{
-					// we're logging it - capture to a temp file
+					// create the temp file
 					TCHAR tmpPath[MAX_PATH] = _T("<no temp path>"), tmpName[MAX_PATH] = _T("<no temp name>");
 					GetTempPath(countof(tmpPath), tmpPath);
 					GetTempFileName(tmpPath, _T("PBYCap"), 0, tmpName);
@@ -3310,16 +3572,55 @@ DWORD Application::GameMonitorThread::Main()
 						}
 					};
 
-					// wait for the process to finish, or for a shutdown or
-					// close-game event to interrupt it
-					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent };
+					// Wait for the process to finish, or for a shutdown or
+					// close-game event to interrupt it.  Also include the
+					// start/stop event as the last handle, but don't count
+					// it just yet - we'll only include it in the actual wait
+					// if we're in manual stop mode.
+					HANDLE h[] = { hFfmpegProc, hGameProc, shutdownEvent, closeEvent, startStopEvent };
 					static const TCHAR *waitName[] = {
-						_T("ffmpeg exited"), _T("game exited"), _T("app shutdown"), _T("user Exit Game command")
+						_T("ffmpeg exited"), _T("game exited"), _T("app shutdown"), _T("user Exit Game command"), _T("Manual Stop")
 					};
-					switch (DWORD waitResult = WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
+					DWORD nWaitHandles = countof(h) - 1;
+
+					// Check for Manual Stop mode.  This only applies on the
+					// capture pass (not on subsequent encode/compress passes).
+					if (item.manualStop && isCapturePass)
 					{
+						// include the manual stop event in the wait list
+						nWaitHandles += 1;
+
+						// set the capture status window to reflect manual stop mode
+						capture.statusWin->SetManualStopMode(true);
+
+						// clear any past manual start/stop signal
+						ResetEvent(startStopEvent);
+					}
+
+				WaitForFfmpeg:
+					// wait for the capture to finish
+					const TCHAR *waitResultName = nullptr;
+					switch (DWORD waitResult = WaitForMultipleObjects(nWaitHandles, h, FALSE, INFINITE))
+					{
+					case WAIT_OBJECT_0 + 4:
+						// The user pressed the Manual Stop button to terminate a manually
+						// timed capture.  Send ffmpeg the "Q" key on its stdin to stop
+						// the capture.
+						if (hStdinWrite != NULL)
+						{
+							static const char msg[] = "q\n";
+							DWORD actual;
+							WriteFile(hStdinWrite, msg, sizeof(msg) - 1, &actual, NULL);
+						}
+
+						// Now go back for another wait pass, this time removing the
+						// Manual Stop event from the wait list.  This gives ffmpeg a
+						// chance to exit before we proceed.
+						nWaitHandles -= 1;
+						goto WaitForFfmpeg;
+
 					case WAIT_OBJECT_0:
-						// The ffmpeg process finished
+						// The ffmpeg process finished successfully
 						{
 							// retrieve the process exit code
 							DWORD exitCode;
@@ -3344,7 +3645,13 @@ DWORD Application::GameMonitorThread::Main()
 
 								// log successful completion if desired
 								if (logSuccess)
+								{
+									// log the success
 									statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_OK).c_str()));
+
+									// count the success
+									nMediaItemsOk += 1;
+								}
 							}
 							else
 							{
@@ -3356,10 +3663,17 @@ DWORD Application::GameMonitorThread::Main()
 						}
 						break;
 
+					default:
+						// Error/unexpected wait result
+						waitResultName = _T("Error waiting for ffmpeg to exit");
+						goto Interruption;
+
 					case WAIT_OBJECT_0 + 1:
 					case WAIT_OBJECT_0 + 2:
 					case WAIT_OBJECT_0 + 3:
-					default:
+						waitResultName = waitName[waitResult - WAIT_OBJECT_0];
+
+					Interruption:
 						// Shutdown event, close event, or premature game termination,
 						// or another error.  Count this as an interrupted capture.
 						statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
@@ -3368,7 +3682,7 @@ DWORD Application::GameMonitorThread::Main()
 
 						// log it
 						CopyOutputToLog(false);
-						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitName[waitResult - WAIT_OBJECT_0]);
+						LogFile::Get()->Write(LogFile::CaptureLogging, _T("\n+ capture interrupted (%s)\n"), waitResultName);
 
 						// Send ffmpeg a "Q" key press on its stdin to try to shut
 						// it down immediately
@@ -3399,21 +3713,28 @@ DWORD Application::GameMonitorThread::Main()
 				// add a blank line to the log after the FFMPEG output, for readability 
 				LogFile::Get()->Group(LogFile::CaptureLogging);
 
-				// return the status
+				// we're done with manual stop mode, if it was ever in effect
+				capture.statusWin->SetManualStopMode(false);
+
+				// return the operation status
 				return result;
 			};
 
 			// Run the first pass.  Only show the success status for the first pass
 			// if there will be no second pass, since we won't know if the overall
 			// operation is successful until after the second pass, if there is one.
-			if (RunFFMPEG(cmdline1, cmdline2.length() == 0))
+			// Pass 'capturePass' as true on this pass, since this is the actual
+			// screen capture phase, regardless of whether we're doing the capture 
+			// in one pass or two.
+			bool twoPass = (cmdline2.length() != 0);
+			if (RunFFMPEG(cmdline1, !twoPass, true))
 			{
 				// success - if there's a second pass, run it
-				if (cmdline2.length() != 0)
+				if (twoPass)
 				{
 					curStatus.Format(LoadStringT(IDS_CAPSTAT_ENCODING_ITEM), itemDesc.c_str());
 					capture.statusWin->SetCaptureStatus(curStatus.c_str(), item.captureTime*3/2);
-					RunFFMPEG(cmdline2, true);
+					RunFFMPEG(cmdline2, true, false);
 				}
 			}
 
@@ -3436,13 +3757,14 @@ DWORD Application::GameMonitorThread::Main()
 		// Display the results to the main window
 		if (playfieldView != nullptr)
 		{
-			// load the overall group message, if we don't already have one
-			if (overallStatus.length() == 0)
-				overallStatus.Load(captureOkay ? IDS_ERR_CAP_SUCCESS : IDS_ERR_CAP_FAILED);
+			// set the overall group message, if we don't already have one
+			if (overallStatusMsgId == 0)
+				overallStatusMsgId = captureOkay ? IDS_ERR_CAP_SUCCESS : IDS_ERR_CAP_FAILED;
 
-			// show the results
-			PFVMsgShowErrorParams ep(captureOkay ? EIT_Information : EIT_Error, overallStatus.c_str(), &statusList);
-			playfieldView->SendMessage(PFVMsgShowError, 0, reinterpret_cast<LPARAM>(&ep));
+			// notify the playfield window of the capture status
+			PlayfieldView::CaptureDoneReport report(gameId, captureOkay, IsCloseEventSet(),
+				overallStatusMsgId, statusList, nMediaItemsAttempted, nMediaItemsOk);
+			playfieldView->SendMessage(PFVMsgCaptureDone, reinterpret_cast<WPARAM>(&report));
 		}
 	}
 
@@ -3462,29 +3784,46 @@ DWORD Application::GameMonitorThread::Main()
 		break;
 
 	case WAIT_OBJECT_0 + 2:
-		// The Close Game event has triggered.  The program should be
-		// exiting shortly, as we should have sent the necessary Close
-		// Window commands to the game when we triggered the Close.
-		// Give the game some time to finish, but don't wait too long
-		// this time.  Also stop immediately if we get an application
-		// Shutdown event: that means the user has quit out of the
-		// program, so we'll leave it to them to finish cleaning up
-		// any processes that are still running.
+		// The Close Game event has triggered
 		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Close Game command received\n"));
+
+		// If we didn't already do so, try terminating the game process
+		// explicitly.  The main UI will normally do this as soon as the
+		// Exit Game command is issued (which is what triggers the Close 
+		// event in the first place), but in some cases it might not be
+		// able to do so at the time of the command.  For example, if 
+		// this game uses a two-stage launch, the user might have pressed
+		// the Close button during the first phase, at which point the
+		// game process ID wasn't yet known.
+		if (!closedGameProc)
+		{
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: trying to close the game process\n"));
+			CloseGame();
+		}
+
+		// give the game a few seconds to terminate
 		{
 			HANDLE h2[] = { hGameProc, shutdownEvent };
 			switch (WaitForMultipleObjects(countof(h2), h2, FALSE, 5000))
 			{
 			case WAIT_OBJECT_0:
+				// the game process exited
 				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: game exited normally\n"));
 				break;
 
 			case WAIT_OBJECT_0 + 1:
+				// the shutdown event fired
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
-					_T("+ table launch: application shutting down; not waiting for game to exit\n"));
+					_T("+ table launch: application shutting down; aborting without waiting for game to exit\n"));
+				break;
+
+			case WAIT_TIMEOUT:
+				// timeout - the game didn't exit
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: timed out waiting for game to exit\n"));
 				break;
 
 			default:
+				// error/interruption
 				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: error waiting for game to exit\n"));
 				break;
 			}
@@ -3521,13 +3860,28 @@ DWORD Application::GameMonitorThread::Main()
 	return 0;
 }
 
-bool Application::GameMonitorThread::WaitForStartup()
+void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
+{
+	// inject a call to the child process to set our window
+	// as the foreground
+	DWORD tid;
+	HandleHolder hRemoteThread = CreateRemoteThread(
+		hGameProc, NULL, 0,
+		(LPTHREAD_START_ROUTINE)&SetForegroundWindow, hwnd,
+		0, &tid);
+
+	// explicitly set ourselves as the foreground window here, too,
+	// for good measure
+	SetForegroundWindow(hwnd);
+}
+
+bool Application::GameMonitorThread::WaitForStartup(HANDLE hProc)
 {
 	// keep trying until the process is ready, or we run into a problem
 	for (int tries = 0; tries < 20; ++tries)
 	{
 		// wait for "input idle" state
-		DWORD result = WaitForInputIdle(hGameProc, 1000);
+		DWORD result = WaitForInputIdle(hProc, 1000);
 
 		// if it's ready, return success
 		if (result == 0)
@@ -3848,20 +4202,26 @@ bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nIt
 	}
 }
 
-void Application::SendExitGameKeysToAdminHost(const std::list<TSTRING> &keys)
+void Application::SendExitGameKeysToAdminHost(const std::list<TSTRING> &exitKeys, const std::list<TSTRING> &pauseKeys)
 {
 	// we only need to do this if the Admin Host is running
 	if (adminHost.IsAvailable())
 	{
-		// start the command vector with the EXIT GAME KEYS verb
-		std::vector<const TCHAR*> req;
-		req.emplace_back(_T("exitGameKeys"));
+		auto Send = [this](const TCHAR *verb, const std::list<TSTRING> &keys)
+		{
+			// start the request vector with the verb
+			std::vector<const TCHAR*> req;
+			req.emplace_back(verb);
 
-		// add the keys
-		MapValues(keys, req, [](const TSTRING &ele) { return ele.c_str(); });
+			// add the keys
+			MapValues(keys, req, [](const TSTRING &ele) { return ele.c_str(); });
 
-		// post the request - this request has no reply
-		adminHost.PostRequest(&req[0], req.size());
+			// post the request - this request has no reply
+			adminHost.PostRequest(&req[0], req.size());
+		};
+
+		Send(_T("exitGameKeys"), exitKeys);
+		Send(_T("pauseGameKeys"), pauseKeys);
 	}
 }
 

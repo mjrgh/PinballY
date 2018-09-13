@@ -32,8 +32,20 @@ public:
 	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
 	static const DWORD DofLogging         = 0x00000040;   // DOF
 
-	// is a feature enabled?
-	bool IsFeatureEnabled(DWORD feature) { return (enabledFeatures & feature) != 0; }
+	// Is a feature enabled?
+	bool IsFeatureEnabled(DWORD feature) { return ((enabledFeatures | tempFeatures) & feature) != 0; }
+
+	// Enable a feature temporarily.  This doesn't affect the global
+	// settings; it just enables a feature for the duration of the 
+	// session, or until the temporary override is withdrawn.
+	void EnableTempFeature(DWORD feature);
+
+	// Withdraw a temporary feature.  This reverses the effect of
+	// EnableTempFeature() on the given feature.  This doesn't affect
+	// the persistent settings.  It also doesn't disable a feature
+	// that's enabled in the persistent settings; it only removes
+	// the additional temp enabling.
+	void WithdrawTempFeature(DWORD feature);
 
 	// write a message
 	void Write(const TCHAR *fmt, ...);
@@ -81,6 +93,11 @@ protected:
 	// Feature enable mask.  This is a bitwise combination of feature
 	// flags determining which features are enabled for logging.
 	DWORD enabledFeatures;
+
+	// Temporarily enabled features.  This allows callers to temporarily
+	// enable additional log features dynamically, without changing the
+	// persistent settings.
+	DWORD tempFeatures;
 
 	// global singleton instance
 	static LogFile *inst;

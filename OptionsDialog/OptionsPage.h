@@ -104,9 +104,25 @@ protected:
 		bool defVal;
 		CButton ckbox;
 		virtual void doDDX(CDataExchange *pDX) { DDX_Check(pDX, controlID, intVar); }
-		virtual void LoadConfigVar() { intVar = ConfigManager::GetInstance()->GetBool(configVar, defVal); }
-		virtual void SaveConfigVar() { ConfigManager::GetInstance()->SetBool(configVar, intVar); }
+		virtual void LoadConfigVar() override { intVar = ConfigManager::GetInstance()->GetBool(configVar, defVal); }
+		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->SetBool(configVar, intVar); }
 		virtual bool IsModifiedFromConfig() override;
+	};
+
+	// Checkbox <-> enumerated value
+	struct CkBoxEnumMap : CkBoxMap
+	{
+		CkBoxEnumMap(const TCHAR *configVar, int controlID,
+			const TCHAR *uncheckedVal, const TCHAR *checkedVal, bool defVal) :
+			CkBoxMap(configVar, controlID, defVal), uncheckedVal(uncheckedVal), checkedVal(checkedVal) { }
+		virtual void LoadConfigVar() override { intVar = GetConfigVar(); }
+		virtual void SaveConfigVar() override;
+		virtual bool GetConfigVar();
+		virtual bool IsModifiedFromConfig() override;
+
+		// Config file values to store for the checkbox settings
+		TSTRING uncheckedVal;
+		TSTRING checkedVal;
 	};
 
 	// Edit box <-> string
@@ -118,8 +134,8 @@ protected:
 		CString defVal;
 		CEdit edit;
 		virtual void doDDX(CDataExchange *pDX) { DDX_Text(pDX, controlID, strVar); }
-		virtual void LoadConfigVar() { strVar = FromConfig(ConfigManager::GetInstance()->Get(configVar, defVal)).c_str(); }
-		virtual void SaveConfigVar() { ConfigManager::GetInstance()->Set(configVar, ToConfig(strVar).c_str()); }
+		virtual void LoadConfigVar() override { strVar = FromConfig(ConfigManager::GetInstance()->Get(configVar, defVal)).c_str(); }
+		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->Set(configVar, ToConfig(strVar).c_str()); }
 		virtual bool IsModifiedFromConfig() override;
 
 		virtual TSTRING FromConfig(const TCHAR *str) { return str; }
@@ -162,8 +178,8 @@ protected:
 		float defVal;
 		CEdit edit;
 		virtual void doDDX(CDataExchange *pDX);
-		virtual void LoadConfigVar() { floatVar = ConfigManager::GetInstance()->GetFloat(configVar, defVal); }
-		virtual void SaveConfigVar() { ConfigManager::GetInstance()->SetFloat(configVar, floatVar); }
+		virtual void LoadConfigVar() override { floatVar = ConfigManager::GetInstance()->GetFloat(configVar, defVal); }
+		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->SetFloat(configVar, floatVar); }
 		virtual bool IsModifiedFromConfig() override;
 	};
 

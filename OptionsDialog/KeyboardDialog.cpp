@@ -1134,7 +1134,7 @@ void MainKeyboardDialog::BuildDatabase(bool bResetToFactory)
 		// check if we're resetting to defaults
 		if (bResetToFactory)
 		{
-			if (cmdDesc.defaultKey != -1)
+			if (cmdDesc.defaultKey != 0)
 				cmd.AddKey(KBKey(&cmd, cmdDesc.defaultKey));
 		}
 		else

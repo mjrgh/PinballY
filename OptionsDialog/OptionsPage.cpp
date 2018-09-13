@@ -207,6 +207,32 @@ bool OptionsPage::CkBoxMap::IsModifiedFromConfig()
 	return checked != ConfigManager::GetInstance()->GetBool(configVar, defVal);
 }
 
+bool OptionsPage::CkBoxEnumMap::GetConfigVar()
+{
+	// check to see if the config file value matches one of the enumerated values
+	if (const TCHAR *s = ConfigManager::GetInstance()->Get(configVar, nullptr); s != nullptr)
+	{
+		if (_tcsicmp(s, checkedVal.c_str()) == 0)
+			return true;
+		else if (_tcsicmp(s, uncheckedVal.c_str()) == 0)
+			return false;
+	}
+
+	// we didn't match an enumerated value, so apply the default value
+	return defVal;
+}
+
+void OptionsPage::CkBoxEnumMap::SaveConfigVar()
+{
+	ConfigManager::GetInstance()->Set(configVar, intVar == 0 ? uncheckedVal.c_str() : checkedVal.c_str());
+}
+
+bool OptionsPage::CkBoxEnumMap::IsModifiedFromConfig()
+{
+	bool checked = (ckbox.GetCheck() == BST_CHECKED);
+	return checked != GetConfigVar();
+}
+
 bool OptionsPage::EditStrMap::IsModifiedFromConfig()
 {
 	// Canonicalize the config value for comparison purposes, by

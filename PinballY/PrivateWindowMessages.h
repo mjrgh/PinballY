@@ -45,6 +45,7 @@ const UINT PFVMsgShowSysError = WM_USER + 204;		// WPARAM = TCHAR *friendly, LPA
 const UINT PFVMsgPlayElevReqd = WM_USER + 205;      // WPARAM = TCHAR *systemName, LPARAM = LONG_PTR(&GameListItem)
 const UINT PFVMsgGameRunBefore = WM_USER + 206;     // WPARAM = launch command
 const UINT PFVMsgGameRunAfter = WM_USER + 207;      // WPARAM = launch command
+const UINT PFVMsgCaptureDone = WM_USER + 208;       // WPARAM = LONG_PTR(&PlayfieldView::CaptureDoneReport)
 
 // DMDView messages
 const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images
