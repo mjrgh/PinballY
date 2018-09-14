@@ -17,14 +17,14 @@
 #include "TextDraw.h"
 #include "PerfMon.h"
 #include "BaseView.h"
-#include "BorderlessSecondaryView.h"
+#include "SecondaryView.h"
 
 class Sprite;
 class VideoSprite;
 class TextureShader;
 class GameListItem;
 
-class InstCardView : public BorderlessSecondaryView
+class InstCardView : public SecondaryView
 {
 public:
 	InstCardView();

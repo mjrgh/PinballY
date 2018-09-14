@@ -96,6 +96,7 @@ bool D3DView::InitWin()
 	LoadMenuIcon(ID_ROTATE_CW, IDB_MNU_ROTATE);
 	LoadMenuIcon(ID_EXIT, IDB_MNU_EXIT);
 	LoadMenuIcon(ID_FULL_SCREEN, IDB_MNU_FULLSCREEN);
+	LoadMenuIcon(ID_WINDOW_BORDERS, IDB_MNU_WINDOW_BORDERS);
 	LoadMenuIcon(ID_FPS, IDB_MNU_FPS);
 	LoadMenuIcon(ID_OPTIONS, IDB_MNU_OPTIONS);
 	LoadMenuIcon(ID_VIEW_BACKGLASS, IDB_MNU_BACKGLASS);
@@ -381,6 +382,7 @@ bool D3DView::HandleCommand(int cmd)
 
 	case ID_FULL_SCREEN:
 	case ID_HIDE:
+	case ID_WINDOW_BORDERS:
 		// forward these commands to our parent
 		::SendMessage(GetParent(hWnd), WM_COMMAND, cmd, 0);
 		return true;

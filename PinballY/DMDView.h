@@ -16,14 +16,13 @@
 #include "PerfMon.h"
 #include "BaseView.h"
 #include "SecondaryView.h"
-#include "BorderlessSecondaryView.h"
 
 class Sprite;
 class VideoSprite;
 class GameListItem;
 class DMDFont;
 
-class DMDView : public BorderlessSecondaryView
+class DMDView : public SecondaryView
 {
 public:
 	DMDView();

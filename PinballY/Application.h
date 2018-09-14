@@ -349,7 +349,7 @@ public:
 	// on success, false on failure.
 	static bool RunCommand(const TCHAR *cmd, 
 		ErrorHandler &eh, int friendlyErrorStringId,
-		bool wait = true, HANDLE *phProcess = nullptr,
+		bool wait = true, HANDLE *phProcess = nullptr, DWORD *pPid = nullptr,
 		UINT nShowCmd = SW_SHOW);
 
 	// Process a WM_ACTIVATEAPP notification to one of our windows
@@ -358,15 +358,19 @@ public:
 	// Is the Admin Host available?
 	bool IsAdminHostAvailable() const { return adminHost.IsAvailable(); }
 
+	// post a request to the Admin Host, with no expectation of a reply
+	void PostAdminHostRequest(const TCHAR *const *request, size_t nItems);
+
 	// send a request to the Admin Host
-	bool SendAdminHostRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply);
+	bool SendAdminHostRequest(const TCHAR *const *request, size_t nItems, 
+		std::vector<TSTRING> &reply, TSTRING &errDetails);
 
 	// Restart the program in Admin mode.  This attempts to launch the
 	// Admin Host, and if successful, closes the current session.
 	void RestartAsAdmin();
 
-	// Send the EXIT GAME key list to the Admin Host
-	void SendExitGameKeysToAdminHost(const std::list<TSTRING> &exitKeys, const std::list<TSTRING> &pauseKeys);
+	// Send the key mapping list to the admin host
+	void SendKeysToAdminHost(const std::list<TSTRING> &keys);
 
 	// High scores object
 	RefPtr<HighScores> highScores;
@@ -705,24 +709,6 @@ protected:
 		// an Exit Game command?
 		bool closedGameProc;
 
-		// Handles to the RunBeforePre and RunBefore processes.  If 
-		// either of these is non-null, we'll terminate the process when
-		// the monitor thread exits.  Note that the handles won't be 
-		// saved here if we run the processes in [NOWAIT] mode, with no
-		// TERMINATE flag, since in that case we're meant to launch the 
-		// program and leave it running indefinitely.  In any other case,
-		// we're responsible for making sure the program exits.
-		HandleHolder hRunBeforePreProc;
-		HandleHolder hRunBeforeProc;
-
-		// Handles to the RunAfter and RunAfterPost processes.  As with
-		// RunBefore, we'll use these to terminate the processes when the
-		// monitor thread exits.   These handles aren't saved in [NOWAIT]
-		// mode, since in that case we're meant to leave the program running
-		// indefinitely.
-		HandleHolder hRunAfterProc;
-		HandleHolder hRunAfterPostProc;
-
 		// main thread of the game process
 		DWORD tidMainGameThread;
 
@@ -809,7 +795,6 @@ protected:
 			// containing game monitor thread object
 			GameMonitorThread *monitor;
 		};
-		RotationManager rotationManager;
 	};
 
 	// launch the game prepared into a game monitor object
@@ -901,7 +886,8 @@ protected:
 		//
 		void PostRequest(const TCHAR *const *request, size_t nItems);
 		void PostRequest(const std::vector<TSTRING> &request);
-		bool SendRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply);
+		bool SendRequest(const TCHAR *const *request, size_t nItems, 
+			std::vector<TSTRING> &reply, TSTRING &errDetails);
 
 		// Process ID (PID) of the Admin Host process.  The host sends
 		// us this information on the command line when launching us.

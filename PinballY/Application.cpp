@@ -774,7 +774,7 @@ void Application::CheckRunAtExit()
 
 bool Application::RunCommand(const TCHAR *cmd,
 	ErrorHandler &eh, int friendlyErrorStringId,
-	bool wait, HANDLE *phProcess, UINT nShowCmd)
+	bool wait, HANDLE *phProcess, DWORD *pPid, UINT nShowCmd)
 {
 	// no process handle yet
 	if (phProcess != nullptr)
@@ -833,6 +833,10 @@ bool Application::RunCommand(const TCHAR *cmd,
 			*phProcess = procInfo.hProcess;
 		else
 			CloseHandle(procInfo.hProcess);
+
+		// pass back the PID if desired
+		if (pPid != nullptr)
+			*pPid = procInfo.dwProcessId;
 
 		// the process was successfully launched
 		return true;
@@ -1418,7 +1422,6 @@ void Application::TogglePinscapeNightMode()
 Application::GameMonitorThread::GameMonitorThread() :
 	isAdminMode(false),
 	hideTaskbar(false),
-	rotationManager(this),
 	closedGameProc(false)
 {
 	// create the manual start/stop, shutdown, and close-game event objects
@@ -1436,23 +1439,6 @@ Application::GameMonitorThread::GameMonitorThread() :
 
 Application::GameMonitorThread::~GameMonitorThread()
 {
-	// If we have a handle to the RunBefore process, it means that it uses
-	// [NOWAIT TERMINATE] mode, which means that we left the program running
-	// while playing the game, and that we're meant to terminate the program
-	// when the game terminates.  
-	if (hRunBeforePreProc != NULL)
-		SaferTerminateProcess(hRunBeforePreProc);
-	if (hRunBeforeProc != NULL)
-		SaferTerminateProcess(hRunBeforeProc);
-
-	// Likewise, if we have an outstanding RunAfter process handle, kill it.
-	// A RunAfter process will only be left running if we launched it in
-	// "wait" mode and the wait failed, either due to an error or due to
-	// the user canceling the game launch.
-	if (hRunAfterProc != NULL)
-		SaferTerminateProcess(hRunAfterProc);
-	if (hRunAfterPostProc != NULL)
-		SaferTerminateProcess(hRunAfterPostProc);
 }
 
 bool Application::GameMonitorThread::IsThreadRunning()
@@ -1875,14 +1861,18 @@ DWORD Application::GameMonitorThread::Main()
 	POINT ptDMDCenter = WinPt(Application::Get()->GetDMDWin(), 320, 650);
 	POINT ptTopperCenter = WinPt(Application::Get()->GetTopperWin(), 950, 650);
 
+	// Set up a rotation manager on the stack, so that it'll automatically
+	// undo any outstanding rotations when we return.
+	RotationManager rotationManager(this);
+
 	// RunBefore/RunAfter option flag parser
 	class RunBeforeAfterParser
 	{
 	public:
-		RunBeforeAfterParser(GameMonitorThread *monitor, HandleHolder &hProc,
+		RunBeforeAfterParser(GameMonitorThread *monitor, RotationManager &rotationManager,
 			const TCHAR *desc, int launchErrorId, const TSTRING &command, bool continueAfterClose) :
 			monitor(monitor),
-			hProc(hProc),
+			rotationManager(rotationManager),
 			desc(desc),
 			launchErrorId(launchErrorId),
 			returnStatusOnClose(continueAfterClose),
@@ -1890,20 +1880,20 @@ DWORD Application::GameMonitorThread::Main()
 			terminate(false),
 			hide(false),
 			minimize(false),
+			admin(false),
 			executed(false),
-			canceled(false)
+			canceled(false),
+			pid(0)
 		{
-			std::basic_regex<TCHAR> flagsPat(
-				_T("\\s*\\[((NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE|ROTATE\\(\\w+,\\d+\\))")
-				_T("(\\s+(NOWAIT|TERMINATE|HIDE|MIN|MINIMIZE|ROTATE\\(\\w+,\\d+\\)))*)\\]\\s*(.*)"));
+			static const std::basic_regex<TCHAR> flagsPat(_T("\\s*\\[([^\\]]+)\\]\\s*(.*)"));
 			std::match_results<TSTRING::const_iterator> m;
 			if (std::regex_match(command, m, flagsPat))
 			{
 				// extract the flags
 				const TSTRING &flags = m[1].str();
 
-				// Pull out the actual command string, minus the option flags
-				this->command = m[5].str();
+				// Pull out the actual command string, stripped of the option flags
+				this->command = m[2].str();
 
 				// match the individual flags
 				const TCHAR *start = flags.c_str();
@@ -1917,18 +1907,31 @@ DWORD Application::GameMonitorThread::Main()
 					// find the end of this segment
 					for (start = p; *p != 0 && !_istspace(*p); ++p);
 
+					// extract the token and convert to lower-case
+					TSTRING tok(start, p - start);
+					std::transform(tok.begin(), tok.end(), tok.begin(), ::_totlower);
+
 					// match this token
-					size_t len = p - start;
-					if (_tcsncmp(start, _T("NOWAIT"), len) == 0)
+					static const std::basic_regex<TCHAR> rotatePat(_T("rotate\\((\\w+,\\d+)\\)"));
+					std::match_results<TSTRING::const_iterator> m2;
+					if (tok == _T("nowait"))
 						nowait = true;
-					else if (_tcsncmp(start, _T("TERMINATE"), len) == 0)
+					else if (tok == _T("terminate"))
 						terminate = true;
-					else if (_tcsncmp(start, _T("HIDE"), len) == 0)
+					else if (tok == _T("hide"))
 						hide = true;
-					else if (_tcsncmp(start, _T("MIN"), len) == 0 || _tcsncmp(start, _T("MINIMIZE"), len) == 0)
+					else if (tok == _T("min") || tok == _T("minimize"))
 						minimize = true;
-					else if (_tcsncmp(start, _T("ROTATE("), 7) == 0)
-						rotate.emplace_back(start + 7, len - 8);
+					else if (std::regex_match(tok, m2, rotatePat))
+						rotate.emplace_back(m2[1].str());
+					else if (tok == _T("admin"))
+						admin = true;
+					else
+					{
+						// invalid token - append to the invalid token list
+						if (invalOptTok.length() != 0) invalOptTok += _T(" ");
+						invalOptTok += tok;
+					}
 				}
 			}
 			else
@@ -1943,6 +1946,28 @@ DWORD Application::GameMonitorThread::Main()
 			// if we haven't executed the command yet, do so now
 			if (!executed && !canceled)
 				Run();
+
+			// If we have a process handle at this point, it means that we're
+			// in NOWAIT TERMINATE mode.  The time has come for that TERMINATE
+			// bit.
+			if (hProc != NULL && WaitForSingleObject(hProc, 0) == WAIT_TIMEOUT)
+			{
+				// if we're in Admin mode, clean up the process via the admin host
+				if (admin)
+				{
+					MsgFmt spid(_T("%ld"), pid);
+					const TCHAR *req[] = {
+						_T("killpid"),
+						spid.Get()
+					};
+					Application::Get()->PostAdminHostRequest(req, countof(req));
+				}
+				else
+				{
+					// normal user mode - kill the process 
+					SaferTerminateProcess(hProc);
+				}
+			}
 		}
 
 		// Cancel the command.  Once the command object is instantiated, it's
@@ -1959,6 +1984,8 @@ DWORD Application::GameMonitorThread::Main()
 		// game launch process).
 		bool Run()
 		{
+			AsyncErrorHandler aeh;
+
 			// if the command is empty, there's nothing to do - simply return success
 			if (command.length() == 0)
 				return true;
@@ -1969,6 +1996,19 @@ DWORD Application::GameMonitorThread::Main()
 
 			// log the command
 			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ %s:\n> %s\n"), desc.c_str(), command.c_str());
+
+			// Check for invalid option tokens.  We defer errors on option parsing
+			// until we run the command, since we parse and set up some of the
+			// commands long before we actually run them.  It's more sensible to
+			// the user to have any parsing errors show up at the point in the 
+			// sequence where we try to run the command.
+			if (invalOptTok.length() != 0)
+			{
+				aeh.Error(MsgFmt(_T("%s %s"), LoadStringT(launchErrorId).c_str(),
+					MsgFmt(IDS_ERR_RUNBEFOREAFTEROPT, invalOptTok.c_str()).Get()));
+				LogFile::Get()->Write(_T("+ %s: Invalid prefix option(s) [%s]\n"), desc.c_str(), invalOptTok.c_str());
+				return false;
+			}
 
 			// Reset the Close event.  The Close event can be used to terminate
 			// any step of the launch sequence, including Run Before and Run After
@@ -1986,27 +2026,100 @@ DWORD Application::GameMonitorThread::Main()
 				{
 					TSTRING windowName = m[1].str();
 					int theta = _ttoi(m[2].str().c_str());
-					monitor->rotationManager.Rotate(windowName, theta);
+					rotationManager.Rotate(windowName, theta);
 				}
 			}
 
-			// Launch the program without waiting
-			AsyncErrorHandler aeh;
-			if (!Application::RunCommand(monitor->SubstituteVars(command).c_str(), 
-				aeh, launchErrorId, false, &hProc, 
-				hide ? SW_HIDE : minimize ? SW_SHOWMINIMIZED : SW_SHOW))
+			// apply substitution variables to the command
+			TSTRING expCommand = monitor->SubstituteVars(command);
+			
+			// launch in the appropriate mode
+			if (admin)
 			{
-				// failed - abort the launch
-				LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-					_T("+ %s:\n> command execution failed; aborting launch\n"), desc.c_str());
-				return false;
+				// Admin mode - launch it through the admin proxy.  If no
+				// proxy is available, Admin launch isn't allowed.
+				auto app = Application::Get();
+				if (!app->IsAdminHostAvailable())
+				{
+					aeh.Error(MsgFmt(_T("%s %s"), LoadStringT(launchErrorId).c_str(), LoadStringT(IDS_ERR_ADMINHOSTREQ).c_str()));
+					LogFile::Get()->Write(_T("+ %s: [ADMIN] flag was specified, but Administrator mode launching\n")
+						_T("isn't available.  Please run \"PinballY Admin Mode.exe\" instead of the normal\n")
+						_T("PinballY program to make Administrator launching available.\n"), desc.c_str());
+					return false;
+				}
+
+				// Set up the admin mode request.
+				//
+				// For the launch mode, use "keep" or "detach", according to whether
+				// we'll need the handle later.  If we're in [NOWAIT] mode (without
+				// TERMINATE), we're going to set the process loose and never look
+				// back, so we don't need the handle for anything.  In other modes,
+				// we'll want to be able to terminate the process when the game
+				// exits, so tell the host to keep the handle for later cleanup.
+				const TCHAR *req[] = {
+					_T("run"),
+					_T(""),
+					_T(""),
+					expCommand.c_str(),
+					_T("0"),
+					hide ? _T("SW_HIDE") : minimize ? _T("SW_SHOWMINIMIZED") : _T("SW_SHOW"),
+					nowait && !terminate ? _T("detach") : _T("keep")
+				};
+
+				// launch it
+				std::vector<TSTRING> reply;
+				TSTRING errDetails;
+				bool adminOk = app->SendAdminHostRequest(req, countof(req), reply, errDetails);
+
+				// validate the response format on a successful reply
+				if (adminOk && reply.size() < 2)
+				{
+					adminOk = false;
+					errDetails = _T("Invalid response format from host: ");
+					for (auto const &r : reply)
+						errDetails += _T(" \"") + r + _T("\"");
+				}
+
+				// check for errors
+				if (!adminOk)
+				{
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ %s:\n> [ADMIN] command execution failed: %s; aborting launch\n"), desc.c_str(), errDetails.c_str());
+					return false;
+				}
+
+				// The reply is "ok <pid> <tid>".  We just need the process ID.
+				pid = (DWORD)_ttol(reply[1].c_str());
+
+				// Open a handle on the process.  For an Admin process, we're
+				// restricted in the rights we can ask for, but SYNCHRONIZE is
+				// one of the allowed rights, and that's all we need for 'wait'
+				// operations on the process.
+				hProc = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+			}
+			else
+			{
+				// Normal user mode - launch it directly.  Don't wait here, as
+				// we might not want to wait for it at all, and even if we do,
+				// we'll need to do the wait ourselves since we have to monitor
+				// other events besides the spawned process while waiting.
+				if (!Application::RunCommand(expCommand.c_str(), aeh, launchErrorId, false, &hProc, &pid,
+					hide ? SW_HIDE : minimize ? SW_SHOWMINIMIZED : SW_SHOW))
+				{
+					// failed - abort the launch
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("+ %s:\n> command execution failed; aborting launch\n"), desc.c_str());
+					return false;
+				}
 			}
 
 			// Now wait for it, if it's not in NOWAIT mode.  Note that we
 			// have to wait explicitly here, rather than letting RunCommand
 			// handle the wait, because we need to also stop waiting if we
-			// get a shutdown signal.
-			if (nowait)
+			// get a shutdown signal.  If there's no process handle, assume
+			// that the process has already exited and hence that waiting
+			// isn't necessary.
+			if (nowait || hProc == NULL)
 			{
 				// NOWAIT mode.  We can simply leave the process running.
 				// If TERMINATE mode is set, leave the process handle in
@@ -2065,6 +2178,9 @@ DWORD Application::GameMonitorThread::Main()
 		// the game monitor thread object
 		GameMonitorThread *monitor;
 
+		// rotation manager object
+		RotationManager &rotationManager;
+
 		// description for log messages
 		TSTRING desc;
 
@@ -2074,8 +2190,9 @@ DWORD Application::GameMonitorThread::Main()
 		// Run() return status on Close event
 		bool returnStatusOnClose;
 
-		// process handle holder
-		HandleHolder &hProc;
+		// child process handle holder and PID
+		HandleHolder hProc;
+		DWORD pid;
 
 		// final command string, with all flags parsed out and substitutions applied
 		TSTRING command;
@@ -2085,6 +2202,11 @@ DWORD Application::GameMonitorThread::Main()
 		bool terminate;
 		bool hide;
 		bool minimize;
+		bool admin;
+
+		// if we find an invalid option token, we'll store it here for reporting 
+		// when we try to execute the command
+		TSTRING invalOptTok;
 
 		// has the command been executed yet?
 		bool executed;
@@ -2180,8 +2302,9 @@ DWORD Application::GameMonitorThread::Main()
 	//
 	// A Close event in an After command only cancels the current step, so
 	// continue if a close event occurs.
-	RunBeforeAfterParser runAfterPostCmd(this, hRunAfterPostProc, _T("RunAfterPost (final post-game exit command)"),
-		IDS_ERR_GAMERUNAFTERPOST, gameSys.runAfterPost, true);
+	RunBeforeAfterParser runAfterPostCmd(this, rotationManager,
+		_T("RunAfterPost (final post-game exit command)"), IDS_ERR_GAMERUNAFTERPOST, 
+		gameSys.runAfterPost, true);
 
 	// Run the RunBeforePre command, if any.  This command is executed with
 	// a completely blank playfield window, before we show the "Launching 
@@ -2191,8 +2314,10 @@ DWORD Application::GameMonitorThread::Main()
 	//
 	// A Close event in a Before command cancels the game launch, so don't
 	// continue if Close is signaled.
-	if (!RunBeforeAfterParser(this, hRunBeforePreProc, _T("RunBeforePre (initial pre-launch command)"),
-		IDS_ERR_GAMERUNBEFOREPRE, gameSys.runBeforePre, false).Run())
+	RunBeforeAfterParser runBeforePreCmd(this, rotationManager,
+		_T("RunBeforePre (initial pre-launch command)"), IDS_ERR_GAMERUNBEFOREPRE, 
+		gameSys.runBeforePre, false);
+	if (!runBeforePreCmd.Run())
 		return 0;
 
 	// Display the "Launching Game" message in the main window
@@ -2201,12 +2326,15 @@ DWORD Application::GameMonitorThread::Main()
 
 	// Set up guaranteed execution for the RunAfter command, now that
 	// we're about to fire RunBefore.
-	RunBeforeAfterParser runAfterCmd(this, hRunAfterProc, _T("RunAfter (post-game exit command)"),
-		IDS_ERR_GAMERUNAFTER, gameSys.runAfter, true);
+	RunBeforeAfterParser runAfterCmd(this, rotationManager,
+		_T("RunAfter (post-game exit command)"), IDS_ERR_GAMERUNAFTER, 
+		gameSys.runAfter, true);
 
 	// Run the RunBefore command, if any
-	if (!RunBeforeAfterParser(this, hRunBeforeProc, _T("RunBefore (pre-launch command)"),
-		IDS_ERR_GAMERUNBEFORE, gameSys.runBefore, false).Run())
+	RunBeforeAfterParser runBeforeCmd(this, rotationManager,
+		_T("RunBefore (pre-launch command)"), IDS_ERR_GAMERUNBEFORE,
+		gameSys.runBefore, false);
+	if (!runBeforeCmd.Run())
 		return 0;
 
 	// Do another check for adding a default extension to the game file.
@@ -2330,7 +2458,8 @@ DWORD Application::GameMonitorThread::Main()
 				gameSys.workingPath.c_str(),
 				cmdline.c_str(),
 				gameInactivityTimeout.c_str(),
-				_T("2") // SW_SHOW_MINIMIZED
+				_T("SW_SHOWMINIMIZED"),
+				_T("game")
 			};
 
 			// Allow the admin host to set the foreground window when the
@@ -2339,64 +2468,56 @@ DWORD Application::GameMonitorThread::Main()
 
 			// Send the request
 			std::vector<TSTRING> reply;
-			if (adminHost.SendRequest(request, countof(request), reply))
+			TSTRING errDetails;
+			bool adminOk = adminHost.SendRequest(request, countof(request), reply, errDetails);
+
+			// if the basic request succeeded, check the response format
+			if (adminOk && reply.size() < 3)
 			{
-				// successfully sent the launch request - parse the reply
-				if (reply[0] == _T("ok") && reply.size() >= 3)
-				{
-					// Successful launch.  The first parameter item in the
-					// reply is the process ID of the new process; the second
-					// is the thread ID.  We can use the process ID to open a
-					// handle to the process.  This is allowed even though the
-					// new process is elevated; a non-elevated process is 
-					// allowed to open a handle to an elevated process, with
-					// restrictions on what types of access we can request. 
-					// SYNCHRONIZE (to waitfor the process to exit) is one of
-					// the allowed access rights, as is "query limited 
-					// information".
-					// 
-					// Plug the process handle into the PROCESS_INFORMATION
-					// struct that we'd normally get back from CreateProcess(),
-					// to emulate normal process creation.  We don't need the
-					// thread handle for anything, so leave it null.
-					//
-					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Admin mode launch succeeded\n"));
-					procInfo.dwProcessId = (DWORD)_ttol(reply[1].c_str());
-					procInfo.dwThreadId = (DWORD)_ttol(reply[2].c_str());
-					procInfo.hProcess = OpenProcess(
-						SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, procInfo.dwProcessId);
-					procInfo.hThread = NULL;
-				}
-				else if (reply[0] == _T("error") && reply.size() >= 2)
-				{
-					// Error, with technical error text in the first parameter
-					const TCHAR *errmsg = reply[1].c_str();
-					LogFile::Get()->Write(LogFile::TableLaunchLogging,
-						_T("+ table launch: Admin launch failed: %s\n"), errmsg);
- 
-					// send the error to the playfield view for display
-					if (playfieldView != nullptr)
-						playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(errmsg));
+				adminOk = false;
+				errDetails = _T("Invalid response format from host: ");
+				for (auto const &r : reply)
+					errDetails += _T(" \"") + r + _T("\"");
+			}
 
-					// return failure
-					return 0;
-				}
-				else
-				{
-					// Unknown response
-					const TCHAR *unk = reply[0].c_str();
-					LogFile::Get()->Write(LogFile::TableLaunchLogging,
-						_T("+ table launch: Admin launch failed: unexpected response from Admin Host \"%s\"\n"), unk);
+			// check the results
+			if (adminOk)
+			{
+				// Successful launch.  The first parameter item in the
+				// reply is the process ID of the new process; the second
+				// is the thread ID.  We can use the process ID to open a
+				// handle to the process.  This is allowed even though the
+				// new process is elevated; a non-elevated process is 
+				// allowed to open a handle to an elevated process, with
+				// restrictions on what types of access we can request. 
+				// SYNCHRONIZE (to waitfor the process to exit) is one of
+				// the allowed access rights, as is "query limited 
+				// information".
+				// 
+				// Plug the process handle into the PROCESS_INFORMATION
+				// struct that we'd normally get back from CreateProcess(),
+				// to emulate normal process creation.  We don't need the
+				// thread handle for anything, so leave it null.
+				//
+				LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: Admin mode launch succeeded\n"));
+				procInfo.dwProcessId = (DWORD)_ttol(reply[1].c_str());
+				procInfo.dwThreadId = (DWORD)_ttol(reply[2].c_str());
+				procInfo.hProcess = OpenProcess(
+					SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, procInfo.dwProcessId);
+				procInfo.hThread = NULL;
+			}
+			else
+			{
+				// Error launching
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: Admin launch failed: %s\n"), errDetails.c_str());
 
-					// send the error to the playfield view for display
-					if (playfieldView != nullptr)
-						playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
-							reinterpret_cast<LPARAM>(MsgFmt(
-								_T("Unexpected response from Admin Host: \"%s\""), unk).Get()));
+				// send the error to the playfield view for display
+				if (playfieldView != nullptr)
+					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(errDetails.c_str()));
 
-					// return failure
-					return 0;
-				}
+				// return failure
+				return 0;
 			}
 		}
 
@@ -3935,15 +4056,15 @@ void Application::GameMonitorThread::RotationManager::RotateNoStore(const TSTRIN
 {
 	// find the window by name
 	D3DView *pwnd = nullptr;
-	if (winName == _T("PLAYFIELD"))
+	if (winName == _T("playfield"))
 		pwnd = monitor->playfieldView;
-	else if (winName == _T("BACKGLASS"))
+	else if (winName == _T("backglass"))
 		pwnd = monitor->backglassView;
-	else if (winName == _T("DMD"))
+	else if (winName == _T("dmd"))
 		pwnd = monitor->dmdView;
-	else if (winName == _T("TOPPER"))
+	else if (winName == _T("topper"))
 		pwnd = monitor->topperView;
-	else if (winName == _T("INSTRUCTIONS"))
+	else if (winName == _T("instructions"))
 		pwnd = monitor->instCardView;
 
 	// if we found it, apply the rotation
@@ -4115,15 +4236,24 @@ void Application::AdminHost::PostRequest(const TCHAR *const *request, size_t nIt
 	SetEvent(hRequestEvent);
 }
 
-bool Application::SendAdminHostRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply)
+
+void Application::PostAdminHostRequest(const TCHAR *const *request, size_t nItems)
 {
 	if (adminHost.IsAvailable())
-		return adminHost.SendRequest(request, nItems, reply);
+		adminHost.PostRequest(request, nItems);
+}
+
+bool Application::SendAdminHostRequest(const TCHAR *const *request, size_t nItems, 
+	std::vector<TSTRING> &reply, TSTRING &errDetails)
+{
+	if (adminHost.IsAvailable())
+		return adminHost.SendRequest(request, nItems, reply, errDetails);
 	else
 		return false;
 }
 
-bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nItems, std::vector<TSTRING> &reply)
+bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nItems, 
+	std::vector<TSTRING> &reply, TSTRING &errDetails)
 {
 	// create the request object with waiting enabled
 	RefPtr<Request> requestObj(new Request(request, nItems, true));
@@ -4177,6 +4307,28 @@ bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nIt
 				if (start != endp)
 					reply.emplace_back(start, p - start);
 
+				// interpret the results
+				if (reply.size() >= 1 && reply[0] == _T("ok"))
+				{
+					// success response from host
+					return true;
+				}
+				else if (reply.size() >= 2 && reply[0] == _T("error"))
+				{
+					// host returned an error message - use that as our error detail message
+					errDetails = reply[1];
+					return false;
+				}
+				else
+				{
+					// unexpected response - say so, and include the full response in the reply
+					errDetails = _T("Unexpected response from Admin host:");
+					for (auto const &r : reply)
+						errDetails += _T(" \"") + r + _T("\"");
+
+					return false;
+				}
+
 				// success
 				return true;
 			}
@@ -4188,6 +4340,7 @@ bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nIt
 
 		case WAIT_OBJECT_0 + 1:
 			// Shutdown event - abandon the request and return failure
+			errDetails = _T("Interrupted - PinballY is closing");
 			return false;
 
 		case WAIT_TIMEOUT:
@@ -4197,31 +4350,26 @@ bool Application::AdminHost::SendRequest(const TCHAR *const *request, size_t nIt
 
 		default:
 			// error - abandon the request and return failure
+			errDetails = _T("Error waiting for Admin host reply");
 			return false;
 		}
 	}
 }
 
-void Application::SendExitGameKeysToAdminHost(const std::list<TSTRING> &exitKeys, const std::list<TSTRING> &pauseKeys)
+void Application::SendKeysToAdminHost(const std::list<TSTRING> &keys)
 {
 	// we only need to do this if the Admin Host is running
 	if (adminHost.IsAvailable())
 	{
-		auto Send = [this](const TCHAR *verb, const std::list<TSTRING> &keys)
-		{
-			// start the request vector with the verb
-			std::vector<const TCHAR*> req;
-			req.emplace_back(verb);
+		// start the request vector with the "keys" verb
+		std::vector<const TCHAR*> req;
+		req.emplace_back(_T("keys"));
 
-			// add the keys
-			MapValues(keys, req, [](const TSTRING &ele) { return ele.c_str(); });
+		// add the keys
+		MapValues(keys, req, [](const TSTRING &ele) { return ele.c_str(); });
 
-			// post the request - this request has no reply
-			adminHost.PostRequest(&req[0], req.size());
-		};
-
-		Send(_T("exitGameKeys"), exitKeys);
-		Send(_T("pauseGameKeys"), pauseKeys);
+		// post the request - this request has no reply
+		adminHost.PostRequest(&req[0], req.size());
 	}
 }
 

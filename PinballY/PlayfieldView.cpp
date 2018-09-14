@@ -313,6 +313,19 @@ bool PlayfieldView::InitWin()
 	// setup has been completed.
 	D3DView::SubscribeIdleEvents(this);
 
+	// register for Manual Go notifications from the Admin Host, if present
+	if (auto app = Application::Get(); app->IsAdminHostAvailable())
+	{
+		MsgFmt shwnd(_T("%ld"), (long)(INT_PTR)hWnd);
+		MsgFmt smsg(_T("%d"), PFVMsgManualGo);
+		const TCHAR *req[] = {
+			_T("regStartStopMsg"),
+			shwnd,
+			smsg
+		};
+		app->PostAdminHostRequest(req, countof(req));
+	}
+
 	// success
 	return true;
 }
@@ -3504,6 +3517,12 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			ShowMenu(md, SHOWMENU_DIALOG_STYLE);
 		}
 		return true;
+
+	case PFVMsgManualGo:
+		// Manual Capture Go notification - the Admin Host sends this when
+		// it detects the Next+Prev key combination.
+		Application::Get()->ManualCaptureGo();
+		return true;
 	}
 
 	// inherit the default handling
@@ -5618,10 +5637,10 @@ void PlayfieldView::OnConfigChange()
 	//
 	// - Check to see if F10 is assigned as a command key
 	//
-	// - Populate an EXIT KEY list to send to the Admin Host, if present
+	// - Populate the key list for the admin host
 	//
-	std::list<TSTRING> adminHostExitKeys, adminHostPauseKeys;
-	InputManager::GetInstance()->EnumButtons([this, numLogJs, &adminHostExitKeys, &adminHostPauseKeys](
+	std::list<TSTRING> adminHostKeys;
+	InputManager::GetInstance()->EnumButtons([this, numLogJs, &adminHostKeys](
 		const InputManager::Command &cmd, const InputManager::Button &btn)
 	{
 		// get the command
@@ -5639,12 +5658,8 @@ void PlayfieldView::OnConfigChange()
 			// Keyboard key.  Assign the command handler in the dispatch table.
 			AddVkeyCommand(btn.code, cmdFunc);
 
-			// if it's an Exit Game or Pause Game key, include it in the list for
-			// the admin host
-			if (cmdFunc == &PlayfieldView::CmdExitGame)
-				adminHostExitKeys.emplace_back(MsgFmt(_T("kb %d"), btn.code));
-			if (cmdFunc == &PlayfieldView::CmdPauseGame)
-				adminHostPauseKeys.emplace_back(MsgFmt(_T("kb %d"), btn.code));
+			// add it to the admin host list
+			adminHostKeys.emplace_back(MsgFmt(_T("%s kb %d"), cmd.configID, btn.code));
 
 			// Note the special menu keys: Left Alt, Right Alt, F10.
 			// These require special handling in the window message
@@ -5678,20 +5693,10 @@ void PlayfieldView::OnConfigChange()
 					// to the joystick lookup table.
 					AddJsCommand(btn.unit, btn.code, cmdFunc);
 
-
-					// if it's an Exit Game key, include it in the list for the admin host
-					if (cmdFunc == &PlayfieldView::CmdExitGame)
-					{
-						auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
-						adminHostExitKeys.emplace_back(
-							MsgFmt(_T("js %d %x %x %s"), btn.code, js->vendorID, js->productID, js->prodName.c_str()));
-					}
-					else if (cmdFunc == &PlayfieldView::CmdPauseGame)
-					{
-						auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
-						adminHostPauseKeys.emplace_back(
-							MsgFmt(_T("js %d %x %x %s"), btn.code, js->vendorID, js->productID, js->prodName.c_str()));
-					}
+					// add it to the admin host list
+					auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
+					adminHostKeys.emplace_back(
+						MsgFmt(_T("%s js %d %x %x %s"), cmd.configID, btn.code, js->vendorID, js->productID, js->prodName.c_str()));
 				}
 				else
 				{
@@ -5700,11 +5705,8 @@ void PlayfieldView::OnConfigChange()
 					for (size_t unit = 0; unit < numLogJs; ++unit)
 						AddJsCommand((int)unit, btn.code, cmdFunc);
 
-					// if it's an Exit Game key, include it in the list for the admin host
-					if (cmdFunc == &PlayfieldView::CmdExitGame)
-						adminHostExitKeys.emplace_back(MsgFmt(_T("js %d"), btn.code));
-					else if (cmdFunc == &PlayfieldView::CmdPauseGame)
-						adminHostPauseKeys.emplace_back(MsgFmt(_T("js %d"), btn.code));
+					// add it to the admin host list
+					adminHostKeys.emplace_back(MsgFmt(_T("%s js %d"), cmd.configID, btn.code));
 				}
 			}
 			break;
@@ -5721,7 +5723,7 @@ void PlayfieldView::OnConfigChange()
 		UpdateMenuKeys(parentWindowMenu);
 
 	// update the Admin Host with the new EXIT GAME key mappings
-	Application::Get()->SendExitGameKeysToAdminHost(adminHostExitKeys, adminHostPauseKeys);
+	Application::Get()->SendKeysToAdminHost(adminHostKeys);
 
 	// load the info box options
 	infoBoxOpts.show = cfg->GetBool(ConfigVars::InfoBoxShow, true);
@@ -6324,10 +6326,7 @@ void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 	// the other flipper button is down, count it as a "Manual Go"
 	// for capture mode
 	if (nextButtonDown && prevButtonDown && key.mode == KeyBgDown)
-	{
-		OutputDebugString(_T("Manual Go!\n"));
 		Application::Get()->ManualCaptureGo();
-	}
 }
 
 void PlayfieldView::DoCmdPrev(bool fast)
@@ -10568,39 +10567,16 @@ void PlayfieldView::ShowSettingsDialog()
 			// send an installAutoLaunch request to the Admin Host
 			static const TCHAR *request[] = { _T("installAutoLaunch") };
 			std::vector<TSTRING> reply;
-			if (Application::Get()->SendAdminHostRequest(request, countof(request), reply))
+			TSTRING errDetails;
+			if (Application::Get()->SendAdminHostRequest(request, countof(request), reply, errDetails))
 			{
-				// check the reply
-				if (reply.size() == 0)
-				{
-					// no reply
-					LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), _T("No reply from Admin Host"));
-					return false;
-				}
-				else if (reply[0] == _T("ok"))
-				{
-					// success
-					return true;
-				}
-				else if (reply[0] == _T("error") && reply.size() >= 2)
-				{
-					if (reply.size() >= 3)
-						LogSysError(EIT_Error, reply[1].c_str(), reply[2].c_str());
-					else
-						LogError(EIT_Error, reply[1].c_str());
-					return false;
-				}
-				else 
-				{
-					LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
-						MsgFmt(_T("Unexpected reply from Admin Host: %s"), reply[0]));
-					return false;
-				}
+				// success
+				return true;
 			}
 			else
 			{
 				// couldn't send the request at all - provide our own error message
-				LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), _T("Admin Host send failed"));
+				LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), errDetails.c_str());
 				return false;
 			}
 		};

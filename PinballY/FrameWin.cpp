@@ -23,6 +23,7 @@ namespace ConfigVars
 	static const TCHAR *WindowMaximized = _T("Maximized");
 	static const TCHAR *WindowMinimized = _T("Minimized");
 	static const TCHAR *WindowVisible = _T("Visible");
+	static const TCHAR *WindowBorderless = _T("Borderless");
 }
 
 // statics
@@ -38,11 +39,13 @@ FrameWin::FrameWin(const TCHAR *configVarPrefix, int iconId, int grayIconId) : B
 	configVarMinimized = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowMinimized);
 	configVarMaximized = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowMaximized);
 	configVarVisible = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowVisible);
+	configVarBorderless = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowBorderless);
 	
 	// clear variables
 	isActivated = false;
 	normalWindowPlacement.length = 0;
 	dwmExtended = false;
+	borderless = false;
 
 	// get the standard system caption height
 	int cyCaption = GetSystemMetrics(SM_CYCAPTION);
@@ -114,7 +117,7 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 	// until we've finished creating the window, to work around a mystery
 	// problem with custom caption drawing that seems to occur if we start
 	// with full-screen styles.
-	fullScreenMode = ConfigManager::GetInstance()->GetInt(configVarFullScreen) != 0;
+	fullScreenMode = ConfigManager::GetInstance()->GetBool(configVarFullScreen);
 
 	// get the stored window location
 	RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
@@ -196,8 +199,22 @@ bool FrameWin::InitWin()
 	if (fullScreenMode)
 	{
 		fullScreenMode = false;
-		PostMessage(WM_COMMAND, ID_FULL_SCREEN, 0);
+		PostMessage(WM_COMMAND, ID_FULL_SCREEN);
 	}
+
+	// For the same reason as full-screen mode, it doesn't seem to work
+	// to initialize the window in borderless mode.  The DWM seems to
+	// have a problem with drawing the title bar later on if we don't
+	// show a title bar initially.  So if this isn't a permanently
+	// borderless window, always start in bordered mode and switch to
+	// borderless via a posted command.   Note that we can distinguish
+	// between switchable windows and permanently borderless by setting
+	// our internal 'borderless' flag to false and checking what
+	// IsBorderless() says: if we get a true result from IsBorderless(),
+	// we know that a subclass is making it permanently borderless.
+	borderless = false;
+	if (!IsBorderless() && ConfigManager::GetInstance()->GetBool(configVarBorderless))
+		PostMessage(WM_COMMAND, ID_WINDOW_BORDERS);
 
 	// customize the system menu
 	CustomizeSystemMenu(GetSystemMenu(hWnd, FALSE));
@@ -230,6 +247,9 @@ void FrameWin::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 {
 	// update full-screen mode
 	CheckMenuItem(hMenu, ID_FULL_SCREEN, MF_BYCOMMAND | (fullScreenMode ? MF_CHECKED : MF_UNCHECKED));
+
+	// udpate "Show Window Borders" 
+	CheckMenuItem(hMenu, ID_WINDOW_BORDERS, MF_BYCOMMAND | (!IsBorderless() ? MF_CHECKED : MF_UNCHECKED));
 
 	// the view controls some of the state, so have it make further updates
 	if (view != fromWin)
@@ -349,6 +369,25 @@ void FrameWin::RestoreVisibility()
 		ShowWindow(hWnd, SW_SHOWNOACTIVATE);
 }
 
+void FrameWin::ToggleBorderless()
+{
+	// invert the state
+	borderless = !borderless;
+
+	// update the config
+	ConfigManager::GetInstance()->SetBool(configVarBorderless, borderless);
+
+	// refigure the window frame and caption layout
+	FigureFrameParams();
+
+	// redo the internal client layout
+	UpdateLayout();
+
+	// make sure the frame is redrawn
+	SetWindowPos(hWnd, NULL, -1, -1, -1, -1,
+		SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOSIZE | SWP_FRAMECHANGED);
+}
+
 void FrameWin::ToggleFullScreen()
 {
 	// get our current window style
@@ -389,7 +428,7 @@ void FrameWin::ToggleFullScreen()
 				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
 			// update the config
-			ConfigManager::GetInstance()->Set(configVarFullScreen, 1);
+			ConfigManager::GetInstance()->SetBool(configVarFullScreen, true);
 		}
 	}
 	else
@@ -419,7 +458,7 @@ void FrameWin::ToggleFullScreen()
 		}
 
 		// update the config to remove the full-screen mode
-		ConfigManager::GetInstance()->Set(configVarFullScreen, 0);
+		ConfigManager::GetInstance()->SetBool(configVarFullScreen, false);
 
 		// Re-build the system menu if necessary.  If we launch in
 		// full-screen mode, we won't build the system menu initially
@@ -539,6 +578,10 @@ bool FrameWin::DoCommand(int cmd)
 
 	case ID_FULL_SCREEN:
 		ToggleFullScreen();
+		return true;
+
+	case ID_WINDOW_BORDERS:
+		ToggleBorderless();
 		return true;
 
 	case ID_VIEW_BACKGLASS:
@@ -1235,3 +1278,22 @@ void FrameWin::AddSystemMenu(HMENU m, int cmd, int idx)
 	}
 }
 
+// private app messages (WM_APP+)
+bool FrameWin::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case PWM_ISBORDERLESS:
+		// borderless mode query
+		curMsg->lResult = IsBorderless();
+		return true;
+
+	case PWM_ISFULLSCREEN:
+		// full screen mode query
+		curMsg->lResult = IsFullScreen();
+		return true;
+	}
+
+	// inherit default handling
+	return __super::OnAppMessage(msg, wParam, lParam);
+}

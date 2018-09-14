@@ -246,7 +246,14 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 		// of the problem if we get an E_NOINTERFACE in 64-bit mode.
 #ifdef _M_X64
 		if (hr == E_NOINTERFACE)
+		{
 			msgId = IDS_ERR_DOF64_UPGRADE_REQUIRED;
+			LogFile::Get()->Write(_T("DOF UPDATE REQUIRED:  It looks like you need an updated version of DOF\n")
+				_T("to use with the 64-bit version of PinballY.  Please download and install a version of\n")
+				_T("DOF R3++ dated ***2018-09-04 OR LATER*** from http://mjrnet.org/pinscape/dll-updates.html\n")
+				_T("The Windows Setup (MSI) installer is recommended because registry updates for the DOF COM\n")
+				_T("object are required as part of this update.\n"));
+		}
 #endif
 
 		// show the message

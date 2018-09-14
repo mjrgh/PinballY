@@ -26,6 +26,9 @@ public:
 	// toggle between regular and full-screen mode
 	void ToggleFullScreen();
 
+	// toggle between regular and borderless mode
+	void ToggleBorderless();
+
 	// Show/hide the frame window.  This updates the window's UI
 	// visibility and saves the config change.
 	void ShowHideFrameWindow(bool show);
@@ -47,7 +50,7 @@ protected:
 
 	// Borderless mode: if set, we hide the title bar and sizing
 	// borders.
-	virtual bool IsBorderless() const { return false; }
+	virtual bool IsBorderless() const { return borderless; }
 
 	// Is this a hideable window?  If true, we'll hide the window on
 	// a Minimize or Close command, instead of actually minimizing or
@@ -141,8 +144,8 @@ protected:
 	// update the view layout
 	virtual void UpdateLayout();
 
-	// private window class messages (WM_USER to WM_APP-1)
-	virtual bool OnUserMessage(WPARAM wParam, LPARAM lParam) { return false; }
+	// private app messages (WM_APP+)
+	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
 
 	// Figure the frame parameters.  This is called when the window is
 	// created, activated, or resized, so that we can update the custom
@@ -203,6 +206,9 @@ protected:
 	// current mode - windowed or full-screen
 	bool fullScreenMode;
 
+	// borderless mode in the configuration?
+	bool borderless;
+
 	// is the window currently activated?
 	bool isActivated;
 
@@ -215,6 +221,7 @@ protected:
 	TSTRINGEx configVarMinimized;
 	TSTRINGEx configVarFullScreen;
 	TSTRINGEx configVarVisible;
+	TSTRINGEx configVarBorderless;
 
 	// window subclass registration
 	static const TCHAR *frameWinClassName;

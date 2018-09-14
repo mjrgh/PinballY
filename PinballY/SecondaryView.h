@@ -40,6 +40,12 @@ public:
 	virtual void OnEnableVideos(bool enable) override;
 
 protected:
+	// Is the parent in borderless window mode?  This returns true if
+	// the parent is in borderless mode and not in full-screen mode.
+	// (Full-screen mode is also technically borderless, but it's not
+	// "window mode" in the sense of being sizeable and movable.)
+	bool IsBorderlessWindowMode(HWND parent);
+		
 	// Get the next window to update during a game transition.
 	// We update the windows one at a time to spread out the extra 
 	// load caused by starting videos.  Rather than switching to
@@ -91,6 +97,12 @@ protected:
 
 	// context menu display
 	virtual void ShowContextMenu(POINT pt) override;
+
+	// mouse move handler
+	virtual bool OnMouseMove(POINT pt) override;
+
+	// non-client hit testing
+	virtual bool OnNCHitTest(POINT pt, UINT &hit) override;
 
 	// Timer IDs
 	static const int animTimerID = 101;     // animation timer

@@ -26,7 +26,7 @@ namespace ConfigVars
 };
 
 // construction
-InstCardView::InstCardView() : BorderlessSecondaryView(IDR_INSTCARD_CONTEXT_MENU, ConfigVars::InstCardWinVarPrefix)
+InstCardView::InstCardView() : SecondaryView(IDR_INSTCARD_CONTEXT_MENU, ConfigVars::InstCardWinVarPrefix)
 {
 }
 

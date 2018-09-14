@@ -46,6 +46,7 @@
 #define IDB_VIDEO_FILE_ICON             173
 #define IDB_AUDIO_FILE_ICON             174
 #define IDB_MNU_HELP                    175
+#define IDB_MNU_WINDOW_BORDERS          176
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
@@ -346,6 +347,8 @@
 #define IDS_ERR_CAP_MANUAL_STOP_NO_PIPE 703
 #define IDS_ERR_BATCH_CAPTURE_NO_WORK   704
 #define IDS_ERR_DOF64_UPGRADE_REQUIRED  705
+#define IDS_ERR_RUNBEFOREAFTEROPT       706
+#define IDS_ERR_ADMINHOSTREQ            707
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801
@@ -525,6 +528,7 @@
 #define ID_BATCH_CAPTURE_VIEW           32864
 #define ID_BATCH_CAPTURE_NEXT_GAME      32865
 #define ID_PAUSE_GAME                   32866
+#define ID_WINDOW_BORDERS               32867
 
 
 // Next default values for new objects
@@ -533,7 +537,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32867
+#define _APS_NEXT_COMMAND_VALUE         32868
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

@@ -120,9 +120,6 @@
     <ClCompile Include="InstCardView.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="BorderlessSecondaryView.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="CSVFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -319,9 +316,6 @@
     </ClInclude>
     <ClInclude Include="InstCardView.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="BorderlessSecondaryView.h">
-      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="CSVFile.h">
       <Filter>Header Files</Filter>

@@ -208,7 +208,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="BackglassView.cpp" />
     <ClCompile Include="BackglassWin.cpp" />
     <ClCompile Include="BaseWin.cpp" />
-    <ClCompile Include="BorderlessSecondaryView.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="CaptureStatusWin.cpp" />
@@ -268,7 +267,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="BackglassView.h" />
     <ClInclude Include="BackglassWin.h" />
     <ClInclude Include="BaseWin.h" />
-    <ClInclude Include="BorderlessSecondaryView.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CaptureConfigVars.h" />
     <ClInclude Include="CaptureStatusWin.h" />

@@ -39,7 +39,7 @@ protected:
 
 
 // construction
-DMDView::DMDView() : BorderlessSecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPrefix),
+DMDView::DMDView() : SecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPrefix),
 	highScoreRequestSeqNo(0),
 	highScorePos(highScoreImages.end()),
 	nHighScoreThreads(0)

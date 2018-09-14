@@ -1,5 +1,49 @@
 PinballY Update History
 
+?????????? (1.0.0 Alpha 21)
+
+* The backglass window can now be made "borderless", removing the
+title bar and sizing borders so that the entire window area is filled
+with the backglass graphics, just like the DMD and instruction card
+windows.  Switch between regular and borderless mode using the "Show
+Window Borders" command, which is on the context menu that pops up
+when you right-click in the backglass window.
+
+* Added the new option flag [ADMIN] for game system Run Before/After
+commands.  This launches the target program in Administrator mode.
+This feature is only available when running the "PinballY Admin
+Mode.exe" version of the program.
+
+* A few minor upgrades to the Run Before/After option prefix flag
+parser:
+
+  - The option flags can now be specified in mixed case  
+
+  - The flag parser provides more helpful diagnostics when invalid
+  flag syntax is used
+
+  - The parser now accepts a completely empty flag set, [].  The
+  empty flag set can be used to explicitly say "there aren't any
+  flags here!", which might be useful in the (unlikely but possible)
+  case that you want to specify a command line that literally starts
+  with '['.
+
+* PinballY 64-bit now tries to detect when an older DOF version is
+installed, and displays an explanation of the need for an update and
+where to find it, rather than showing an inscrutably technical Windows
+error code.  (PinballY 64-bit has supported DOF since Alpha 19, but
+only if you have a very recent DOF update, R3++ 2018-09-04 or later.
+With an older DOF, trying to load in 64-bit mode causes some weird and
+not very informative COM errors, which earlier PinballY versions were
+just passing along in an error box.  The program now tries to be more
+helpful in this situation by explaining the probable cause of the
+errors and how to fix them rather than leaving it for you to puzzle
+out what the COM error codes mean.)
+
+* The program now responds to window-level DPI change notifications
+from Windows by resizing affected windows.
+
+
 09-13-2018 (1.0.0 Alpha 20)
 
 * Upgrade notice: the Settings.txt file variables for video capture

@@ -46,6 +46,7 @@ const UINT PFVMsgPlayElevReqd = WM_USER + 205;      // WPARAM = TCHAR *systemNam
 const UINT PFVMsgGameRunBefore = WM_USER + 206;     // WPARAM = launch command
 const UINT PFVMsgGameRunAfter = WM_USER + 207;      // WPARAM = launch command
 const UINT PFVMsgCaptureDone = WM_USER + 208;       // WPARAM = LONG_PTR(&PlayfieldView::CaptureDoneReport)
+const UINT PFVMsgManualGo = WM_USER + 209;          // manual start/stop event from Admin Host
 
 // DMDView messages
 const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images
@@ -77,16 +78,20 @@ struct PFVMsgShowErrorParams
 	const ErrorList *errList;
 };
 
-// Audio Video Player app-wide messages.  These messages are sent 
-// from AVP objects to their associated event windows during playback.
-// These messages pass the AVP cookie in the WPARAM.
-const UINT AVPMsgFirstFrameReady = WM_APP + 100;	// first frame is ready
-const UINT AVPMsgEndOfPresentation = WM_APP + 101;	// end of presentation
-const UINT AVPMsgLoopNeeded = WM_APP + 102;			// end of presentation - window must initiate looping
-	
 // HighScores messages
 const UINT HSMsgHighScores = WM_APP + 0;            // LPARAM = const HighScores::NotifyInfo*
 
+// App-wide private window messages (PWM_)
+const UINT PWM_ISBORDERLESS = WM_APP + 100;         // is the window borderless?  LRESULT=BOOL is-borderless
+const UINT PWM_ISFULLSCREEN = WM_APP + 101;         // is the window full-screen? LRESULT=BOOL is-full-screen
+
+// Audio Video Player app-wide messages.  These messages are sent 
+// from AVP objects to their associated event windows during playback.
+// These messages pass the AVP cookie in the WPARAM.
+const UINT AVPMsgFirstFrameReady = WM_APP + 200;	// first frame is ready
+const UINT AVPMsgEndOfPresentation = WM_APP + 201;	// end of presentation
+const UINT AVPMsgLoopNeeded = WM_APP + 202;			// end of presentation - window must initiate looping
+	
 // Private dialog subclass messages.  For dialog boxes implemented
 // via the Windows dialog APIs, the Windows dialog manager defines
 // the window class, and it uses certain WM_USER messages.  Some
