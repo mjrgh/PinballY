@@ -1198,7 +1198,7 @@ void Application::StealFocusFromGame()
 		{
 			// admin mode - we have to proxy this through the admin host
 			TCHAR hwndAsStr[32];
-			_stprintf_s(hwndAsStr, _T("%ld"), (long)hwnd);
+			_stprintf_s(hwndAsStr, _T("%ld"), (long)(INT_PTR)hwnd);
 			const TCHAR *req[] = { _T("stealFocus"), hwndAsStr };
 			adminHost.PostRequest(req, countof(req));
 		}

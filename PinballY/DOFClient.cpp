@@ -233,10 +233,27 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	// details if anything goes wrong.
 	if (!SUCCEEDED(hr))
 	{
+		// assume the generic DOF load error
+		int msgId = IDS_ERR_DOFLOAD;
+
+		// If we're in 64-bit mode, an E_NOINTERFACE error almost always
+		// means that an older version of DOF is installed.  Creating an
+		// instance out-of-process requires going through the COM marshaller,
+		// which requires a type library for the interface being marshalled.
+		// Older DOF versions didn't ship with the type library and didn't
+		// register it with the COM object.  DOF R3++ 2018-09-04 or later
+		// is required.  There's about a 110% chance that this is the source
+		// of the problem if we get an E_NOINTERFACE in 64-bit mode.
+#ifdef _M_X64
+		if (hr == E_NOINTERFACE)
+			msgId = IDS_ERR_DOF64_UPGRADE_REQUIRED;
+#endif
+
+		// show the message
 		WindowsErrorMessage err(hr);
-		eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("CoCreateInstance failed: %s"), err.Get()));
-		LogFile::Get()->Write(_T("DOF: CoCreateInstance for DOF COM object (%s) failed: %s\n"),
-			FormatGuid(__uuidof(DirectOutputComObject)).c_str(), err.Get());
+		eh.SysError(LoadStringT(msgId), MsgFmt(_T("CoCreateInstance failed: %s"), err.Get()));
+		LogFile::Get()->Write(_T("DOF: CoCreateInstance for DOF COM object (%s) failed: %s (hresult %lx)\n"),
+			FormatGuid(__uuidof(DirectOutputComObject)).c_str(), err.Get(), err.GetCode());
 		return false;
 	}
 

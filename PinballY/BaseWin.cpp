@@ -461,6 +461,10 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 			return curMsg->lResult;
 		break;
 
+	case WM_DPICHANGED:
+		OnDpiChanged(LOWORD(wParam), HIWORD(wParam), reinterpret_cast<LPCRECT>(lParam));
+		break;
+
 	default:
 		// check for private window class and private application messages
 		if (message >= WM_USER && message < WM_APP)
