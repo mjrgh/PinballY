@@ -820,12 +820,25 @@
       [ROTATE(PLAYFIELD,270)] in the Run After(2) to cancel out
       the change and return to the original rotation.  
    </p>
+
+   <li><b>ADMIN:</b>  Launches the command in Administrator mode.
+   This is available only when running PinballY via the
+   <b>PinballY Admin Mode.exe</b> version of the program.
+   <p>
+      You should only use the [ADMIN] option as a last resort.
+      Avoid Admin mode whenever possible, in part because it exposes
+      your system to more security risks, but more so because it
+      creates a lot of complications for other software.  Windows
+      restricts normal program-to-program interactions when an
+      Admin mode program is running, which can cause weird problems
+      in the user interface and can make some program features
+      stop working.
+   </p>
 </ul>
 <p>
-   The flags must be in <b>all upper-case</b>.  You can specify multiple
-   flags for the same command by writing a series of the flag keywords
-   within the single pair of square brackets, separating the keywords by spaces.
-   For example:
+   You can specify multiple flags for the same command by writing a
+   series of the flag keywords within the single pair of square brackets,
+   separating the keywords by spaces.  For example:
 </p>
 <pre>    [HIDE ROTATE(PLAYFIELD,90) ROTATE(BACKGLASS,180)] cmd /c ...
 </pre>
