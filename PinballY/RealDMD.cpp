@@ -399,7 +399,7 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 						_T("  we'll leave the session open permanently once opened.  This may result in the\n")
 						_T("  DLL's virtual DMD window remaining visible even if you explicitly disable the\n")
 						_T("  real DMD feature in the options.  Close PinballY and restart it to get rid of\n")
-						_T("  the extra window."));
+						_T("  the extra window.\n"));
 				}
 			}
 		}

@@ -48,7 +48,9 @@ StartupDialog::StartupDialog(int dialogId) :
 		}
 
 		// update the config setting to match the Task Scheduler state
-		ConfigManager::GetInstance()->Set(_T("AutoLaunch"), setting);
+		auto cfg = ConfigManager::GetInstance();
+		if (_tcsicmp(cfg->Get(_T("AutoLaunch"), _T("off")), setting) != 0)
+			cfg->Set(_T("AutoLaunch"), setting);
 	}
 }
 
