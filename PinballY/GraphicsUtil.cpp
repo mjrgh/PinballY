@@ -147,6 +147,57 @@ Gdiplus::Bitmap *GPBitmapFromPNG(int resid)
 	return bmp;
 }
 
+static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight)
+{
+	// figure the style
+	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
+
+	// create the font
+	Gdiplus::FontFamily family(faceName);
+	std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
+	if (font->IsAvailable())
+		return font.release();
+
+	// Failed - the requested font must not be installed.  Try using the
+	// generic sans serif font instead.
+	if (auto genericSansSerif = Gdiplus::FontFamily::GenericSansSerif(); genericSansSerif != nullptr)
+	{
+		if (std::unique_ptr<Gdiplus::Font> genFont(new Gdiplus::Font(genericSansSerif, emSize, style, Gdiplus::UnitPixel)); genFont->IsAvailable())
+			return genFont.release();
+	}
+
+	// Still no good.  Use the first available installed font.
+	static std::unique_ptr<Gdiplus::FontFamily> fallbackFont;
+	if (fallbackFont == nullptr)
+	{
+		// Get a list of available fonts
+		Gdiplus::InstalledFontCollection coll;
+		int nFonts = coll.GetFamilyCount();
+		std::unique_ptr<Gdiplus::FontFamily[]> families(new Gdiplus::FontFamily[nFonts]);
+		coll.GetFamilies(nFonts, families.get(), &nFonts);
+
+		// find an available font
+		for (int i = 0; i < nFonts; ++i)
+		{
+			if (families[i].IsAvailable())
+			{
+				fallbackFont.reset(families[i].Clone());
+				break;
+			}
+		}
+	}
+
+	// use the fallback font if possible
+	if (fallbackFont != nullptr)
+	{
+		if (std::unique_ptr<Gdiplus::Font> fbFont(new Gdiplus::Font(fallbackFont.get(), emSize, style, Gdiplus::UnitPixel)); fbFont->IsAvailable())
+			return fbFont.release();
+	}
+
+	// We're totally out of luck.  Go back to our original (bad) font.
+	return font.release();
+}
+
 Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc)
 {
 	// Figure the pixel pitch in pix/inch.  If a DC was specified, use
@@ -156,12 +207,8 @@ Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HD
 	// figure the em size in pixels: 1 point = 1/72"
 	float emSize = (float)pointSize * (float)dpi / (float)72.0f;
 
-	// figure the style
-	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
-
 	// create the font
-	Gdiplus::FontFamily family(faceName);
-	return new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel);
+	return CreateGPFont0(faceName, emSize, weight);
 }
 
 Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, HDC hdc)
@@ -173,12 +220,8 @@ Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weigh
 	// scale the height for the monitor DPI
 	float emSize = 96.0f/float(dpi) * float(pixHeight);
 
-	// figure the style
-	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
-
 	// create the font
-	Gdiplus::FontFamily family(faceName);
-	return new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel);
+	return CreateGPFont0(faceName, emSize, weight);
 }
 
 void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,

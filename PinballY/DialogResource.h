@@ -20,23 +20,26 @@
 #define IDC_EDIT_PASSWORD               3014
 #define IDC_CB_SYSTEM3                  3014
 #define IDC_CB_HIGH_SCORE_STYLE         3014
-#define IDC_TXT_YEAR2                   3015
 #define IDC_TXT_DATE_ADDED              3015
 #define IDC_TXT_ARCHENTRY               3016
 #define IDC_ST_GRIDPOS                  3017
+#define IDC_BTN_PINBALLX                3019
+#define IDC_BTN_PINBALLY                3020
+#define IDC_TXT_PBX_PROMPT              3021
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003
 #define IDD_GAME_SETUP                  4005
 #define IDD_ARCHIVE_PASSWORD            4007
+#define IDD_PBX_OR_PBY                  4010
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        4010
+#define _APS_NEXT_RESOURCE_VALUE        4012
 #define _APS_NEXT_COMMAND_VALUE         45000
-#define _APS_NEXT_CONTROL_VALUE         3018
+#define _APS_NEXT_CONTROL_VALUE         3022
 #define _APS_NEXT_SYMED_VALUE           7000
 #endif
 #endif

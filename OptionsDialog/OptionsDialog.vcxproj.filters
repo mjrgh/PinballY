@@ -213,6 +213,9 @@
     <Image Include="res\FolderIcon.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="res\FolderBrowserImages.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OptionsResources.rc">

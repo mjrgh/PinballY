@@ -8,6 +8,15 @@
 
 // -----------------------------------------------------------------------
 //
+// Format window text.  This retrieves the current window text for
+// the window, uses it as a sprintf-style format string to format the
+// provided varargs values, then sets the window text to the result.
+//
+void FormatWindowText(HWND hwnd, ...);
+void FormatWindowTextV(HWND hwnd, va_list ap);
+
+// -----------------------------------------------------------------------
+//
 // Miscellaneous window layout functions
 //
 

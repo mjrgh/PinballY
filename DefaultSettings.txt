@@ -68,15 +68,18 @@ Log.DOF = 1
 # use your existing files, if you installed one of those programs.
 #
 # If you enter a "relative" path here (that is, a path name that doesn't
-# start with an X:\ drive spec), the path is relative to your PinballY
+# start with a drive letter, X:\...), the path is relative to your PinballY
 # installation folder.
 #
-# If you don't set this, the default is chosen as follows:
+# If you enter an "absolute" path (starting with a driver letter, X:\...),
+# that exact folder is used with no changes.
 #
-# 1. If PinballX is installed on your machine, your existing
-#    PinballX\Media folder will be used
+# If the path starts with "[PinballX]" (e.g., [PinballX]\Media), the folder
+# is relative to the PinballX program install path.  This will only work
+# if PinballX is installed.
 #
-# 2. Otherwise, the default is <PinballY install folder>\Media 
+# If you leave this completely blank, the program will ask you to choose
+# one of those options at startup.
 #
 MediaPath =
 
@@ -88,15 +91,18 @@ MediaPath =
 # pointing this to the old folder path.
 #
 # If you enter a "relative" path here (that is, a path name that doesn't
-# start with an X:\ drive spec), the path is relative to your PinballY
+# start with a drive letter, X:\...), the path is relative to your PinballY
 # installation folder.
 #
-# If you don't set this, the default is chosen as follows:
+# If you enter an "absolute" path (starting with a driver letter, X:\...),
+# that exact folder is used with no changes.
 #
-# 1. If PinballX is installed on your machine, your existing
-#    PinballX\Databases folder will be used
+# If the path starts with "[PinballX]" (e.g., [PinballX]\Media), the folder
+# is relative to the PinballX program install path.  This will only work
+# if PinballX is installed.
 #
-# 2. Otherwise, the default is <PinballY install folder>\Databases
+# If you leave this completely blank, the program will ask you to choose
+# one of those options at startup.
 #
 TableDatabasePath =
 
@@ -902,6 +908,43 @@ HideTaskbarDuringGame = 1
 #   and use that if found.
 #
 #
+# SystemN.Parameters = command-line parameters for launching games
+# This is a template for the command line sent to the EXE at launch.  
+# You can use the following substitution variables in the string:
+#
+#   [TABLEPATH] = the path from SystemN.TablePath 
+#   [TABLEFILE] = the filename of the table being launched
+#   [LB]        = a literal left square bracket, [
+#   [RB]        = a literal right square bracket, ]
+#
+# SystemN.Environment = environment variables to pass to the program
+# This is a list of NAME=VALUE pairs, separated by semicolons (;).
+# These values are merged into the parent environment that PinballY
+# inherited from the Windows desktop when it was initially launched.
+# Some game programs (such as Pinball Arcade) depend upon receiving
+# additional information via the environment rather than through the
+# normal command-line parameters.
+#
+#
+# SystemN.ShowWindow = initial window mode for launched game
+# This specifies how the game program's window is initially opened.
+# Use one of the following values:
+#
+#   SW_SHOW          - shows the window normally
+#   SW_SHOWMINIMIZED - shows the window minimized to the task bar
+#   SW_HIDE          - hides the window
+#
+# Visual Pinball and Future Pinball work best with SW_SHOWMINIMIZED,
+# because these programs show their "editor" windows initially, and
+# you don't usually want to see those at all when playing.  Most
+# other programs work best with SW_SHOW, which is the default.
+# (You can actually use any of the internal Windows SW_SHOWxxx
+# constant names here, which you can find in the Windows SDK
+# documentation if you're that interested.  But the ones listed
+# above should handle all of the known systems, so we're not
+# listing the others here for the sake of brevity.)
+#
+#
 # SystemN.Process = process name to monitor (XXX.EXE, with no path)
 # This is mostly for games that run through Steam.  To run a Steam
 # game, the application we launch via SystemN.Exe is STEAM.EXE, but
@@ -919,15 +962,6 @@ HideTaskbarDuringGame = 1
 # example, without specifying the full path.  Use "." (a single
 # period) to specify folder itself.  You can simply omit this for
 # a system like The Pinball Arcade that doesn't use table files.
-#
-# SystemN.Parameters = command-line parameters for launching games
-# This is a template for the command line sent to the EXE at launch.  
-# You can use the following substitution variables in the string:
-#
-#   [TABLEPATH] = the path from SystemN.TablePath 
-#   [TABLEFILE] = the filename of the table being launched
-#   [LB]        = a literal left square bracket, [
-#   [RB]        = a literal right square bracket, ]
 #
 # SystemN.DefExt = default filename extension ("." suffix) for table files
 # The launcher will add this to the table filenames in the table database 
@@ -1042,6 +1076,8 @@ System1.MediaDir = Visual Pinball
 System1.DatabaseDir = Visual Pinball
 System1.Enabled = true
 System1.Exe =
+System1.ShowWindow = SW_SHOWMINIMIZED
+System1.Environment =
 System1.TablePath = Tables
 System1.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
 System1.DefExt = .vpt
@@ -1053,6 +1089,8 @@ System2 = Visual Pinball 9.2
 System2.Class = VP
 System2.MediaDir = Visual Pinball
 System2.Exe = VPinball921.exe
+System2.ShowWindow = SW_SHOWMINIMIZED
+System2.Environment =
 System2.TablePath = Tables
 System2.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
 System2.DefExt = .vpt
@@ -1061,6 +1099,8 @@ System2.DefExt = .vpt
 System3 = Visual Pinball X
 System3.Class = VPX
 System3.Exe =
+System3.ShowWindow = SW_SHOWMINIMIZED
+System3.Environment =
 System3.TablePath = Tables
 System3.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
 System3.DefExt = .vpx
@@ -1069,6 +1109,8 @@ System3.DefExt = .vpx
 System4 = Future Pinball
 System4.Class = FP
 System4.Exe =
+System4.ShowWindow = SW_SHOWMINIMIZED
+System4.Environment =
 System4.TablePath = Tables
 System4.Parameters = [TABLEPATH] /open "[TABLEPATH]\[TABLEFILE]" /play /exit /arcaderender
 System4.DefExt = .fpt
@@ -1079,6 +1121,8 @@ System4.DOFTitlePrefix = FP
 System5 = Pinball Arcade
 System5.Class = STEAM
 System5.Exe = [STEAM]
+System5.ShowWindow = SW_SHOWMINIMIZED
+System5.Environment =
 System5.TablePath = [PinballY]\Farsight
 System5.DefExt = .pinballarcade
 System5.Parameters = -applaunch 238260
@@ -1127,6 +1171,8 @@ System5.StartupKeys = [pace 250] [pause 25] {intro screen} [click] [pause 5] {ma
 System6 = Pinball FX3
 System6.Class = STEAM
 System6.Exe = [STEAM]
+System6.ShowWindow = SW_SHOWMINIMIZED
+System6.Environment =
 System6.TablePath = steamapps\common\Pinball FX3\data\steam
 System6.DefExt = .pxp
 System6.Parameters = -applaunch 442120 "-table_[TABLEFILE]"
@@ -1137,6 +1183,8 @@ System6.DOFTitlePrefix = FX3
 System7 = Pinball FX2
 System7.Class = STEAM
 System7.Exe = [STEAM]
+System7.ShowWindow = SW_SHOWMINIMIZED
+System7.Environment =
 System7.TablePath = steamapps\common\Pinball FX2\data\steam
 System7.DefExt = .pxp
 System7.Parameters = -applaunch 226980 "-table_[TABLEFILE]"

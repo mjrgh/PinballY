@@ -14,6 +14,7 @@
 #include "DateUtil.h"
 #include "Application.h"
 #include "LogFile.h"
+#include "DialogResource.h"
 
 #include <filesystem>
 namespace fs = std::experimental::filesystem;
@@ -27,7 +28,17 @@ using namespace rapidxml;
 // global singleton
 GameList *GameList::inst = 0;
 
-void GameList::Init()
+// config variables for the game list
+namespace ConfigVars
+{
+	static const TCHAR *MediaPath = _T("MediaPath");
+	static const TCHAR *TableDatabasePath = _T("TableDatabasePath");
+	static const TCHAR *CurGame = _T("GameList.CurrentGame");
+	static const TCHAR *CurFilter = _T("GameList.CurrentFilter");
+	static const TCHAR *EmptyCategories = _T("GameList.EmptyCategories");
+};
+
+void GameList::Create()
 {
 	if (inst == 0)
 		inst = new GameList();
@@ -53,9 +64,6 @@ GameList::GameList()
 	// assign filter command IDs starting from ID_FILTER_FIRST
 	nextFilterCmdID = ID_FILTER_FIRST;
 
-	// get the media path from the configuration
-	mediaPath = GetDataFilePath(_T("MediaPath"), _T("Media"));
-
 	// Set up our stats columns
 	gameCol = statsDb.DefineColumn(_T("Game"));
 	lastPlayedCol = statsDb.DefineColumn(_T("Last Played"));
@@ -68,6 +76,34 @@ GameList::GameList()
 	dateAddedCol = statsDb.DefineColumn(_T("Date Added"));
 	highScoreStyleCol = statsDb.DefineColumn(_T("High Score Style"));
 	markedForCaptureCol = statsDb.DefineColumn(_T("Marked For Capture"));
+
+	// populate the SW_SHOWxxx table
+	// populate the SW_SHOW table
+#define SetShowMap(s) swShowMap[_T(#s)] = s
+	SetShowMap(SW_FORCEMINIMIZE);
+	SetShowMap(SW_HIDE);
+	SetShowMap(SW_MAXIMIZE);
+	SetShowMap(SW_MINIMIZE);
+	SetShowMap(SW_RESTORE);
+	SetShowMap(SW_SHOW);
+	SetShowMap(SW_SHOWDEFAULT);
+	SetShowMap(SW_SHOWMAXIMIZED);
+	SetShowMap(SW_SHOWMINIMIZED);
+	SetShowMap(SW_SHOWMINNOACTIVE);
+	SetShowMap(SW_SHOWNA);
+	SetShowMap(SW_SHOWNOACTIVATE);
+	SetShowMap(SW_SHOWNORMAL);
+#undef SetShowMap
+}
+
+GameList::~GameList()
+{
+}
+
+void GameList::Init(ErrorHandler &eh)
+{
+	// get the expanded media path
+	mediaPath = GetDataFilePath(ConfigVars::MediaPath, _T("Media"), IDS_DEFAULT_MEDIA_PATH_PROMPT, eh);
 
 	// find the game stats database file
 	TCHAR statsFile[MAX_PATH];
@@ -93,17 +129,6 @@ GameList::GameList()
 		ParseCategoryList(i);
 	}
 }
-
-GameList::~GameList()
-{
-}
-
-namespace ConfigVars
-{
-	static const TCHAR *CurGame = _T("GameList.CurrentGame");
-	static const TCHAR *CurFilter = _T("GameList.CurrentFilter");
-	static const TCHAR *EmptyCategories = _T("GameList.EmptyCategories");
-};
 
 void GameList::SaveConfig()
 {
@@ -920,7 +945,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 	Log(_T("Starting pinball player system setup\n"));
 
 	// Get the database folder, using "data folder" rules
-	TSTRING dbDir = GetDataFilePath(_T("TableDatabasePath"), _T("Databases"));
+	TSTRING dbDir = GetDataFilePath(ConfigVars::TableDatabasePath, _T("Databases"), IDS_DEFAULT_TABLEDB_PATH_PROMPT, eh);
 	Log(_T("The main table database folder is %s\n"), dbDir.c_str());
 	
 	// Run through the SystemN variables to see what's populated.
@@ -1057,6 +1082,25 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					defExt[0] != 0 ? defExt : _T("(unknown"));
 			}
 
+			// get the Steam executable
+			TCHAR exeBuf[MAX_PATH];
+			auto GetSteamExe = [&exeBuf, &systemName, &eh](const TCHAR *varname)
+			{
+				// look up the Steam registry key
+				DWORD len = countof(exeBuf);
+				if (!SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+					_T("steam"), _T("Open"), exeBuf, &len)))
+				{
+					LogFile::Get()->Write(_T("Error: system %s uses the [%s] substitution variable, but Steam ")
+						_T("wasn't found in the Windows registry\n"), systemName, varname);
+					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName, varname, systemName, systemName));
+					return false;
+				}
+
+				// success
+				return true;
+			};
+
 			// Figure the full name of the program executable:
 			//
 			// - If it's specified as an absolute path in the configuration,
@@ -1072,25 +1116,35 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			//   extension is specified, use path portion of the registered
 			//   application for the extension.
 			//
-			TCHAR exeBuf[MAX_PATH];
 			TSTRING registeredExe;
+			TSTRING updatedExe;
+			static const std::basic_regex<TCHAR> steamDirPat(_T("\\[steamdir\\]"), std::regex_constants::icase);
 			if (_tcsicmp(exe, _T("[steam]")) == 0)
 			{
 				// This is shorthand for the Steam executable as specified
-				// in the registry, under the "Steam" program ID.
-				DWORD len = countof(exeBuf);
-				if (!SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
-					_T("steam"), _T("Open"), exeBuf, &len)))
-				{
-					LogFile::Get()->Write(_T("Error: system %s uses [STEAM] executable, but Steam ")
-						_T("wasn't found in the Windows registry\n"), systemName);
-					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName, systemName, systemName));
+				// in the registry, under the "Steam" program ID.  Look it up.
+				if (!GetSteamExe(_T("STEAM")))
 					continue;
-				}
 
 				// use the steam executable
 				exe = exeBuf;
 				Log(_T("+ [STEAM] executable specified, full path is %s\n"), exe);
+			}
+			else if (std::regex_search(exe, steamDirPat))
+			{
+				// [STEAMDIR] gets the Steam install location
+				if (!GetSteamExe(_T("STEAMDIR")))
+					continue;
+
+				// pull out the path portion
+				TCHAR steamPath[MAX_PATH];
+				_tcscpy_s(steamPath, exeBuf);
+				PathRemoveFileSpec(steamPath);
+
+				// replace [STEAMDIR] with this path
+				updatedExe = std::regex_replace(exe, steamDirPat, steamPath);
+				exe = updatedExe.c_str();
+				Log(_T("+ [STEAMDIR] path specified; Steam dir is %s, expanded path result is %s\n"), steamPath, exe);
 			}
 			else if ((exe[0] == 0 || PathIsRelative(exe)) && GetProgramForExt(registeredExe, defExt))
 			{
@@ -1181,12 +1235,18 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->params = cfg->Get(MsgFmt(_T("%s.Parameters"), sysvar.Get()), _T(""));
 			system->process = cfg->Get(MsgFmt(_T("%s.Process"), sysvar.Get()), _T(""));
 			system->startupKeys = cfg->Get(MsgFmt(_T("%s.StartupKeys"), sysvar.Get()), _T(""));
+			system->envVars = cfg->Get(MsgFmt(_T("%s.Environment"), sysvar.Get()), _T(""));
 			system->dofTitlePrefix = cfg->Get(MsgFmt(_T("%s.DOFTitlePrefix"), sysvar.Get()), _T(""));
 			system->runBeforePre = cfg->Get(MsgFmt(_T("%s.RunBeforePre"), sysvar.Get()), _T(""));
 			system->runBefore = cfg->Get(MsgFmt(_T("%s.RunBefore"), sysvar.Get()), _T(""));
 			system->runAfter = cfg->Get(MsgFmt(_T("%s.RunAfter"), sysvar.Get()), _T(""));
 			system->runAfterPost = cfg->Get(MsgFmt(_T("%s.RunAfterPost"), sysvar.Get()), _T(""));
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
+			
+			// set the SW_SHOW mode for the launched app, using SW_SHOW as the default
+			system->swShow = SW_SHOW;
+			if (auto it = swShowMap.find(cfg->Get(MsgFmt(_T("%s.ShowWindow"), sysvar.Get()), _T(""))); it != swShowMap.end())
+				system->swShow = it->second;
 
 			Log(_T("+ media folder base name is %s, full path is %s\\%s; %s\n"),
 				system->mediaDir.c_str(), GetMediaPath(), system->mediaDir.c_str(),
@@ -1840,44 +1900,140 @@ bool GameList::LoadGameDatabaseFile(
 	return true;
 }
 
-TSTRING GameList::GetDataFilePath(const TCHAR *configVarName, const TCHAR *defaultFolder)
+TSTRING GameList::GetDataFilePath(const TCHAR *configVarName, const TCHAR *defaultFolder,
+	int promptStringID, ErrorHandler &eh)
 {
-	// look up the config variable
-	if (const TCHAR *cfgPath = ConfigManager::GetInstance()->Get(configVarName, _T(""));
-	    !std::regex_match(cfgPath, std::basic_regex<TCHAR>(_T("\\s*"))))
+	// get the config variable setting
+	TSTRING cfgVal = ConfigManager::GetInstance()->Get(configVarName, _T(""));
+
+	// if the variable isn't set, apply a default
+	if (std::regex_match(cfgVal, std::basic_regex<TCHAR>(_T("\\s*"))))
 	{
-		// There's a configured path.  If it's relative, get the
-		// full path relative to the deployment folder.
-		if (PathIsRelative(cfgPath))
+		// It's not set in the configuration, so apply a default.
+		//
+		// Before Alpha 21, an empty media path meant "Auto" mode, which used
+		// the PinballX Media folder if present, otherwise the local Media
+		// folder in our program folder.  Starting with Alpha 21, there is no
+		// "Auto" mode, because it was too confusing to have the path change
+		// if you installed or uninstalled PinballX.  Instead, an empty path
+		// just means that we have to select a specific path.  So if we find
+		// an empty path, it means that we're not set up with a specific path
+		// yet, so infer what to do based on the system configuration:
+		//
+		// * If PinballX is installed, ask the user whether to use the 
+		//   PinballX or PinballY media folder.
+		//
+		// * Otherwise, just use the PinballY media folder.
+		//
+		if (const TCHAR *pbx = GetPinballXPath(true); pbx != nullptr)
 		{
-			// it's relative - resolve it relative to the deployment folder
-			TCHAR buf[MAX_PATH];
-			GetDeployedFilePath(buf, cfgPath, _T(""));
-			return buf;
+			// PinballX is available.  Ask whether they want to share files with
+			// PinballX or use the PinballY folders.
+			//
+			// Only ask the question once per session.  Apply the same answer each
+			// time if we encounter another variable in need of a default.
+			static int promptResult = 0;
+			if (promptResult == 0)
+			{
+				// this is the first time we've encountered this issue - prompt for 
+				// the user's preference
+				class FolderDialog : public Dialog
+				{
+				public:
+					FolderDialog() : result(0) { }
+
+					int result;
+
+					virtual INT_PTR Proc(UINT message, WPARAM wParam, LPARAM lParam)
+					{
+						switch (message)
+						{
+						case WM_COMMAND:
+							switch (wParam)
+							{
+							case MAKEWPARAM(IDC_BTN_PINBALLX, BN_CLICKED):
+							case MAKEWPARAM(IDC_BTN_PINBALLY, BN_CLICKED):
+								result = LOWORD(wParam);
+								EndDialog(hDlg, 0);
+								break;
+
+							case IDOK:
+							case IDCANCEL:
+								// ignore these
+								return 0;
+							}
+							break;
+						}
+
+						// use the inherited handling
+						return __super::Proc(message, wParam, lParam);
+					}
+				};
+				FolderDialog dlg;
+				dlg.Show(IDD_PBX_OR_PBY);
+
+				// save the dialog result in the static, so that we can use the same
+				// result without asking again if we encounter another variable in need
+				// of the same defaulting
+				promptResult = dlg.result;
+			}
+
+			// set the new value based on the result
+			if (promptResult == IDC_BTN_PINBALLX)
+			{
+				cfgVal = _T("[PinballX]\\");
+				cfgVal += defaultFolder;
+			}
+			else
+				cfgVal = defaultFolder;
+
 		}
 		else
 		{
-			// it's an absolute path - use it exactly as given
-			return cfgPath;
+			// PinballX isn't installed.  Use the PinballY path.
+			cfgVal = defaultFolder;
 		}
+
+		// in either case, save the updated media path in the config
+		ConfigManager::GetInstance()->Set(configVarName, cfgVal.c_str());
 	}
 
-	// This path isn't set in the configuration.  If PinballX is installed,
-	// use the default folder in the PinballX install directory.
-	if (const TCHAR *pbxDir = GetPinballXPath(); pbxDir != nullptr)
+	// Replace [PinballX] with the PBX folder path
+	auto static const pbxVarPath = std::basic_regex<TCHAR>(_T("\\[pinballx\\]"), std::regex_constants::icase);
+	if (std::regex_search(cfgVal, pbxVarPath))
 	{
-		// got it - use PinballX\<folder>
+		// get the PBX folder path
+		const TCHAR *pbxPath = GetPinballXPath();
+
+		// make sure we found a path
+		if (pbxPath == nullptr)
+		{
+			// note the error, and substitute an obvious error pattern
+			eh.Error(MsgFmt(IDS_ERR_PBXPATH_NOT_AVAIL, LoadStringT(promptStringID).c_str(), cfgVal.c_str()));
+			pbxPath = _T("C:\\PinballX_Not_Installed");
+		}
+
+		// make the substitution
+		cfgVal = std::regex_replace(cfgVal, pbxVarPath, pbxPath);
+	}
+
+	// If the path is specified in relative notation, get the full path 
+	// relative to the deployment folder, otherwise return the exact path
+	// as given.
+	if (PathIsRelative(cfgVal.c_str()))
+	{
+		// it's relative - resolve it relative to the deployment folder
 		TCHAR buf[MAX_PATH];
-		PathCombine(buf, pbxDir, defaultFolder);
+		GetDeployedFilePath(buf, cfgVal.c_str(), _T(""));
 		return buf;
 	}
-
-	// The default of last resort is the default folder in our own
-	// deployment folder
-	TCHAR buf[MAX_PATH];
-	GetDeployedFilePath(buf, defaultFolder, _T(""));
-	return buf;
+	else
+	{
+		// it's an absolute path - use it exactly as given
+		return cfgVal;
+	}
 }
+	
 
 int GameList::GetStatsDbRow(const TCHAR *gameId, bool createIfNotFound)
 {

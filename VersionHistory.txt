@@ -1,6 +1,88 @@
 PinballY Update History
 
-?????????? (1.0.0 Alpha 21)
+2018-09-19 (1.0.0 Alpha 21)
+
+* If you installed an earlier version, and you were using the default
+"Auto" option for the main Media or Table Database folder, you might
+see a dialog the first time you run the new version asking you to
+select a new option.  This is because the "Auto" option has been
+removed, and replaced with more specific options; see below.
+
+* Pinball Arcade DX11 can now be launched directly.  See the System
+Options help file for the correct settings.  You can also use these
+settings to launch the cabinet mode version; just substitute
+PinballArcadeCabinet.exe for PinballArcade11.exe.
+
+* The "Auto" option for the Media and Table Database paths has been
+removed, and replaced with two new, more specific options: "Use the
+PinballY Folder" and "Use the PinballX Folder".  
+
+In the past, "Auto" meant "use the PinballX folder if present,
+otherwise use the PinballY folder".  This was meant to make folder
+selection easier by making it automatic, but it proved to be *too*
+automatic and thus too confusing.  The big problem with "Auto" was
+that, because PinballY checked for a PinballX path every time it ran,
+newly installing PinballX on your system would make PinballY suddenly
+change its folder paths (by using the new PinballX path).  This could
+make your previously working table lists and media lists stop working.
+
+The new options let you choose specifically whether you want to use
+the PinballX folder path, the PinballY folder path, or some other
+folder path.  There will no longer be any surprise changes due to
+newly installing PinballX.  Of course, if you explicitly select the
+PinballX folder, and then uninstall PinballX, an error will occur the
+next time you run PinballY because of the now-missing PinballX folder
+path.  But that case shouldn't be as surprising or confusing, since
+you now have to explicitly choose up-front to share the PinballX files
+and thus should expect that to stop working if you later uninstall
+PinballX.
+
+* Two new game system settings have been added:
+
+  - Environment.  This lets you enter a list of environment
+  variables to pass to the game program.  The "environment" is an
+  internal Windows feature that lets a program store a
+  program-defined list of NAME=VALUE pairs in memory.  These
+  variables can be passed to child programs when one program
+  launches another, so they serve a function similar to command line
+  parameters.  In fact, some programs depend upon receiving
+  information from their parent process via these variables rather
+  than via the regular command parameters.  This is why this has
+  been added to PinballY: it's another way of passing information to
+  the launched game that's needed for certain game programs.  To
+  specify a list of variables, specify a series of NAME=VALUE pairs,
+  separated by semicolons (;).  The NAME portion must be a string of
+  alphanumeric characters; a few punctuation marks (underscores,
+  dashes) are allowed, but most others aren't, and spaces shouldn't
+  be used.  The VALUE portion can contain any character.  If you
+  want to use a literal semicolon character within the VALUE
+  portion, double it: to set a value of "A;B", write "A;;B".
+
+  - Window Mode.  This specifies how the game program's window will
+  be shown when it's first created.  Some programs, such as Visual
+  Pinball, work best when the initial window is created in
+  "Minimized" mode, while others need to be shown normally.  In past
+  versions, PinballY always used "Minimized" mode, because that
+  worked best for all versions of VP and FP.  However, some Pinball
+  Arcade versions will crash if launched minimized, so it was
+  important to allow you to set the right initial window mode for
+  each system.
+
+* The new substitution variable [STEAMDIR] can be used within a
+system's EXE file name to refer to the Steam install folder.  This
+is useful for directly launching Steam games without going through
+the main Steam executable.
+
+* The options dialog page for setting up a system has been tweaked to
+clarify that the Media and Table Database folder settings are always
+subfolders of their respective global folders as set in the Folders
+page of the options.  Past versions allowed entering full absolute
+paths here, which was misleading; the dialog now warns if you try to
+enter path separator characters.  Past versions also used a regular
+folder browser to select the folder, which suggested (incorrectly)
+that arbitrary folders could be selected.  The dialog now uses a more
+restricted folder browser that only allows selecting a suitable
+subfolder of the main global container folder for the item type.
 
 * The backglass window can now be made "borderless", removing the
 title bar and sizing borders so that the entire window area is filled
@@ -42,6 +124,14 @@ out what the COM error codes mean.)
 
 * The program now responds to window-level DPI change notifications
 from Windows by resizing affected windows.
+
+* In the event that a required font isn't installed, the program now
+tries to fall back on suitable default fonts.  This really shouldn't
+ever be necessary, as the program only uses standard Windows fonts
+that should be installed on all Windows systems, so this is just in
+case we run into a weird situation (e.g., the user has intentionally
+deleted a standard font for some reason).
+
 
 
 09-13-2018 (1.0.0 Alpha 20)

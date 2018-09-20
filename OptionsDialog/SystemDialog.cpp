@@ -10,6 +10,10 @@
 #include "../Utilities/PBXUtil.h"
 #include "../Utilities/Dialog.h"
 
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+
+
 IMPLEMENT_DYNAMIC(SystemDialog, OptionsPage)
 
 // System class IDs, as stored in the config file for SystemN.Class
@@ -85,7 +89,7 @@ bool SystemDialog::SysClassMap::IsModifiedFromConfig()
 	// get the current combo selection index
 	int i = combo.GetCurSel();
 
-	// force it into range; use the last entry ("Other") as the fallback
+	// force it into range; use the first entry ("Show") as the default
 	int n = countof(configClasses) - 1;
 	if (i < 0 || i > n)
 		i = n;
@@ -96,6 +100,76 @@ bool SystemDialog::SysClassMap::IsModifiedFromConfig()
 
 	// check for a match
 	return cfgval != configClasses[i];
+}
+
+void SystemDialog::SwShowMap::LoadConfigVar()
+{
+	// get the SW_SHOW value from the config file, in upper-case
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
+
+	// default to the exact text
+	strVar = cfgval.c_str();
+
+	// if the combo hasn't been loaded yet, defer the index lookup
+	if (combo.GetSafeHwnd() == NULL)
+		return;
+
+	// scan for a match to the "(SW_xxx)" portion of a combo item
+	for (int i = 0; i < combo.GetCount(); ++i)
+	{
+		// get this item
+		CString s;
+		combo.GetLBText(i, s);
+
+		// find the part in parens
+		std::match_results<const TCHAR*> m;
+		static const std::basic_regex<TCHAR> pat(_T(".+\\((SW_\\w+)\\)"));
+		if (std::regex_match(s.GetBuffer(), m, pat) && m[1].str() == cfgval)
+		{
+			// matched it - use this as the value
+			strVar = s;
+			combo.SetWindowText(strVar);
+			break;
+		}
+	}
+}
+
+void SystemDialog::SwShowMap::SaveConfigVar()
+{
+	// get the current text
+	CString s;
+	combo.GetWindowText(s);
+
+	// if there's an SW_XXX portion embedded in the string, save just that
+	std::match_results<const TCHAR*> m;
+	static const std::basic_regex<TCHAR> pat(_T(".*\\b(SW_\\w+)\\b.*"));
+	if (std::regex_match(s.GetBuffer(), m, pat))
+		s = m[1].str().c_str();
+
+	// save it
+	ConfigManager::GetInstance()->Set(configVar, s.GetBuffer());
+}
+
+bool SystemDialog::SwShowMap::IsModifiedFromConfig()
+{
+	// get the current text
+	CString s;
+	combo.GetWindowText(s);
+	s.MakeUpper();
+
+	// if there's an SW_XXX portion embedded in the string, save just that
+	std::match_results<const TCHAR*> m;
+	static const std::basic_regex<TCHAR> pat(_T(".*\\b(SW_\\w+)\\b.*"));
+	if (std::regex_match(s.GetBuffer(), m, pat))
+		s = m[1].str().c_str();
+
+	// get the value from the config, in upper-case
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
+
+	// check for a match
+	return cfgval != s.GetBuffer();
 }
 
 SystemDialog::SystemDialog(int dialogId, int sysNum, bool isNew) :
@@ -128,6 +202,8 @@ void SystemDialog::InitVarMap()
 	varMap.emplace_back(sysClassMap = new SysClassMap(cv(".Class"), IDC_CB_SYS_CLASS));
 	varMap.emplace_back(new EditStrMap(cv(".Exe"), IDC_EDIT_EXE, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".Parameters"), IDC_EDIT_PARAMS, _T("")));
+	varMap.emplace_back(swShowMap = new SwShowMap(cv(".ShowWindow"), IDC_CB_SHOW_WINDOW));
+	varMap.emplace_back(new EditStrMap(cv(".Environment"), IDC_EDIT_ENVIRONMENT, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".Process"), IDC_EDIT_PROC, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".StartupKeys"), IDC_EDIT_STARTUP_KEYS, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".TablePath"), IDC_EDIT_TABLE_FOLDER, _T("")));
@@ -160,8 +236,36 @@ BOOL SystemDialog::OnInitDialog()
 	btnTableFolder.SetBitmap(folderIcon);
 	btnNvramFolder.SetBitmap(folderIcon);
 
+	// Explicitly re-load the Show Window combo.  We have to defer this until
+	// now because the control isn't loaded when we set up the VarMap entry,
+	// which is where these initializations are normally done.  We need the
+	// control loaded first to do the initialization properly, since we need
+	// to scan its string list.
+	swShowMap->LoadConfigVar();
+
 	// return the base class result
 	return ret;
+}
+
+BOOL SystemDialog::ValidateSubfolder(int ctlId, int pathTypeId, const TCHAR *val)
+{
+	// if the proposed value is null, use the current value
+	CString s;
+	if (val == nullptr)
+	{
+		GetDlgItemText(ctlId, s);
+		val = s;
+	}
+
+	// check for special filename characters
+	if (std::regex_search(val, std::basic_regex<TCHAR>(_T("[\\\\/:*?|\"<>]"))))
+	{
+		MessageBox(MsgFmt(IDS_ERR_BAD_SUBFOLDER, LoadStringT(pathTypeId).c_str(), LoadStringT(IDS_WARN_CAPTION)));
+		return false;
+	}
+
+	// valid 
+	return true;
 }
 
 BOOL SystemDialog::OnApply()
@@ -171,6 +275,12 @@ BOOL SystemDialog::OnApply()
 	GetDlgItemText(IDC_EDIT_SYS_NAME, s);
 	if (std::regex_match(s.GetString(), std::basic_regex<TCHAR>(_T("\\s*"))))
 		SetDlgItemText(IDC_EDIT_SYS_NAME, MsgFmt(_T("New System %d"), sysNum));
+
+	// Check the subfolders to make sure they look like valid folder names
+	if (!ValidateSubfolder(IDC_EDIT_MEDIA_FOLDER, IDS_PATHTYPE_MEDIA))
+		return OnApplyFail(GetDlgItem(IDC_EDIT_MEDIA_FOLDER));
+	if (!ValidateSubfolder(IDC_EDIT_DB_FOLDER, IDS_PATHTYPE_DB))
+		return OnApplyFail(GetDlgItem(IDC_EDIT_DB_FOLDER));
 
 	// Do the base class work
 	if (__super::OnApply())
@@ -190,38 +300,24 @@ BOOL SystemDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 	{
 		// get the config var
 		TCHAR result[MAX_PATH];
-		const TCHAR *v = cfg->Get(cfgVar, _T(""));
-		if (*v == 0)
-		{
-			// It's empty/missing, so the default is to use the default
-			// subfolder of the PinballX program folder, if it's installed, 
-			// or our own program folder.
-			const TCHAR *pbxPath = GetPinballXPath();
-			if (pbxPath != nullptr)
-			{
-				// PBX is installed - use the default subfolder there
-				PathCombine(result, pbxPath, defaultSubFolder);
-				return result;
-			}
-			else
-			{
-				// PBX isn't installed - use our own default subfolder
-				GetDeployedFilePath(result, defaultSubFolder, _T(""));
-				return result;
-			}
-		}
-		else if (PathIsRelative(v))
+		TSTRING v = cfg->Get(cfgVar, _T(""));
+
+		// expand the "[PinballX]" substitution variable
+		static const auto pbxPat = std::basic_regex<TCHAR>(_T("\\[pinballx\\]"), std::regex::icase);
+		if (std::regex_search(v, pbxPat))
+			v = std::regex_replace(v, pbxPat, IfNull(GetPinballXPath(), _T("C:\\PinballX_Not_Installed")));
+
+		// if the path is relative, get the full path relative to the install folder
+		if (v.length() == 0 || PathIsRelative(v.c_str()))
 		{
 			// It's specified in the config as a relative path, so it's
 			// relative to our install folder.
-			GetDeployedFilePath(result, defaultSubFolder, _T(""));
+			GetDeployedFilePath(result, v.c_str(), _T(""));
 			return result;
 		}
-		else
-		{
-			// it's an absolute path - return it exactly as given
-			return v;
-		}
+
+		// return the path as given
+		return v;
 	};
 
 	switch (LOWORD(wParam))
@@ -241,11 +337,11 @@ BOOL SystemDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 		break;
 
 	case IDC_BTN_DB_FOLDER:
-		BrowseSubfolder(IDC_EDIT_DB_FOLDER, StdFolder(_T("TableDatabasePath"), _T("Databases")).c_str());
+		BrowseSubfolder(IDC_EDIT_DB_FOLDER, IDS_PATHTYPE_DB, StdFolder(_T("TableDatabasePath"), _T("Databases")).c_str());
 		break;
 
 	case IDC_BTN_MEDIA_FOLDER:
-		BrowseSubfolder(IDC_EDIT_MEDIA_FOLDER, StdFolder(_T("MediaPath"), _T("Media")).c_str());
+		BrowseSubfolder(IDC_EDIT_MEDIA_FOLDER, IDS_PATHTYPE_MEDIA, StdFolder(_T("MediaPath"), _T("Media")).c_str());
 		break;
 
 	case IDC_BTN_EXE:
@@ -383,27 +479,195 @@ CEdit *SystemDialog::GetEditVarMap(int editID)
 	return nullptr;
 }
 
-void SystemDialog::BrowseSubfolder(int editID, const TCHAR *parent)
+void SystemDialog::BrowseSubfolder(int editID, int folderTypeID, const TCHAR *parentFolder)
 {
 	// find the edit control's mapping entry in the list
 	if (auto edit = GetEditVarMap(editID); edit != nullptr)
 	{
-		// combine the parent path and the current subfolder
-		CString s;
-		edit->GetWindowText(s);
-		TCHAR buf[MAX_PATH];
-		PathCombine(buf, parent, s);
-		TSTRING path = buf;
+		// get the old value
+		CString oldVal;
+		edit->GetWindowText(oldVal);
 
-		// run the folder browser
-		if (::BrowseForFolder(path, GetParent()->GetSafeHwnd(), LoadStringT(IDS_BROWSE_FOLDER), BFF_OPT_ALLOW_MISSING_PATH))
+		// get the system name
+		CString sysName;
+		GetDlgItemText(IDC_EDIT_SYS_NAME, sysName);
+
+		// if it's empty, change it to "System %n"
+		if (sysName.GetLength() == 0)
+			sysName.Format(_T("System %d"), sysNum);
+
+		// set up the dialog
+		class SubfolderDialog : public Dialog
 		{
-			// find the last '\' path separator
-			const TCHAR *s = _tcsrchr(path.c_str(), '\\');
+		public:
+			SubfolderDialog(SystemDialog *sysdlg, int editID, int folderTypeID, const TCHAR *parentFolder, const TCHAR *sysName, const CString &oldVal) :
+				result(0),
+				sysdlg(sysdlg),
+				editID(editID),
+				folderTypeID(folderTypeID),
+				parentFolder(parentFolder),
+				sysName(sysName),
+				oldVal(oldVal)
+			{
+			}
 
-			// store only the subfolder name
-			edit->SetWindowText(s != nullptr ? s + 1 : path.c_str());
-		}
+			int result;
+			CString newVal;
+
+			SystemDialog *sysdlg;
+			int editID;
+			int folderTypeID;
+			const TCHAR *parentFolder;
+			TSTRING sysName;
+			const CString &oldVal;
+
+			virtual INT_PTR Proc(UINT msg, WPARAM wParam, LPARAM lParam) override 
+			{
+				switch (msg)
+				{
+				case WM_INITDIALOG:
+					Init();
+					break;
+
+				case WM_COMMAND:
+					if (int ctl = LOWORD(wParam); ctl == IDOK || ctl == IDCANCEL)
+					{
+						// note the result
+						result = ctl;
+
+						// if it's "OK", save the new value
+						if (ctl == IDOK)
+						{
+							// retrieve the new value
+							TCHAR buf[MAX_PATH];
+							::GetDlgItemText(hDlg, IDC_FLD_SUBFOLDER, buf, countof(buf));
+
+							// validate it
+							if (!sysdlg->ValidateSubfolder(editID, folderTypeID, buf))
+								return 0;
+
+							// store it
+							newVal = buf;
+						}
+					}
+					else if (ctl == IDHELP)
+					{
+						if (auto od = dynamic_cast<OptionsDialog*>(sysdlg->GetParent()); od != nullptr)
+							od->ShowHelpPage(_T("SystemOptionsBrowseSubfolder.html"));
+					}
+					break;
+
+				case WM_NOTIFY:
+					if (auto nm = reinterpret_cast<NMHDR*>(lParam); nm->idFrom == IDC_LIST_FOLDERS)
+					{
+						switch (nm->code)
+						{
+						case NM_DBLCLK:
+						case NM_CLICK:
+							// set the new selected item text
+							{
+								// get the clicked item's text
+								LVITEM lvi;
+								TCHAR buf[MAX_PATH];
+								ZeroMemory(&lvi, sizeof(lvi));
+								lvi.mask = LVIF_TEXT;
+								lvi.iItem = reinterpret_cast<NMITEMACTIVATE*>(nm)->iItem;
+								lvi.pszText = buf;
+								lvi.cchTextMax = countof(buf);
+								ListView_GetItem(GetDlgItem(IDC_LIST_FOLDERS), &lvi);
+
+								// store it in the text box
+								::SetDlgItemText(hDlg, IDC_FLD_SUBFOLDER, buf);
+							}
+
+							// on double-click, send an OK to the parent
+							if (nm->code == NM_DBLCLK)
+								::PostMessage(hDlg, WM_COMMAND, IDOK, 0);
+							break;
+						}
+					}
+					break;
+				}
+
+				// use the base class handling
+				return __super::Proc(msg, wParam, lParam);
+			}
+
+			CImageList images;
+
+			void Init()
+			{
+				// get the list view size
+				HWND lv = GetDlgItem(IDC_LIST_FOLDERS);
+				RECT rclv;
+				::GetClientRect(lv, &rclv);
+
+				// load the image list for the folder listview
+				images.Create(16, 15, ILC_COLOR24 | ILC_MASK, 2, 1);
+				CBitmap ilbmp;
+				ilbmp.LoadBitmap(IDB_FOLDER_BROWSER_IMAGES);
+				images.Add(&ilbmp, RGB(255, 0, 255));
+				ListView_SetImageList(lv, images.GetSafeHandle(), LVSIL_SMALL);
+
+				// initialize the column list
+				LVCOLUMN col;
+				ZeroMemory(&col, sizeof(col));
+				col.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+				col.fmt = LVCFMT_LEFT;
+				col.cx = rclv.right - rclv.left - GetSystemMetrics(SM_CXVSCROLL) - 1;
+				col.iSubItem = 0;
+				TSTRING colhdr = LoadStringT(IDS_COLHDR_FOLDER);
+				col.pszText = colhdr.data();
+				ListView_InsertColumn(lv, 0, &col);
+
+				// update the prompt strings with the folder type and system name
+				auto folderType = LoadStringT(folderTypeID);
+				FormatWindowText(hDlg, folderType.c_str());
+				FormatDlgItemText(IDC_TXT_SELECT_SUBFOLDER, folderType.c_str(), sysName.c_str());
+				FormatDlgItemText(IDC_TXT_SELECT_SUBFOLDER2, folderType.c_str());
+				::SetDlgItemText(hDlg, IDC_TXT_MAIN_FOLDER, parentFolder);
+
+				// populate the list
+				int idx = 0;
+				for (auto &file : fs::directory_iterator(parentFolder))
+				{
+					// only include folders
+					if (file.status().type() == fs::file_type::directory)
+					{
+						// get the name
+						TSTRING name = file.path().filename();
+
+						// set up the list item definition
+						LVITEM lvi;
+						ZeroMemory(&lvi, sizeof(lvi));
+						lvi.mask = LVIF_IMAGE | LVIF_TEXT | LVIF_STATE;
+						lvi.iItem = idx++;
+						lvi.state = 0;
+						lvi.stateMask = LVIS_SELECTED;
+						lvi.iImage = 1;
+						lvi.pszText = name.data();
+
+						// select it, if this is the current name
+						if (_tcsicmp(name.c_str(), oldVal) == 0)
+							lvi.state |= LVIS_SELECTED;
+
+						// add it to the list
+						ListView_InsertItem(lv, &lvi);
+					}
+				}
+
+				// fill in the current folder name
+				::SetDlgItemText(hDlg, IDC_FLD_SUBFOLDER, oldVal);
+			}
+		};
+
+		// show the dialog
+		SubfolderDialog dlg(this, editID, folderTypeID, parentFolder, sysName, oldVal);
+		dlg.Show(IDD_BROWSE_SYS_SUBFOLDER);
+
+		// update the dialog value if they selected a new folder
+		if (dlg.result == IDOK)
+			edit->SetWindowText(dlg.newVal);
 	}
 }
 
@@ -452,13 +716,20 @@ void SystemDialog::BrowseExe()
 		GetProgramForExt(registeredExe, ext);
 
 		// get the registered Steam executable
-		TSTRING steamExe;
+		TSTRING steamExe, steamDir;
 		{
 			TCHAR buf[MAX_PATH];
 			DWORD len = countof(buf);
 			if (SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
 				_T("steam"), _T("Open"), buf, &len)))
+			{
+				// save the full Steam executable name
 				steamExe = buf;
+
+				// save the path portion
+				PathRemoveFileSpec(buf);
+				steamDir = buf;
+			}
 		}
 
 		// Figure out where the file is, depending on the value and
@@ -466,6 +737,9 @@ void SystemDialog::BrowseExe()
 		//
 		// - If the value is [STEAM], substitute the Steam executable
 		//   from the class registration
+		//
+		// - If the value starts with [STEAMDIR], substitute the Steam
+		//   program directory path
 		//
 		// - If the value is an absolute path, simply start there
 		//
@@ -475,11 +749,17 @@ void SystemDialog::BrowseExe()
 		// - If it's blank, and there's a filename extension, get the
 		//   executable associated with the extension.
 		//
-		if (path.CompareNoCase(_T("[steam]")) == 0 && steamExe.length() != 0)
+		static const std::basic_regex<TCHAR> steamDirPat(_T("\\[steamdir\\]"), std::regex_constants::icase);
+		if (steamExe.length() != 0 && path.CompareNoCase(_T("[steam]")) == 0)
 		{
 			// This is shorthand for the Steam executable as specified
 			// in the registry, under the "Steam" program ID.
 			path = steamExe.c_str();
+		}
+		else if (steamDir.length() != 0 && std::regex_search(path.GetBuffer(), steamDirPat))
+		{
+			// Substitute the Steam path for the [steamdir] portion
+			path = std::regex_replace(path.GetBuffer(), steamDirPat, steamDir).c_str();
 		}
 		else if ((path.GetLength() == 0 || PathIsRelative(path)) && registeredExe.length() != 0)
 		{
@@ -567,6 +847,9 @@ void SystemDialog::BrowseExe()
 			// - If they selected the registered Steam executable, offer to use
 			//   "[Steam]" as the result instead of the absolute file path
 			//
+			// - If the path is in the Steam folder, offer to substitute
+			//   "[SteamDir]" for the initial portion of the path
+			//
 			// - If they selected the registered executable, offer to leave it
 			//   blank to use the default, or to use a relative path
 			//
@@ -585,6 +868,24 @@ void SystemDialog::BrowseExe()
 				{
 					// use [STEAM] as the path
 					spath = _T("[STEAM]");
+				}
+				else if (dlg.result == IDCANCEL)
+				{
+					// cancel - abort the whole thing
+					return;
+				}
+			}
+			else if (steamDir.length() != 0
+				&& _tcsicmp(steamDir.c_str(), spath.substr(0, steamDir.length()).c_str()) == 0
+				&& spath[steamDir.length()] == '\\')
+			{
+				// offer to replace the initial portion of the path with [STEAMDIR]
+				RadioButtonDialog dlg(IDC_RB_STEAMDIR);
+				dlg.Show(IDD_STEAMDIR_DEFAULT);
+				if (dlg.result == IDC_RB_STEAMDIR)
+				{
+					// replace the path prefix with [STEAMDIR]
+					spath = TSTRING(_T("[STEAMDIR]")) + spath.substr(steamDir.length());
 				}
 				else if (dlg.result == IDCANCEL)
 				{

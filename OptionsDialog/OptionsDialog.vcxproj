@@ -278,6 +278,7 @@
     <ClInclude Include="VCEdit.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\FolderBrowserImages.bmp" />
     <Image Include="res\FolderIcon.png" />
     <Image Include="res\ListEditIcons.png" />
     <Image Include="res\ButtonIcons24x24.png" />

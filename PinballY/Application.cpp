@@ -673,7 +673,8 @@ bool Application::LoadConfig(const ConfigFileDesc &fileDesc)
 
 bool Application::InitGameList(CapturingErrorHandler &loadErrs, ErrorHandler &fatalErrorHandler)
 {
-	GameList::Init();
+	GameList::Create();
+	GameList::Get()->Init(loadErrs);
 	if (!GameList::Get()->Load(loadErrs))
 	{
 		MultiErrorList meh;
@@ -793,7 +794,7 @@ bool Application::RunCommand(const TCHAR *cmd,
 
 	// launch the process
 	PROCESS_INFORMATION procInfo;
-	if (!CreateProcess(NULL, cmdStr.data(), 0, 0, false, 0, 0,
+	if (!CreateProcess(NULL, cmdStr.data(), NULL, NULL, false, 0, NULL,
 		NULL, &startupInfo, &procInfo))
 	{
 		// failed to launch - show an error and abort
@@ -2379,13 +2380,64 @@ DWORD Application::GameMonitorThread::Main()
 	ZeroMemory(&startupInfo, sizeof(startupInfo));
 	startupInfo.cb = sizeof(startupInfo);
 	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-	startupInfo.wShowWindow = SW_SHOWMINIMIZED;
+	startupInfo.wShowWindow = gameSys.swShow;
+
+	// process creation flags
+	DWORD createFlags = 0;
+
+	// If the system has environment variables to add, build a merged
+	// environment.
+	WCHAR *lpEnvironment = nullptr;
+	std::unique_ptr<WCHAR> mergedEnvironment;
+	if (gameSys.envVars.length() != 0)
+	{
+		// Parse the string.  This is given in the format NAME=VALUE;NAME=VALUE;...,
+		// so we have to separate the strings at the semicolons.  In addition, a
+		// literal semicolon can be emdedded in a value by stuttering it.
+		std::list<WSTRING> lst;
+		std::list<const WCHAR*> plst;
+		for (const TCHAR *p = gameSys.envVars.c_str(); *p != 0; )
+		{
+			// scan to the next non-stuttered ';'
+			const TCHAR *start = p;
+			for (; *p != 0; ++p)
+			{
+				if (*p == ';')
+				{
+					// check for a stuttered ';'
+					if (*(p + 1) == ';')
+						++p;
+					else
+						break;
+				}
+			}
+
+			// pull out this value, and replace each stuttered ';;' with ';'
+			TSTRING nv(start, p - start);
+			nv = std::regex_replace(nv, std::basic_regex<TCHAR>(_T(";;")), _T(";"));
+
+			// add it to the list
+			lst.emplace_back(TSTRINGToWSTRING(nv));
+			
+			// also add a pointer to the string to the pointer list
+			plst.emplace_back(lst.back().c_str());
+
+			// skip the ';'
+			if (*p == ';')
+				++p;
+		}
+
+		// create the merged environment
+		CreateMergedEnvironment(mergedEnvironment, plst, nullptr);
+		lpEnvironment = mergedEnvironment.get();
+		createFlags |= CREATE_UNICODE_ENVIRONMENT;
+	}
 
 	// Try launching the new process
 	PROCESS_INFORMATION procInfo;
 	ZeroMemory(&procInfo, sizeof(procInfo));
-	if (!CreateProcess(exe, cmdline.data(), 0, 0, false, 0, NULL,
-		gameSys.workingPath.c_str(), &startupInfo, &procInfo))
+	if (!CreateProcess(exe, cmdline.data(), NULL, NULL, false, createFlags,
+		lpEnvironment, gameSys.workingPath.c_str(), &startupInfo, &procInfo))
 	{
 		// failed - get the error
 		WindowsErrorMessage sysErr;
@@ -2420,8 +2472,8 @@ DWORD Application::GameMonitorThread::Main()
 			// elevation is truly required.
 			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: retrying launch As Invoker\n"));
 			if (!CreateProcessAsInvoker(
-				exe, cmdline.data(), 0, 0, false, 0, 0,
-				gameSys.workingPath.c_str(), &startupInfo, &procInfo))
+				exe, cmdline.data(), NULL, NULL, false, createFlags,
+				lpEnvironment, gameSys.workingPath.c_str(), &startupInfo, &procInfo))
 			{
 				// get the new error code
 				sysErr.Reset();
@@ -2452,13 +2504,14 @@ DWORD Application::GameMonitorThread::Main()
 			isAdminMode = true;
 
 			// set up the request parameters
+			MsgFmt swShowStr(_T("%d"), gameSys.swShow);
 			const TCHAR *request[] = {
 				_T("run"),
 				exe,
 				gameSys.workingPath.c_str(),
 				cmdline.c_str(),
 				gameInactivityTimeout.c_str(),
-				_T("SW_SHOWMINIMIZED"),
+				swShowStr,
 				_T("game")
 			};
 

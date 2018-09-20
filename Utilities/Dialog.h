@@ -39,6 +39,10 @@ protected:
 	// get a dialog item
 	HWND GetDlgItem(int ctlID) { return ::GetDlgItem(hDlg, ctlID); }
 
+	// Format text for a control, using the control's current text as the
+	// printf-style format string.
+	void FormatDlgItemText(int ctlID, ...);
+
 	// Resize a static text element vertically so that it's tall enough
 	// to fit its text contents.  Returns the change in height from the
 	// original control height.

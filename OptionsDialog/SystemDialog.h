@@ -32,7 +32,10 @@ protected:
 	virtual bool IsModFromConfig() override;
 
 	// browse for a subfolder given a base path
-	void BrowseSubfolder(int editID, const TCHAR *parent);
+	void BrowseSubfolder(int editID, int promptID, const TCHAR *parent);
+
+	// validate a subfolder name
+	BOOL ValidateSubfolder(int ctlId, int folderTypeID, const TCHAR *val = nullptr);
 
 	// browse for a full folder path
 	void BrowseFolder(int editID);
@@ -98,5 +101,24 @@ protected:
 		virtual bool IsModifiedFromConfig() override;
 	};
 	SysClassMap *sysClassMap;
+
+	// Var mapper for the window mode.  This combo control is set
+	// up in the dialog resource with user-friendly names for the
+	// SW_SHOW constants.
+	struct SwShowMap : VarMap
+	{
+		SwShowMap(const TCHAR *configVar, int controlID) :
+			VarMap(configVar, controlID, combo) { }
+
+		CComboBox combo;
+		CString strVar;
+
+		virtual void doDDX(CDataExchange *pDX) override { DDX_CBString(pDX, controlID, strVar); }
+
+		virtual void LoadConfigVar() override;
+		virtual void SaveConfigVar() override;
+		virtual bool IsModifiedFromConfig() override;
+	};
+	SwShowMap *swShowMap;
 };
 

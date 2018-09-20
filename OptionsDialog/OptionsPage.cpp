@@ -82,12 +82,19 @@ BOOL OptionsPage::OnApply()
 	return true;
 }
 
-BOOL OptionsPage::OnApplyFail()
+BOOL OptionsPage::OnApplyFail(HWND ctl)
 {
 	// Select this page, to direct the user's attention to the locus
 	// of the validation error
 	if (auto mainDlg = dynamic_cast<MainOptionsDialog*>(GetParent()); mainDlg != nullptr)
 		mainDlg->SetActivePage(this);
+
+	// set focus on the control, if possible
+	if (ctl != NULL)
+	{
+		::SetFocus(ctl);
+		::SendMessage(ctl, EM_SETSEL, 0, -1);
+	}
 
 	// Since the Apply failed, consider the entire save operation to
 	// have failed atomically, so roll back to the last saved copy

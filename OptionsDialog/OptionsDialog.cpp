@@ -228,6 +228,25 @@ BOOL OptionsDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 	return result;
 }
 
+void OptionsDialog::ShowHelpPage()
+{
+	ShowHelpPage(GetHelpPage(GetActivePage()));
+}
+
+void OptionsDialog::ShowHelpPage(const TCHAR *helpFile)
+{
+	// look in the help/ folder
+	TCHAR relPath[MAX_PATH];
+	PathCombine(relPath, _T("help"), helpFile);
+
+	// get the html file path
+	TCHAR path[MAX_PATH];
+	GetDeployedFilePath(path, relPath, _T(""));
+
+	// open the file
+	ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOW);
+}
+
 void OptionsDialog::OnSysCommand(UINT nID, LPARAM lParam)
 {
 	// on pressing the frame context help button, show the
@@ -236,21 +255,7 @@ void OptionsDialog::OnSysCommand(UINT nID, LPARAM lParam)
 	{
 	case SC_CONTEXTHELP:
 		// show help for the current page
-		{
-			// get the help file for the page
-			const TCHAR *helpFile = GetHelpPage(GetActivePage());
-
-			// look in the help/ folder
-			TCHAR relPath[MAX_PATH];
-			PathCombine(relPath, _T("help"), helpFile);
-
-			// get the html file path
-			TCHAR path[MAX_PATH];
-			GetDeployedFilePath(path, relPath, _T(""));
-
-			// open the file
-			ShellExecute(NULL, _T("open"), path, NULL, NULL, SW_SHOW);
-		}
+		ShowHelpPage();
 
 		// Skip the standard system processing, which switches to the
 		// "?" cursor for asking for help on an individual control.  We

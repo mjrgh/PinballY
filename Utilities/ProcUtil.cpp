@@ -465,37 +465,37 @@ BOOL CreateProcessAsInvoker(
 		const WCHAR *p = lpCommandLine;
 		for (; iswspace(*p); ++p);
 
-		// check for a quoted token
-		if (*p == '"')
-		{
-			// it's quoted - scan for the matching close quote
-			const WCHAR *start = ++p;
-			for (; *p != 0 && *p != '"'; ++p);
-			exe.assign(start, p - start);
-		}
-		else
-		{
-			// It's not quoted: scan for space delimiters.  The normal
-			// CreateProcess() is documented as allowing ambiguous 
-			// filenames here (with multiple unquoted spaces), so for
-			// the sake of compatibility, we'll do the same.
-			const WCHAR *start = p;
-			while (*p != 0)
-			{
-				// scan for the next space
-				for (; *p != 0 && !iswspace(*p); ++p);
+// check for a quoted token
+if (*p == '"')
+{
+	// it's quoted - scan for the matching close quote
+	const WCHAR *start = ++p;
+	for (; *p != 0 && *p != '"'; ++p);
+	exe.assign(start, p - start);
+}
+else
+{
+	// It's not quoted: scan for space delimiters.  The normal
+	// CreateProcess() is documented as allowing ambiguous 
+	// filenames here (with multiple unquoted spaces), so for
+	// the sake of compatibility, we'll do the same.
+	const WCHAR *start = p;
+	while (*p != 0)
+	{
+		// scan for the next space
+		for (; *p != 0 && !iswspace(*p); ++p);
 
-				// check if this file exists
-				exe.assign(start, p - start);
-				if (PathFileExists(exe.c_str()))
-					break;
+		// check if this file exists
+		exe.assign(start, p - start);
+		if (PathFileExists(exe.c_str()))
+			break;
 
-				// check if this file + .EXE exists
-				exe += L".EXE";
-				if (PathFileExists(exe.c_str()))
-					break;
-			}
-		}
+		// check if this file + .EXE exists
+		exe += L".EXE";
+		if (PathFileExists(exe.c_str()))
+			break;
+	}
+}
 	}
 
 	// Get the program's requested execution level.  If it's
@@ -532,58 +532,9 @@ BOOL CreateProcessAsInvoker(
 		// confusing things in our own process environment,
 		// create a local copy of the environment and make the
 		// changes only in the local copy.
-		//
-		// Start by getting the original environment.  Use the
-		// caller's custom environemnt block if they provided
-		// one, otherwise use the process-wide environment.
-		const WCHAR *env = lpEnvironment != nullptr ?
-			static_cast<const WCHAR *>(lpEnvironment) :
-			GetEnvironmentStringsW();
-
-		// Measure the size so that we can allocate a new copy with
-		// our added string.  The block is arranged with null-terminated
-		// strings back-to-back, and a double null character (or an
-		// empty string, if you prefer) marking the end of the whole
-		// block.  So just search for the double null character.
-		const WCHAR *envEnd = env;
-		for (; envEnd[0] != 0 || envEnd[1] != 0; ++envEnd);
-
-		// Allocate space for the current environment, plus our added
-		// variable, plus the final null character.
-		static const TCHAR compatVar[] = L"__COMPAT_LAYER=RunAsInvoker";
-		static const size_t compatVarLen = countof(compatVar);
-		newEnv.reset(new WCHAR[envEnd - env + 1 + compatVarLen + 1]);
-
-		// Now copy the strings, except for any existing __COMPAT_LAYER
-		// value, as we're going to replace that.  These are all in VAR=VAL 
-		// format, delimited by null characters.  
-		const WCHAR *src = env;
-		WCHAR *dst = newEnv.get();
-		for (; src[0] != 0; )
-		{
-			// get the length of this string, including null terminator
-			size_t len = wcslen(src) + 1;
-
-			// check for an existing __COMPAT_LAYER= variable
-			if (len < 15 || _wcsnicmp(src, compatVar, 15) != 0)
-			{
-				// it's not __COMPAT_LAYER - copy it
-				memcpy(dst, src, len * sizeof(WCHAR));
-
-				// move the output pointer to the next write position
-				dst += len;
-			}
-
-			// skip to the next string in the input
-			src += len;
-		}
-
-		// Now add our __COMPAT_LAYER string
-		memcpy(dst, compatVar, compatVarLen * sizeof(WCHAR));
-		dst += compatVarLen;
-
-		// add the final null character
-		*dst = 0;
+		const WCHAR *newVars[] = { L"__COMPAT_LAYER=RunAsInvoker" };
+		CreateMergedEnvironment(newEnv, newVars, countof(newVars), 
+			static_cast<const WCHAR *>(lpEnvironment));
 
 		// Our new environment block uses Unicode characters, so
 		// let CreateProcess know about this via the flags
@@ -596,3 +547,101 @@ BOOL CreateProcessAsInvoker(
 		newEnv.get(), lpCurrentDirectory, lpStartupInfo, lpProcessInformation);
 }
 
+// -----------------------------------------------------------------------
+// 
+// Create a merged environment
+//
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
+	const WCHAR *const *newVars, size_t nNewVars, const WCHAR *oldEnv)
+{
+	// build the list
+	std::list<const WCHAR*> lst;
+	for (size_t i = 0; i < nNewVars; ++i)
+		lst.push_back(newVars[i]);
+
+	// build the environment
+	CreateMergedEnvironment(merged, lst, oldEnv);
+}
+
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
+	const std::list<const WCHAR*> &newVars,
+	const WCHAR *oldEnv)
+{
+	// Start by getting the original environment.  Use the
+	// caller's custom environemnt block if they provided
+	// one, otherwise use the process-wide environment.
+	if (oldEnv == nullptr)
+		oldEnv = GetEnvironmentStringsW();
+
+	// set up a map for the new combined environment
+	std::unordered_map<TSTRING, TSTRING> map;
+
+	// Parse a name=value pair, and emplace it in the master
+	// table for the new environment.  Leaves 'p' pointing to 
+	// the null terminator at the end of the pair.
+	auto Parse = [&map](const WCHAR* &p)
+	{
+		// remember where this NAME=VALUE pair starts
+		const WCHAR *start = p;
+
+		// find the '=' separating NAME and VALUE
+		for (; *p != 0 && *p != '='; ++p);
+
+		// Pull out the variable name.  For keying purposes, convert
+		// it to lower-case.  Windows environment variables are not
+		// sensitive to case.
+		TSTRING varname(start, p - start);
+		std::transform(varname.begin(), varname.end(), varname.begin(), ::towlower);
+
+		// find the end of the value
+		for (; *p != 0; ++p);
+
+		// Emplace the table entry.  Note that the "value" part of the 
+		// pair is the full NAME=VALUE string.  This preserves the case
+		// of the original variable name.
+		map.emplace(varname, start);
+	};
+
+	// Parse the old environment into a table of strings
+	if (oldEnv != nullptr)
+	{
+		for (const WCHAR *p = oldEnv; *p != 0;)
+		{
+			// parse this name=value pair
+			Parse(p);
+
+			// skip the null terminator between pairs
+			++p;
+		}
+	}
+
+	// Now add each new variable to the table, replacing any existing
+	// variables of the same names.
+	for (auto n : newVars)
+		Parse(n);
+
+	// Measure the size of the new environment block.  The new block is
+	// simply a concatenation of all of the values from the map, with a
+	// null character after each one, and an extra null at the end.
+	size_t newSize = 1;
+	for (auto &v : map)
+		newSize += v.second.length() + 1;
+
+	// allocate space for the new block
+	merged.reset(new WCHAR[newSize]);
+
+	// copy the strings into the new block
+	WCHAR *dst = merged.get();
+	for (auto &v : map)
+	{
+		// copy the whole string including the null terminator at the end
+		size_t copyLen = v.second.length() + 1;
+		memcpy(dst, v.second.c_str(), copyLen*sizeof(WCHAR));
+
+		// move past it
+		dst += copyLen;
+	}
+
+	// add the final null character
+	*dst = 0;
+}

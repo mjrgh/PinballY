@@ -769,6 +769,8 @@ public:
 	TSTRING workingPath;		// working path when invoking executable
 	TSTRING process;			// process name to monitor
 	TSTRING startupKeys;        // startup key sequence
+	TSTRING envVars;			// environment variables to add when launching the program
+	WORD swShow;                // SW_SHOW flag for launching the table
 
 	// DOF config tool title prefix.  This is a prefix string that
 	// the DOF table mapping list uses for some systems to distinguish
@@ -993,9 +995,12 @@ public:
 class GameList
 {
 public:
-	// create the global singleton
-	static void Init();
+	// create/destroy the global singleton
+	static void Create();
 	static void Shutdown();
+
+	// Initialize.  Loads the game stats database.
+	void Init(ErrorHandler &eh);
 
 	// global singleton
 	static GameList *Get() { return inst; }
@@ -1329,15 +1334,19 @@ protected:
 	//
 	// - If there's an explicit setting in the config, use that.  If this
 	//   is specified as a relative path, it's relative to our deployment
-	//   folder.
+	//   folder, otherwise use the exact absolute path given.  The path
+	//   can contain the substitution variable [PinballX], which expands
+	//   to the full absolute path to the PinballX install folder, if
+	//   present.
 	//
-	// - Otherwise, search for a PinballX installation.  If found, use
-	//   the given default folder relative to the PinballX install folder.
+	// - Otherwise, we check to see if PinballX is installed.  If so, we
+	//   show a prompt asking the user whether they want to use the 
+	//   PinballX path or the PinballY path.  If not, we use the PinballY
+	//   path.  In either case, we update the configuration to use the
+	//   selected path in the future.
 	//
-	// - Otherwise, use the given detault folder relative to our own
-	//   deployment folder.
-	//
-	TSTRING GetDataFilePath(const TCHAR *configVarName, const TCHAR *defaultFolder);
+	TSTRING GetDataFilePath(const TCHAR *configVarName, const TCHAR *defaultFolder,
+		int promptStringID, ErrorHandler &eh);
 
 	// Current game, as an index in the byTitleFiltered list
 	int curGame;
@@ -1451,5 +1460,8 @@ protected:
 	// Media folder path.  We use the HyperPin/PinballX directory tree
 	// structure under this folder.
 	TSTRING mediaPath;
+
+	// table of SW_SHOW constants by name
+	std::unordered_map<TSTRING, WORD> swShowMap;
 };
 

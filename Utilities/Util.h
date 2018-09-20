@@ -72,3 +72,8 @@ template<class Coll> typename Coll::value_type* findifex(Coll &list, std::functi
 	auto it = std::find_if(list.begin(), list.end(), pred);
 	return (it == list.end() ? 0 : &(*it));
 }
+
+// Generic "if null" macro.  For any type that can yield nullptr, returns
+// the second argument if the first is null.
+template<typename T> T* IfNull(T *val, T *defVal) { return val != nullptr ? val : defVal; }
+

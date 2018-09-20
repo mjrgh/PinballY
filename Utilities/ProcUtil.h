@@ -35,6 +35,29 @@ void SaferTerminateProcess(HANDLE hProcess);
 
 // -----------------------------------------------------------------------
 //
+// Create a merged environment block for CreateProcess().  This creates
+// a WCHAR block containing all of the environment variables from a given
+// old environment, merged with the variables provided by the caller. 
+// Caller variables replace any from the old environment.
+//
+// In each variation the old environment block can be provided by the
+// caller, or it can be inherited from the current process environment
+// block by specifying nullptr for oldEnv.
+// 
+
+// provide the variables as an array of strings, in NAME=VAL format
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
+	const WCHAR *const *newVars, size_t nNewVars, 
+	const WCHAR *oldEnv = nullptr);
+
+// provide the variables as a list of string pointers
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
+	const std::list<const WCHAR*> &newVars,
+	const WCHAR *oldEnv = nullptr);
+
+
+// -----------------------------------------------------------------------
+//
 // Program manifest reader
 //
 

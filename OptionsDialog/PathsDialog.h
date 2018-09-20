@@ -25,9 +25,18 @@ public:
 			autoButtonID(autoButtonID), pbyButtonID(pbyButtonID), customButtonID(customButtonID),
 			editID(editID), browseButtonID(browseButtonID)
 		{
+			// set the local folder path - this is a relative path that's taken
+			// to be relative to the PinballY install folder by default
 			this->localFolder = localFolder;
-			vals[0] = _T("");
-			vals[1] = this->localFolder.c_str();
+			
+			// set the PinballX path - this uses the substitution variable
+			// [PinballX] (which expands to the PBX install folder) plus the
+			// local folder name
+			pbxFolder = _T("[PinballX]\\");
+			pbxFolder += localFolder;
+
+			vals[0] = this->localFolder.c_str();
+			vals[1] = pbxFolder.c_str();
 			vals[2] = _T("");
 		}
 
@@ -44,6 +53,20 @@ public:
 			edit.SubclassDlgItem(editID, dlg);
 		}
 
+		virtual void SaveConfigVar() override
+		{
+			// get the string value
+			const TCHAR *strVal = intVar >= 0 && (size_t)intVar < nVals ? vals[intVar] : defVal.c_str();
+
+			// if it's empty, use "." as the default
+			if (std::regex_match(strVal, std::basic_regex<TCHAR>(_T("\\s*"))))
+				strVal = _T(".");
+
+			// set it
+			ConfigManager::GetInstance()->Set(configVar, strVal);
+		}
+
+
 		void BrowseForFolder(HWND parent, int captionID);
 
 		bool OnEditChange()
@@ -54,7 +77,7 @@ public:
 
 			// if it's different from the stored text, update the stored
 			// text and select the Custom radio button
-			if (str != customFolder.c_str())
+			if (_tcsicmp(str, customFolder.c_str()) != 0)
 			{
 				customFolder = str;
 				vals[2] = customFolder.c_str();
@@ -76,6 +99,7 @@ public:
 
 		const TCHAR *vals[3];
 		TSTRING localFolder;
+		TSTRINGEx pbxFolder;
 		TSTRING customFolder;
 	};
 

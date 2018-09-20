@@ -13,8 +13,15 @@ static bool pinballXPathSet = false;
 static TSTRING pinballXPath;
 
 // Get the PinballX path
-const TCHAR *GetPinballXPath()
+const TCHAR *GetPinballXPath(bool refresh)
 {
+	// clear the cache is refreshing
+	if (refresh)
+	{
+		pinballXPathSet = false;
+		pinballXPath.clear();
+	}
+
 	// if we haven't resolved the path yet, do so now
 	if (!pinballXPathSet)
 	{

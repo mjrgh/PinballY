@@ -367,3 +367,31 @@ bool GetProgramForExt(TSTRING &prog, const TCHAR *ext)
 	return false;
 }
 
+// -----------------------------------------------------------------------
+//
+// Format window text.  This retrieves the current window text for
+// the window, uses it as a sprintf-style format string to format the
+// provided varargs values, then sets the window text to the result.
+//
+void FormatWindowText(HWND hwnd, ...)
+{
+	va_list ap;
+	va_start(ap, hwnd);
+	FormatWindowTextV(hwnd, ap);
+	va_end(ap);
+}
+
+void FormatWindowTextV(HWND hwnd, va_list ap)
+{
+	// get the current item text
+	int len = GetWindowTextLength(hwnd) + 1;
+	std::unique_ptr<TCHAR> buf(new TCHAR[len]);
+	GetWindowText(hwnd, buf.get(), len);
+
+	// format the string
+	TSTRINGEx s;
+	s.FormatV(buf.get(), ap);
+
+	// set the new dialog item text
+	SetWindowText(hwnd, s);
+}

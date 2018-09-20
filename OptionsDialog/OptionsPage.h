@@ -37,8 +37,10 @@ protected:
 	// Handle OnApply failure.  OnApply overrides can call this before
 	// returning to re-mark the page as dirty and try to select it in
 	// the UI, to direct the user's attention to the locus of the 
-	// failure.
-	BOOL OnApplyFail();
+	// failure.  If 'ctl' is non-null, we'll set focus on the control
+	// after switching back to the page.
+	BOOL OnApplyFail(HWND ctl = NULL);
+	BOOL OnApplyFail(CWnd *pWnd) { return OnApplyFail(pWnd->GetSafeHwnd()); }
 		
 	// Set the dirty (modified) flag
 	void SetDirty(BOOL dirty = TRUE);

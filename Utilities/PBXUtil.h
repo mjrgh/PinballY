@@ -5,6 +5,8 @@
 
 #pragma once
 
-// Get the PinballX install path
-const TCHAR *GetPinballXPath();
+// Get the PinballX install path.  If 'refresh' is true, we'll search the
+// registry again even if we've checked in the past; otherwise, we'll use
+// cached information from the last search, if available.
+const TCHAR *GetPinballXPath(bool refresh = false);
 

@@ -29,6 +29,10 @@ public:
 	// initialize
 	virtual BOOL OnInitDialog() override;
 
+	// show my help page/a specific help page
+	void ShowHelpPage();
+	void ShowHelpPage(const TCHAR *page);
+
 protected:
 	// Get the dialog ID.  This is an arbitrary, unique key string
 	// defined by the subclass.  A good choice is simply the subclass's

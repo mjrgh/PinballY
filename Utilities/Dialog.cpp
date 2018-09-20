@@ -7,6 +7,7 @@
 #include "UtilResource.h"
 #include "Dialog.h"
 #include "InstanceHandle.h"
+#include "WinUtil.h"
 
 Dialog::Dialog()
 {
@@ -310,6 +311,14 @@ void Dialog::ExpandWindowBy(int dx, int dy)
 
 	// expand it by the given amount
 	MoveWindow(hDlg, rcw.left, rcw.top, rcw.right - rcw.left + dx, rcw.bottom - rcw.top + dy, TRUE);
+}
+
+void Dialog::FormatDlgItemText(int ctlID, ...)
+{
+	va_list ap;
+	va_start(ap, ctlID);
+	FormatWindowTextV(GetDlgItem(ctlID), ap);
+	va_end(ap);
 }
 
 // --------------------------------------------------------------------------
