@@ -1,6 +1,6 @@
 PinballY Update History
 
-2018-09-19 (1.0.0 Alpha 21)
+09-19-2018 (1.0.0 Alpha 21)
 
 * If you installed an earlier version, and you were using the default
 "Auto" option for the main Media or Table Database folder, you might
