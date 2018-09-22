@@ -55,6 +55,11 @@ void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
 	const std::list<const WCHAR*> &newVars,
 	const WCHAR *oldEnv = nullptr);
 
+// Provide the variables as a flattened list of NAME=VALUE pairs delimited
+// by semicolons.  To use a literal semicolon within a VALUE section, use
+// a stuttered semicolon (;;).
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged, const TCHAR *vars);
+
 
 // -----------------------------------------------------------------------
 //

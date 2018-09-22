@@ -944,6 +944,29 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 	LogGroup();
 	Log(_T("Starting pinball player system setup\n"));
 
+	// get the Steam executable, in case it's needed anywhere
+	TCHAR steamExe[MAX_PATH];
+	TCHAR steamPath[MAX_PATH];
+	{
+		DWORD len = countof(steamExe);
+		if (SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
+			_T("steam"), _T("Open"), steamExe, &len)))
+		{
+			// got it - pull out the path portion
+			_tcscpy_s(steamPath, steamExe);
+			PathRemoveFileSpec(steamPath);
+		}
+		else
+		{
+			// not found - clear the strings
+			steamExe[0] = 0;
+			steamPath[0] = 0;
+		}
+	}
+
+	// get the PinballX folder
+	const TCHAR *pbxPath = GetPinballXPath();
+
 	// Get the database folder, using "data folder" rules
 	TSTRING dbDir = GetDataFilePath(ConfigVars::TableDatabasePath, _T("Databases"), IDS_DEFAULT_TABLEDB_PATH_PROMPT, eh);
 	Log(_T("The main table database folder is %s\n"), dbDir.c_str());
@@ -1082,18 +1105,15 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					defExt[0] != 0 ? defExt : _T("(unknown"));
 			}
 
-			// get the Steam executable
-			TCHAR exeBuf[MAX_PATH];
-			auto GetSteamExe = [&exeBuf, &systemName, &eh](const TCHAR *varname)
+			// check to see if steam is present
+			auto CheckSteam = [&steamExe, &systemName, &eh](const TCHAR *varname, const TCHAR *place)
 			{
-				// look up the Steam registry key
-				DWORD len = countof(exeBuf);
-				if (!SUCCEEDED(AssocQueryString(ASSOCF_NONE, ASSOCSTR_EXECUTABLE,
-					_T("steam"), _T("Open"), exeBuf, &len)))
+				// check if we found Steam
+				if (steamExe[0] == 0)
 				{
-					LogFile::Get()->Write(_T("Error: system %s uses the [%s] substitution variable, but Steam ")
-						_T("wasn't found in the Windows registry\n"), systemName, varname);
-					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName, varname, systemName, systemName));
+					LogFile::Get()->Write(_T("Error: system %s uses the [%s] substitution variable in its %s setting, but Steam ")
+						_T("wasn't found in the Windows registry\n"), systemName, place, varname);
+					eh.Error(MsgFmt(IDS_ERR_STEAM_MISSING, systemName, varname, place, systemName, systemName));
 					return false;
 				}
 
@@ -1116,6 +1136,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			//   extension is specified, use path portion of the registered
 			//   application for the extension.
 			//
+			TCHAR exeBuf[MAX_PATH];
 			TSTRING registeredExe;
 			TSTRING updatedExe;
 			static const std::basic_regex<TCHAR> steamDirPat(_T("\\[steamdir\\]"), std::regex_constants::icase);
@@ -1123,25 +1144,20 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			{
 				// This is shorthand for the Steam executable as specified
 				// in the registry, under the "Steam" program ID.  Look it up.
-				if (!GetSteamExe(_T("STEAM")))
+				if (!CheckSteam(_T("STEAM"), _T("Program EXE")))
 					continue;
 
 				// use the steam executable
-				exe = exeBuf;
+				exe = steamExe;
 				Log(_T("+ [STEAM] executable specified, full path is %s\n"), exe);
 			}
 			else if (std::regex_search(exe, steamDirPat))
 			{
 				// [STEAMDIR] gets the Steam install location
-				if (!GetSteamExe(_T("STEAMDIR")))
+				if (!CheckSteam(_T("STEAMDIR"), _T("Program EXE")))
 					continue;
 
-				// pull out the path portion
-				TCHAR steamPath[MAX_PATH];
-				_tcscpy_s(steamPath, exeBuf);
-				PathRemoveFileSpec(steamPath);
-
-				// replace [STEAMDIR] with this path
+				// replace [STEAMDIR] with the Steam exe's folder path
 				updatedExe = std::regex_replace(exe, steamDirPat, steamPath);
 				exe = updatedExe.c_str();
 				Log(_T("+ [STEAMDIR] path specified; Steam dir is %s, expanded path result is %s\n"), steamPath, exe);
@@ -1182,7 +1198,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			// Apply substitution variables to the table path
 			static const std::basic_regex<TCHAR> tablePathVars(_T("\\[(\\w+)\\]"), std::regex_constants::icase);
 			tablePath = regex_replace(tablePath, tablePathVars, 
-				[](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+				[&steamPath, &pbxPath, &eh, &CheckSteam, &systemName](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
 			{
 				// convert the variable name to lower-case
 				TSTRING v = m[1].str();
@@ -1196,9 +1212,39 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 					GetDeployedFilePath(path, _T(""), _T(""));
 					return path;
 				}
+				else if (v == _T("pinballx"))
+				{
+					// [PinballX] -> PBX program install folder
+					if (pbxPath != nullptr)
+						return pbxPath;
+					else
+					{
+						LogFile::Get()->Write(_T("Error: system %s uses the [PinballX] substitution variable in its Table Path setting, but PinballX ")
+							_T("doesn't appear to be installed\n"), systemName);
+						eh.Error(MsgFmt(IDS_ERR_PBXPATH_NOT_AVAIL, _T("Table Path"), systemName));
+						return m[0].str();
+					}
+				}
+				else if (v == _T("steamdir"))
+				{
+					// replace [STEAMDIR] with the Steam exe's folder path
+					if (CheckSteam(_T("STEAMDIR"), _T("Table Path")))
+						return steamPath;
+					else
+						return m[0].str();
+				}
+				else if (v == _T("lb"))
+				{
+					return _T("[");
+				}
+				else if (v == _T("rb"))
+				{
+					return _T("]");
+				}
 				else
 				{
 					// not found - return the original text unchanged
+					Log(_T("+ table path contains unknown substitution variable %s\n"), m[0].str().c_str());
 					return m[0].str();
 				}
 			});
@@ -1218,7 +1264,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 				// store the result back in the table path
 				tablePath = tablePathBuf;
 			}
-			Log(_T("+ full table path (folder containing this system's table files) is %s\n"), tablePath);
+			Log(_T("+ full table path (folder containing this system's table files) is %s\n"), tablePath.c_str());
 
 			// create the system object
 			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath.c_str(), defExt);

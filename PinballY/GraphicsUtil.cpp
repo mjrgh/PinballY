@@ -322,7 +322,6 @@ HBITMAP LoadPNG(int resid)
 // the image information for a raw byte stream in memory, or identify a
 // file type independently of the filename extension.
 //
-
 class ImageDimensionsReader
 {
 public:
@@ -332,8 +331,38 @@ public:
 	// read data from an offset in the file
 	virtual bool Read(long ofs, BYTE *buf, size_t len) = 0;
 
-	bool GetInfo(ImageFileDesc &desc)
+	bool GetInfo(ImageFileDesc &desc, bool readOrientation)
 	{
+		// get the base information
+		if (!GetInfoBase(desc, readOrientation))
+			return false;
+
+		// Figure the display dimensions.  These are the native image
+		// dimensions adjusted for rotation.
+		if (desc.rotation == 90 || desc.rotation == 270) 
+		{
+			// 90 or 270 - swap width and height
+			desc.dispSize.cx = desc.size.cy;
+			desc.dispSize.cy = desc.size.cx;		
+		}
+		else
+		{
+			// other rotations don't affect display dimensions
+			desc.dispSize = desc.size;
+		}
+
+		// success
+		return true;
+	}
+
+private:
+	bool GetInfoBase(ImageFileDesc &desc, bool readOrientation)
+	{
+		// Set up a bit mask of the parts required
+		const int NeedSize = 0x0001;
+		const int NeedOrientation = 0x0002;
+		int need = NeedSize | (readOrientation ? NeedOrientation : 0);
+
 		// Check the header to determine the image type.  For GIF, we can
 		// identify both the type and image dimensions with the first 10
 		// bytes; wtih PNG, we can do the same with the first 24 bytes; for
@@ -341,16 +370,15 @@ public:
 		// scan further into the file to find the size.  So start with the
 		// first 24 bytes, which will at least let us determine the type, 
 		// and is even enough to give us the size for everything but JPEG.
-		BYTE buf[256];
+		BYTE buf[512];
 		const size_t initialBytes = 24;
 		if (!Read(0, buf, initialBytes))
 			return false;
 
-		// check for the JFIF signature (FF D8 FF E0 s1 s2 'JFIF')
-		if (buf[0] == 0xFF && buf[1] == 0xD8 && buf[2] == 0xFF && buf[3] == 0xE0
-			&& buf[6] == 'J' && buf[7] == 'F' && buf[8] == 'I' && buf[9] == 'F')
+		// check for the minimal JPEG signature (FF D8 FF)
+		if (buf[0] == 0xFF && buf[1] == 0xD8 && buf[2] == 0xFF)
 		{
-			// it's a JPEG - scan the segment list
+			// scan the segment list
 			for (long ofs = 2; ; )
 			{
 				// read the next segment header
@@ -365,6 +393,13 @@ public:
 				if (buf[1] == 0xD9)
 					return false;
 
+				// Figure the chunk size.  For frame types with payloads,
+				// this is given by the next two bytes following the marker
+				// (bytes [2] and [3], as a 16-bit big-endian value).  For
+				// non-payload frame types (D0-D8), this is always zero.
+				// Note that the size includes the two size bytes.
+				UINT chunkSize = (buf[1] >= 0xD0 && buf[1] <= 0xD8) ? 0 : ((UINT)buf[2] << 8) + (UINT)buf[3];
+
 				// check for an SOFn marker - these are where we can find the
 				// image size
 				if (buf[1] == 0xC0 || buf[1] == 0xC1 || buf[1] == 0xC2
@@ -374,17 +409,137 @@ public:
 					desc.imageType = ImageFileDesc::JPEG;
 					desc.size.cy = (buf[5] << 8) + buf[6];
 					desc.size.cx = (buf[7] << 8) + buf[8];
-					return true;
+
+					// mark the size as done, and stop if we have everything
+					if ((need &= ~NeedSize) == 0)
+						return true;
 				}
 
-				// Advance to the next segment header.  For frame types with
-				// payloads, the two bytes following the marker give the
-				// big-endian segment size (not counting the marker bytes).
-				// For payload-less frames, just skip the two-byte marker.
-				if (buf[1] >= 0xD0 && buf[1] <= 0xD8)
-					ofs += 2;
-				else
-					ofs += 2 + (buf[2] << 8) + buf[3];
+				// If we're reading orientation, check for an Exif marker.  This takes
+				// more work, so skip this whole thing if we don't care about this
+				// metadata information.
+				if (readOrientation
+					&& buf[1] == 0xE1
+					&& chunkSize > 16
+					&& memcmp(buf + 4, "Exif\0\0", 6) == 0)
+				{
+					// The information we're looking for is always in the first IFD entry,
+					// so limit the read to a reasonable size, say 100 IFD entries @ 12 bytes
+					// plus the 8-byte header plus the two-byte entry count
+					UINT exifSize = min(chunkSize, 100*12 + 8 + 2);
+
+					// read the whole Exif chunk 
+					std::unique_ptr<BYTE> exifBuf(new BYTE[exifSize - 8]);
+					BYTE *exif = exifBuf.get(), *exifEnd = exif + exifSize;
+					if (!Read(ofs + 10, exif, exifSize - 8))
+						return false;
+
+					// TIFF can use either big- or little-endian format
+					auto B2LE = [](const BYTE *p) { return (UINT32)p[0] + ((UINT32)p[1] << 8); };
+					auto B2BE = [](const BYTE *p) { return ((UINT32)p[0] << 8) + (UINT32)p[1]; };
+					auto B4LE = [](const BYTE *p) { return (UINT32)p[0] + ((UINT32)p[1] << 8) + ((UINT32)p[2] << 16) + ((UINT32)p[3] << 24); };
+					auto B4BE = [](const BYTE *p) { return ((UINT32)p[0] << 24) + ((UINT32)p[1] << 16) + ((UINT32)p[2] << 8) + (UINT32)p[3]; };
+					std::function<int(const BYTE*)> B2 = nullptr;
+					std::function<int(const BYTE*)> B4 = nullptr;
+
+					// make sure it looks like a TIFF header
+					if (memcmp(exif, "II\x2a\x00", 4) == 0)
+					{
+						// Intel little-endian mode
+						B2 = B2LE;
+						B4 = B4LE;
+					}
+					else if (memcmp(exif, "MM\x00\x2a", 4) == 0)
+					{
+						// Motorola big-endian mode
+						B2 = B2BE;
+						B4 = B4BE;
+					}
+
+					// if we got a valid marker, proceed
+					if (B2 != nullptr)
+					{
+						// start at the first IFD
+						BYTE *p = exif + B4(exif + 4);
+
+						// read the number of entries in the first IFD
+						int n = 0;
+						if (p + 1 < exifEnd)
+						{
+							n = B2(p);
+							p += 2;
+						}
+
+						// parse the first IFD entries
+						for (int i = 0; i < n && p + 11 < exifEnd; ++i, p += 12)
+						{
+							switch (B2(p))
+							{
+							case 0x112:
+								// orientation marker: must be type 3 (uint16) and 1 component
+								if (B2(p + 2) == 3 && B4(p + 4) == 1)
+								{
+									// read the JPEG orientation code
+									switch (B2(p + 8))
+									{
+									case 1:
+										// normal orientation
+										break;
+
+									case 2:
+										// horizontal mirror
+										desc.mirrorHorz = true;
+										break;
+
+									case 3:
+										// rotate 180
+										desc.rotation = 180;
+										break;
+
+									case 4:
+										// vertical mirror
+										desc.mirrorVert = true;
+										break;
+
+									case 5:
+										// flip vertically, then rotate 90 degrees clockwise
+										desc.mirrorVert = true;
+										desc.rotation = 90;
+										break;
+
+									case 6:
+										// rotate 90 degrees clockwise
+										desc.rotation = 90;
+										break;
+
+									case 7:
+										// mirror horizontally, then rotate 90 degrees clockwise
+										desc.mirrorHorz = true;
+										desc.rotation = 90;
+										break;
+
+									case 8:
+										// rotate 270 degrees clockwise (equivalent to 90 degrees CCW)
+										desc.rotation = 270;
+										break;
+									}
+
+									// mark orientation as done, and return if done
+									if ((need &= ~NeedOrientation) == 0)
+										return true;
+
+									// in any case, we don't need to keep looping
+									i = n;
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				// Advance to the next segment header, by skipping the fixed
+				// 2 bytes of the header plus the encoded chunk size.
+				ofs += 2 + chunkSize;
 			}
 
 			// failed to find an SOFn segment
@@ -394,6 +549,7 @@ public:
 		// Check for GIF: 'GIF' v0 v1 v2 x0 x1 y0 y2
 		if (buf[0] == 'G' && buf[1] == 'I' && buf[2] == 'F')
 		{
+			// Set the type and size.  GIF has no orientation metadata.
 			desc.imageType = ImageFileDesc::GIF;
 			desc.size.cx = buf[6] + (buf[7] << 8);
 			desc.size.cy = buf[8] + (buf[9] << 8);
@@ -405,6 +561,9 @@ public:
 			&& buf[4] == 0x0D && buf[5] == 0x0A && buf[6] == 0x1A && buf[7] == 0x0A
 			&& buf[12] == 'I' && buf[13] == 'H' && buf[14] == 'D' && buf[15] == 'R')
 		{
+			// Set the type and size.  PNG has no orientation metadata.  (Unless it's
+			// a newer PNG format that allows Exif tags, but that seems rare, so we'll
+			// ignore it for now.)
 			desc.imageType = ImageFileDesc::PNG;
 			desc.size.cx = (buf[16] << 24) + (buf[17] << 16) + (buf[18] << 8) + (buf[19] << 0);
 			desc.size.cy = (buf[20] << 24) + (buf[21] << 16) + (buf[22] << 8) + (buf[23] << 0);
@@ -610,7 +769,7 @@ public:
 	}
 };
 
-bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc)
+bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation)
 {
 	class Reader : public ImageDimensionsReader
 	{
@@ -629,10 +788,10 @@ bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc)
 		}
 	};
 	Reader reader(filename);
-	return reader.GetInfo(desc);
+	return reader.GetInfo(desc, readOrientation);
 }
 
-bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc)
+bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation)
 {
 	class Reader : public ImageDimensionsReader
 	{
@@ -651,8 +810,14 @@ bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc)
 		}
 	};
 	Reader reader(imageData, len);
-	return reader.GetInfo(desc);
+	return reader.GetInfo(desc, readOrientation);
 }
+
+// -----------------------------------------------------------------------
+//
+// 
+
+
 
 // -----------------------------------------------------------------------
 //

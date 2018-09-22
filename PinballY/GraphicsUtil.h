@@ -46,12 +46,47 @@ Gdiplus::Bitmap *GPBitmapFromPNG(int resid);
 // header for known image types (JPG, PNG, GIF, SWF) and fills in
 // the descriptor with what we found.  Returns true if we parsed
 // the image header successfully, false if not.
+//
+// If 'readOrientation' is true, we'll also attempt to read any
+// orientation metadata encoded in the image.  Some image types,
+// such as JPEG, have metadata that allows a rotational and/or
+// mirror transform to be specified.  We skip this by default to
+// minimize the amount of time we spend parsing the image.
+//
 struct ImageFileDesc
 {
-	ImageFileDesc() : imageType(Unknown) { size = { 0, 0 }; }
+	ImageFileDesc() : 
+		imageType(Unknown), 
+		rotation(0), 
+		mirrorHorz(false), 
+		mirrorVert(false)
+	{
+		size = { 0, 0 }; 
+		dispSize = { 0, 0 };
+	}
 
-	// image dimensions in pixels
+	// Raw image dimensions in pixels
 	SIZE size;
+
+	// Display image dimensions in pixels.  This adjusts the size for
+	// the rotation metadata (that is, swapping cx and cy if the image
+	// is rotated 90 or 270 degrees).
+	SIZE dispSize;
+
+	// Orientation encoded in the image.  For the sake of JPEG Exif, we
+	// encode both mirroring and rotation.  
+	//
+	// Horizontal mirroring means that we mirror the image left-to-right.
+	// Vertical means that we flip the image top-to-bottom.  Rotation is
+	// expressed in degrees clockwise, and always as a positive value
+	// (so we express "90 degrees counterclockwise" as 270, not -90).
+	//
+	// When rendering the image, the operations must be applied in this 
+	// order: mirror, rotate.
+	//
+	bool mirrorHorz;
+	bool mirrorVert;
+	int rotation;
 
 	// image type
 	enum
@@ -63,8 +98,9 @@ struct ImageFileDesc
 		SWF			// Shockwave Flash object
 	} imageType;
 };
-bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc);
-bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc);
+bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation = false);
+bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation = false);
+
 
 // Off-screen GDI drawing.  This sets up a memory context, creates a
 // 32-bit RGBA DIB (device-independent bitmap) of the given size, 

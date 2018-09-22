@@ -2058,13 +2058,14 @@ DWORD Application::GameMonitorThread::Main()
 				// we'll want to be able to terminate the process when the game
 				// exits, so tell the host to keep the handle for later cleanup.
 				const TCHAR *req[] = {
-					_T("run"),
-					_T(""),
-					_T(""),
-					expCommand.c_str(),
-					_T("0"),
-					hide ? _T("SW_HIDE") : minimize ? _T("SW_SHOWMINIMIZED") : _T("SW_SHOW"),
-					nowait && !terminate ? _T("detach") : _T("keep")
+					_T("run"),             // admin request verb
+					_T(""),                // path to executable
+					_T(""),                // working directory
+					expCommand.c_str(),    // command line
+					_T(""),                // environment strings
+					_T("0"),               // inactivity timeout - 0 means no timeout
+					hide ? _T("SW_HIDE") : minimize ? _T("SW_SHOWMINIMIZED") : _T("SW_SHOW"),  // ShowWindow mode
+					nowait && !terminate ? _T("detach") : _T("keep")  // process handle retention mode
 				};
 
 				// launch it
@@ -2391,44 +2392,10 @@ DWORD Application::GameMonitorThread::Main()
 	std::unique_ptr<WCHAR> mergedEnvironment;
 	if (gameSys.envVars.length() != 0)
 	{
-		// Parse the string.  This is given in the format NAME=VALUE;NAME=VALUE;...,
-		// so we have to separate the strings at the semicolons.  In addition, a
-		// literal semicolon can be emdedded in a value by stuttering it.
-		std::list<WSTRING> lst;
-		std::list<const WCHAR*> plst;
-		for (const TCHAR *p = gameSys.envVars.c_str(); *p != 0; )
-		{
-			// scan to the next non-stuttered ';'
-			const TCHAR *start = p;
-			for (; *p != 0; ++p)
-			{
-				if (*p == ';')
-				{
-					// check for a stuttered ';'
-					if (*(p + 1) == ';')
-						++p;
-					else
-						break;
-				}
-			}
+		// create the merged environment from the flattened ';'-delimited list
+		CreateMergedEnvironment(mergedEnvironment, gameSys.envVars.c_str());
 
-			// pull out this value, and replace each stuttered ';;' with ';'
-			TSTRING nv(start, p - start);
-			nv = std::regex_replace(nv, std::basic_regex<TCHAR>(_T(";;")), _T(";"));
-
-			// add it to the list
-			lst.emplace_back(TSTRINGToWSTRING(nv));
-			
-			// also add a pointer to the string to the pointer list
-			plst.emplace_back(lst.back().c_str());
-
-			// skip the ';'
-			if (*p == ';')
-				++p;
-		}
-
-		// create the merged environment
-		CreateMergedEnvironment(mergedEnvironment, plst, nullptr);
+		// use the merged environment, noting in the create flags that it's Unicode
 		lpEnvironment = mergedEnvironment.get();
 		createFlags |= CREATE_UNICODE_ENVIRONMENT;
 	}
@@ -2506,13 +2473,14 @@ DWORD Application::GameMonitorThread::Main()
 			// set up the request parameters
 			MsgFmt swShowStr(_T("%d"), gameSys.swShow);
 			const TCHAR *request[] = {
-				_T("run"),
-				exe,
-				gameSys.workingPath.c_str(),
-				cmdline.c_str(),
-				gameInactivityTimeout.c_str(),
-				swShowStr,
-				_T("game")
+				_T("run"),                        // admin request verb
+				exe,                              // full path to executable
+				gameSys.workingPath.c_str(),      // working directory for new process
+				cmdline.c_str(),                  // command line 
+				gameSys.envVars.c_str(),          // environment variable list
+				gameInactivityTimeout.c_str(),    // inactivity timeout, in seconds
+				swShowStr,                        // ShowWindow mode
+				_T("game")                        // process handle retention mode
 			};
 
 			// Allow the admin host to set the foreground window when the

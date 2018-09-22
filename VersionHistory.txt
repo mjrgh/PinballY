@@ -1,5 +1,27 @@
 PinballY Update History
 
+09-22-2018 (1.0.0 Alpha 22)
+
+* The image loader now recognizes and respects "orientation" metadata
+embedded in JPEG images.  The orientation marker is stored by some
+cameras to indicate which direction is "up" when a photo is taken with
+the camera held sideways, and some image editor programs use the
+marker in lieu of re-writing the actual JPEG pixels when you manually
+rotate an image.  The Windows 10 Photos app works this way.  Earlier
+versions of PinballY ignored the orientation mark, which was confusing
+if you tried to rotate a source image using a photo app that only
+updated the marker - PinballY would strangely show the original
+orientation even though it looked like you rotated the image in the
+editor.  PinballY now uses the orientation marker to determine the
+image rotation when displayed.  This only applies to JPEG images, not
+to PNGs or any video formats.
+
+* The Table Path variable in a game system's settings can now contain
+additional substitution variables: [SteamDir] for the Steam program
+folder, if present; [lb] and [rb] for left and right square brackets;
+and [PinballX] for the PinballX install folder.
+
+
 09-19-2018 (1.0.0 Alpha 21)
 
 * If you installed an earlier version, and you were using the default

@@ -42,6 +42,7 @@ void Sprite::DetachFlash()
 
 void Sprite::UpdateWorld()
 {
+	// Apply world transformations - scale, rotate, translate
 	world = XMMatrixIdentity();
 	world = XMMatrixMultiply(world, XMMatrixScaling(scale.x, scale.y, scale.z));
 	world = XMMatrixMultiply(world, XMMatrixRotationRollPitchYaw(rotation.x, rotation.y, rotation.z));
@@ -56,27 +57,48 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 	stagingTexture = 0;
 	rv = 0;
 
-	// If the filename ends in SWF, check if it's actually an SWF.  For historical
-	// reasons*, we might encounter a JPEG or PNG image file whose extension has
-	// been changed to SWF.  So go by the file content rather than the extension.
-	// Likewise, treat it as an SWF if the file has an SWF signature inside, even
-	// if it has a different extension.
-	//
-	// * Said historical reasons date back to HyperPin, the first widely used
-	// pin cab front-end menu system.  According to lore, HyperPin only recognized
-	// Instruction Card media files if the filenames had .SWF extensions.  But it
-	// actually accepted JPEG and PNG files in these slots as long as they used
-	// .SWF extensions.  PinballX reproduced this quirk, naturally, because they
-	// wanted to maintain bug-for-bug compatibility with HyperPin media collections
-	// to make migration easier.  Ditto for us.  I think this peculiarty in HyperPin 
-	// and PinballX only applied to files with .swf suffixes, but we'll just ignore
-	// the suffix across the board and go by the actual contents.  That's really 
-	// the better way to do content type sensing anyway.
-	ImageFileDesc desc;
-	if (GetImageFileInfo(filename, desc) && desc.imageType == ImageFileDesc::SWF)
-		return LoadSWF(filename, normalizedSize, pixSize, eh);
+	// Try to determine the image type from the file contents
+	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
+	{
+		// If it's an SWF, it requires special handling
+		if (desc.imageType == ImageFileDesc::SWF)
+			return LoadSWF(filename, normalizedSize, pixSize, eh);
 
-	// It's not an SWF.  Load the texture from the image file using WIC.
+		// The WIC loader ignores orientation metadata (such as JPEG Exif data), so
+		// we have to do some special work if it's rotated or reflected.
+		if (desc.rotation != 0 || desc.mirrorHorz || desc.mirrorVert)
+		{
+			// load it as a bitmap
+			return Load(desc.dispSize.cx, desc.dispSize.cy, [&desc, filename](Gdiplus::Graphics &g)
+			{
+				// load the image 
+				std::unique_ptr<Gdiplus::Bitmap> bitmap(Gdiplus::Bitmap::FromFile(filename));
+
+				// Set up the drawing port with the origin at the center of the final
+				// view size, to make the rotation and reflection transforms easier to
+				// think about.
+				g.TranslateTransform(float(desc.dispSize.cx/2), float(desc.dispSize.cy/2));
+
+				// Apply rotation
+				g.RotateTransform(float(desc.rotation));
+
+				// Apply mirroring 
+				if (desc.mirrorHorz)
+					g.ScaleTransform(-1, 1);
+				if (desc.mirrorVert)
+					g.ScaleTransform(1, -1);
+
+				// draw the image with the transforms applied, at the SOURCE image size
+				float cx = float(desc.size.cx);
+				float cy = float(desc.size.cy);
+				g.DrawImage(bitmap.get(), Gdiplus::RectF(-cx/2.0f, -cy/2.0f, cx, cy),
+					0.0f, 0.0f, cx, cy, Gdiplus::UnitPixel);
+
+			}, eh, _T("Sprite::Load(file) with orientation metadata"));
+		}
+	}
+
+	// It's not an SWF, and it's not rotated, so translate the image to a texture via WIC.
 	HRESULT hr = CreateWICTextureFromFile(D3D::Get()->GetDevice(), filename, &texture, &rv);
 	if (FAILED(hr))
 	{

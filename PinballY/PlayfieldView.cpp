@@ -1743,14 +1743,14 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 
 	// get the file dimensions
 	ImageFileDesc imageDesc;
-	GetImageFileInfo(flyer->c_str(), imageDesc);
+	GetImageFileInfo(flyer->c_str(), imageDesc, true);
 
 	// Figure the sprite dimensions.  The scale of these is arbitrary,
 	// because we automatically rescale this in ScaleSprites() according
 	// to the window proportions.  All that matters is matching the
 	// original image's aspect ratio.  So use a fixed height of 1.0,
 	// and a proportional width.
-	float aspect = imageDesc.size.cy == 0 ? 1.0f : float(imageDesc.size.cx) / float(imageDesc.size.cy);
+	float aspect = imageDesc.dispSize.cy == 0 ? 1.0f : float(imageDesc.dispSize.cx) / float(imageDesc.dispSize.cy);
 	POINTF normalizedSize = { aspect, 1.0f };
 
 	// figure the corresponding pixel size
@@ -2800,8 +2800,8 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// playfield images at 1.0 times the viewport height, so
 			// we just need to figure the relative width.
 			ImageFileDesc imageDesc;
-			GetImageFileInfo(image.c_str(), imageDesc);
-			float cx = imageDesc.size.cx != 0 ? float(imageDesc.size.cy) / float(imageDesc.size.cx) : 0.5f;
+			GetImageFileInfo(image.c_str(), imageDesc, true);
+			float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
 			POINTF normSize = { 1.0f, cx };
 
 			// figure the corresponding pixel size
@@ -2819,11 +2819,12 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			sprite->Load(buf, { 1.0f, aspectRatio }, { szLayout.cx, (int)(szLayout.cx * aspectRatio) }, eh);
 		}
 
-		// HyperPin/PBX playfield images are oriented sideways, with the bottom
-		// at the left.  Rotate 90 degrees clockwise to orient it vertically.
+		// HyperPin/PBX playfield images are oriented sideways, with the bottom at
+		// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
 		// The actual display will of course orient it according to the camera
 		// view, but it makes things easier to think about if we orient all
-		// graphics the "normal" way internally.
+		// graphics the "normal" way internally.  (Note that CCW is positive on
+		// the Z axis, since D3D coordinates are left-handed.)
 		sprite->rotation.z = XM_PI/2.0f;
 		sprite->UpdateWorld();
 	};
@@ -2914,8 +2915,8 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 		// a fixed width, scaling as always to the height, using 1920 pixels
 		// as the reference height.
 		ImageFileDesc imageDesc;
-		GetImageFileInfo(path.c_str(), imageDesc);
-		float aspect = imageDesc.size.cx != 0 ? float(imageDesc.size.cy) / float(imageDesc.size.cx) : 1.0f;
+		GetImageFileInfo(path.c_str(), imageDesc, true);
+		float aspect = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 1.0f;
 		float width = 0.44f;
 		float height = width * aspect;
 

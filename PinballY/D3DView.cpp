@@ -265,8 +265,9 @@ void D3DView::ScaleSprite(Sprite *sprite, float span, bool maintainAspect)
 	float yLoad0 = sprite->loadSize.y;
 
 	// adjust for the sprite's rotation
-	float sinTh = sinf(-sprite->rotation.z);
-	float cosTh = cosf(-sprite->rotation.z);
+	FLOAT theta = sprite->rotation.z;
+	float sinTh = sinf(-theta);
+	float cosTh = cosf(-theta);
 	float xLoad = fabsf(xLoad0*cosTh - yLoad0*sinTh);
 	float yLoad = fabsf(yLoad0*cosTh + xLoad0*sinTh);
 
@@ -276,8 +277,8 @@ void D3DView::ScaleSprite(Sprite *sprite, float span, bool maintainAspect)
 	float yScale0 = span / yLoad;
 
 	// rotate back to sprite space
-	sinTh = sinf(sprite->rotation.z);
-	cosTh = cosf(sprite->rotation.z);
+	sinTh = sinf(theta);
+	cosTh = cosf(theta);
 	float xScale = fabsf(xScale0*cosTh - yScale0*sinTh);
 	float yScale = fabsf(yScale0*cosTh + xScale0*sinTh);
 

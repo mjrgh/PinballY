@@ -645,3 +645,47 @@ void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
 	// add the final null character
 	*dst = 0;
 }
+
+void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged, const TCHAR *vars)
+{
+	// Parse the string.  This is given in the format NAME=VALUE;NAME=VALUE;...,
+	// so we have to separate the strings at the semicolons.  In addition, a
+	// literal semicolon can be emdedded in a value by stuttering it.
+	std::list<WSTRING> lst;
+	std::list<const WCHAR*> plst;
+	for (const TCHAR *p = vars; *p != 0; )
+	{
+		// scan to the next non-stuttered ';'
+		const TCHAR *start = p;
+		for (; *p != 0; ++p)
+		{
+			if (*p == ';')
+			{
+				// check for a stuttered ';'
+				if (*(p + 1) == ';')
+					++p;
+				else
+					break;
+			}
+		}
+
+		// pull out this value, and replace each stuttered ';;' with ';'
+		TSTRING nv(start, p - start);
+		static const std::basic_regex<TCHAR> stuttered(_T(";;"));
+		nv = std::regex_replace(nv, stuttered, _T(";"));
+
+		// add it to the list
+		lst.emplace_back(TSTRINGToWSTRING(nv));
+
+		// also add a pointer to the string to the pointer list
+		plst.emplace_back(lst.back().c_str());
+
+		// skip the ';'
+		if (*p == ';')
+			++p;
+	}
+
+	// create the merged environment
+	CreateMergedEnvironment(merged, plst, nullptr);
+}
+

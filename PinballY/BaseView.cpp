@@ -142,14 +142,14 @@ Sprite *BaseView::PrepInstructionCard(const TCHAR *filename)
 {
 	// get the file dimensions
 	ImageFileDesc imageDesc;
-	GetImageFileInfo(filename, imageDesc);
+	GetImageFileInfo(filename, imageDesc, true);
 
 	// Figure the aspect ratio of the card.  The scale of the sprite 
 	// dimensions are arbitrary, because the window will automatically
 	// rescale the sprite to fill the width and/or height, but we do
 	// need to set the aspect ratio to maintain the correct geometry.
 	// Use a normalized height of 1.0, and set the width proportionally.
-	float aspect = imageDesc.size.cy == 0 ? 1.0f : float(imageDesc.size.cx) / float(imageDesc.size.cy);
+	float aspect = imageDesc.dispSize.cy == 0 ? 1.0f : float(imageDesc.dispSize.cx) / float(imageDesc.dispSize.cy);
 	float ht = 1.0f;
 	float wid = ht * aspect;
 	POINTF normSize = { wid, ht };
