@@ -66,9 +66,10 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 
 		// The WIC loader ignores orientation metadata (such as JPEG Exif data), so
 		// we have to do some special work if it's rotated or reflected.
-		if (desc.rotation != 0 || desc.mirrorHorz || desc.mirrorVert)
+		if (desc.oriented)
 		{
-			// load it as a bitmap
+			// Load it as a bitmap.  Note that the final bitmap is at the DISPLAY size,
+			// which might be rotated from the source size.
 			return Load(desc.dispSize.cx, desc.dispSize.cy, [&desc, filename](Gdiplus::Graphics &g)
 			{
 				// load the image 
@@ -79,14 +80,10 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 				// think about.
 				g.TranslateTransform(float(desc.dispSize.cx/2), float(desc.dispSize.cy/2));
 
-				// Apply rotation
-				g.RotateTransform(float(desc.rotation));
-
-				// Apply mirroring 
-				if (desc.mirrorHorz)
-					g.ScaleTransform(-1, 1);
-				if (desc.mirrorVert)
-					g.ScaleTransform(1, -1);
+				// apply the JPEG Exif transform
+				Gdiplus::Matrix m;
+				desc.orientation.ToMatrix(m);
+				g.MultiplyTransform(&m);
 
 				// draw the image with the transforms applied, at the SOURCE image size
 				float cx = float(desc.size.cx);

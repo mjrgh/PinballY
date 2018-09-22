@@ -56,10 +56,8 @@ Gdiplus::Bitmap *GPBitmapFromPNG(int resid);
 struct ImageFileDesc
 {
 	ImageFileDesc() : 
-		imageType(Unknown), 
-		rotation(0), 
-		mirrorHorz(false), 
-		mirrorVert(false)
+		imageType(Unknown),
+		oriented(false)
 	{
 		size = { 0, 0 }; 
 		dispSize = { 0, 0 };
@@ -73,20 +71,26 @@ struct ImageFileDesc
 	// is rotated 90 or 270 degrees).
 	SIZE dispSize;
 
-	// Orientation encoded in the image.  For the sake of JPEG Exif, we
-	// encode both mirroring and rotation.  
-	//
-	// Horizontal mirroring means that we mirror the image left-to-right.
-	// Vertical means that we flip the image top-to-bottom.  Rotation is
-	// expressed in degrees clockwise, and always as a positive value
-	// (so we express "90 degrees counterclockwise" as 270, not -90).
-	//
-	// When rendering the image, the operations must be applied in this 
-	// order: mirror, rotate.
-	//
-	bool mirrorHorz;
-	bool mirrorVert;
-	int rotation;
+	// JPEG Exif orientation transform matrix.  If 'oriented' is true, it
+	// means that the orientation matrix is filled in with a transform
+	// matrix to be applied to the raw image pixels to get the proper
+	// rendering orientation.
+	bool oriented;
+	struct Orientation
+	{
+		Orientation() : m11(1.0f), m12(0.0f), m21(0.0f), m22(1.0f) { }
+		Orientation(float m11, float m12, float m21, float m22) : m11(m11), m12(m12), m21(m21), m22(m22) { }
+		float m11, m12;
+		float m21, m22;
+
+		SIZE operator*(SIZE &s)	
+		{ 
+			return { (LONG)fabsf(m11*(float)s.cx + m12*(float)s.cy), (LONG)fabsf(m21*(float)s.cx + m22*(float)s.cy) };
+		}
+
+		void ToMatrix(Gdiplus::Matrix &m) { m.SetElements(m11, m12, m21, m22, 0.0f, 0.0f); }
+	} 
+	orientation;
 
 	// image type
 	enum

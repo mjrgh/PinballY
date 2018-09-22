@@ -338,18 +338,8 @@ public:
 			return false;
 
 		// Figure the display dimensions.  These are the native image
-		// dimensions adjusted for rotation.
-		if (desc.rotation == 90 || desc.rotation == 270) 
-		{
-			// 90 or 270 - swap width and height
-			desc.dispSize.cx = desc.size.cy;
-			desc.dispSize.cy = desc.size.cx;		
-		}
-		else
-		{
-			// other rotations don't affect display dimensions
-			desc.dispSize = desc.size;
-		}
+		// dimensions transformed by the orientation matrix.
+		desc.dispSize = desc.orientation * desc.size;
 
 		// success
 		return true;
@@ -484,43 +474,49 @@ private:
 									{
 									case 1:
 										// normal orientation
+										desc.orientation = { 1.0f, 0.0f, 0.0f, 1.0f };
 										break;
 
 									case 2:
 										// horizontal mirror
-										desc.mirrorHorz = true;
+										desc.orientation = { -1.0f, 0.0f, 0.0f, 1.0f };
+										desc.oriented = true;
 										break;
 
 									case 3:
 										// rotate 180
-										desc.rotation = 180;
+										desc.orientation = { -1.0f, 0.0f, 0.0f, -1.0f };
+										desc.oriented = true;
 										break;
 
 									case 4:
 										// vertical mirror
-										desc.mirrorVert = true;
+										desc.orientation = { 1.0f, 0.0f, 0.0f, -1.0f };
+										desc.oriented = true;
 										break;
 
 									case 5:
 										// flip vertically, then rotate 90 degrees clockwise
-										desc.mirrorVert = true;
-										desc.rotation = 90;
+										desc.orientation = { 0.0f, 1.0f, 1.0f, 0.0f };
+										desc.oriented = true;
 										break;
 
 									case 6:
 										// rotate 90 degrees clockwise
-										desc.rotation = 90;
+										desc.orientation = { 0.0f, 1.0f, -1.0f, 0.0f };
+										desc.oriented = true;
 										break;
 
 									case 7:
 										// mirror horizontally, then rotate 90 degrees clockwise
-										desc.mirrorHorz = true;
-										desc.rotation = 90;
+										desc.orientation = { 0.0f, -1.0f, -1.0f, 0.0f };
+										desc.oriented = true;
 										break;
 
 									case 8:
 										// rotate 270 degrees clockwise (equivalent to 90 degrees CCW)
-										desc.rotation = 270;
+										desc.orientation = { 0.0f, -1.0f, 1.0f, 0.0f };
+										desc.oriented = true;
 										break;
 									}
 
