@@ -23,6 +23,9 @@ public:
 	// are we in full-screen mode?
 	bool IsFullScreen() const { return fullScreenMode; }
 
+	// handle application foreground/background switches
+	virtual void OnAppActivationChange(bool activating);
+
 	// toggle between regular and full-screen mode
 	void ToggleFullScreen();
 
@@ -202,6 +205,9 @@ protected:
 
 	// window icon size
 	SIZE szIcon;
+
+	// reactivate full-screen mode on switching the app to the foreground
+	void ReactivateFullScreen();
 
 	// current mode - windowed or full-screen
 	bool fullScreenMode;

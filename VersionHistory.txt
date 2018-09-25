@@ -21,6 +21,27 @@ additional substitution variables: [SteamDir] for the Steam program
 folder, if present; [lb] and [rb] for left and right square brackets;
 and [PinballX] for the PinballX install folder.
 
+* When PinballY switches to the foreground after being in the
+background, it explicitly repositions each full-screen window.  This
+works around some Windows quirks (e.g., bugs) with full-screen
+handling, such as taskbar hiding on secondary monitors.
+
+* When you show a hidden window while a game is running (e.g., select
+"Show Backglass" on the playfield window's right-click menu), the
+program formerly loaded media (images, videos) into that window, even
+though media are normally disabled when a game is running.  The window
+now stays blank.  (The windows are all kept blank during play mode to
+minimize PinballY's memory and CPU usage while a game is running, so
+that the game can run as smoothly as possible.)
+
+* PinballY Admin Mode.exe displays a more helpful error message in the
+event that you should set "Run as Administrator" mode in
+PinballY.exe's file properties.  You shouldn't do this, but if you do,
+it prevents PinballY Admin Mode.exe from functioning.  The new error
+message explains this and suggests corrective actions.  There's also a
+new "Administrator Mode" section in the help files with more details
+on this.
+
 
 09-19-2018 (1.0.0 Alpha 21)
 

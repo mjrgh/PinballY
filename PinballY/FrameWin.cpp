@@ -479,6 +479,71 @@ void FrameWin::ToggleFullScreen()
 		SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOSIZE | SWP_FRAMECHANGED);
 }
 
+// Handle an application foreground/background switch
+void FrameWin::OnAppActivationChange(bool activating)
+{
+	// If we're in full-screen mode, do some extra work
+	if (fullScreenMode)
+	{
+		// If the application is activating, explicitly restore full-screen mode
+		// to re-trigger Windows side effects of full-screen sizing, such as 
+		// hiding the taskbar.
+		//
+		// If the application is switching to the background, move full-screen
+		// windows to the bottom of the Z order.
+		if (activating)
+			ReactivateFullScreen();
+		else
+			SetWindowPos(hWnd, HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	}
+}
+
+// Reactivate full-screen mode.  This is called whenever the application switches
+// to the foreground (we're notified of this via WM_APPACTICVATE, which we handle
+// in the Application object).  We reset the window placement to fill our primary
+// monitor.  
+//
+// This is necessary because Windows does some special work in SetWindowPos that it
+// *doesn't* do when the same window comes to the foreground with the same placement
+// already set.  For example, if we're positioned on a "secondary" monitor (not the
+// one designated as the primary desktop monitor in the Windows screen resolution
+// control panel), Windows won't hide the taskbar on that monitor on an app switch.
+//
+// I consider it a Windows bug that we have to do this.  The side effects (like the
+// taskbar hiding) should be part of the window state, not just momentary effects
+// of calling a particular API.  But whatever you want to call it, we have to live
+// with it, and this seems to be the way to live with it.
+void FrameWin::ReactivateFullScreen()
+{
+	// proceed if we're in full screen mode and we have a valid normal window placement
+	if (fullScreenMode && normalWindowPlacement.length != 0)
+	{
+		// get the monitor containing our normal window placement area
+		MONITORINFO mi = { sizeof(mi) };
+		if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+		{
+			// Set it momentarily to a smaller size, so that the next SetWindowPos
+			// actually has some work to do - Windows will ignore it otherwise.  The
+			// additional size change doesn't seem to discernible as a discrete UI
+			// change on the actual video display, so this won't cause any visual
+			// hiccups, but it does make Windows do the extra work we want it to do
+			// on the second SetWindowPos() below.
+			SetWindowPos(
+				hWnd, HWND_TOP,
+				mi.rcMonitor.left, mi.rcMonitor.top,
+				mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top - 1,
+				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+
+			// set the window placement to fill the monitor
+			SetWindowPos(
+				hWnd, HWND_TOP,
+				mi.rcMonitor.left, mi.rcMonitor.top,
+				mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
+				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+		}
+	}
+}
+
 // Add our custom items to the system menu.  
 void FrameWin::CustomizeSystemMenu(HMENU m)
 {

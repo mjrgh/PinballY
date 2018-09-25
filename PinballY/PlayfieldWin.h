@@ -17,6 +17,9 @@ public:
 	// construction
 	PlayfieldWin();
 
+	// application foreground/background changes
+	virtual void OnAppActivationChange(bool activating) override;
+
 protected:
 	// destruction - called internally when the reference count reaches zero
 	~PlayfieldWin();

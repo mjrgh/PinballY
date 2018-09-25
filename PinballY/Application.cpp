@@ -56,7 +56,7 @@
 //
 #pragma comment(linker, "/manifestdependency:\"type='win32' \
     name='Microsoft.Windows.Common-Controls' \
-    ""version='6.0.0.0' \
+       version='6.0.0.0' \
        processorArchitecture='*' \
        publicKeyToken='6595b64144ccf1df' \
        language='*'\"")
@@ -1029,23 +1029,35 @@ void Application::OnActivateApp(BaseWin* /*win*/, bool activating, DWORD /*other
 		// remember the new status
 		isInForeground = activating;
 
-		// notify the playfield view
-		if (auto pfv = GetPlayfieldView(); pfv != 0)
-			pfv->OnAppActivationChange(activating);
-
-		// If we're newly in the foreground, and a new file scanner
-		// thread isn't already running, launch one.  This looks for
-		// new game files that were added since we last checked, so
-		// that we can dynamically incorporate newly downloaded games
-		// into the UI without having to restart the program.
-		if (activating && !IsNewFileScanRunning())
+		// notify the UI windiows
+		auto Visit = [activating](FrameWin *win)
 		{
-			// Creaet and launch a new file scanner thread.  If the
-			// launch succeeds, stash it in our thread pointer so that
-			// we can check its progress later (as we just did above).
-			RefPtr<NewFileScanThread> t(new NewFileScanThread());
-			if (t->Launch())
-				newFileScanThread = t;
+			if (win != nullptr)
+				win->OnAppActivationChange(activating);
+		};
+		Visit(playfieldWin);
+		Visit(backglassWin);
+		Visit(dmdWin);
+		Visit(topperWin);
+		Visit(instCardWin);
+
+		// if we're switching to the foreground, do some extra work
+		if (activating)
+		{
+			// Launch a file scan thread, if one isn't already in progress.
+			// This looks for new game files that were added since we last 
+			// checked, so that we can dynamically incorporate newly 
+			// downloaded games into the UI without having to restart the 
+			// program.
+			if (!IsNewFileScanRunning())
+			{
+				// Create and launch a new file scanner thread.  If the
+				// launch succeeds, stash it in our thread pointer so that
+				// we can check its progress later (as we just did above).
+				RefPtr<NewFileScanThread> t(new NewFileScanThread());
+				if (t->Launch())
+					newFileScanThread = t;
+			}
 		}
 	}
 }

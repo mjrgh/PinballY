@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<div class="navbar">
+   <a href="PinballY.html">PinballY Help</a>
+</div>
+
+<h1>Administrator Mode</h1>
+
+<p>
+   If you look at the PinballY program folder, you'll see a separate
+   program called <b>PinballY Admin Mode.exe</b>.  What is that?  Do
+   you need it?  Should you be using it instead of the regular
+   <b>PinballY.exe</b>?  How is this different from running
+   PinballY.exe with the "Run as Administrator" command?  This
+   section attempts to answer those questions.
+</p>
+
+<h2>Dos and Don'ts</h2>
+
+<img src="DoNotRunAsAdmin.png" style="float: right;">
+<ul>
+   <li>DO use the regular PinballY.exe unless you have a well-defined need for Admin mode operation
+
+   <li>ONLY use PinballY Admin Mode.exe if you really need PinballY to launch some game programs
+   or Run Before/After commands in Admin mode
+
+   <li>If you use PinballY Admin Mode.exe to launch, it will run PinballY.exe automatically,
+   so DON'T launch both programs separately at the same time; use one or the other only
+
+   <li><b>DON'T</b> use the Windows Explorer "Run as Administrator" menu command to launch PinballY.exe
+
+   <li><b>DON'T</b> set the "Run as Administrator" checkbox in PinballY.exe's file properties
+</ul>
+
+<h2>What is PinballY Admin Mode.exe?</h2>
+
+<p>
+   <b>PinballY Admin Mode.exe</b> is a separate version of PinballY that
+   you can use if you require Admin mode to run any of the games that
+   PinballY launches.  If you require Admin mode, launch PinballY
+   via the <b>PinballY Admin Mode.exe</b> program file <i>instead of</i> the
+   normal <b>PinballY.exe</b> program.
+</p>
+<p>
+   It might sound from the name like <b>PinballY Admin Mode.exe</b>
+   simply runs PinballY in Admin mode.  Not quite.
+   What <b>PinballY Admin Mode.exe</b> actually does is a bit more
+   involved:
+</p>
+<ul>
+   <li><b>Pinbally Admin Mode.exe</b> launches <b>PinballY.exe</b> in
+      <i>regular user mode</i>
+
+   <li><b>PinballY Admin Mode.exe</b> then remains in memory as a
+   separate program, running in Admin mode
+
+</ul>
+
+<img src="AdminModeFig1.png" class="example">
+
+<p>
+   It's important to understand that PinballY Admin Mode.exe isn't just
+   "PinballY running in Admin Mode".  PinballY Admin Mode.exe is actually
+   a separate, small program that only performs a few special functions
+   that require Administrator mode privileges.  When this is running, the
+   regular PinballY.exe program - which contains the
+   PinballY user interface and most of its other functions -
+   runs in regular user mode.  When the user-mode PinballY program needs
+   to carry out some special operation that requires Administrator
+   privileges, such as launching a game in Admin mode, it sends a
+   request to the Admin Mode program via the communications channel
+   telling the Admin Mode program to carry out the special operation.
+</p>
+<p>
+   This separation of the program's functions into "regular" and "Admin"
+   portions is designed to allow PinballY to access privileged Admin
+   functions when necessary, without forcing you to run the entire
+   PinballY program in Admin mode.  And by the same token, it allows
+   PinballY to launch most of your games and Run Before/After commands
+   in regular user mode.  Admin mode exposes your system to more
+   potential harm from program bugs, so it's best to use Admin mode
+   as sparingly as possible.  
+</p>
+
+
+<h2>Should I use the Admin mode version?</h2>
+
+<p>
+   Not unless necessary.  It's only necessary if one of the games you
+   want to launch with PinballY needs to run in Admin mode, or one of the
+   Run Before/After commands needs to run in Admin mode.
+</p>
+<p>
+   Ideally, this should never happen.  Ideally you shouldn't
+   even have to read this section.  If you come across something that seems
+   to require Admin mode, or that someone else told you requires Admin
+   mode, that might be due to a misunderstanding or a configuration
+   problem, not an actual need for Admin mode.  
+   Try to find a better option before resorting to Admin mode.
+
+</p>
+
+<h2>It's necessary; how do I use it?</h2>
+
+<p>
+   Easy: just run <b>PinballY Admin Mode.exe</b> <i>instead of</i> the
+   normal <b>PinballY.exe</b>.
+</p>
+<p>
+   When you run PinballY Admin Mode.exe, it automatically launches
+   the regular PinballY.exe for you.  You don't have to launch the
+   regular PinballY.exe separately.
+</p>
+<p>
+   <b>Don't</b> check-mark the "Run as Administrator" option in the
+   PinballY.exe file properties dialog.  That will prevent PinballY
+   Admin Mode.exe from being able to launch the regular PinballY.exe
+   in normal user mode, which defeats the purpose of the
+   "separation of powers" designed into this.
+</p>
+
+<h2>How is this different from just running PinballY.exe in Admin mode?</h2>
+
+<p>
+   See the diagram above.  When you use PinballY Admin Mode.exe,
+   only a small portion of the program - just the functions that
+   absolutely require Admin mode privileges - actually run in
+   Admin mode.  The whole rest of the program runs in ordinary
+   user mode, with all of the standard Windows protections against
+   accidental system damage from program bugs.  All of the game
+   programs that PinballY launches also run in ordinary user mode,
+   also with protection against system damage from program bugs.
+</p>
+<p>
+   In contrast, when you use the "Run as Administrator" command
+   in Windows Explorer to run PinballY.exe, you force the entire
+   program <i>and every program it launches</i> to run in Admin
+   mode.  The entire PinballY Direct3D UI will run in Admin
+   mode.  Every Visual Pinball game it launches will run in
+   Admin Mode.  Every Future Pinball game, Pinball Arcade
+   Game, FX2/FX3 game, etc will run in Admin mode.  The risk of
+   system instability or operating system corruption is increased.
+</p>
+
+
+<h2>What is Admin mode anyway?</h2>
+
+<p>
+   Admin mode is a special program execution mode that gives a program
+   full, unrestricted access to nearly all Windows system resources, such
+   as operating system files, OS registry keys, and protected memory areas.
+   Windows blocks ordinary "user mode" programs from accessing these
+   resources, to protect the system against harm by malware and by
+   accidental program bugs.
+</p>
+<p>
+   Microsoft designed Admin mode for use by trusted system programs
+   only, such as Windows control panels, special system setup programs,
+   installers, and the like.  In Microsoft's view, nearly all programs
+   should run in ordinary user mode.  Admin mode is intended to be a rare
+   exception that you use only when you're doing something special that
+   has a legitimate need to mess with system settings.  However,
+   Microsoft left it up to the user to decide which programs
+   get the special privileges.  If you really want to run some Elbonian
+   ransomware in Admin mode, Windows will let you.
+</p>
+
+<h2>Why you should avoid Admin mode when possible</h2>
+
+<p>
+   Admin mode is dangerous because a program running in Admin mode
+   has unrestricted access to all system resources.  It can make changes
+   to system files, including core operating system files and registry
+   entries.  In the worst case, such changes can damage the system and
+   force you to reinstall Windows.
+</p>
+<p>
+   Most people think of this sort of danger as being primarily from malware.
+   That's certainly a factor, and if you download a lot of random
+   Internet software, a major factor indeed.  But Microsoft created
+   the system protections as much to prevent <i>accidental</i>
+   damage as to prevent malware attacks.  Back in its earliest days,
+   Windows had a terrible reputation for instability,
+   insecurity, and general bugginess.  Some of that was deserved,
+   but a lot of the mess actually came from buggy third-party
+   application software that could trash the system accidentally,
+   just because the system was so wide-open.  Microsoft put 
+   the Admin mode barriers in place in large part to limit the
+   collateral damage that could be  done by buggy applications.
+</p>
+<p>
+   When you run a program in Admin mode, you take down all of those
+   barriers. When you routinely run all application software in Admin
+   mode, you return to those Stone Age days of Windows where any
+   program can trash the whole system.
+</p>
+
+
+</body>
+</html>

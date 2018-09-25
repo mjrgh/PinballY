@@ -40,6 +40,12 @@ BaseView *PlayfieldWin::CreateViewWin()
 	return pfView;
 }
 
+void PlayfieldWin::OnAppActivationChange(bool activating)
+{
+	if (auto pfv = dynamic_cast<PlayfieldView*>(GetView()); pfv != nullptr)
+		pfv->OnAppActivationChange(activating);
+}
+
 void PlayfieldWin::OnRawInput(UINT rawInputCode, HRAWINPUT hRawInput)
 {
 	// send the event to the input manager

@@ -113,7 +113,7 @@ public:
 
 	// Application activation change notification.  The app calls this
 	// when switching between foreground and background mode.
-	void OnAppActivationChange(bool foreground);
+	virtual void OnAppActivationChange(bool activating);
 
 	// frame window is being shown/hidden
 	virtual void OnShowHideFrameWindow(bool show) override { }

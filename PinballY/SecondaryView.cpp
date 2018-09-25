@@ -205,6 +205,10 @@ void SecondaryView::SyncCurrentGame()
 	if (game == nullptr)
 		return;
 
+	// if we're in running game mode, do nothing
+	if (auto pfv = Application::Get()->IsGameRunning())
+		return;
+
 	// if the new game is already the incoming game, just let that 
 	// animation finish
 	if (incomingBackground.sprite != nullptr && game == incomingBackground.game)
