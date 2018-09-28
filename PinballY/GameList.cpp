@@ -2798,7 +2798,7 @@ void GameList::ChangeSystem(GameListItem *game, GameSystem *newSystem)
 	// If we're currently associated with a system, our XML record
 	// is in the old system's database file, so the first step is
 	// to remove it from the old XML tree.
-	if (game->system != nullptr && game->gameXmlNode != nullptr)
+	if (game->system != nullptr && game->gameXmlNode != nullptr && game->gameXmlNode->parent() != nullptr)
 		game->gameXmlNode->parent()->remove_node(game->gameXmlNode);
 
 	// Get the game's current category list.  The game's database
