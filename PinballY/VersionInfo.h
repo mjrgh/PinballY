@@ -56,9 +56,10 @@
 // 
 // We use the common Major.Minor.Maintenance convention for version
 // labels.  There's no scientific formula to this, but the software
-// industry is generally pretty consistent in how these are used, so most
-// people have a general sense of what the parts mean.  Here's what we
-// recommend:
+// industry has gravitated to some loosely defined conventions, which
+// are consistent enough that most users have some idea of what kinds
+// of changes to expect in a major release, a minor release, and a dot
+// release.  Here's what we recommend:
 // 
 // - The "major" version changes when there are very large changes to
 //   the application, especially changes that are incompatible with past
@@ -86,21 +87,21 @@
 // This specifies the release status - alpha, beta, etc.
 // 
 // To some degree, the traditional alpha/beta/production release cycle
-// is meaningless in an open source pboject, because such a project is
-// aguably in a perpetual "beta" state by its very nature.  In commercial
-// software, the release level often has a formal meaning, defined at
-// least internally and often spelled out in sales contracts, that 
-// defines the type of support and warranty service that customers will 
-// receive during a testing cycle.  A testing release also typically
-// restricts the number and type of customers who will have access to 
-// the release.  None of these factors are relevant to open-source
-// software, where anyone can generally download any testing version
-// and where the software is explicitly distributed without warranty 
-// or support service at *any* point in its lifecycle.
+// is meaningless in an open source pboject, because such an open source
+// project is arguably in a perpetual "beta" state by its very nature.  
+// In commercial software, the release level often has a formal meaning, 
+// spelled out in sales contracts, that defines the type of support and
+// warranty service that customers will receive during a testing cycle.
+// A testing release also typically restricts the circulation to a
+// limited set of customers who have agreed to participate in the test
+// cycle.  None of these factors are relevant to open-source software, 
+// where anyone can generally download any version, and where there's
+// explicitly no warranty or support service at *any* point in the
+// lifecycle.
 // 
-// Even so, the commercial lifecycle is so widely used and understood
-// that it's still useful and informative for open source projects, even
-// if it's used more loosely and informally.  For users, it provides an
+// Even so, the traditional software lifecycle is so widely used and 
+// understood that open source projects tend to use it, just less
+// formally than in commercial products.  For users, it provides an
 // indication of how much testing a release has had and how stable the
 // developers consider it to be.  This lets users opt in to releases
 // according to their individual tolerance for bugs and instability vs.
@@ -113,10 +114,10 @@
 // 
 // As with the version numbering scheme, there's not a precise or
 // universal set of rules for the release lifecycle, even in the
-// commercial software world.  But there's enough commonality in
-// industry practice that most users have at least intuitive 
-// understandings of the terms.  We recommend using the common 
-// progression of Dev, Alpha, Beta, RC, Production:
+// commercial software world.  But the conventions are fairly well
+// established, and most users have intuitive understandings of the 
+// terms.  We recommend using the common progression of Dev, Alpha,
+// Beta, RC, Production:
 // 
 // STATUS_DEVELOPMENT
 // Development = in the development stages, incomplete and possibly
@@ -193,18 +194,19 @@
 //
 // If you're forking the repository and creating your own separate
 // release of the code, you can add your name (or organization name) to
-// the copyright.  (You can't remove the existing copyright holder
-// names, though; you can only add your name to the existing names.)
+// the copyright.  You can't remove the existing copyright holder
+// names, though; you can only add your name to the existing names.
 // 
-// The reason you can add your name is that international copyright
-// conventions and most national copyright laws automatically grant
-// the copyright in any new, original work to its author.  This is
-// automatic and inherent in the creation of the new work.  That means
-// that any original code you create and add to this project is under
-// your copyright by virtue of your having written the code.  Now,
-// this naturally doesn't in any way affect the copyright ownership
-// of the existing code that you added to; it only applies to the
-// portion of it that is your original contribution.  This creates a 
+// The reason you can add your name is that copyright laws generally
+// grant copyright in any new, original work to its author.  (This
+// naturally varies by country, but this aspect is fairly ubiquitous,
+// thanks to international copyright conventions that most countries
+// have adopted.)  Copyright is automatic and inherent in the creation
+// of a new work.  This means you hold the copyright to any original
+// code you create and add to this project, simply by virtue of your 
+// having written it.  Now, this naturally doesn't in any way affect 
+// the copyright ownership of the existing code that you added to.  It
+// only applies to your original contribution.  This creates a common
 // complication for open-source projects with many contributors, which
 // is that it would be impractical to keep track of and credit 
 // authorship of every bit of code on a line-by-line basis.  So most
@@ -231,8 +233,10 @@
 // you create, please note that the license terms are a separate
 // matter.  This particular project is distributed under GPL, which
 // requires that all derivative versions must also be under GPL.
-// So while you can add your name to the copyright, you can't add,
-// remove, or modify any license terms.
+// So while you can add your name to the copyright, you can't change
+// the license terms.  (This means, for example, that you can't add
+// your own additional license restrictions, nor can you delete any 
+// GPL provisions.)
 //
 // 
 // VII.  Forked Project Versioning
