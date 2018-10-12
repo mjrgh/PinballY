@@ -1288,6 +1288,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->runAfter = cfg->Get(MsgFmt(_T("%s.RunAfter"), sysvar.Get()), _T(""));
 			system->runAfterPost = cfg->Get(MsgFmt(_T("%s.RunAfterPost"), sysvar.Get()), _T(""));
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
+			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
 			
 			// set the SW_SHOW mode for the launched app, using SW_SHOW as the default
 			system->swShow = SW_SHOW;

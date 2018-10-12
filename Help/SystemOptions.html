@@ -298,7 +298,7 @@
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
-   <b>Parameters:</b> -applaunch 226980<br>
+   <b>Parameters:</b> -applaunch 226980 "[TABLEFILE]"<br>
    <b>Window Mode:</b> Minimize<br>
    <b>Process name:</b> Pinball FX2.exe<br>
    <b>Table folder:</b> steamapps\common\Pinball FX2\data\steam<br>
@@ -315,7 +315,7 @@
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
-   <b>Parameters:</b> -applaunch 442120<br>
+   <b>Parameters:</b> -applaunch 442120 "-table_[TABLEFILE]"<br>
    <b>Window Mode:</b> Minimize<br>
    <b>Process name:</b> Pinball FX3.exe<br>
    <b>Table folder:</b> steamapps\common\Pinball FX3\data\steam<br>
@@ -763,6 +763,38 @@
       set in the game's settings.  The <i>down</i> and <i>right</i> keys are key names from the
       list above, as in <b>[gridpos comma period]</b> or, more likely, <b>[gridpos down right]</b></td></tr>
 </table>
+
+<h3>Terminate by</h3>
+
+<p>
+   This specifies how PinballY terminates a running game launched
+   with this system when you press the Exit Game button.
+</p>
+<ul>
+  <li><b>Close Window:</b>  This is the default.  This simply closes
+  all of the program's open windows, as though you manually closed
+  them with the mouse.  This is considered the best way to
+  terminate a program, since it's the way most programs expect to be
+  terminated under normal conditions, and because it allows the program
+  to perform an orderly shutdown, releasing system resources before it
+  exits.  This option should be used in most cases.  Consider other
+  options only if this one doesn't work reliably for a
+  particular game system.
+
+  <li><b>Kill Process:</b>  This asks Windows to terminate the process
+  directly.  This is a more forceful way to stop a program, because it
+  doesn't require any cooperation from the program itself.  It's the same
+  thing that Task Manager does when you ask it to kill a process.  However,
+  if you've ever done this with Task Manager, you're familiar with that
+  warning message it displays about how this kind of termination can harm
+  system stability.  Killing a process doesn't give the target program a
+  chance to do the cleanup work it would normally do on exit.
+  This can, in some cases, leave system resources (like files or
+  devices) locked or in other dubious states.  This option is
+  sometimes necessary, though, because some programs won't cooperate
+  properly with the more polite Close Window approach.  Use this as
+  a last resort when the Close Window option doesn't work reliably.
+</ul>
 
 
 <h3>Table folder</h3>

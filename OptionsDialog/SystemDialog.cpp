@@ -105,7 +105,7 @@ bool SystemDialog::SysClassMap::IsModifiedFromConfig()
 void SystemDialog::SwShowMap::LoadConfigVar()
 {
 	// get the SW_SHOW value from the config file, in upper-case
-	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOW"));
 	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
 
 	// default to the exact text
@@ -158,14 +158,93 @@ bool SystemDialog::SwShowMap::IsModifiedFromConfig()
 	combo.GetWindowText(s);
 	s.MakeUpper();
 
-	// if there's an SW_XXX portion embedded in the string, save just that
+	// if there's an SW_XXX portion embedded in the string, extract it;
+	// that's what we'd save, so it's what we want to compare to the config
 	std::match_results<const TCHAR*> m;
 	static const std::basic_regex<TCHAR> pat(_T(".*\\b(SW_\\w+)\\b.*"));
 	if (std::regex_match(s.GetBuffer(), m, pat))
 		s = m[1].str().c_str();
 
 	// get the value from the config, in upper-case
-	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOW"));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
+
+	// check for a match
+	return cfgval != s.GetBuffer();
+}
+
+void SystemDialog::TerminateByMap::LoadConfigVar()
+{
+	// get the value from the config file, in upper-case
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("CloseWindow"));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
+
+	// default to the exact text
+	strVar = cfgval.c_str();
+
+	// if the combo hasn't been loaded yet, defer the index lookup
+	if (combo.GetSafeHwnd() == NULL)
+		return;
+
+	// The combo list strings are of the form "Localized Friendly Name (Value)",
+	// where Value is the actual text stored in the config file.  The Value
+	// strings aren't localized, as these are config values that are primarily
+	// for the computer's consumption.
+	//
+	// Find the combo list item to select by scanning for a match between the
+	// config variable value and the "(Value)" portion of a combo string.
+	for (int i = 0; i < combo.GetCount(); ++i)
+	{
+		// get this item
+		CString s;
+		combo.GetLBText(i, s);
+
+		// find the "(Value)" part and check for a match to the config value
+		std::match_results<const TCHAR*> m;
+		static const std::basic_regex<TCHAR> pat(_T(".+\\((\\w+)\\)"));
+		if (std::regex_match(s.GetBuffer(), m, pat) && _tcsicmp(m[1].str().c_str(), cfgval.c_str()) == 0)
+		{
+			// matched it - use this as the value
+			strVar = s;
+			combo.SetWindowText(strVar);
+			break;
+		}
+	}
+}
+
+void SystemDialog::TerminateByMap::SaveConfigVar()
+{
+	// get the current text
+	CString s;
+	combo.GetWindowText(s);
+
+	// if there's a "(Value)" portion embedded in the string, save just that;
+	// otherwise save the exact text
+	std::match_results<const TCHAR*> m;
+	static const std::basic_regex<TCHAR> pat(_T(".*\\b(\\w+)\\b.*"));
+	if (std::regex_match(s.GetBuffer(), m, pat))
+		s = m[1].str().c_str();
+
+	// save it
+	ConfigManager::GetInstance()->Set(configVar, s.GetBuffer());
+}
+
+bool SystemDialog::TerminateByMap::IsModifiedFromConfig()
+{
+	// get the current text
+	CString s;
+	combo.GetWindowText(s);
+	s.MakeUpper();
+
+	// if there's a "(Value)" portion embedded in the string, extract it;
+	// that's what we'd save, so it's what we want to compare to the config
+	std::match_results<const TCHAR*> m;
+	static const std::basic_regex<TCHAR> pat(_T(".*\\b(\\w+)\\b.*"));
+	if (std::regex_match(s.GetBuffer(), m, pat))
+		s = m[1].str().c_str();
+
+	// get the value from the config, in upper-case
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("CloseWindow"));
 	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
 
 	// check for a match
@@ -176,7 +255,9 @@ SystemDialog::SystemDialog(int dialogId, int sysNum, bool isNew) :
 	OptionsPage(dialogId),
 	sysNum(sysNum),
 	isNew(isNew),
-	sysClassMap(nullptr)
+	sysClassMap(nullptr),
+	swShowMap(nullptr),
+	terminateByMap(nullptr)
 {
 }
 
@@ -203,6 +284,7 @@ void SystemDialog::InitVarMap()
 	varMap.emplace_back(new EditStrMap(cv(".Exe"), IDC_EDIT_EXE, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".Parameters"), IDC_EDIT_PARAMS, _T("")));
 	varMap.emplace_back(swShowMap = new SwShowMap(cv(".ShowWindow"), IDC_CB_SHOW_WINDOW));
+	varMap.emplace_back(terminateByMap = new TerminateByMap(cv(".TerminateBy"), IDC_CB_TERMINATE_BY));
 	varMap.emplace_back(new EditStrMap(cv(".Environment"), IDC_EDIT_ENVIRONMENT, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".Process"), IDC_EDIT_PROC, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".StartupKeys"), IDC_EDIT_STARTUP_KEYS, _T("")));
@@ -236,12 +318,13 @@ BOOL SystemDialog::OnInitDialog()
 	btnTableFolder.SetBitmap(folderIcon);
 	btnNvramFolder.SetBitmap(folderIcon);
 
-	// Explicitly re-load the Show Window combo.  We have to defer this until
-	// now because the control isn't loaded when we set up the VarMap entry,
-	// which is where these initializations are normally done.  We need the
-	// control loaded first to do the initialization properly, since we need
-	// to scan its string list.
+	// Explicitly re-load the Show Window and Terminate By combos.  We have to
+	// defer these until now because the control isn't loaded when we set up 
+	// the VarMap entry, which is where these initializations are normally done.
+	// We need the control loaded first to do the initialization properly, since 
+	// we need to scan its string list loaded from the dialog resource.
 	swShowMap->LoadConfigVar();
+	terminateByMap->LoadConfigVar();
 
 	// return the base class result
 	return ret;

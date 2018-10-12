@@ -120,5 +120,22 @@ protected:
 		virtual bool IsModifiedFromConfig() override;
 	};
 	SwShowMap *swShowMap;
+
+	// Var mapper for the Terminate By combo.
+	struct TerminateByMap : VarMap
+	{
+		TerminateByMap(const TCHAR *configVar, int controlID) :
+			VarMap(configVar, controlID, combo) { }
+
+		CComboBox combo;
+		CString strVar;
+
+		virtual void doDDX(CDataExchange *pDX) override { DDX_CBString(pDX, controlID, strVar); }
+
+		virtual void LoadConfigVar() override;
+		virtual void SaveConfigVar() override;
+		virtual bool IsModifiedFromConfig() override;
+	};
+	TerminateByMap *terminateByMap;
 };
 

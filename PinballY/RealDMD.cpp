@@ -363,8 +363,16 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 				Log(_T("+ This appears to be the dmd-extensions version of the DLL, based on the product/copyright strings\n"));
 				dmdExtInfo.matched = true;
 
+				// VERSION NOTE:  Freezy's nominal "1.7.2" release (as listed in
+				// the GitHub release list) actually has 1.7.3 version stamps on
+				// all of the files.  The version we check is the one marked in
+				// the file stamps.  (This is just as well, because 1.7.2 would
+				// be ambiguous.  There were several test builds labeled 1.7.2
+				// in circulation with different bug fixes.  All 1.7.3 releases
+				// should have the bug fixes we're interested in.)
+
 				// Check the product version to see if it's a newer version
-				// wiht the fix for a bug that caused the DLL to crash if we
+				// with the fix for a bug that caused the DLL to crash if we
 				// called PM_GameSettings() more than once per process
 				// lifetime.  The fix is pull request #122, which is in
 				// official releases 1.7.3 and later.

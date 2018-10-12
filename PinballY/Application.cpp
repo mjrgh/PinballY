@@ -1472,83 +1472,108 @@ void Application::GameMonitorThread::CloseGame()
 		// flag that we've tried closing the game
 		closedGameProc = true;
 
-		// Try bringing our main window to the foreground before 
-		// closing the game program's window(s), so that the taskbar 
-		// doesn't reappear between closing the game and activating
-		// our window, assuming we're in full-screen mode.  Explorer 
-		// normally hides the taskbar when a full-screen window is
-		// in front, but only when it's in front.
-		if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
+		// check for admin mode
+		if (isAdminMode)
 		{
-			// inject a call to the child process to set our window
-			// as the foreground
-			DWORD tid;
-			HandleHolder hRemoteThread = CreateRemoteThread(
-				hGameProc, NULL, 0,
-				(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
-				0, &tid);
-
-			// explicitly set our foreground window
-			SetForegroundWindow(pfw->GetHWnd());
+			static const TCHAR *const request[] = { _T("killgame") };
+			Application::Get()->PostAdminHostRequest(request, countof(request));
 		}
-
-		// Try closing one game window at a time.  Repeat until we
-		// don't find any windows to close, or we reach a maximum
-		// retry limit (so that we don't get stuck if the game 
-		// refuses to close).
-		for (int tries = 0; tries < 20; ++tries)
+		else
 		{
-			// look for a window to close
-			struct CloseContext
+			// Normal launch - we can do the close ourselves
+
+			// Try bringing our main window to the foreground before 
+			// closing the game program's window(s), so that the taskbar 
+			// doesn't reappear between closing the game and activating
+			// our window, assuming we're in full-screen mode.  Explorer 
+			// normally hides the taskbar when a full-screen window is
+			// in front, but only when it's in front.
+			if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
 			{
-				std::list<HWND> windows;
-			} closeCtx;
-			EnumThreadWindows(tidMainGameThread, [](HWND hWnd, LPARAM lParam)
-			{
-				// get the context
-				auto ctx = reinterpret_cast<CloseContext*>(lParam);
-				
-				// Only include windows that are visible and enabled.  VP will
-				// crash if we try to close disabled windows while a dialog is
-				// showing.
-				if (IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
-					ctx->windows.push_back(hWnd);
+				// inject a call to the child process to set our window
+				// as the foreground
+				DWORD tid;
+				HandleHolder hRemoteThread = CreateRemoteThread(
+					hGameProc, NULL, 0,
+					(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
+					0, &tid);
 
-				// continue the enumeration
-				return TRUE;
-			}, reinterpret_cast<LPARAM>(&closeCtx));
-
-			// if we didn't find any windows to close, stop trying to
-			// close windows
-			if (closeCtx.windows.size() == 0)
-				break;
-
-			// try closing each window we found
-			for (auto hWnd : closeCtx.windows)
-			{
-				// try closing this window
-				SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
-
-				// If it's still there, send it an ordinary WM_CLOSE as well.
-				// Some windows don't response to SC_CLOSE.
-				if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
-					SendMessage(hWnd, WM_CLOSE, 0, 0);
+				// explicitly set our foreground window
+				SetForegroundWindow(pfw->GetHWnd());
 			}
 
-			// pause briefly between iterations to give the program a chance
-			// to update its windows; stop if the process exits
-			if (hGameProc == NULL || WaitForSingleObject(hGameProc, 100) != WAIT_TIMEOUT)
-				break;
-		}
+			// Check the termination mode
+			if (_tcsicmp(gameSys.terminateBy.c_str(), _T("KillProcess")) == 0)
+			{
+				// KillProcess mode.  Don't try to close windows; just terminate
+				// the process by fiat.
+				TerminateProcess(hGameProc, 0);
+			}
+			else
+			{
+				// Close Window mode, or anything else (this is the default,
+				// which we'll use if there's no setting or some other setting
+				// we don't recognize).
+				//
+				// Try closing one game window at a time.  Repeat until we
+				// don't find any windows to close, or we reach a maximum
+				// retry limit (so that we don't get stuck if the game 
+				// refuses to close).
+				for (int tries = 0; tries < 20; ++tries)
+				{
+					// look for a window to close
+					struct CloseContext
+					{
+						std::list<HWND> windows;
+					} closeCtx;
+					EnumThreadWindows(tidMainGameThread, [](HWND hWnd, LPARAM lParam)
+					{
+						// get the context
+						auto ctx = reinterpret_cast<CloseContext*>(lParam);
 
-		// If the game is still running, resort to stronger measures:
-		// attempt to kill it at the process level.  It's not unheard
-		// of for VP to crash, which makes it futile to try to kill it
-		// by closing windows, and The Pinball Arcade seems very prone
-		// to going into an unresponsive state rather than terminating
-		// when we close its window.
-		if (hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT)
-			SaferTerminateProcess(hGameProc);
+						// Only include windows that are visible and enabled.  VP will
+						// crash if we try to close disabled windows while a dialog is
+						// showing.
+						if (IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
+							ctx->windows.push_back(hWnd);
+
+						// continue the enumeration
+						return TRUE;
+					}, reinterpret_cast<LPARAM>(&closeCtx));
+
+					// if we didn't find any windows to close, stop trying to
+					// close windows
+					if (closeCtx.windows.size() == 0)
+						break;
+
+					// try closing each window we found
+					for (auto hWnd : closeCtx.windows)
+					{
+						// try closing this window
+						SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+
+						// If it's still there, send it an ordinary WM_CLOSE as well.
+						// Some windows don't response to SC_CLOSE.
+						if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
+							SendMessage(hWnd, WM_CLOSE, 0, 0);
+					}
+
+					// pause briefly between iterations to give the program a chance
+					// to update its windows; stop if the process exits
+					if (hGameProc == NULL || WaitForSingleObject(hGameProc, 100) != WAIT_TIMEOUT)
+						break;
+				}
+			}
+
+			// If the game is still running, resort to stronger measures:
+			// attempt to kill it at the process level.  It's not unheard
+			// of for VP to crash, which makes it futile to try to kill it
+			// by closing windows, and The Pinball Arcade seems very prone
+			// to going into an unresponsive state rather than terminating
+			// when we close its window.
+			if (hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT)
+				TerminateProcess(hGameProc, 0);
+		}
 	}
 
 	// signal the close-game event to the monitor thread
@@ -2077,7 +2102,8 @@ DWORD Application::GameMonitorThread::Main()
 					_T(""),                // environment strings
 					_T("0"),               // inactivity timeout - 0 means no timeout
 					hide ? _T("SW_HIDE") : minimize ? _T("SW_SHOWMINIMIZED") : _T("SW_SHOW"),  // ShowWindow mode
-					nowait && !terminate ? _T("detach") : _T("keep")  // process handle retention mode
+					nowait && !terminate ? _T("detach") : _T("keep"),  // process handle retention mode
+					_T("")                 // termination mode - ignored for non-game launches
 				};
 
 				// launch it
@@ -2492,7 +2518,8 @@ DWORD Application::GameMonitorThread::Main()
 				gameSys.envVars.c_str(),          // environment variable list
 				gameInactivityTimeout.c_str(),    // inactivity timeout, in seconds
 				swShowStr,                        // ShowWindow mode
-				_T("game")                        // process handle retention mode
+				_T("game"),                       // process handle retention mode
+				gameSys.terminateBy.c_str()       // termination mode
 			};
 
 			// Allow the admin host to set the foreground window when the

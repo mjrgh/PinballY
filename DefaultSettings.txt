@@ -954,6 +954,25 @@ HideTaskbarDuringGame = 1
 # to exit back to PinballY.  Specify just the exe name here, without
 # any path prefix.
 #
+# SystemN.TerminateBy = termination mode
+# This specifies how PinballY should terminate the game program when
+# you press the Exit Game button.  The possible settings are:
+#
+#   CloseWindow: this is the default.  PinballY will simply close all
+#   of the game program's windows.  Most programs will exit on their
+#   own when their windows are closed.  This is considered the safest
+#   approach to ending a program, since it allows the program to save
+#   files and clean up any system resources it's using before it exits.
+#
+#   KillProcess: asks Windows to terminate the process without the
+#   program's cooperation.  This is what Task Manager uses when you
+#   tell it to end a process.  This doesn't give the program a chance
+#   to save files or release resources, so in some cases it can create
+#   system stability problems, by leaving some system resources (such
+#   as files or devices) locked or in otherwise dubious states.  This
+#   should only be used if CloseWindow doesn't work reliably for this
+#   system.
+#
 # SystemN.TablePath = full path to the folder where you store the
 # table files for the system, such as Visual Pinball's .vpt files.
 # If you specify a relative path (with no X:\ drive spec), the path
@@ -1187,7 +1206,7 @@ System7.ShowWindow = SW_SHOWMINIMIZED
 System7.Environment =
 System7.TablePath = steamapps\common\Pinball FX2\data\steam
 System7.DefExt = .pxp
-System7.Parameters = -applaunch 226980 "-table_[TABLEFILE]"
+System7.Parameters = -applaunch 226980 "[TABLEFILE]"
 System7.Process = Pinball FX2.exe
 System7.DOFTitlePrefix = FX2
 

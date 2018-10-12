@@ -1,5 +1,37 @@
 PinballY Update History
 
+? (1.0.0 Beta 1)
+
+* You can now specify how PinballY terminates a running game program
+when you press the Exit Game button.  This can be set in the options
+dialog for each system, via the "Terminate by:" item, and can also be
+set in the config file via SystemN.TerminateBy.  The config variable
+options are:
+
+  - CloseWindow.  This is the default, and is also how this worked
+  before the option was added.  This simply tries to close all of
+  the program's open windows, as though the user manually closed
+  them with the mouse.  This is considered the best way to
+  terminate a program, since it's the way most programs expect to be
+  terminated under normal conditions, and because it allows the 
+  program to perform an orderly shutdown, releasing any system
+  resources it's using before it exits.
+
+  - KillProcess.  This asks Windows to terminate the process
+  directly.  This is the same thing that happens when you use Task
+  Manager to terminate a program.  This is a more forceful way to
+  stop a program, because it doesn't require any cooperation from
+  the program itself.  However, it's considered risky in terms of
+  system stability, specifically because it doesn't give the subject
+  program a chance to cooperate even if it wanted to, meaning the
+  program can't do any cleanup work it would normally do on exit.
+  This can, in some cases, leave system resources (like files or
+  devices) locked or in other dubious states.  This option is
+  sometimes necessary, though, because some programs won't cooperate
+  properly with the more polite CloseWindow approach.  Use this as
+  a last resort when the CloseWindow option doesn't work reliably.
+
+
 09-28-2018 (1.0.0 Alpha 22)
 
 * The image loader now recognizes and respects "orientation" metadata
