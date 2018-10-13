@@ -1,13 +1,13 @@
 PinballY Update History
 
-? (1.0.0 Beta 1)
+10-13-2018 (1.0.0 Beta 1)
 
-* The "Pause" menu (shown in lieu of the main menu when a game is
-running) now includes commands to view the instruction card,
-flyer, game information, and high scores.  In addition, the Pause
-menu is automatically displayed any time you switch back to the
-PinballY window while a game is running (so there's no need for an
-additional button press to bring it up).
+* The "Pause" menu (displayed when a game is running) now includes
+commands to view the instruction card, flyer, game information,
+and high scores.  In addition, this menu now appears automatically
+any time you switch back to the PinballY window while a game is
+running (there's no need for an additional button press to bring
+it up).
 
 * You can now specify how PinballY terminates a running game program
 when you press the Exit Game button.  This can be set in the options
