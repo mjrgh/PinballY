@@ -31,6 +31,13 @@ options are:
   properly with the more polite CloseWindow approach.  Use this as
   a last resort when the CloseWindow option doesn't work reliably.
 
+* Fixed a crash bug that occurred if you tried to capture video
+with audio (or just audio) when no "Stereo Mix" is available.  The
+program *should* have displayed an error message explaining that
+the capture device isn't present, and returned you to the wheel
+UI, but there was a flaw in the error checking that caused the
+crash.
+
 
 09-28-2018 (1.0.0 Alpha 22)
 

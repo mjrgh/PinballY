@@ -3253,7 +3253,8 @@ DWORD Application::GameMonitorThread::Main()
 				LPMALLOC coMalloc = nullptr;
 				if (SUCCEEDED(CoGetMalloc(1, &coMalloc))
 					&& SUCCEEDED(CoCreateInstance(CLSID_SystemDeviceEnum, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pCreateDevEnum)))
-					&& SUCCEEDED(pCreateDevEnum->CreateClassEnumerator(CLSID_AudioInputDeviceCategory, &pEnumMoniker, 0)))
+					&& pCreateDevEnum->CreateClassEnumerator(CLSID_AudioInputDeviceCategory, &pEnumMoniker, 0) == S_OK
+					&& pEnumMoniker != nullptr)
 				{
 					// scan through the audio devices
 					RefPtr<IMoniker> m;
