@@ -113,6 +113,7 @@ PlayfieldView::PlayfieldView() :
 	settingsDialogOpen = false;
 	mediaDropTargetGame = nullptr;
 	nextButtonDown = prevButtonDown = false;
+	runningGameMode = RunningGameMode::None;
 	
 	// note the exit key mode
 	TSTRING exitMode = ConfigManager::GetInstance()->Get(ConfigVars::ExitKeyMode, _T("select"));
@@ -407,6 +408,15 @@ void PlayfieldView::OnAppActivationChange(bool foreground)
 
 	// reset attract mode
 	attractMode.Reset(this);
+
+	// if we're in running game mode, show/hide the pause menu
+	if (runningGameMode == RunningGameMode::Running)
+	{
+		if (foreground)
+			ShowPauseMenu(false);
+		else
+			CloseMenusAndPopups();
+	}
 }
 
 bool PlayfieldView::OnCreate(CREATESTRUCT *cs)
@@ -715,14 +725,15 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 				batchCaptureMode.cancel = true;
 			}
 
+			// switch to the "exiting game" message
+			runningGameMode = RunningGameMode::Exiting;
+			ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING), 48);
+
 			// switch to "cancelling" mode
 			Application::Get()->ShowCaptureCancel();
 
 			// send the terminate command to the game
 			Application::Get()->KillGame();
-
-			// switch to the "exiting game" message
-			ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING), 48);
 
 			// REMOVED: This timer is really meant to be a last resort in case
 			// the game monitor thread gets stuck.  Let's try to make sure that
@@ -3239,6 +3250,7 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 	runningGameID = game != nullptr ? game->GetGameId() : _T("");
 
 	// show the initial blank screen
+	runningGameMode = RunningGameMode::Starting;
 	ShowRunningGameMessage(nullptr, 0);
 
 	// animate the popup opening
@@ -3310,6 +3322,9 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 
 void PlayfieldView::EndRunningGameMode()
 {
+	// clear the running game mode flag
+	runningGameMode = RunningGameMode::None;
+
 	// Only proceed if we're in running game mode
 	if (runningGamePopup == nullptr)
 		return;
@@ -3387,6 +3402,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case PFVMsgGameLoaded:
 		// switch to "Running" mode in the UI
+		runningGameMode = RunningGameMode::Running;
 		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING), 48);
 
 		// Reset the game inactivity timer now that the game has actually
@@ -5876,15 +5892,7 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 		else if (runningGamePopup != nullptr)
 		{
 			// Running a game.  Show the game menu.
-			std::list<MenuItemDesc> md;
-			md.emplace_back(LoadStringT(IDS_MENU_KILLGAME), ID_KILL_GAME);
-			md.emplace_back(LoadStringT(IDS_MENU_RESUMEGAME), ID_RESUME_GAME);
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
-			md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_GAMERETURN), ID_MENU_RETURN, MenuSelected);
-			ShowMenu(md, key.func == &PlayfieldView::CmdExit ? SHOWMENU_IS_EXIT_MENU : 0);
+			ShowPauseMenu(key.func == &PlayfieldView::CmdExit);
 
 			// play the Select sound
 			PlayButtonSound(_T("Select"));
@@ -5967,6 +5975,42 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 			QueueDOFPulse(L"PBYMenuOpen");
 		}
 	}
+}
+
+// Show the "pause" menu.  This is the menu displayed when a game
+// is running.  It's the "pause" menu because the game must be paused
+// if we're back here while it's running.
+void PlayfieldView::ShowPauseMenu(bool usingExitKey)
+{
+	// set up a menu descriptor
+	std::list<MenuItemDesc> md;
+
+	// resume/terminate
+	md.emplace_back(LoadStringT(IDS_MENU_RESUMEGAME), ID_RESUME_GAME, usingExitKey ? 0 : MenuSelected);
+	md.emplace_back(LoadStringT(IDS_MENU_KILLGAME), ID_KILL_GAME);
+	md.emplace_back(_T(""), -1);
+
+	// game information, high scores, flyer, instructions
+	if (GameListItem *curGame = GameList::Get()->GetNthGame(0);  IsGameValid(curGame))
+	{
+		md.emplace_back(LoadStringT(IDS_MENU_INFO), ID_GAMEINFO);
+		if (curGame->highScores.size() != 0)
+			md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
+		if (curGame->MediaExists(GameListItem::flyerImageType))
+			md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
+		if (curGame->MediaExists(GameListItem::instructionCardImageType))
+			md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
+		md.emplace_back(_T(""), -1);
+	}
+
+	// exit/shutdown/cancel
+	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
+	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_MENU_GAMERETURN), ID_MENU_RETURN, usingExitKey ? MenuSelected : 0);
+
+	// show the menu
+	ShowMenu(md, usingExitKey ? SHOWMENU_IS_EXIT_MENU : 0);
 }
 
 void PlayfieldView::ShowFilterSubMenu(int cmd)

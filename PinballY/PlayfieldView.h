@@ -111,6 +111,9 @@ public:
 	void BeginRunningGameMode(GameListItem *game);
 	void EndRunningGameMode();
 
+	// Show the pause menu, used as the main menu when a game is running
+	void ShowPauseMenu(bool usingExitKey);
+
 	// Application activation change notification.  The app calls this
 	// when switching between foreground and background mode.
 	virtual void OnAppActivationChange(bool activating);
@@ -1046,6 +1049,16 @@ protected:
 
 	// ID of current running game
 	TSTRING runningGameID;
+
+	// Running game mode.  
+	enum RunningGameMode
+	{
+		None,		// no game running
+		Starting,	// waiting for startup
+		Running,	// game is running
+		Exiting		// game is exiting
+	};
+	RunningGameMode runningGameMode;
 
 	// boxes, dialogs, etc.
 	RefPtr<Sprite> popupSprite;
