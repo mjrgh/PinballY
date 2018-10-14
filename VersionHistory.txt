@@ -1,5 +1,19 @@
 PinballY Update History
 
+? (1.0.0 Beta 2)
+
+* The default "Window Mode" setting for game systems (the window
+display style used for the first window opened when launching a
+game) is now "Show Minimized" instead of "Show".  Before this
+option was added (in Alpha 21), the effect was always "Show
+Minimized", because that works best for the most common systems
+(VP, FP).  But it's not ideal for some of the commercial games,
+which is why the option was added.  The default should have been
+Show Minimized all along, both for the sake of compatibility with
+existing settings files and because it's usually the right setting
+anyway; now it is.
+
+
 10-13-2018 (1.0.0 Beta 1)
 
 * The "Pause" menu (displayed when a game is running) now includes

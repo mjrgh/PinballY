@@ -1291,15 +1291,15 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
 			
 			// set the SW_SHOW mode for the launched app, using SW_SHOW as the default
-			system->swShow = SW_SHOW;
+			system->swShow = SW_SHOWMINIMIZED;
 			if (auto it = swShowMap.find(cfg->Get(MsgFmt(_T("%s.ShowWindow"), sysvar.Get()), _T(""))); it != swShowMap.end())
 				system->swShow = it->second;
 
 			Log(_T("+ media folder base name is %s, full path is %s\\%s; %s\n"),
 				system->mediaDir.c_str(), GetMediaPath(), system->mediaDir.c_str(),
 				mediaDirVar[0] == 0 ? 
-				_T("this folder name is defaulted from the system name" :
-				_T("this folder name was specified in the settings")));
+				_T("this is default folder name, which is the same as the system name" :
+				_T("this folder name was explicitly specified in the settings")));
 
 			// Search the system's database directory for .XML files.  These 
 			// contain the table metadata for the system's tables.

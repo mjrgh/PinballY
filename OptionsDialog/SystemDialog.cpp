@@ -105,7 +105,7 @@ bool SystemDialog::SysClassMap::IsModifiedFromConfig()
 void SystemDialog::SwShowMap::LoadConfigVar()
 {
 	// get the SW_SHOW value from the config file, in upper-case
-	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOW"));
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOWMINIMIZED"));
 	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
 
 	// default to the exact text
@@ -166,7 +166,7 @@ bool SystemDialog::SwShowMap::IsModifiedFromConfig()
 		s = m[1].str().c_str();
 
 	// get the value from the config, in upper-case
-	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOW"));
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("SW_SHOWMINIMIZED"));
 	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totupper);
 
 	// check for a match
