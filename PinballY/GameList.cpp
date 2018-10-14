@@ -1290,7 +1290,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
 			
-			// set the SW_SHOW mode for the launched app, using SW_SHOW as the default
+			// set the SW_SHOW mode for the launched app, using SW_SHOWMINIMIZED as the default
 			system->swShow = SW_SHOWMINIMIZED;
 			if (auto it = swShowMap.find(cfg->Get(MsgFmt(_T("%s.ShowWindow"), sysvar.Get()), _T(""))); it != swShowMap.end())
 				system->swShow = it->second;
