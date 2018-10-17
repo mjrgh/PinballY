@@ -196,6 +196,7 @@
     <ClCompile Include="KeyInput.cpp" />
     <ClCompile Include="LogError.cpp" />
     <ClCompile Include="PBXUtil.cpp" />
+    <ClCompile Include="Pointers.cpp" />
     <ClCompile Include="ProcUtil.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

@@ -19,6 +19,9 @@
     <Filter Include="DMD Fonts">
       <UniqueIdentifier>{7083e524-e0f4-43c2-bd45-13d97dd7cb6d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Scripts">
+      <UniqueIdentifier>{31bf4dd3-0ff3-43bd-b3e3-d4df6f19481b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Camera.cpp">
@@ -175,6 +178,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DialogWithSavedPos.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="JavascriptEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -386,6 +392,9 @@
     <ClInclude Include="DmdDeviceDll.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="JavascriptEngine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="TextShaderVS.hlsl">
@@ -452,5 +461,10 @@
   </ItemGroup>
   <ItemGroup>
     <Xml Include="ManifestDPIAwareness.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\packages\jQuery.2.1.1\tools\jquery-2.1.1.intellisense.js">
+      <Filter>Scripts</Filter>
+    </None>
   </ItemGroup>
 </Project>

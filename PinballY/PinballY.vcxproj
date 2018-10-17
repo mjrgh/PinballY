@@ -71,19 +71,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);$(DXSDK_DIR)Lib\x86</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);$(DXSDK_DIR)Lib\x86</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);$(DXSDK_DIR)Lib\x64</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -112,6 +112,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableDpiAwareness>false</EnableDpiAwareness>
       <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -139,6 +143,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableDpiAwareness>false</EnableDpiAwareness>
       <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -171,6 +179,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableDpiAwareness>false</EnableDpiAwareness>
       <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -202,6 +214,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableDpiAwareness>false</EnableDpiAwareness>
       <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
+</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
@@ -236,6 +252,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="I420Shader.cpp" />
     <ClCompile Include="InstCardView.cpp" />
     <ClCompile Include="InstCardWin.cpp" />
+    <ClCompile Include="JavascriptEngine.cpp" />
     <ClCompile Include="LogFile.cpp" />
     <ClCompile Include="MediaDropTarget.cpp" />
     <ClCompile Include="MonitorCheck.cpp" />
@@ -292,6 +309,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="GraphicsUtil.h" />
     <ClInclude Include="I420Shader.h" />
     <ClInclude Include="HighScores.h" />
+    <ClInclude Include="JavascriptEngine.h" />
     <ClInclude Include="LogFile.h" />
     <ClInclude Include="MediaDropTarget.h" />
     <ClInclude Include="PrivateWindowMessages.h" />
@@ -565,6 +583,9 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
   </ItemGroup>
   <ItemGroup>
     <Xml Include="ManifestDPIAwareness.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\packages\jQuery.2.1.1\tools\jquery-2.1.1.intellisense.js" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

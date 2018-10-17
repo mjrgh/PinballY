@@ -1,0 +1,42 @@
+ChakraCore is Microsoft's open-source (MIT License) Javascript engine.
+It's incorporated into PinballY as a scripting engine for user
+customizations.
+
+Embedding ChakraCore into a third-party C++/Win32 application has a
+pretty small set of dependencies.  You just need the DLL, the import
+.lib for the DLL, and a few header files.  The ChakraCore team even
+provides a NuGet package (Microsoft.ChakraCore.vc140) with this set of
+files, so in principle the dependencies could be automated via NuGet.
+Unfortunately, my version of Visual Studio doesn't seem to be able to
+handle this particular NuGet package; it always crashes trying to
+install it.  So I've gone a different route, which is a little less
+automated but still leaves us with a simple portable project tree:
+
+1. Get the source tree for the current release from
+   https://github.com/Microsoft/ChakraCore/releases
+
+2. Unpack it into a folder on your hard drive
+
+3. Open ChakraCore-master/build/Chakra.Core.sln in Visual Studio
+
+4. Build the x86 and x64 versions
+
+   a. Select configuration Release/x64
+   b. Build -> Build Project
+   c. Select configuration Release/x86
+   d. Build -> Build Project
+
+5. In a CMD prompt, CD to the PinballY folder and run 
+   import-chakra-core.bat <path to ChakraCore-master>
+
+This will copy the required dependency files from the ChakraCore
+source tree into the PinballY source tree, where they'll be part of
+the PinballY git repository.  
+
+This arrangement is good because it means that you don't have to
+install the ChakraCore source tree just to build PinballY.  All
+dependent files are captured in the PinballY git repos.  The only
+drawback is that any time we want to update to a newer release of
+ChakraCore, you have to repeat the manual procedure above.  And even
+that isn't so terrible, as the build process for ChakraCore is really
+simple, as you can see from the steps above.

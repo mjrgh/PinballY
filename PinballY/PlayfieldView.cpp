@@ -45,6 +45,7 @@
 #include "DialogWithSavedPos.h"
 #include "LogFile.h"
 #include "../OptionsDialog/OptionsDialogExports.h"
+#include "JavascriptEngine.h"
 
 using namespace DirectX;
 
@@ -327,8 +328,144 @@ bool PlayfieldView::InitWin()
 		app->PostAdminHostRequest(req, countof(req));
 	}
 
+	// initialize javascript extensions
+	InitJavascript();
+
 	// success
 	return true;
+}
+
+void PlayfieldView::InitJavascript()
+{
+	Application::InUiErrorHandler eh;
+
+	// Check for the main javascript extensions file.  If it exists, set up
+	// the javascript engine and load the script.
+	TCHAR jsmain[MAX_PATH];
+	GetDeployedFilePath(jsmain, _T("scripts\\main.js"), _T(""));
+	if (FileExists(jsmain))
+	{
+		// create and initialize the javascript engine
+		RefPtr<JavascriptEngine> js(new JavascriptEngine());
+		if (!js->Init(eh))
+			return;
+
+		// load the script
+		long len;
+		std::unique_ptr<WCHAR> contents(ReadFileAsWStr(jsmain, eh, len, ReadFileAsStr_NullTerm));
+		if (contents == nullptr)
+			return;
+
+		// deduct the added newline from the usable script length
+		len -= 1;
+
+		// convert any internal nulls in the script to spaces
+		long rem = len;
+		for (TCHAR *p = contents.get(); rem != 0; --rem, ++p)
+		{
+			if (*p == 0)
+				*p = ' ';
+		}
+
+		// We successfully initialized the javascript engine and loaded
+		// the script.  Save the scripting engine, so that we process
+		// future js events through it.
+		javascriptEngine.Attach(js.Detach());
+
+		// set up our callbacks
+		if (!InitJavascriptCallback(alertCallback, "alert", eh)
+			|| !InitJavascriptCallback(messageCallback, "message", eh)
+			|| !InitJavascriptCallback(logCallback, "log", eh)
+			|| !InitJavascriptCallback(setTimeoutCallback, "setTimeout", eh)
+			|| !InitJavascriptCallback(clearTimeoutCallback, "clearTimeout", eh)
+			|| !InitJavascriptCallback(setIntervalCallback, "setInterval", eh)
+			|| !InitJavascriptCallback(clearIntervalCallback, "clearInterval", eh))
+		{
+			javascriptEngine = nullptr;
+			return;
+		}
+
+		// Execute the user script.  This sets up event handlers for
+		// any events the script wants to be notified about.
+		javascriptEngine->Run(contents.get(), jsmain, eh);
+
+		// schedule the next javascript timer task
+		SetJavascriptTaskTimer();
+	}
+}
+
+void PlayfieldView::SetJavascriptTaskTimer()
+{
+	// check if any tasks are scheduled
+	if (javascriptEngine != nullptr && javascriptEngine->IsTaskPending())
+	{
+		// get the next scheduled task time
+		ULONGLONG tNext = javascriptEngine->GetNextTaskTime();
+
+		// figure the elapsed time to the next task time
+		ULONGLONG tNow = GetTickCount64();
+		ULONGLONG dt64 = tNext <= tNow ? 0 : tNext - tNow;
+		
+		// The window timer can only hold a UINT, so limit the interval
+		// to UINT_MAX.  This will result in a premature timer event, 
+		// but that won't result in any incorrect behavior because the
+		// event processor won't run any tasks that aren't actually ready
+		// at that point; and it won't cause excessive performance impact,
+		// because the premature events along the way will only occur
+		// once every 49.7 days.  So we'll do an unnecessary queue scan
+		// every 49.7 days until the actual event occurs.
+		UINT dt = (UINT)(dt64 > UINT_MAX ? UINT_MAX : dt64);
+		
+		// schedule a timer event
+		SetTimer(hWnd, javascriptTimerID, dt, NULL);
+	}
+}
+
+template<typename R, typename... Ts>
+bool PlayfieldView::InitJavascriptCallback(JsCallback<R(Ts...)> &cb, const CHAR *name, ErrorHandler &eh)
+{
+	cb.pfv = this;
+	return javascriptEngine->DefineGlobalFunc(name, &cb, eh);
+}
+
+void PlayfieldView::AlertCallback::Impl(TSTRING msg) const
+{
+	MessageBox(GetParent(pfv->hWnd), msg.c_str(), _T("PinballY"), MB_OK | MB_ICONINFORMATION);
+}
+
+void PlayfieldView::MessageCallback::Impl(TSTRING msg, TSTRING typ) const
+{
+	ErrorIconType iconType =
+		_tcsicmp(typ.c_str(), _T("error")) == 0 ? EIT_Error :
+		_tcsicmp(typ.c_str(), _T("warning")) == 0 ? EIT_Warning :
+		EIT_Information;
+
+	pfv->ShowError(iconType, msg.c_str());
+}
+
+void PlayfieldView::LogCallback::Impl(TSTRING msg) const
+{
+	LogFile::Get()->Write(_T("[Script] %s\n"), msg.c_str());
+}
+
+double PlayfieldView::SetTimeoutCallback::Impl(JsValueRef func, double dt) const
+{
+	return pfv->javascriptEngine->AddTask(func, (ULONGLONG)dt);
+}
+
+void PlayfieldView::ClearTimeoutCallback::Impl(double id) const
+{
+	pfv->javascriptEngine->CancelTask(id);
+}
+
+double PlayfieldView::SetIntervalCallback::Impl(JsValueRef func, double dt) const
+{
+	return pfv->javascriptEngine->AddTask(func, (ULONGLONG)dt, (LONGLONG)dt);
+}
+
+void PlayfieldView::ClearIntervalCallback::Impl(double id) const
+{
+	return pfv->javascriptEngine->CancelTask(id);
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
@@ -616,6 +753,21 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, timer);
 		batchCaptureMode.cancelPending = false;
 		Application::Get()->BatchCaptureCancelPrompt(false);
+		return true;
+
+	case javascriptTimerID:
+		// this is a one-shot
+		KillTimer(hWnd, timer);
+
+		// process javascript events
+		if (javascriptEngine != nullptr)
+		{
+			// process tasks that are ready to run
+			javascriptEngine->RunTasks();
+
+			// set the next event timer
+			SetJavascriptTaskTimer();
+		}
 		return true;
 	}
 

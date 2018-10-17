@@ -25,6 +25,7 @@
 #include "AudioVideoPlayer.h"
 #include "HighScores.h"
 #include "GameList.h"
+#include "JavascriptEngine.h"
 
 class Sprite;
 class TextureShader;
@@ -288,6 +289,7 @@ protected:
 	static const int mediaDropTimerID = 118;      // media drop continuation timer
 	static const int autoDismissMsgTimerID = 119;  // auto dismiss a message dialog
 	static const int batchCaptureCancelTimerID = 120;  // batch capture cancel button pushed
+	static const int javascriptTimerID = 121;     // javascript scheduled tasks
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1937,6 +1939,92 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
+	// Javascript engine
+	RefPtr<JavascriptEngine> javascriptEngine;
+
+	// initialize javascript
+	void InitJavascript();
+
+	// schedule the next javascript timer event
+	void SetJavascriptTaskTimer();
+
+	// Javascript callbacks
+	template <typename R> class JsCallback { };
+	template <typename R, typename... Ts>
+	class JsCallback<R(Ts...)> : public JavascriptEngine::NativeFunction<R(Ts...)>
+	{
+	public:
+		// Our enclosing playfield view object.  This class is only used
+		// for composed objects, so we don't need to add a reference; our
+		// enclosing object necessarily outlives us by composition.
+		PlayfieldView *pfv;
+	};
+
+	// install a Javascript callback in the engine
+	template <typename R, typename... Ts>
+	bool InitJavascriptCallback(JsCallback<R(Ts...)> &cb, const CHAR *name, ErrorHandler &eh);
+
+	// Javascript alert() callback.  Shows a message in a popup message box, 
+	// a la alert() in a Web browser.  As with browser alert(), the dialog
+	// box is modal and blocks other UI activity while being displayed.
+	class AlertCallback : public JsCallback<void(TSTRING)>
+	{
+	public:
+		virtual void Impl(TSTRING msg) const override;
+	};
+	AlertCallback alertCallback;
+
+	// Javascript message() callback.  Shows a message in the playfield
+	// message box.  This doesn't block the UI; it simply queues the
+	// message display and returns immediately.  The 'typ' argument is
+	// an optional string giving the visual style of the displayed 
+	// message popup: "error", "warning", or "info".
+	class MessageCallback : public JsCallback<void(TSTRING, TSTRING)>
+	{
+	public:
+		virtual void Impl(TSTRING msg, TSTRING typ) const override;
+	};
+	MessageCallback messageCallback;
+
+	// Javascript log() callback.  Writes a message to the log file.
+	class LogCallback : public JsCallback<void(TSTRING)>
+	{
+	public:
+		virtual void Impl(TSTRING msg) const override;
+	};
+	LogCallback logCallback;
+
+	// Javascript setTimeout() callback
+	class SetTimeoutCallback : public JsCallback<double(JsValueRef, double)>
+	{
+	public:
+		virtual double Impl(JsValueRef func, double dt) const override;
+	};
+	SetTimeoutCallback setTimeoutCallback;
+
+	// Javascript clearTimeout() callback
+	class ClearTimeoutCallback : public JsCallback<void(double)>
+	{
+	public:
+		virtual void Impl(double id) const override;
+	};
+	ClearTimeoutCallback clearTimeoutCallback;
+
+	// Javascript setInterval() callback
+	class SetIntervalCallback : public JsCallback<double(JsValueRef, double)>
+	{
+	public:
+		virtual double Impl(JsValueRef func, double dt) const override;
+	};
+	SetIntervalCallback setIntervalCallback;
+
+	// Javascript clearInterval() callback
+	class ClearIntervalCallback : public JsCallback<void(double)>
+	{
+	public:
+		virtual void Impl(double id) const override;
+	};
+	ClearIntervalCallback clearIntervalCallback;
 
 	//
 	// Button command handlers

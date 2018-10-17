@@ -350,6 +350,12 @@
 #define IDS_ERR_RUNBEFOREAFTEROPT       706
 #define IDS_ERR_ADMINHOSTREQ            707
 #define IDS_ERR_PBXPATH_NOT_AVAIL       708
+#define IDS_ERR_JSINIT                  709
+#define IDS_ERR_JSRUN                   710
+#define IDS_ERR_JSEXC                   711
+#define IDS_ERR_JSINITHOST              712
+#define IDS_ERR_JSCB                    713
+#define IDS_ERR_JSERR                   714
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801

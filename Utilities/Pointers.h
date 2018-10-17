@@ -57,6 +57,12 @@ public:
 		return ret;
 	}
 
+	// Special value type for extra argument to provide instructions on
+	// adding a reference to the target of a RefPtr on constructing 
+	// the RefPtr.
+	struct DoAddRef_t { };
+	static const DoAddRef_t DoAddRef;
+
 protected:
 	// Make the destructor protected, since it's not normally called
 	// directly by outside code.  The only way we should normally be
@@ -122,6 +128,13 @@ public:
 	RefPtr(T *t)
 	{
 		ptr = t;
+	}
+
+	// construct from a bare pointer, adding a reference
+	RefPtr(T *t, const RefCounted::DoAddRef_t&)
+	{
+		if ((ptr = t) != nullptr)
+			t->AddRef();
 	}
 
 	// Copy construction.  We disable this for now due to the
