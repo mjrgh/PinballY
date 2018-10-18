@@ -49,30 +49,14 @@ public:
 	// the regular Throw(JsErrorCode), but adds the name of the callback
 	// to the diagnostics.
 	JsValueRef Throw(JsErrorCode err, const TCHAR *cbname);
-	
-	// Add a scheduled task.  
-	//
-	// 'func' is the Javascript function to invoke.  
-	//
-	// 'dt' is the time interval in milliseconds (from the current time) 
-	// before the task is ready to execute.  This can be used to set 
-	// timeouts and intervals.  0 means the task is ready to execute 
-	// immediately, but of course it won't actually run immediately, as
-	// tasks are only execute on calls to RunTasks().
-	// 
-	// 'interval' is the repeating interval time, in milliseconds.  To
-	// set up a recurring timed task, pass a non-negative interval value;
-	// each time the task is executed, it will be re-scheduled to run
-	// again after the interval elapses from the finish of the current
-	// run.  If 'interval' is negative, the task will be executed once
-	// and discarded.
-	//
-	// Returns the new task's ID, which can be used to cancel the task
-	// before it executes.
-	double AddTask(JsValueRef func, ULONGLONG dt, LONGLONG interval = -1);
 
-	// Cancel a task
-	void CancelTask(double id);
+	struct Task;
+
+	// Add a task to the queue
+	void AddTask(Task *task);
+
+	// Enumerate tasks.  The predicate returns true to continue the enumeration.
+	void EnumTasks(std::function<bool(Task *)>);
 
 	// Are any tasks pending?
 	bool IsTaskPending() const { return taskQueue.size() != 0; }
@@ -138,7 +122,7 @@ public:
 			int i = 0;
 			if (ok)
 				Check(JsNumberToInt(num, &i), ok, name);
-	
+
 			return i;
 		}
 	};
@@ -155,7 +139,7 @@ public:
 			double d = 0.0;
 			if (ok)
 				Check(JsNumberToDouble(num, &d), ok, name);
-	
+
 			return d;
 		}
 	};
@@ -172,7 +156,7 @@ public:
 			double d = 0.0;
 			if (ok)
 				Check(JsNumberToDouble(num, &d), ok, name);
-			
+
 			if (ok && (d < FLT_MIN || d > FLT_MAX))
 			{
 				Check(JsErrorInvalidArgument, ok, name);
@@ -233,16 +217,18 @@ public:
 		// static invoker - this is the callback entrypoint passed to the Javascript engine,
 		// with 'this' as the state object
 		static JsValueRef CALLBACK SInvoke(JsValueRef callee, bool isConstructor, JsValueRef *argv, unsigned short argc, void *cbState)
-			{ return reinterpret_cast<NativeFunctionBinderBase*>(cbState)->Invoke(callee, isConstructor, argv, argc); }
+		{
+			return reinterpret_cast<NativeFunctionBinderBase*>(cbState)->Invoke(callee, isConstructor, argv, argc);
+		}
 
 		// Virtual invoker.  Each template subclass overrides this to translate the
 		// javascript argument array into native C++ values.
 		virtual JsValueRef Invoke(JsValueRef callee, bool isConstructor, JsValueRef *argv, unsigned short argc) const = 0;
-		
+
 		// Callback name expoed to Javascript
 		CSTRING callbackName;
 	};
-	
+
 	// Zero-argument function binder.  R is the return type.
 	template <typename R>
 	class NativeFunctionBinder<R()> : public NativeFunctionBinderBase
@@ -480,6 +466,126 @@ public:
 		RefPtr<JavascriptEngine> engine;
 	};
 
+	// Task.  This encapsulates a scheduled task, such as a promise completion
+	// function, a timeout, an interval, or a module load handler.
+	struct Task
+	{
+		Task() : id(nextId++), readyTime(0), cancelled(false) { }
+		virtual ~Task() { }
+
+		// Execute the task.  Returns true if the task should remain
+		// scheduled (e.g., a repeating interval task), false if it should
+		// be discarded.
+		virtual bool Execute(JavascriptEngine *) = 0;
+
+		// Each task is assigned a unique ID (serial number) at creation,
+		// to allow for identification in Javascript for purposes like
+		// clearTimeout().
+		double id;
+
+		// Ready time.  This is the time, in GetTickCount64() time, when
+		// the task will be ready to execute.  It can be executed any time
+		// after this timestamp.
+		ULONGLONG readyTime;
+
+		// Has the task been cancelled?  A task can be cancelled from
+		// within script code (e.g., clearTimeout() or clearInterval()).
+		// Doing so sets this flag, which tells the queue processor to
+		// ignore the task and remove it the next time the queue is
+		// processed.
+		bool cancelled;
+
+		// next available ID
+		static double nextId;
+	};
+
+	// Module tasks
+	struct ModuleTask : Task
+	{
+		ModuleTask(JsModuleRecord module, const WSTRING &path) : module(module), path(path) { }
+
+		JsModuleRecord module;
+		WSTRING path;
+	};
+
+	// Module load/parse task
+	struct ModuleParseTask : ModuleTask
+	{
+		ModuleParseTask(JsModuleRecord module, const WSTRING &path) : ModuleTask(module, path) { }
+		virtual bool Execute(JavascriptEngine *) override;
+	};
+
+	// Module eval task
+	struct ModuleEvalTask : ModuleTask
+	{
+		ModuleEvalTask(JsModuleRecord module, const WSTRING &path) : ModuleTask(module, path) { }
+		virtual bool Execute(JavascriptEngine *) override;
+	};
+
+
+	// Javascript event task
+	struct EventTask : Task
+	{
+		EventTask(JsValueRef func) : func(func)
+		{
+			// keep a reference on the callback function
+			JsAddRef(func, nullptr);
+		}
+
+		virtual ~EventTask()
+		{
+			// release our reference on the callback function
+			JsRelease(func, nullptr);
+		}
+
+		// execute the task
+		virtual bool Execute(JavascriptEngine *js) override;
+
+		// the function to call when the event fires
+		JsValueRef func;
+	};
+
+	// Promise task
+	struct PromiseTask : EventTask
+	{
+		PromiseTask(JsValueRef func) : EventTask(func) { }
+	};
+
+	// Timeout task
+	struct TimeoutTask : EventTask
+	{
+		TimeoutTask(JsValueRef func, double dt) : EventTask(func)
+		{
+			readyTime = GetTickCount64() + (ULONGLONG)dt;
+		}
+	};
+
+	// Interval task
+	struct IntervalTask : EventTask
+	{
+		IntervalTask(JsValueRef func, double dt) : EventTask(func), dt(dt)
+		{
+			readyTime = GetTickCount64() + (ULONGLONG)dt;
+		}
+
+		virtual bool Execute(JavascriptEngine *js) override
+		{
+			// do the basic execution
+			__super::Execute(js);
+
+			// if the task has been cancelled, don't reschedule it
+			if (cancelled)
+				return false;
+
+			// reschedule it for the next interval
+			readyTime = GetTickCount64() + (ULONGLONG)dt;
+			return true;
+		}
+
+		// repeat interval
+		double dt;
+	};
+
 protected:
 	~JavascriptEngine();
 
@@ -493,51 +599,63 @@ protected:
 	JsValueRef falseVal;
 	JsValueRef trueVal;
 
-	// Task.  This encapsulates a scheduled task, such as a promise completion
-	// function, a timeout, an interval, or a module load handler.
-	struct Task
+	// Log the current engine exception and clear it.  If an error handler is
+	// provided, we'll log the given error message through the handler, in 
+	// addition to writing the exception data to the log file; otherwise we'll
+	// only write the exception to the log file.
+	JsErrorCode LogAndClearException(ErrorHandler *eh = nullptr, int msgid = 0);
+
+	// Module import callbacks
+	static JsErrorCode CHAKRA_CALLBACK FetchImportedModule(
+		JsModuleRecord referencingModule,
+		JsValueRef specifier,
+		JsModuleRecord *dependentModuleRecord);
+
+	static JsErrorCode CHAKRA_CALLBACK FetchImportedModuleFromScript(
+		JsSourceContext referencingSourceContext,
+		JsValueRef specifier,
+		JsModuleRecord *dependentModuleRecord);
+
+	static JsErrorCode CHAKRA_CALLBACK NotifyModuleReadyCallback(
+		JsModuleRecord referencingModule,
+		JsValueRef exceptionVar);
+
+	// common handler for the module import callbacks
+	JsErrorCode FetchImportedModuleCommon(
+		JsModuleRecord referencingModule,
+		const WSTRING &referencingSourcePath,
+		JsValueRef specifier,
+		JsModuleRecord *dependentModuleRecord);
+
+	JsErrorCode FetchImportedModuleCommon(
+		JsModuleRecord refrenceingModule,
+		const WSTRING &referencingSourcePath,
+		const WSTRING &specifier,
+		JsModuleRecord *dependentModuleRecord);
+
+	// host info record, stored in the module table
+	struct ModuleHostInfo
 	{
-		Task(double id, JsValueRef func, ULONGLONG readyTime, LONGLONG interval) :
-			id(id), valid(true), func(func), readyTime(readyTime), interval(interval)
-		{
-		}
+		ModuleHostInfo(JavascriptEngine *self, WSTRING &path, JsModuleRecord module) :
+			self(self), path(path), module(module) { }
 
-		// Task ID.  We use double, because (a) we want to be able to expose
-		// this value to Javascript, for use as the task ID for cases like 
-		// timeouts and intervals, and (b) we want it to be as large a type
-		// as possible, so that we can use a simple serial number to assign
-		// ID values without much risk of wrapping.  double is the best fit
-		// to these needs; it allows values up to 2^53-1 (about 10^16), and
-		// fits the native JS 'number' type.
-		double id;
-
-		// Task is valid.  A task can be canceled before it's executed,
-		// and this can be done from Javascript code, such as by clearTimeout()
-		// or clearInterval().  When that happens, we don't immediately remove
-		// the task from the queue, because we could be in a nested call from
-		// a queue iteration, and messing with the queue in that context could 
-		// corrupt the caller's iterator.  So intead, we simply mark the task
-		// as invalid, and leave it for the queue iterator to remove dead
-		// tasks.
-		bool valid;
-
-		// The javascript function to call when the task is executed.  Note
-		// that we must add a counted external reference to all functions
-		// stored here, and remove them when the task is deleted.
-		JsValueRef func;
-
-		// Task ready timestamp.  This is the earliest time that the task
-		// can be executed.
-		ULONGLONG readyTime;
-
-		// Repeat interval.  If this is non-negative, it represents the time
-		// in milliseconds for re-scheduling the event each time it fires.
-		// A negative value means that this is a one-shot event.
-		LONGLONG interval;
+		JavascriptEngine *self;      // 'this' pointer
+		WSTRING path;                // file path to this module
+		JsModuleRecord module;       // engine module record
 	};
 
+	// Module table.  The engine requires us to keep track of previously
+	// requested module sources.  We keep a table of sources indexed by
+	// source file path: absolute path, canonicalized, and converted to 
+	// lower case.
+	std::unordered_map<WSTRING, ModuleHostInfo> modules;
+
+	// get the normalized filename for a module specifier
+	static JsErrorCode GetModuleSource(
+		WSTRING &filename, const WSTRING &specifier, const WSTRING &referencingSourceFile);
+
 	// task queue
-	std::list<Task> taskQueue;
+	std::list<std::unique_ptr<Task>> taskQueue;
 
 	// next available task ID
 	double nextTaskID;
@@ -557,8 +675,23 @@ protected:
 	// that unqualified function and variable names attach to).
 	JsContextRef ctx;
 
-	// Source script cookie.  This is an opaque identifier used in the engine
-	// to identify script sources uniquely.  We increment this for each source
-	// file we load and execute.
-	JsSourceContext srcCookie;
+	// Script cookie struct.  Each time we parse a script, we pass a cookie 
+	// to the JS engine to serve as a host context object that the JS engine
+	// can pass back to us in callbacks.  The cookie type is a DWORD_PTR, so
+	// we can use it as a pointer to a struct.  We have to manage the memory
+	// for these structs, so we maintain them in a list.  They have the same
+	// lifetime as the instance, so we never free these separately; we just
+	// let them accumulate over the instance lifetime, and let them be freed
+	// implicitly when the instance is freed.  The list is only here for the
+	// sake of this memory management; we don't actually need to find anything
+	// in it since we use a direct pointer to each struct as the cookie value.
+	struct SourceCookie
+	{
+		SourceCookie(JavascriptEngine *self, const WSTRING &file) :
+			self(self), file(file) { }
+
+		JavascriptEngine *self;      // the instance that loaded the source
+		WSTRING file;                // script source file
+	};
+	std::list<SourceCookie> sourceCookies;
 };

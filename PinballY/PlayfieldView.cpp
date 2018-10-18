@@ -343,18 +343,28 @@ void PlayfieldView::InitJavascript()
 	// the javascript engine and load the script.
 	TCHAR jsmain[MAX_PATH];
 	GetDeployedFilePath(jsmain, _T("scripts\\main.js"), _T(""));
+	LogFile::Get()->Group(LogFile::JSLogging);
+	LogFile::Get()->Write(LogFile::JSLogging, _T("Checking for Javascript main script file %s\n"), jsmain);
 	if (FileExists(jsmain))
 	{
 		// create and initialize the javascript engine
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". Found main script file %s; initializating Javascript engine\n"), jsmain);
 		RefPtr<JavascriptEngine> js(new JavascriptEngine());
 		if (!js->Init(eh))
+		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization failed; Javascript disabled for this session\n"));
 			return;
+		}
 
 		// load the script
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading script file %s\n"), jsmain);
 		long len;
 		std::unique_ptr<WCHAR> contents(ReadFileAsWStr(jsmain, eh, len, ReadFileAsStr_NullTerm));
 		if (contents == nullptr)
+		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Unable to load %s; disabling Javascript for this session\n"), jsmain);
 			return;
+		}
 
 		// deduct the added newline from the usable script length
 		len -= 1;
@@ -381,12 +391,14 @@ void PlayfieldView::InitJavascript()
 			|| !InitJavascriptCallback(setIntervalCallback, "setInterval", eh)
 			|| !InitJavascriptCallback(clearIntervalCallback, "clearInterval", eh))
 		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error setting up Javascript native callbacks; Javascript disabled for this session\n"));
 			javascriptEngine = nullptr;
 			return;
 		}
 
 		// Execute the user script.  This sets up event handlers for
 		// any events the script wants to be notified about.
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
 		javascriptEngine->Run(contents.get(), jsmain, eh);
 
 		// schedule the next javascript timer task
@@ -450,22 +462,42 @@ void PlayfieldView::LogCallback::Impl(TSTRING msg) const
 
 double PlayfieldView::SetTimeoutCallback::Impl(JsValueRef func, double dt) const
 {
-	return pfv->javascriptEngine->AddTask(func, (ULONGLONG)dt);
+	auto task = new JavascriptEngine::TimeoutTask(func, dt);
+	pfv->javascriptEngine->AddTask(task);
+	return task->id;
 }
 
 void PlayfieldView::ClearTimeoutCallback::Impl(double id) const
 {
-	pfv->javascriptEngine->CancelTask(id);
+	pfv->javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	{
+		if (auto tt = dynamic_cast<JavascriptEngine::TimeoutTask*>(task); tt != nullptr && tt->id == id)
+		{
+			tt->cancelled = true;
+			return false;
+		}
+		return true;
+	});
 }
 
 double PlayfieldView::SetIntervalCallback::Impl(JsValueRef func, double dt) const
 {
-	return pfv->javascriptEngine->AddTask(func, (ULONGLONG)dt, (LONGLONG)dt);
+	auto task = new JavascriptEngine::IntervalTask(func, dt);
+	pfv->javascriptEngine->AddTask(task);
+	return task->id;
 }
 
 void PlayfieldView::ClearIntervalCallback::Impl(double id) const
 {
-	return pfv->javascriptEngine->CancelTask(id);
+	pfv->javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	{
+		if (auto it = dynamic_cast<JavascriptEngine::IntervalTask*>(task); it != nullptr && it->id == id)
+		{
+			it->cancelled = true;
+			return false;
+		}
+		return true;
+	});
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)

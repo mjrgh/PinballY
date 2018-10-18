@@ -2,3 +2,4 @@
 -j "release\PinballY Admin Mode.exe"
 -j "release\PinballY Watchdog.exe"
 -j release\OptionsDialog.dll
+-j release\ChakraCore.dll

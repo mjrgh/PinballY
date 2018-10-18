@@ -6,6 +6,7 @@
 //
 #pragma once
 #include "../Utilities/Config.h"
+#include "../Utilities/LogError.h"
 
 class LogFile : public ConfigManager::Subscriber
 {
@@ -31,6 +32,7 @@ public:
 	static const DWORD TableLaunchLogging = 0x00000010;   // table launch
 	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
 	static const DWORD DofLogging         = 0x00000040;   // DOF
+	static const DWORD JSLogging          = 0x00000080;   // Javascript
 
 	// Is a feature enabled?
 	bool IsFeatureEnabled(DWORD feature) { return ((enabledFeatures | tempFeatures) & feature) != 0; }
@@ -108,3 +110,21 @@ protected:
 	// end of the output.
 	int nNewlines;
 };
+
+
+// Error handler that captures directly to the log file
+class LogFileErrorHandler : public ErrorHandler
+{
+public:
+	LogFileErrorHandler(const TCHAR *prefixMessage = _T(""), DWORD featureMask = LogFile::BaseLogging) : 
+		prefixMessage(prefixMessage), featureMask(featureMask){ }
+
+	virtual void Display(ErrorIconType icon, const TCHAR *msg)
+	{
+		LogFile::Get()->Write(featureMask, _T("%s%s\n"), prefixMessage.c_str(), msg);
+	}
+
+	TSTRING prefixMessage;
+	DWORD featureMask;
+};
+

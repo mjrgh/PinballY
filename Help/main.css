@@ -70,3 +70,10 @@ img.example {
     padding: 1em 2em;
     margin: -2em -2em 2em -2em;
 }
+
+.indented {
+    margin-left: 2em;
+    margin-right: 2em;
+}
+
+    

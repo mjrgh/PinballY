@@ -88,6 +88,7 @@ void LogFile::OnConfigReload()
 		{ _T("Log.TableLaunch"),  TableLaunchLogging, false },
 		{ _T("Log.RealDMD"),      DmdLogging, true },
 		{ _T("Log.DOF"),          DofLogging, true },
+		{ _T("Log.Javascript"),   JSLogging, true },
 	};
 	for (auto &v : vars)
 	{

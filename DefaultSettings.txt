@@ -53,12 +53,15 @@ FirstRunTime =
 #
 # Log.DOF - DOF (DirectOutput feedback device control) operations
 #
+# Log.Javascript - Javascript scripting
+#
 Log.MediaFiles = 0
 Log.SystemSetup = 0 
 Log.MediaCapture = 1
 Log.TableLaunch = 0
 Log.RealDMD = 1
 Log.DOF = 1
+Log.Javascript = 1
 
 
 # Media folder path.  This is the root of the our media folder tree, where

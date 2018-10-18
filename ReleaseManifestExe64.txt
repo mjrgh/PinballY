@@ -2,4 +2,5 @@
 -j "x64\release\PinballY Admin Mode.exe"
 -j "x64\release\PinballY Watchdog.exe"
 -j x64\release\OptionsDialog.dll
+-j x64\release\ChakraCore.dll
 -j "release\Dof3264Surrogate.exe"

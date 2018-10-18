@@ -26,6 +26,7 @@ void LogFileDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Log.TableLaunch"), IDC_CK_LOG_TABLE_LAUNCH, false));
 	varMap.emplace_back(new CkBoxMap(_T("Log.RealDMD"), IDC_CK_LOG_DMD, true));
 	varMap.emplace_back(new CkBoxMap(_T("Log.DOF"), IDC_CK_LOG_DOF, true));
+	varMap.emplace_back(new CkBoxMap(_T("Log.Javascript"), IDC_CK_LOG_JAVASCRIPT, true));
 }
 
 BOOL LogFileDialog::OnInitDialog()

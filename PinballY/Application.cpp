@@ -287,6 +287,9 @@ int Application::EventLoop(int nCmdShow)
 		}, [](const TCHAR *) {});
 	}
 
+	// create the high scores reader object
+	highScores.Attach(new HighScores());
+
 	// open the UI windows
 	bool ok = true;
 	if (!playfieldWin->CreateWin(NULL, nCmdShow, _T("PinballY")))
@@ -327,8 +330,7 @@ int Application::EventLoop(int nCmdShow)
 	if (ok)
 		ok = InputManager::GetInstance()->InitRawInput(playfieldWin->GetHWnd());
 
-	// create the high scores reader object
-	highScores.Attach(new HighScores());
+	// initialize the high scores object
 	highScores->Init();
 
 	// try setting up real DMD support

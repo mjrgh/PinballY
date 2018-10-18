@@ -97,5 +97,37 @@
    above to see how the system is being configured overall.)
 </p>
 
+<p>
+   <b>DirectOutput (DOF):</b>  DOF is a separate program that
+   provides the software interface to hardware feedback devices
+   in your cabinet (lights, solenoids, shaker motors, etc).
+   If you have any of these devices, you probably already have
+   DOF installed, since it's needed to use the devices with
+   Visual Pinball and some other programs.  PinballY will
+   automatically detect if DOF is installed and use it if so.
+   Enable this logging option to include information in the
+   PinballY log file about PinballY's attempts to detect and
+   access DOF.
+</p>
+<p>
+   Note that this option doesn't affect the separate logging DOF
+   does on its own.  DOF normally writes its own log file,
+   DirectOutput.log, usually to the same folder where the
+   application is running (so in this case, to the PinballY
+   folder).  If PinballY's log shows that PinballY is successfully
+   detecting and loading DOF, but your feedback devices don't seem
+   to be working properly within PinballY, you might need to look
+   at DirectOutput.log to see if DOF is encountering any errors.
+</p>
+
+<p>
+   <b>Javascript:</b>  Enable this to log information about
+   Javascript.  PinballY looks for a user Javascript script file
+   at startup, and if present, it loads and executes the file.
+   This logging option includes details in the log about the
+   script search and loading process, which can be helpful if
+   scripts aren't loading as expected.
+</p>
+
 </body>
 </html>

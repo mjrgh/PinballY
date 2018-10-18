@@ -95,6 +95,7 @@
         <File Id="AdminModeEXE" Source="$(var.PinballY Admin Mode.TargetPath)" />
         <File Id="OptionsDialogDLL" Source="$(var.OptionsDialog.TargetPath)" />
         <File Id="WatchdogEXE" Source="$(var.PinballY Watchdog.TargetPath)" />
+				<File Id="ChakraCoreDLL" Source="$(var.PinballY.OutDir)ChakraCore.dll" />
         <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
         <File Id="MainDefaultSettings" Source="$(var.SolutionDir)DefaultSettings.txt" />
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
