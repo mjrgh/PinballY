@@ -4,6 +4,7 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
 //
+
 #define IDI_MAINICON                    100
 #define IDI_MAINICON_GRAY               101
 #define IDCSR_EMPTY                     129
@@ -47,6 +48,7 @@
 #define IDB_AUDIO_FILE_ICON             174
 #define IDB_MNU_HELP                    175
 #define IDB_MNU_WINDOW_BORDERS          176
+#define IDJS_SYS_SCRIPT                 177
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
@@ -356,6 +358,7 @@
 #define IDS_ERR_JSINITHOST              712
 #define IDS_ERR_JSCB                    713
 #define IDS_ERR_JSERR                   714
+#define IDS_ERR_JSLOADMOD               715
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801

@@ -174,6 +174,92 @@ protected:
 
 // -----------------------------------------------------------------------
 //
+// Resource locker
+//
+class ResourceLocker
+{
+public:
+	ResourceLocker(int id, const TCHAR *rt) : hres(NULL), hglobal(NULL), data(nullptr), sz(0)
+	{
+		// find the resource
+		if ((hres = FindResource(G_hInstance, MAKEINTRESOURCE(id), rt)) != NULL)
+		{
+			// load it
+			if ((hglobal = LoadResource(G_hInstance, hres)) != NULL)
+			{
+				// get its size and lock it
+				sz = SizeofResource(G_hInstance, hres);
+				data = LockResource(hglobal);
+			}
+		}
+	}
+
+	~ResourceLocker()
+	{
+		if (hres != NULL)
+			UnlockResource(hres);
+	}
+
+	// get the data pointer; null if the resource wasn't found
+	const void *GetData() const { return data; }
+
+	// get the data size in bytes
+	DWORD GetSize() const { return sz; }
+
+	// get the resource handle
+	HRSRC GetHRes() const { return hres; }
+
+	// get the HGLOBAL handle
+	HGLOBAL GetHGlobal() const { return hglobal; }
+
+protected:
+	HRSRC hres;          // resource handle
+	HGLOBAL hglobal;     // hglobal with loaded resource
+	const void *data;    // pointer to data
+	DWORD sz;            // size of the data
+};
+
+
+// -----------------------------------------------------------------------
+//
+// HGLOBAL locker.  Creates and locks an HGLOBAL memory object.
+//
+class HGlobalLocker
+{
+public:
+	// allocate and lock an HGLOBAL
+	HGlobalLocker(UINT flags, SIZE_T size) : p(nullptr)
+	{
+		if ((h = GlobalAlloc(flags, size)) != NULL)
+			p = GlobalLock(h);
+	}
+
+	~HGlobalLocker()
+	{
+		if (h != NULL)
+		{
+			if (p != nullptr)
+				GlobalUnlock(h);
+			GlobalFree(h);
+		}
+	}
+
+	// get the handle
+	HGLOBAL GetHandle() const { return h; }
+
+	// get the locked buffer
+	void *GetBuf() const { return p; }
+
+protected:
+	// object handle
+	HGLOBAL h;
+
+	// locked buffer pointer
+	void *p;
+};
+
+// -----------------------------------------------------------------------
+//
 // Critical section object.  This can be used as a lightweight resource
 // lock to protect a resource against concurrent access by multiple
 // threads.  A critical section is held exclusively by one thread at

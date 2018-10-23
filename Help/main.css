@@ -76,4 +76,7 @@ img.example {
     margin-right: 2em;
 }
 
-    
+.code {
+    margin: -1em 2em 1em 2em;
+    white-space: pre;
+}

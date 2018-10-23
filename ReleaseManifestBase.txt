@@ -1,5 +1,6 @@
 assets\*
 Help\*
+Scripts\Scripts_Folder.txt
 Farsight\*.pinballArcade
 README.txt
 DefaultSettings.txt

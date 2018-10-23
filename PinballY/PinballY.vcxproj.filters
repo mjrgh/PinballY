@@ -467,4 +467,9 @@
       <Filter>Scripts</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <MASM Include="VarargsCall.asm">
+      <Filter>Source Files</Filter>
+    </MASM>
+  </ItemGroup>
 </Project>

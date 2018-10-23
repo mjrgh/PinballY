@@ -15,8 +15,8 @@
 
 <p>
    PinballY includes a full Javascript engine for user scripting customizations.
-   This is a new feature in the Beta 2 release and is still very preliminary
-   and experimental, so be aware of two big caveats:
+   This is a new feature in the Beta 2 release, and it's still very preliminary
+   and experimental.  Be aware of two big caveats:
 </p>
 <ul>
    <li>It's not very fleshed out yet
@@ -27,51 +27,54 @@
    This feature is preliminary and experimental, but the underlying
    Javascript engine isn't.  The Javascript system is ChakraCore, Microsoft's
    modern, ES6-compliant engine that provides Javascript execution for their Edge
-   browser.  "Microsoft Javascript" might sound like something cruddy if you didn't
-   know better, but this isn't the slow, idiosyncratic Javascript from old Internet Explorer
-   browsers.  This is a whole new system they built from the ground up for Edge.
-   You can expect full support for modern
-   language standards, and excellent performance that rivals native compiled code.
+   browser.  Microsoft wasn't exactly known for Javascript excellence in the
+   Internet Explorer days, but ChakraCore is a refreshing change, but
+   from the ground up for Edge.   You can expect full support for modern
+   Javascript language standards, and top-tier performance.
 </p>
 
-<h2>Core Javascript vs browser Javascript</h2>
+<h2>Is this like Web browser Javascript?</h2>
 
 <p>
-   It's important to understand that Javascript isn't the same as a Web
-   browser.  Javascript is a complete programming language that can stand
-   on its own.  It's most often used
-   as part of a Web browser, so a lot of people think that Javascript
-   is all tangled up with HTML and browser events and so on, and that
-   those are inseparably part of the language.  They're not.  Javascript
-   itself doesn't know anything about "document" or "window" or
-   "navigator" or HTML events.  Those things all come from the browser.
-   Within a Web browser environment, you can access those Web objects
-   through Javascript, but they're not part of Javascript.  You won't
-   find them in the PinballY version of Javascript.   Instead, you'll
-   find a separate set of UI objects and functions that match the
-   PinballY environment.
+   Yes and no.
+   PinballY uses a very modern and complete version of Javascript,
+   but that doesn't mean it's exactly like programming in a Web page.  That's
+   because many of the features of Web browser Javascript come from the
+   browser, not from Javascript itself.  For example, the "document"
+   and "window" objects, and all of the HTML elements, come from
+   the browser.  PinballY's Javascript is the same language, but it
+   doesn't have those Web browser objects.  Instead, it provides its own
+   set of objects that represent the PinballY user interface environment.
 </p>
 <p>
-   The PinballY version of Javascript does include everything that's
-   built in to the language.  To find out more about what's actually
-   part of Javascript vs what comes from the Web browser environment,
-   find a good Javascript language reference and read about the
-   standard set of built-in objects and functions.  There's a lot of
-   good Javascript documentation available on the Web, so I won't
-   try to provide my own (inevitably inferior) reference guide
-   here.  One good place to look is the
+   That said, we've tried to make things the same or similar wherever
+   possible, to make Web programming knowledge transferable the new
+   environment.  For features in PinballY that have natural analogs in
+   a browser, we've tried to use the same Javascript names and behaviors.
+   For example, events are handled in a very similar way, and a number
+   of common <a href="#browserLikeFuncs">browser-like functions</a> are
+   available.
+</p>
+
+<h2>Javascript language documentation</h2>
+
+<p>
+   This section doesn't include a Javascript tutorial or reference manual,
+   because so much information about the language is available on the Web.
+      One good place to look is the
    <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>,
    which has extensive and up-to-date Javscript documentation:
 </p>
 <div class="indented">
    <a target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript">JavaScript documentation on MDN</a>
 </div>
-
 <p>
-   But note that MDN covers the whole gamut of Web technologies, not just
-   Javascript, so do pay attention to which technology they're covering
-   when you're exploring topics there.  Only the core Javascript language
-   documentation is relevant to PinballY's scripting features.
+   The only thing you have to keep in mind while reading Web
+   Javascript documentation is that PinballY doesn't have the
+   usual browser environment objects ("document", the HTML DOM tree, etc).
+   Many Javascript tutorials assume that the only place anyone would ever
+   use Javascript is in a Web page, so many take it for granted
+   in their examples that browser objects are always present.
 </p>
 
 <h2>How to enable scripting</h2>
@@ -87,57 +90,387 @@
    What goes in this file?  Generally speaking, it can contain any valid
    Javascript code.  More specifically, it will usually consist of a
    set of event handler functions for one or more of the program events that
-   PinballY defines, and some startup code that installs the handlers as
-   "event listeners", so that PinballY knows to call your handler functions
-   when the program events that you want to handle occur.
+   PinballY defines, and some startup code that tells PinballY to call
+   the handlers when the related program events occur.  That's the
+   same basic approach that you'd use in Web page Javascript, but in
+   this case you're working with PinballY's event scheme rather than browser
+   events.
+</p>
+<p>
+   It's also possible to organize your code into multiple files, and to use
+   modules written by other people.  See <a href="#multipleFiles">How to
+   use multiple script files</a> below.
+
+<h2>Overall program flow</h2>
+
+<p>
+   When PinballY starts up, it loads the <b>main.js</b> file that
+   you provide.  Javascript immediately executes all of the code in
+   the file that's defined outside of any function or class
+   definitions.  
+   If you're familiar with more traditional programming languages
+   like C or C++, this "outer" code in a Javascript file is the
+   equivalent of the "main" routine that's executed at program startup.
+</p>
+<p>
+   The main thing that the top-level code in your main.js file
+   will usually do is set up <i>event listeners</i>.  An event
+   listener is a function you write that will be called when a
+   specific event occurs.  Once the event listener is set up,
+   PinballY will call it whenever the associated event occurs.
 </p>
 
-<h2>How to use multiple script files</h2>
+<h2>Events</h2>
 
 <p>
-   By default, PinballY only loads one file, Scripts\main.js.  But that
-   doesn't mean that you have to cram all of your scripting code into that
-   one place.  You can use the standard Javascript ES6 <b>import</b>
-   command to load additional modules.  This lets you mix and match
-   feature modules created by other users, and lets you create your
-   own individual feature modules to share.</p>
-<p>
-   Import is specifically
-   designed to make it easy to combine code written by different people,
-   by letting you say exactly which symbols (and only those) are shared
-   among modules.  That avoids all sorts of problems that <i>usually</i>
-   come up when people try to share code, such as when two people
-   both used the same names for their variables and functions.
+   Most of the code you write for PinballY will be there to handle
+   events.  An event is something like "the user pressed a key"
+   or "a game is being launched".
 </p>
 <p>
-   The basic Javascript import syntax looks like this:
+   A function you write to handle an event is called an
+   <i>event listener</i>.  PinballY notifies you that
+   something is happening by calling your event listeners for
+   that particular event.
 </p>
-<div class="indented">
-   import { <i>function-or-object-name</i> } from "<i>module.js</i>";
+<p>
+   If you've used Visual Basic or C#, you might expect that
+   event handlers are set up by using a special function name
+   when you define an event handler function.  That's not how it works
+   in Javascript.   Instead, you set up each handler explicitly,
+   so you can use any name for any handler function.
+</p>
+<p>
+   You set up an event listener by calling a function to add
+   the listener to the <i>event target</i> object that generates
+   the events of interest.  An event target represents a PinballY
+   user interface element that's associated with one or more
+   events.  The primary event target for most events is the
+   <b>mainWindow</b> object, which represents the main playfield
+   window.  Most UI events are handled in this window, even
+   when other windows (such as the backglass or DMD) are open.
+</p>
+<p>
+   To attach an event listener to an event target, you use the
+   <b>on()</b> method of the event target object:
+</p>
+
+<div class="code">
+//
+// This is an event listener function for "key down" events.  The
+// name doesn't matter, because we're going to call on() in a moment
+// to register the listener.  (This isn't like your grandpa's Visual
+// Basic, where events are tied to function names!)
+//
+function myListener(event)
+{
+   // do something with the key-down event
+}
+
+// &lt;&lt;&lt;&lt;&lt; Here's where we register our listener! &gt;&gt;&gt;&gt;&gt;
+mainWindow.on("keydown", myListener);
+
+//
+// Event listeners don't even have to be named!  You can use
+// anonymous functions, like this:
+//
+mainWindow.on("keydown", function(ev) { /* do something with the event */ });
+
+// ...or even use the more succint "arrow" function notation
+mainWindow.on("keydown", (ev) => { /* handler */ });
+</div>
+
+<p>
+   You can also specify more than one event at a time, by separating
+   the event names with spaces:
+</p>
+<div class="code">
+mainWindow.on("keydown keyup", (ev) => { /* this is called for both keydown and keyup events! */ });
+</div>
+
+<p>
+   <b>on()</b> <i>adds</i> a listener.  That is, it doesn't replace or
+   remove existing listeners for the same event.  If there's already another
+   event listener on the same object, both the old listener and the new
+   listener will both be called when the event occurs.  You can add any
+   number of listeners this way.  The listeners are called in the order
+   in which they're added.
+</p>
+<p>
+   There's variation of <b>on()</b> called <b>one()</b>, which
+   adds a listener that only runs a single time.  The first time it's
+   called, it runs normally, then the system automatically removes it.
+</p>
+
+<p>
+   You can remove an event listener explicitly via the <b>off</b>
+   method:
+</p>
+<div class="code">
+   mainWindow.off("keydown");
 </div>
 <p>
-   You can import multiple symbols from the module by listing them
-   inside the braces, separated by commas.
+   Calling <b>off()</b> with an event name simply removes all listeners
+   for the given event name.  You can also remove a specific
+   listener, by passing in the same function you used to set up the
+   listener in the first place with <b>on()</b>:
+</p>
+<div class="code">
+mainWindow.off("keydown", myListener);
+</div>
+
+<p>
+   You can also specify a "namespace" with each event created with <b>on()</b>.
+   A namespace is specified after the event name, separated with a period (.).
+</p>
+<div class="code">
+mainWindow.on("keydown.MyPlugin", (ev) => { /* handler */ });
+</div>
+
+<p>
+   The point of the namespace is to identify the listener
+   for later removal.  When you call <b>off()</b>, you can 
+   use the same namespace qualifier to remove only the listener(s)
+   created with that namespace:
+</p>
+<div class="code">
+mainWindow.off("keydown.MyPlugin");   // removes only the MyPlugin handler(s)
+</div>
+
+<p>
+   Remember, the normal <b>off()</b> removes <i>all</i> listeners for the
+   named event.  Using a namespace qualifier removes only the matching
+   listeners.  This is especially useful for sharing code, because it
+   lets you make nicely isolated code that won't interfere with other
+   people's code that it's combined with.
 </p>
 <p>
-   There's a lot more to the "import" syntax than this, including a
-   dynamic form (the import() function) that lets you import code
-   conditionally or at specific points in time.  
+   Using a namespace also lets you easily remove every event listener
+   of every type that you installed under the namespace.  Just call <b>off()</b>
+   with the namespace qualifier alone, with no event name:
+</p>
+<div class="code">
+mainWindow.off(".MyPlugin");  // removes every mainWindow event with a .MyPlugin namespace
+</div>
+   
+
+<h2>Object References</h2>
+
+<p>
+   <b>mainWindow:</b>  Represents the main user interface window object
+   (the "playfield" window).  This window is the event target for most
+   UI-related events.
+</p>
+<p>
+   Events:
+</p>
+<ul>
+   <li><b>keydown:</b> keyboard events while the application has focus
+   <li><b>keyup:</b> keyboard events while the application has focus
+</ul>
+
+[TO DO - more objects]
+
+<h2>Event Reference</h2>
+
+<p>
+   Every event listener function receives an <i>event</i> argument,
+   which is an object containing information about the event.  All
+   event objects have some common properties and methods:
 </p>
 
+<ul>
+   <li><b>bubbles:</b>  A boolean indicating if the event "bubbles".  Bubbling
+       is a concept from the Web browser event model, indicating if the event
+       is sent to parent HTML elements after being sent to the one where it
+       actually occurs.  This doesn't currently apply to any PinballY objects,
+       so this property is always false, but it's included in the object for
+       the sake of familiarity and in case it becomes relevant to future
+       elements.
 
-<h2>Event handlers</h2>
+   <li><b>cancelable:</b>  A boolean indicating if the event can be canceled.
+       If true, Event.preventDefault() can be used to stop the default system
+       action from occurring; if false, the system action will always occur
+       whether or not you call preventDefault().  (This is read-only; you can't
+       change it for a system event.)
 
-[TO DO]
+   <li><b>defaultPrevented:</b>  Returns true if preventDefault() has been called
+      on the event, false if not.
+
+   <li><b>preventDefault():</b>  Call this method to tell the system to skip the
+      normal default processing for the event.  This will have no effect unless
+      the event can be canceled, as indicated by the <b>cancelable</b> property.
+
+   <li><b>stopPropagation():</b>  Stop "bubbling" for the event.  This prevents
+      the event from being dispatched to listeners in parent objects, if the
+      event bubbles from child to parent.  This doesn't affect other event
+      listeners on the same target; use stopImmediatePropagation() to prevent
+      any other listeners from being called.  No current
+      PinballY events use bubbling, so this currently has no effect.
+
+   <li><b>stopImmediatePropagation():</b>  Stop propagating the event to any
+      other listeners.  This prevents any other listeners registered in the
+      same event target from being called after this listener returns.  (Other
+      listeners that were already called <i>before</i> this listener was
+      invoked obviously aren't affected, as they can't be "un-called".)
+      If the event uses bubbling (dispatching the event to parent objects),
+      this also stops any parent object listeners from being called.
+       
+   <li><b>timestamp:</b>  A number containing the Date.now() value when the
+       event was fired.
+       
+   <li><b>type:</b>  A string with the name of the event ("keydown", "keyup", etc)
+</ul>
+
+<p>
+   Individual event types add their own properties as well, described
+   below.
+</p>
+
+<p>
+   <b>keydown, keyup:</b>  These events are used with the <b>mainWindow</b>
+   object. The keydown event fires when the user
+   presses a keyboard key.  If the user holds down the key long enough
+   for the key to start auto-repeating, another keydown event is fired
+   on each auto-repeat.  keyup fires when the user releases a key.
+</p>
+<ul>
+   <li><b>background:</b> true if the application was in the background when
+       the event occurred, false if not.  PinballY processes key presses
+       that occur while it's in the background so that it can monitor
+       "Exit Game" and "Pause Game" command keys while a game is running.
+   <li><b>code:</b> A string representing the key pressed, using the same
+       naming as in standard Web browser keydown messages.  See, for
+       example, <a href="https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values">Key Values (MDN)</a>.
+   <li><b>key:</b> A string representing the key pressed, using the same
+       format used in Web browser keydown messages.  For printable characters,
+       this is the character itself, with shift key status applied (e.g.,
+       holding down shift and pressing the "2" key produces a keydown event
+       with key set to "@").  For special characters (cursor keys, F-keys, etc),
+       this uses the standard browser name for the key, usually the same
+       name as in <b>code</b>.
+   <li><b>location:</b>  A keyboard location code for the key:
+   <ul>
+      <li>KEY_LOCATION_STANDARD (0), standard location used by most keys
+      <li>KEY_LOCATION_LEFT (1), the left key of a paired modifier key (Shift, Control, Alt, Meta)
+      <li>KEY_LOCATION_RIGHT (2), the right key of a pair modifier key
+      <li>KEY_LOCATION_NUMPAD (3), the numeric keypad
+   </ul>
+   <li><b>repeat:</b>  true if this is an auto-repeat key event from a key being held down, false if not
+   <li><b>vkey:</b>  A number representing the Windows "virtual key code" value for the key
+   
+</ul>
+
+[TO DO - more event types]
+   
+
+<h2>EventTarget reference</h2>
+
+<p>
+   <b><i>eventTarget</i>.addEventListener(<i>event</i>, <i>listener</i>, <i>options</i>):</b>
+   Adds an event listener.  <i>event</i> is a string giving the name of the event
+   (e.g., "keydown").  <i>listener</i> is a function to call when this event occurs;
+   the function takes a single parameter, an Event object that describes the event.
+   <i>options</i> is an object with the following members:
+</p>
+<ul>
+   <li>capture: A boolean indicating whether the listener should be added to the
+   "capture" stage or the "bubble" stage of processing for the event.  This isn't
+   currently used, as no PinballY events distinguish these phases.
+
+   <li>data: Any value.  This will be passed to the event listener in
+   <i>event.data</i> (the "data" property of the Event object parameter) each
+   time this listener is invoked.  This can be used to store context information
+   for the event listener.
+
+   <li>once:  A boolean.  If true, the listener is automatically removed
+   (as though by calling removeEventListener()) the first time it's called.  Use
+   this to create a listener that only handles the first event it receives.
+</ul>
+<p>
+   The <i>options</i> parameter can be omitted, in which case default options
+   are used.  For the sake of those familiar with the analogous Web browser
+   method, <i>options</i> can also be passed as a boolean (true/false), in which
+   case it specifies the value of the "capture" property.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.dispatchEvent(<i>event</i>):</b>
+Calls the registered event listeners for the given event.  The <i>event</i>
+argument is passed as the parameter to each listener invoked, with the
+event-specific properties (target, data) set appropriately for each call.
+Returns true if the event's default system processing should proceed,
+false if not.  Returning false usually means that <i>event</i>.preventDefault()
+was called in the course of processing the event.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.off(<i>events</i>, <i>listener</i>):</b>
+   Removes event listeners previously registered with on() or addEventListener().
+   As with on(), <i>events</i> is a string listing one or more event names,
+   separated by spaces.  And as with on(), namespaces can be specified in
+   the event names with ".namespace" suffixes ("keydown.MyPlugin", for example).
+   The <i>listener</i> argument is optional; if provided, only listeners
+   originally added using the same function will be removed, otherwise all
+   listeners matching the event name and namespace values will be removed.
+</p>
+<p>
+   When namespaces are specified, <i>any</i> namespace match from the original
+   on() call will match.  You don't have to match the whole list specified in on().  For example,
+   if an event listener was registered as <b>target.on("keydown.MyPlugin.Main", func)</b>,
+   <i>any</i> of these calls will remove it: <b>target.off("keydown.MyPlugin")</b>,
+   <b>target.off("keydown.Main")</b>, <b>target.off("keydown.MyPlugin.Main")</b>,
+   <b>target.off("keydown.Main.MyPlugin")</b>.
+
+<p>
+   <b><i>eventTarget</i>.on(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
+   Adds an event listener.  <i>events</i> is a string listing one or more
+   events, separated by spaces (for example, "keydown keyup").  <i>data</i>
+   is optional; if provided, it can be any type of value, and specifies a
+   value that will be passed to the listener each time it's invoked in the
+   "data" property of the event object, which is passed to the listener
+   as its single function parameter.  <i>listener</i> is a function to call
+   each time the event fires.
+</p>
+<p>
+   The event name list can include "namespace" qualifiers for the events.
+   A namespace is any arbitrary string appended after a "." to an event
+   name, as in "keydown.MyPlugin".  You can specify multiple namespaces
+   on a single event this way: "keydown.MyPlugin.Main".  The purpose of
+   a namespace is to help identify the event in calls to off().  That
+   method lets you specify namespaces the same way in the event(s) to be
+   removed.  Namespaces are especially useful to create shared code
+   modules that can be mixed and matched with other modules, since it
+   makes it easier to manage your own module's listeners without
+   affecting code from other unrelated modules.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.one(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
+   This works exactly like on(), but registers a one-time-only listener that
+   will be removed the first time it fires.  If this registers listeners for
+   multiple events, each event's listener will be set up as a separate
+   once-only handler.  For example, if <i>events</i> is "keydown keyup", two
+   listeners are registered, and each listener will be called once before
+   it's removed.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.removeEventListener(<i>type</i>, <i>listener</i>, <i>options</i>):</b>
+   Removes an event listener that matches the type, function, and capture setting
+   used in a prior call to addEventListener() or on().  As in the Web browser analog
+   of this method, the only <i>options</i> value used to match the listener
+   is the "capture" property.  
+</p>
 
 <h2>Browser-like functions</h2>
 
 <p>
-   As mentioned above, many of the functions and objects in a Web browser
-   Javascript environment aren't part of the Javascript standard.  PinballY
-   provides equivalents for some of the most often used functions, with
-   the same names, interfaces, and semantics (or as similar as is practical).
-   PinballY also provides some extensions with similar functionality, but
+   As mentioned above, many of the functions and objects that you'd
+   find in a normal Web browser environment aren't actually
+   part of Javascript.  Even so, PinballY provides equivalents
+   for some of the most often used browser functions.
+   PinballY also has some extensions with similar functionality, but
    tailored more to the PinballY environment.
 </p>
 
@@ -155,14 +488,14 @@
    with setInterval().  The <i>id</i> value is the value returned from
    setInterval() when the event was created.  This removes the event and
    prevents any pending execution from occurring.  It's harmless to
-   cancel an interval that doesn't exist or has already been canceled.
+   cancel an interval that doesn't exist or that has already been canceled.
 </p>
 <p>
    <b>clearTimeout(<i>id</i>)</b>:  Cancels a pending timeout event
    created with setTimeout().  The <i>id</i> value is the value returned
    from setTimeout() when the event was created.  This removes the event
    and prevents any pending execution from occurring.  It's harmless
-   to cancel a timeout that doesn't exist or has already been canceled.
+   to cancel a timeout that doesn't exist or that has already been canceled.
    This will also have no effect if the timeout has already been executed,
    since you can't "take back" the previous execution.
 </p>
@@ -210,6 +543,54 @@
    timer events can't "interrupt" other scripts.  If the timeout period
    elapses while another script is running, the function will be invoked
    when the current script finishes.
+</p>
+
+<a name="multipleFiles"></a>
+<h2>How to use multiple script files</h2>
+
+<p>
+   By default, PinballY only loads one file, Scripts\main.js.  But that
+   doesn't mean that you have to cram all of your scripting code into that
+   one place.  You can use the standard Javascript ES6 <b>import</b>
+   command to load additional modules.  This lets you mix and match
+   feature modules created by other users, and lets you create your
+   own individual feature modules to share.</p>
+<p>
+   The import system is specifically
+   designed to make it easy to combine code written by different people,
+   by letting you say exactly which symbols (and only those) are shared
+   among modules.  That avoids all sorts of problems that <i>usually</i>
+   come up when people try to share code, such as when two people
+   both used the same names for their variables and functions.
+</p>
+<p>
+   The basic Javascript import syntax looks like this:
+</p>
+<div class="indented">
+   import { <i>function-or-object-name</i> } from "<i>module.js</i>";
+</div>
+<p>
+   You can import multiple symbols from the module by listing them
+   inside the braces, separated by commas.
+</p>
+<p>
+   There's a lot more to the "import" syntax than this, including a
+   dynamic form (the import() function) that lets you import code
+   conditionally or at specific points in time.  Refer to a Javascript
+   language reference for full details.
+</p>
+
+<h2>Browser frameworks (jquery, etc)</h2>
+
+<p>
+   Web Javascript frameworks like jQuery generally <b>won't</b>
+   work in PinballY.  That's because Web browser frameworks
+   depend heavily on the Web browser HTML document structure and
+   event model.  As we've already discussed, those don't exist in
+   PinballY.  But jQuery in particular has influenced some of the
+   pre-defined framework in PinballY's Javascript environment,
+   so some of the concepts carry over in general terms, even if
+   the exact details can't.
 </p>
 
 

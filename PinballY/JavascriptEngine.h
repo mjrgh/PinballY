@@ -17,8 +17,19 @@ public:
 	// initialize
 	bool Init(ErrorHandler &eh);
 
-	// run a script
-	bool Run(const TCHAR *script, const TCHAR *url, ErrorHandler &eh);
+	// Evaluate a script
+	bool EvalScript(const WCHAR *scriptText, const TCHAR *url, JsValueRef *returnVal, ErrorHandler &eh);
+
+	// Fire an event.  This evaluates the given script text, converts the 
+	// Javascript return value to boolean, and returns the result.  A true
+	// return means that the event handler wants to allow the system event
+	// handling to proceed; false means that it wants to stop the system
+	// handling: that is, the script called preventDefault() or some similar
+	// handler function.
+	bool FireEvent(const TCHAR *scriptText, const TCHAR *url);
+
+	// Load a module
+	bool LoadModule(const TCHAR *url, ErrorHandler &eh);
 
 	// special values
 	JsValueRef GetNullVal() const { return nullVal; }
@@ -408,10 +419,81 @@ public:
 		}
 	};
 
+	// Create a native function wrapper from a function.  This uses a generic
+	// implementation of NativeFunction to wrap any arbitrary static function,
+	// with a context object provided as an additional argument.  This is
+	// usually syntactically cleaner to set up than the wrapper class itself,
+	// since the compiler should be able to deduce the template arguments
+	// from the provided function pointer and context object types.
+	template <typename ContextType, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeFunction(R(*func)(ContextType, Ts...), ContextType context)
+	{
+		class GenericNativeFunction : public NativeFunction<R(Ts...)>
+		{
+		public:
+			using FuncType = R(ContextType, Ts...);
+
+			GenericNativeFunction(FuncType *func, ContextType context) :
+				func(func), context(context) { }
+
+			FuncType *func;
+			ContextType context;
+
+			virtual R Impl(Ts... args) const override { return func(context, args...); }
+		};
+
+		return new GenericNativeFunction(func, context);
+	};
+
+	template <typename C, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeMemberFunction(R(C::*func)(Ts...), C *self)
+	{
+		class GenericNativeMemberFunction : public NativeFunction<R(Ts...)>
+		{
+		public:
+			GenericNativeMemberFunction(R(C::*func)(Ts...), C *self) : func(func), self(self) { }
+
+			R(C::*func)(Ts...);
+			C *self;
+
+			virtual R Impl(Ts... args) const override { return (self->*func)(args...); }
+		};
+
+		return new GenericNativeMemberFunction(func, self);
+	};
+
 	// Create a global native callback function.  This creates a property
 	// of the 'global' object of the given name, and assigns it to a native
 	// callback to the given function object.
 	bool DefineGlobalFunc(const CHAR *name, NativeFunctionBinderBase *func, ErrorHandler &eh);
+
+	// Define a global function, creating a native wrapper for it.  The wrapper
+	// is added to an internal list to ensure that it's deleted with the engine.
+	template <typename ContextType, typename R, typename... Ts>
+	bool DefineGlobalFunc(const CHAR *name, R (*func)(ContextType *, Ts...), ContextType *context, ErrorHandler &eh)
+	{
+		// create the wrapper
+		auto wrapper = WrapNativeFunction(func, context);
+
+		// add it to our list for disposal
+		this->nativeWrappers.emplace_back(wrapper);
+
+		// define the function
+		return this->DefineGlobalFunc(name, wrapper, eh);
+	}
+
+	template <typename C, typename R, typename... Ts>
+	bool DefineGlobalFunc(const CHAR *name, R (C::*func)(Ts...), C *self, ErrorHandler &eh)
+	{
+		// create the wrapper
+		auto wrapper = WrapNativeMemberFunction(func, self);
+
+		// add it to our list for disposal
+		this->nativeWrappers.emplace_back(wrapper);
+
+		// define the function
+		return this->DefineGlobalFunc(name, wrapper, eh);
+	}
 
 	// Exported value.  This allows the caller to store a javascript value
 	// in C++ native code, for later use.  For example, this can be used to
@@ -694,4 +776,9 @@ protected:
 		WSTRING file;                // script source file
 	};
 	std::list<SourceCookie> sourceCookies;
+
+	// List of Javascript callback wrappers.  We don't need to use this list
+	// while running; it's only needed so that we can delete the wrappers at
+	// window destruction time.
+	std::list<std::unique_ptr<JavascriptEngine::NativeFunctionBinderBase>> nativeWrappers;
 };

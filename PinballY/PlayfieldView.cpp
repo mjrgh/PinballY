@@ -14,6 +14,7 @@
 #include <Shellapi.h>
 #include <Shlobj.h>
 #include "../Utilities/Config.h"
+#include "../Utilities/FileVersionInfo.h"
 #include "PlayfieldView.h"
 #include "Resource.h"
 #include "DialogResource.h"
@@ -92,6 +93,8 @@ namespace ConfigVars
 // Wheel animation time
 static const DWORD wheelTime = 260;
 
+// "No Command" 
+const PlayfieldView::KeyCommand PlayfieldView::NoCommand(_T("NoOp"), &PlayfieldView::CmdNone);
 
 // construction
 PlayfieldView::PlayfieldView() : 
@@ -122,30 +125,37 @@ PlayfieldView::PlayfieldView() :
 	exitMenuExitKeyIsSelectKey = exitMode == _T("select");
 
 	// populate the command handler table
-	commandsByName.emplace(_T("Select"), &PlayfieldView::CmdSelect);
-	commandsByName.emplace(_T("Exit"), &PlayfieldView::CmdExit);
-	commandsByName.emplace(_T("Next"), &PlayfieldView::CmdNext);
-	commandsByName.emplace(_T("Prev"), &PlayfieldView::CmdPrev);
-	commandsByName.emplace(_T("NextPage"), &PlayfieldView::CmdNextPage);
-	commandsByName.emplace(_T("PrevPage"), &PlayfieldView::CmdPrevPage);
-	commandsByName.emplace(_T("CoinDoor"), &PlayfieldView::CmdCoinDoor);
-	commandsByName.emplace(_T("Service1"), &PlayfieldView::CmdService1);
-	commandsByName.emplace(_T("Service2"), &PlayfieldView::CmdService2);
-	commandsByName.emplace(_T("Service3"), &PlayfieldView::CmdService3);
-	commandsByName.emplace(_T("Service4"), &PlayfieldView::CmdService4);
-	commandsByName.emplace(_T("FrameCounter"), &PlayfieldView::CmdFrameCounter);
-	commandsByName.emplace(_T("FullScreen"), &PlayfieldView::CmdFullScreen);
-	commandsByName.emplace(_T("Settings"), &PlayfieldView::CmdSettings);
-	commandsByName.emplace(_T("RotateMonitor"), &PlayfieldView::CmdRotateMonitorCW);
-	commandsByName.emplace(_T("Coin1"), &PlayfieldView::CmdCoin1);
-	commandsByName.emplace(_T("Coin2"), &PlayfieldView::CmdCoin2);
-	commandsByName.emplace(_T("Coin3"), &PlayfieldView::CmdCoin3);
-	commandsByName.emplace(_T("Coin4"), &PlayfieldView::CmdCoin4);
-	commandsByName.emplace(_T("Launch"), &PlayfieldView::CmdLaunch);
-	commandsByName.emplace(_T("ExitGame"), &PlayfieldView::CmdExitGame);
-	commandsByName.emplace(_T("Information"), &PlayfieldView::CmdGameInfo);
-	commandsByName.emplace(_T("Instructions"), &PlayfieldView::CmdInstCard);
-	commandsByName.emplace(_T("PauseGame"), &PlayfieldView::CmdPauseGame);
+	auto add = [this](const TCHAR *name, KeyCommandFunc func)
+	{
+		commandsByName.emplace(std::piecewise_construct,
+			std::forward_as_tuple(name),
+			std::forward_as_tuple(name, func));
+	};
+
+	add(_T("Select"), &PlayfieldView::CmdSelect);
+	add(_T("Exit"), &PlayfieldView::CmdExit);
+	add(_T("Next"), &PlayfieldView::CmdNext);
+	add(_T("Prev"), &PlayfieldView::CmdPrev);
+	add(_T("NextPage"), &PlayfieldView::CmdNextPage);
+	add(_T("PrevPage"), &PlayfieldView::CmdPrevPage);
+	add(_T("CoinDoor"), &PlayfieldView::CmdCoinDoor);
+	add(_T("Service1"), &PlayfieldView::CmdService1);
+	add(_T("Service2"), &PlayfieldView::CmdService2);
+	add(_T("Service3"), &PlayfieldView::CmdService3);
+	add(_T("Service4"), &PlayfieldView::CmdService4);
+	add(_T("FrameCounter"), &PlayfieldView::CmdFrameCounter);
+	add(_T("FullScreen"), &PlayfieldView::CmdFullScreen);
+	add(_T("Settings"), &PlayfieldView::CmdSettings);
+	add(_T("RotateMonitor"), &PlayfieldView::CmdRotateMonitorCW);
+	add(_T("Coin1"), &PlayfieldView::CmdCoin1);
+	add(_T("Coin2"), &PlayfieldView::CmdCoin2);
+	add(_T("Coin3"), &PlayfieldView::CmdCoin3);
+	add(_T("Coin4"), &PlayfieldView::CmdCoin4);
+	add(_T("Launch"), &PlayfieldView::CmdLaunch);
+	add(_T("ExitGame"), &PlayfieldView::CmdExitGame);
+	add(_T("Information"), &PlayfieldView::CmdGameInfo);
+	add(_T("Instructions"), &PlayfieldView::CmdInstCard);
+	add(_T("PauseGame"), &PlayfieldView::CmdPauseGame);
 
 	// populate the table of commands with menu associations
 	commandNameToMenuID.emplace(_T("RotateMonitor"), ID_ROTATE_CW);
@@ -356,54 +366,150 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
-		// load the script
-		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading script file %s\n"), jsmain);
-		long len;
-		std::unique_ptr<WCHAR> contents(ReadFileAsWStr(jsmain, eh, len, ReadFileAsStr_NullTerm));
-		if (contents == nullptr)
+		// Load our system class script.  This defines the basic class framework 
+		// for the system objects, as far as we can in pure Javascript.  We'll
+		// still have to attach native code functions to some of the object
+		// methods after everything is set up.
+		ResourceLocker sysScript(IDJS_SYS_SCRIPT, _T("JS"));
+		if (sysScript.GetData() == nullptr)
 		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". Unable to load %s; disabling Javascript for this session\n"), jsmain);
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource could not be loaded; Javascript disabled for this session\n"));
 			return;
 		}
 
-		// deduct the added newline from the usable script length
-		len -= 1;
-
-		// convert any internal nulls in the script to spaces
-		long rem = len;
-		for (TCHAR *p = contents.get(); rem != 0; --rem, ++p)
+		// evaluate it
+		if (!js->EvalScript(static_cast<const WCHAR*>(sysScript.GetData()), _T("system:SystemClasses.js"), nullptr, eh))
 		{
-			if (*p == 0)
-				*p = ' ';
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource evaluation failed; Javascript disabled for this session\n"));
+			return;
 		}
 
-		// We successfully initialized the javascript engine and loaded
-		// the script.  Save the scripting engine, so that we process
-		// future js events through it.
-		javascriptEngine.Attach(js.Detach());
-
 		// set up our callbacks
-		if (!InitJavascriptCallback(alertCallback, "alert", eh)
-			|| !InitJavascriptCallback(messageCallback, "message", eh)
-			|| !InitJavascriptCallback(logCallback, "log", eh)
-			|| !InitJavascriptCallback(setTimeoutCallback, "setTimeout", eh)
-			|| !InitJavascriptCallback(clearTimeoutCallback, "clearTimeout", eh)
-			|| !InitJavascriptCallback(setIntervalCallback, "setInterval", eh)
-			|| !InitJavascriptCallback(clearIntervalCallback, "clearInterval", eh))
+		if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
+			|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
+			|| !js->DefineGlobalFunc("log", &PlayfieldView::JsLog, this, eh)
+			|| !js->DefineGlobalFunc("OutputDebugString", &PlayfieldView::JsOutputDebugString, this, eh)
+			|| !js->DefineGlobalFunc("setTimeout", &PlayfieldView::JsSetTimeout, this, eh)
+			|| !js->DefineGlobalFunc("clearTimeout", &PlayfieldView::JsClearTimeout, this, eh)
+			|| !js->DefineGlobalFunc("setInterval", &PlayfieldView::JsSetInterval, this, eh)
+			|| !js->DefineGlobalFunc("clearInterval", &PlayfieldView::JsClearInterval, this, eh))
 		{
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error setting up Javascript native callbacks; Javascript disabled for this session\n"));
-			javascriptEngine = nullptr;
 			return;
 		}
 
 		// Execute the user script.  This sets up event handlers for
 		// any events the script wants to be notified about.
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
-		javascriptEngine->Run(contents.get(), jsmain, eh);
+		if (!js->LoadModule(jsmain, eh))
+			return;
+
+		// We successfully initialized the javascript engine and loaded
+		// the user script.  Save the scripting engine, so that we process
+		// future js events through it.  Up until this point, we've just
+		// been holding onto it through a temporary variable so that the
+		// engine object can be discarded simply by returning, which we
+		// do in many places above in case of error.
+		javascriptEngine.Attach(js.Detach());
 
 		// schedule the next javascript timer task
 		SetJavascriptTaskTimer();
 	}
+}
+
+static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
+
+bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
+{
+	bool ret = true;
+	if (javascriptEngine != nullptr)
+	{
+		// get the key label information from the key manager
+		auto const& label = KeyInput::keyName[KeyInput::IsValidKeyCode(vkey) ? vkey : 0];
+
+		// Figure the javascript event 'key' value.  If the key name contains
+		// a '|' character, it has an alternate shifted meaning.
+		auto jsKey = label.jsEventKey;
+		auto jsKeyLen = _tcslen(jsKey);
+		if (auto bar = _tcschr(jsKey, '|'); bar != nullptr)
+		{
+			// Get the Shift key state.  Use the input state we've deduced
+			// from the raw input stream - see the comments above the struct
+			// definition for RawShiftKeyState for a lengthy explanation of
+			// and tale of woe about why we're not using GetKeyState(VK_SHIFT),
+			// which any good Windows programmer would *think* we should be
+			// using here.  (Short version: there's a really, really, REALLY
+			// bizarre misfeature in that function that we have to work around.)
+			bool shifted = rawShiftKeyState.left || rawShiftKeyState.right;
+
+			// numeric keypad keys (location '3') are special
+			if (label.jsEventLocation == 3)
+			{
+				// get the NumLock state
+				bool numLock = ((GetKeyState(VK_NUMLOCK) & 0x0001) != 0);
+
+				// For keypad keys, the "unshifted|shifted" names are set up for NumLock mode,
+				// with the numeric key in the unshifted part and the cursor key in the shifted
+				// part.  When we're in NumLock mode, the shift key has exactly the effect of
+				// selecting one of these.  When we're NOT in NumLock mode, the keypad simply
+				// acts like the shift key is always in effect (that is, the cursor key is
+				// always used).  So if NumLock is off, simply select the shifted meaning in
+				// all cases, otherwise go by the current shift key state.
+				if (!numLock)
+					shifted = true;
+			}
+
+			// alphabetic keys are special: the actual shift status for alphabetic
+			// keys is Shift XOR Caps Lock
+			if (vkey >= 'A' && vkey <= 'Z')
+			{
+				bool capsLock = ((GetKeyState(VK_CAPITAL) & 0x0001) != 0);
+				shifted ^= capsLock;
+			}
+
+			// if unshifted, use the part before the '|', otherwise use the part after
+			if (shifted)
+			{
+				jsKeyLen -= (bar + 1 - jsKey);
+				jsKey = bar + 1;
+			}
+			else
+				jsKeyLen = bar - jsKey;
+		}
+
+		// generate the javascript event call
+		MsgFmt script(_T("mainWindow.dispatchEvent(new %s(%d,\"%.*s\",\"%s\",%d,%s,%s))"),
+			(mode & (KeyDown | KeyBgDown)) != 0 ? _T("KeyDownEvent") : _T("KeyUpEvent"),
+			vkey,
+			(int)jsKeyLen, jsKey,
+			label.jsEventCode,
+			label.jsEventLocation,
+			jsbool(mode == KeyRepeat || mode == KeyBgRepeat),
+			jsbool((mode & KeyBgDown) != 0));
+
+		OutputDebugString(MsgFmt(_T("%s\n"), script.Get()));
+
+		ret = javascriptEngine->FireEvent(script, _T("system:KeyEvent"));
+	}
+	return ret;
+}
+
+bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
+{
+	bool ret = true;
+	if (javascriptEngine != nullptr)
+	{
+		MsgFmt script(_T("mainWindow.dispatchEvent(new %s(%d,%d,%s,%s))"),
+			(mode & (KeyDown | KeyBgDown)) != 0 ? _T("JoysticButtonDownEvent") : _T("JoystickButtonUpEvent"),
+			unit,
+			button,
+			jsbool((mode & (KeyRepeat | KeyBgRepeat)) != 0),
+			jsbool((mode & KeyBgDown) != 0));
+
+
+		ret = javascriptEngine->FireEvent(script, _T("system:JoystickButtonEvent"));
+	}
+	return ret;
 }
 
 void PlayfieldView::SetJavascriptTaskTimer()
@@ -433,43 +539,41 @@ void PlayfieldView::SetJavascriptTaskTimer()
 	}
 }
 
-template<typename R, typename... Ts>
-bool PlayfieldView::InitJavascriptCallback(JsCallback<R(Ts...)> &cb, const CHAR *name, ErrorHandler &eh)
+void PlayfieldView::JsAlert(TSTRING msg)
 {
-	cb.pfv = this;
-	return javascriptEngine->DefineGlobalFunc(name, &cb, eh);
+	MessageBox(GetParent(hWnd), msg.c_str(), _T("PinballY"), MB_OK | MB_ICONINFORMATION);
 }
 
-void PlayfieldView::AlertCallback::Impl(TSTRING msg) const
-{
-	MessageBox(GetParent(pfv->hWnd), msg.c_str(), _T("PinballY"), MB_OK | MB_ICONINFORMATION);
-}
-
-void PlayfieldView::MessageCallback::Impl(TSTRING msg, TSTRING typ) const
+void PlayfieldView::JsMessage(TSTRING msg, TSTRING typ)
 {
 	ErrorIconType iconType =
 		_tcsicmp(typ.c_str(), _T("error")) == 0 ? EIT_Error :
 		_tcsicmp(typ.c_str(), _T("warning")) == 0 ? EIT_Warning :
 		EIT_Information;
 
-	pfv->ShowError(iconType, msg.c_str());
+	ShowError(iconType, msg.c_str());
 }
 
-void PlayfieldView::LogCallback::Impl(TSTRING msg) const
+void PlayfieldView::JsLog(TSTRING msg)
 {
 	LogFile::Get()->Write(_T("[Script] %s\n"), msg.c_str());
 }
 
-double PlayfieldView::SetTimeoutCallback::Impl(JsValueRef func, double dt) const
+void PlayfieldView::JsOutputDebugString(TSTRING msg)
+{
+	OutputDebugString(msg.c_str());
+}
+
+double PlayfieldView::JsSetTimeout(JsValueRef func, double dt)
 {
 	auto task = new JavascriptEngine::TimeoutTask(func, dt);
-	pfv->javascriptEngine->AddTask(task);
+	javascriptEngine->AddTask(task);
 	return task->id;
 }
 
-void PlayfieldView::ClearTimeoutCallback::Impl(double id) const
+void PlayfieldView::JsClearTimeout(double id)
 {
-	pfv->javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
 	{
 		if (auto tt = dynamic_cast<JavascriptEngine::TimeoutTask*>(task); tt != nullptr && tt->id == id)
 		{
@@ -480,16 +584,16 @@ void PlayfieldView::ClearTimeoutCallback::Impl(double id) const
 	});
 }
 
-double PlayfieldView::SetIntervalCallback::Impl(JsValueRef func, double dt) const
+double PlayfieldView::JsSetInterval(JsValueRef func, double dt)
 {
 	auto task = new JavascriptEngine::IntervalTask(func, dt);
-	pfv->javascriptEngine->AddTask(task);
+	javascriptEngine->AddTask(task);
 	return task->id;
 }
 
-void PlayfieldView::ClearIntervalCallback::Impl(double id) const
+void PlayfieldView::JsClearInterval(double id)
 {
-	pfv->javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
 	{
 		if (auto it = dynamic_cast<JavascriptEngine::IntervalTask*>(task); it != nullptr && it->id == id)
 		{
@@ -945,9 +1049,8 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 			// try to grab focus from the running game
 			Application::Get()->StealFocusFromGame();
 
-			// process a Select key, to bring up the menu
-			QueuedKey key(hWnd, KeyDown, &PlayfieldView::CmdSelect);
-			CmdSelect(key);
+			// process a Select command
+			DoSelect(false);
 		}
 		return true;
 
@@ -1345,6 +1448,10 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	// update the attract mode key event timer
 	attractMode.OnKeyEvent(this);
 
+	// get the original vkey from the message - we need this to test
+	// the state in auto-repeat
+	int vkeyOrig = (int)wParam;
+
 	// translate the key code
 	int vkey = KeyInput::TranslateExtKeys(msg, wParam, lParam);
 
@@ -1377,8 +1484,12 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 		mode = KeyDown;
 
 		// start a new auto-repeat timer
-		KbAutoRepeatStart(vkey, KeyRepeat);
+		KbAutoRepeatStart(vkey, vkeyOrig, KeyRepeat);
 	}
+
+	// fire a javascript key event; if that says to ignore it, we're done
+	if (!FireKeyEvent(mode, vkey))
+		return false;
 
 	// determine if we have a handler
 	if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
@@ -1395,22 +1506,22 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 }
 
 // Add a key press to the queue and process it
-void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<KeyCommandFunc> funcs)
+void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<const KeyCommand*> cmds)
 {
-	// add each mapped function to the key queue
-	for  (auto f : funcs)
+	// add each command to the key queue
+	for (auto c : cmds)
 	{
 		// queue the command
-		keyQueue.emplace_back(hwndSrc, mode, f);
+		keyQueue.emplace_back(hwndSrc, mode, c);
 
 		// Immediately process any DOF effects associated with the key
-		if (f == &PlayfieldView::CmdNext)
+		if (c->func == &PlayfieldView::CmdNext)
 			dof.SetKeyEffectState(_T("PBYFlipperRight"), (mode & KeyDown) != 0);
-		else if (f == &PlayfieldView::CmdPrev)
+		else if (c->func == &PlayfieldView::CmdPrev)
 			dof.SetKeyEffectState(_T("PBYFlipperLeft"), (mode & KeyDown) != 0);
-		else if (f == &PlayfieldView::CmdNextPage)
+		else if (c->func == &PlayfieldView::CmdNextPage)
 			dof.SetKeyEffectState(_T("PBYMagnaRight"), (mode & KeyDown) != 0);
-		else if (f == &PlayfieldView::CmdPrevPage)
+		else if (c->func == &PlayfieldView::CmdPrevPage)
 			dof.SetKeyEffectState(_T("PBYMagnaLeft"), (mode & KeyDown) != 0);
 	}
 
@@ -1493,6 +1604,21 @@ void PlayfieldView::ShowAboutBox()
 		if (const char *ffmpegVer = Application::Get()->GetFFmpegVersion(); ffmpegVer != nullptr)
 			GPDrawStringAdv(g, MsgFmt(_T("FFmpeg version %hs"), ffmpegVer),
 				smallerFont.get(), &br, origin, bbox);
+		
+		// add the ChakraCore version if we're using Javascript
+		if (javascriptEngine != nullptr)
+		{
+			// retrieve the ChakraCore DLL file version resource data
+			TCHAR ccdll[MAX_PATH];
+			GetExeFilePath(ccdll, countof(ccdll));
+			PathAppend(ccdll, _T("ChakraCore.dll"));
+			FileVersionInfo ccv(ccdll);
+			if (ccv.valid)
+			{
+				GPDrawStringAdv(g, MsgFmt(_T("Microsoft Chakra Core version %s"), ccv.versionStr.c_str()),
+					smallerFont.get(), &br, origin, bbox);
+			}
+		}
 
 		// draw the copyright details, bottom-justified
 		MsgFmt cprMsg(IDS_APP_CPR, G_VersionInfo.copyrightDates, PINBALLY_COPYRIGHT_OWNERS);
@@ -2283,6 +2409,50 @@ static void DrawInfoBoxCommon(const GameListItem *game,
 	gds.curOrigin = { rcLayout.X, rcLayout.Y };
 }
 
+// create a font for drawing arrows
+struct ArrowFont
+{
+	ArrowFont(int ptSize) : font(CreateGPFont(_T("Wingdings 3, Webdings"), ptSize, 400))
+	{
+		// determine which font we actually loaded
+		Gdiplus::FontFamily family;
+		font->GetFamily(&family);
+		family.GetFamilyName(fontName);
+
+		// set up the arrow characters based on the selected font
+		if (_tcscmp(fontName, _T("Wingdings 3")) == 0)
+		{
+			menuArrowUp = _T("\x81");
+			menuArrowDown = _T("\x82");
+			menuArrowLeft = _T("\x74");
+			menuArrowRight = _T("\x75");
+			subMenuArrow = _T("\x7d");
+		}
+		else if (_tcscmp(fontName, _T("Webdings")) == 0)
+		{
+			menuArrowUp = _T("\x35");
+			menuArrowDown = _T("\x36");
+			menuArrowLeft = _T("\x33");
+			menuArrowRight = subMenuArrow = _T("\x34");
+		}
+		else
+		{
+			menuArrowLeft = _T("\u02c2");
+			menuArrowRight = subMenuArrow = _T("\u02c3");
+			menuArrowUp = _T("\u02c4");
+			menuArrowDown = _T("\u02c5");
+		}
+	}
+
+	Gdiplus::Font *get() { return font.get(); }
+
+	std::unique_ptr<Gdiplus::Font> font;
+	TCHAR fontName[LF_FACESIZE];
+
+	const TCHAR *menuArrowUp, *menuArrowDown, *menuArrowLeft, *menuArrowRight;
+	TCHAR *subMenuArrow;
+};
+
 void PlayfieldView::ShowGameInfo()
 {
 	// ignore it if there's no game selection
@@ -2317,7 +2487,7 @@ void PlayfieldView::ShowGameInfo()
 		std::unique_ptr<Gdiplus::Font> smallerTextFont(CreateGPFont(_T("Tahoma"), 20, 400));
 		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(_T("Tahoma"), 18, 400));
 		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), 18, 400));
-		std::unique_ptr<Gdiplus::Font> symFont3(CreateGPFont(_T("Wingdings 3"), 18, 400));
+		ArrowFont arrowFont(18);
 		
 		//
 		// Main bibliographic details section
@@ -2468,10 +2638,9 @@ void PlayfieldView::ShowGameInfo()
 
 			// measure the strings, so we can align them at the right
 			TSTRING hs = LoadStringT(IDS_MENU_HIGH_SCORES);
-			static const TCHAR *arrow = _T("\x75");  // large right arrow in Wingdings 3
 			Gdiplus::RectF bbox1, bbox2;
 			g.MeasureString(hs.c_str(), -1, detailsFont.get(), Gdiplus::PointF(0, 0), &bbox1);
-			g.MeasureString(arrow, -1, symFont3.get(), Gdiplus::PointF(0, 0), &bbox2);
+			g.MeasureString(arrowFont.menuArrowRight, -1, arrowFont.font.get(), Gdiplus::PointF(0, 0), &bbox2);
 
 			// if this is the second pass, bottom-justify the nav hints (don't do this
 			// on the first pass, since we're just measuring the space we need; we can't
@@ -2483,7 +2652,7 @@ void PlayfieldView::ShowGameInfo()
 			gds.curOrigin.X = width - margin - bbox1.Width - bbox2.Width;
 			gds.DrawString(hs.c_str(), detailsFont.get(), &textBr, false);
 			gds.curOrigin.Y += (bbox1.Height - bbox2.Height) / 2.0f;
-			gds.DrawString(arrow, symFont3.get(), &textBr);
+			gds.DrawString(arrowFont.menuArrowRight, arrowFont.get(), &textBr);
 		}
 
 		// set the final height that we actually used, and count the drawing pass
@@ -2578,11 +2747,11 @@ void PlayfieldView::ShowHighScores()
 
 		// measure the "back to info box" navigation hint text
 		std::unique_ptr<Gdiplus::Font> linkFont(CreateGPFont(_T("Tahoma"), 18, 400));
-		std::unique_ptr<Gdiplus::Font> symFont3(CreateGPFont(_T("Wingdings 3"), 18, 400));
+		ArrowFont arrowFont(18);
 		TSTRING info = LoadStringT(IDS_MENU_INFO);
-		static const TCHAR *arrow = _T("\x74");  // large left arrow in Wingdings 3
+		const TCHAR *arrow = arrowFont.menuArrowLeft;
 		Gdiplus::RectF bbox1, bbox2;
-		g.MeasureString(arrow, -1, symFont3.get(), Gdiplus::PointF(0, 0), &bbox1);
+		g.MeasureString(arrow, -1, arrowFont.get(), Gdiplus::PointF(0, 0), &bbox1);
 		g.MeasureString(info.c_str(), -1, linkFont.get(), Gdiplus::PointF(0, 0), &bbox2);
 
 		// if this is the second pass, bottom-justify the nav hints (don't do this
@@ -2592,7 +2761,7 @@ void PlayfieldView::ShowHighScores()
 			gds.curOrigin.Y = height - margin - max(bbox1.Height, bbox2.Height);
 
 		// draw them
-		gds.DrawString(arrow, symFont3.get(), &textBr, false);
+		gds.DrawString(arrow, arrowFont.get(), &textBr, false);
 		gds.curOrigin.Y += (bbox1.Height - bbox2.Height) / 2.0f;
 		gds.DrawString(info.c_str(), linkFont.get(), &textBr);
 
@@ -2856,7 +3025,7 @@ void PlayfieldView::ProcessKeyQueue()
 		keyQueue.pop_front();
 
 		// process the command
-		(this->*key.func)(key);
+		(this->*key.cmd->func)(key);
 
 		// this counts as a key event for attract mode idle purposes
 		attractMode.OnKeyEvent(this);
@@ -4056,16 +4225,16 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 	std::unique_ptr<Gdiplus::Font> txtfont(CreateGPFont(_T("Tahoma"), ptSize, weight));
 	std::unique_ptr<Gdiplus::Font> dlgfont(CreateGPFont(_T("Tahoma"), dlgPtSize, weight));
 	std::unique_ptr<Gdiplus::Font> symfont(CreateGPFont(_T("Wingdings"), ptSize, weight));
-	std::unique_ptr<Gdiplus::Font> symfont2(CreateGPFont(_T("Wingdings 3"), ptSize, weight));
+	ArrowFont arrowFont(ptSize);
 
 	// checkmark and bullet characters in Wingdings
 	static const TCHAR *checkmark = _T("\xFC");
 	static const TCHAR *bullet = _T("\x9F");
 
-	// arrows (in Wingdings3)
-	static const TCHAR *subMenuArrow = _T("\x7D");
-	static const TCHAR *upArrow = _T("\x81");
-	static const TCHAR *downArrow = _T("\x82");
+	// arrows
+	const TCHAR *subMenuArrow = arrowFont.subMenuArrow;
+	const TCHAR *upArrow = arrowFont.menuArrowUp;
+	const TCHAR *downArrow = arrowFont.menuArrowDown;
 
 	// get the text font height
 	int txtHt = (int)txtfont->GetHeight(&g);
@@ -4240,9 +4409,9 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 
 	// create the text item overlay
 	if (!m->sprItems->Load(boxWid, menuHt, 
-		[this, boxWid, menuHt, &txtfont, &dlgfont, &symfont, &symfont2, &items, &m, 
+		[this, boxWid, menuHt, &txtfont, &dlgfont, &symfont, &arrowFont, &items, &m, 
 		lineHt, spacerHt, yPadding, borderWidth, nPagedItems, nItemsPerPage, &tformat,
-		promptHt, &rcLayout, flags]
+		upArrow, downArrow, subMenuArrow, promptHt, &rcLayout, flags]
 	    (HDC hdc, HBITMAP hbmp)
 	{
 		// start just below the top border
@@ -4298,7 +4467,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 
 				// use the up arrow in the symbol font
 				text = upArrow;
-				font = symfont2.get();
+				font = arrowFont.get();
 
 				// note that we're entering the paged section
 				inPagedSection = true;
@@ -4311,7 +4480,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 
 				// use the down arrow in the symbol font
 				text = downArrow;
-				font = symfont2.get();
+				font = arrowFont.get();
 
 				// we're exiting the paged section
 				inPagedSection = false;
@@ -4391,11 +4560,11 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 			{
 				// measure the arrow
 				Gdiplus::RectF arrowrc;
-				g.MeasureString(subMenuArrow, -1, symfont2.get(), pt, &tformat, &arrowrc);
+				g.MeasureString(subMenuArrow, -1, arrowFont.get(), pt, &tformat, &arrowrc);
 
 				// draw it to the right of the text box
 				Gdiplus::PointF ptarrow(pt.X + rc.Width + 8, pt.Y + rc.Height - arrowrc.Height);
-				g.DrawString(subMenuArrow, -1, symfont2.get(), ptarrow, br);
+				g.DrawString(subMenuArrow, -1, arrowFont.get(), ptarrow, br);
 			}
 
 			// draw the label text
@@ -5536,6 +5705,21 @@ void PlayfieldView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 
 bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize)
 {
+	// If this is a keyboard event, observe shift key changes.
+	if (raw->header.dwType == RIM_TYPEKEYBOARD)
+	{
+		switch (InputManager::GetInstance()->TranslateVKey(raw))
+		{
+		case VK_LSHIFT:
+			rawShiftKeyState.left = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+			break;
+
+		case VK_RSHIFT:
+			rawShiftKeyState.right = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+			break;
+		}
+	}
+
 	// If this is a "sink" event, it means that the key was pressed
 	// while we're in the background.  These events won't turn into
 	// regular WM_KEYxxx events, since we don't have focus.  Check
@@ -5569,7 +5753,14 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 
 			// look up the command; if we find a match, process the key press
 			if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
-				ProcessKeyPress(hWnd, keyType, it->second);
+			{
+				// fire a javascript key event
+				if (FireKeyEvent(keyType, vkey))
+				{
+					// process the key press
+					ProcessKeyPress(hWnd, keyType, it->second);
+				}
+			}
 		}
 	}
 
@@ -5591,12 +5782,16 @@ bool PlayfieldView::OnJoystickButtonChange(
 	// note the time of the event
 	lastInputEventTime = GetTickCount();
 
+	// figure the key press mode
+	KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
+
+	// fire a javascript joystick event; if that says to ignore it, we're done
+	if (!FireJoystickEvent(mode, js->logjs->index, button))
+		return false;
+
 	// look up the button in the command table
 	if (auto it = jsCommands.find(JsCommandKey(js->logjs->index, button)); it != jsCommands.end())
 	{
-		// figure the key press mode
-		KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
-
 		// process the key press
 		ProcessKeyPress(hWnd, mode, it->second);
 
@@ -5613,10 +5808,11 @@ bool PlayfieldView::OnJoystickButtonChange(
 	return false;
 }
 
-void PlayfieldView::KbAutoRepeatStart(int vkey, KeyPressType repeatMode)
+void PlayfieldView::KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repeatMode)
 {
 	// remember the key for auto-repeat
 	kbAutoRepeat.vkey = vkey;
+	kbAutoRepeat.vkeyOrig = vkeyOrig;
 	kbAutoRepeat.repeatMode = repeatMode;
 
 	// auto-repeat is now active
@@ -5640,7 +5836,7 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 	if (kbAutoRepeat.active)
 	{
 		// if the key isn't still pressed, cancel auto-repeat mode
-		if (GetAsyncKeyState(kbAutoRepeat.vkey) >= 0)
+		if (GetAsyncKeyState(kbAutoRepeat.vkeyOrig) >= 0)
 		{
 			KillTimer(hWnd, kbRepeatTimerID);
 			return;
@@ -5649,9 +5845,13 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 		// don't deliver auto-repeat events when a wheel animation is running
 		if (wheelAnimMode == WheelAnimNone)
 		{
-			// look up the button in the command table
-			if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
-				ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, it->second);
+			// fire a javascript key event; if that says to ignore it, we're done
+			if (FireKeyEvent(kbAutoRepeat.repeatMode, kbAutoRepeat.vkey))
+			{
+				// look up the button in the command table
+				if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
+					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, it->second);
+			}
 		}
 
 		// Reset the timer for the repeat interval.  The system parameter
@@ -5702,9 +5902,13 @@ void PlayfieldView::OnJsAutoRepeatTimer()
 		// don't deliver auto-repeat events when a wheel animation is running
 		if (wheelAnimMode == WheelAnimNone)
 		{
-			// look up the button in the command table
-			if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
-				ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, it->second);
+			// fire a joystick event
+			if (FireJoystickEvent(jsAutoRepeat.repeatMode, jsAutoRepeat.unit, jsAutoRepeat.button))
+			{
+				// look up the button in the command table
+				if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
+					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, it->second);
+			}
 		}
 
 		// Reset the timer for the repeat interval.  The system parameter
@@ -5846,7 +6050,7 @@ void PlayfieldView::OnConfigChange()
 	{
 		// get the command
 		auto itCmd = commandsByName.find(cmd.configID);
-		KeyCommandFunc cmdFunc = itCmd == commandsByName.end() ? nullptr : itCmd->second.func;
+		const KeyCommand &keyCmd = itCmd == commandsByName.end() ? NoCommand : itCmd->second;
 
 		// if we found the command, add the button to the command's button list
 		if (itCmd != commandsByName.end())
@@ -5857,7 +6061,7 @@ void PlayfieldView::OnConfigChange()
 		{
 		case InputManager::Button::TypeKB:
 			// Keyboard key.  Assign the command handler in the dispatch table.
-			AddVkeyCommand(btn.code, cmdFunc);
+			AddVkeyCommand(btn.code, keyCmd);
 
 			// add it to the admin host list
 			adminHostKeys.emplace_back(MsgFmt(_T("%s kb %d"), cmd.configID, btn.code));
@@ -5886,13 +6090,13 @@ void PlayfieldView::OnConfigChange()
 		case InputManager::Button::TypeJS:
 			// Joystick button.  Check if the command is tied to a
 			// particular joystick or is for any joystick (unit -1).
-			if (cmdFunc != nullptr)
+			if (&keyCmd != &NoCommand)
 			{
 				if (btn.unit != -1)
 				{
 					// The command is for a specific unit.  Add an entry
 					// to the joystick lookup table.
-					AddJsCommand(btn.unit, btn.code, cmdFunc);
+					AddJsCommand(btn.unit, btn.code, keyCmd);
 
 					// add it to the admin host list
 					auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
@@ -5904,7 +6108,7 @@ void PlayfieldView::OnConfigChange()
 					// The command is for any joystick.  Add an entry to
 					// each logical joystick currently in the system.
 					for (size_t unit = 0; unit < numLogJs; ++unit)
-						AddJsCommand((int)unit, btn.code, cmdFunc);
+						AddJsCommand((int)unit, btn.code, keyCmd);
 
 					// add it to the admin host list
 					adminHostKeys.emplace_back(MsgFmt(_T("%s js %d"), cmd.configID, btn.code));
@@ -5941,7 +6145,7 @@ void PlayfieldView::OnConfigChange()
 	infoBoxOpts.tableFile = cfg->GetBool(ConfigVars::InfoBoxTableFile, false);
 }
 
-void PlayfieldView::AddJsCommand(int unit, int button, KeyCommandFunc func)
+void PlayfieldView::AddJsCommand(int unit, int button, const KeyCommand &cmd)
 {
 	// look up the unit:button key in the command table
 	int key = JsCommandKey(unit, button);
@@ -5952,10 +6156,10 @@ void PlayfieldView::AddJsCommand(int unit, int button, KeyCommandFunc func)
 		it = jsCommands.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple()).first;
 
 	// now add the function to the list of associated functions
-	it->second.emplace_back(func);
+	it->second.emplace_back(&cmd);
 }
 
-void PlayfieldView::AddVkeyCommand(int vkey, KeyCommandFunc func)
+void PlayfieldView::AddVkeyCommand(int vkey, const KeyCommand &cmd)
 {
 	// look up the vkey in the command table
 	auto it = vkeyToCommand.find(vkey);
@@ -5965,7 +6169,7 @@ void PlayfieldView::AddVkeyCommand(int vkey, KeyCommandFunc func)
 		it = vkeyToCommand.emplace(std::piecewise_construct, std::forward_as_tuple(vkey), std::forward_as_tuple()).first;
 
 	// now add the function to the list of associated functions
-	it->second.emplace_back(func);
+	it->second.emplace_back(&cmd);
 }
 
 void PlayfieldView::OnJoystickAdded(JoystickManager::PhysicalJoystick *js, bool logicalIsNew)
@@ -5979,15 +6183,15 @@ void PlayfieldView::OnJoystickAdded(JoystickManager::PhysicalJoystick *js, bool 
 		{
 			// get the command
 			auto itCmd = commandsByName.find(cmd.configID);
-			KeyCommandFunc cmdFunc = itCmd == commandsByName.end() ? nullptr : itCmd->second.func;
+			const KeyCommand &keyCmd = itCmd == commandsByName.end() ? NoCommand : itCmd->second;
 
 			// if this is a button specifically on our joystick OR assigned
 			// for "any joystick", create a command mapping
-			if (cmdFunc != nullptr
+			if (&keyCmd != &NoCommand
 				&& btn.devType == InputManager::Button::TypeJS
 				&& (btn.unit == js->logjs->index || btn.unit == -1))
 			{
-				AddJsCommand(btn.unit, btn.code, cmdFunc);
+				AddJsCommand(btn.unit, btn.code, keyCmd);
 			}
 		});
 	}
@@ -5996,168 +6200,171 @@ void PlayfieldView::OnJoystickAdded(JoystickManager::PhysicalJoystick *js, bool 
 void PlayfieldView::CmdSelect(const QueuedKey &key)
 {
 	if (key.mode == KeyDown)
+		DoSelect(key.cmd->func == &PlayfieldView::CmdExit);
+}
+
+void PlayfieldView::DoSelect(bool usingExitKey)
+{
+	// check what's showing
+	if (curMenu != nullptr)
 	{
-		// check what's showing
-		if (curMenu != nullptr)
+		// activate the current selection on the menu
+		if (curMenu->selected != curMenu->items.end())
 		{
-			// activate the current selection on the menu
-			if (curMenu->selected != curMenu->items.end())
-			{
-				// play the Select sound and show the DOF menu effect
-				PlayButtonSound(_T("Select"));
-				QueueDOFPulse(L"PBYMenuSelect");
-
-				// dismiss the menu, unless the item is marked "Stay Open"
-				if (!curMenu->selected->stayOpen)
-					StartMenuAnimation(false);
-
-				// run the menu command
-				SendMessage(WM_COMMAND, curMenu->selected->cmd);
-			}
-		}
-		else if (popupSprite != nullptr)
-		{
-			// assume we'll use the "deselect menu" sound
-			const TCHAR *sound = _T("Deselect");
-
-			// assume we'll close the popup
-			bool close = true;
-
-			// check the popup type
-			if (popupType == PopupRateGame)
-			{
-				// Rate Game dialog - commit the new rating to the game database
-				GameList *gl = GameList::Get();
-				GameListItem *game = gl->GetNthGame(0);
-				if (IsGameValid(game))
-					gl->SetRating(game, workingRating);
-
-				// use the "select" sound effect to indicate success
-				sound = _T("Select");
-
-				// make sure we redraw the info box
-				infoBox.game = nullptr;
-
-				// If a rating filter is in effect, this could filter out
-				// the current game.
-				if (dynamic_cast<const RatingFilter*>(gl->GetCurFilter()) != nullptr)
-				{
-					gl->RefreshFilter();
-					UpdateSelection();
-					UpdateAllStatusText();
-				}
-			}
-			else if (popupType == PopupCaptureDelay)
-			{
-				// Capture Delay dialog - commit the new adjusted startup 
-				// delay and return to the capture menu
-				captureStartupDelay = adjustedCaptureStartupDelay;
-				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
-			}
-			else if (popupType == PopupMediaList) 
-			{
-				// Media list dialog - exeucte the current command
-				DoMediaListCommand(close);
-			}
-			else if (popupType == PopupBatchCapturePreview)
-			{
-				ClosePopup();
-				BatchCaptureStep4();
-				return;
-			}
-
-			// if desired, remove the popup
-			if (close)
-				ClosePopup();
-
-			// play the selected button sound
-			PlayButtonSound(sound);
-		}
-		else if (runningGamePopup != nullptr)
-		{
-			// Running a game.  Show the game menu.
-			ShowPauseMenu(key.func == &PlayfieldView::CmdExit);
-
-			// play the Select sound
+			// play the Select sound and show the DOF menu effect
 			PlayButtonSound(_T("Select"));
+			QueueDOFPulse(L"PBYMenuSelect");
+
+			// dismiss the menu, unless the item is marked "Stay Open"
+			if (!curMenu->selected->stayOpen)
+				StartMenuAnimation(false);
+
+			// run the menu command
+			SendMessage(WM_COMMAND, curMenu->selected->cmd);
 		}
-		else
+	}
+	else if (popupSprite != nullptr)
+	{
+		// assume we'll use the "deselect menu" sound
+		const TCHAR *sound = _T("Deselect");
+
+		// assume we'll close the popup
+		bool close = true;
+
+		// check the popup type
+		if (popupType == PopupRateGame)
 		{
-			// base mode - show the main game menu
-			std::list<MenuItemDesc> md;
+			// Rate Game dialog - commit the new rating to the game database
 			GameList *gl = GameList::Get();
-			GameListItem *curGame = gl->GetNthGame(0);
-			if (IsGameValid(curGame))
+			GameListItem *game = gl->GetNthGame(0);
+			if (IsGameValid(game))
+				gl->SetRating(game, workingRating);
+
+			// use the "select" sound effect to indicate success
+			sound = _T("Select");
+
+			// make sure we redraw the info box
+			infoBox.game = nullptr;
+
+			// If a rating filter is in effect, this could filter out
+			// the current game.
+			if (dynamic_cast<const RatingFilter*>(gl->GetCurFilter()) != nullptr)
 			{
-				// add "Play Game"
-				md.emplace_back(LoadStringT(IDS_MENU_PLAY), ID_PLAY_GAME);
-
-				// if it's not set up yet, add setup options
-				if (!curGame->isConfigured)
-					md.emplace_back(LoadStringT(IDS_MENU_GAME_SETUP), ID_GAME_SETUP);
-
-				// add a separator
-				md.emplace_back(_T(""), -1);
-
-				// add "Information"
-				md.emplace_back(LoadStringT(IDS_MENU_INFO), ID_GAMEINFO);
-
-				// add "High Scores", if high scores are available
-				if (curGame->highScores.size() != 0)
-					md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
-
-				// add "Flyer", if the game has a flyer
-				if (curGame->MediaExists(GameListItem::flyerImageType))
-					md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
-
-				// add "Instructions",if the game has an instruction card
-				if (curGame->MediaExists(GameListItem::instructionCardImageType))
-					md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
-
-				// add a separator
-				md.emplace_back(_T(""), -1);
-
-				// add "Rate Table"
-				md.emplace_back(LoadStringT(IDS_MENU_RATE_GAME), ID_RATE_GAME);
-
-				// add "Add to Favorites" or "In Favorites", as appropriate
-				if (gl->IsFavorite(curGame))
-					md.emplace_back(LoadStringT(IDS_MENU_INFAVORITES), ID_REMOVE_FAVORITE, MenuChecked);
-				else
-					md.emplace_back(LoadStringT(IDS_MENU_ADDFAVORITE), ID_ADD_FAVORITE);
-
-				// add a separator
-				md.emplace_back(_T(""), -1);
+				gl->RefreshFilter();
+				UpdateSelection();
+				UpdateAllStatusText();
 			}
-
-			// Add the filters.  Start with All Games and Favorites.
-			const GameListFilter *curFilter = gl->GetCurFilter();
-			auto AddFilter = [gl, &md, curFilter](const GameListFilter *f) {
-				md.emplace_back(f->GetFilterTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
-			};
-			AddFilter(gl->GetAllGamesFilter());
-			AddFilter(gl->GetFavoritesFilter());
-
-			// Add the filter classes that have submenus with the specific filters
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_ERA), ID_FILTER_BY_ERA, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_MANUF), ID_FILTER_BY_MANUF, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_SYS), ID_FILTER_BY_SYS, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_CATEGORY), ID_FILTER_BY_CATEGORY, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_RATING), ID_FILTER_BY_RATING, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
-			md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
-
-			// add the "Return" item to exit the menu
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_MAINRETURN), ID_MENU_RETURN);
-
-			// display the menu
-			ShowMenu(md, 0);
-
-			// play the Select sound and show the Menu Open DOF effect
-			PlayButtonSound(_T("Select"));
-			QueueDOFPulse(L"PBYMenuOpen");
 		}
+		else if (popupType == PopupCaptureDelay)
+		{
+			// Capture Delay dialog - commit the new adjusted startup 
+			// delay and return to the capture menu
+			captureStartupDelay = adjustedCaptureStartupDelay;
+			DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
+		}
+		else if (popupType == PopupMediaList)
+		{
+			// Media list dialog - exeucte the current command
+			DoMediaListCommand(close);
+		}
+		else if (popupType == PopupBatchCapturePreview)
+		{
+			ClosePopup();
+			BatchCaptureStep4();
+			return;
+		}
+
+		// if desired, remove the popup
+		if (close)
+			ClosePopup();
+
+		// play the selected button sound
+		PlayButtonSound(sound);
+	}
+	else if (runningGamePopup != nullptr)
+	{
+		// Running a game.  Show the game menu.
+		ShowPauseMenu(usingExitKey);
+
+		// play the Select sound
+		PlayButtonSound(_T("Select"));
+	}
+	else
+	{
+		// base mode - show the main game menu
+		std::list<MenuItemDesc> md;
+		GameList *gl = GameList::Get();
+		GameListItem *curGame = gl->GetNthGame(0);
+		if (IsGameValid(curGame))
+		{
+			// add "Play Game"
+			md.emplace_back(LoadStringT(IDS_MENU_PLAY), ID_PLAY_GAME);
+
+			// if it's not set up yet, add setup options
+			if (!curGame->isConfigured)
+				md.emplace_back(LoadStringT(IDS_MENU_GAME_SETUP), ID_GAME_SETUP);
+
+			// add a separator
+			md.emplace_back(_T(""), -1);
+
+			// add "Information"
+			md.emplace_back(LoadStringT(IDS_MENU_INFO), ID_GAMEINFO);
+
+			// add "High Scores", if high scores are available
+			if (curGame->highScores.size() != 0)
+				md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
+
+			// add "Flyer", if the game has a flyer
+			if (curGame->MediaExists(GameListItem::flyerImageType))
+				md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
+
+			// add "Instructions",if the game has an instruction card
+			if (curGame->MediaExists(GameListItem::instructionCardImageType))
+				md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
+
+			// add a separator
+			md.emplace_back(_T(""), -1);
+
+			// add "Rate Table"
+			md.emplace_back(LoadStringT(IDS_MENU_RATE_GAME), ID_RATE_GAME);
+
+			// add "Add to Favorites" or "In Favorites", as appropriate
+			if (gl->IsFavorite(curGame))
+				md.emplace_back(LoadStringT(IDS_MENU_INFAVORITES), ID_REMOVE_FAVORITE, MenuChecked);
+			else
+				md.emplace_back(LoadStringT(IDS_MENU_ADDFAVORITE), ID_ADD_FAVORITE);
+
+			// add a separator
+			md.emplace_back(_T(""), -1);
+		}
+
+		// Add the filters.  Start with All Games and Favorites.
+		const GameListFilter *curFilter = gl->GetCurFilter();
+		auto AddFilter = [gl, &md, curFilter](const GameListFilter *f) {
+			md.emplace_back(f->GetFilterTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
+		};
+		AddFilter(gl->GetAllGamesFilter());
+		AddFilter(gl->GetFavoritesFilter());
+
+		// Add the filter classes that have submenus with the specific filters
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_ERA), ID_FILTER_BY_ERA, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_MANUF), ID_FILTER_BY_MANUF, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_SYS), ID_FILTER_BY_SYS, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_CATEGORY), ID_FILTER_BY_CATEGORY, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_RATING), ID_FILTER_BY_RATING, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
+		md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
+
+		// add the "Return" item to exit the menu
+		md.emplace_back(_T(""), -1);
+		md.emplace_back(LoadStringT(IDS_MENU_MAINRETURN), ID_MENU_RETURN);
+
+		// display the menu
+		ShowMenu(md, 0);
+
+		// play the Select sound and show the Menu Open DOF effect
+		PlayButtonSound(_T("Select"));
+		QueueDOFPulse(L"PBYMenuOpen");
 	}
 }
 

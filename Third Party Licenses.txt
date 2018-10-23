@@ -24,7 +24,7 @@ Project article is a much better starting point.]
 
 ---------------------------------------------------------------------------
 
-ChakraCore
+Chakra Core (Javascript engine)
 Copyright (c) Microsoft Corporation
 https://github.com/Microsoft/ChakraCore/
 

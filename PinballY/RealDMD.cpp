@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "../Utilities/Config.h"
 #include "../Utilities/FileUtil.h"
+#include "../Utilities/FileVersionInfo.h"
 #include "RealDMD.h"
 #include "GameList.h"
 #include "HighScores.h"
@@ -315,102 +316,75 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 	// as "universal" and "freezy") rather than holding out for an exact 
 	// match.
 	//
-	DWORD vsInfoHandle;
-	DWORD vsInfoSize = GetFileVersionInfoSize(dllPath.c_str(), &vsInfoHandle);
-	if (vsInfoSize != 0)
+	Log(_T("+ retrieving file version info for DLL, to check for special handling\n"), dllPath.c_str());
+	FileVersionInfo vs(dllPath.c_str());
+	if (vs.valid)
 	{
-		// load the version info
-		std::unique_ptr<BYTE> vsInfo(new BYTE[vsInfoSize]);
-		Log(_T("+ retrieving file version info for DLL, to check for special handling\n"), dllPath.c_str());
-		if (GetFileVersionInfo(dllPath.c_str(), vsInfoHandle, vsInfoSize, vsInfo.get()))
+		// log the strings we read
+		Log(_T("+ Version Info data: version=%s, product name=\"%s\", comments=\"%s\", copyright=\"%s\"\n"),
+			vs.versionStr.c_str(), vs.productName.c_str(), vs.comments.c_str(), vs.legalCopyright.c_str());
+
+		// Look for "universal" in the product string and "freezy" in the
+		// copyright string, insensitive to case.
+		if (std::regex_search(vs.productName, std::basic_regex<TCHAR>(_T("\\buniversal\\b"), std::regex_constants::icase))
+			|| std::regex_search(vs.legalCopyright, std::basic_regex<TCHAR>(_T("\\bfreezy\\b"), std::regex_constants::icase)))
 		{
-			// read the ProductName, Comments, and LegalCopyright strings
-			TSTRING name, comments, cpr;
-			LPCTSTR nameBuf = nullptr;
-			UINT nameLen = 0;
-			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\ProductName"), (LPVOID*)&nameBuf, &nameLen)
-				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\ProductName"), (LPVOID*)&nameBuf, &nameLen))
-				name.assign(nameBuf, nameLen);
-			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\Comment"), (LPVOID*)&nameBuf, &nameLen)
-				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\Comments"), (LPVOID*)&nameBuf, &nameLen))
-				comments.assign(nameBuf, nameLen);
-			if (VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\040904e4\\LegalCopyright"), (LPVOID*)&nameBuf, &nameLen)
-				|| VerQueryValue(vsInfo.get(), _T("\\StringFileInfo\\000004b0\\LegalCopyright"), (LPVOID*)&nameBuf, &nameLen))
-				cpr.assign(nameBuf, nameLen);
+			// It's the dmd-extensions version of the DLL.  So note.
+			Log(_T("+ This appears to be the dmd-extensions version of the DLL, based on the product/copyright strings\n"));
+			dmdExtInfo.matched = true;
 
-			// retrieve the fixed data portion
-			VS_FIXEDFILEINFO *vsFixedInfo = nullptr;
-			UINT vsFixedInfoLen;
-			if (!VerQueryValue(vsInfo.get(), _T("\\"), (LPVOID*)&vsFixedInfo, &vsFixedInfoLen))
-				vsFixedInfo = nullptr;
+			// VERSION NOTE:  Freezy's nominal "1.7.2" release (as listed in
+			// the GitHub release list) actually has 1.7.3 version stamps on
+			// all of the files.  The version we check is the one marked in
+			// the file stamps.  (This is just as well, because 1.7.2 would
+			// be ambiguous.  There were several test builds labeled 1.7.2
+			// in circulation with different bug fixes.  All 1.7.3 releases
+			// should have the bug fixes we're interested in.)
 
-			// pull out the major.minor.maint.patch as a 64-bit int
-			ULONGLONG vsnNum = 0;
-			auto vsnPart = [&vsnNum](int bitOfs) { return (int)((vsnNum >> bitOfs) & 0xFFFF); };
-			if (vsFixedInfo != nullptr)
-				vsnNum = (((ULONGLONG)vsFixedInfo->dwProductVersionMS) << 32) | vsFixedInfo->dwProductVersionLS;
-
-			// log the strings we read
-			Log(_T("+ Version Info data: version=%d.%d.%d.%d, product name=\"%s\", comments=\"%s\", copyright=\"%s\"\n"),
-				vsnPart(48), vsnPart(32), vsnPart(16), vsnPart(0), name.c_str(), comments.c_str(), cpr.c_str());
-
-			// Look for "universal" in the product string and "freezy" in the
-			// copyright string, insensitive to case.
-			if (std::regex_search(name, std::basic_regex<TCHAR>(_T("\\buniversal\\b"), std::regex_constants::icase))
-				|| std::regex_search(name, std::basic_regex<TCHAR>(_T("\\bfreezy\\b"), std::regex_constants::icase)))
+			// Check the product version to see if it's a newer version
+			// with the fix for a bug that caused the DLL to crash if we
+			// called PM_GameSettings() more than once per process
+			// lifetime.  The fix is pull request #122, which is in
+			// official releases 1.7.3 and later.
+			if (vs.llVersion >= 0x0001000700030000UL
+				|| std::regex_search(vs.comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#122\\b"))))
 			{
-				// It's the dmd-extensions version of the DLL.  So note.
-				Log(_T("+ This appears to be the dmd-extensions version of the DLL, based on the product/copyright strings\n"));
-				dmdExtInfo.matched = true;
+				Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
+				dmdExtInfo.settingsFix = true;
+			}
+			else
+			{
+				Log(_T("+ Based on the version number, this version of the DLL has a bug in PM_GameSettings,\n")
+					_T("  so we won't call that function; as a result, per-game coloring from your VPinMAME\n")
+					_T("  settings won't be used during this session.\n"));
+			}
 
-				// VERSION NOTE:  Freezy's nominal "1.7.2" release (as listed in
-				// the GitHub release list) actually has 1.7.3 version stamps on
-				// all of the files.  The version we check is the one marked in
-				// the file stamps.  (This is just as well, because 1.7.2 would
-				// be ambiguous.  There were several test builds labeled 1.7.2
-				// in circulation with different bug fixes.  All 1.7.3 releases
-				// should have the bug fixes we're interested in.)
-
-				// Check the product version to see if it's a newer version
-				// with the fix for a bug that caused the DLL to crash if we
-				// called PM_GameSettings() more than once per process
-				// lifetime.  The fix is pull request #122, which is in
-				// official releases 1.7.3 and later.
-				if (vsnNum >= 0x0001000700030000UL 
-					|| std::regex_search(comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#122\\b"))))
-				{
-					Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
-					dmdExtInfo.settingsFix = true;
-				}
-				else
-				{
-					Log(_T("+ Based on the version number, this version of the DLL has a bug in PM_GameSettings,\n")
-						_T("  so we won't call that function; as a result, per-game coloring from your VPinMAME\n")
-						_T("  settings won't be used during this session.\n"));
-				}
-
-				// Check the product version to see if it has a fix for the
-				// Close/Open bug, which makes the DLL crash if we try to close
-				// and reopen it more than once per process lifetime.   This is
-				// fixed in pull request #127, which is in official releases
-				// 1.7.3 and later.
-				if (vsnNum >= 0x0001000700030000UL
-					|| std::regex_search(comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#127\\b"))))
-				{
-					Log(_T("+ Based on the version number, this version has the fix for the Open/Close bug\n"));
-					dmdExtInfo.virtualCloseFix = true;
-				}
-				else
-				{
-					Log(_T("+ Based on the version number, this version of the DLL has a bug that crashes\n")
-						_T("  the process if we try to close and later reopen the DLL session.  As a result,\n")
-						_T("  we'll leave the session open permanently once opened.  This may result in the\n")
-						_T("  DLL's virtual DMD window remaining visible even if you explicitly disable the\n")
-						_T("  real DMD feature in the options.  Close PinballY and restart it to get rid of\n")
-						_T("  the extra window.\n"));
-				}
+			// Check the product version to see if it has a fix for the
+			// Close/Open bug, which makes the DLL crash if we try to close
+			// and reopen it more than once per process lifetime.   This is
+			// fixed in pull request #127, which is in official releases
+			// 1.7.3 and later.
+			if (vs.llVersion >= 0x0001000700030000UL
+				|| std::regex_search(vs.comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#127\\b"))))
+			{
+				Log(_T("+ Based on the version number, this version has the fix for the Open/Close bug\n"));
+				dmdExtInfo.virtualCloseFix = true;
+			}
+			else
+			{
+				Log(_T("+ Based on the version number, this version of the DLL has a bug that crashes\n")
+					_T("  the process if we try to close and later reopen the DLL session.  As a result,\n")
+					_T("  we'll leave the session open permanently once opened.  This may result in the\n")
+					_T("  DLL's virtual DMD window remaining visible even if you explicitly disable the\n")
+					_T("  real DMD feature in the options.  Close PinballY and restart it to get rid of\n")
+					_T("  the extra window.\n"));
 			}
 		}
+	}
+	else
+	{
+		Log(_T("++ DLL version info not available; we must assume this is an old version with known bugs, so some\n")
+			_T("   features will be disabled.  Please update your DmdDevice.dll to a current version.\n\n"));
 	}
 
 	// If it's the dmd-extensions DLL, check its .ini file before

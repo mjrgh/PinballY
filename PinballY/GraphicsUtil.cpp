@@ -95,62 +95,38 @@ GdiplusIniter::~GdiplusIniter()
 // Load a PNG resource into a GDI+ Bitmap
 Gdiplus::Bitmap *GPBitmapFromPNG(int resid)
 {
-	// find the PNG resource
-	HRSRC hres = FindResource(G_hInstance, MAKEINTRESOURCE(resid), _T("PNG"));
-	if (hres == 0)
-		return 0;
+	// load and lock the PNG resource
+	ResourceLocker res(resid, _T("PNG"));
+	if (res.GetData() == nullptr)
+		return nullptr;
 
-	// get its size
-	DWORD sz = SizeofResource(G_hInstance, hres);
-	if (sz == 0)
-		return 0;
+	// create a stream on the HGLOBAL
+	RefPtr<IStream> pstr(SHCreateMemStream(static_cast<const BYTE*>(res.GetData()), res.GetSize()));
+	if (pstr == nullptr)
+		return nullptr;
 
-	// load it
-	const void *pres = LockResource(LoadResource(G_hInstance, hres));
-	if (pres == 0)
-		return 0;
-
-	// allocate space
-	HGLOBAL hglobal = GlobalAlloc(GMEM_MOVEABLE, sz);
-	if (hglobal == 0)
-		return 0;
-
-	// no bitmap yet
-	Gdiplus::Bitmap *bmp = 0;
-
-	// load the data into the hglobal
-	void *pbuf = GlobalLock(hglobal);
-	if (pbuf != 0)
-	{
-		// copy the image contents
-		CopyMemory(pbuf, pres, sz);
-
-		// create a stream
-		IStream *pstr = 0;
-		if (CreateStreamOnHGlobal(hglobal, FALSE, &pstr) == S_OK)
-		{
-			// finally! read the PNG from the stream
-			bmp = Gdiplus::Bitmap::FromStream(pstr);
-
-			// done with the stream
-			pstr->Release();
-		}
-
-		// unlock the hglobal
-		GlobalUnlock(hglobal);
-	}
-
-	// done with the hglobal
-	GlobalFree(hglobal);
-
-	// return the Bitmap object
-	return bmp;
+	// create the bitmap
+	return Gdiplus::Bitmap::FromStream(pstr);
 }
 
 static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight)
 {
 	// figure the style
 	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
+
+	// if multiple comma-separated names were provided, try them in order
+	if (_tcschr(faceName, ',') != nullptr)
+	{
+		// try each item in the list
+		for (auto &s : StrSplit<TSTRING>(faceName, ','))
+		{
+			// try this item
+			Gdiplus::FontFamily family(StrTrim<TSTRING>(s.c_str()).c_str());
+			std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
+			if (font->IsAvailable())
+				return font.release();
+		}
+	}
 
 	// create the font
 	Gdiplus::FontFamily family(faceName);

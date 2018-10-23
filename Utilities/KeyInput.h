@@ -79,6 +79,27 @@ public:
 		// for presentation in the UI (e.g., "=" or "Page Up").
 		const TCHAR *friendlyName;
 
+		// Javascript Event.key value, for generating browser-like
+		// javascript events.  For keys with shifted or NumLock variations,
+		// this contains a "|" in the string separating the normal and
+		// shifted/NumLock'ed versions of the key.
+		const TCHAR *jsEventKey;
+
+		// Javascript Event.code value for the key
+		const TCHAR *jsEventCode;
+
+		// Javascript Event.which value for the key
+		int jsEventWhich;
+
+		// Javascript Event.location:
+		//
+		//   0   default
+		//   1   left key of a left/right pair (shift, ctrl, alt, windows)
+		//   2   right key of a left/right pair
+		//   3   numeric keypad
+		//   
+		int jsEventLocation;
+
 		// UI sort key.  This is an integer that can be compared to
 		// the sort key for another key label entry to determine the
 		// relative order of the entries.  The ordering isn't simply

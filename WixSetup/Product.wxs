@@ -21,6 +21,7 @@
     <Feature Id="ProductFeature" Title="WixSetup" Level="1">
       <ComponentRef Id="PinballY" />
       <ComponentRef Id="SevenZip"/>
+			<ComponentRef Id="Scripts"/>
       <ComponentRef Id="ffmpeg"/>
       <ComponentRef Id="PINemHi"/>
       <ComponentGroupRef Id="HeatGeneratedAssets" />
@@ -72,6 +73,7 @@
           <Directory Id="PBYDIR" >
             <Directory Id="ASSETSDIR" Name="Assets" />
             <Directory Id="HELPDIR" Name="Help" />
+						<Directory Id="SCRIPTSDIR" Name="Scripts" />
             <Directory Id="FARSIGHTDIR" Name="Farsight" />
             <Directory Id="FFMPEGDIR" Name="ffmpeg" />
             <Directory Id="SEVENZIPDIR" Name="7-Zip" />
@@ -95,7 +97,7 @@
         <File Id="AdminModeEXE" Source="$(var.PinballY Admin Mode.TargetPath)" />
         <File Id="OptionsDialogDLL" Source="$(var.OptionsDialog.TargetPath)" />
         <File Id="WatchdogEXE" Source="$(var.PinballY Watchdog.TargetPath)" />
-				<File Id="ChakraCoreDLL" Source="$(var.PinballY.OutDir)ChakraCore.dll" />
+				<File Id="ChakraCoreDLL" Source="$(var.PinballY.TargetDir)ChakraCore.dll" />
         <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
         <File Id="MainDefaultSettings" Source="$(var.SolutionDir)DefaultSettings.txt" />
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
@@ -108,6 +110,12 @@
 				<?endif?>
 			</Component>
     </DirectoryRef>
+
+		<DirectoryRef Id="SCRIPTSDIR">
+			<Component Id="Scripts" Guid="FC0D9658-A410-4641-9798-740329A5C812">
+				<File Source="$(var.SolutionDir)Scripts\Scripts_Folder.txt" />
+			</Component>
+		</DirectoryRef>
 
     <DirectoryRef Id="SEVENZIPDIR">
       <Component Id="SevenZip" Guid="82137583-E243-4728-A562-6FF6BC3FB238">

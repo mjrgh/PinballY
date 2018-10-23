@@ -85,14 +85,14 @@ JavascriptEngine::~JavascriptEngine()
 	JsDisposeRuntime(runtime);
 }
 
-bool JavascriptEngine::Run(const TCHAR *script, const TCHAR *url, ErrorHandler &eh)
+bool JavascriptEngine::LoadModule(const TCHAR *url, ErrorHandler &eh)
 {
 	JsErrorCode err;
 	auto Error = [&err, &eh](const TCHAR *where)
 	{
 		MsgFmt details(_T("%s failed: %s"), where, JsErrorToString(err));
-		eh.SysError(LoadStringT(IDS_ERR_JSRUN), details);
-		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Script execution error: %s\n"), details.Get());
+		eh.SysError(LoadStringT(IDS_ERR_JSLOADMOD), details);
+		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Module load error: %s\n"), details.Get());
 		return false;
 	};
 
@@ -101,9 +101,28 @@ bool JavascriptEngine::Run(const TCHAR *script, const TCHAR *url, ErrorHandler &
 	if ((err = FetchImportedModuleCommon(nullptr, L"", TCHARToWide(url), &record)) != JsNoError)
 		return Error(_T("Fetching main module"));
 
-#if 0
+	// success
+	return true;
+}
+
+bool JavascriptEngine::EvalScript(const WCHAR *scriptText, const TCHAR *url, JsValueRef *returnVal, ErrorHandler &eh)
+{
+	JsErrorCode err;
+	auto Error = [&err, &eh](const TCHAR *where)
+	{
+		MsgFmt details(_T("%s failed: %s"), where, JsErrorToString(err));
+		eh.SysError(LoadStringT(IDS_ERR_JSRUN), details);
+		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Script error: %s\n"), details.Get());
+		return false;
+	};
+
+	// create a cookie to represent the script
+	sourceCookies.emplace_back(this, TCHARToWide(url));
+	const SourceCookie *cookie = &sourceCookies.back();
+
 	// run the script
-	if ((err = JsRunScript(script, reinterpret_cast<JsSourceContext>(cookie), url, nullptr)) != JsNoError && err != JsErrorScriptException)
+	if ((err = JsRunScript(scriptText, reinterpret_cast<JsSourceContext>(cookie), TCHARToWCHAR(url), returnVal)) != JsNoError 
+		&& err != JsErrorScriptException && err != JsErrorScriptCompile)
 		return Error(_T("JsRunScript"));
 
 	// check for thrown exceptions
@@ -117,10 +136,36 @@ bool JavascriptEngine::Run(const TCHAR *script, const TCHAR *url, ErrorHandler &
 		if ((err = LogAndClearException(&eh, IDS_ERR_JSRUN)) != JsNoError)
 			return false;
 	}
-#endif
 
 	// success
 	return true;
+}
+
+bool JavascriptEngine::FireEvent(const TCHAR *scriptText, const TCHAR *url)
+{
+	// suppress errors
+	SilentErrorHandler eh;
+
+	// evaluate the script
+	JsValueRef result = JS_INVALID_REFERENCE;
+	if (!EvalScript(TCHARToWCHAR(scriptText), url, &result, eh))
+	{
+		// script failed - allow the system handling to proceed by default
+		return true;
+	}
+
+	// convert the return value to bool
+	JsValueRef boolResult;
+	bool b;
+	if (JsConvertValueToBoolean(result, &boolResult) != JsNoError
+		|| JsBooleanToBool(boolResult, &b) != JsNoError)
+	{
+		// invalid type returned - allow the system handling to proceed by default
+		return true;
+	}
+
+	// return the result from the script
+	return b;
 }
 
 JsErrorCode JavascriptEngine::LogAndClearException(ErrorHandler *eh, int msgid)
@@ -369,6 +414,7 @@ bool JavascriptEngine::DefineGlobalFunc(const CHAR *name, NativeFunctionBinderBa
 	// success
 	return true;
 }
+
 
 void CALLBACK JavascriptEngine::PromiseContinuationCallback(JsValueRef task, void *ctx)
 {
@@ -736,9 +782,9 @@ bool JavascriptEngine::ModuleEvalTask::Execute(JavascriptEngine *js)
 	JsErrorCode err = JsModuleEvaluation(module, &result);
 
 	// log any error
-	if (err == JsErrorScriptException)
+	if (err == JsErrorScriptException || err == JsErrorScriptCompile)
 	{
-		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Error running module %s\n"), path.c_str());
+		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Error executing module %s\n"), path.c_str());
 		js->LogAndClearException();
 	}
 	else if (err != JsNoError)

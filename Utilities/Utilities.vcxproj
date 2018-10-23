@@ -167,6 +167,7 @@
     <ClInclude Include="Dialog.h" />
     <ClInclude Include="ErrorIconType.h" />
     <ClInclude Include="FileUtil.h" />
+    <ClInclude Include="FileVersionInfo.h" />
     <ClInclude Include="GlobalConstants.h" />
     <ClInclude Include="InputManager.h" />
     <ClInclude Include="InputManagerWithConfig.h" />
@@ -189,6 +190,7 @@
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="Dialog.cpp" />
     <ClCompile Include="FileUtil.cpp" />
+    <ClCompile Include="FileVersionInfo.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="InputManagerWithConfig.cpp" />
     <ClCompile Include="InstanceHandle.cpp" />

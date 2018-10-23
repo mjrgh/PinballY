@@ -32,19 +32,23 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 #define TCHARToWide(/*const TCHAR* */ tstr)   TSTRING(tstr)
 #define AnsiToTSTRING(/*const CHAR* */ astr)  AnsiToWide(astr)
 #define TCHARToAnsi(/*const TCHAR* */ tstr)   WideToAnsi(tstr)
-#define TSTRINGToWSTRING(/*const TSTRING& */ tstr) tstr
+#define TCHARToWCHAR(/*const TCHAR* */ tstr) (tstr)
+#define TCHARToCCHAR(/*const TCHAR* */) tstr) (WideToAnsi(tstr).c_str())
+#define TSTRINGToWSTRING(/*const TSTRING& */ tstr) (tstr)
 #define TSTRINGToCSTRING(/*const TSTRING& */ tstr) WideToAnsi((tstr).c_str())
 #define CSTRINGToTSTRING(/*const CSTRING& */ cstr) AnsiToWide((cstr).c_str())
-#define WSTRINGToTSTRING(/*const WSTRING& */ wstr) wstr
+#define WSTRINGToTSTRING(/*const WSTRING& */ wstr) (wstr)
 #else
 #define WideToTSTRING(/*const WCHAR* */ wstr) WideToAnsi(wstr)
 #define TCHARToWide(/*const TCHAR* */ tstr)   AnsiToWide(tstr)
 #define TSTRINGtoWSTRING(/*const TSTRING& */ tstr) AnsiToWide((tstr).c_str())
-#define TSTRINGToCSTRING(/*const TSTRING& */ tstr) tstr
-#define CSTRINGToTSTRING(/*const TSTRING& */ cstr) cstr
+#define TSTRINGToCSTRING(/*const TSTRING& */ tstr) (tstr)
+#define CSTRINGToTSTRING(/*const TSTRING& */ cstr) (cstr)
 #define WSTRINGToTSTRING(/*const WSTRING& */ wstr) AnsiToWide((wstr).c_str())
 #define AnsiToTSTRING(/*const CHAR* */ astr)  TSTRING(astr)
 #define TCHARToAnsi(/*const TCHAR* */ tstr)   TSTRING(tstr)
+#define TCHARToWCHAR(/*const TCHAR* */ tstr) (AnsiToWide(tstr).c_str())
+#define TCHARToCCHAR(/*const TCHAR* */) tstr) (tstr)
 #endif
 
 // Overloaded cover for the Ansi and Unicode string loader functions, so
@@ -88,6 +92,26 @@ std::list<S> StrSplit(const typename S::value_type *str, typename S::value_type 
 	}
 	lst.emplace_back(str);
 	return lst;
+}
+
+// Trim a string of leading and trailing spaces
+template<class S> S StrTrim(const typename S::value_type *str)
+{
+	// find the first non-space character
+	auto start = str;
+	while (*start == ' ' || *start == '\t')
+		++start;
+
+	// find the last non-space character
+	auto p = start, end = start;
+	for ( ; *p != 0 ; ++p)
+	{
+		if (*p != ' ' || *p != '\t')
+			end = p;
+	}
+
+	// return a string from start to end inclusive
+	return S(start, end - start + 1);
 }
 
 // Extended string class.  This can be used to extend the basic

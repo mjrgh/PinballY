@@ -1698,6 +1698,10 @@ protected:
 	// If so, we'll suppress the normal behavior of the Alt key of
 	// entering keyboard menu navigation mode.
 	bool altHasMouseCommand;
+	
+	// Command handler function type
+	struct QueuedKey;
+	typedef void (PlayfieldView::*KeyCommandFunc)(const QueuedKey &key);
 
 	// Key press event modes.  This is basically a bit mask, where
 	// 0x01 is set if the key is down, and 0x02 is set if it's a 
@@ -1719,10 +1723,149 @@ protected:
 		KeyBgRepeat = 0x20 | 0x10		// app-in-background auto-repeat event
 	};
 
+	// Raw Shift key state.  We track the state of the Shift keys in
+	// the raw input handler, to deal with a VERY strange case that
+	// happens with the numeric keypad in NumLock mode.  Consider
+	// the following key presses, with NumLock ON:
+	//
+	//   Press and hold Left Shift
+	//   Press and release keypad 4/left arrow
+	//   Release Left Shift
+	//    
+	// If that middle key were *not* a keypad key, you'd get the
+	// message sequence you'd expect: a key down for the shift, a
+	// key down for the keypad 4, a key up for the keypad 4, and a
+	// key up for the shift.  But for any of the numbered keypad
+	// keys (but NOT the symbol keys - +-/* Enter), you get the
+	// following truly bizarre sequence:
+	//
+	//    WM_KEYDOWN(VK_SHIFT)
+	//    WM_KEYUP(VK_SHIFT)
+	//    WM_KEYDOWN(VK_NUMPAD4)
+	//    WM_KEYUP(VK_NUMPAD4)
+	//    WM_KEYDOWN(VK_SHIFT)
+	//    WM_KEYUP(VK_SHIFT)
+	//
+	// Yes, that's right: Windows synthetically releases the shift
+	// key while the keypad key is being pressed.  At the RAW INPUT
+	// level, though, there's no synthetic shift release, so this
+	// isn't coming from the keyboard hardware, BIOS, or the KB HID
+	// driver; it's coming from the/ Windows message translation.  
+	//
+	// But wait, it gets even weirder!  If you use the RIGHT shift
+	// key, you get exactly the sequence above at the WM_KEYxxx 
+	// message level, but the raw input sequence gets truly bizarre:
+	//
+	//    RSHIFT MAKE
+	//    RSHIFT BREAK       <--- synthetically releases rshift...
+	//    LSHIFT MAKE        <--- and substitutes a synthetic lshift!!!
+	//    NUMPAD4 MAKE
+	//    NUMPAD4 BREAK
+	//    LSHIFT BREAK       <--- releases the synthetic lshift
+	//    RSHIFT MAKE        <--- and restores the actual rshift state
+	//    RSHIFT BREAK
+	//
+	// "WTF" doesn't begin to express my boggled mind.  This isn't
+	// documented anywhere that I can find, but I have found a few
+	// other threads on the Web from people who ran into it and were
+	// equally perplexed.  This MUST be intentional; it's universal
+	// to Windows versions and keyboards, and on its face you can
+	// just tell that there's *some* kind of tortured internal logic 
+	// at work, even if the rationale is utterly unfathomable.  My
+	// best guess is that there was some kind of weird hardware
+	// compatibility issue with an oddball keyboard, probably a
+	// very long time ago (I'm imagining a 1987 Compaq model and
+	// Windows 2.0, maybe), and the summer intern at Microsoft who
+	// was tasked with getting it working threw in this hack, and
+	// now we're stuck with it until the heat death of the universe
+	// because God ordained that Windows shall forever be backwards 
+	// compatible all the way to CP/M-86.
+	//
+	// Anyway... Why do I even care?  I discovered this little gem
+	// because I was trying to get consistent translation of keypad
+	// keys for the purposes of generating Javascript key event
+	// parameters.  Keypad keys weren't working properly in NumLock
+	// mode, and I traced the problem to the weirdness above.  What
+	// I need to do the translation properly is an accurate Shift
+	// state, so that I can determine if VK_NUMPAD4 is a "4" key
+	// or an "ArrowLeft" key.  Solution: observe the shift key
+	// transitions in the Raw Input handler, and use that rather
+	// than GetKeyState(VK_SHIFT) to do the VK_NUMPADx translation.
+	// (Yes, the people who did all this hackery for WM_KEYxxx
+	// and Raw Input at least made sure that GetKeyState returns
+	// consistent information: it will ALWAYS report that the
+	// Shift keys are un-pressed when a WM_KEYDOWN(VK_NUMPADx)
+	// occurs in NumLock mode.)  Thus these state bits.  We
+	// manage them in the raw input handler and consume them in
+	// the Javascript key event generator.  Note that the right
+	// shift key will *still* have bad information about the 
+	// actual hardware key state when processing a numpad key,
+	// because of the weird synthetic BREAK/MAKE RSHIFT sequence
+	// described above, but the compensating synthetic MAKE/BREAK
+	// LSHIFT at least makes sure that *a* shift key is down,
+	// even if it's the wrong one, and thankfully it makes no
+	// difference for this case which key it is.
+	//
+	// Note that an easier workaround might have been to just
+	// use GetAsyncKeyState(), since that presumably isn't
+	// affected by all of this.  (I haven't actually checked,
+	// though.)  But that's not quite a *correct* workaround,
+	// because to do it right we really have to know the key
+	// state at the moment of the event - the whole raison
+	// d'etre for GetKeyState().  Using the instantaneous
+	// key state runs a small risk of getting the wrong state
+	// when the user is moving fast and the program is moving
+	// slow.  In our case, there was no cost to using the more
+	// accurate raw input stream, since we're monitoring raw
+	// input anyway.  If you're trying to adapt this technique
+	// to your own program, and you're not already using raw
+	// input, GetAsyncKeyState() is probably good enough.
+	struct RawShiftKeyState
+	{
+		RawShiftKeyState() 
+		{
+			// initialize with the live keyboard state
+			left = (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0;
+			right = (GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0;
+		}
+		bool left;
+		bool right;
+	} rawShiftKeyState;
+
+	// Keyboard command handlers by name.  We populate this at
+	// construction, and use it to find the mapping from a command
+	// by name to the handler function.  The config loader uses
+	// this mapping to populate the command dispatch table.  We
+	// index the commands by name to help reduce the chances of
+	// something getting out of sync across versions or between
+	// modules.
+	//
+	// For each command, we store the associated handler function,
+	// and a list of the key/button assignments for the command.
+	struct KeyCommand
+	{
+		KeyCommand(const TCHAR *name, KeyCommandFunc func) : name(name), func(func) { }
+
+		// command name (a static const string, so we don't copy it)
+		const TCHAR *name;
+
+		// handler function
+		KeyCommandFunc func;
+
+		// list of associated keys
+		std::list<InputManager::Button> keys;
+	};
+	std::unordered_map<TSTRING, KeyCommand> commandsByName;
+
+	// "No Command" command
+	static const KeyCommand NoCommand;
+
+	// Mappings between our command names and the corresponding
+	// menu command IDs.
+	std::unordered_map<TSTRING, int> commandNameToMenuID;
+
 	// Keyboard command dispatch table
-	struct QueuedKey;
-	typedef void (PlayfieldView::*KeyCommandFunc)(const QueuedKey &key);
-	std::unordered_map<int, std::list<KeyCommandFunc>> vkeyToCommand;
+	std::unordered_map<int, std::list<const KeyCommand*>> vkeyToCommand;
 
 	// "Manual Go" button state for capture.  To proceed with a capture
 	// operation (manual start or manual stop), we use a two-button
@@ -1736,24 +1879,24 @@ protected:
 	void CheckManualGo(bool &thisButtonDown, const QueuedKey &key);
 
 	// add a command to the vkeyToCommand list
-	void AddVkeyCommand(int vkey, KeyCommandFunc func);
+	void AddVkeyCommand(int vkey, const KeyCommand &cmd);
 
 	// key event queue
 	struct QueuedKey
 	{
-		QueuedKey() : hWndSrc(NULL), mode(KeyUp), func(nullptr) { }
+		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand) { }
 
-		QueuedKey(HWND hWndSrc, KeyPressType mode, KeyCommandFunc func)
-			: hWndSrc(hWndSrc), mode(mode), func(func) { }
+		QueuedKey(HWND hWndSrc, KeyPressType mode, const KeyCommand *cmd)
+			: hWndSrc(hWndSrc), mode(mode), cmd(cmd) { }
 
-		HWND hWndSrc;			// source window
-		KeyPressType mode;		// key press mode
-		KeyCommandFunc func;	// command handler
+		HWND hWndSrc;           // source window
+		KeyPressType mode;      // key press mode
+		const KeyCommand *cmd;  // command
 	};
 	std::list<QueuedKey> keyQueue;
 
 	// Add a key press to the queue and process it
-	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<KeyCommandFunc> funcs);
+	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<const KeyCommand*> cmds);
 
 	// Process the key queue.  On a keyboard event, we add the key
 	// to the queue and call this routine; we also call it whenever
@@ -1785,6 +1928,7 @@ protected:
 
 		bool active;				// auto-repeat is active
 		int vkey;					// virtual key code we're repeating
+		int vkeyOrig;               // vkey from original message, before extended key translation
 		KeyPressType repeatMode;	// key press mode for repeats
 	} kbAutoRepeat;
 
@@ -1809,7 +1953,7 @@ protected:
 	void OnJsAutoRepeatTimer();
 
 	// Start keyboard auto-repeat mode
-	void KbAutoRepeatStart(int vkey, KeyPressType repeatMode);
+	void KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repeatMode);
 
 	// Keyboard auto repeat timer handler
 	void OnKbAutoRepeatTimer();
@@ -1818,32 +1962,6 @@ protected:
 	// whenever a new joystick button or key press occurs, to stop
 	// any previous auto-repeat.
 	void StopAutoRepeat();
-
-	// Keyboard command handlers by name.  We populate this at
-	// construction, and use it to find the mapping from a command
-	// by name to the handler function.  The config loader uses
-	// this mapping to populate the command dispatch table.  We
-	// index the commands by name to help reduce the chances of
-	// something getting out of sync across versions or between
-	// modules.
-	//
-	// For each command, we store the associated handler function,
-	// and a list of the key/button assignments for the command.
-	struct KeyCommand
-	{
-		KeyCommand(KeyCommandFunc func) : func(func) { }
-
-		// handler function
-		KeyCommandFunc func;
-
-		// list of associated keys
-		std::list<InputManager::Button> keys;
-	};
-	std::unordered_map<TSTRING, KeyCommand> commandsByName;
-
-	// Mappings between our command names and the corresponding
-	// menu command IDs.
-	std::unordered_map<TSTRING, int> commandNameToMenuID;
 
 	// Joystick command dispatch table.  This maps keys generated
 	// by JsCommandKey() to command handler function pointers.
@@ -1862,13 +1980,16 @@ protected:
 	// per lookup on average on my 4th gen i7.  That's negligible
 	// for a joystick event, so I don't think anything more complex
 	// is justified.
-	std::unordered_map<int, std::list<KeyCommandFunc>> jsCommands;
+	std::unordered_map<int, std::list<const KeyCommand*>> jsCommands;
 
 	// add a command to the map
-	void AddJsCommand(int unit, int button, KeyCommandFunc func);
+	void AddJsCommand(int unit, int button, const KeyCommand &cmd);
 
 	// create a key for the jsCommands table
 	static inline int JsCommandKey(int unit, int button) { return (unit << 8) | button; }
+
+	// Carry out the Select command
+	void DoSelect(bool usingExitKey);
 
 	// Basic handlers for Next/Previous commands.  These handle
 	// the core action part separately from the key processing, so
@@ -1948,88 +2069,52 @@ protected:
 	// schedule the next javascript timer event
 	void SetJavascriptTaskTimer();
 
-	// Javascript callbacks
-	template <typename R> class JsCallback { };
-	template <typename R, typename... Ts>
-	class JsCallback<R(Ts...)> : public JavascriptEngine::NativeFunction<R(Ts...)>
-	{
-	public:
-		// Our enclosing playfield view object.  This class is only used
-		// for composed objects, so we don't need to add a reference; our
-		// enclosing object necessarily outlives us by composition.
-		PlayfieldView *pfv;
-	};
-
-	// install a Javascript callback in the engine
-	template <typename R, typename... Ts>
-	bool InitJavascriptCallback(JsCallback<R(Ts...)> &cb, const CHAR *name, ErrorHandler &eh);
+	// Fire javascript events.  These return true if the caller should
+	// proceed with the event, false if the script wanted to block the
+	// event (via preventDefault() or similar).  Non-blockable events
+	// use void returns to clarify that they're not used.  The default
+	// is always to proceed with system handling; this applies if 
+	// javscript isn't being used, or if anything fails trying to run
+	// the script.
+	bool FireKeyEvent(KeyPressType mode, int vkey);
+	bool FireJoystickEvent(KeyPressType mode, int unit, int button);
 
 	// Javascript alert() callback.  Shows a message in a popup message box, 
 	// a la alert() in a Web browser.  As with browser alert(), the dialog
 	// box is modal and blocks other UI activity while being displayed.
-	class AlertCallback : public JsCallback<void(TSTRING)>
-	{
-	public:
-		virtual void Impl(TSTRING msg) const override;
-	};
-	AlertCallback alertCallback;
+	void JsAlert(TSTRING msg);
 
 	// Javascript message() callback.  Shows a message in the playfield
 	// message box.  This doesn't block the UI; it simply queues the
 	// message display and returns immediately.  The 'typ' argument is
 	// an optional string giving the visual style of the displayed 
 	// message popup: "error", "warning", or "info".
-	class MessageCallback : public JsCallback<void(TSTRING, TSTRING)>
-	{
-	public:
-		virtual void Impl(TSTRING msg, TSTRING typ) const override;
-	};
-	MessageCallback messageCallback;
+	void JsMessage(TSTRING msg, TSTRING style);
 
 	// Javascript log() callback.  Writes a message to the log file.
-	class LogCallback : public JsCallback<void(TSTRING)>
-	{
-	public:
-		virtual void Impl(TSTRING msg) const override;
-	};
-	LogCallback logCallback;
+	void JsLog(TSTRING msg);
+
+	// Javascript OutputDebugString() callback.  Writes a message to
+	// the C++ debugger console.  Mostly for system debugging purposes.
+	void JsOutputDebugString(TSTRING msg);
 
 	// Javascript setTimeout() callback
-	class SetTimeoutCallback : public JsCallback<double(JsValueRef, double)>
-	{
-	public:
-		virtual double Impl(JsValueRef func, double dt) const override;
-	};
-	SetTimeoutCallback setTimeoutCallback;
+	double JsSetTimeout(JsValueRef func, double dt);
 
 	// Javascript clearTimeout() callback
-	class ClearTimeoutCallback : public JsCallback<void(double)>
-	{
-	public:
-		virtual void Impl(double id) const override;
-	};
-	ClearTimeoutCallback clearTimeoutCallback;
+	void JsClearTimeout(double id);
 
 	// Javascript setInterval() callback
-	class SetIntervalCallback : public JsCallback<double(JsValueRef, double)>
-	{
-	public:
-		virtual double Impl(JsValueRef func, double dt) const override;
-	};
-	SetIntervalCallback setIntervalCallback;
+	double JsSetInterval(JsValueRef func, double dt);
 
 	// Javascript clearInterval() callback
-	class ClearIntervalCallback : public JsCallback<void(double)>
-	{
-	public:
-		virtual void Impl(double id) const override;
-	};
-	ClearIntervalCallback clearIntervalCallback;
+	void JsClearInterval(double id);
 
 	//
 	// Button command handlers
 	//
 
+	void CmdNone(const QueuedKey &key) { }          // no command
 	void CmdSelect(const QueuedKey &key);			// select menu item
 	void CmdExit(const QueuedKey &key);				// exit menu level
 	void CmdNext(const QueuedKey &key);				// next item
