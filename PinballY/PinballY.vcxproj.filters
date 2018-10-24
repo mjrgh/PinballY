@@ -468,7 +468,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="VarargsCall.asm">
+    <MASM Include="DllCallGlue64.asm">
       <Filter>Source Files</Filter>
     </MASM>
   </ItemGroup>

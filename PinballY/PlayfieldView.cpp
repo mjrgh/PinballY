@@ -366,24 +366,6 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
-		// Load our system class script.  This defines the basic class framework 
-		// for the system objects, as far as we can in pure Javascript.  We'll
-		// still have to attach native code functions to some of the object
-		// methods after everything is set up.
-		ResourceLocker sysScript(IDJS_SYS_SCRIPT, _T("JS"));
-		if (sysScript.GetData() == nullptr)
-		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource could not be loaded; Javascript disabled for this session\n"));
-			return;
-		}
-
-		// evaluate it
-		if (!js->EvalScript(static_cast<const WCHAR*>(sysScript.GetData()), _T("system:SystemClasses.js"), nullptr, eh))
-		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource evaluation failed; Javascript disabled for this session\n"));
-			return;
-		}
-
 		// set up our callbacks
 		if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
 			|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
@@ -397,6 +379,30 @@ void PlayfieldView::InitJavascript()
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error setting up Javascript native callbacks; Javascript disabled for this session\n"));
 			return;
 		}
+
+		// Load our system class script.  This defines the basic class framework 
+		// for the system objects, as far as we can in pure Javascript.  We'll
+		// still have to attach native code functions to some of the object
+		// methods after everything is set up.
+		ResourceLocker sysScript(IDJS_SYS_SCRIPT, _T("JS"));
+		if (sysScript.GetData() == nullptr)
+		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource could not be loaded; Javascript disabled for this session\n"));
+			return;
+		}
+
+		// Evaluate the system script to create the system objects
+		if (!js->EvalScript(static_cast<const WCHAR*>(sysScript.GetData()), _T("system:SystemClasses.js"), nullptr, eh))
+		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource evaluation failed; Javascript disabled for this session\n"));
+			return;
+		}
+
+		// Install the DllImport callbacks.  Note that this happens AFTER the system
+		// script is loaded, since this installs callbacks on objects defined in the
+		// system script.
+		if (!js->BindDllImportCallbacks("DllImport", eh))
+			return;
 
 		// Execute the user script.  This sets up event handlers for
 		// any events the script wants to be notified about.

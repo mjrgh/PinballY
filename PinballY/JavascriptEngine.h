@@ -17,6 +17,9 @@ public:
 	// initialize
 	bool Init(ErrorHandler &eh);
 
+	// Bind the DLL import callbacks to the given class
+	bool BindDllImportCallbacks(const CHAR *className, ErrorHandler &eh);
+
 	// Evaluate a script
 	bool EvalScript(const WCHAR *scriptText, const TCHAR *url, JsValueRef *returnVal, ErrorHandler &eh);
 
@@ -47,6 +50,20 @@ public:
 	JsErrorCode GetProp(TSTRING &strval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(JsValueRef &val, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 
+	// get a property from the global object
+	template<typename T>
+	JsErrorCode GetGlobProp(T &val, const CHAR *prop, const TCHAR* &errWhere)
+	{
+		JsValueRef g;
+		if (JsErrorCode err = JsGetGlobalObject(&g); err != JsNoError)
+		{
+			errWhere = _T("JsGetGlobalObject");
+			return err;
+		}
+
+		return this->GetProp(val, prop, errWhere);
+	}
+
 	// "Throw" an error.  This doesn't actually throw in the sense of
 	// interrupting the C++ execution flow, but it does interrupt the
 	// javascript execution flow when control returns to the interpreter.
@@ -61,6 +78,10 @@ public:
 	// to the diagnostics.
 	JsValueRef Throw(JsErrorCode err, const TCHAR *cbname);
 
+	// Throw an error using a string exception
+	JsValueRef Throw(const TCHAR *errorMessage);
+
+	// Queued task - timeout, interval, promise completion, module ready, etc
 	struct Task;
 
 	// Add a task to the queue
@@ -399,14 +420,30 @@ public:
 	class NativeFunction<R(Ts...)> : public NativeFunctionBinder<R(Ts...)>
 	{
 	public:
-		// virtual member function that actually implements the callback
+		// call descriptor
+		struct CallDesc
+		{
+			JsValueRef callee;
+			bool isConstructor;
+			JsValueRef this_;
+			JsValueRef *argv;
+			unsigned short argc;
+		};
+
+		// virtual member function with call descriptor
+		virtual R DImpl(CallDesc &desc, Ts... args) const { return this->Impl(args...); }
+
+		// virtual member function that implements the callback
 		virtual R Impl(Ts...) const = 0;
 
 		// static invoker - this is what JS actually calls
 		virtual JsValueRef Invoke(JsValueRef callee, bool isConstructor, JsValueRef *argv, unsigned short argc) const override
 		{
+			// set up the full call descriptor
+			CallDesc desc = { callee, isConstructor, argc >= 1 ? argv[0] : JS_INVALID_REFERENCE, argv, argc };
+
 			// set up a lambda to invoke this->Impl with the template arguments
-			auto func = [this](Ts... args) { return this->Impl(args...); };
+			auto func = [this, &desc](Ts... args) { return this->DImpl(desc, args...); };
 
 			// Convert the javascript values to native values matching the Impl() signature.
 			// The first argument is the 'this' pointer, which we don't use.
@@ -467,33 +504,48 @@ public:
 	// callback to the given function object.
 	bool DefineGlobalFunc(const CHAR *name, NativeFunctionBinderBase *func, ErrorHandler &eh);
 
+	// Install a native callback function for a plain static function
+	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, JsNativeFunction func, void *ctx, ErrorHandler &eh);
+
+	// Install a native callback function as an object property
+	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, NativeFunctionBinderBase *func, ErrorHandler &eh);
+
+	// Create a native function wrapper and add it to our internal tracking
+	// list for eventual disposal.
+	template <typename ContextType, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveWrapper(R (*func)(ContextType*, Ts...))
+	{
+		// create the wrapper, enlist it, and return it
+		return this->nativeWrappers.emplace_back(WrapNativeFunction(func, context)).get();
+	}
+
+	template <class C, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveWrapper(R (C::*func)(Ts...), C *self)
+	{
+		// create the wrapper, enlist it, and return it
+		return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get();
+	}
+
 	// Define a global function, creating a native wrapper for it.  The wrapper
 	// is added to an internal list to ensure that it's deleted with the engine.
 	template <typename ContextType, typename R, typename... Ts>
 	bool DefineGlobalFunc(const CHAR *name, R (*func)(ContextType *, Ts...), ContextType *context, ErrorHandler &eh)
-	{
-		// create the wrapper
-		auto wrapper = WrapNativeFunction(func, context);
+		{ return this->DefineGlobalFunc(name, CreateAndSaveWrapper(func, context), eh); }
 
-		// add it to our list for disposal
-		this->nativeWrappers.emplace_back(wrapper);
-
-		// define the function
-		return this->DefineGlobalFunc(name, wrapper, eh);
-	}
-
-	template <typename C, typename R, typename... Ts>
+	template <class C, typename R, typename... Ts>
 	bool DefineGlobalFunc(const CHAR *name, R (C::*func)(Ts...), C *self, ErrorHandler &eh)
-	{
-		// create the wrapper
-		auto wrapper = WrapNativeMemberFunction(func, self);
+		{ return this->DefineGlobalFunc(name, CreateAndSaveWrapper(func, self), eh); }
 
-		// add it to our list for disposal
-		this->nativeWrappers.emplace_back(wrapper);
+	// Define an object function, creating a native wrapper for it
+	template <typename ContextType, typename R, typename... Ts>
+	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, 
+		R (*func)(ContextType *, Ts...), ContextType *context, ErrorHandler &eh)
+		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveWrapper(func, context), eh); }
 
-		// define the function
-		return this->DefineGlobalFunc(name, wrapper, eh);
-	}
+	template <class C, typename R, typename... Ts>
+	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, 
+		R (C::*func)(Ts...), C *self, ErrorHandler &eh)
+		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveWrapper(func, self), eh); }
 
 	// Exported value.  This allows the caller to store a javascript value
 	// in C++ native code, for later use.  For example, this can be used to
@@ -781,4 +833,92 @@ protected:
 	// while running; it's only needed so that we can delete the wrappers at
 	// window destruction time.
 	std::list<std::unique_ptr<JavascriptEngine::NativeFunctionBinderBase>> nativeWrappers;
+
+	// DllImport callbacks.  These are used to implement a DllImport object
+	// that marshalls calls from Javascript to native code in external DLLs.
+	JsValueRef DllImportBind(TSTRING dllName, TSTRING funcName);
+
+	static JsValueRef CALLBACK DllImportCall(JsValueRef callee, bool isConstructCall,
+		JsValueRef *argv, unsigned short argc, void *ctx);
+
+	// Base class for our external objects.  All objects we pass to the Javascript
+	// engine for use as external object data are of this class.
+	class ExternalObject
+	{
+	public:
+		ExternalObject() { memcpy(typeTag, "PBY_EXT", 8); }
+
+		bool Validate() { return this != nullptr && memcmp(this->typeTag, "PBY_EXT", 8) == 0; }
+
+		virtual ~ExternalObject() { }
+		static void CALLBACK Finalize(void *data)
+		{
+			if (auto self = static_cast<ExternalObject*>(data); self->Validate())
+				delete self;
+		}
+		
+		template<class Subclass>
+		static Subclass *Recover(JsValueRef dataObj, const TCHAR *where)
+		{
+			auto Error = [](MsgFmt &msg)
+			{
+				// convert the message to a javascript string
+				JsValueRef str;
+				JsPointerToString(msg.Get(), _tcslen(msg.Get()), &str);
+
+				// throw an exception with the error message
+				JsValueRef exc;
+				JsCreateError(str, &exc);
+				JsSetException(exc);
+
+				// return null
+				return nullptr;
+			};
+
+			// retrieve the external object data from the engine
+			void *data;
+			if (JsErrorCode err = JsGetExternalData(dataObj, &data); err != JsNoError)
+				return Error(MsgFmt(_T("%s: error retrieving external object data: %s"), where, JsErrorToString(err)));
+
+			// convert it to the base type and validate it
+			auto extobj = static_cast<ExternalObject*>(data);
+			if (!extobj->Validate())
+				return Error(MsgFmt(_T("%s: external object data is missing or invalid"), where));
+
+			// downcast to the subclass type - this will use C++ dynamic typing to
+			// validate that it's actually the subclass we need
+			auto obj = dynamic_cast<Subclass*>(extobj);
+			if (obj == nullptr)
+				return Error(MsgFmt(_T("%s: external object data type mismatch"), where));
+
+			// success
+			return obj;
+		}
+
+		// Type tag.  This is stored at the start of the object as a
+		// crude way to validate that an object that we get from JS is
+		// in fact one of our objects.
+		CHAR typeTag[8];
+	};
+
+	// External object data representing a DLL entrypoint.  We use this
+	// because there's no good way to represent a FARPROC in a Javascript
+	// native type.  The DLL and entrypoint names are stored purely for
+	// debugging purposes; the only thing we really need here is the
+	// proc address.
+	class DllImportData : public ExternalObject
+	{
+	public:
+		DllImportData(FARPROC procAddr, TSTRING &dllName, TSTRING &funcName) :
+			procAddr(procAddr), dllName(dllName), funcName(funcName) { }
+
+		FARPROC procAddr;
+		TSTRING dllName;
+		TSTRING funcName;
+	};
+
+	// DLL handle table.  This is a map of DLLs imported via DllImportGetProc,
+	// so that we can reuse HMODULE handles when importing multiple functions
+	// from a single library.
+	std::unordered_map<TSTRING, HMODULE> dllHandles;
 };

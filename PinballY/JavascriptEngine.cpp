@@ -299,6 +299,23 @@ JsValueRef JavascriptEngine::Throw(JsErrorCode err, const TCHAR *cbName)
 	return undefVal;
 }
 
+JsValueRef JavascriptEngine::Throw(const TCHAR *errorMessage)
+{
+	// create the JS string
+	JsValueRef str;
+	JsPointerToString(errorMessage, _tcslen(errorMessage), &str);
+
+	// create an exception object for the error
+	JsValueRef exc;
+	JsCreateError(str, &exc);
+
+	// set the error state
+	JsSetException(exc);
+
+	// return 'undefined'
+	return undefVal;
+}
+
 JsErrorCode JavascriptEngine::GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &where)
 {
 	// look up the property in JsValueRef format
@@ -384,37 +401,57 @@ bool JavascriptEngine::DefineGlobalFunc(const CHAR *name, NativeFunctionBinderBa
 	JsErrorCode err;
 	auto Error = [name, &err, &eh](const TCHAR *where)
 	{
-		eh.SysError(LoadStringT(IDS_ERR_JSINITHOST), MsgFmt(_T("Setting up native function callback for %hs: %s failed: %s"),
+		eh.SysError(LoadStringT(IDS_ERR_JSINITHOST), MsgFmt(_T("Setting up native function callback for global.%hs: %s failed: %s"),
 			name, where, JsErrorToString(err)));
 		return false;
 	};
-
-	// set the name in the binder object
-	func->callbackName = name;
 
 	// get the global object
 	JsValueRef global;
 	if ((err = JsGetGlobalObject(&global)) != JsNoError)
 		return Error(_T("JsGetGlobalObject"));
 
+	// define the object property
+	return DefineObjPropFunc(global, "global", name, func, eh);
+}
+
+bool JavascriptEngine::DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, NativeFunctionBinderBase *func, ErrorHandler &eh)
+{
+	// set the name in the binder object
+	func->callbackName = propName;
+
+	// define the property
+	return DefineObjPropFunc(obj, objName, propName, &NativeFunctionBinderBase::SInvoke, func, eh);
+}
+
+
+bool JavascriptEngine::DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, JsNativeFunction func, void *context, ErrorHandler &eh)
+{
+	JsErrorCode err;
+	auto Error = [objName, propName, &err, &eh](const TCHAR *where)
+	{
+		eh.SysError(LoadStringT(IDS_ERR_JSINITHOST), MsgFmt(_T("Setting up native function callback for %hs.%hs: %s failed: %s"),
+			objName, propName, where, JsErrorToString(err)));
+		return false;
+	};
+
 	// create the property by name
 	JsPropertyIdRef propId;
-	if ((err = JsCreatePropertyId(name, strlen(name), &propId)) != JsNoError)
+	if ((err = JsCreatePropertyId(propName, strlen(propName), &propId)) != JsNoError)
 		return Error(_T("JsCreatePropertyId"));
 
 	// create the native function wrapper
 	JsValueRef funcval;
-	if ((err = JsCreateFunction(&NativeFunctionBinderBase::SInvoke, func, &funcval)) != JsNoError)
+	if ((err = JsCreateFunction(func, context, &funcval)) != JsNoError)
 		return Error(_T("JsCreateFunction"));
 
-	// set the global property
-	if ((err = JsSetProperty(global, propId, funcval, true)) != JsNoError)
+	// set the object property
+	if ((err = JsSetProperty(obj, propId, funcval, true)) != JsNoError)
 		return Error(_T("JsSetProperty"));
-	
+
 	// success
 	return true;
 }
-
 
 void CALLBACK JavascriptEngine::PromiseContinuationCallback(JsValueRef task, void *ctx)
 {
@@ -826,4 +863,576 @@ JsErrorCode JavascriptEngine::GetModuleSource(
 	// return the result
 	filename = path;
 	return JsNoError;
+}
+
+// -----------------------------------------------------------------------
+//
+// DllImport implementation
+//
+
+bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandler &eh)
+{
+	JsErrorCode err;
+	const TCHAR *subwhere = nullptr;
+	auto Error = [&err, className, &eh](const TCHAR *where)
+	{
+		eh.SysError(LoadStringT(IDS_ERR_JSINIT),
+			MsgFmt(_T("Binding DLL import callbacks: %s: %s"), where, JsErrorToString(err)));
+		return false;
+	};
+
+	// get the global object
+	JsValueRef global;
+	if ((err = JsGetGlobalObject(&global)) != JsNoError)
+		return Error(_T("JsGetGlobalObject"));
+
+	// look up the class in the global object
+	JsValueRef classObj;
+	if ((err = GetProp(classObj, global, className, subwhere)) != JsNoError)
+		return Error(subwhere);
+
+	// get its prototype
+	JsValueRef proto;
+	if ((err = GetProp(proto, classObj, "prototype", subwhere)) != JsNoError)
+		return Error(subwhere);
+
+	// set up the bindings
+	return DefineObjPropFunc(proto, className, "_bind", &JavascriptEngine::DllImportBind, this, eh)
+		&& DefineObjPropFunc(proto, className, "_call", &JavascriptEngine::DllImportCall, this, eh);
+}
+
+// DllImportBind - this is set up in the Javascript as DllImport.prototype.bind_(),
+// an internal method that bind() calls to get the native function pointer.  Javascript
+// doesn't have a type that can represent a native FARPROC directly, so we use an
+// external object instead.  Our DllImport code on the Javascript then wraps that in
+// a lambda that calls DllImportCall with the external object as a parameter.
+JsValueRef JavascriptEngine::DllImportBind(TSTRING dllName, TSTRING funcName)
+{
+	// normalize the DLL name to use as the HMODULE map key
+	TSTRING key = dllName;
+	std::transform(key.begin(), key.end(), key.begin(), ::_totupper);
+
+	// if this key isn't already in the table, load the DLL
+	HMODULE hmod = NULL;
+	if (auto it = dllHandles.find(key); it != dllHandles.end())
+	{
+		// got it - reuse the existing module handle
+		hmod = it->second;
+	}
+	else
+	{ 
+		// not found - try loading the DLL
+		hmod = LoadLibrary(dllName.c_str());
+		if (hmod == NULL)
+		{
+			WindowsErrorMessage winErr;
+			Throw(MsgFmt(_T("DllImport.bind(): Error loading DLL %s: %s"), dllName.c_str(), winErr.Get()));
+			return nullVal;
+		}
+
+		// add it to the table
+		dllHandles.emplace(key, hmod).first;
+	}
+
+	// look up the proc address
+	FARPROC addr = GetProcAddress(hmod, TSTRINGToCSTRING(funcName).c_str());
+	if (addr == NULL)
+	{
+		WindowsErrorMessage winErr;
+		Throw(MsgFmt(_T("DllImport.bind(): Error binding %s!%s: %s"), dllName.c_str(), funcName.c_str(), winErr.Get()));
+		return nullVal;
+	}
+
+	// create an external object with a DllImportData object to represent the result
+	JsValueRef ret;
+	if (JsErrorCode err = JsCreateExternalObject(new DllImportData(addr, dllName, funcName), &DllImportData::Finalize, &ret); err != JsNoError)
+	{
+		Throw(err, _T("DllImport.bind()"));
+		return nullVal;
+	}
+
+	// return the result
+	return ret;
+}
+
+// assembler glue functions for DLL calls
+#if defined(_M_X64)
+extern "C" UINT64 dll_call_glue64(FARPROC func, const void *args, size_t nArgBytes);
+#endif
+
+
+// DllImportCall is set up in the Javascript as DllImport.prototype._call(), an 
+// internal method of the DllImport object.  When the Javascript caller calls the
+// lambda returned from bind(), the lambda invokes DllImport.prototype.call(),
+// which in turn invokes _call() (which is how we're exposed to Javascript) as:
+//
+//   dllImport._call(nativeFunc, signature, ...args)
+//
+// Javascript this: the DllImport instance that was used to create the binding with bind()
+//
+// nativeFunc: the external object we created for the DLL entrypoint in DllImportBind
+//
+// signature: a compact pre-parsed version of the function signature
+//
+// args: the javascript arguments to the call
+//
+// The DllImport 'this' argument is important because it's where the Javascript caller
+// will have registered any struct type declarations it wishes to define as part of the
+// DLL interface.  If any of our arguments contains a struct reference, we'll need to
+// query the DllImport object to get the struct layouts for marshalling to the native
+// callee.  We can use this to marshall between Javascript objects and native struct
+// layouts, so that callers can call API functions that take struct references as input
+// or output parameters.
+//
+JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsErrorCode err;
+
+	// the context is our JavascriptEngine object
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	// we need at least two arguments (
+	if (argc < 3)
+		return js->Throw(_T("DllImport.call(): missing arguments"));
+
+	// get the javascript this pointer
+	int ai = 0;
+	auto jsthis = argv[ai++];
+
+	// get the native function object
+	auto func = DllImportData::Recover<DllImportData>(argv[ai++], _T("DllImport.call()"));
+	auto funcPtr = func->procAddr;
+
+	// get the function signature, as a string
+	const WCHAR *sig;
+	size_t sigLen;
+	if ((err = JsStringToPointer(argv[ai++], &sig, &sigLen)) != JsNoError)
+		return js->Throw(err, _T("DllImport.call()"));
+
+	// figure the signature end pointer, for limiting traversals
+	const WCHAR *sigEnd = sig + sigLen;
+
+	// the rest of the Javascript arguments are the arguments to pass to the DLL
+	int firstDllArg = ai;
+
+	// Get the calling convention.  This is the first letter of the first token:
+	// S[__stdcall], C[__cdecl], F[__fastcall], T[__thiscall], V[__vectorcall]
+	WCHAR callConv = *sig++;
+
+	// advance to the next argument in the signature, skipping the rest of the current one
+	auto NextArg = [sigEnd](const WCHAR *p)
+	{
+		// skip to the next space
+		for (; p < sigEnd && *p != ' '; ++p);
+
+		// skip to the next non-space
+		for (; p < sigEnd && *p == ' '; ++p);
+
+		// return the result
+		return p;
+	};
+
+	// Parameters the current CPU architecture calling conventions
+	const size_t argSlotSize = IF_32_64(4, 8);   // size in bytes of a generic argument slot
+	const size_t stackAlign = IF_32_64(4, 16);   // stack pointer alignment size in bytes
+	const size_t minArgSlots = IF_32_64(0, 4);   // minimum stack slots allocated for arguments
+
+	// Traverse the function signature string to figure the stack size requirements.
+	// The first element is the return type, so skip that and go to the first argument.
+	int nSlots = 0;
+	for (const WCHAR *p = NextArg(sig); p < sigEnd; p = NextArg(p))
+	{
+		switch (*p)
+		{
+		case '*':  // pointer to another type
+ 		case 'b':  // bool
+		case 'c':  // int8
+		case 'C':  // uint8
+		case 's':  // int16
+		case 'S':  // uint16
+		case 'i':  // int
+		case 'I':  // unsigned int
+		case 'f':  // float
+		case 'P':  // INT_PTR and related int/pointer types
+		case 't':  // CHAR string buffer
+		case 'T':  // WCHAR string buffer
+			// These types all require one slot on all architectures.  For types
+			// shorter than the slot size, the value is widened to the slot size
+			// right-aligned (that is, the value is in the low-order bytes).
+			nSlots += 1;
+			break;
+
+		case 'l':  // int64
+		case 'L':  // uint64
+		case 'd':  // double
+			// 64-bit types takes two slots on x86, 1 on x64
+			nSlots += IF_32_64(2, 1);
+
+		case 'v':  // void is invalid as an argument type
+			return js->Throw(_T("DllImport.call(): 'void' is not valid as a parameter type"));
+
+		case '@':  // inline struct - not allowed for arguments
+			return js->Throw(_T("DllImport.call(): struct by value parameters are not supported (pointer types required)"));
+		}
+	}
+
+	// Figure the required native argument array size
+	size_t argArraySize = max(nSlots, minArgSlots) * argSlotSize;
+
+	// round up to the next higher alignment boundary
+	argArraySize = ((argArraySize + stackAlign - 1)/stackAlign) * stackAlign;
+
+	// allocate the argument array
+	typedef IF_32_64(UINT32, UINT64) arg_t;
+	arg_t *argArray = static_cast<arg_t*>(alloca(argArraySize));
+
+	// current slot we're filling
+	arg_t *slot = argArray;
+
+	// get a numeric value as a double 
+	auto GetDouble = [js, argv, &ai]()
+	{
+		// convert to numeric if necessary
+		JsErrorCode err;
+		JsValueRef numVal;
+		if ((err = JsConvertValueToNumber(argv[ai], &numVal)) != JsNoError)
+			js->Throw(err, _T("DllImport.call(): marshalling integer argument"));
+
+		// retrieve the double value 
+		double d;
+		if ((err = JsNumberToDouble(numVal, &d)) != JsNoError)
+			js->Throw(err, _T("DllImport.call(): marshalling integer argument"));
+
+		// return it
+		return d;
+	};
+
+	// get a float value
+	auto GetFloat = [js, &GetDouble]()
+	{
+		// get the double value from javascript
+		double d = GetDouble();
+
+		// check the range
+		if (d < FLT_MIN || d > FLT_MAX)
+			js->Throw(_T("DllImport.call(): single-precision float argument value out of range"));
+
+		// return it
+		return static_cast<float>(d);
+	};
+
+	// get an integer value (up to 32 bits)
+	auto GetInt = [js, &GetDouble](double minVal, double maxVal)
+	{
+		// get the original double value from javascript
+		double d = GetDouble();
+
+		// check the range
+		if (d < minVal || d > maxVal)
+			js->Throw(_T("DllImport.call(): integer argument value out of range"));
+
+		// return it as a double, so that the caller can do the appropriate sign
+		// extension in the conversion process
+		return d;
+	};
+
+	// get a 64-bit integer value
+	auto GetInt64 = [js, &ai, &argv, &GetDouble](bool isSigned) -> INT64
+	{
+		// check the value type
+		JsErrorCode err;
+		JsValueType t;
+		if ((err = JsGetValueType(argv[ai], &t)) != JsNoError)
+		{
+			js->Throw(err, _T("DllImport.call(): JsGetValueType failed converting 64-bit integer argument"));
+			return 0;
+		}
+
+		// if it's a numeric value, convert it from the JS double representation
+		if (t == JsNumber)
+		{
+			// Numeric type - get the double value
+			double d = GetDouble();
+
+			// check the range
+			if (isSigned ? (d < (double)INT64_MIN || d >(double)INT64_MAX) : (d < 0 || d >(double)UINT64_MAX))
+			{
+				js->Throw(err, _T("DllImport.call(): 64-bit integer argument out of range"));
+				return 0;
+			}
+
+			// Return the value reinterpreted as a 
+			if (isSigned)
+				return static_cast<INT64>(static_cast<UINT64>(d));
+			else
+				return static_cast<INT64>(d);
+		}
+
+		// otherwise, interpret it as a string value
+		JsValueRef strval;
+		if ((err = JsConvertValueToString(argv[ai], &strval)) != JsNoError)
+		{
+			js->Throw(err, _T("DllImport.call(): converting 64-bit integer argument value to string"));
+			return 0;
+		}
+
+		// get the string
+		const WCHAR *p;
+		size_t len;
+		if ((err = JsStringToPointer(strval, &p, &len)) != JsNoError)
+		{
+			js->Throw(err, _T("DllImport.call(): retrieving string value for 64-bit integer argument"));
+			return 0;
+		}
+		WSTRING str(p, len);
+
+		// check for a 0x prefix
+		int radix = 10;
+		for (p = str.c_str(); iswspace(*p); ++p);
+		if (p[0] == '0' && p[1] == 'x')
+		{
+			radix = 16;
+			p += 2;
+		}
+
+		// parse the string
+		if (isSigned)
+			return _wcstoi64(p, nullptr, radix);
+		else
+			return static_cast<INT64>(_wcstoui64(p, nullptr, radix));
+	};
+
+	// Build the argument array
+	ai = firstDllArg;
+	for (const WCHAR *p = NextArg(sig); p < sigEnd; p = NextArg(p), ++slot, ++ai)
+	{
+		// zero the slot
+		*slot = 0;
+
+		// check for pointers
+		if (*p == '*')
+		{
+		}
+
+		switch (*p)
+		{
+		case 'b':  // bool
+			*reinterpret_cast<bool*>(slot) = static_cast<bool>(GetDouble());
+			break;
+
+		case 'c':  // int8
+			*reinterpret_cast<INT8*>(slot) = static_cast<INT8>(GetInt(INT8_MIN, INT8_MAX));
+			break;
+
+		case 'C':  // uint8
+			*reinterpret_cast<UINT8*>(slot) = static_cast<UINT8>(GetInt(0, UINT8_MAX));
+			break;
+
+		case 's':  // int16
+			*reinterpret_cast<INT16*>(slot) = static_cast<INT16>(GetInt(INT16_MIN, INT16_MAX));
+			break;
+
+		case 'S':  // uint16
+			*reinterpret_cast<UINT16*>(slot) = static_cast<UINT16>(GetInt(0, UINT16_MAX));
+			break;
+
+		case 'i':  // int32
+			*reinterpret_cast<INT32*>(slot) = static_cast<INT32>(GetInt(INT32_MIN, INT32_MAX));
+			break;
+
+		case 'I':  // unit32
+			*reinterpret_cast<UINT32*>(slot) = static_cast<UINT32>(GetInt(0, UINT32_MAX));
+			break;
+
+		case 'f':  // float
+			*reinterpret_cast<float*>(slot) = GetFloat();
+			break;
+
+		case 'l':  // int64
+			*reinterpret_cast<INT64*>(slot) = GetInt64(true);
+			slot += IF_32_64(1, 0);  // 64-bit values take two slots on x86
+			break;
+
+		case 'L':  // uint64
+			*reinterpret_cast<UINT64*>(slot) = GetInt64(false);
+			slot += IF_32_64(1, 0);  // 64-bit values take two slots on x86
+			break;
+
+		case 'd':  // double
+			*reinterpret_cast<double*>(slot) = GetDouble();
+			slot += IF_32_64(1, 0);  // 64-bit values take two slots on x86
+			break;
+
+		case 'P':  // INT_PTR and related int/pointer types
+			// $$$ TO DO
+			*reinterpret_cast<INT_PTR*>(slot) = 0;
+			break;
+
+		case 't':  // CHAR string buffer
+			// $$$ TO DO
+			break;
+
+		case 'T':  // WCHAR string buffer
+			// $$$ TO DO
+			*reinterpret_cast<WCHAR**>(slot) = L"Hello!";
+			break;
+		}
+
+		// stop on any exception
+		bool exc;
+		if (JsHasException(&exc) != JsNoError || exc)
+			return js->undefVal;
+	}
+
+	// all architectures have provisions for 64-bit return values
+	UINT64 rawret;
+
+	// Call the DLL function
+#if defined(_M_IX86)
+
+	// use the appropriate calling convention
+	switch (callConv)
+	{
+	case 'S':
+	case 'C':
+		// __stdcall: arguments on stack; return in EDX:EAX; callee pops arguments
+		// __cdecl: arguments on back; return in EDX:EAX; caller pops arguments
+		__asm {
+			; copy arguments into the stack
+			mov ecx, argArraySize
+			sub esp, ecx
+			mov edi, esp
+			mov esi, argArray
+			shr ecx, 2          ; divide by 4 to get DWORD size
+			rep movsd
+		
+			; call the function
+			mov eax, funcPtr
+			call eax
+
+			; store the result
+			mov dword ptr rawret, eax
+			mov dword ptr rawret[4], edx
+
+			; caller pops arguments if using __cdecl
+			cmp callConv, 'C'
+			jne $1
+
+			add esp, argArraySize
+		$1:
+		}
+		break;
+
+	case 'F':
+		return js->Throw(_T("DllImport.call(): __fastcall calling convention not supported"));
+
+	case 'T':
+		return js->Throw(_T("DllImport.call(): __thiscall calling convention not supported"));
+
+	case 'V':
+		return js->Throw(_T("DllImport.call(): __vectorcall calling convention not supported"));
+
+	default:
+		return js->Throw(_T("DllImport.call(): unknown calling convention in function signature"));
+	}
+
+
+	// In x86 __stdcall (used by most DLL entrypoints), the callee removes 
+	// arguments, so the call is now completed.
+
+#elif defined(_M_X64)
+
+	// The Microsoft x64 convention passes the first four arguments in
+	// registers, and passes the rest on the stack.  There are also four
+	// "shadow" stack slots (64 bits each) where the first four arguments
+	// would go if they were pushed onto the stack; these are allocated
+	// by the caller for the callee's use, but aren't populated.  So our
+	// stack is basically right already from the alloca(), but we still
+	// need to populate the registers.  We need some assembly code to
+	// make that happen.  The 64-bit compiler doesn't support inline
+	// assembly, so we have to farm this out to some .asm glue.  
+	rawret = dll_call_glue64(funcPtr, argArray, argArraySize);
+
+#else
+#error Processor architecture not supported.  Add the appropriate code here to build for this target
+#endif
+
+	// Marshall the result back to Javascript
+	const WCHAR *p = sig;
+	JsValueRef retval = js->undefVal;
+	err = JsNoError;
+	switch (*p)
+	{
+	case '*':
+		// $$$ pointer - to do
+		break;
+
+	case 'b':  // bool
+		err = JsBoolToBoolean(static_cast<bool>(*reinterpret_cast<const int*>(&rawret)), &retval);
+		break;
+
+	case 'c':  // int8
+		err = JsIntToNumber(*reinterpret_cast<const INT8*>(&rawret), &retval);
+		break;
+
+	case 'C':  // uint8
+		err = JsIntToNumber(*reinterpret_cast<const UINT8*>(&rawret), &retval);
+		break;
+
+	case 's':  // int16
+		err = JsIntToNumber(*reinterpret_cast<const INT16*>(&rawret), &retval);
+		break;
+
+	case 'S':  // uint16
+		err = JsIntToNumber(*reinterpret_cast<const UINT16*>(&rawret), &retval);
+		break;
+
+	case 'i':  // int32
+		err = JsIntToNumber(*reinterpret_cast<const INT32*>(&rawret), &retval);
+		break;
+
+	case 'I':  // unit32
+		err = JsDoubleToNumber(*reinterpret_cast<const UINT32*>(&rawret), &retval);
+		break;
+
+	case 'f':  // float
+		err = JsDoubleToNumber(*reinterpret_cast<const float*>(&rawret), &retval);
+		break;
+
+	case 'l':  // int64
+		err = JsDoubleToNumber(static_cast<double>(*reinterpret_cast<INT64*>(&rawret)), &retval);
+		break;
+
+	case 'L':  // uint64
+		err = JsDoubleToNumber(static_cast<double>(*reinterpret_cast<UINT64*>(&rawret)), &retval);
+		break;
+
+	case 'd':  // double
+		err = JsDoubleToNumber(*reinterpret_cast<double*>(&rawret), &retval);
+		break;
+
+	case 'P':  // INT_PTR and related int/pointer types
+		// $$$ TO DO
+		break;
+
+	case 't':  // CHAR string buffer
+		// $$$ TO DO
+		break;
+
+	case 'T':  // WCHAR string buffer
+		// $$$ TO DO
+		break;
+
+	case 'v':  // void
+		retval = js->undefVal;
+		break;
+	}
+
+	// throw any error
+	if (err != JsNoError)
+		js->Throw(err, _T("DllImport.call(): error converting return value"));
+
+	// done - return the result
+	return retval;
 }
