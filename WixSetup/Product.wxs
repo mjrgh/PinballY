@@ -22,7 +22,8 @@
       <ComponentRef Id="PinballY" />
       <ComponentRef Id="SevenZip"/>
 			<ComponentRef Id="Scripts"/>
-      <ComponentRef Id="ffmpeg"/>
+			<ComponentRef Id="SystemScripts"/>
+			<ComponentRef Id="ffmpeg"/>
       <ComponentRef Id="PINemHi"/>
       <ComponentGroupRef Id="HeatGeneratedAssets" />
       <ComponentGroupRef Id="HeatGeneratedHelp" />
@@ -73,7 +74,9 @@
           <Directory Id="PBYDIR" >
             <Directory Id="ASSETSDIR" Name="Assets" />
             <Directory Id="HELPDIR" Name="Help" />
-						<Directory Id="SCRIPTSDIR" Name="Scripts" />
+						<Directory Id="SCRIPTSDIR" Name="Scripts">
+							<Directory Id="SYSTEMSCRIPTSDIR" Name="System" />
+						</Directory>
             <Directory Id="FARSIGHTDIR" Name="Farsight" />
             <Directory Id="FFMPEGDIR" Name="ffmpeg" />
             <Directory Id="SEVENZIPDIR" Name="7-Zip" />
@@ -114,6 +117,13 @@
 		<DirectoryRef Id="SCRIPTSDIR">
 			<Component Id="Scripts" Guid="FC0D9658-A410-4641-9798-740329A5C812">
 				<File Source="$(var.SolutionDir)Scripts\Scripts_Folder.txt" />
+			</Component>
+		</DirectoryRef>
+
+		<DirectoryRef Id="SYSTEMSCRIPTSDIR">
+			<Component Id="SystemScripts" Guid="266CAF01-D547-47C5-978D-9CC67AFC05B2">
+				<File Source="$(var.SolutionDir)Scripts\System\SystemClasses.js" />
+				<File Source="$(var.SolutionDir)Scripts\System\CParser.js" />
 			</Component>
 		</DirectoryRef>
 

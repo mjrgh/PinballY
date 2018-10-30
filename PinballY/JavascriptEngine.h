@@ -917,8 +917,72 @@ protected:
 		TSTRING funcName;
 	};
 
+	// External object data representing a HANDLE object.  We use this to
+	// wrap handles mostly for the sake of 64-bit mode, where a handle value
+	// could exceed the precision of a Javascript number.
+	class HandleData : public ExternalObject
+	{
+	public:
+		HandleData(HANDLE h) : h(h) { }
+		HANDLE h;
+
+		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+	};
+
+	// HANDLE prototype in the Javascript code
+	JsValueRef HANDLE_proto;
+
 	// DLL handle table.  This is a map of DLLs imported via DllImportGetProc,
 	// so that we can reuse HMODULE handles when importing multiple functions
 	// from a single library.
 	std::unordered_map<TSTRING, HMODULE> dllHandles;
+
+	// Temporary space allocator for the marshallers.  We'd use alloca() for this,
+	// since what we're really after is temporary stack space, but that's not
+	// workable for us because the marshaller routines are called as subroutines
+	// from the main routine that contains the stack frame where we want the
+	// allocations to live. 
+	//
+	// The parent frame creates the allocator and attaches it to a stack of
+	// allocators in the JavascriptEngine object.  When the parent frame exits,
+	// it pops the allocator stack, which frees all of the temporary memory that
+	// was allocated within that frame.  Note that this would require something
+	// more complex if a Javascript instance were multithreaded, but fortunately 
+	// it's not - a JavascriptEngine object can only be called on a single thread.
+	class TempAllocator;
+	TempAllocator *tempAllocator;
+	class TempAllocator
+	{
+	public:
+		TempAllocator(JavascriptEngine *js) : js(js)
+		{ 
+			enclosing = js->tempAllocator;
+			js->tempAllocator = this;
+		}
+
+		void *Alloc(size_t size) { return mem.emplace_back(new BYTE[size]).get(); }
+
+		~TempAllocator() { js->tempAllocator = enclosing; }
+
+		std::list<std::unique_ptr<BYTE>> mem;
+
+		JavascriptEngine *js;
+		TempAllocator *enclosing;
+	};
+
+	// marshalling classes
+	class Marshaller;
+	class MarshallSizer;
+	class MarshallStackArgSizer;
+	class MarshallStructSizer;
+	class MarshallUnionSizer;
+	class MarshallToNative;
+	class MarshallToNativeArgv;
+	class MarshallToNativeByReference;
+	class MarshallToNativeStruct;
+	class MarshallToNativeUnion;
 };

@@ -75,8 +75,18 @@ int vasprintf(TCHAR **result, const TCHAR *fmt, va_list ap)
 
 CSTRING WideToAnsi(const WCHAR *wstr, UINT codePage)
 {
+	return WideToAnsiCnt(wstr, -1, codePage);
+}
+
+WSTRING AnsiToWide(const CHAR *astr, UINT codePage)
+{
+	return AnsiToWideCnt(astr, -1, codePage);
+}
+
+CSTRING WideToAnsiCnt(const WCHAR *wstr, int wstrLen, UINT codePage)
+{
 	// figure out how much space we need
-	int len = WideCharToMultiByte(codePage, 0, wstr, -1, 0, 0, 0, 0);
+	int len = WideCharToMultiByte(codePage, 0, wstr, wstrLen, 0, 0, 0, 0);
 
 	// set up a buffer and reserve space
 	CSTRING astr;
@@ -84,16 +94,16 @@ CSTRING WideToAnsi(const WCHAR *wstr, UINT codePage)
 	astr.resize(len - 1);
 
 	// do the conversion for reals this time
-	WideCharToMultiByte(codePage, 0, wstr, -1, &astr[0], len, 0, 0);
+	WideCharToMultiByte(codePage, 0, wstr, wstrLen, &astr[0], len, 0, 0);
 
 	// return the string
 	return astr;
 }
 
-WSTRING AnsiToWide(const CHAR *astr, UINT codePage)
+WSTRING AnsiToWideCnt(const CHAR *astr, int astrLen, UINT codePage)
 {
 	// figure out how much space we need
-	int len = MultiByteToWideChar(codePage, 0, astr, -1, 0, 0);
+	int len = MultiByteToWideChar(codePage, 0, astr, astrLen, 0, 0);
 
 	// set up a buffer and reserve space
 	WSTRING wstr;
@@ -101,7 +111,7 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage)
 	wstr.resize(len - 1);
 
 	// do the conversion for reals this time
-	MultiByteToWideChar(codePage, 0, astr, -1, &wstr[0], len + 1);
+	MultiByteToWideChar(codePage, 0, astr, astrLen, &wstr[0], len + 1);
 
 	// return the string
 	return wstr;

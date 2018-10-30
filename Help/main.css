@@ -7,11 +7,25 @@ html, body {
 }
 
 body {
-    margin: 2em 2em 3em 2em;
+    margin: 2em 6em 3em 4em;
 }
 
+
+.navbar {
+    background: #f0f0f0;
+    padding: 1em 2em;
+    margin: -2em -6em 2em -4em;
+}
 html, body, table, form {
-    font: 10pt/14pt Tahoma, sans-serif;
+    font: 10.5pt/16pt Segoe UI, Lucida Grande, Verdana, Arial, Helvetica, sans-serif;
+    line-height: 1.6;
+}
+
+p {
+    max-width: 50em;
+}
+ul, ol, li {
+    max-width: 45em;
 }
 
 h1 {
@@ -65,18 +79,12 @@ img.example {
     margin: 2em auto;
 }
 
-.navbar {
-    background: #f0f0f0;
-    padding: 1em 2em;
-    margin: -2em -2em 2em -2em;
-}
-
 .indented {
     margin-left: 2em;
     margin-right: 2em;
 }
 
 .code {
-    margin: -1em 2em 1em 2em;
+    margin: -1.75em 2em 1em 2em;
     white-space: pre;
 }

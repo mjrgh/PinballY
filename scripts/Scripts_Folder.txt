@@ -1,0 +1,5 @@
+This folder is for Javascript customizations for PinballY.  
+
+The program will automatically look in this folder at startup for a
+file called "main.js".  If that file exists, PinballY will load and
+execute it.  See "Javascript scripting" in the help files for more.

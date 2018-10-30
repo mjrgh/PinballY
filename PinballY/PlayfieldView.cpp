@@ -347,7 +347,7 @@ bool PlayfieldView::InitWin()
 
 void PlayfieldView::InitJavascript()
 {
-	Application::InUiErrorHandler eh;
+	LogFileErrorHandler eh(_T("Initializing Javascript: "), LogFile::JSLogging);
 
 	// Check for the main javascript extensions file.  If it exists, set up
 	// the javascript engine and load the script.
@@ -358,7 +358,7 @@ void PlayfieldView::InitJavascript()
 	if (FileExists(jsmain))
 	{
 		// create and initialize the javascript engine
-		LogFile::Get()->Write(LogFile::JSLogging, _T(". Found main script file %s; initializating Javascript engine\n"), jsmain);
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". Main script file exists; initializing Javascript engine\n"));
 		RefPtr<JavascriptEngine> js(new JavascriptEngine());
 		if (!js->Init(eh))
 		{
@@ -380,27 +380,37 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
-		// Load our system class script.  This defines the basic class framework 
+		// Load our system scripts.  These define the basic class framework 
 		// for the system objects, as far as we can in pure Javascript.  We'll
 		// still have to attach native code functions to some of the object
 		// methods after everything is set up.
-		ResourceLocker sysScript(IDJS_SYS_SCRIPT, _T("JS"));
-		if (sysScript.GetData() == nullptr)
+		auto LoadSysScript = [&js, &eh](const TCHAR *name)
 		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource could not be loaded; Javascript disabled for this session\n"));
-			return;
-		}
+			// get the full path
+			TCHAR path[MAX_PATH];
+			GetDeployedFilePath(path, name, _T(""));
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading system script file %s\n"), path);
 
-		// Evaluate the system script to create the system objects
-		if (!js->EvalScript(static_cast<const WCHAR*>(sysScript.GetData()), _T("system:SystemClasses.js"), nullptr, eh))
+			// load the file
+			long len;
+			std::unique_ptr<WCHAR> contents(ReadFileAsWStr(path, eh, len, ReadFileAsStr_NullTerm));
+			if (contents == nullptr)
+				return false;
+
+			// evaluate the script
+			return js->EvalScript(contents.get(), name, nullptr, eh);
+		};
+
+		if (!LoadSysScript(_T("scripts\\system\\CParser.js"))
+			|| !LoadSysScript(_T("scripts\\system\\SystemClasses.js")))
 		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". System script resource evaluation failed; Javascript disabled for this session\n"));
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error loading system scripts; Javascript disabled for this session\n"));
 			return;
 		}
 
 		// Install the DllImport callbacks.  Note that this happens AFTER the system
-		// script is loaded, since this installs callbacks on objects defined in the
-		// system script.
+		// scripts are loaded, since the callbacks are installed on objects created in
+		// the system scripts.
 		if (!js->BindDllImportCallbacks("DllImport", eh))
 			return;
 

@@ -48,7 +48,6 @@
 #define IDB_AUDIO_FILE_ICON             174
 #define IDB_MNU_HELP                    175
 #define IDB_MNU_WINDOW_BORDERS          176
-#define IDJS_SYS_SCRIPT                 177
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
