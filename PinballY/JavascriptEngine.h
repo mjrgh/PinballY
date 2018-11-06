@@ -90,6 +90,9 @@ public:
 	// Throw an error using a string exception
 	JsValueRef Throw(const TCHAR *errorMessage);
 
+	// Check if the Javascript context is in an exception state
+	bool HasException();
+
 	// Queued task - timeout, interval, promise completion, module ready, etc
 	struct Task;
 

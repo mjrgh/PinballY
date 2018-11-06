@@ -365,6 +365,12 @@ JsValueRef JavascriptEngine::Throw(const TCHAR *errorMessage)
 	return undefVal;
 }
 
+bool JavascriptEngine::HasException()
+{
+	bool exc = false;
+	return JsHasException(&exc) == JsNoError && exc;
+}
+
 JsErrorCode JavascriptEngine::GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &where)
 {
 	// look up the property in JsValueRef format
@@ -1119,15 +1125,17 @@ public:
 	// error flag.
 	void Error(const TCHAR *msg)
 	{
-		js->Throw(msg);
 		error = true;
+		if (!js->HasException())
+			js->Throw(msg);
 	}
 
 	// Throw an error from an engine error code
 	void Error(JsErrorCode err, const TCHAR *msg)
 	{
-		js->Throw(err, msg);
 		error = true;
+		if (!js->HasException())
+			js->Throw(err, msg);
 	}
 
 	// signature string bounds
@@ -1151,13 +1159,12 @@ public:
 		this->p = p;
 	};
 
-	// find the end of the current argument slot; does not advance p
-	const WCHAR *EndOfArg(const WCHAR *p = nullptr) const
-	{
-		// use the current pointer as the starting point by default
-		if (p == nullptr)
-			p = this->p;
+	const WCHAR *EndOfArg() const { return EndOfArg(p, sigEnd); }
+	const WCHAR *EndOfArg(const WCHAR *p) const { return EndOfArg(p, sigEnd); }
 
+	// find the end of the current argument slot; does not advance p
+	static const WCHAR *EndOfArg(const WCHAR *p, const WCHAR *sigEnd)
+	{
 		// skip to the next space
 		int level = 0;
 		for (; p < sigEnd; ++p)
@@ -4109,7 +4116,11 @@ public:
 #error Processor architecture not supported.  Add the appropriate code here to build for this target
 #endif
 		// process the struct
-		MarshallFromNativeValue mv(js, p + 3, EndOfArg() - 1, structp);
+		MarshallFromNativeValue mv(js, p, EndOfArg(), structp);
+		mv.MarshallValue();
+
+		// store it in the javascript argument array
+		jsArgv[jsArgCur++] = mv.jsval;
 
 		// skip arguments, rounding up to a DWORD boundary
 		curArg += (stackSlotSize + sizeof(arg_t) - 1) / sizeof(arg_t);
@@ -4127,10 +4138,6 @@ public:
 		DoStructOrUnion(size);
 	}
 
-	// TO DO - get argument value
-
-	// TO DO - marshall argument value
-
 	// native arguments on stack
 	arg_t *argv;
 
@@ -4146,29 +4153,48 @@ public:
 class JavascriptEngine::MarshallToNativeReturn : public MarshallToNative
 {
 public:
-	MarshallToNativeReturn(JavascriptEngine *js, const WSTRING &sig, JsValueRef jsval) :
+	MarshallToNativeReturn(JavascriptEngine *js, const WSTRING &sig, JsValueRef jsval, void *hiddenStructp) :
 		MarshallToNative(js, sig.c_str(), sig.c_str() + sig.length()),
-		jsval(jsval), retval(0)
+		jsval(jsval), hiddenStructp(hiddenStructp), retval(0)
 	{ }
 
 	virtual JsValueRef GetNextVal() override { return jsval; }
 
 	virtual void *Alloc(size_t size, int nItems = 1) override 
 	{
+		// If there's a hidden struct pointer, use that space.  The actual
+		// return value from the function is the pointer.
+		if (hiddenStructp != nullptr)
+		{
+			retval = reinterpret_cast<UINT_PTR>(hiddenStructp);
+			return hiddenStructp;
+		}
+
+		// otherwise, the result has to fit in the return register
 		if (size <= sizeof(retval))
 			return &retval;
 
-		// TO DO
-		return nullptr;
+		// the return value is larger than expected - allocate temp space so
+		// that we don't crash, and flag it as an error
+		Error(_T("DllImport: return value from Javascript callback doesn't fit in return register"));
+		return js->marshallerContext->Alloc(size);
 	}
 
 	virtual void DoArray() override
 	{
-		// TO DO
+		// array returns are invalid
+		Error(_T("DllImport: array types is invalid as Javascript callback return"));
 	}
 
 	// javascript value we're marshalling
 	JsValueRef jsval;
+
+	// Hidden return struct pointer.  If the function returns a struct or union
+	// by value, the Microsoft calling conventions require the caller to allocate
+	// space for the struct (typically in the caller's local stack frame) and 
+	// pass the pointer to the allocated space in a hidden extra argument
+	// prepended to the nominal argument list.  This is said pointer.
+	void *hiddenStructp;
 
 	// native return value
 	UINT64 retval;
@@ -4187,9 +4213,15 @@ UINT64 JavascriptEngine_CallCallback(void *wrapper_, void *argv_)
 	// If the caller passed us a hidden first argument containing a pointer to
 	// a caller-allocated area for filling in a struct-by-value return value,
 	// it doesn't count as a Javascript argument.
-	JavascriptEngine::arg_t *argv0 = argv;
+	void *hiddenStructp = nullptr;
 	if (wrapper->hasHiddenStructArg)
+	{
+		// get the caller's hidden struct area
+		hiddenStructp = *reinterpret_cast<void**>(argv);
+
+		// skip it to get to the first actual input argument
 		++argv;
+	}
 
 	// Allocate the argument vector, adding the implied extra argument for 'this'
 	JsValueRef *jsArgv = static_cast<JsValueRef*>(alloca(sizeof(JsValueRef) * (argc + 1)));
@@ -4202,18 +4234,12 @@ UINT64 JavascriptEngine_CallCallback(void *wrapper_, void *argv_)
 	JsValueRef jsResult;
 	JsCallFunction(wrapper->jsFunc, jsArgv, argc + 1, &jsResult);
 
-	// TO DO : if there's a struct-by-value return with a hidden struct arg, 
-	// marshall back the result to the javascript struct
-
 	// marshall the result to native code
-	JavascriptEngine::MarshallToNativeReturn mr(wrapper->js, wrapper->sig, jsResult);
-	return mr.retval;
+	JavascriptEngine::MarshallToNativeReturn mr(wrapper->js, wrapper->sig, jsResult, hiddenStructp);
+	mr.MarshallValue();
 
-#if defined(_M_IX86)
-#elif defined(_M_X64)
-#else
-#error Processor architecture not supported.  Add the appropriate code here to build for this target
-#endif
+	// return the marshalling result
+	return mr.retval;
 }
 
 JavascriptEngine::JavascriptCallbackWrapper::JavascriptCallbackWrapper(
@@ -4237,14 +4263,14 @@ JavascriptEngine::JavascriptCallbackWrapper::JavascriptCallbackWrapper(
 	{
 		if (sig[1] == 'S')
 		{
-			MarshallStructSizer ss(js, sig + 3, sigEnd, JS_INVALID_REFERENCE);
+			MarshallStructSizer ss(js, sig + 3, Marshaller::EndOfArg(sig, sigEnd) - 1, JS_INVALID_REFERENCE);
 			ss.Marshall();
 			if (ss.size > 8)
 				hasHiddenStructArg = true;
 		}
 		else if (sig[1] == 'U')
 		{
-			MarshallUnionSizer ss(js, sig + 3, sigEnd, JS_INVALID_REFERENCE);
+			MarshallUnionSizer ss(js, sig + 3, Marshaller::EndOfArg(sig, sigEnd) - 1, JS_INVALID_REFERENCE);
 			ss.Marshall();
 			if (ss.size > 8)
 				hasHiddenStructArg = true;

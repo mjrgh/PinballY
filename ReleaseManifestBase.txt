@@ -1,5 +1,7 @@
 assets\*
 Help\*
+Help\highlightjs\*
+Help\highlightjs\styles\*
 Scripts\Scripts_Folder.txt
 Scripts\System\SystemClasses.js
 Scripts\System\CParser.js

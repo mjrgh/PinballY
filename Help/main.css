@@ -146,6 +146,11 @@ img.example {
 .code {
     margin: -1.75em 2em 1em 2em;
     white-space: pre;
+    font: 9.5pt/15pt Courier New, Courier, Lucida Sans, typewriter;
+}
+.hljs {
+    background: #ffffff;
+    overflow: visible;
 }
 
 table.dataTable {

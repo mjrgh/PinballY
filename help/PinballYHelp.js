@@ -1,5 +1,8 @@
 var isTOC = false;
 
+document.write("<script src=\"highlightjs/highlight.pack.js\" type=\"text/javascript\"></script>");
+$("head").prepend("<link rel=\"stylesheet\" type=\"text/css\" href=\"highlightjs/styles/vs.css\">");
+
 var contents = [
    "OptionSettings.html Option Settings",
         "+AttractModeOptions.html Attract Mode",
@@ -177,4 +180,8 @@ $(function()
 
     leftBar.push("</div>");
     $(".topnavbar").append($(leftBar.join("")));
+});
+
+$(document).ready(function() {
+    $(".code").each(function(i, block) { hljs.highlightBlock(block); });
 });

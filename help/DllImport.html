@@ -58,8 +58,19 @@
 </p>
 
 <div class="code">
-let GetDesktopWindow = dllImport.bind("User32.dll", "HWND GetDesktopWindow()");
+let GetDesktopWindow = dllImport.bind("User32.dll", "HWND WINAPI GetDesktopWindow()");
 </div>
+
+<p>
+   <b>Important:</b> virtually all Windows API functions require the
+   <b>WINAPI</b> keyword, which specifies the __stdcall calling convention.
+   If you omit this from a function that requires it, PinballY will
+   crash when you call the function.  A mismatch in the calling
+   convention will corrupt memory and crash the program.  There's no
+   way for PinballY to figure out the required calling convention or
+   parameter list for a DLL function on its own, so it's up to you
+   to get the definitions right in dllImport.bind().
+</p>
 
 <p>
    The return value from the bind() call is a callable Javascript function
@@ -117,8 +128,8 @@ let hwndDesktop = GetDesktopWindow();
 
 <div class="code">
 let [GetDesktopWindow, GetWindowRect] = dllImport.bind("User32.dll", [
-    "HWND GetDesktopWindow()",
-    "BOOL GetWindowRect(HWND, LPRECT)"
+    "HWND WINAPI GetDesktopWindow()",
+    "BOOL WINAPI GetWindowRect(HWND, LPRECT)"
 ]);
 </div>
 
@@ -1165,6 +1176,123 @@ dllImport.define("typedef HANDLE HWHATEVER");
 
       
 
+<h2>Callback functions</h2>
+<p>
+   Many Windows APIs take "callback" function parameters.  A callback
+   is simply a caller-provided function that the API calls back into (thus
+   the name) during the API operation.  This is most often used for
+   enumeration functions that call the callback once for each item in a
+   collection, such as child windows of a given window.
+</p>
+<div class="code">
+// C++ example - typical C++ code to get a list of child windows
+static BOOL CALLBACK my_callback_function(HWND hwndChild, LPARAM lParam)
+{
+    // recover 'this' from the lParam
+    MyClass *self = reinterpret_cast&lt;MyClass*&gt;(lParam);
+    
+    // do something with the child window handle...
+    self->process_child(hwndChild);
+}
+
+void MyClass::my_calling_function(HWND hwndParent)
+{
+    EnumChildWindows(hwndParent, &amp;my_callback_function, reinterpret_cast&lt;LPARAM&gt;(this));
+}
+</div>
+
+<p>
+   This concept is hardly foreign to Javascript.  In fact, it's used
+   much more often in typical Javascript code than in the Windows APIs,
+   partly because Javascript makes it so much easier than C++ does.
+   In Javascript usage, a callback is usually a closure, also known as
+   a lambda - the ubiquitous Javascript anonymous function.  The built-in
+   Javascript array types, for example, use callbacks to provide various
+   transformations on arrays, such as sorting, mapping, and filtering:
+</p>
+<div class="code">
+var array1 = [1, 15, 32, 17, 18, 19, 12];
+var evens = array1.filter(x => x/2 == 0);
+var odds = array1.filter(x => x/2 != 0);
+var doubled = array1.map(x => x*2);
+</div>
+
+<p>
+   The DLL importer makes it easy to use callbacks when required in
+   native APIs.  You just use the standard C syntax to define the
+   API function that takes a function pointer parameter, then you
+   call it with a Javascript function for the function pointer
+   argument.  You can use named functions or closures (lambdas/anonymous
+   functions).
+</p>
+<div class="code">
+dllImport.define("typedef BOOL (CALLBACK *WNDENUMPROC)(HWND hwnd, LPARAM lParam)");
+let EnumWindows = dllImport.bind("User32.dll", "BOOL WINAPI EnumWindows(WNDENUMPROC lpEnumFunc, LPARAM lParam)");
+
+// make an array of all top-level window handles
+let windows = [];
+EnumWindows((hwnd) => windows.push(hwnd), 0);
+</div>
+
+<p><b>LPARAM and LPVOID "context" pointers:</b>
+   Almost every Windows API that takes a callback function pointer
+   argument has an additional LPARAM or LPVOID parameter at the end.
+   The Windows headers often use the unhelpful name "lParam" for
+   this, so you have to read the documentation to figure out that
+   its purpose is just to let you pass some extra information
+   to your own callback function.  Why would you need that?  Because
+   it lets you use the same callback function in different places
+   in the code.  The extra information in the LPARAM or LPVOID
+   parameter tells you the current context in which it's being
+   invoked.  In fact, these parameters are usually called "context"
+   arguments.
+</p>
+<p>
+   You see context arguments all the time in C callback code,
+   but you rarely see them in Javascript.  The reason is that
+   Javascript functions have their own sort of built-in context,
+   because a Javascript anonymous function can access all of the
+   local variables in its enclosing scope.  That's handled behind
+   the scenes by the Javascript engine, so it happens without any
+   special coding on your part.  
+</p>
+<p>
+   When you pass a Javascript function to a native DLL call, the
+   Javascript function has access to all of its local variable
+   context, exactly as normal.  That makes it unnecessary to
+   pass anything at all for the LPARAM or LPVOID parameter to
+   a Windows API that will call the Javascript callback.  You
+   can just pass 0 for these arguments.  But if you do need to
+   use the context argument for some reason, you can pass any
+   integer value, and it'll get passed back to your callback
+   function in the corresponding LPARAM or LPVOID parameter.
+</p>
+
+<p><b>Function pointer type declarations:</b>
+   The definitions for the function pointer types used in the Windows API
+   are all defined in the SDK documentation and headers, so you should be
+   able to copy and paste those into your dllImport.define() calls.  For
+   reference, though, here's the basic C function pointer declaration
+   syntax.  It's a little bizarre if you haven't seen it before, but
+   you can just stick to this formula:
+</p>
+<div class="indented">
+   typedef <b><i>return-type</i> ( <i>calling-convention</i> *<i>function-name</i>
+   )( <i>arguments</i> )</b>
+</div>
+<p>
+   It's a little clearer to do it in two steps: define a typedef for the
+   function type itself, then add a typedef for a pointer to that function type.
+   Here's how we could have done that with our EnumWindows() callback:
+</p>
+<div class="indented">
+   typedef BOOL CALLBACK WndEnumProc(HWND, LPARAM);<br>
+   typedef WndEnumProc* WNDENUMPROC;
+</div>
+
+
+
+
 <h2>Namespaces</h2>
 <p>
    When you define a struct or other type via dllImport.define(),
@@ -1255,21 +1383,30 @@ dllImport.define("typedef int *ptrToInt");
 <h2>Limitations</h2>
 
 <ul>
-   <li>x86 mode only supports DLL calls using the __stdcall and
-      __cdecl calling conventions.  The x86 __fastcall, __thiscall,
+   <li>In x86 mode, only the __stdcall and __cdecl calling conventions
+      are supported.  The x86 __fastcall, __thiscall,
       and __vectorcall conventions aren't supported.  (This actually
-      isn't much of a limitation in practice because DLLs almost
+      isn't much of a limitation in practice, because DLLs almost
       universally use __stdcall, and in rare cases use __cdecl.
       The other calling conventions are practically never used in
-      public APIs because they're not well standardized across compilers.
-      This isn't a factor in x64 mode, as Microsoft standardized
-      on a single calling convention for Win 64 code.  The 64-bit
-      Microsoft still accept the calling convention declarations
-      but ignore them.)
+      public APIs because they're not as standardized across compilers.
+      In 64-bit code, the different calling conventions aren't a factor,
+      because Microsoft standardized on a single calling convention
+      for x64, thank goodness.  The Microsoft C/C++ compilers still
+      accept the function declaration qualifiers for calling conventions
+      in 64-bit mode, but ignore them.)
 
    <li>The native MMX, SSE, and SSE2 vector types aren't supported:
       __m64, __m128, __m128i, __m128d. These types can't be used as
       function parameters, return values, or struct elements.
+      They're mostly for performance-critical
+      graphics code and cryptocurrency mining, so it would largely
+      defeat the purpose to convert them back and forth between
+      native and Javascript types.
+      If you need to use these types in Javascript-adjacent code,
+      it's better to write native code that works with the
+      vector types directly, and write a higher level interface
+      that you expose to Javascript through a custom DLL.
 
    <li>Because the Javascript engine is single-threaded, you
       must not attempt to call back into Javascript from code in

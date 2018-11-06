@@ -15,11 +15,12 @@
 <p>
    PinballY includes a full Javascript engine for user scripting customizations.
    This is a new feature in the v1.0.0 Beta 2 release, and it's still very preliminary
-   and experimental, so be aware of two caveats:
+   and experimental, so be aware of some caveats:
 </p>
 <ul>
    <li>It's not very fleshed out yet
    <li>Many details are likely to change as it matures
+   <li>It's newer and less tested than the rest of the system
 </ul>
 
 <p>
@@ -47,8 +48,8 @@
    that represent the PinballY user interface environment.
 </p>
 <p>
-   That said, we've tried to make things the similar to the familiar
-   elements of browser Javascript wherever
+   With that in mind, there's still a lot that's very similar.
+   We've tried to stick to the familiar elements of browser Javascript wherever
    possible.  For features in PinballY that have natural analogs in
    a browser, we've tried to use the same Javascript names and behaviors.
    For example, events are handled in a very similar way, and a number
@@ -59,8 +60,11 @@
 <h2>Javascript language documentation</h2>
 
 <p>
-   This section isn't a Javascript tutorial or reference manual.
-   You can find lots of both of those on the Web.  One good place to look is the
+   I won't attempt to offer a Javascript tutorial or reference manual here,
+   since you can find lots of both of those on the Web, and much better
+   ones than I could write.  PinballY's Javascript is fully standard,
+   so the information in any good language manual will apply here.
+   One good place to look is the
    <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>,
    which has extensive and up-to-date Javscript documentation:
 </p>
@@ -71,10 +75,12 @@
    The only thing you have to keep in mind while reading Web
    Javascript documentation is that PinballY doesn't have the
    usual complement of Web browser environment objects ("document",
-   the HTML DOM tree, etc), since PinballY isn't a Web browser.
-   Some Javascript material incorrectly assumes that Javascript is
-   purely a browser language. So you might have to rework some of
-   their examples in your mind to see past the browser objects.
+   the HTML DOM tree, etc).  A lot of Javascript material is
+   really more about Web development than Javascript, and wrongly
+   takes it for granted that the only place you'd want to use this
+   language is in a Web page.  So you might have to rework some 
+   examples in your mind to see past the assumptions about browser
+   objects.
 </p>
 
 <h2>How to enable scripting</h2>
@@ -470,13 +476,16 @@ was called in the course of processing the event.
    is the "capture" property.  
 </p>
 
+<a name="browserLikeFuncs"></a>
 <h2>Browser-like functions</h2>
 
 <p>
-   As mentioned above, many of the functions and objects that you'd
-   find in a normal Web browser environment aren't actually
-   part of Javascript.  Even so, PinballY provides equivalents
-   for some of the most often used browser functions.
+   As mentioned in the introduction, many of the functions and objects
+   that you'd find in a normal Web browser environment aren't actually
+   part of Javascript.  Even so, some of the common browser features
+   are just generic GUI features that carry over to the PinballY
+   environment fairly intact, so PinballY can offer equivalents
+   for many basic browser functions you're probably familiar with.
    PinballY also has some extensions with similar functionality, but
    tailored more to the PinballY environment.
 </p>
@@ -487,8 +496,8 @@ was called in the course of processing the event.
    button, and pauses the script until the user dismisses the dialog.  This
    can be handy for script debugging, but it should be avoided for anything
    else, as it doesn't fit very well with PinballY's pin cab interaction
-   style.  See message() for a friendlier alternative, and log() for another
-   debugging option.
+   style.  See message() for a friendlier alternative for alerting the
+   user, and log() for another option for debug messages.
 </p>
 <p>
    <b>clearInterval(<i>id</i>)</b>:  Cancels an interval event created
@@ -523,8 +532,8 @@ was called in the course of processing the event.
    doesn't interrupt the flow of the user interface with a modal dialog.
    If <i>style</i> is provided, it's a string value specifying the
    visual style of the popup message.  This can be "info", "warning", or
-   "error", which show the message with green, orange, and red trim
-   (respectively), to visually reinforce the nature of the message.  The
+   "error", which show the message with green, orange, or red trim
+   (respectively), to visually signal the nature of the message.  The
    regular "info" style is used if <i>style</i> is omitted.
    (This is a PinballY extension, not a typical browser function.)
 </p>
@@ -598,7 +607,13 @@ was called in the course of processing the event.
 <h2>Calling external DLL functions</h2>
 
 <p>
-   PinballY lets you call native DLL functions from Javascript.
+   PinballY's Javascript has extensive support for calling
+   external native code in DLLs (dynamic link libraries).
+   This lets you invoke most Windows API functions directly
+   from Javascript, and lets you add in native code of your
+   own (without having to build PinballY itself from source
+   code) by compiling your code into a DLL and then calling
+   it from Javascript.
    See <a href="DllImport.html">DLL Imports</a> for details.
 </p>
 
