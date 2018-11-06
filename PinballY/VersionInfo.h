@@ -374,6 +374,10 @@ struct VersionInfo
 	// a particular binary build.
 	const char *date;
 
+	// Build timestamp, expressed in seconds since the Unix epoch
+	// (January 1, 1970, 0:00:00 UTC).
+	__time64_t unix_date;
+
 	// Build year.  This is just the year portion of the build date
 	// timestamp.  We use this mostly to generate the displayable
 	// copyright date range.
@@ -387,8 +391,8 @@ struct VersionInfo
 	// the fork version string.
 	const char *fullVer;
 
-	// Full version string plus plus the release status, formatted in 
-	// human-readable format.  If this is a pre-release (alpha, beta, or RC),
+	// Full version string plus the release status, formatted in human-
+	// readable format.  If this is a pre-release (alpha, beta, or RC),
 	// the sequence number is also included (e.g., \"1.2.3 (Beta 4)\").
 	const char *fullVerWithStat;
 

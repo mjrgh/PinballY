@@ -88,10 +88,13 @@ CSTRING WideToAnsiCnt(const WCHAR *wstr, int wstrLen, UINT codePage)
 	// figure out how much space we need
 	int len = WideCharToMultiByte(codePage, 0, wstr, wstrLen, 0, 0, 0, 0);
 
-	// set up a buffer and reserve space
+	// Set up a buffer and reserve space.  If wstrLen < 0, the string is
+	// null-terminated; don't count the null in the actual string size.
+	// If wstrLen >= 0, there's no null termination, so use the exact
+	// buffer size.
 	CSTRING astr;
 	astr.reserve(len);
-	astr.resize(len - 1);
+	astr.resize(wstrLen < 0 ? len - 1 : len);
 
 	// do the conversion for reals this time
 	WideCharToMultiByte(codePage, 0, wstr, wstrLen, &astr[0], len, 0, 0);
@@ -108,7 +111,7 @@ WSTRING AnsiToWideCnt(const CHAR *astr, int astrLen, UINT codePage)
 	// set up a buffer and reserve space
 	WSTRING wstr;
 	wstr.reserve(len);
-	wstr.resize(len - 1);
+	wstr.resize(astrLen < 0 ? len - 1 : len);
 
 	// do the conversion for reals this time
 	MultiByteToWideChar(codePage, 0, astr, astrLen, &wstr[0], len + 1);

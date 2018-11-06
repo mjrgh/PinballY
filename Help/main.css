@@ -2,35 +2,94 @@
    Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY */
    
 html, body {
-    background: #ffffff;
+    background: #f0f0f0;
     color: #000000;
 }
 
 body {
-    margin: 2em 6em 3em 4em;
+    margin: 2em 6em 0em 16em;
 }
 
 
-.navbar {
+.topnavbar, .botnavbar {
     background: #f0f0f0;
     padding: 1em 2em;
-    margin: -2em -6em 2em -4em;
+    position: relative;
 }
+.topnavbar {
+    margin: -2em -6em 2em -16em;
+    border-bottom: 1px solid #e8e8e8;
+    position: relative;
+}
+.botnavbar {
+    margin-top: 3em;
+    margin: 3em -6em -3em -16em;
+    border-top: 1px solid #e8e8e8;
+}
+
+.topnavbar .nextPrv, .botnavbar .nextPrv {
+    position: absolute;
+    right: 1em;
+    display: inline-block;
+    font-size: 90%;
+}
+
+.leftnav {
+    background: #f0f0f0;
+    position: absolute;
+    top: 5em;
+    left: 0px;
+    width: 14em;
+    height: 100px;
+}
+
+.leftnav0, .leftnav1, .leftnav2 {
+    font-size: 90%;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    padding: 4px 0px;
+}
+.leftnav0 a, .leftnav1 a, .leftnav2 a, .topnavbar a, .botnavbar a {
+    text-decoration: none;
+}
+.leftnav0 a:hover, .leftnav1 a:hover, .leftnav2 a:hover, .topnavbar a:hover, .botnavbar a:hover {
+    text-decoration: underline;
+}
+.leftnav0 {
+    margin-left: 1em;
+}
+.leftnav1 {
+    margin-left: 2em;
+}
+.leftnav2 {
+    margin-left: 3em;
+}
+.leftnavCur {
+    font-weight: bold;
+    color: #800080;
+}
+    
 html, body, table, form {
     font: 10.5pt/16pt Segoe UI, Lucida Grande, Verdana, Arial, Helvetica, sans-serif;
     line-height: 1.6;
 }
 
-p {
-    max-width: 50em;
+#main {
+    background: #ffffff;
+    margin: -2em -6em -3em 0em;
+    padding: 1ex 2em 4em 2em;
+    box-height: border-box;
+    min-height: calc(100vh - 11em - 8px);
 }
-ul, ol, li {
-    max-width: 45em;
+#mainContent {
+    max-width: 50em;
 }
 
 h1 {
     font-weight: 700;
     font-size: 140%;
+    border-bottom: 1px solid #e8e8e8;
 }
 h2 {
     margin-top: 2em;
@@ -87,4 +146,17 @@ img.example {
 .code {
     margin: -1.75em 2em 1em 2em;
     white-space: pre;
+}
+
+table.dataTable {
+    margin: 2em auto;
+}
+
+table.dataTable, table.dataTable td, table.dataTable th {
+    border-collapse: collapse;
+    border: 1px solid #f8f8f8;
+}
+
+table.dataTable td, table.dataTable th {
+    text-align: center;
 }

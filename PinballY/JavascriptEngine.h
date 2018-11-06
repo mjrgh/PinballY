@@ -8,10 +8,15 @@
 #pragma once
 #include "../ChakraCore/include/ChakraCore.h"
 
+extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
+
 // Javascript engine interface
 class JavascriptEngine : public RefCounted
 {
 public:
+	// stack argument slot type
+	typedef IF_32_64(UINT32, UINT64) arg_t;
+
 	JavascriptEngine();
 
 	// initialize
@@ -49,6 +54,10 @@ public:
 	JsErrorCode GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(TSTRING &strval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(JsValueRef &val, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
+
+	// set a read-only property
+	JsErrorCode SetReadonlyProp(JsValueRef object, const CHAR *propName, JsValueRef propVal, 
+		const TCHAR* &errWhere);
 
 	// get a property from the global object
 	template<typename T>
@@ -199,7 +208,26 @@ public:
 		}
 	};
 
-	template<> class ToNativeConverter<TSTRING> : public ToNativeConverterBase
+	template<> class ToNativeConverter<CSTRING> : public ToNativeConverterBase
+	{
+	public:
+		CSTRING Empty() const { return ""; }
+		CSTRING Conv(JsValueRef val, bool &ok, const CSTRING &name) const
+		{
+			JsValueRef str;
+			Check(JsConvertValueToString(val, &str), ok, name);
+
+			const wchar_t *pstr = L"";
+			size_t len = 0;
+			if (ok)
+				Check(JsStringToPointer(str, &pstr, &len), ok, name);
+
+			WSTRING w(pstr, len);
+			return WSTRINGToCSTRING(w);
+		}
+	};
+
+	template<> class ToNativeConverter<WSTRING> : public ToNativeConverterBase
 	{
 	public:
 		TSTRING Empty() const { return _T(""); }
@@ -214,7 +242,7 @@ public:
 				Check(JsStringToPointer(str, &pstr, &len), ok, name);
 
 			WSTRING w(pstr, len);
-			return WSTRINGToTSTRING(w);
+			return w;
 		}
 	};
 
@@ -841,6 +869,8 @@ protected:
 	static JsValueRef CALLBACK DllImportCall(JsValueRef callee, bool isConstructCall,
 		JsValueRef *argv, unsigned short argc, void *ctx);
 
+	JsValueRef DllImportSizeof(WSTRING typeInfo);
+
 	// Base class for our external objects.  All objects we pass to the Javascript
 	// engine for use as external object data are of this class.
 	class ExternalObject
@@ -936,48 +966,134 @@ protected:
 	// HANDLE prototype in the Javascript code
 	JsValueRef HANDLE_proto;
 
+	// External data object representing a native pointer.  We use this to
+	// wrap pointers returned from native code calls, since Javascript has no
+	// way to represent a native pointer.
+	class NativePointerData : public ExternalObject
+	{
+	public:
+		static JsValueRef Create(JavascriptEngine *js, void *ptr, size_t size);
+
+		NativePointerData(void *ptr, size_t size) : ptr(ptr), size(size) { }
+		void *ptr;
+		size_t size;
+
+		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToArrayBuffer(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+	};
+
+	// NativePointer prototype in the Javascript code
+	JsValueRef NativePointer_proto;
+
 	// DLL handle table.  This is a map of DLLs imported via DllImportGetProc,
 	// so that we can reuse HMODULE handles when importing multiple functions
 	// from a single library.
 	std::unordered_map<TSTRING, HMODULE> dllHandles;
 
-	// Temporary space allocator for the marshallers.  We'd use alloca() for this,
-	// since what we're really after is temporary stack space, but that's not
-	// workable for us because the marshaller routines are called as subroutines
-	// from the main routine that contains the stack frame where we want the
-	// allocations to live. 
+	// Call context for the marshallers.  This is a sort of local stack state
+	// across the marshaller subroutines.  We instantiate one of these in local
+	// scope each time we enter DllImportCall().  
 	//
-	// The parent frame creates the allocator and attaches it to a stack of
-	// allocators in the JavascriptEngine object.  When the parent frame exits,
-	// it pops the allocator stack, which frees all of the temporary memory that
-	// was allocated within that frame.  Note that this would require something
-	// more complex if a Javascript instance were multithreaded, but fortunately 
-	// it's not - a JavascriptEngine object can only be called on a single thread.
-	class TempAllocator;
-	TempAllocator *tempAllocator;
-	class TempAllocator
+	// The call context serves as the container for memory allocated for local
+	// (native) copies of marshalled Javascript values, the Javascript 'this'
+	// object, and information on which native values were passed by reference 
+	// from Javascript via object or array arguments.
+	//
+	// The context is installed as a member variable of the JavascriptEngine
+	// object, and we maintain a stack of contexts corresponding to the stack
+	// of nested calls into DllImportCall() by linking each context to the
+	// context in effect at entry.  This is safe because a Javascript runtime
+	// instance represents a single thread, so we don't have to deal with
+	// concurrent entries from different threads.
+	class MarshallerContext;
+	MarshallerContext *marshallerContext;
+	class MarshallerContext
 	{
 	public:
-		TempAllocator(JavascriptEngine *js) : js(js)
+		MarshallerContext(JavascriptEngine *js, JsValueRef jsthis) : js(js), jsthis(jsthis)
 		{ 
-			enclosing = js->tempAllocator;
-			js->tempAllocator = this;
+			// set up the link to our enclosing context
+			enclosing = js->marshallerContext;
+			js->marshallerContext = this;
 		}
 
-		void *Alloc(size_t size) { return mem.emplace_back(new BYTE[size]).get(); }
+		~MarshallerContext() 
+		{
+			// restore the enclosing call context
+			js->marshallerContext = enclosing; 
+		}
 
-		~TempAllocator() { js->tempAllocator = enclosing; }
+		// Allocate memory local to this call context.  The memory is
+		// effectively a stack allocation, like a C local variable, that
+		// only lasts until the current DllImportCall() invocation returns.
+		void *Alloc(size_t size)
+		{
+			// allocate the block
+			mem.emplace_back(size);
 
-		std::list<std::unique_ptr<BYTE>> mem;
+			// return the pointer 
+			return mem.back().ptr.get();
+		}
 
+		// Determine if a pointer refers to a local allocation unit
+		bool IsLocal(void *p) const
+		{
+			// check our memory blocks
+			for (auto const &m : mem)
+			{
+				if (p >= m.ptr.get() && p < m.ptr.get() + m.size)
+					return true;
+			}
+
+			// not one of ours - check parent blocks
+			if (enclosing != nullptr)
+				return enclosing->IsLocal(p);
+
+			// not found
+			return false;
+		}
+
+		// Temporary allocation block.  This represents a block of memory
+		// allocated by a marshaller within the current call context.  These
+		// are effectively stack allocations that only last until the current 
+		// DllImportCall() invocation returns.
+		struct Allocation
+		{
+			Allocation(size_t size) : ptr(new BYTE[size]), size(size) 
+			{
+				ZeroMemory(ptr.get(), size);
+			}
+
+			std::unique_ptr<BYTE> ptr;
+			size_t size;
+		};
+
+		// list of allocations in this calling context
+		std::list<Allocation> mem;
+
+		// Javascript engine in this call context
 		JavascriptEngine *js;
-		TempAllocator *enclosing;
+
+		// Javascript 'this' object used to invoke the current DLL call.  This
+		// should always be an object of class DllImport.
+		JsValueRef jsthis;
+
+		// enclosing call context
+		MarshallerContext *enclosing;
 	};
 
 	// marshalling classes
 	class Marshaller;
 	class MarshallSizer;
+	class MarshallBasicSizer;
 	class MarshallStackArgSizer;
+	class MarshallStructOrUnionSizer;
 	class MarshallStructSizer;
 	class MarshallUnionSizer;
 	class MarshallToNative;
@@ -985,4 +1101,136 @@ protected:
 	class MarshallToNativeByReference;
 	class MarshallToNativeStruct;
 	class MarshallToNativeUnion;
+	class MarshallToNativeArray;
+	class MarshallToNativeReturn;
+	class MarshallFromNative;
+	class MarshallFromNativeArgv;
+	class MarshallFromNativeValue;
+	class MarshallFromNativeStructOrUnion;
+	class MarshallFromNativeStruct;
+	class MarshallFromNativeUnion;
+
+	// Native-to-Javascript callback function wrappers.  When Javascript
+	// code passes a function reference to a native DLL as a callback, we
+	// wrap the js function reference in an object that provides a native
+	// function pointer to pass to the DLL.  The native address in turn
+	// marshalls arguments into js format and calls the original js
+	// function.  
+	//
+	// The tricky element here is that a native function pointer is just
+	// a machine code address, without any context connected to it.  Blame
+	// traditional C conventions for this.  Javascript functions, in 
+	// contrast, are lambdas, which combine a code address and a context 
+	// object.  
+	//
+	// Since a native function pointer is nothing but a machine code 
+	// address, the only way to bind a context into a native function
+	// pointer is to make it implicit in the machine code address.  We
+	// can't just "add bits" to an address, though; as far as callers are
+	// concerned, the address is a true machine code address that they'll
+	// use in a CALL instruction.  So we have to make it point to a normal
+	// callable function entrypoint.  That leaves us with only one way to
+	// bind in a context: the entrypoint has to contain the context object.
+	// How can we do this and also make it a callable entrypoint?  By
+	// dynamically generating the entrypoint code.
+	//
+	// So: the first thing we need is a dynamically allocated memory area
+	// for our generated entrypoint code.  We can't use regular C++ new/
+	// malloc tor this, because our entrypoint code has to live in memory
+	// pages marked with the "Executable Code" bit in the hardware memory
+	// manager.  Memory manager attributes are at a machine page level, so
+	// we need to allocate this memory through the low-level Windows APIs
+	// for managing virtual memory directly (VirtualAlloc, VirtualProtect).
+	// It would be terribly inefficient to allocate a whole page to each
+	// generated entrypoint, so we'll set up a simple malloc-like memory
+	// pool manager specialized for this task.
+	class JavascriptCallbackWrapper;
+	struct CodeGenManager
+	{
+		CodeGenManager();
+		~CodeGenManager();
+
+		// generate a thunk function for a given context object
+		FARPROC Generate(JavascriptCallbackWrapper *contextObj);
+
+		// recycle a thunk
+		void Recycle(FARPROC thunk) { recycle.emplace_back(reinterpret_cast<BYTE*>(thunk)); }
+
+		// native system page size
+		DWORD memPageSize;
+
+		// Generated "thunk" function size.  Each function we generate is 
+		// the same size, because it uses the same machine code sequence 
+		// (the only thing that varies is the context object address we 
+		// encode into  the generated code).
+		DWORD funcSize;
+
+		// Virtual page list.  When we're called upon to allocate a new
+		// function, and there's nothing in the allocation list, we take
+		// the next available chunk out of the last page in the list.
+		struct Page
+		{
+			Page(BYTE *addr) : addr(addr), used(0) { }
+
+			BYTE *addr;        // address of the start of the page
+			DWORD used;        // bytes used so far
+		};
+		std::list<Page> pages;
+
+		// Function entrypoint allocation unit
+		struct Func
+		{
+			Func(BYTE *addr) : addr(addr) { }
+			BYTE *addr;      // native code address
+		};
+
+		// Recycling bin.  This is a list of previously allocated
+		// entrypoints that have been discarded and are available for
+		// reuse.  All allocation units are the same size (funcSize),
+		// so it's trivial to find a fit for a new allocation in the
+		// recycling list: any of them will fit perfectly since
+		// everything's one size.
+		std::list<Func> recycle;
+	};
+	CodeGenManager codeGenManager;
+
+	// Symbol for callback thunks.  We use this to create references
+	// between a Javascript function that's being used as a callback
+	// and our external wrapper object:
+	//
+	//   wrapper[CallbackSymbol] = function_object
+	//   function_object[CallbackSymbol] = wrapper
+	//
+	JsPropertyIdRef callbackPropertyId;
+
+	// Javascript callback from native code
+	class JavascriptCallbackWrapper : public ExternalObject
+	{
+	public:
+		JavascriptCallbackWrapper(JavascriptEngine *js, JsValueRef jsFunc, const WCHAR *sig, const WCHAR *sigEnd);
+		~JavascriptCallbackWrapper();
+
+		// javscript engine
+		JavascriptEngine *js;
+
+		// javascript callback function
+		JsValueRef jsFunc;
+
+		// calling convention code
+		WCHAR callingConv;
+
+		// is there a hidden first argument with a struct-by-value return area pointer?
+		bool hasHiddenStructArg;
+
+		// native function signature, minus parens and calling convention
+		WSTRING sig;
+
+		// number of arguments
+		int argc;
+
+		// generated native code thunk
+		FARPROC thunk;
+	};
+
+	friend UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 };

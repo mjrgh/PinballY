@@ -408,6 +408,27 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
+		// create a system info object with basic system details
+		MsgFmt sysInfo(_T("let systemInfo = {")
+			_T("programName:\"PinballY\",")
+			_T("platform:\"") IF_32_64(_T("x86"), _T("x64")) _T("\",")
+			_T("version:{")
+			   _T("display:\"%hs\",")
+			   _T("semantic:\"%hs\",")
+               _T("basic:\"") _T(PINBALLY_VERSION) _T("\",")
+			   _T("status:\"%hs\",")
+			   _T("build:%d,")
+			   _T("buildDate:new Date(%I64d)}")
+			_T("};"),
+
+			G_VersionInfo.fullVerWithStat,
+			G_VersionInfo.semVer,
+			G_VersionInfo.fullVer,
+			G_VersionInfo.buildNo,
+			G_VersionInfo.unix_date * 1000
+		);
+		js->EvalScript(sysInfo.Get(), _T("system:sysinfo"), nullptr, eh);
+
 		// Install the DllImport callbacks.  Note that this happens AFTER the system
 		// scripts are loaded, since the callbacks are installed on objects created in
 		// the system scripts.

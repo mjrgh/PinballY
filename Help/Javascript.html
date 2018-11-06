@@ -7,16 +7,15 @@
    <link rel="stylesheet" type="text/css" href="main.css">
 </head>
 <body>
-<div class="navbar">
-   <a href="PinballY.html">PinballY Help</a>
-</div>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
 
 <h1>Javascript Scripting</h1>
 
 <p>
    PinballY includes a full Javascript engine for user scripting customizations.
-   This is a new feature in the Beta 2 release, and it's still very preliminary
-   and experimental.  Be aware of two big caveats:
+   This is a new feature in the v1.0.0 Beta 2 release, and it's still very preliminary
+   and experimental, so be aware of two caveats:
 </p>
 <ul>
    <li>It's not very fleshed out yet
@@ -25,10 +24,13 @@
 
 <p>
    This feature is preliminary and experimental, but the underlying
-   Javascript engine is quite robust.  The Javascript system is ChakraCore,
-   Microsoft's modern, ES6-compliant engine that they built from the ground up
+   Javascript engine is anything but.  The Javascript system is ChakraCore,
+   Microsoft's modern, ES6-compliant, and (surprisingly) open-source engine
+   that they built from the ground up
    for their Edge browser.  Chakra Core has top-tier performance and provides
-   strong support for modern Javascript language standards.
+   strong support for modern Javascript language standards.  You can use
+   all of the cool new ES6 language features, like "let", "class", "for..of",
+   destructuring assignments, "arrow" (=&gt;) functions, and typed arrays.
 </p>
 
 <h2>Is this like Web browser Javascript?</h2>
@@ -68,10 +70,11 @@
 <p>
    The only thing you have to keep in mind while reading Web
    Javascript documentation is that PinballY doesn't have the
-   usual browser environment objects ("document", the HTML DOM tree, etc).
-   Many Javascript tutorials assume that the only place you'd use
-   Javascript is in a Web page, so many take it for granted
-   in their examples that browser objects are always present.
+   usual complement of Web browser environment objects ("document",
+   the HTML DOM tree, etc), since PinballY isn't a Web browser.
+   Some Javascript material incorrectly assumes that Javascript is
+   purely a browser language. So you might have to rework some of
+   their examples in your mind to see past the browser objects.
 </p>
 
 <h2>How to enable scripting</h2>
@@ -84,14 +87,15 @@
    automatically load and run the file.
 </p>
 <p>
-   What goes in this file?  Generally speaking, it can contain any valid
-   Javascript code.  More specifically, it will usually consist of a
-   set of event handler functions for one or more of the program events that
-   PinballY defines, and some startup code that tells PinballY to call
-   the handlers when the related program events occur.  That's the
-   same basic approach that you'd use in Web page Javascript, but in
-   this case you're working with PinballY's event scheme rather than browser
-   events.
+   What goes in this file?  Well, pretty much anything that's valid
+   Javascript code.  But practically speaking, what you'll usually do here
+   is set up some "event listeners" for PinballY's program events.  Event
+   listeners are functions that you write in Javascript for PinballY
+   to call when particular events happen in the user interface.  If
+   you've ever done any Web browser Javascript programming, you'll
+   recognize that as the same basic approach that you'd use there.
+   The only difference is that you're working with PinballY's event
+   scheme in this case rather than with Web browser events.
 </p>
 <p>
    It's also possible to organize your code into multiple files, and to use
@@ -107,7 +111,8 @@
    definitions.  
    If you're familiar with more traditional programming languages
    like C or C++, this "outer" code in a Javascript file is the
-   equivalent of the "main" routine that's executed at program startup.
+   equivalent of the "main" routine that's executed at program startup
+   in a traditional language.
 </p>
 <p>
    The main thing that the top-level code in your main.js file
@@ -249,24 +254,22 @@ mainWindow.off(".MyPlugin");  // removes every mainWindow event with a .MyPlugin
 </div>
    
 
-<h2>Object References</h2>
+<h2>PinballY Objects</h2>
 
 <p>
-   <b>mainWindow:</b>  Represents the main user interface window object
-   (the "playfield" window).  This window is the event target for most
-   UI-related events.
+   <b><a href="MainWindowObject.html">mainWindow</a>:</b>
+   Represents the main user interface window (the "playfield" window).
+   This is the event target for most UI-related events.
 </p>
+
 <p>
-   Events:
+   <b><a href="SystemInfoObject.html">systemInfo</a>:</b>
+   Provides information on the PinballY program.
 </p>
-<ul>
-   <li><b>keydown:</b> keyboard events while the application has focus
-   <li><b>keyup:</b> keyboard events while the application has focus
-</ul>
 
 [TO DO - more objects]
 
-<h2>Event Reference</h2>
+<h2>PinballY Events</h2>
 
 <p>
    Every event listener function receives an <i>event</i> argument,
@@ -562,7 +565,7 @@ was called in the course of processing the event.
 </p>
 <p>
    (Don't confuse the Javascript ES6 <i>import</i> command with the
-   DLL import mechanism described below.  The DLL import system is
+   <a href="DllImport.html">DLL import</a> system.  The DLL import feature is
    a PinballY add-on, not standard Javascript.  The standard <b>import</b>
    command imports other Javascript files, whereas the DLL import
    scheme lets you access native code in external DLLs.)
@@ -595,293 +598,8 @@ was called in the course of processing the event.
 <h2>Calling external DLL functions</h2>
 
 <p>
-   You can call native code in external DLLs through PinballY's <b>dllImport</b>
-   object.  (Oof, that's full of ambiguous looking letters, isn't it?  That's
-   D-L-L-Import, DLL standing for Dynamic Link Library.)
-</p>
-<p>
-   DLL Importing can be used
-   to make calls directly to most Windows API
-   functions from Javascript, to access system functionality beyond what's
-   provided through the Javascript classes provided in PinballY.  You can
-   also use it to call your own custom code written in any other programming
-   language that can create DLLs, such as C, C++, Visual Basic, or C#.
-   This creates almost unlimited customization and extension possibilities.
-</p>
-<p>
-   This DLL import scheme, by the way, is a PinballY add-on.  You
-   won't find it in Web browsers or in standard Javascript.  (Which
-   also means you won't be able to read about it in other Javascript
-   manuals; you'll have to make do with the material here.)
-</p>
-<p>
-   The obvious warnings about calling out to native code apply: simple
-   errors in native code calls can crash the whole program, and it's
-   even possible to destabilize the system, corrupt disk files, or do
-   other system damage.  Javascript and PinballY can't do much to
-   protect against errant calls through the DLL layer because the
-   whole point is to give you complete control.
-</p>
-<p>
-   <b>Binding a function:</b>  
-   To call an external DLL function, you first have to "bind" the DLL
-   function.  This step connects the native code to Javascript.  You
-   tell the system the name of the DLL you want to call, the name
-   of the function in the DLL, and the "type signature" of the
-   function, meaning the datatypes of the arguments and
-   return value.  The bind operation uses that information to load
-   the DLL into memory (if it's not already loaded), look up the
-   native code address of the function, and create a Javascript
-   function that represents the native code function. 
-</p>
-
-<div class="code">
-let GetDesktopWindow = dllImport.bind("User32.dll", "HWND GetDesktopWindow()");
-</div>
-
-<p>
-   The return value from the bind() call is a callable Javascript function
-   that invokes the native code.  You can simply store this in a Javascript
-   variable for later use.  In this example, I've given my Javascript
-   variable the same name as the native function, but that's not in any
-   way required - you can call the variable whatever you want.  I just
-   like to use the same name to help keep things straight.
-</p>
-<p>
-   The first argument to bind() is the name of the DLL, in this case
-   the standard Windows library User32.dll, which contains many of the
-   basic UI functions in Windows.  The second argument is the declaration
-   of the function's return type and argument types using "C" programming
-   language syntax.
-</p>
-<p>
-   PinballY uses C syntax for the function declarations primarily
-   because that's what's the Microsoft API documentation uses almost
-   everywhere.  This
-   makes it easy to copy and paste API definitions from the SDK
-   documentation directly into your Javascript code, often with no
-   changes.  The C syntax is used in all cases, even if you're using
-   a DLL written in some language other than C.  You can't substitute VB
-   or C# syntax; you have to translate it to C terms.
-</p>
-
-<p>
-   Once a DLL function is bound, you invoke the DLL function simply
-   by calling the Javascript function returned from the "bind" call.
-</p>
-
-<div class="code">
-let hwndDesktop = GetDesktopWindow();
-</div>
-
-<p>
-   PinballY uses the C type signature that you provide in the "bind"
-   call to automatically convert arguments from Javascript format to
-   the native format when you call the bound function.  It likewise
-   converts the results from native format back to
-   Javascript format on return.  That means you don't have to worry too
-   much about the type conversion details when you call a bound DLL
-   function; you can mostly just treat it like any other Javascript function.
-</p>
-
-<p>
-   You can bind several functions in the same DLL at once, by specifying a
-   list of strings instead of a single function name.  When you provide a list
-   of function signatures to bind, you get back a corresponding list of bound
-   functions, so you can use Javascript's destructuring syntax to assign
-   them to a list of variables in one shot:
-</p>
-
-<div class="code">
-let [GetDesktopWindow, GetWindowRect] = dllImport.bind("User32.dll", [
-    "HWND GetDesktopWindow()",
-    "BOOL GetWindowRect(HWND, LPRECT)"
-]);
-</div>
-
-<p>
-   <b>Type conversions:</b>  The DLL importer will automatically
-   perform the normal Javascript type conversions as needed for simple
-   types.  For example, if a DLL function requires a 32-bit "long"
-   integer argument, and you can pass in a Javascript number, it'll be
-   converted to the native integer type automatically.  If you pass
-   in a string for that same 32-bit integer, the string will be
-   converted to a number as usual in Javascript, and that will then
-   be converted to the native integer type.
-</p>
-<p>
-   When the DLL function calls for a C "struct" type, the importer
-   will automatically map a Javascript object argument to the struct
-   type, by matching the property names to the struct field names.
-   Any missing struct fields will be filled in with default
-   values (0 for integer types, null for pointer types).
-</p>
-   
-<p>
-   <b>Defining struct types:</b>
-   Many Windows API functions use C "struct" (structure) types as
-   arguments.  For example, the GetWindowRect() API function takes
-   a pointer to a RECT structure, which has elements for the
-   corner coordinates of the window.  Before you can use a struct
-   type in a function binding, you have to define the struct type,
-   so that PinballY knows how the structure's internal memory is
-   laid out.  As with the function declaration itself, you use
-   standard C syntax to define a structure.  This requires a
-   separate <b>define()</b> method call:
-</p>
-<div class="code">
-dllImport.define("struct RECT { LONG left; LONG top; LONG right; LONG bottom; }");
-</div>
-
-<p>
-   The define() method doesn't return anything.  It just parses the
-   type definition and adds it to an internal table of type names
-   inside the dllImport object.  Once the type is entered into the
-   internal table, you can use it in subsequent bind() calls.
-</p>
-
-<p>
-   The define() call above uses <i>almost</i> the same syntax that Windows
-   SDK documentation uses for RECT.
-   But they actually take this one step further, by defining a couple
-   of "typedef" types for the structure.  typedef is a C language
-   feauture that creates a global alias for a type.  It simply adds a
-   new global name for the type that you can use in other places, such as
-   in function declarations.  Here's a revision to the above, using the
-   full typedef that the SDK uses:
-</p>
-<div class="code">
-dllImport.define("typedef struct _RECT { LONG left; LONG top; LONG right; LONG bottom; } RECT, *PRECT");
-</div>
-
-<p>
-   That idiom is extremely common in the Windows SDK headers.  Most Windows structs have similar typedefs
-   of the form "typedef struct _FOO { ... } FOO, *PFOO".
-   That defines the struct itself with a dummy "underscore" name (_FOO), plus a global alias for
-   the struct with the plain name (FOO), plus a global alias for a pointer to the struct with the
-   "P" prefix name (PFOO).  There's almost always an additional typedef for "LPFOO", which
-   is the matching "long pointer" to the struct.  The distinction between "long pointers"
-   and regular pointers is an obsolete concept from the 16-bit days of Windows 3.1; on
-   all current platforms, PFOO and LPFOO have identical definitions.
-   But the "P" and "LP" variations are still defined for most types, and they're still used
-   in the API function definitions, because Windows is the roach motel of typedefs.
-   So we might as well make one more revision to add the "LP" version and get the complete set:
-</p>
-<div class="code">
-dllImport.define("typedef struct _RECT { LONG left; LONG top; LONG right; LONG bottom; } RECT, *PRECT, *LPRECT");
-</div>
-
-<p>
-   For long struct definitions, you might prefer to use Javascript's back-quote string
-   style, which lets you embed newlines in strings.  That lets you skip the manual work
-   of pasting all the lines together when copying from SDK documentation, and also makes
-   the result a lot more readable.
-</p>
-<div class="code">
-dllImport.define(`
-typedef struct _STARTUPINFOW {
-  DWORD  cb;
-  LPWSTR lpReserved;
-  LPWSTR lpDesktop;
-  LPWSTR lpTitle;
-  DWORD  dwX;
-  DWORD  dwY;
-  DWORD  dwXSize;
-  DWORD  dwYSize;
-  DWORD  dwXCountChars;
-  DWORD  dwYCountChars;
-  DWORD  dwFillAttribute;
-  DWORD  dwFlags;
-  WORD   wShowWindow;
-  WORD   cbReserved2;
-  LPBYTE lpReserved2;
-  HANDLE hStdInput;
-  HANDLE hStdOutput;
-  HANDLE hStdError;
-} STARTUPINFOW, *LPSTARTUPINFOW;
-`);
-</div>
-
-<p>
-   <b>Namespaces:</b>  When you define a struct or other type via dllImport.define(),
-   it goes into a single, flat namespace within the dllImport object.  For most Windows
-   SDK headers, that's fine, because the SDK takes pains to give everything a unique
-   name.  If you're mixing custom DLLs from different sources, though, you might
-   run into cases where the same type names are used in more than one DLL.  In this
-   case, you might have to create different "namespaces" for the DLLs.  This is
-   fortunately pretty easy.  All you have to do is create a new DLL Import object,
-   which you can do like this:
-</p>
-<div class="code">
-var dllImport2 = new DllImport();
-</div>
-<p>
-   Note the capitalization!  The default DLL import <i>object</i>, which you
-   use to call the .bind() and .define() methods, is called
-   <b>dllImport</b> with a small d.  The <i>class</i>, which you use with "new"
-   to create new importer objects with their own namespaces, is called
-   <b>DllImport</b> with a big D.  Javascript is picky about capitalization
-   (as any serious programming language should be),
-   so <b>dllImport</b> and <b>DllImport</b> are two separate entities.
-</p>
-<p>
-   Once you create your new object, you can call dllImport2.define() to add structs
-   to its namespace without affecting the structs in the original object's namespace.
-
-<p>
-   <b>Predefined type names:</b>  The DLL importer's C parser knows about
-   all of the standard C types (int, long, float, etc) and the standard Windows
-   SDK aliases for the basic types (INT, UINT, DWORD, etc).  It also pre-defines
-   nearly all of the Windows HANDLE subtypes (HWND, HDC, HBITMAP, etc) and the
-   common null-terminated string types (LPSTR, LPCTSTR, etc).  In normal C
-   code, the "T" string types (LPTSTR, LPCTSTR) can be either ANSI (8-bit
-   characters) or Unicode (16-bit characters), according to compiler options,
-   but in PinballY Javascript, they're always Unicode.
-</p>
-<p>
-   For a full, up-to-the-minute list of the predefined types, refer to the
-   <b>primitiveTypes</b> constant object defined in <b>Scripts\System\CParser.js</b>.
-   Any types that you need that aren't present can always be added in your script
-   code via a call like this:
-</p>
-<div class="code">
-dllImport.define("typedef int *ptrToInt");
-</div>
-<p>
-   <b>Windows SDK "A" and "W" functions:</b>  Strangely, many of the common
-   Windows API functions have slightly different names in the DLL than in
-   the SDK documentation.  For example, there's no actual DLL function
-   called MessageBox.  Instead, there are two variants of the functions,
-   one called MessageBoxA and  one called MessageBoxW.  The "A" stands for
-   ANSI (8-bit character strings), and the "W" is for WIDE (16-bit Unicode
-   strings).
-</p>
-<p>
-   Most Windows API functions that take character string arguments
-   (directly or within structs) have these "A" and "W" variants.  If
-   you run into any strange missing function errors, double-check the
-   SDK documentation to see if the function you're trying to call
-   needs an "A" or "W" suffix.
-<p>
-   In PinballY Javascript, it's best to use the "W" variants when you're
-   faced with a choice.  Javascript itself uses Unicode for all strings
-   internally, so you'll avoid unnecessary string conversions by using
-   the "W" functions.
-</p>
-   
-<p>
-   <b>DLL filenames and paths:</b>
-   When you bind a function, the DLL name you specify can be a plain filename,
-   such as the "User32.dll" we've been using in our examples, or it can use a
-   full, absolute path.  In the absence of a
-   path, Windows will look in the PinballY program folder for the DLL and
-   then in the standard Windows system folders.  That makes it a no-brainer
-   to always use plain filenames (with no path) for all standard Windows DLLs.
-   Custom DLLs of your own are also best loaded with no path name, as
-   a path name will create headaches if you ever move any files around.
-   It's best to copy your custom DLLs into the PinballY program folder
-   to ensure that they can be found without having to specify any
-   paths.
+   PinballY lets you call native DLL functions from Javascript.
+   See <a href="DllImport.html">DLL Imports</a> for details.
 </p>
 
 <h2>Browser frameworks (jquery, etc)</h2>

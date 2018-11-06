@@ -469,6 +469,21 @@ this.DllImport = class DllImport
     // type.  You can make it a global name entry with an explicit typedef,
     // as in "typedef struct foo foo".
     define(types) { this.cparser.parse(types); }
+
+    // Get the native size of a given type on the current platform.  This
+    // returns thesize in bytes of the given type on this platform.  The
+    // type is specified by name, and it can be a primitive or pre-defined
+    // type name (e.g., sizeof("int") or sizeof("HANDLE")), a struct, union,
+    // or typedef type previously defined with define() (e.g.,
+    // sizeof("struct foo")).
+    //
+    // This essentially gives you the result of the C sizeof() operator
+    // for the given type.  Type sizes are sometimes required for setting
+    // up structs to pass to native code.
+    sizeof(type) { return this._sizeof(this.cparser.parse(type)[0].unparse()) }
+
+    // Internal method to wrap an external function object in a callbable lambda
+    _bindExt(nativeFunc, desc) { return (...args) => (this._call(nativeFunc, desc, ...args)); }
 };
 
 // Default DllImport instance.  Each instance acts as a namespace for
@@ -481,3 +496,42 @@ let dllImport = new DllImport();
 // native code for HANDLE values returned by native DLL calls.
 this.HANDLE = function HANDLE() { };
 
+// Prototype for NativePointer objects.  These are created by the
+// DllImport native code to represent pointers to native objects
+// passed back from DLL calls.
+this.NativePointer = function NativePointer() { };
+
+
+// Convert a Uint16 or Uint8 buffer to a Javascript string, treating the
+// buffer as a null-terminated string of Unicode characters.  
+Uint16Array.prototype.toString = Uint8Array.prototype.toString = function()
+{
+    let end = this.findIndex(c => c == 0);
+    return String.fromCharCode.apply(null, end >= 0 ? this.slice(0, end) : this);
+};
+
+// Convert a Uint16Array to a Javascript string, with no null termination
+Uint16Array.prototype.toStringRaw = Uint8Array.prototype.toStringRaw = function(length)
+{
+    return String.fromCharCode.apply(null, length === undefined ? this : this.slice(0, length));
+};
+
+// Create a Uint16 or Uint8 buffer from a Javascript string.  If the length
+// is specified, the buffer is created at the given size, otherwise it's big
+// enough to hold the characters of the string plus a null terminator.
+Uint16Array.fromString = Uint8Array.fromString = function(str, length)
+{
+    if (length === undefined)
+        length = str.length + 1;
+    let buf = new this(length);
+
+    let copylen = Math.min(str.length, length);
+    let i = 0;
+    for (; i < copylen; ++i)
+        buf[i] = str.charCodeAt(i);
+
+    for (; i < length; ++i)
+        buf[i] = 0;
+
+    return buf;
+};

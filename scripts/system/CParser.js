@@ -298,11 +298,13 @@ var CParser = (function()
             "LPCTSTR": "%T",
             "LPWSTR": "T",
             "LPCWSTR": "%T",
-            "INT_PTR": "P",
+            "INT_PTR": "p",
+            "LONG_PTR": "p",
+            "UINT_PTR": "P",
+            "ULONG_PTR": "P",
             "DWORD_PTR": "P",
             "LPARAM": "P",
             "WPARAM": "P",
-            "LONG_PTR": "P"
         };
 
         const typeModifiers = [
@@ -504,8 +506,14 @@ var CParser = (function()
                     // parse pointer qualifiers
                     let declSpec = parsePointer(declSpecBase);
 
-                    // parse the direct declarator
-                    let decl = parseDirectDeclarator(declSpec);
+                    // Parse the direct declarator.  This returns a simple parse
+                    // tree representing the syntax of the declarator.
+                    let tree = parseDirectDeclarator();
+
+                    // Now walk down the tree and apply the decl spec.  This will
+                    // yield the "Declaration" node with the proper type set, after
+                    // applying the modifiers captured in the parse tree.
+                    let decl = setTreeTypes(tree, declSpec);
                     
                     // if we're in multi-definition mode, parse a comma-separated
                     // list of declarators
@@ -523,6 +531,69 @@ var CParser = (function()
                     {
                         // for other types, just define one identifier and return
                         return decl;
+                    }
+                }
+
+                // Walk a direct declarator parse tree to apply the decl spec.
+                // Returns a "Declaration" node with the proper type set.
+                function setTreeTypes(tree, declSpec)
+                {
+                    switch (tree.type)
+                    {
+                    case "*":
+                        declSpec = {
+                            type: "PointerType",
+                            target: declSpec
+                        };
+                        return setTreeTypes(tree.target, declSpec);
+
+                    case "&":
+                        declSpec = {
+                            type: "ReferenceType",
+                            target: declSpec
+                        };
+                        return setTreeTypes(tree.target, declSpec);
+
+                    case "const":
+                        (declSpec = Object.assign({ }, declSpec)).isConst = true;
+                        return setTreeTypes(tree.target, declSpec);
+
+                    case "volatile":
+                        (declSpec = Object.assign({ }, declSpec)).isVolatile = true;
+                        return setTreeTypes(tree.target, declSpec);
+                        
+                    case "name":
+                        return {
+                            type: "Declaration",
+                            name: tree.name,
+                            defType: declSpec
+                        };
+
+                    case "function":
+                        if (declSpec.type == "ArrayType" || declSpec.type == "IncompleteArrayType")
+                            throwError("Function returning array is an invalid C type");
+                        
+                        declSpec = {
+                            type: "FunctionType",
+                            returnType: declSpec,
+                            arguments: tree.arguments,
+                            callingConvention: tree.func.callingConvention
+                        };
+                        return setTreeTypes(tree.func, declSpec);
+
+                    case "array":
+                        if (declSpec.type == "FunctionType")
+                            throwError("Array of function is an invalid C type");
+                        
+                        declSpec = {
+                            type: tree.length ? "ArrayType" : "IncompleteArrayType",
+                            length: tree.length,
+                            target: declSpec
+                        };
+                        return setTreeTypes(tree.target, declSpec);
+
+                    default:
+                        throwError("unknown type in direct declarator parse tree: " + tree.type);
                     }
                 }
 
@@ -637,45 +708,22 @@ var CParser = (function()
                     return type;
                 }
 
-                function parsePointerDirectDeclarator(declSpec)
+                function parsePointerDirectDeclarator()
                 {
-                    for (;;)
-                    {
-                        let reftype;
-                        if (lookahead("*"))
-                            reftype = "PointerType";
-                        else if (lookahead("&"))
-                            reftype = "ReferenceType";
-                        
-                        if (reftype)
-                        {
-                            declSpec = {
-                                type: reftype,
-                                target: declSpec
-                            };
-                        }
-                        
-                        let qual;
-                        if (lookahead("const") || lookahead("CONST"))
-                            qual = "isConst";
-                        else if (lookahead("volatile"))
-                            qual = "isVolatile";
+                    let reftype = lookahead("*") || lookahead("&");
+                    if (reftype)
+                        return { type: reftype, target: parsePointerDirectDeclarator() };
 
-                        if (qual)
-                            declSpec[qual] = true;
+                    let qual = lookahead("const") || lookahead("CONST") || lookahead("volatile");
+                    if (qual)
+                        return { type: qual.toLowerCase(), target: parsePointerDirectDeclarator() };
 
-                        if (!reftype && !qual)
-                            break;
-                    }
-
-                    return parseDirectDeclarator(declSpec);
+                    return parseDirectDeclarator();
                 }
 
-                function parseDirectDeclarator(declSpec)
+                function parseDirectDeclarator()
                 {
-                    let outerType = { };
-                    let decl;
-
+                    let ret;
                     if (lookahead("("))
                     {
                         // parse a nested declarator:
@@ -683,42 +731,25 @@ var CParser = (function()
                         //
 
                         // parse the calling convention
-                        declSpec.callingConvention = parseCallingConvention();
+                        let cc = parseCallingConvention();
 
-                        // The type of the nested declarator will be (possibly pointer to)
-                        // the enclosing type expression, so create a placeholder object
-                        // that will ultimately hold our final calculated type, and use
-                        // that as the type for the recursive descent.
-                        decl = parsePointerDirectDeclarator({
-                            type: "ProxyType",
-                            target: outerType
-                        });
+                        // parse the nested pointers and direct declarator
+                        ret = parsePointerDirectDeclarator();
+
+                        // apply the calling convention
+                        if (cc)
+                            ret.callingConvention = cc;
 
                         // skip the closing paren
                         consume(")");
                     }
                     else
                     {
-                        declSpec.callingConvention = parseCallingConvention();
-                        if (identifierIncoming())
-                        {
-                            decl = {
-                                type: "Declaration",
-                                pos: getPos(),
-                                name: readIdentifier(),
-                                defType: outerType
-                            };
-                        }
-                        else
-                        {
-                            // Anonymous type declaration.  This can be used for casts and
-                            // parameter names.
-                            decl = {
-                                type: "Anonymous",
-                                pos: getPos(),
-                                defType: outerType
-                            };
-                        }
+                        ret = {
+                            type: "name",
+                            callingConvention: parseCallingConvention(),
+                            name: identifierIncoming() && readIdentifier()
+                        };
                     }
 
                     // check for function and array postfixes
@@ -726,60 +757,47 @@ var CParser = (function()
                     {
                         if (lookahead("("))
                         {
-                            declSpec = {
-                                type: "FunctionType",
-                                callingConvention: declSpec.callingConvention,
-                                returnType: declSpec,
-                                arguments: parseArgumentDefinition()
-                            };
-
-                            // normalize the arguments for type validation purposes
-                            declSpec = normalizeType(declSpec);
-
-                            // function returning array or function is invalid
-                            if (declSpec.returnType.type == "ArrayType" || declSpec.returnType.type == "IncompleteArrayType")
-                                throwError("a function returning an array type is invalid");
-                            if (declSpec.returnType.type == "FunctionType")
-                                throwError("a function can't return a function as its result (did you mean to return a pointer to a function?)");
+                            // parse arguments
+                            let args = parseArgumentDefinition();
 
                             // exactly one 'void' argument actually means there are zero arguments
-                            if (declSpec.arguments.length == 1 && declSpec.arguments[0].defType.name == "void")
-                                declSpec.arguments = [];
+                            if (args.length == 1 && args[0].defType.name == "void")
+                                args = [];
 
                             // validate other arguments
-                            for (let a of declSpec.arguments)
+                            for (let a of args)
                             {
                                 if (a.defType.name == "void")
                                     throwError("'void' function parameters are invalid");
-                                if (a.defType.type == "FunctionType")
-                                    throwError("functions can't be used as parameters (did you mean 'pointer to function'?)");
+                                if (a.defType.name == "FunctionType")
+                                    throwError("functions can't be passed as parameters by value (did you mean to use a pointer?)");
                             }
+
+                            ret = {
+                                type: "function",
+                                func: ret,
+                                arguments: args
+                            };
                         }
                         else if (lookahead("["))
                         {
-                            if (lookahead("]"))
+                            var length;
+                            if (numberIncoming())
                             {
-                                declSpec = {
-                                    type: "IncompleteArrayType",
-                                    target: declSpec
-                                };
-                            }
-                            else if (numberIncoming())
-                            {
-                                declSpec = {
-                                    type: "ArrayType",
-                                    target: declSpec,
-                                    length: readNumber()
-                                };
+                                length = readNumber();
+                                if (length <= 0)
+                                    throwError("array dimension must be greater than zero")
+
                                 consume("]");
                             }
-                            else
-                                throwError("numeric constant required for array size specification");
+                            else if (!lookahead("]"))
+                                unexpected("numeric constant or empty array dimension");
 
-                            // array of function is invalid
-                            declSpec = normalizeType(declSpec);
-                            if (declSpec.target.type == "FunctionType")
-                                throwError("array of functions is invalid");
+                            ret = {
+                                type: "array",
+                                length: length,
+                                target: ret
+                            };
                         }
                         else
                         {
@@ -788,11 +806,7 @@ var CParser = (function()
                         }
                     }
 
-                    // set the outer type to the final declSpec
-                    Object.assign(outerType, declSpec);
-
-                    // return the declarator
-                    return decl;
+                    return ret;
                 }
 
                 function parseCallingConvention()
@@ -968,7 +982,8 @@ var CParser = (function()
 
                 if(!keepBlanks)
                     skipBlanks();
-                return true;
+
+                return str;
             }
 
             function consume(str)
@@ -1049,59 +1064,6 @@ var CParser = (function()
             }
         };
 
-        // Normalize a type by removing any proxy wrappers
-        function normalizeType(t)
-        {
-            // If this node has already been normalied, terminate the recursion.
-            // We can visit subtrees multiple times in the course of assembling
-            // higher level structures out of components, such as functions with
-            // struct arguments.
-            if (t.normalized)
-                return t;
-
-            // mark it as normalized to skip future traversals
-            t.normalized = true;
-
-            // if it has a target, normalize the target
-            if (t.target)
-                t.target = normalizeType(t.target);
-
-            // a few types require special handling
-            switch (t.type)
-            {
-            case "FunctionType":
-                // normalize the return type
-                t.returnType = normalizeType(t.returnType);
-                
-                // normalize arguments
-                for (let i = 0; i < t.arguments.length; ++i)
-                    t.arguments[i].defType = normalizeType(t.arguments[i].defType);
-                break;
-
-            case "StructType":
-            case "UnionType":
-                for (let i = 0; i < t.member.length; ++i)
-                    t.member[i].defType = normalizeType(t.member[i].defType);
-                break;
-
-            case "ProxyType":
-                // normalize out proxies entirely
-                return t.target;
-
-            case "Type":
-                {
-                    let type = typeMap[t.name];
-                    if (type && !type.primitive)
-                        return type;
-                }
-                break;
-            }
-
-            // return the normalized type
-            return t;
-        }
-        
-
         // ---------------------------------------------------------------------------
         //
         // Unparsing section.  These functions convert a parsed declaration into the
@@ -1137,7 +1099,7 @@ var CParser = (function()
                     return "[" + t.length + "]" + unparseType(t.target);
 
                 case "IncompleteArrayType":
-                    return "*" + unparseType(t.target);
+                    return "[]" + unparseType(t.target);
 
                 case "FunctionType":
                     return "(" + unparseFunc(t) + ")";
@@ -1153,9 +1115,6 @@ var CParser = (function()
 
                 case "Literal":
                     return t.value;
-
-                case "ProxyType":
-                    return unparseType(t.target);
 
                 default:
                     return "<unknown-type:" + t.type + ">";

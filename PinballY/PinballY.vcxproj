@@ -589,6 +589,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <None Include="..\packages\jQuery.2.1.1\tools\jquery-2.1.1.intellisense.js" />
   </ItemGroup>
   <ItemGroup>
+    <MASM Include="DllCallGlue32.asm">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </MASM>
     <MASM Include="DllCallGlue64.asm">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>

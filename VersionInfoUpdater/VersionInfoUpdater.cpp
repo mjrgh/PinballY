@@ -155,9 +155,9 @@ int main(int argc, char **argv)
 	// so that the whole thing looks like one token.
 	char date[128], semDate[128];
 	struct tm tm;
-	time_t tt;
-	time(&tt);
-	gmtime_s(&tm, &tt);
+	__time64_t tt;
+	_time64(&tt);
+	_gmtime64_s(&tm, &tt);
 	sprintf_s(date, "%04d%02d%02d-%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min);
 	sprintf_s(semDate, "%04d%02d%02dT%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min);
 	int year = tm.tm_year + 1900;
@@ -441,10 +441,12 @@ int main(int argc, char **argv)
 		fprintf(fp, "    %s, %.*s// %s\n", data, padding, spaces, comment);
 	};
 	auto writeInt = [fp, write](const char *comment, int val) { write(comment, "%d", val); };
+	auto writeInt64 = [fp, write](const char *comment, __int64 val) { write(comment, "%I64d", val); };
 	auto writeStr = [fp, write](const char *comment, const char *val) { write(comment, "\"%s\"", val); };
 
 	writeInt("Build number",                    buildNo);
 	writeStr("Build date",                      date);
+	writeInt64("Build date in Unix format (seconds since 1/1/1970 0:00:00 UTC)", tt);
 	writeInt("Build year",                      year);
 	writeStr("Release status",                  releaseStatusName);
 	writeStr("Full version string",             vsn);

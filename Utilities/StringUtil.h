@@ -29,6 +29,8 @@ CSTRING WideToAnsi(const WCHAR *wstr, UINT codePage = CP_ACP);
 WSTRING AnsiToWideCnt(const CHAR *astr, int len, UINT codePage = CP_ACP);
 WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 
+#define WSTRINGToCSTRING(/*const WSTRING& */ wstr) WideToAnsi((wstr).c_str())
+#define CSTRINGToWSTRING(/*const CSTRING& */ cstr) AnsiToWide((cstr).c_str())
 #ifdef UNICODE
 #define WideToTSTRING(/*const WCHAR* */ wstr) TSTRING(wstr)
 #define TCHARToWide(/*const TCHAR* */ tstr)   TSTRING(tstr)
