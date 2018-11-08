@@ -16,6 +16,8 @@ JavascriptEngine::JavascriptEngine() :
 	nextTaskID(1.0),
 	HANDLE_proto(JS_INVALID_REFERENCE),
 	NativePointer_proto(JS_INVALID_REFERENCE),
+	Int64_proto(JS_INVALID_REFERENCE),
+	UInt64_proto(JS_INVALID_REFERENCE),
 	marshallerContext(nullptr)
 {
 }
@@ -523,9 +525,15 @@ bool JavascriptEngine::DefineObjPropFunc(JsValueRef obj, const CHAR *objName, co
 	if ((err = JsCreatePropertyId(propName, strlen(propName), &propId)) != JsNoError)
 		return Error(_T("JsCreatePropertyId"));
 
+	// create the function name value
+	JsValueRef nameval;
+	MsgFmt name(_T("%hs.%hs"), objName, propName);
+	if ((err = JsPointerToString(name.Get(), wcslen(name.Get()), &nameval)) != JsNoError)
+		return Error(_T("JsPointerToString"));
+
 	// create the native function wrapper
 	JsValueRef funcval;
-	if ((err = JsCreateFunction(func, context, &funcval)) != JsNoError)
+	if ((err = JsCreateNamedFunction(nameval, func, context, &funcval)) != JsNoError)
 		return Error(_T("JsCreateFunction"));
 
 	// set the object property
@@ -1485,6 +1493,12 @@ public:
 		Add(sizer.size, sizer.size, totalCnt);
 	}
 
+	virtual void DoFunction() override
+	{
+		// we can't take the size of a function
+		Error(_T("DllImport: attempting to take the size of a native function; this is an invalid operation"));
+	}
+
 	virtual JsValueRef GetCurVal() override { return jsval; }
 
 	// concrete value being sized, if available
@@ -1523,8 +1537,9 @@ public:
 	// flex member error detected and reported
 	bool flexError;
 
-	// current property name
+	// current property name and type signature
 	TSTRING curProp;
+	TSTRING curPropType;
 
 	// the current value is the property value
 	virtual JsValueRef GetCurVal() override 
@@ -1551,8 +1566,14 @@ public:
 		// if we found the tag name, store it
 		if (p < sigEnd && *p == ':')
 		{
+			// save the tag name
 			curProp.assign(tag, p - tag);
+
+			// skip the ':'
 			++p;
+
+			// save the type
+			curPropType.assign(p, EndOfArg(p));
 		}
 		else
 			curProp = _T("");
@@ -2872,25 +2893,14 @@ public:
 
 	virtual void DoInt64() override 
 	{
-		// Any int64 value can fit in a javascript double in terms of range, 
-		// but there will loss of integer precision for values outside of the 
-		// range +/- 2^53, so treat it as an error if it's outside this range.
-		auto ll = *reinterpret_cast<const INT64*>(valp);
-		auto d = static_cast<double>(ll);
-		if (d < -MaxIntInDouble || d > MaxIntInDouble)
-			/* $$$ TO DO - do something to preserve the full precision, like an external 64-bit object or string value return */;
-
-		Check(JsDoubleToNumber(d, &jsval));
+		// use our Int64 type to represent the result
+		jsval = XInt64Data<INT64>::CreateFromInt(js, *reinterpret_cast<const INT64*>(valp));
 	}
 
 	virtual void DoUInt64() override
 	{
-		auto ll = *reinterpret_cast<const UINT64*>(&valp);
-		auto d = static_cast<double>(ll);
-		if (d > MaxIntInDouble)
-			/* $$$ TO DO - preserve precision */;
-
-		Check(JsDoubleToNumber(d, &jsval));
+		// use our Uint64 type to represent the result
+		jsval = XInt64Data<UINT64>::CreateFromInt(js, *reinterpret_cast<const UINT64*>(valp));
 	}
 
 	virtual void DoString() override
@@ -3255,7 +3265,8 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 	// set up the bindings
 	if (!DefineObjPropFunc(proto, className, "_bind", &JavascriptEngine::DllImportBind, this, eh)
 		|| !DefineObjPropFunc(proto, className, "_call", &JavascriptEngine::DllImportCall, this, eh)
-		|| !DefineObjPropFunc(proto, className, "_sizeof", &JavascriptEngine::DllImportSizeof, this, eh))
+		|| !DefineObjPropFunc(proto, className, "_sizeof", &JavascriptEngine::DllImportSizeof, this, eh)
+		|| !DefineObjPropFunc(proto, className, "_create", &JavascriptEngine::DllImportCreate, this, eh))
 		return false;
 
 	// find the HANDLE object's prototype
@@ -3264,9 +3275,11 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		return Error(subwhere);
 
 	// set up HANDLE.prototype function bindings
-	if (!DefineObjPropFunc(HANDLE_proto, "HANDLE", "toString", &HandleData::ToString, nullptr, eh)
-		|| !DefineObjPropFunc(HANDLE_proto, "HANDLE", "toNumber", &HandleData::ToNumber, nullptr, eh))
-			return false;
+	if (!DefineObjPropFunc(HANDLE_proto, "HANDLE", "toString", &HandleData::ToString, this, eh)
+		|| !DefineObjPropFunc(HANDLE_proto, "HANDLE", "toNumber", &HandleData::ToNumber, this, eh)
+		|| !DefineObjPropFunc(HANDLE_proto, "HANDLE", "toUint64", &HandleData::ToUInt64, this, eh)
+		|| !DefineObjPropFunc(classObj, "HANDLE", "_new", &HandleData::CreateWithNew, this, eh))
+		return false;
 
 	// save a reference on the handle prototype, as we're hanging onto it
 	JsAddRef(HANDLE_proto, nullptr);
@@ -3277,13 +3290,59 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		return Error(subwhere);
 
 	// set up NativePointer.prototype function bindings
-	if (!DefineObjPropFunc(NativePointer_proto, "NativePointer", "toString", &NativePointerData::ToString, nullptr, eh)
-		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toNumber", &NativePointerData::ToNumber, nullptr, eh)
-		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toArrayBuffer", &NativePointerData::ToArrayBuffer, this, eh))
+	if (!DefineObjPropFunc(NativePointer_proto, "NativePointer", "toString", &NativePointerData::ToString, this, eh)
+		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toNumber", &NativePointerData::ToNumber, this, eh)
+		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toUint64", &NativePointerData::ToUInt64, this, eh)
+		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toArrayBuffer", &NativePointerData::ToArrayBuffer, this, eh)
+		|| !DefineObjPropFunc(classObj, "NativePointer", "_new", &NativePointerData::CreateWithNew, this, eh))
 		return false;
 
 	// save a reference on the handle prototype, as we're hanging onto it
 	JsAddRef(NativePointer_proto, nullptr);
+
+	// set up the INT64 native type
+	if ((err = GetProp(classObj, global, "Int64", subwhere)) != JsNoError
+		|| (err = GetProp(Int64_proto, classObj, "prototype", subwhere)) != JsNoError)
+		return Error(subwhere);
+
+	if (!DefineObjPropFunc(Int64_proto, "Int64", "toString", &XInt64Data<INT64>::ToString, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "toObject", &XInt64Data<INT64>::ToObject, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "toNumber", &XInt64Data<INT64>::ToNumber, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "negate", &XInt64Data<INT64>::Negate, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "add", &XInt64Data<INT64>::Add, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "sub", &XInt64Data<INT64>::Subtract, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "mul", &XInt64Data<INT64>::Multiply, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "div", &XInt64Data<INT64>::Divide, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "mod", &XInt64Data<INT64>::Modulo, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "and", &XInt64Data<INT64>::And, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "or", &XInt64Data<INT64>::Or, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "not", &XInt64Data<INT64>::Not, this, eh)
+		|| !DefineObjPropFunc(classObj, "Int64", "_new", &XInt64Data<INT64>::Create, this, eh))
+		return false;
+
+	JsAddRef(Int64_proto, nullptr);
+
+	// set up the UINT64 native type
+	if ((err = GetProp(classObj, global, "Uint64", subwhere)) != JsNoError
+		|| (err = GetProp(UInt64_proto, classObj, "prototype", subwhere)) != JsNoError)
+		return Error(subwhere);
+
+	if (!DefineObjPropFunc(UInt64_proto, "Uint64", "toString", &XInt64Data<UINT64>::ToString, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "toObject", &XInt64Data<UINT64>::ToObject, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "toNumber", &XInt64Data<UINT64>::ToNumber, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "negate", &XInt64Data<UINT64>::Negate, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "add", &XInt64Data<UINT64>::Add, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "sub", &XInt64Data<UINT64>::Subtract, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "mul", &XInt64Data<UINT64>::Multiply, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "div", &XInt64Data<UINT64>::Divide, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "mod", &XInt64Data<UINT64>::Modulo, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "and", &XInt64Data<UINT64>::And, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "or", &XInt64Data<UINT64>::Or, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "not", &XInt64Data<UINT64>::Not, this, eh)
+		|| !DefineObjPropFunc(classObj, "UInt64", "_new", &XInt64Data<UINT64>::Create, this, eh))
+		return false;
+
+	JsAddRef(Int64_proto, nullptr);
 
 	// success
 	return true;
@@ -3364,6 +3423,14 @@ JsValueRef JavascriptEngine::DllImportSizeof(WSTRING typeInfo)
 	JsValueRef ret;
 	JsIntToNumber(sizer.size, &ret);
 	return ret;
+}
+
+// DllImportCreate is set up in the Javascript as DllImport.prototype._create(),
+// an internal method of the DllImport object.  This creates an instance of a
+// native type, for use in calls to native code.
+JsValueRef JavascriptEngine::DllImportCreate(WSTRING typeInfo)
+{
+	return CreateNativeObject(typeInfo);
 }
 
 // DllImportCall is set up in the Javascript as DllImport.prototype._call(), an 
@@ -3693,6 +3760,45 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 	return marshallRetVal.jsval;
 }
 
+
+// -----------------------------------------------------------------------
+//
+// Native HANDLE type
+//
+
+JsValueRef CALLBACK JavascriptEngine::HandleData::CreateWithNew(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// parse a UInt64 value
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	UINT64 i = 0;
+	if (argc >= 2)
+		i = XInt64Data<UINT64>::FromJavascript(js, argv[1]);
+
+	// create the handle
+	JsErrorCode err;
+	JsValueRef retval;
+	if ((err = JsCreateExternalObjectWithPrototype(
+		new HandleData(reinterpret_cast<HANDLE>(i)),
+		&HandleData::Finalize, js->HANDLE_proto, &retval)) != JsNoError)
+		js->Throw(err, _T("new HANDLE()"));
+
+	return retval;
+}
+
+JsValueRef CALLBACK JavascriptEngine::HandleData::ToUInt64(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = HandleData::Recover<HandleData>(argv[0], _T("HANDLE.toUint64()")); self != nullptr)
+	{
+		// create the Uint64 object
+		auto js = static_cast<JavascriptEngine*>(ctx);
+		ret = XInt64Data<UINT64>::CreateFromInt(js, reinterpret_cast<UINT64>(self->h));
+	}
+	return ret;
+}
+
 JsValueRef CALLBACK JavascriptEngine::HandleData::ToString(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
@@ -3714,7 +3820,7 @@ JsValueRef CALLBACK JavascriptEngine::HandleData::ToNumber(JsValueRef callee, bo
 	{
 		double d = static_cast<double>(reinterpret_cast<UINT_PTR>(self->h));
 		JsDoubleToNumber(d, &ret);
-		if (d > static_cast<double>(2LL < DBL_MANT_DIG))
+		if (d > static_cast<double>(1LL < DBL_MANT_DIG))
 		{
 			JsValueRef msg, exc;
 			const WCHAR *txt = L"Value out of range";
@@ -3724,6 +3830,32 @@ JsValueRef CALLBACK JavascriptEngine::HandleData::ToNumber(JsValueRef callee, bo
 		}
 	}
 	return ret;
+}
+
+
+// -----------------------------------------------------------------------
+// 
+// Native pointer type
+//
+
+JsValueRef CALLBACK JavascriptEngine::NativePointerData::CreateWithNew(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// parse a UInt64 value to use as the pointer
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	UINT64 i = 0;
+	if (argc >= 2)
+		i = XInt64Data<UINT64>::FromJavascript(js, argv[1]);
+
+	// create the pointer
+	JsErrorCode err;
+	JsValueRef retval;
+	if ((err = JsCreateExternalObjectWithPrototype(
+		new NativePointerData(reinterpret_cast<void*>(i), 0),
+		&NativePointerData::Finalize, js->HANDLE_proto, &retval)) != JsNoError)
+		js->Throw(err, _T("new HANDLE()"));
+
+	return retval;
 }
 
 JsValueRef JavascriptEngine::NativePointerData::Create(JavascriptEngine *js, void *ptr, size_t size)
@@ -3788,6 +3920,20 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToNumber(JsValueRef cal
 	return ret;
 }
 
+JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToUInt64(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.toUint64()")); self != nullptr)
+	{
+		// create the Uint64 object
+		auto js = static_cast<JavascriptEngine*>(ctx);
+		ret = XInt64Data<UINT64>::CreateFromInt(js, reinterpret_cast<UINT64>(self->ptr));
+	}
+	return ret;
+}
+
+
 JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArrayBuffer(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
@@ -3799,6 +3945,465 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArrayBuffer(JsValueRe
 			static_cast<JavascriptEngine*>(ctx)->Throw(err, _T("NativePointer.toArrayBuffer()"));
 	}
 	return ret;
+}
+
+
+// -----------------------------------------------------------------------
+//
+// Native 64-bit integer types
+//
+
+template<typename T>
+T JavascriptEngine::XInt64Data<T>::FromJavascript(JavascriptEngine *js, JsValueRef jsval)
+{
+	// get the argument type
+	JsValueType type;
+	JsErrorCode err = JsGetValueType(jsval, &type);
+	if (err != JsNoError)
+	{
+		js->Throw(err, _T("Int64 new"));
+		return 0;
+	}
+
+	switch (type)
+	{
+	case JsUndefined:
+	case JsNull:
+		// use 0 as the value of these
+		return 0;
+
+	case JsNumber:
+		// number - a native double type
+		{
+			// get the double
+			double d;
+			JsNumberToDouble(jsval, &d);
+
+			// range-check it
+			bool overflow;
+			if (std::is_signed<T>::value)
+				overflow = d < static_cast<double>(INT64_MIN) || d > static_cast<double>(INT64_MAX);
+			else
+				overflow = d < 0.0 || d > static_cast<double>(UINT64_MAX);
+			
+			if (overflow)
+			{
+				js->Throw(_T("Int64 math overflow converting number operand"));
+				return 0;
+			}
+
+			// use this as the value
+			return static_cast<T>(d);
+		}
+		break;
+
+	case JsObject:
+		// we can construct from other 64-bit types
+		{
+			void *extdata;
+			if ((err = JsGetExternalData(jsval, &extdata)) != JsNoError)
+			{
+				js->Throw(err, _T("Int64 math"));
+				return 0;
+			}
+
+			if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(extdata, nullptr); b != nullptr)
+				return static_cast<T>(b->i);
+			else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(extdata, nullptr); b != nullptr)
+				return static_cast<T>(b->i);
+			else
+				goto use_string;
+		}
+		break;
+
+	default:
+	use_string:
+		// try parsing anything else as a string
+		{
+			T i = 0;
+			if (!ParseString(js, jsval, i))
+				return 0;
+			return i;
+		}
+	}
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::Create(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	T i = 0;
+	if (argc > 1)
+		i = FromJavascript(js, argv[1]);
+
+	// create the value
+	return CreateFromInt(js, i);
+}
+
+template<typename T>
+bool JavascriptEngine::XInt64Data<T>::ParseString(JavascriptEngine *js, JsValueRef jsval, T &val)
+{
+	// start with a zero value
+	val = 0;
+
+	// convert the value to string
+	JsErrorCode err;
+	JsValueRef strval;
+	if ((err = JsConvertValueToString(jsval, &strval)) != JsNoError)
+	{
+		js->Throw(err, _T("Int64 parse string"));
+		return false;
+	}
+
+	// retrieve the string
+	const WCHAR *p, *pEnd;
+	size_t len;
+	if ((err = JsStringToPointer(strval, &p, &len)) != JsNoError)
+	{
+		js->Throw(err, _T("Int64 parse string"));
+		return false;
+	}
+	pEnd = p + len;
+
+	// skip leading spaces
+	for (; iswspace(*p) && p < pEnd; ++p);
+
+	// check for a negative or positive
+	bool neg = false;
+	while (p < pEnd)
+	{
+		if (*p == '+')
+			++p;
+		else if (*p == '-')
+			neg = !neg, ++p;
+		else
+			break;
+	}
+
+	// check the radix
+	int radix = 10;
+	if (p + 1 < pEnd && p[0] == '0' && p[1] == 'x')
+	{
+		radix = 16;
+		p += 2;
+	}
+	else if (p + 1 < pEnd && p[0] == '0' && p[1] == 'b')
+	{
+		radix = 2;
+		p += 2;
+	}
+	else if (p < pEnd && p[0] == '0')
+	{
+		radix = 8;
+		++p;
+	}
+
+	// accumulate digits
+	T acc = 0;
+	for (; p < pEnd; ++p)
+	{
+		int dig = 0;
+		if (*p < '0')
+			break;
+		if (radix == 2)
+		{
+			if (*p <= '1')
+				dig = *p - '0';
+			else
+				break;
+		}
+		else if (radix == 8)
+		{
+			if (*p <= '7')
+				dig = *p - '0';
+			else
+				break;
+		}
+		else if (radix == 10)
+		{
+			if (*p <= '9')
+				dig = *p - '0';
+			else
+				break;
+		}
+		else
+		{
+			if (*p <= '9')
+				dig = *p - '0';
+			else if (*p >= 'a' && *p <= 'f')
+				dig = *p - 'a' + 10;
+			else if (*p >= 'A' && *p <= 'F')
+				dig = *p - 'A' + 10;
+			else
+				break;
+		}
+
+		acc *= radix;
+		acc += dig;
+	}
+
+	// apply the sign
+	if constexpr (std::is_signed<T>::value)
+	{
+		if (neg)
+			acc = -acc;
+	}
+
+	// return the result
+	val = acc;
+	return true;
+}
+
+template<typename T> 
+JsValueRef JavascriptEngine::XInt64Data<T>::CreateFromInt(JavascriptEngine *js, T val)
+{
+	// create a new object to represent the result
+	auto extobj = new XInt64Data<T>(val);
+
+	// wrap it in a javsacript external object
+	JsErrorCode err;
+	JsValueRef newobj;
+	if ((err = JsCreateExternalObjectWithPrototype(extobj, XInt64Data<T>::Finalize,
+		std::is_signed<T>::value ? js->Int64_proto : js->UInt64_proto, &newobj)) != JsNoError)
+		js->Throw(err, _T("Int64 math: creating result"));
+
+	// return the result
+	return newobj;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::ToString(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	JsErrorCode err;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64.toString()")); self != nullptr)
+	{
+		// get the value
+		T i = self->i;
+
+		// get the radix argument, if present
+		int radix = 10;
+		if (argc >= 2)
+		{
+			JsValueRef radixval;
+			double dradix;
+			if ((err = JsConvertValueToNumber(argv[1], &radixval)) == JsNoError
+				&& (err = JsNumberToDouble(radixval, &dradix)) == JsNoError
+				&& dradix >= 2.0 && dradix <= 36.0)
+				radix = static_cast<int>(dradix);
+		}
+
+		// Set up a result buffer.  In the longest case, we'll have 64 digits
+		// (bits) plus a sign.
+		WCHAR buf[70];
+		WCHAR *endp = buf + countof(buf);
+		WCHAR *p = endp;
+
+		// if the value is negative, start with a sign
+		bool neg = false;
+		if constexpr (std::is_signed<T>::value)
+		{
+			if (i < 0)
+			{
+				neg = true;
+				i = -i;
+			}
+		}
+
+		// special case if the value is zero
+		if (i == 0)
+		{
+			*--p = '0';
+		}
+		else
+		{
+			// work backwards through the digits from the least significant end
+			while (i != 0)
+			{
+				int digit = static_cast<int>(i % radix);
+				if (digit <= 9)
+					*--p = static_cast<WCHAR>(digit + '0');
+				else
+					*--p = static_cast<WCHAR>(digit - 10 + 'A');
+
+				i /= radix;
+			}
+
+			// add the sign
+			if (neg)
+				*--p = '-';
+		}
+
+		// return the string
+		err = JsPointerToString(p, endp - p, &ret);
+		if (err != JsNoError)
+			static_cast<JavascriptEngine*>(ctx)->Throw(err, _T("Int64.toString()"));
+	}
+	return ret;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::ToObject(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64.toObject()")); self != nullptr)
+	{
+		// figure the high and low parts as raw 32-bit UINT32's
+		UINT32 hi = static_cast<UINT32>((self->i >> 32) & 0xFFFFFFFF);
+		UINT32 lo = static_cast<UINT32>(self->i & 0xFFFFFFFF);
+
+		// convert to double, retaining the sign for the high part only
+		double dhi = std::is_signed<T>::value ? static_cast<double>(static_cast<INT32>(hi)) : static_cast<double>(hi);
+		double dlo = static_cast<double>(lo);
+
+		JsErrorCode err;
+		JsPropertyIdRef prop;
+		JsValueRef num;
+		if ((err = JsCreateObject(&ret)) != JsNoError
+			|| (err = JsCreatePropertyId("high", 4, &prop)) != JsNoError
+			|| (err = JsDoubleToNumber(dhi, &num)) != JsNoError
+			|| (err = JsSetProperty(ret, prop, num, true)) != JsNoError
+			|| (err = JsCreatePropertyId("low", 3, &prop)) != JsNoError
+			|| (err = JsDoubleToNumber(dlo, &num)) != JsNoError
+			|| (err = JsSetProperty(ret, prop, num, true)) != JsNoError)
+			static_cast<JavascriptEngine*>(ctx)->Throw(err, _T("Int64.toObject"));
+	}
+	return ret;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::ToNumber(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64.toNumber()")); self != nullptr)
+	{
+		// make sure it fits in a double without loss of precision
+		static const INT64 MAX = 1i64 << DBL_MANT_DIG;
+		bool overflow;
+		if (std::is_signed<T>::value)
+			overflow = self->i > static_cast<UINT64>(MAX);
+		else
+			overflow = self->i < -MAX || self->i > MAX;
+
+		if (overflow)
+			static_cast<JavascriptEngine*>(ctx)->Throw(_T("Int64.toNumber: value out of range"));
+
+		// store the result
+		JsErrorCode err = JsDoubleToNumber(static_cast<double>(self->i), &ret);
+		if (err != JsNoError)
+			static_cast<JavascriptEngine*>(ctx)->Throw(err, _T("Int64.toNumber"));
+	}
+	return ret;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::UnaryOp(JsValueRef *argv, unsigned short argc, void *ctx, std::function<T(T)> op)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	// we need a 'this'
+	if (argc == 0)
+		return js->undefVal;
+
+	// get the source value
+	T a = 0;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64 math")); self != nullptr)
+		a = self->i;
+	else
+		return js->Throw(_T("Int64 math: 'this' is not an int64 type"));
+
+	// figure the result
+	T result = op(a);
+
+	// create a new object to represent the result
+	return CreateFromInt(js, result);
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::BinOp(JsValueRef *argv, unsigned short argc, void *ctx, std::function<T(T, T)> op)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	// we need a 'this'
+	if (argc == 0)
+		return js->undefVal;
+
+	// return self unchanged if there's no second operand
+	if (argc == 1)
+		return argv[0];
+
+	// get the source value
+	T a = 0;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64 math")); self != nullptr)
+		a = self->i;
+	else
+		return js->Throw(_T("Int64 math: 'this' is not an int64 type"));
+
+	// get the operand type
+	JsValueType type;
+	JsErrorCode err = JsGetValueType(argv[1], &type);
+	if (err != JsNoError)
+		return js->Throw(err, _T("Int64 math"));
+
+	T result;
+	switch (type)
+	{
+	case JsUndefined:
+		// return self unchanged if the second operand is 'undefined'
+		return argv[0];
+
+	case JsNull:
+		// math op on null yields null
+		return js->nullVal;
+
+	case JsNumber:
+		// number - a native double type
+		{
+			// get the double
+			double d;
+			JsNumberToDouble(argv[1], &d);
+
+			// range-check it
+			bool overflow;
+			if (std::is_signed<T>::value)
+				overflow = d < static_cast<double>(INT64_MIN) || d > static_cast<double>(INT64_MAX);
+			else
+				overflow = d < 0.0 || d > static_cast<double>(UINT64_MAX);
+			if (overflow)
+				return js->Throw(_T("Int64 math overflow converting number operand"));
+
+			// do the math
+			result = op(a, static_cast<T>(d));
+		}
+		break;
+
+	case JsObject:
+		// we can operate on other 64-bit types
+		{
+			if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(argv[1], nullptr); b != nullptr)
+				result = op(a, static_cast<T>(b->i));
+			else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(argv[1], nullptr); b != nullptr)
+				result = op(a, static_cast<T>(b->i));
+			else
+				return js->Throw(_T("Int64 math: invalid operand"));
+		}
+		break;
+
+	default:
+		// try parsing anything else as a string
+		{
+			T b;
+			if (!ParseString(js, argv[1], b))
+				return js->undefVal;
+
+			result = op(a, b);
+		}
+		break;
+	}
+
+	// create a new object to represent the result
+	return CreateFromInt(js, result);
 }
 
 // -----------------------------------------------------------------------
@@ -4301,4 +4906,460 @@ JavascriptEngine::JavascriptCallbackWrapper::~JavascriptCallbackWrapper()
 	// delete our thunk by adding it to the free list
 	if (thunk != nullptr)
 		js->codeGenManager.Recycle(thunk);
+}
+
+// -----------------------------------------------------------------------
+//
+// Native objects
+//
+
+JsValueRef JavascriptEngine::CreateNativeObject(const WSTRING &sig, void *data)
+{
+	JsErrorCode err;
+	auto Error = [this](const TCHAR *msg)
+	{
+		Throw(msg);
+		return JS_INVALID_REFERENCE;
+	};
+
+	// we can't have an empty signature, obviously
+	if (sig.length() == 0)
+		return Error(_T("DllImport: creating native object: missing type signature"));
+
+	// set up to scan the signature
+	const WCHAR *p = sig.c_str();
+	const WCHAR *sigEnd = p + sig.length();
+
+	// get the size of the object
+	MarshallBasicSizer sizer(this, p, sigEnd, JS_INVALID_REFERENCE);
+	if (!sizer.Marshall() || sizer.error)
+		return JS_INVALID_REFERENCE;
+
+	// Zero-size objects (e.g., void or void[5]) are invalid
+	if (sizer.size == 0)
+		return Error(_T("DllImport: creating native object: can't create type with zero size"));
+
+	// Create a NativeTypeWrapper for the object.  Note that we create a
+	// wrapper for the element type if this is an array.
+	auto *wrapper = new NativeTypeWrapper(p, sigEnd, sizer.size, data, JS_INVALID_REFERENCE);
+
+	// Look up the prototype object for the native type signature in
+	// our type cache.  If we've encountered this same type before,
+	// we can use the same prototype for it again; otherwise we'll
+	// have to create a new prototype for a data view object for this
+	// type signature.
+	NativeTypeCacheEntry *entry = nullptr;
+	JsValueRef proto = JS_INVALID_REFERENCE;
+	if (auto it = nativeTypeCache.find(sig); it != nativeTypeCache.end())
+	{
+		// got it - reuse the existing entry
+		entry = &it->second;
+	}
+	else
+	{
+		// There's no entry for this type, so create one.  First, create
+		// the Javascript object to serve as the prototype for the external
+		// view object for this type.
+		if ((err = JsCreateObject(&proto)) != JsNoError)
+			return Throw(err, _T("DllImport: creating prototype for native data view object"));
+
+		// create the cache entry
+		entry = &nativeTypeCache.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(sig),
+			std::forward_as_tuple(proto)).first->second;
+
+		// add getters and setters
+		InitNativeObjectProto(entry, sig);
+	}
+
+	// create a Javascript external object for our wrapper
+	JsValueRef jsobj;
+	if ((err = JsCreateExternalObjectWithPrototype(wrapper, &NativeTypeWrapper::Finalize, proto, &jsobj)) != JsNoError)
+		return Throw(err, _T("DllImport: creating external object for native data"));
+
+	// return the object
+	return jsobj;
+}
+
+void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const WSTRING &sig)
+{
+	auto AddGetterSetter = [this, entry](size_t offset, const WCHAR *name, const WCHAR *sig, size_t siglen, bool valueOf)
+	{
+		JsErrorCode err;
+		JsValueRef nameStr;
+		if ((err = JsPointerToString(name, wcslen(name), &nameStr)) != JsNoError)
+		{
+			Throw(err, _T("DllImport: creating getter/setter for native object"));
+			return;
+		}
+
+		auto *view = &entry->views.emplace_back(offset);
+		auto Add = [this, entry, valueOf, &err, nameStr, view](const WCHAR *name, JsNativeFunction getter, JsNativeFunction setter)
+		{
+			// set up the getter
+			JsValueRef desc;
+			JsValueRef propstr;
+			JsValueRef trueval;
+			JsValueRef funcval = JS_INVALID_REFERENCE;
+			bool ok;
+			if ((err = JsCreateObject(&desc)) == JsNoError
+				&& (err = JsGetTrueValue(&trueval)) == JsNoError
+				&& (err = JsCreateString("enumerable", 10, &propstr)) == JsNoError
+				&& (err = JsObjectSetProperty(desc, propstr, trueval, true)) == JsNoError
+				&& (err = JsCreateString("get", 3, &propstr)) == JsNoError
+				&& (err = JsCreateFunction(getter, view, &funcval)) == JsNoError)
+				err = JsObjectSetProperty(desc, propstr, funcval, true);
+
+			// add a valueOf matching the getter, if desired
+			if (valueOf && err == JsNoError
+				&& (err = JsCreateString("valueOf", 7, &propstr)) == JsNoError)
+				err = JsObjectSetProperty(entry->proto, propstr, funcval, true);
+
+			// if there's a setter, add that as well
+			if (setter != nullptr && err == JsNoError
+				&& (err = JsCreateString("set", 3, &propstr)) == JsNoError
+				&& (err = JsCreateFunction(setter, view, &funcval)) == JsNoError)
+				err = JsObjectSetProperty(desc, propstr, funcval, true);
+
+			// define the getter/setter
+			if (err == JsNoError)
+				err = JsObjectDefineProperty(entry->proto, nameStr, desc, &ok);
+
+			// throw on any error
+			if (err != JsNoError)
+				Throw(err, _T("DllImport: creating getter/setter for native object"));
+		};
+
+		switch (*sig)
+		{
+		case 'b':
+			Add(name, &PrimitiveDataGetter<bool>, &PrimitiveDataSetter<bool>);
+			break;
+
+		case 'c':
+			Add(name, &PrimitiveDataGetter<INT8>, &PrimitiveDataSetter<INT8>);
+			break;
+
+		case 'C':
+			Add(name, &PrimitiveDataGetter<UINT8>, &PrimitiveDataSetter<UINT8>);
+			break;
+
+		case 's':
+			Add(name, &PrimitiveDataGetter<INT16>, &PrimitiveDataSetter<INT16>);
+			break;
+
+		case 'S':
+			Add(name, &PrimitiveDataGetter<UINT16>, &PrimitiveDataSetter<UINT16>);
+			break;
+
+		case 'i':
+			Add(name, &PrimitiveDataGetter<INT32>, &PrimitiveDataSetter<INT32>);
+			break;
+
+		case 'I':
+			Add(name, &PrimitiveDataGetter<UINT32>, &PrimitiveDataSetter<UINT32>);
+			break;
+
+		case 'f':
+			Add(name, &PrimitiveDataGetter<float>, &PrimitiveDataSetter<float>);
+			break;
+
+		case 'd':
+			Add(name, &PrimitiveDataGetter<double>, &PrimitiveDataSetter<double>);
+			break;
+
+		case 'l':
+		case 'L':
+			// TO DO - int64 types
+
+		case 'z':
+		case 'Z':
+		case 'p':
+		case 'P':
+			// TO DO - int32 or int64 types, according to platform size
+
+		case 'H':
+			// TO DO - handle types
+
+		case 't':
+		case 'T':
+			// TO DO - string types
+
+		case '*':
+		case '&':
+			// TO DO - pointer types
+
+		case '{':
+			// TO DO - struct union types
+
+		case '[':
+			// TO DO - array types
+			break;
+		}
+	};
+
+	const WCHAR *p = sig.c_str();
+	const WCHAR *endp = p + sig.length();
+	switch (*p)
+	{
+	case '[':
+		// Array type.  The prototype has one getter, .at(index), which
+		// returns a data view object for the element at that index.
+
+		// TO DO
+		break;
+
+	case '{':
+		// Struct/union type.  The prototype has a getter and setter for 
+		// each element, with the same name as the struct element.
+		{
+			auto Parse = [this, p, endp, &AddGetterSetter](MarshallStructOrUnionSizer &sizer)
+			{
+				for ( ; sizer.p < sizer.sigEnd; sizer.NextArg())
+				{
+					// Marshall one value through the sizer.  This will read the
+					// next tag name and figure the size and offset of the item.
+					sizer.MarshallValue();
+
+					// add a getter and setter for this type
+					AddGetterSetter(sizer.lastItemOfs, sizer.curProp.c_str(), sizer.curPropType.c_str(), sizer.curPropType.length(), false);
+				}
+			};
+			if (p + 1 < endp && p[1] == 'U')
+				Parse(MarshallUnionSizer(this, p + 3, endp - 1, JS_INVALID_REFERENCE));
+			else
+				Parse(MarshallStructSizer(this, p + 3, endp - 1, JS_INVALID_REFERENCE));
+		}
+		break;
+
+	case 'b':
+	case 'c':
+	case 'C':
+	case 's':
+	case 'S':
+	case 'i':
+	case 'I':
+	case 'd':
+	case 'D':
+	case 'l':
+	case 'L':
+	case 'z':
+	case 'Z':
+	case 'p':
+	case 'P':
+	case 'H':
+		// The whole native object is a primitive scalar type.  Add a getter/setter
+		// for "value".  Also add the same getter as the valueOf() method.  Since
+		// this is the only value in the object, it's at offset zero.
+		AddGetterSetter(0, L"value", p, Marshaller::EndOfArg(p, endp) - p, true);
+		break;
+
+	case 't':
+	case 'T':
+		// TO DO
+
+	case '*':
+	case '&':
+		// TO DO
+
+	case 'v':
+		// void can't be used for a data mapping
+		Throw(MsgFmt(_T("DllImport: native object prototype setup: 'void' type is invalid"), *p));
+
+	default:
+		// other types are invalid
+		Throw(MsgFmt(_T("DllImport: native object prototype setup: invalid native type code '%c'"), *p));
+		break;
+	}
+}
+
+template<typename T>
+JsValueRef CALLBACK JavascriptEngine::PrimitiveDataGetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// recover the native object from 'this'
+	JsValueRef jsval;
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: native object view")); obj != nullptr)
+	{
+		// get the data view definition for this getter, from the context
+		auto view = static_cast<const NativeTypeView*>(ctx);
+
+		// Read the native type from the offset, convert to a Javascript number, and return the
+		// result.  This getter is only used for primitive types that fit into a Javascript
+		// number (which is actually a 'double'), so there's no need for any range checking.
+		if (JsDoubleToNumber(static_cast<double>(*reinterpret_cast<const T*>(obj->data + view->offset)), &jsval) == JsNoError)
+			return jsval;
+	}
+
+	// failed - return undefined
+	JsGetUndefinedValue(&jsval);
+	return jsval;
+}
+
+template<typename T>
+JsValueRef CALLBACK JavascriptEngine::PrimitiveDataSetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the value to set
+	double d;
+	if (argc < 2 || JsNumberToDouble(argv[1], &d) != JsNoError)
+		d = 0.0;
+
+	// recover the native object from 'this'
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: native object view")); obj != nullptr)
+	{
+		// get the data view definition for this setter, from the context
+		auto view = static_cast<const NativeTypeView*>(ctx);
+
+		// set the native value from the double
+		*reinterpret_cast<T*>(obj->data + view->offset) = static_cast<T>(d);
+
+		// TO DO - range-check the value
+	}
+
+	// return the value assigned as the result
+	return argv[1];
+}
+
+// TO - remove below
+#if 0
+	// parse array dimensions
+	size_t nEles = 1;
+	std::list<size_t> dims;
+	while (p < sigEnd && *p == '[')
+	{
+		// parse the array dimensions
+		size_t dim = 0;
+		for (++p; p < sigEnd && *p != ']'; ++p)
+		{
+			if (*p >= '0' && *p <= '9')
+			{
+				dim *= 10;
+				dim += static_cast<size_t>(*p - '0');
+			}
+			else
+				return Error(_T("DllImport: creating native object: invalid array dimension in type signature"));
+		}
+
+		// a non-zero array size is required
+		if (dim == 0 || p == sigEnd)
+			return Error(_T("DllImport: creating native object: array dimension is missing or zero"));
+
+		// add this into the dimension list and overall size
+		nEles *= dim;
+		dims.emplace_back(dim);
+
+		// skip the ']'
+		++p;
+	}
+
+	// For primitive types that correspond to Javascript Typed Array types,
+	// use a typed array.
+	auto CreateTypedArray = [this, data, &nEles](JsTypedArrayType t, size_t eleSize) -> JsValueRef
+	{
+		JsValueRef arr = JS_INVALID_REFERENCE;
+		JsErrorCode err;
+		if (data != nullptr)
+		{
+			// The caller provided the data.  Create a typed array using the
+			// caller's buffer as the backing store.
+			JsValueRef buf;
+			if ((err = JsCreateExternalArrayBuffer(data, nEles * eleSize, nullptr, nullptr, &buf)) != JsNoError
+				|| (err = JsCreateTypedArray(t, buf, 0, eleSize, &arr)) != JsNoError)
+				Throw(err, _T("DllImport: creating native object: creating Typed Array"));
+		}
+		else
+		{
+			// The caller didn't provide data, so use an internal backing store.
+			if ((err = JsCreateTypedArray(t, JS_INVALID_REFERENCE, 0, nEles, &arr)) != JsNoError)
+				Throw(err, _T("DllImport: creating native object: creating Typed Array"));
+		}
+
+		return arr;
+	};
+
+	// If we have a primitive type that maps to a Javascript Typed Array
+	// type, and it's either a single element or a single-dimensional array,
+	// use the corresponding typed array.  That's presumably more efficient
+	// than an external object, since it's built into Chakra Core.
+	if (dims.size() <= 1)
+	{
+		switch (*p)
+		{
+		case 'c': return CreateTypedArray(JsArrayTypeInt8, 1);
+		case 'C': return CreateTypedArray(JsArrayTypeUint8, 1);
+		case 's': return CreateTypedArray(JsArrayTypeInt16, 2);
+		case 'S': return CreateTypedArray(JsArrayTypeUint16, 2);
+		case 'i': return CreateTypedArray(JsArrayTypeInt32, 4);
+		case 'I': return CreateTypedArray(JsArrayTypeUint32, 4);
+		case 'f': return CreateTypedArray(JsArrayTypeFloat32, 4);
+		case 'd': return CreateTypedArray(JsArrayTypeFloat64, 8);
+
+#if UINTPTR_MAX == 0xffffffffui32
+		case 'z': return CreateTypedArray(JsArrayTypeInt32, 4);
+		case 'Z': return CreateTypedArray(JsArrayTypeUint32, 4);
+		case 'p': return CreateTypedArray(JsArrayTypeInt32, 4);
+		case 'P': return CreateTypedArray(JsArrayTypeUint32, 4);
+#endif
+		}
+	}
+
+	// It's not representable as a Javascript Typed Array, so we have
+	// to use our custom external object instead.
+	//
+	// 1. Create a NativeTypeWrapper object
+	//
+	// 2. Look up the "type prototype" for the type signature.  
+	//    Maintain a cache of these objects, matched by signature.
+	//    If not found:
+	//
+	//    a. Create a new Javascript object to serve as the prototype
+	//
+	//    b. Add a cache entry with the signature and prototype object
+	//
+	//    c. For a struct type, add get/set properties for each element
+	//
+	// 3. Create a js external object, with the native type wrapper
+	//    as the object data and the type prototype as the prototype
+	//
+	// 4. If it's an array, add an at(index) method that returns an
+	//    accessor object that views the 
+
+#endif // TO DO - remove above
+
+JavascriptEngine::NativeTypeWrapper::NativeTypeWrapper(
+	const WCHAR *sig, const WCHAR *sigEnd,
+	size_t size, void *extData, JsValueRef sourceObject) :
+	sig(sig, sigEnd - sig), size(size), sourceObject(sourceObject)
+{
+	// If the caller didn't provide an external data for us to view, create
+	// our own internal data.
+	if (extData == nullptr)
+	{
+		// allocate space
+		data = new BYTE[size];
+		ZeroMemory(data, size);
+		isInternalData = true;
+	}
+	else
+	{
+		// we're using the caller's external data
+		data = static_cast<BYTE*>(extData);
+		isInternalData = false;
+	}
+
+	// if we have an underlying source object, add a reference on it, to
+	// keep it alive as long as this object is alive
+	if (sourceObject != JS_INVALID_REFERENCE)
+		JsAddRef(sourceObject, nullptr);
+}
+
+JavascriptEngine::NativeTypeWrapper::~NativeTypeWrapper()
+{
+	// if we allocated our own internal data, delete it
+	if (isInternalData)
+		delete[] data;
+
+	// if we have an underlying source object, release our reference on it
+	if (sourceObject != JS_INVALID_REFERENCE)
+		JsRelease(sourceObject, nullptr);
 }

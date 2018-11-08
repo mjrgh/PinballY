@@ -44,6 +44,53 @@
    whole point is to give you complete control.
 </p>
 
+<h2>Quick-start guide</h2>
+<p>
+   If you're reasonably familiar with Javascript, the Windows APIs,
+   and C or C++, here's a quick example to demonstrat how the
+   DLL import system works.  We'll go into much more details below,
+   but this should give you the basic idea, and a template for
+   your own projects.
+</p>
+<div class="code">
+// Define the native struct types used in the DLL functions we
+// want to call.  These definitions go into an internal table in
+// the dllImport object, so we can refer to the types by name in
+// subsequent bind() calls once they're defined.
+dllImport.define(`
+    typedef struct _RECT {
+        LONG left;
+        LONG top;
+        LONG right;
+        LONG bottom;
+    } RECT, *PRECT, *LPRECT;
+    typedef BOOL (CALLBACK *WNDENUMPROC)(HWND hwnd, LPARAM lParam);
+`);
+
+// Bind the DLL functions we want to call.  This is a one-time
+// step; we can call these functions repeatedly once they're bound.
+let [GetDesktopWindow, EnumChildWindows, GetParent, GetWindowText] = dllImport.bind("User32.dll", [
+    "HWND WINAPI GetDesktopWindow()",
+    "BOOL WINAPI EnumChildWindows(HWND hwnd, WNDENUMPROC lpEnumFunc, LPARAM lParam)",
+    "BOOL WINAPI GetParent(HWND hwnd)",
+    "BOOL WINAPI GetWindowTextW(HWND hwnd, LPWSTR buf, int nMaxCount)"]);
+
+// Make a list of the names of the direct children of the main
+// desktop window.
+let wins = [];
+let parent = GetDesktopWindow();
+let title = new Uint16Array(256);
+EnumChildWindows(parent, (hwnd) => {
+    if (GetParent(hwnd) == parent)
+    {
+        GetWindowText(hwnd, title, title.length);
+        wins.push(title.toString());
+    }
+});
+</div>
+
+   
+
 <h2>Binding a function</h2>
 <p>
    To call an external DLL function, you first have to "bind" the DLL
@@ -695,26 +742,50 @@ dllImport.define("typedef struct _RECT { LONG left; LONG top; LONG right; LONG b
 </div>
 
 <p>
-   That idiom is extremely common in the Windows SDK headers.  Most Windows structs have similar typedefs
-   of the form "typedef struct _FOO { ... } FOO, *PFOO".
-   That defines the struct itself with a dummy "underscore" name (_FOO), plus a global alias for
-   the struct with the plain name (FOO), plus a global alias for a pointer to the struct with the
-   "P" prefix name (PFOO).  There's almost always an additional typedef for "LPFOO", which
-   is the matching "long pointer" to the struct.  The distinction between "long pointers"
-   and regular pointers is an obsolete concept from the 16-bit days of Windows 3.1; on
-   all current platforms, PFOO and LPFOO have identical definitions.
-   But the "P" and "LP" variations are still defined for most types, and they're still used
-   in the API function definitions, because Windows is the roach motel of typedefs.
-   So we might as well make one more revision to add the "LP" version and get the complete set:
+   You'll see that naming pattern throughout the Windows SDK headers: "typedef struct _FOO { ... } FOO, *PFOO".
+   That actually defines <i>three</i> related types:
+   the struct itself, with the name prefixed with an underscore (<b>struct _FOO</b>), a global typedef alias 
+   with the plain name (<b>FOO</b>), plus a global alias for a pointer to the struct with the
+   "P" prefix name (<b>PFOO</b>).  There's almost always a fourth related type, <b>LPFOO</b>, which
+   is the matching "long pointer" to the struct.  The longer pointer type, LPFOO, is almost
+   always the type used in API functions that refer to the struct.  The "LP" version is what's
+   almost always used in the function definitions, so let's add it to our typedef to make it complete:
 </p>
 <div class="code">
 dllImport.define("typedef struct _RECT { LONG left; LONG top; LONG right; LONG bottom; } RECT, *PRECT, *LPRECT");
 </div>
+<p>
+   So there you have it: that's the form of the typedef you'll need to enter for virtually every struct
+   you'll need in a Windows API call.
+</p>
 
 <p>
+   <b>So what exactly is a "long pointer"?</b>  You have to remember Windows 3.1 to know what
+   that's about.  In the 16-bit days, they had to distinguish between 16-bit pointers
+   and 32-bit pointers.  The 32-bit ones were called "long" pointers.  This is
+   obsolete now; on all current Windows platforms, regular and long pointers are
+   identical, so the "P" and "LP" versions of a typedef are just aliases.
+   But the SDK headers still keep the "P" and "LP" variations everywhere, and they're
+   still used in the API function definitions, because Windows is the roach motel of typedefs.
+   Who knows, maybe they'll be necessary again in some future hardware platform, and we'll
+   all be happy that Microsoft so diligently maintained the distinction.
+</p>
+<p>
+   <b>And what about the underscore in <b>struct _FOO</b>?</b.  That's to make the SDK headers compatible
+   with both C and C++ compilers.  In C++, <b>struct FOO</b> implicitly defines a
+   type alias <b>FOO</b> that means the same thing, so a subsequent <b>typedef struct FOO FOO</b>
+   can cause redundant naming errors with some compilers.  But you <i>need</i> the additional
+   typedef when compiling in C, because plain C <i>doesn't</i> create a FOO type alias implicitly
+   like C++ does.
+   So the headers define the struct with the slightly different tag to avoid errors adding
+   the typedef.  That way the same code works in C and C++.  And now in Javascript!)
+</p>
+
+<p><b>Using back-quote strings for struct definitions:</b>
    For long struct definitions, you might prefer to use Javascript's back-quote string
-   style, which lets you embed newlines in strings.  That lets you skip the manual work
-   of pasting all the lines together when copying from SDK documentation, and also makes
+   style, because it lets you spread out a string across multiple lines of text without
+   having to keep putting in more quotes on every line.  That lets you paste a multi-line
+   struct from the SDK without having to paste all of the lines together, which makes
    the result a lot more readable.
 </p>
 <div class="code">

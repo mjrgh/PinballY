@@ -460,7 +460,7 @@ this.DllImport = class DllImport
         return (...args) => (this._call(nativeFunc, desc, ...args));
     }
 
-    // Define a type.  The arugment is a standard C struct, union, enum, or
+    // Define a type.  The argument is a standard C struct, union, enum, or
     // typedef statement, or a list of statements separated by semicolons.
     // The types are added to the internal type table in the DllImport
     // object, so they can be used in subsequent function bindings.  Note
@@ -469,6 +469,16 @@ this.DllImport = class DllImport
     // type.  You can make it a global name entry with an explicit typedef,
     // as in "typedef struct foo foo".
     define(types) { this.cparser.parse(types); }
+
+    // Create an instance of a native type.  The argument is a string
+    // giving a type signature, which can be a native primitive type
+    // (char, unsigned int, float), a pointer type (char*), a struct
+    // or union type, an array of any of these (int[10], struct foo[5]).
+    // Types previously defined with define("typedef...") can be used.
+    // Returns an object representing the native value; this can then
+    // be used in calls to native functions where pointers to native
+    // types are required.
+    create(type) { return this._create(this.cparser.parse(type)[0].unparse()); }
 
     // Get the native size of a given type on the current platform.  This
     // returns thesize in bytes of the given type on this platform.  The
@@ -494,12 +504,19 @@ let dllImport = new DllImport();
 
 // Prototype for HANDLE objects.  These are created by the DllImport
 // native code for HANDLE values returned by native DLL calls.
-this.HANDLE = function HANDLE() { };
+this.HANDLE = function HANDLE(...args) { return HANDLE._new(...args); };
 
 // Prototype for NativePointer objects.  These are created by the
 // DllImport native code to represent pointers to native objects
 // passed back from DLL calls.
-this.NativePointer = function NativePointer() { };
+this.NativePointer = function NativePointer(...args) { return NativePointer._new(...args); };
+
+// Prototype for Int64 (signed 64-bit integer) and Uint64 (unsigned
+// 64-bit integer) objects.  These are system objects used by DllImport
+// to represent 64-bit integer types from native code.  The system
+// provides basic arithmetic methods on these.
+this.Int64 = function Int64(...args) { return Int64._new(...args); };
+this.Uint64 = function Uint64(...args) { return Uint64._new(...args); };
 
 
 // Convert a Uint16 or Uint8 buffer to a Javascript string, treating the

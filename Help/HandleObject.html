@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>HANDLE Objects</h1>
+
+<p>
+   The HANDLE class represents a Windows API handle.  In Windows, handles
+   are unique identifiers for program resources.  Windows uses handles
+   for most objects managed by the system, from user interface objects
+   like windows and dialogs to kernel resources like files, processes,
+   and threads.  The HANDLE type is so ubiquitous in the Windows API
+   that PinballY's Javascript provides this special type to represent it.
+   This is primarily for use with the <a href="DllImport.html">DLL Import</a>
+   system.
+</p>
+<p>
+   In native code, handle values are essentially pointers,
+   but they don't actually "point" to anything that application code can
+   access.  To an application, a handle is just an opaque identifier
+   that it receives from a Windows API function that creates or access a
+   resource, and passes to other API functions that operate on the
+   resource.
+</p>
+
+<h2>Creation</h2>
+
+<p>
+   You don't typically create HANDLE objects directly.  You usually get
+   them from external DLL functions that create or
+   access system resources.  When a DLL function is declared as returning
+   any sort of Windows handle type, the Javascript HANDLE class is used
+   to represent the value returned to your scripting code.
+</p>
+<p>
+   In some cases, though, you might need to convert a handle value from
+   a string or numeric value.  Some types of handles (such as Window
+   handles) can be meaningfully exchanged between processes, so handle
+   values are sometimes converted to a numeric representation and
+   sent to another process in program arguments, via shared memory,
+   via a pipe, etc.  If you have a situation where you receive a handle
+   in some kind of external format, you can create a HANDLE object it
+   using <b>new HANDLE(<i>value</i>)</b>, where <i>value</i> can be
+   a string, number, or <a href="Int64.html">Uint64</a> value containing
+   a numeric representation of a handle.
+</p>
+
+<h2>Methods</h2>
+
+<p>
+   <b>toNumber():</b>  Returns a Javascript number representing the handle.
+   This is the native pointer value of the handle in numeric format.
+</p>
+<p>
+   On 64-bit Windows systems, handles are 64-bit quantities, so they can
+   in principle exceed the capacity of the Javascript number type.  toNumber()
+   throws an error if the handle value can't be stored.  As a result, it's
+   usually safer to use toString() or toUint64() if you want to use the
+   value for some data exchange purpose.
+</p>
+
+<p>
+   <b>toString():</b> Returns a string representation of the handle.  The
+   string is the native pointer value of the handle as a hexadecimal number.
+</p>
+<p>
+   In most cases, there's no need for this, as a handle value is usually
+   only meaningful within the process that created it, and is valid only
+   as long as the process is running; hence there's rarely a need to do
+   anything with a handle value that requires an external representation
+   like this, such as exchanging the handle with another program or
+   storing it in a file.  However, some types of handles (e.g., window
+   handles) are system-wide, so it's occasionally useful to create a
+   representation like this that can be exchanged with another process.
+</p>
+
+<p>
+   <b>toUint64():</b> Returns a <a href="Int64.html">Uint64</a> object
+   representing the handle.  This is the native pointer value of the handle
+   converted to a 64-bit integer, which is sufficient to hold a handle
+   value on any Windows system.
+</p>
+

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Int64 and Uint64 Objects</h1>
+
+<p>
+   Int64 and Uint64 are object classes for handling 64-bit integer values.
+   These are included primarily to support interaction with native code through the
+   <a href="DllImport.html">DLL importer</a>, but you can use them for general
+   purposes in Javascript as well.  The reason special classes are provided
+   for these types is that many Windows APIs use 64-bit integers, but Javascript
+   doesn't have its own primitive type or built-in object class that's capable
+   of representing this kind of value.
+</p>
+<p>
+   The <b>Int64</b> class represents a 64-bit signed integer.  "Signed" means that
+   it can contain a positive or negative value.  The range of values that can be
+   stored in an Int64 is -9223372036854775808 to 9223372036854775807.
+</p>
+<p>
+   The <b>Uint64</b> class represents a 64-bit unsigned integer.  An unsigned
+   integer can only contain a positive (or zero) value.  The reason that some
+   APIs used unsigned integer types rather than signed types is that an unsigned
+   type has an upper limit that's twice as high as that of the corresponding
+   signed type.  For a Uint64, the range of possible values is 0 to 18446744073709551615.
+</p>
+
+<p>
+   Javascript numbers can represent values much larger and smaller (more
+   negative) than can be stored in a 64-bit integer.  Paradoxically,
+   a 64-bit integer can also store values that can't be accurately represented
+   in a Javascript number, but for different reasons.  A Javascript number can't
+   store as many digits as a 64-bit integer, but it has an exponent that can
+   multiply the digits it stores.  So the value of a Javascript number can
+   lie outside of the integer range thanks to the exponent, but 
+   a large 64-bit integer can't always fit in a Javascript number because
+   of the limited number of digits that can be stored there.  (If you want
+   to get technical, the limit on the number of digits that a Javascript
+   number can store is called the <i>precision</i> of the type.  Javascript
+   numbers have 53 bits of precision, whereas a 64-bit integer has 64 bits
+   of precision, since all 64 are used for the integer value.)
+</p>
+
+<p>
+   Int64 and Uint64 values are objects, so you can't perform arithmetic on
+   them using the normal algebraic symbols (+, -, *, /).  Instead, the objects
+   provide methods for performing the basic math operations.  Some examples:
+</p>
+<div class="code">
+let a = new Int64('1000000000000');
+let b = new Int64('2000000000000');
+let c = a.add(b);          // c = a + b; a and b are unchanged
+let d = a.mul(1000);       // you can use ordinary Javascript numbers as arguments, too
+let e = a.sub('999');      // other types, like strings, are converted to Int64 implicitly
+</div>
+
+<p>
+   All of the math operations return <i>new</i> Int64 or Uint64 objects
+   representing the results.  The original value is never affected.  Like
+   a Javascript string, the value contained in an Int64/Uint64 is immutable.
+</p>
+   
+<h2>Creation</h2>
+
+<p>
+   You can create a 64-bit integer value with these classes using <b>new Int64(<i>value</i>)</b>
+   and <b>new Uint64(<i>value</i>)</b>.  The <i>value</i> can be a number or a string
+   representing a number.  
+</p>
+<p>
+   If you use a string, it's treated as a decimal (base 10) number by default.  You
+   can specify a different radix as follows:
+</p>
+<ul>
+   <li>0x... specifies a hexadecimal (base 16) number, such as 0xFFFF1234
+   <li>0... specifies an octal number: 07777
+   <li>0b... specifies a binary number: 0b101001
+</ul>
+
+<p>
+   If you pass a Javascript number as the argument, and the number is outside of
+   the range that can be represented by the 64-bit integer type, an error is
+   thrown.
+</p>
+
+<h2>Methods</h2>
+
+<p>
+   <b>add(<i>value</i>)</b>:  Adds <i>value</i> to the object's value and returns
+   a new Int64 or Uint64 object representing the result.  <i>value</i> can be
+   specified as a Javascript number or a string; in either case, the value is
+   converted to an Int64/Uint64 according to the same rules used in "new"
+   (including an error if the value is too large for the 64-bit integer type).
+   No error is thrown if the result of the addition overflows;
+   the result simply truncates overflow bits, the same as normal native integer
+   arithmetic.
+</p>
+
+<p>
+   <b>and(<i>value</i>)</b>:  Performs a bit-wise AND operation on this object's value and <i>value</i>,
+   and returns a new Int64 or Uint64 representing the result.
+</p>
+
+<p>
+   <b>div(<i>value</i>)</b>:  Divides the object's value by <i>value</i> returns
+   a new Int64 or Uint64 object representing the result.  The division is done
+   as an integer quantity, so any fractional part is discarded without rounding.
+</p>
+
+<p>
+   <b>mod(<i>value</i>)</b>:  Divides the object's value by <i>value</i>  and returns
+   a new Int64 or Uint64 representing the "modulo" value, or integer remainder.
+   This uses the hardware platform rules for negative values.
+</p>
+
+<p>
+   <b>mul(<i>value</i>)</b>:  Multiplies the object's value by <i>value</i>, and returns
+   a new Int64 or Uint64 object representing the result.  No error is thrown on overflow;
+   the result simply truncates overflow bits, the same as normal native integer
+   arithmetic.
+</p>
+
+<p>
+   <b>negate()</b>:  Returns a new Int64/Uint64 object containing the negative of the
+   object's value.
+</p>
+
+<p>
+   <b>not()</b>:  Returns a new Int64/Uint64 object containing the binary complement
+   of object's value's bits.
+</p>
+
+<p>
+   <b>or(<i>value</i>)</b>:  Performs a bit-wise OR operation on this object's value and <i>value</i>,
+   and returns a new Int64 or Uint64 representing the result.
+</p>
+
+<p>
+   <b>sub(<i>value</i>)</b>:  Subtracts <i>value</i> from the object's value and returns
+   a new Int64 or Uint64 object representing the result.  No error is thrown on overflow;
+   the result simply truncates overflow bits, the same as normal native integer
+   arithmetic.
+</p>
+
+<p>
+   <b>toNumber()</b>: Returns the value represented as an ordinary Javascript
+   number.  Javascript numbers can only store integer values accurately from
+   -9007199254740991 to 9007199254740991, which is smaller than the 64-bit integer
+   range (technically, the Javascript numeric representation provides the
+   equivalent of a 53-bit integer range).  If the value in the Int64 or Uint64
+   is outside of this range, toNumber() throws an error.
+</p>
+
+<p>
+   <b>toObject(<i></i>)</b>: Returns an object with two properties, <b>high</b>
+   and <b>low</b>, with number values giving the high-order 32 bits and low-order
+   32-bits of the 64-bit value.  For example:
+</p>
+<div class="code">
+let l = new Int64("0x12345678abcdef99");
+let o = l.toObject();
+message("o.high=" + o.high.toString(16) + ", o.low=" + o.low.toString(16));
+// displays: o.high=12345678, o.low=abcdef99
+</div>
+
+<p>
+   <b>toString(<i>radix</i>)</b>:  Converts the value to a string representation.
+   The optional <i>radix</i> is a number from 2 to 36 specifying the radix (base)
+   for the string version; the default is decimal (base 10).
+</p>
+

@@ -868,11 +868,10 @@ protected:
 	// DllImport callbacks.  These are used to implement a DllImport object
 	// that marshalls calls from Javascript to native code in external DLLs.
 	JsValueRef DllImportBind(TSTRING dllName, TSTRING funcName);
-
 	static JsValueRef CALLBACK DllImportCall(JsValueRef callee, bool isConstructCall,
 		JsValueRef *argv, unsigned short argc, void *ctx);
-
 	JsValueRef DllImportSizeof(WSTRING typeInfo);
+	JsValueRef DllImportCreate(WSTRING typeInfo);
 
 	// Base class for our external objects.  All objects we pass to the Javascript
 	// engine for use as external object data are of this class.
@@ -893,16 +892,21 @@ protected:
 		template<class Subclass>
 		static Subclass *Recover(JsValueRef dataObj, const TCHAR *where)
 		{
-			auto Error = [](MsgFmt &msg)
+			auto Error = [where](MsgFmt &msg)
 			{
-				// convert the message to a javascript string
-				JsValueRef str;
-				JsPointerToString(msg.Get(), _tcslen(msg.Get()), &str);
+				// generate a javascript exception if there's an error location, 
+				// otherwise fail silently
+				if (where != nullptr)
+				{
+					// convert the message to a javascript string
+					JsValueRef str;
+					JsPointerToString(msg.Get(), _tcslen(msg.Get()), &str);
 
-				// throw an exception with the error message
-				JsValueRef exc;
-				JsCreateError(str, &exc);
-				JsSetException(exc);
+					// throw an exception with the error message
+					JsValueRef exc;
+					JsCreateError(str, &exc);
+					JsSetException(exc);
+				}
 
 				// return null
 				return nullptr;
@@ -959,10 +963,16 @@ protected:
 		HandleData(HANDLE h) : h(h) { }
 		HANDLE h;
 
+		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
 		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToUInt64(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 	};
 
@@ -981,18 +991,96 @@ protected:
 		void *ptr;
 		size_t size;
 
+		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
 		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
+		static JsValueRef CALLBACK ToUInt64(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+		
 		static JsValueRef CALLBACK ToArrayBuffer(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 	};
 
 	// NativePointer prototype in the Javascript code
 	JsValueRef NativePointer_proto;
+
+	// External object data representing a 64-bit int type
+	template<typename T> class XInt64Data : public ExternalObject
+	{
+	public:
+		XInt64Data(T i) : i(i) { }
+		T i;
+
+		// create
+		static JsValueRef CALLBACK Create(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// convert a Javascript value to an XInt64 type
+		static T FromJavascript(JavascriptEngine *js, JsValueRef jsval);
+
+		// create from our own type
+		static JsValueRef CreateFromInt(JavascriptEngine *js, T i);
+
+		// parse a string into our native type
+		static bool ParseString(JavascriptEngine *js, JsValueRef val, T &i);
+
+		// convert to string
+		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// convert to object - { high: <high 32 bits>, low: <low 32 bits> }
+		static JsValueRef CALLBACK ToObject(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// toNumber - convert to a number, if possible
+		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// basic math operations
+		static JsValueRef CALLBACK Negate(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return UnaryOp(argv, argc, ctx, [](T a) { return static_cast<T>(-static_cast<INT64>(a)); }); }
+
+		static JsValueRef CALLBACK Add(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a + b; }); }
+
+		static JsValueRef CALLBACK Subtract(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a - b; }); }
+
+		static JsValueRef CALLBACK Multiply(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a * b; }); }
+
+		static JsValueRef CALLBACK Divide(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a / b; }); }
+
+		static JsValueRef CALLBACK Modulo(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a % b; }); }
+
+		// bitwise operations
+		static JsValueRef CALLBACK And(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a & b; }); }
+
+		static JsValueRef CALLBACK Or(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a | b; }); }
+
+		static JsValueRef CALLBACK Not(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return UnaryOp(argv, argc, ctx, [](T a) { return ~a; }); }
+
+		// Get a math function argument value.  This converts the argument
+		// to our type to carry out the arithmetic.  We can convert from a
+		// native Javascript number type or form another XInt64 type.
+		static JsValueRef BinOp(JsValueRef *argv, unsigned short argc, void *ctx, std::function<T(T, T)> op);
+		static JsValueRef UnaryOp(JsValueRef *argv, unsigned short argc, void *ctx, std::function<T(T)> op);
+	};
+
+	// prototypes for native INT64 and UINT64 classes
+	JsValueRef Int64_proto;
+	JsValueRef UInt64_proto;
 
 	// DLL handle table.  This is a map of DLLs imported via DllImportGetProc,
 	// so that we can reuse HMODULE handles when importing multiple functions
@@ -1236,4 +1324,77 @@ protected:
 	};
 
 	friend UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
+
+	// create a native object
+	JsValueRef CreateNativeObject(const WCHAR *sig, size_t len, void *data = nullptr) 
+		{ return CreateNativeObject(WSTRING(sig, len), data); }
+	JsValueRef CreateNativeObject(const WSTRING &sig, void *data = nullptr);
+
+	// Native type wrapper object
+	class NativeTypeWrapper : public ExternalObject
+	{
+	public:
+		NativeTypeWrapper(const WCHAR *sig, const WCHAR *sigEnd,
+			size_t size, void *extData, JsValueRef sourceObject);
+		~NativeTypeWrapper();
+
+		// type signature
+		WSTRING sig;
+
+		// native data buffer
+		BYTE *data;
+
+		// Is the native data buffer internal?  Yes means that the object was
+		// created explicitly by a Javascript caller, so we allocated space for
+		// the underlying native data as part of the object.  No means that the
+		// object was created from marshalled data from a DLL call, so we're
+		// using memory allocated and managed by native code.
+		bool isInternalData;
+
+		// Underlying Javascript object.  We might be a view of another object,
+		// such as an element in an array or a struct nested within a struct.
+		JsValueRef sourceObject;
+
+		// size of the data
+		size_t size;
+	};
+
+	// Native type data view context.  This represents one element in a
+	// native structure or array.
+	struct NativeTypeView
+	{
+		NativeTypeView(size_t offset) : offset(offset) { }
+
+		// offset in the native struct of our data
+		size_t offset;
+	};
+	
+	// Native type cache
+	struct NativeTypeCacheEntry
+	{
+		NativeTypeCacheEntry(JsValueRef proto) : proto(proto) { }
+
+		// Javascript prototype object for this type.  This is the prototype
+		// used for an external NativeTypeWrapper object that provides a view
+		// on native data with this type signature.
+		JsValueRef proto;
+
+		// Native function context objects.  Each method in the prototype
+		// is a native function, with a context that specifies its view of 
+		// the native data structure.  The context objects are dynamically
+		// created when the prototype is set up, so this tracks their memory
+		// for eventual deletion.
+		std::list<NativeTypeView> views;
+	};
+	std::unordered_map<WSTRING, NativeTypeCacheEntry> nativeTypeCache;
+
+	// initialize the prototype object for a native object view
+	void InitNativeObjectProto(NativeTypeCacheEntry *entry, const WSTRING &sig);
+
+	// data view getter/setter function for primitive types
+	template<typename T>
+	static JsValueRef CALLBACK PrimitiveDataGetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+
+	template<typename T>
+	static JsValueRef CALLBACK PrimitiveDataSetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 };
