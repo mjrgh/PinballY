@@ -1159,10 +1159,6 @@ var CParser = (function()
                 return unparseType(stmt.defType);
                 break;
 
-            case "FunctionDeclaration":
-                return unparseFunc(stmt);
-                break;
-
             case "TypeDefStatement":
                 return unparseType(stmt.defType);
                 break;

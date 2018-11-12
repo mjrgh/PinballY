@@ -18,37 +18,45 @@
    and experimental, so be aware of some caveats:
 </p>
 <ul>
-   <li>It's not very fleshed out yet
-   <li>Many details are likely to change as it matures
-   <li>It's newer and less tested than the rest of the system
+   <li>It's not very fleshed out
+   <li>It hasn't been field-tested
+   <li>Many details may change
 </ul>
+<p>
+   With that in mind, if you're an early adopter type, by all means
+   give it a try.  I think this will make a good foundation for a
+   complete set of customization features over time.  If you have
+   ideas for things you'd like to customize that are beyond the current
+   capabilities, tell me what you have in mind, and I'll see if I can
+   fit your ideas into the framework.
+</p>
 
 <p>
    This feature is preliminary and experimental, but the underlying
-   Javascript engine is anything but.  The Javascript system is ChakraCore,
-   Microsoft's modern, ES6-compliant, and (surprisingly) open-source engine
-   that they built from the ground up
-   for their Edge browser.  Chakra Core has top-tier performance and provides
-   strong support for modern Javascript language standards.  You can use
-   all of the cool new ES6 language features, like "let", "class", "for..of",
-   destructuring assignments, "arrow" (=&gt;) functions, and typed arrays.
+   Javascript engine isn't.  The Javascript system is ChakraCore,
+   Microsoft's modern, ES6-compliant, open-source engine
+   that they built from the ground up for their Edge browser.
+   ChakraCore has top-tier performance and adheres to modern Javascript
+   standards.  You can use all of the cool new ES6 language features,
+   like "let", "class", "for..of", destructuring assignments, "arrow" (=&gt;)
+   functions, and typed arrays.
 </p>
 
 <h2>Is this like Web browser Javascript?</h2>
 
 <p>
-   Yes and no.  PinballY's Javascript <i>language</i> works exactly like
-   the Javascript in a Web browser, but that doesn't mean it's exactly like
-   programming in a Web page.  That's because many of the objects and
-   functions you'd use when programming in a Web page are part of the
-   browser, not part of Javascript itself.  For example, the "document" and
-   "window" objects, and all of the HTML elements, are browser objects.
-   PinballY doesn't have those objects because it's not a Web browser.
+   Yes and no.  PinballY's Javascript <i>language</i> is exactly like
+   the Javascript in a Web browser, but the programming environment
+   isn't quite the same as in a Web page.  That's because many of the
+   objects and functions you'd use when programming in a Web page are part
+   of the browser, not part of Javascript itself.  For example, the
+   "document" and "window" objects are browser objects, as is the
+   HTML DOM tree.  PinballY doesn't have those objects because it's not a Web browser.
    Instead, PinballY provides its own, somewhat different set of objects
    that represent the PinballY user interface environment.
 </p>
 <p>
-   With that in mind, there's still a lot that's very similar.
+   With that in mind, there's still a lot that's similar.
    We've tried to stick to the familiar elements of browser Javascript wherever
    possible.  For features in PinballY that have natural analogs in
    a browser, we've tried to use the same Javascript names and behaviors.
@@ -480,12 +488,12 @@ was called in the course of processing the event.
 <h2>Browser-like functions</h2>
 
 <p>
-   As mentioned in the introduction, many of the functions and objects
-   that you'd find in a normal Web browser environment aren't actually
-   part of Javascript.  Even so, some of the common browser features
-   are just generic GUI features that carry over to the PinballY
-   environment fairly intact, so PinballY can offer equivalents
-   for many basic browser functions you're probably familiar with.
+   As mentioned earlier, many of the functions and objects
+   that you'd find in a normal Web browser environment are part
+   of the browser, not built-in Javascript elements.  So many of
+   those are missing in PinballY.  Even so, some concepts carry over
+   pretty much intact, and where they do, we've tried to provide functions
+   with the same names and behaviors that you'd find in a browser.
    PinballY also has some extensions with similar functionality, but
    tailored more to the PinballY environment.
 </p>

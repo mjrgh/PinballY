@@ -59,6 +59,10 @@ public:
 	JsErrorCode SetReadonlyProp(JsValueRef object, const CHAR *propName, JsValueRef propVal, 
 		const TCHAR* &errWhere);
 
+	// Add a getter and/or setter property.  Pass JS_INVALID_REFERENCE
+	// for getter or setter to omit it.
+	JsErrorCode AddGetterSetter(JsValueRef object, const CHAR *propName, JsValueRef getter, JsValueRef setter, const TCHAR* &where);
+		
 	// get a property from the global object
 	template<typename T>
 	JsErrorCode GetGlobProp(T &val, const CHAR *prop, const TCHAR* &errWhere)
@@ -89,6 +93,9 @@ public:
 
 	// Throw an error using a string exception
 	JsValueRef Throw(const TCHAR *errorMessage);
+
+	// throw a string exception with no context
+	static JsValueRef ThrowSimple(const char *msg);
 
 	// Check if the Javascript context is in an exception state
 	bool HasException();
@@ -544,7 +551,7 @@ public:
 	// Create a native function wrapper and add it to our internal tracking
 	// list for eventual disposal.
 	template <typename ContextType, typename R, typename... Ts>
-	NativeFunctionBinderBase *CreateAndSaveWrapper(R (*func)(ContextType*, Ts...))
+	NativeFunctionBinderBase *CreateAndSaveWrapper(R (*func)(ContextType*, Ts...), ContextType *context)
 	{
 		// create the wrapper, enlist it, and return it
 		return this->nativeWrappers.emplace_back(WrapNativeFunction(func, context)).get();
@@ -892,15 +899,22 @@ protected:
 		template<class Subclass>
 		static Subclass *Recover(JsValueRef dataObj, const TCHAR *where)
 		{
-			auto Error = [where](MsgFmt &msg)
+			auto Error = [where](const TCHAR *fmt, ...)
 			{
 				// generate a javascript exception if there's an error location, 
 				// otherwise fail silently
 				if (where != nullptr)
 				{
+					// format the message
+					TSTRINGEx msg;
+					va_list ap;
+					va_start(ap, fmt);
+					msg.FormatV(fmt, ap);
+					va_end(ap);
+
 					// convert the message to a javascript string
 					JsValueRef str;
-					JsPointerToString(msg.Get(), _tcslen(msg.Get()), &str);
+					JsPointerToString(msg.c_str(), msg.length(), &str);
 
 					// throw an exception with the error message
 					JsValueRef exc;
@@ -915,18 +929,18 @@ protected:
 			// retrieve the external object data from the engine
 			void *data;
 			if (JsErrorCode err = JsGetExternalData(dataObj, &data); err != JsNoError)
-				return Error(MsgFmt(_T("%s: error retrieving external object data: %s"), where, JsErrorToString(err)));
+				return Error(_T("%s: error retrieving external object data: %s"), where, JsErrorToString(err));
 
 			// convert it to the base type and validate it
 			auto extobj = static_cast<ExternalObject*>(data);
 			if (!extobj->Validate())
-				return Error(MsgFmt(_T("%s: external object data is missing or invalid"), where));
+				return Error(_T("%s: external object data is missing or invalid"), where);
 
 			// downcast to the subclass type - this will use C++ dynamic typing to
 			// validate that it's actually the subclass we need
 			auto obj = dynamic_cast<Subclass*>(extobj);
 			if (obj == nullptr)
-				return Error(MsgFmt(_T("%s: external object data type mismatch"), where));
+				return Error(_T("%s: external object data type mismatch"), where);
 
 			// success
 			return obj;
@@ -963,6 +977,9 @@ protected:
 		HandleData(HANDLE h) : h(h) { }
 		HANDLE h;
 
+		static JsErrorCode CreateFromNative(JavascriptEngine *js, HANDLE h, JsValueRef &jsval);
+		static HANDLE FromJavascript(JavascriptEngine *js, JsValueRef jsval);
+
 		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
@@ -985,13 +1002,22 @@ protected:
 	class NativePointerData : public ExternalObject
 	{
 	public:
-		static JsValueRef Create(JavascriptEngine *js, void *ptr, size_t size);
+		static JsErrorCode CreateFromNative(JavascriptEngine *js, void *ptr, size_t size, 
+			const WCHAR *sig, size_t sigLen, JsValueRef *jsval);
 
-		NativePointerData(void *ptr, size_t size) : ptr(ptr), size(size) { }
+		NativePointerData(void *ptr, size_t size, const WCHAR *sig, size_t sigLen) : 
+			ptr(ptr), size(size), sig(sig, sigLen) { }
+
+		// pointer to native data
 		void *ptr;
+
+		// size of the underlying data object
 		size_t size;
 
-		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
+		// type signature of the underlying data object
+		WSTRING sig;
+
+		static JsValueRef CALLBACK FromNumber(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
@@ -1004,6 +1030,12 @@ protected:
 			JsValueRef *argv, unsigned short argc, void *ctx);
 		
 		static JsValueRef CALLBACK ToArrayBuffer(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToArray(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK At(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 	};
 
@@ -1025,7 +1057,7 @@ protected:
 		static T FromJavascript(JavascriptEngine *js, JsValueRef jsval);
 
 		// create from our own type
-		static JsValueRef CreateFromInt(JavascriptEngine *js, T i);
+		static JsErrorCode CreateFromInt(JavascriptEngine *js, T i, JsValueRef &jsval);
 
 		// parse a string into our native type
 		static bool ParseString(JavascriptEngine *js, JsValueRef val, T &i);
@@ -1070,6 +1102,15 @@ protected:
 
 		static JsValueRef CALLBACK Not(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
 			{ return UnaryOp(argv, argc, ctx, [](T a) { return ~a; }); }
+
+		static JsValueRef CALLBACK Shl(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return a << b; }); }
+
+		static JsValueRef CALLBACK Ashr(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return static_cast<T>(static_cast<INT64>(a) >> b); }); }
+
+		static JsValueRef CALLBACK Lshr(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+			{ return BinOp(argv, argc, ctx, [](T a, T b) { return static_cast<T>(static_cast<UINT64>(a) >> b); }); }
 
 		// Get a math function argument value.  This converts the argument
 		// to our type to carry out the arithmetic.  We can convert from a
@@ -1325,12 +1366,8 @@ protected:
 
 	friend UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
-	// create a native object
-	JsValueRef CreateNativeObject(const WCHAR *sig, size_t len, void *data = nullptr) 
-		{ return CreateNativeObject(WSTRING(sig, len), data); }
-	JsValueRef CreateNativeObject(const WSTRING &sig, void *data = nullptr);
-
-	// Native type wrapper object
+	// Native type wrapper object.  This corresponds to the NativeObject
+	// class in Javsacript.
 	class NativeTypeWrapper : public ExternalObject
 	{
 	public:
@@ -1352,27 +1389,229 @@ protected:
 		bool isInternalData;
 
 		// Underlying Javascript object.  We might be a view of another object,
-		// such as an element in an array or a struct nested within a struct.
+		// such as an array element or a struct nested within another struct.
 		JsValueRef sourceObject;
 
 		// size of the data
 		size_t size;
+
+		static JsValueRef CALLBACK AddressOf(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 	};
+
+	JsValueRef NativeObject_proto;
+
+	// create a native object
+	JsValueRef CreateNativeObject(const WSTRING &sig, void *data = nullptr, JsValueRef sourceObj = JS_INVALID_REFERENCE,
+		NativeTypeWrapper **pCreatedObj = nullptr);
+	JsValueRef CreateNativeObject(const WCHAR *sig, const WCHAR *sigEnd, NativeTypeWrapper* &createdObj)
+		{ return CreateNativeObject(WSTRING(sig, sigEnd - sig), nullptr, JS_INVALID_REFERENCE, &createdObj); }
 
 	// Native type data view context.  This represents one element in a
 	// native structure or array.
 	struct NativeTypeView
 	{
-		NativeTypeView(size_t offset) : offset(offset) { }
+		NativeTypeView(JavascriptEngine *js, size_t offset) : js(js), offset(offset) { }
+		virtual ~NativeTypeView() { }
+
+		// javascript engine
+		JavascriptEngine *js;
 
 		// offset in the native struct of our data
 		size_t offset;
 	};
-	
+
+	// Nested type view: a struct or array within a struct or array
+	struct NestedNativeTypeView : public NativeTypeView
+	{
+		NestedNativeTypeView(JavascriptEngine *js, size_t offset, const WCHAR *sig, size_t siglen);
+
+		static JsValueRef CALLBACK Getter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// type signature of nested object
+		WSTRING sig;
+	};
+
+	// Abstract base class for native type viewers for scalar types
+	struct ScalarNativeTypeView : public NativeTypeView
+	{
+		using NativeTypeView::NativeTypeView;
+
+		// getter - retrieves the native value and converts it to a javascript value
+		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const = 0;
+
+		// setter - takes a javascript value and stores it in the native struct
+		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const = 0;
+
+		// Generic getter/setter.  These are the native callback entrypoints from
+		// the Javascript engine; they get the native pointer to the data element
+		// and invoke the virtual Get/Set methods.
+		static JsValueRef CALLBACK Getter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+		static JsValueRef CALLBACK Setter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+
+		// Generic toString for the type
+		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	};
+
+	// Native type view for primitive scalar types
+	template<typename T>
+	struct PrimitiveNativeTypeView : public ScalarNativeTypeView
+	{
+		using ScalarNativeTypeView::ScalarNativeTypeView;
+
+		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		{
+			__try
+			{
+				return JsDoubleToNumber(static_cast<double>(*reinterpret_cast<const T*>(nativep)), jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
+				return JsNoError;
+			}
+		}
+
+		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		{
+			// convert the value to numeric
+			JsErrorCode err;
+			JsValueRef jsnum;
+			double d;
+			if ((err = JsConvertValueToNumber(jsval, &jsnum)) != JsNoError
+				|| (err = JsNumberToDouble(jsnum, &d)) != JsNoError)
+				return err;
+
+			// Store the value in the native type.  In analogy to the built-in 
+			// Typed Array types in Javascript, we don't do any range checking;
+			// we simply truncate values that overflow the native type.
+			__try
+			{
+				*reinterpret_cast<T*>(nativep) = static_cast<T>(d);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer write: memory location is invalid, inaccessible, or read-only");
+			}
+			return JsNoError;
+		}
+	};
+
+	// Native type view for INT64 types
+	template<typename T>
+	struct Int64NativeTypeView : public ScalarNativeTypeView
+	{
+		using ScalarNativeTypeView::ScalarNativeTypeView;
+
+		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		{
+			__try
+			{
+				T val = *reinterpret_cast<const T*>(nativep);
+				return XInt64Data<T>::CreateFromInt(js, val, *jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
+				return JsNoError;
+			}
+		}
+
+
+		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		{
+			__try
+			{
+				*reinterpret_cast<T*>(nativep) = XInt64Data<T>::FromJavascript(js, jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer write: memory location is invalid, inaccessible, or read-only");
+			}
+			return JsNoError;
+		}
+	};
+
+	// Native type view for HANDLE types
+	struct HandleNativeTypeView : public ScalarNativeTypeView
+	{
+		using ScalarNativeTypeView::ScalarNativeTypeView;
+
+		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		{ 
+			__try
+			{
+				return HandleData::CreateFromNative(js, *reinterpret_cast<const HANDLE*>(nativep), *jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
+				return JsNoError;
+			}
+		}
+
+		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		{ 
+			__try
+			{
+				*reinterpret_cast<HANDLE*>(nativep) = HandleData::FromJavascript(js, jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer write: memory location is invalid, inaccessible, or read-only");
+			}
+			return JsNoError;
+		}
+	};
+
+	// Determine if a pointer conversion for a native value is legal
+	static bool IsPointerConversionValid(const WCHAR *sigFrom, const WCHAR *sigTo);
+
+	// Skip the pointer or array qualifier in a type signature.  Array and pointer
+	// types can generally be used interchangeably when conversion to a pointer
+	// type is required.  E.g., if we have a variable of type T*, we can assign
+	// it a value of type T*, T[], or T[dim].
+	static const WCHAR *SkipPointerOrArrayQual(const WCHAR *sig);
+
+	// Native type view for pointer types
+	struct PointerNativeTypeView : public ScalarNativeTypeView
+	{
+		PointerNativeTypeView(JavascriptEngine *js, size_t offset, const WCHAR *sig, size_t sigLen);
+
+		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		{
+			__try
+			{
+				return NativePointerData::CreateFromNative(js, *reinterpret_cast<void* const*>(nativep),
+					size, sig.c_str(), sig.length(), jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
+				return JsNoError;
+			}
+		}
+
+		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override;
+
+		// type signature of referenced data
+		WSTRING sig;
+
+		// size of underlying type
+		size_t size;
+	};
+
 	// Native type cache
 	struct NativeTypeCacheEntry
 	{
-		NativeTypeCacheEntry(JsValueRef proto) : proto(proto) { }
+		NativeTypeCacheEntry(JsValueRef proto) : proto(proto) 
+		{
+			JsAddRef(proto, nullptr);
+		}
+
+		~NativeTypeCacheEntry()
+		{
+			JsRelease(proto, nullptr);
+		}
 
 		// Javascript prototype object for this type.  This is the prototype
 		// used for an external NativeTypeWrapper object that provides a view
@@ -1384,17 +1623,10 @@ protected:
 		// the native data structure.  The context objects are dynamically
 		// created when the prototype is set up, so this tracks their memory
 		// for eventual deletion.
-		std::list<NativeTypeView> views;
+		std::list<std::unique_ptr<NativeTypeView>> views;
 	};
 	std::unordered_map<WSTRING, NativeTypeCacheEntry> nativeTypeCache;
 
 	// initialize the prototype object for a native object view
 	void InitNativeObjectProto(NativeTypeCacheEntry *entry, const WSTRING &sig);
-
-	// data view getter/setter function for primitive types
-	template<typename T>
-	static JsValueRef CALLBACK PrimitiveDataGetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
-
-	template<typename T>
-	static JsValueRef CALLBACK PrimitiveDataSetter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 };

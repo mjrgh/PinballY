@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>NativeObject objects</h1>
+
+<p>
+   This is a Javascript object type that represents a native data
+   value, for use with the <a href="DllImport.html">DLL importer</a>
+   system.
+</p>
+<p>
+   Javascript's type system is very abstract compared to languages
+   like C or C++, which directly expose the primitive datatypes that
+   the computer's CPU works with.  The DLL importer provides
+   automatic type conversions for many types of DLL calls, but
+   in some cases, calling a native DLL function requires working
+   with the low-level types that the DLL uses.  NativeObject is
+   a way of getting directly to those native types.
+</p>
+<p>
+   A NativeObject isn't itself a native data value:  it's a
+   Javascipt object that <i>contains</i> a native data value.
+   That means that your Javascript code interacts with a
+   NativeObject value <i>like an object</i>.
+</p>
+<p>
+   The tricky part is that you can only indirectly get to the
+   native value contained in the object, for the exact reason
+   that this class exists in the first place: namely, that
+   Javascript doesn't have any direct way to represent most
+   native types.  For example, suppose the native value is
+   a 32-bit unsigned integer value.  Javascript doesn't have
+   its own 32-bit unsigned integer type; the closest thing it
+   has is the Number type.  So when you want to work with the
+   native value contained in the NativeObject, the object has
+   to convert the value between the native integer type and
+   the Javascript Number type.  For the basic integer types,
+   this is straightforward, because Javascript's Number type
+   is capable of exactly representing any value you can store
+   in an 8-, 16-, or 32-bit integer.  But you should keep in
+   mind that operations you perform on the value in the
+   Javascript domain will always be done in terms of Javascript
+   types; the native representation is only used for the
+   hidden value stored inside the object.
+</p>
+
+<h2>Creation</h2>
+<p>
+   You create a native object using dllImport.create(), giving
+   it a native C type name as the argument, in string format:
+</p>
+<div class="code">
+let i = dllImport.create("int");          // a native 32-bit signed integer
+let arr = dllImport.create("short[10]");  // an array of 10 16-bit integers
+let s = dllImport.create("struct Foo");   // a structure type, defined elsewhere
+</div>
+
+For more detail on the DLL importer and how the C type declarations
+work, see <a href="DllImport.html">Calling Native DLLs</a>.
+
+
+<h2>Native object types</h2>
+
+<p>
+   There are three basic kinds of native objects:  scalars, structs,
+   and arrays.  Each type has slightly different syntax for accessing
+   the underlying native values.
+</p>
+
+<p>
+   <b>Scalars:</b>  A scalar native object is one that contains
+   a single value, such as an integer, a HANDLE value, etc.
+</p>
+<p>
+   To access the value in a scalar value, you use the <b>.value</b>
+   property.  This property is actually a getter/setter, so each time
+   you invoke it, it accesses the hidden internal native value.  When
+   you use .value to read the value, the native value is converted to
+   the corresponding Javascript type, and the Javascript value is
+   returned:
+</p>
+<ul>
+   <li>If the native value is an integer type, float, or double,
+      the value returned is a Javascript number representing the
+      same numeric value.
+
+   <li>If the native type is HANDLE,  a <a href="HandleObject.html">HANDLE</a>
+      object is returned.
+
+   <li>If it's a string type, a Javascript string is returned.
+</ul>
+<div class="code">
+let i = dllImport.create("int");
+i.value = 700;
+</div>
+
+<p>
+   When you assign a value to the .value property, it invokes the
+   setter method, which converts the Javascript value to the
+   native value of the type, and stores the result in the internal
+   native value memory.
+</p>
+
+<p>
+   <b>Arrays:</b>  For array types, you use the normal Javascript
+   <b>[<i>index</i>]</b> syntax to access the elements of the array,
+   and .length to get the number of elements in the array.
+</p>
+<p>
+   <b>Structs:</b>  For struct or union types, you use the usual
+   Javascript "object.property" syntax to access the struct elements.
+   There's no .value property in this case; instead, you use the
+   property names that are defined for the C struct type.
+</p>
+<div class="code">
+dllImport.define("struct foo { int i; long l; double d; }");
+let foo = dllImport.create("struct foo");
+foo.i = 1;
+foo.l = 1000;
+foo.d = 123.456;
+</div>
+
+
+
+<h2>Methods and properties</h2>
+
+<p>
+   <b>NativeObject.AddressOf(<i>nativeObject</i>):</b> Returns a
+   <a href="NativePointer.html">NativePointer</a> object representing
+   the physical memory address of this object's native data.  This can
+   be used to set up data structures that require pointers to buffers
+   of particular types.
+</p>
+<p>
+   Use this method cautiously, since it deals in physical memory addresses
+   that aren't tracked by the Javascript garbage collector.  You must
+   ensure that the <i>nativeObject</i> whose address you obtain stays
+   alive for as long as you're using the pointer.  If you pass the
+   pointer value to native code, and the native code hangs onto the
+   pointer for its own internally, you have to make sure that the
+   original object stays valid for as long as the native code holds
+   the reference.
+</p>
+<p>
+   In Javascript, an object stays in memory for as long as it's
+   reachable from some other active object.  Global variables are
+   always reachable, so one way to keep an object valid is to store
+   a reference to it in a global variable.  Anything that a live
+   object references is also reachable, so this principle extends
+   to any number of levels of cross-references.
+</p>
+
+<p>
+   <b><i>nativeObject</i>[<i>index</i>]:</b>  For array types only, this
+   accesses the <i>index</i>th element of the array.  The first element
+   is at index 0.  As with .value, this is a getter/setter, so you can
+   use it to read the value of an array element or assign a value to
+   an array element.
+</p>
+
+<p>
+   <b><i>nativeObject</i>.<i>structElement</i>:</b>  For struct types
+   only, this accesses the struct field of the native type with the
+   given name.  This is a getter/setter like .value, so you can use
+   it to read the value of a struct member element or assign a new
+   value to the element.
+</p>
+
+<p>
+   <b><i>nativeObject</i>.length:</b>  For array types only, this is
+   a read-only property that returns the number of elements in the array.
+</p>
+
+<p>
+   <b><i>nativeObject</i>.value:</b>  For a scalar value only, this is
+   a getter/setter that reads or writes the internal native data value.
+   When you use .value in an expression, the internal value is converted
+   to a suitable Javascript type, and that value is returned.  When you
+   assign to .value, the Javascript value assigned is translated into
+   the native type and written to the internal native value memory.
+</p>

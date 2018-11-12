@@ -22,53 +22,64 @@
    of representing this kind of value.
 </p>
 <p>
-   The <b>Int64</b> class represents a 64-bit signed integer.  "Signed" means that
-   it can contain a positive or negative value.  The range of values that can be
-   stored in an Int64 is -9223372036854775808 to 9223372036854775807.
-</p>
-<p>
-   The <b>Uint64</b> class represents a 64-bit unsigned integer.  An unsigned
-   integer can only contain a positive (or zero) value.  The reason that some
-   APIs used unsigned integer types rather than signed types is that an unsigned
-   type has an upper limit that's twice as high as that of the corresponding
-   signed type.  For a Uint64, the range of possible values is 0 to 18446744073709551615.
-</p>
-
-<p>
-   Javascript numbers can represent values much larger and smaller (more
-   negative) than can be stored in a 64-bit integer.  Paradoxically,
-   a 64-bit integer can also store values that can't be accurately represented
-   in a Javascript number, but for different reasons.  A Javascript number can't
-   store as many digits as a 64-bit integer, but it has an exponent that can
-   multiply the digits it stores.  So the value of a Javascript number can
-   lie outside of the integer range thanks to the exponent, but 
-   a large 64-bit integer can't always fit in a Javascript number because
-   of the limited number of digits that can be stored there.  (If you want
-   to get technical, the limit on the number of digits that a Javascript
-   number can store is called the <i>precision</i> of the type.  Javascript
-   numbers have 53 bits of precision, whereas a 64-bit integer has 64 bits
-   of precision, since all 64 are used for the integer value.)
-</p>
-
-<p>
-   Int64 and Uint64 values are objects, so you can't perform arithmetic on
-   them using the normal algebraic symbols (+, -, *, /).  Instead, the objects
-   provide methods for performing the basic math operations.  Some examples:
-</p>
-<div class="code">
-let a = new Int64('1000000000000');
-let b = new Int64('2000000000000');
-let c = a.add(b);          // c = a + b; a and b are unchanged
-let d = a.mul(1000);       // you can use ordinary Javascript numbers as arguments, too
-let e = a.sub('999');      // other types, like strings, are converted to Int64 implicitly
-</div>
-
-<p>
-   All of the math operations return <i>new</i> Int64 or Uint64 objects
-   representing the results.  The original value is never affected.  Like
-   a Javascript string, the value contained in an Int64/Uint64 is immutable.
-</p>
+   There are two kinds of 64-bit integers: signed and unsigned.  <b>Int64</b> is
+   the signed type, and <b>Uint64</b> is the unsigned type.  (The "U" is for
+   "unsigned", as you undoubtedly already guessed.  The naming and
+   capitalization were chosen to parallel the names of the built-in Javascript
+   Typed Array types, which use names like Int8Array, Uint8Array, etc.)
    
+</p>
+<p>"Signed" means
+   that the type has a positive/negative sign as part of its value, so it can
+   store both positive and negative numbers.  "Unsigned" means that there's no
+   such sign information, so only positive (or zero) values can be stored.
+   Why would you want the unsigned kind?  For one thing, some values are just
+   inherently non-negative, such as a length or weight.  The more practical
+   reason, though, is that the unsigned version of an integer type has twice
+   as high an upper limit to the numbers it can store compared to the signed
+   version, and the extra capacity is useful in some cases.
+</p>
+<p>
+   The signed type, Int64, can hold values from -9223372036854775808 to 9223372036854775807.
+</p>
+<p>
+   The unsigned type, Uint64, can hold values from 0 to 18446744073709551615.
+</p>
+
+<h3>Why do we need these?</h3>
+
+<p>
+   We need them because some Windows APIs use 64-bit integer values,
+   which Javascript can't represent accurately with its native types.
+</p>
+<p>
+   The closest thing Javascript has is its standard Number type.
+   A Javascript Number is
+   represented as a "double precision floating point" value.  That's
+   a standard format, the same one used in C/C++ for the "double" type.
+   A double is actually a 64-bit type itself, but the 64 bits are
+   divided up into several subfields, in such a way that you can only
+   store 53 bits worth of "integer" information.  So if you have a 64-bit
+   integer value that's outside of the 53-bit range - that is,
+   -9007199254740991 to +9007199254740991 -
+   you can't <i>precisely</i> represent it as a Javascript number.
+   A Javascript number can only approximate it, with some of the
+   digits at the end lost.  In contrast, a 64-bit integer can exactly
+   represent every integer value over the wider ranges mentioned above.
+</p>
+<p>
+   There's a weird paradox about converting between Javascript numbers
+   and 64-bit integers: you can lose information doing a conversion in
+   either direction.  Neither type is a full superset of the other.
+   The trick with Javascript numbers is that they have an "exponent"
+   component (one of those bit subfields) that lets them represent
+   very large and very small numbers, so they can be used to store
+   values that are outside of the magnitude range of a 64-bit integer.
+   But as described above, a 64-bit integer can store values with
+   exact precision over a wider range.  So each type has its place,
+   and neither is a perfect substitute for the other. 
+</p>
+
 <h2>Creation</h2>
 
 <p>
@@ -92,6 +103,47 @@ let e = a.sub('999');      // other types, like strings, are converted to Int64 
    thrown.
 </p>
 
+<h2>Arithmetic</h2>
+
+<p>
+   Int64 and Uint64 values are objects, so Javascript won't let us
+   perform arithmetic on
+   them using the normal algebraic symbols (+, -, *, /).  Instead, the objects
+   provide methods for performing the basic math operations.  Some examples:
+</p>
+<div class="code">
+let a = new Int64('1000000000000');
+let b = new Int64('2000000000000');
+let c = a.add(b);          // c = a + b; a and b are unchanged
+let d = a.mul(1000);       // you can use ordinary Javascript numbers as arguments, too
+let e = a.sub('999');      // other types, like strings, are converted to Int64 implicitly
+</div>
+
+<p>
+   All of the math operations return <i>new</i> Int64 or Uint64 objects
+   representing the results.  The original value is never affected.  Like
+   a Javascript string, the value contained in an Int64/Uint64 is immutable.
+</p>
+<p>
+   Here's a quick reference to the basic math operators and their Int64/Uint64
+   method equivalents:
+</p>
+<table class="dataTable">
+   <tr><th>Operation</th><th>Method</th></tr>
+   <tr><td>-a</td><td>a.negate()</td></tr>
+   <tr><td>a + b</td><td>a.add(b)</td></tr>
+   <tr><td>a - b</td><td>a.sub(b)</td></tr>
+   <tr><td>a * b</td><td>a.mul(b)</td></tr>
+   <tr><td>a / b</td><td>a.div(b)</td></tr>
+   <tr><td>a % b</td><td>a.mod(b)</td></tr>
+   <tr><td>~a</td><td>a.not()</td></tr>
+   <tr><td>a &amp; b</td><td>a.and(b)</td></tr>
+   <tr><td>a | b</td><td>a.or(b)</td></tr>
+   <tr><td>a &lt;&lt; b</td><td>a.shl(b)</td></tr>
+   <tr><td>a &gt;&gt; b</td><td>a.ashr(b)</td></tr>
+   <tr><td>a &gt;&gt;&gt; b</td><td>a.lshr(b)</td></tr>
+</table>
+   
 <h2>Methods</h2>
 
 <p>
@@ -111,9 +163,27 @@ let e = a.sub('999');      // other types, like strings, are converted to Int64 
 </p>
 
 <p>
+   <b>ashr(<i>bits</i>)</b>:  Performs the Javascript &gt;&gt; or "arithmetic
+   right shift" operation.  Bit-shifts the object's  value right by <i>bits</i> bits,
+   retaining its sign, and returns a new Int64 or Uint64 object representing the
+   result.  The "arithmetic" right-shift operation differs from the "logical"
+   right-shift in that the arithmetic version retains the sign (positive or negative)
+   of the original value.
+</p>
+
+<p>
    <b>div(<i>value</i>)</b>:  Divides the object's value by <i>value</i> returns
    a new Int64 or Uint64 object representing the result.  The division is done
    as an integer quantity, so any fractional part is discarded without rounding.
+</p>
+
+<p>
+   <b>lshr(<i>bits</i>)</b>:  Performs the Javascript &gt;&gt;&gt; or "logical
+   right shift" operation.  Bit-shifts the object's  value right by <i>bits</i> bits,
+   discarding its sign, and returns a new Int64 or Uint64 object representing the
+   result.  The "logical" right-shift operation differs from the "arithmetic"
+   right-shift in that the logical version discards the sign of the original
+   value; the high bits are filled with zeros after the shift.
 </p>
 
 <p>
@@ -142,6 +212,12 @@ let e = a.sub('999');      // other types, like strings, are converted to Int64 
 <p>
    <b>or(<i>value</i>)</b>:  Performs a bit-wise OR operation on this object's value and <i>value</i>,
    and returns a new Int64 or Uint64 representing the result.
+</p>
+
+<p>
+   <b>shl(<i>bits</i>)</b>:  Performs the Javascript &gt;&gt; or "shift left" operation.
+   Bit-shifts the object's value left by <i>bits</i> bits, returning a new Int64 or Uint64
+   object representing the result.
 </p>
 
 <p>

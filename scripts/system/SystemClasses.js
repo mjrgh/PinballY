@@ -395,69 +395,88 @@ this.DllImport = class DllImport
         this.cparser = new CParser();
     }
     
-    // Bind a DLL function.  This loads the DLL (if it hasn't already
-    // been loaded) and binds the function, returning a callable function
-    // object that can be invoked to call the DLL function.  Throws errors
-    // if the DLL can't be found, the function doesn't exist, or the
-    // signature can't be parsed.
+    // Bind a collection DLL functions.  This loads the DLL (if it hasn't
+    // already been loaded) and binds the functions, returning a callable
+    // function object that can be invoked to call the DLL function.
+    // Throws errors if the DLL can't be found, the function doesn't exist,
+    // or the function declarations can't be parsed.
     //
-    // The function signature is provided as a string formatted in the
-    // C language format for a function declaration.  In most cases, you
-    // can simply copy a function declaration from a Windows SDK header
+    // The 'signature' argument can be a single string, or it can be an
+    // iterable collection of strings (such as an array of strings).
+    //
+    // The function declarations use C language syntax.  In most cases,
+    // you can simply copy a function declaration from a Windows SDK header
     // to get the signature for a standard Windows function.
+    //
+    // You can also mix in struct, union, and typedef declarations as
+    // desired.  Those type definitions will be added to an internal table
+    // within the object, so that they can be referenced in subsequent
+    // function and type declarations.  Type definitions don't contribute
+    // any properties to the return value.
+    //
+    // The return value is an object that contains properties with the same
+    // names as the declared functions.  Each property's value is a callable
+    // Javascript function that you can invoke to call the native function
+    // declared under that name.
     //
     bind(dllName, signature)
     {
-        // if the signature is specified as an iterable, bind each signature,
-        // and return a list of the bindings
+        // The result will be an object, with properties named for the
+        // functions declared.
+        let result = { };
+
+        // If the signature is specified as an iterable, bind each signature.
+        // If it's a simple string, just bind the string.
         if (typeof signature !== "string" && typeof signature[Symbol.iterator] === "function")
         {
-            let lst = [];
-            for (let sig of signature)
-                lst.push(this.bind(dllName, sig));
-            return lst;
+            for (let cur of signature)
+                Object.assign(result, this.bind(dllName, cur));
+            return result;
         }
 
         // parse the C-style function declaration into our internal format
         try
         {
-            var decl = this.cparser.parse(signature);
+            var decls = this.cparser.parse(signature);
         }
         catch (exc)
         {
             throw new Error("DllImport.bind(" + signature + "): error parsing function signature: " + exc);
         }
-        if (!decl || decl.length == 0)
+        if (!decls || decls.length == 0)
             throw new Error("DllImport.bind(" + signature + "): unable to parse signature");
-        if (decl.length > 1)
-            throw new Error("DllImport.bind(" + signature +
-                            "): multiple declarations found; bind() requires a single function definition");
-        decl = decl[0];
-        if (decl.type != "Declaration" || !decl.name)
-            throw new Error("DllImport.bind(" + signature +
-                            "): C-style function declaration is required (decl.type=" + decl.type + ", name=" + decl.name + ")");
 
-        // make sure it looks like a function declaration
-        var desc = decl.unparse();
-        if (!/^\((.+)\)$/.test(desc))
-            throw new Error("DllImport.bind(" + signature + "): this is not a function declaration");
+        // go through the list and pull out all function declarations
+        for (let decl of decls)
+        {
+            // If it's a declaration that defines a named function, add it to the
+            // results.  Ignore typedefs, anonymous declarations, and non-function
+            // declarations.
+            if (decl.type == "Declaration" && decl.name)
+            {
+                // unparse the declaration to get the signature
+                var desc = decl.unparse();
 
-        // toss out the enclosing parens, since it has to be a function
-        desc = RegExp.$1;
+                // if it's a function declaration, include it in the results
+                if (/^\((.+)\)$/.test(desc))
+                {
+                    // bind it to create the native function target
+                    let func = this._bind(dllName, decl.name);
 
-        // bind the function (_bind() is a native callback provided by
-        // the system)
-        var nativeFunc = this._bind(dllName, decl.name);
+                    // toss out the enclosing parens, since it has to be a function
+                    desc = RegExp.$1;
 
-        // The native function is an external (native) object representing
-        // the callback's machine code address.  That object doesn't have
-        // any meaning to the Javascript engine.  It can only be used in
-        // calls to the native _call() callback, which recovers the native
-        // function pointer from the external data, converts the Javascript
-        // arguments into native stack arguments, and invokes the native
-        // DLL code at the target address.  Wrap the native function pointer
-        // in a lambda that calls _call() to invoke the native function.
-        return (...args) => (this._call(nativeFunc, desc, ...args));
+                    // now wrap the native function in a lamdba that invokes the
+                    // native function
+                    result[decl.name] = ((func, desc) => {
+                        return (...args) => this._call(func, desc, ...args);
+                    })(func, desc);
+                }
+            }
+        }
+
+        // return the result object
+        return result;
     }
 
     // Define a type.  The argument is a standard C struct, union, enum, or
@@ -509,7 +528,16 @@ this.HANDLE = function HANDLE(...args) { return HANDLE._new(...args); };
 // Prototype for NativePointer objects.  These are created by the
 // DllImport native code to represent pointers to native objects
 // passed back from DLL calls.
-this.NativePointer = function NativePointer(...args) { return NativePointer._new(...args); };
+this.NativePointer = function NativePointer() {
+    throw new Error("new NativePointer() can't be called directly; use dllImport.create()");
+};
+
+// Prototype for NativeObject objects.  These are created by the
+// DllImport native code to represent native primitive types, array
+// types, and struct types.
+this.NativeObject = function NativeObject() {
+    throw new Error("new NativeObject() can't be called directly; use dllImport.create()");
+};
 
 // Prototype for Int64 (signed 64-bit integer) and Uint64 (unsigned
 // 64-bit integer) objects.  These are system objects used by DllImport
@@ -521,22 +549,23 @@ this.Uint64 = function Uint64(...args) { return Uint64._new(...args); };
 
 // Convert a Uint16 or Uint8 buffer to a Javascript string, treating the
 // buffer as a null-terminated string of Unicode characters.  
-Uint16Array.prototype.toString = Uint8Array.prototype.toString = function()
+Int16Array.prototype.toString = Uint16Array.prototype.toString = Int8Array.prototype.toString = Uint8Array.prototype.toString = function()
 {
     let end = this.findIndex(c => c == 0);
     return String.fromCharCode.apply(null, end >= 0 ? this.slice(0, end) : this);
 };
 
 // Convert a Uint16Array to a Javascript string, with no null termination
-Uint16Array.prototype.toStringRaw = Uint8Array.prototype.toStringRaw = function(length)
+Int16Array.prototype.toStringRaw = Uint16Array.prototype.toStringRaw = Int8Array.prototype.toStringRaw = Uint8Array.prototype.toStringRaw = function(length)
 {
     return String.fromCharCode.apply(null, length === undefined ? this : this.slice(0, length));
 };
 
-// Create a Uint16 or Uint8 buffer from a Javascript string.  If the length
-// is specified, the buffer is created at the given size, otherwise it's big
-// enough to hold the characters of the string plus a null terminator.
-Uint16Array.fromString = Uint8Array.fromString = function(str, length)
+// Create a Int16/Uint16 or Int8/Uint8 buffer from a Javascript string.
+// If the length is specified, the buffer is created at the given size,
+// otherwise it's big enough to hold the characters of the string plus
+// a null terminator.
+Int16Array.fromString = Uint16Array.fromString = Int8Array.fromString = Uint8Array.fromString = function(str, length)
 {
     if (length === undefined)
         length = str.length + 1;

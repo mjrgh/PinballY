@@ -28,6 +28,8 @@ var contents = [
         "+SystemClasses.html System Classes",        
             "++HandleObject.html HANDLE Objects",
             "++Int64.html Int64 and Uint64 Objects",
+            "++NativeObject.html NativeObject Objects",
+            "++NativePointer.html NativePointer Objects",
         "+DllImport.html Calling Native DLLs from Javascript",
     "AdminMode.html Administrator Mode",
     "DirectoryInfo.html Files &amp; Folders",
