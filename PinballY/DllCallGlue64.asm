@@ -15,35 +15,88 @@ _TEXT SEGMENT
 ; is one where the callee doesn't know in advance how many arguments it will
 ; receive.  This is the opposite: this allows C++ code that has a vector of
 ; arguments whose size is unknown at compile time to pass those arguments to
-; a callee that is expecting a regular fixed argument list.  C++ doesn't
-; allow such a call natively.
+; a callee that's expecting a regular fixed argument list.  C++ doesn't have
+; any native provision for such a call, even with variadic templates.
+
+; Variadic templates do let you dynamically construct an argument vector
+; that you use to ultimately call a statically typed function, but we need
+; to take it one step further and call a function whose type is never known
+; to the compiler.
 ;
-; We need this for our Javascript DLL import feature, since that needs to
-; allow a Javascript caller to invoke functions bound at run-time with
-; argument lists constructed dynamically at run-time.
+; We need this for our Javascript DLL import feature, since that allows a
+; Javascript caller to invoke functions bound at run-time with argument 
+; lists constructed dynamically at run-time.
 ;
-; In 64-bit mode, Windows uses a single calling convention.  The first
-; four arguments are always passed in registers; additional arguments are
-; passed on the stack.  In addition, the caller creates "shadow" slots
-; on the stack where the first four arguments *would* have gone if they
-; had been passed on the stack.
+; Here's how this works:
 ;
-; UINT64 dll_call_glue64(FARPROC funcPtr, const void *pArgs, size_t nArgBytes)
+;  - The caller prepares arguments as an array of INT64 values
+;  - The caller invokes us, passing a pointer to the callee, along
+;    with the argument array and number of arguments
+;  - We repackage the argument array into the register + stack slots
+;    dictated by the x64 calling convention
+;  - We invoke the target function
+;  - We remove the stack arguments we created
+;  - We return to the caller, with the result register left as we
+;    found it on return from the callee
 ;
-;    RCX = funcPtr
-;    RDX = pArgs
-;    R8 = nArgBytes
+; In 64-bit mode, Windows uses a single calling convention (unlike in x86
+; mode, where Microsoft defines at least dive different calling conventions:
+; __cdecl, __stdcall, __fastcall, __thiscall, __vectorcall).  The universal
+; x64 convention is similar to x86 __fastcall.   The first four arguments 
+; are always passed in registers (RCX, RDX, R8, R9); arguments beyond the
+; first four are passed on the stack.  In addition, the caller allocates
+; "shadow" slots on the stack where the first four arguments *would* have 
+; gone if they'd been passed on the stack.  The caller allocates but does
+; not initialize the shadow slots, which are purely for the callee's use.
 ;
-; The return value is in XMM0 for float, double, and __m128 vector types,
-; and in RAX for everything else.  We don't mess with the return registers
-; at all; we just leave the return value in whichever register the callee
-; put it in.  So it's up to the C++ caller to pull the result from the
-; right register.  To facilitate this, we provide two aliases to this same
-; code.  These are identical at the assembler level, but we declare them
-; to have UINT64 and __m128 return types in the C++ code.  The caller can
-; invoke the alias that corresponds to the return register used for the
-; return type for each call, to coerce the compiler to retrieve the result
-; from the correct register on a call-by-call basis.
+; One additional detail: the first four arguments are assigned to registers
+; XMM0, XMM1, XMM2, and XMM3 when they're passed in as float, double, or
+; __m128 types.  Each argument is assigned to a register individually, so
+; we can have a mix of Rx and XMMn registers as arguments.  The order is
+; always the same, though, and each slot always has the same choice of two
+; registers:
+;
+;   first argument = RCX or XMM0
+;   second         = RDX or XMM1
+;   third          = R8  or XMM2
+;   fourth         = R9  or XMM3
+;
+; Fortunately, all eight of these registers are volatile, meaning we're
+; free to overwrite them.  And a given argument will always be in one or the
+; other of its pair.  So for our purposes, we don't need to know the type 
+; of each callee's argument; we can simply copy each argument into *both* 
+; of the paired registers for that argument position.  The caller will pull
+; the value from the one it expects to find it in and ignore the contents
+; we left in the other register in the pair (since it's a meaningless
+; volatile register, from the callee's perspective), so the fact that we
+; wrote a value there has no effect other than costing a couple of extra 
+; cycles.  (Which is less than it would cost to decide on which register 
+; we're really supposed to use based on the type signature.)
+;
+; The final wrinkle to the calling convention is the return register.
+; For float/double/__m128 returns, the result is in XMM0; for all other
+; types, the result is in RAX.  Our caller is C++, with no assembly, so
+; the only way to get the caller to read the correct register on return
+; is to have it call a function declared statically to return a type
+; that corresponds to one or the other register.  Since there are two
+; possible return registers, we need two return types.
+;
+; So, we create two aliases for this function, with these C++ prototypes:
+;
+; UINT64 DllCallGlue64_RAX(FARPROC funcPtr, const void *pArgs, size_t nArgBytes)
+; __m128 DllCallGlue64_XMM0(FARPROC funcPtr, const void *pArgs, size_t nArgBytes)
+;
+; These two aliases just point to the identical assembler entrypoint, so
+; they're not actually different functions, but C++ *thinks* they are to
+; the extent that it looks in RAX for the UINT64 return version, and looks
+; in XMM0 for the __m128 return version.  The caller can use the Javascript
+; type signature information to dynamically invoke one or the other function
+; on each call based on the expected return type.  This will make the C++ 
+; compiler generate code to look in the right register for the return value
+; from each call.  Note that *our* code here doesn't even touch the return
+; registers - it just passes both RAX and XMM0 back to our caller with the
+; value left there by our callee.  So we don't have to know anything here
+; about which return type is expected.
 ;
 PUBLIC DllCallGlue64_RAX
 PUBLIC DllCallGlue64_XMM0

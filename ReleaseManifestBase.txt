@@ -3,8 +3,7 @@ Help\*
 Help\highlightjs\*
 Help\highlightjs\styles\*
 Scripts\Scripts_Folder.txt
-Scripts\System\SystemClasses.js
-Scripts\System\CParser.js
+Scripts\System\*.js
 Farsight\*.pinballArcade
 README.txt
 DefaultSettings.txt

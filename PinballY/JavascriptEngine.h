@@ -7,6 +7,7 @@
 
 #pragma once
 #include "../ChakraCore/include/ChakraCore.h"
+#include <map>
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
@@ -17,10 +18,12 @@ public:
 	// stack argument slot type
 	typedef IF_32_64(UINT32, UINT64) arg_t;
 
-	JavascriptEngine();
+	// get the global singleton
+	static JavascriptEngine *Get() { return inst; }
 
-	// initialize
-	bool Init(ErrorHandler &eh);
+	// initialize/terminate
+	static bool Init(ErrorHandler &eh);
+	static void Terminate();
 
 	// Bind the DLL import callbacks to the given class
 	bool BindDllImportCallbacks(const CHAR *className, ErrorHandler &eh);
@@ -593,11 +596,13 @@ public:
 	class ExportedValue
 	{
 	public:
-		ExportedValue(JsValueRef &val, JavascriptEngine *engine) :
-			val(val),
-			engine(engine, RefCounted::DoAddRef)
+		ExportedValue(JsValueRef &val) : val(val)
 		{
+			// add a reference on the javascript object
 			JsAddRef(val, nullptr);
+
+			// add a reference on the javascript engine
+			engine = JavascriptEngine::Get();
 		}
 
 		~ExportedValue() { JsRelease(val, nullptr); }
@@ -648,7 +653,7 @@ public:
 		// Execute the task.  Returns true if the task should remain
 		// scheduled (e.g., a repeating interval task), false if it should
 		// be discarded.
-		virtual bool Execute(JavascriptEngine *) = 0;
+		virtual bool Execute() = 0;
 
 		// Each task is assigned a unique ID (serial number) at creation,
 		// to allow for identification in Javascript for purposes like
@@ -684,14 +689,14 @@ public:
 	struct ModuleParseTask : ModuleTask
 	{
 		ModuleParseTask(JsModuleRecord module, const WSTRING &path) : ModuleTask(module, path) { }
-		virtual bool Execute(JavascriptEngine *) override;
+		virtual bool Execute() override;
 	};
 
 	// Module eval task
 	struct ModuleEvalTask : ModuleTask
 	{
 		ModuleEvalTask(JsModuleRecord module, const WSTRING &path) : ModuleTask(module, path) { }
-		virtual bool Execute(JavascriptEngine *) override;
+		virtual bool Execute() override;
 	};
 
 
@@ -711,7 +716,7 @@ public:
 		}
 
 		// execute the task
-		virtual bool Execute(JavascriptEngine *js) override;
+		virtual bool Execute() override;
 
 		// the function to call when the event fires
 		JsValueRef func;
@@ -740,10 +745,10 @@ public:
 			readyTime = GetTickCount64() + (ULONGLONG)dt;
 		}
 
-		virtual bool Execute(JavascriptEngine *js) override
+		virtual bool Execute() override
 		{
 			// do the basic execution
-			__super::Execute(js);
+			__super::Execute();
 
 			// if the task has been cancelled, don't reschedule it
 			if (cancelled)
@@ -757,11 +762,31 @@ public:
 		// repeat interval
 		double dt;
 	};
+	
+	// dead native object scan task
+	struct DeadObjectScanTask : Task
+	{
+		DeadObjectScanTask(ULONG dt_ms)
+		{
+			readyTime = GetTickCount64() + dt_ms;
+		}
+
+		virtual bool Execute() override 
+		{ 
+			inst->DeadObjectScan(); 
+			return false; // this is a one-shot task
+		}
+	};
 
 protected:
+	JavascriptEngine();
 	~JavascriptEngine();
 
-	// initialized
+	// global singleton instance
+	static JavascriptEngine *inst;
+
+	// instance initialization
+	bool InitInstance(ErrorHandler &eh);
 	bool inited;
 
 	// special values
@@ -808,10 +833,9 @@ protected:
 	// host info record, stored in the module table
 	struct ModuleHostInfo
 	{
-		ModuleHostInfo(JavascriptEngine *self, WSTRING &path, JsModuleRecord module) :
-			self(self), path(path), module(module) { }
+		ModuleHostInfo(WSTRING &path, JsModuleRecord module) :
+			path(path), module(module) { }
 
-		JavascriptEngine *self;      // 'this' pointer
 		WSTRING path;                // file path to this module
 		JsModuleRecord module;       // engine module record
 	};
@@ -859,10 +883,8 @@ protected:
 	// in it since we use a direct pointer to each struct as the cookie value.
 	struct SourceCookie
 	{
-		SourceCookie(JavascriptEngine *self, const WSTRING &file) :
-			self(self), file(file) { }
+		SourceCookie(const WSTRING &file) : file(file) { }
 
-		JavascriptEngine *self;      // the instance that loaded the source
 		WSTRING file;                // script source file
 	};
 	std::list<SourceCookie> sourceCookies;
@@ -977,8 +999,8 @@ protected:
 		HandleData(HANDLE h) : h(h) { }
 		HANDLE h;
 
-		static JsErrorCode CreateFromNative(JavascriptEngine *js, HANDLE h, JsValueRef &jsval);
-		static HANDLE FromJavascript(JavascriptEngine *js, JsValueRef jsval);
+		static JsErrorCode CreateFromNative(HANDLE h, JsValueRef &jsval);
+		static HANDLE FromJavascript(JsValueRef jsval);
 
 		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
@@ -1002,11 +1024,10 @@ protected:
 	class NativePointerData : public ExternalObject
 	{
 	public:
-		static JsErrorCode CreateFromNative(JavascriptEngine *js, void *ptr, size_t size, 
-			const WCHAR *sig, size_t sigLen, JsValueRef *jsval);
+		static JsErrorCode Create(void *ptr, size_t size,
+			const WCHAR *sig, size_t sigLen, WCHAR stringType, JsValueRef *jsval);
 
-		NativePointerData(void *ptr, size_t size, const WCHAR *sig, size_t sigLen) : 
-			ptr(ptr), size(size), sig(sig, sigLen) { }
+		~NativePointerData();
 
 		// pointer to native data
 		void *ptr;
@@ -1017,10 +1038,20 @@ protected:
 		// type signature of the underlying data object
 		WSTRING sig;
 
+		// String type code - 'T' for Unicode string, 't' for ANSI string, '\0' for
+		// non-string types.  This is set if the original type declaration used one
+		// of the explicit string type signifiers rather than a mere character pointer
+		// type.  The string types indicate that the data at the pointer is a null-
+		// terminated string.
+		WCHAR stringType;
+
 		static JsValueRef CALLBACK FromNumber(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static JsValueRef CALLBACK ToStringZ(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		static JsValueRef CALLBACK ToNumber(JsValueRef callee, bool isConstructCall,
@@ -1037,10 +1068,16 @@ protected:
 
 		static JsValueRef CALLBACK At(JsValueRef callee, bool isConstructCall,
 			JsValueRef *argv, unsigned short argc, void *ctx);
+
+	private:
+		NativePointerData(void *ptr, size_t size, const WCHAR *sig, size_t sigLen, WCHAR stringType);
 	};
 
 	// NativePointer prototype in the Javascript code
 	JsValueRef NativePointer_proto;
+
+	// pointer cross reference symbol property
+	JsPropertyIdRef xrefPropertyId;
 
 	// External object data representing a 64-bit int type
 	template<typename T> class XInt64Data : public ExternalObject
@@ -1054,13 +1091,13 @@ protected:
 			JsValueRef *argv, unsigned short argc, void *ctx);
 
 		// convert a Javascript value to an XInt64 type
-		static T FromJavascript(JavascriptEngine *js, JsValueRef jsval);
+		static T FromJavascript(JsValueRef jsval);
 
 		// create from our own type
-		static JsErrorCode CreateFromInt(JavascriptEngine *js, T i, JsValueRef &jsval);
+		static JsErrorCode CreateFromInt(T i, JsValueRef &jsval);
 
 		// parse a string into our native type
-		static bool ParseString(JavascriptEngine *js, JsValueRef val, T &i);
+		static bool ParseString(JsValueRef val, T &i);
 
 		// convert to string
 		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall,
@@ -1148,17 +1185,17 @@ protected:
 	class MarshallerContext
 	{
 	public:
-		MarshallerContext(JavascriptEngine *js, JsValueRef jsthis) : js(js), jsthis(jsthis)
+		MarshallerContext(JsValueRef jsthis) : jsthis(jsthis)
 		{ 
 			// set up the link to our enclosing context
-			enclosing = js->marshallerContext;
-			js->marshallerContext = this;
+			enclosing = inst->marshallerContext;
+			inst->marshallerContext = this;
 		}
 
 		~MarshallerContext() 
 		{
 			// restore the enclosing call context
-			js->marshallerContext = enclosing; 
+			inst->marshallerContext = enclosing; 
 		}
 
 		// Allocate memory local to this call context.  The memory is
@@ -1208,9 +1245,6 @@ protected:
 
 		// list of allocations in this calling context
 		std::list<Allocation> mem;
-
-		// Javascript engine in this call context
-		JavascriptEngine *js;
 
 		// Javascript 'this' object used to invoke the current DLL call.  This
 		// should always be an object of class DllImport.
@@ -1339,11 +1373,8 @@ protected:
 	class JavascriptCallbackWrapper : public ExternalObject
 	{
 	public:
-		JavascriptCallbackWrapper(JavascriptEngine *js, JsValueRef jsFunc, const WCHAR *sig, const WCHAR *sigEnd);
+		JavascriptCallbackWrapper(JsValueRef jsFunc, const WCHAR *sig, const WCHAR *sigEnd);
 		~JavascriptCallbackWrapper();
-
-		// javscript engine
-		JavascriptEngine *js;
 
 		// javascript callback function
 		JsValueRef jsFunc;
@@ -1366,13 +1397,104 @@ protected:
 
 	friend UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
+	// The Native Type Wrapper object has two uses:
+	//
+	// 1. It represents native types passed by reference from DLL code, such as a
+	// struct or struct pointer returned as a function result, an OUT struct, etc.
+	//
+	// 2. It can also be used for objects allocated on the Javascript side via
+	// dllImport.create().  This lets Javascript code create native objects to
+	// pass to DLL code, such as for OUT parameters or structs by reference.
+	//
+	// When we wrap a native object that comes from DLL code, the underlying
+	// memory is owned by the external code, so we can't make any attempt to manage
+	// the memory.  Javascript code that uses a wrapped external object has to be
+	// aware of the external code's conventions regarding when the data is deleted.
+	// Our wrapper simply has no way of knowing whether or not the native memory
+	// is still valid; the wrapper can easily outlive the referenced native data,
+	// and there's nothing we can do about it.
+	//
+	// When we create a native object on the Javascript side, though, we do have
+	// to manage the memory.  The simplest thing to do would be treat the native 
+	// data created as part of a wrapper to be owned exclusively by the wrapper,
+	// so that the native data is deleted along with the wrapper.  But that
+	// ignores pointers within the native data.  Consider:
+	//
+	//   let foo = dllImport.create("struct { int *a; }");
+	//   let i = dllImport.create("int");
+	//   foo.a = NativeObject.addressOf(i);
+	//
+	// 'foo' now references a native wrapper object, which in turn owns a native
+	// data object that looks like { int *a }, which in turn contains a native
+	// pointer to a second native data object, an int.  That second native data
+	// object is owned by the wrapper object that 'i' references.  Now let's do
+	// this:
+	//
+	//   i = undefined;
+	//
+	// The 'i' wrapper is now unreferenced, so the JS GC will eventually collect
+	// it and call our wrapper finalizer.  If we deleted the native 'int' memory
+	// in that finalizer, we'd leave foo.a with a dangling pointer.  That's the
+	// way C++ works, to be sure, and it's what you'd expect for objects created
+	// in external DLL code.  But Javascript users aren't accustomed to the notion
+	// of dangling pointers, so it would be nice if we could extend the normal
+	// JS GC treatment to native pointer references, at least as far as native
+	// objects allocated purely on the Javascript side via dllImport.create().
+	//
+	// Here's how: We keep a master map of native objects we've allocated via
+	// dllImport.create() - nativeDataMap.  This is keyed by address, and uses
+	// a std::map implementation so that we can search for a block *containing*
+	// a given address (not just the block *at* a given address).  When we use
+	// dllImport.create() to create a native object and its wrapper, we add the
+	// native object to the nativeDataMap.  When we finalize a wrapper, we don't
+	// delete the native memory block; we just mark it as "orphaned" in the map.
+	// We also schedule a "dead object scan".  The dead object scan starts with
+	// the set of parented (non-orphaned) objects, and traces the pointers they
+	// contain, using a conservative GC trace (that is, anything that looks like
+	// a pointer is considered a pointer).  It marks each map object found via
+	// the pointer trace as referenced.  Any map objects not marked as 
+	// referenced by the end of the scan are considered unreachable and are
+	// immediately deleted.
+	//
+	struct NativeDataTracker
+	{
+		NativeDataTracker(size_t size) : size(size), isWrapperAlive(true), isReferenced(true) { }
+
+		// size of the object in bytes
+		size_t size;
+
+		// is the Javscript Native Type Wrapper object alive?
+		bool isWrapperAlive;
+
+		// is the object referenced on the current dead object scan pass?
+		bool isReferenced;
+	};
+	std::map<BYTE*, NativeDataTracker> nativeDataMap;
+
+	// Native pointer map.  Each NativePointer object maintains an entry here
+	// while it's alive, so that we can also include native data blocks reachable
+	// through NativePointer objects in the live set.
+	std::unordered_map<NativePointerData*, BYTE*> nativePointerMap;
+
+	// is a scan scheduled?
+	bool deadObjectScanPending;
+
+	// schedule a dead object scan
+	void ScheduleDeadObjectScan();
+
+	// Do a dead object scan
+	void DeadObjectScan();
+
+
 	// Native type wrapper object.  This corresponds to the NativeObject
 	// class in Javsacript.
 	class NativeTypeWrapper : public ExternalObject
 	{
 	public:
-		NativeTypeWrapper(const WCHAR *sig, const WCHAR *sigEnd,
-			size_t size, void *extData, JsValueRef sourceObject);
+		static JsValueRef Create(NativeTypeWrapper **createdObject,
+			JsValueRef proto, const WCHAR *sig, const WCHAR *sigEnd,
+			size_t size, void *extData);
+
 		~NativeTypeWrapper();
 
 		// type signature
@@ -1388,33 +1510,43 @@ protected:
 		// using memory allocated and managed by native code.
 		bool isInternalData;
 
-		// Underlying Javascript object.  We might be a view of another object,
-		// such as an array element or a struct nested within another struct.
-		JsValueRef sourceObject;
-
 		// size of the data
 		size_t size;
 
 		static JsValueRef CALLBACK AddressOf(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+
+	private:
+		// constructor is private - create via Create()
+		NativeTypeWrapper(const WCHAR *sig, const WCHAR *sigEnd,
+			size_t size, void *extData);
+
+		static void InitCbSize(const WCHAR *sig, const WCHAR *sigEnd, BYTE *data, size_t mainStructSize = 0);
 	};
 
 	JsValueRef NativeObject_proto;
 
 	// create a native object
-	JsValueRef CreateNativeObject(const WSTRING &sig, void *data = nullptr, JsValueRef sourceObj = JS_INVALID_REFERENCE,
-		NativeTypeWrapper **pCreatedObj = nullptr);
+	JsValueRef CreateNativeObject(const WSTRING &sig, void *data = nullptr, NativeTypeWrapper **pCreatedObj = nullptr);
 	JsValueRef CreateNativeObject(const WCHAR *sig, const WCHAR *sigEnd, NativeTypeWrapper* &createdObj)
-		{ return CreateNativeObject(WSTRING(sig, sigEnd - sig), nullptr, JS_INVALID_REFERENCE, &createdObj); }
+		{ return CreateNativeObject(WSTRING(sig, sigEnd - sig), nullptr, &createdObj); }
 
 	// Native type data view context.  This represents one element in a
 	// native structure or array.
 	struct NativeTypeView
 	{
-		NativeTypeView(JavascriptEngine *js, size_t offset) : js(js), offset(offset) { }
+		NativeTypeView(size_t offset) : offset(offset) { }
 		virtual ~NativeTypeView() { }
 
-		// javascript engine
-		JavascriptEngine *js;
+		static JsValueRef CALLBACK Setter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+		{
+			ThrowSimple("Internal error: this type does not have a setter"); 
+			return JS_INVALID_REFERENCE;
+		}
+		static JsValueRef CALLBACK ToString(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+		{
+			ThrowSimple("Internal error: this type does not implement to String");
+			return JS_INVALID_REFERENCE;
+		}
 
 		// offset in the native struct of our data
 		size_t offset;
@@ -1423,7 +1555,7 @@ protected:
 	// Nested type view: a struct or array within a struct or array
 	struct NestedNativeTypeView : public NativeTypeView
 	{
-		NestedNativeTypeView(JavascriptEngine *js, size_t offset, const WCHAR *sig, size_t siglen);
+		NestedNativeTypeView(size_t offset, const WCHAR *sig, size_t siglen);
 
 		static JsValueRef CALLBACK Getter(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 
@@ -1437,10 +1569,10 @@ protected:
 		using NativeTypeView::NativeTypeView;
 
 		// getter - retrieves the native value and converts it to a javascript value
-		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const = 0;
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const = 0;
 
 		// setter - takes a javascript value and stores it in the native struct
-		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const = 0;
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const = 0;
 
 		// Generic getter/setter.  These are the native callback entrypoints from
 		// the Javascript engine; they get the native pointer to the data element
@@ -1458,7 +1590,7 @@ protected:
 	{
 		using ScalarNativeTypeView::ScalarNativeTypeView;
 
-		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const override
 		{
 			__try
 			{
@@ -1471,7 +1603,7 @@ protected:
 			}
 		}
 
-		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const override
 		{
 			// convert the value to numeric
 			JsErrorCode err;
@@ -1502,12 +1634,12 @@ protected:
 	{
 		using ScalarNativeTypeView::ScalarNativeTypeView;
 
-		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const override
 		{
 			__try
 			{
 				T val = *reinterpret_cast<const T*>(nativep);
-				return XInt64Data<T>::CreateFromInt(js, val, *jsval);
+				return XInt64Data<T>::CreateFromInt(val, *jsval);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
@@ -1517,11 +1649,11 @@ protected:
 		}
 
 
-		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const override
 		{
 			__try
 			{
-				*reinterpret_cast<T*>(nativep) = XInt64Data<T>::FromJavascript(js, jsval);
+				*reinterpret_cast<T*>(nativep) = XInt64Data<T>::FromJavascript(jsval);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
@@ -1536,11 +1668,11 @@ protected:
 	{
 		using ScalarNativeTypeView::ScalarNativeTypeView;
 
-		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const override
 		{ 
 			__try
 			{
-				return HandleData::CreateFromNative(js, *reinterpret_cast<const HANDLE*>(nativep), *jsval);
+				return HandleData::CreateFromNative(*reinterpret_cast<const HANDLE*>(nativep), *jsval);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
@@ -1549,11 +1681,11 @@ protected:
 			}
 		}
 
-		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const override
 		{ 
 			__try
 			{
-				*reinterpret_cast<HANDLE*>(nativep) = HandleData::FromJavascript(js, jsval);
+				*reinterpret_cast<HANDLE*>(nativep) = HandleData::FromJavascript(jsval);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
@@ -1575,29 +1707,24 @@ protected:
 	// Native type view for pointer types
 	struct PointerNativeTypeView : public ScalarNativeTypeView
 	{
-		PointerNativeTypeView(JavascriptEngine *js, size_t offset, const WCHAR *sig, size_t sigLen);
+		PointerNativeTypeView(size_t offset, const WCHAR *sig, size_t sigLen, WCHAR stringType);
 
-		virtual JsErrorCode Get(void *nativep, JsValueRef *jsval) const override
-		{
-			__try
-			{
-				return NativePointerData::CreateFromNative(js, *reinterpret_cast<void* const*>(nativep),
-					size, sig.c_str(), sig.length(), jsval);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
-				return JsNoError;
-			}
-		}
-
-		virtual JsErrorCode Set(void *nativep, JsValueRef jsval) const override;
-
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const override;
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const override;
+			
 		// type signature of referenced data
 		WSTRING sig;
 
 		// size of underlying type
 		size_t size;
+
+		// String type code ('T' or 't', or '\0' for non-strings).  If the original
+		// pointer was declared using one of the null-terminated string types, we
+		// record the string type code here.  The underlying pointer is still just
+		// a pointer to CHAR or WCHAR, but we use this extra field to remember that
+		// it was originally declared as a string type, so that we can be smarter
+		// about conversions to and from Javascript strings.
+		WCHAR stringType;
 	};
 
 	// Native type cache
@@ -1629,4 +1756,9 @@ protected:
 
 	// initialize the prototype object for a native object view
 	void InitNativeObjectProto(NativeTypeCacheEntry *entry, const WSTRING &sig);
+
+	// populate a native type view property
+	template<typename ViewType>
+	void AddToNativeTypeView(NativeTypeCacheEntry *entry, const WCHAR *name, ViewType *view,
+		bool hasValueOf, bool hasSetter);
 };

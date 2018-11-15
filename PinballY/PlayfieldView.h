@@ -2060,9 +2060,6 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
-	// Javascript engine
-	RefPtr<JavascriptEngine> javascriptEngine;
-
 	// initialize javascript
 	void InitJavascript();
 

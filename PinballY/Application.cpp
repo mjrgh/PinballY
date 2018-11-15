@@ -420,6 +420,9 @@ int Application::EventLoop(int nCmdShow)
 	topperWin = nullptr;
 	instCardWin = nullptr;
 
+	// shut down javascript
+	JavascriptEngine::Terminate();
+
 	// wait for the audio/video player deletion queue to empty
 	AudioVideoPlayer::WaitForDeletionQueue(5000);
 

@@ -13,15 +13,23 @@
 <h1>Calling Native DLLs from Javascript</h1>
 
 <p>
-   You can call native code in external DLLs through PinballY's <b>dllImport</b>
-   object.  (Oof, that's full of ambiguous looking letters, isn't it?  That's
+   PinballY has a special set of Javascript extensions for calling
+   external native code.  These extensions are available through
+   a system object called <b>dllImport</b>.
+   (Oof, that's full of ambiguous looking letters, isn't it?  That's
    D-L-L-Import, DLL standing for Dynamic Link Library.)
 </p>
 <p>
    DLL Importing can be used to make calls directly to most Windows API
    functions from Javascript, to access system functionality beyond what's
-   provided through the Javascript classes provided in PinballY.  You can
-   also use it to call your own custom code written in any other programming
+   provided through the Javascript classes provided in PinballY.  Rather
+   than trying to provide built-in Javascript support for the massive
+   number of Windows API functions, we thought it would work better
+   in the long run to let you call Windows yourself, directly.
+</p>
+<p>
+   You can also use DLL importing
+   to call your own custom code, written in any other programming
    language that can create DLLs, such as C, C++, Visual Basic, or C#.
    The PinballY DLL import system tries to make it relatively painless
    to call external code, by providing automatic type conversions
@@ -37,14 +45,17 @@
 </p>
 <p>
    The obvious warnings about calling out to native code apply: simple
-   errors in native code calls can crash the whole program, and it's
-   even possible to destabilize the system, corrupt disk files, or do
+   errors in native code calls can crash the whole program, and if
+   you get creative enough, you can 
+   even destabilize the system, corrupt disk files, or do
    other system damage.  Javascript and PinballY can't do much to
-   protect against errant calls through the DLL layer because the
-   whole point is to give you complete control.
+   protect against errant calls through the DLL layer, because the
+   whole point is to give you access to the broader Windows
+   native environment, which is all beyond the reach of Javascript's
+   supervision.
 </p>
 
-<h2>Quick-start example</h2>
+<h2>An example</h2>
 <p>
    The DLL importer combines quite a lot of concepts and
    technologies, so there's a lot to cover.  Before we get into
@@ -324,7 +335,7 @@ let hwndDesktop = User32.GetDesktopWindow();
    information in an "int" (integer) variable:
 </p>
 <div class="code">
-let MyDll = dllImport.bind("MyDll.dll", "bool GetInfo(int *result)");
+let MyDll = dllImport.bind("MyDll.dll", "void GetInfo(int *result)");
 </div>
 
 <p>
@@ -363,27 +374,34 @@ let i = dllImport.create("int");
    that GetInfo() function that requires a pointer to an int.
 </p>
 <div class="code">
-MyDll.GetInfo(i);  // passes a pointer to the native int stored in i
+// call DLL function "void GetInfo(int *result)", passing
+// a pointer to the native int stored in NativeObject i
+MyDll.GetInfo(i);
+
+// on return, i.value reflects what GetInfo wrote into *result
 alert("The result from GetInfo is " + i.value);
 </div>
 
 <p>
-   For more on this native object container type, see
-   <a href="NativeObject.html">NativeObject objects</a>.
+   For more on using these special native value containers,
+   see <a href="NativeObject.html">NativeObject objects</a>.
 </p>
 
 <p>
-   This works with struct types as well as basic types like "int".
-   That's good because most Windows APIs that use this pattern
-   take pointers to structs.  So next up, let's look at how to
-   define native struct types in Javascript.
+   This "pass by pointer" method works for struct types, not
+   just basic types like "int".  That's important, because
+   many Windows APIs use the same pattern with structs.
+   So next up, let's look at how to define native struct types
+   in Javascript.
 </p>
 
 
+<a name="dllImportDefine"></a>
 <h2>Defining C struct types</h2>
 <p>
    Many Windows API functions use C "struct" (structure) types as
-   arguments.  For example, the GetWindowRect() API function takes
+   arguments (or, more commonly, pointers to struct types).
+   For example, the GetWindowRect() API function takes
    a pointer to a RECT structure, which has elements for the
    corner coordinates of a rectangle:
 </p>
@@ -566,27 +584,123 @@ p.value = otherPointer.value;  // assign the value from some other native pointe
 </div>
 
 <p>
+   You can get the address of a native object for storing in
+   a native pointer variable using the NativeObject.addressOf()
+   function:
+</p>
+<div class="code">
+let i = dllImport.create("int");
+p.value = NativeObject.addressOf(i);
+</div>
+
+<p>
    To protect against memory corruption and application crashes,
    you can only assign a pointer value from a pointer to the same
    type.  The one exception is the special "void" pointer ("void*"),
    which C uses as a generic pointer to anything.  In keeping with
-   C's general attitude of "giving you enough rope to hang yourself",
-   the native pointer "void*" type loosens up the restrictions and
+   C's general philosophy that it should give you enough rope to hang yourself,
+   the native "void*" type relaxes the normal type restrictions and
    lets you assign unlike pointer types.  This goes both directions;
    you can assign anything to a void* pointer, and you can assign
    any other pointer type from a void* pointer.  So in special
    situations when the normal type rules are too restrictive,
-   you can say "I know what I'm doing here, just do as I say" to
-   the type checking system by laundering your pointers through
-   a void* intermediary.  And if none of this makes any sense
-   to you, good!  It's always better to avoid this sort of thing
-   anyway.
+   you can say "I know what I'm doing here, just do as I say" by
+   laundering your pointers through
+   a void* intermediary.  If none of this makes any sense
+   to you, it's probably just as well; it's usually better to
+   avoid this sort of thing anyway.
 </p>
    
 <p>
    For more on this native pointer container type, see
    <a href="NativePointer.html">NativePointer objects</a>.
 </p>
+
+
+<h2>Native object memory management</h2>
+
+<p>
+   If you've done any programming in C or C++, you know that those
+   languages require you to do all of your memory management
+   explicitly: you have write code to create and destroy every
+   object you use.  Javascript, in contrast, handles most of
+   that automatically.
+</p>
+<p>
+   The DLL import approach to managing native objects is somewhere
+   between the low-level details of C/C++ and the completely
+   automatic, invisible garbage collection in Javascript.
+</p>
+<p>
+   <b>When you create a native object with dllImport.create(),</b>
+   you're really creating two objects: a Javascript
+   NativeObject object, and a block of memory containing
+   the native type named in the create() call.  The Javascript
+   object is managed automatically, just like any other
+   Javascript object.  The native memory block is also
+   managed automatically: it will remain valid as long as
+   there are any references to it from Javascript objects.
+   So you don't have to do any special manual memory
+   management for objects you create with dllImport.create().
+</p>
+<p>
+   If you pass an object you create with dllImport.create()
+   to native code in a DLL, be sure that you understand how
+   the native callee will use that memory.  In particular,
+   pay attention to whether or not the callee expects the
+   memory to stay valid after the call returns.  If the
+   callee retains the pointer and expects it to remain valid,
+   you'll have to ensure that the Javascript NativeObject that
+   refers to the native memory stays "alive", so that
+   Javascript's garbage collector doesn't delete it.
+   Remember, the native memory underlying a NativeObject
+   that you create with dllImport.create() stays valid
+   as long as its NativeObject stays alive.  To keep a
+   Javascript object alive, all you have to do is reference
+   it from a global variable.
+</p>
+<p>
+   <b>When you get a NativeObject from a DLL call</b> - for example,
+   if a DLL function returns a pointer to a struct - the
+   NativeObject is managed automatically like any other
+   Javascript object.  However, the underlying native memory
+   is under the control of the native DLL code.  This has
+   some important implications.
+</p>
+<ul>
+   <li>First, Javascript can't delete externally allocated
+   native memory when it's no longer usable, because Javascript
+   has no way of knowing how the DLL might be using the memory.
+   Depending on the design of the DLL or API you're using, you
+   might be required to make a special call into the DLL to
+   manually delete the object when you're done with it.
+   You'll have to read the documentation for the DLL or API
+   you're using to find out if there's any special "delete" or
+   "free" call you're supposed to make when you're done with
+   the object.  Failing to make those calls when you're expected
+   to can lead to "memory leaks", where the memory that an
+   object takes up can't be re-used because you never tell
+   the system that you're done with it.  If you repeatedly
+   allocate objects without ever freeing any of them, they
+   unused objects will eventually take up all of memory and
+   the program will crash.
+
+   <li>Second, for the same reason that Javascript can't
+   automatically delete the object when you're done with it,
+   Javascript also can't <i>prevent</i> the native object
+   from being deleted before you're done with it.  There's
+   a common source of bugs in C/C++ programming known as
+   "dangling pointers", where you delete an object before
+   you're done using it, so any pointers to that object are
+   now pointing to invalid memory.  That type of error is
+   normally impossible in Javascript, but it can happen
+   with a NativeObject that comes from external native
+   code, because the external code might delete the object
+   without Javascript's permission or knowledge.  Again, you'll
+   have to check your DLL or API documentation to determine
+   the lifetime of any memory allocations that come from the
+   DLL side.
+</ul>
 
 <a name="typeConversions"></a>
 <h2>Argument type conversions</h2>

@@ -146,7 +146,7 @@ p.pFloat = pv.value;                     // valid - a void* can be converted to 
 
 <p>
    <b><i>pointer</i>.at:</b>  Returns a <a href="NativeObject.html">NativeObject</a>
-   object that represents the native data that the physical memory pointer
+   that represents the native data that the physical memory pointer
    within the NativePointer object <i>points to</i>.  This
    new Javascript object represents the underlying native
    data value just as though it had come from native code
@@ -201,26 +201,28 @@ p.at.value = 7;
 // create a pointer to int, initially a null pointer (pointing nowhere)
 let pInt = dllImport.create("int*");
 
-// Now point it to a location we know from some external source.
+// now point it to a location we got from some external source
 pInt.value = NativePointer.fromNumber(0x12345678);
 
-// Read the value at that address
+// read the value at that address
 let i = pInt.at.value;
 </div>
 <p>
    Caution!  fromNumber() is obviously "bare metal" programming
    that bypasses the normal Javascript type checking and memory
-   management.  This sort of hackery is considered bad
-   form, even in low-level languages like C.  The reason we
-   provide it, though, is that some APIs make this sort of
-   unstructured pointer manipulation unavoidable.  Use it only
-   in those cases where there isn't a more type-safe approach.
+   management.  Even C programmers consider this sort of
+   thing bad form.  But there are some contexts
+   where you really need to do it, which is why we provide the
+   capability.  Some APIs make this sort of unstructured pointer
+   manipulation unavoidable.  But you should only use it when
+   you're really sure you know what you're doing, and you're
+   equally sure there isn't a more type-safe approach.
 </p>
 
 <p>
    <b><i>pointer</i>.toArray(<i>numberOfElements</i>):</b> Returns a new
-   <a href="NativeObject.html">NativeObject</a> object that
-   represents a native array of the same type that the pointer
+   <a href="NativeObject.html">NativeObject</a> 
+   representing a native array of the same type that the pointer
    refers to, at the same native memory location, with the given
    number of elements.
 </p>
@@ -247,14 +249,27 @@ let i = pInt.at.value;
    is used to refer to an array with a size that will vary
    at run-time, meaning it can't be predicted when the
    function interface is declared.  This function lets
-   you make the same kind of exchange in Javascript.
+   you do the same kind of pointer/array aliasing in Javascript.
    It's up to you to figure out how big the actual array
-   in memory is - this is often indicated in another
-   parameter or another struct member.  Once you know
-   the size of the live array data, this method lets
+   in memory is.  This is often indicated in another
+   parameter or another struct member, but there's no
+   particular convention for it, so you'll just have to
+   figure it out on a case-by-case basis when it arises.
+   If you're using a Windows API, the documentation
+   should explain how the array size can be determined.
+   Once you know the size of the live array data, this method lets
    you exchange your pointer variable for an array
    variable that lets you access all of the elements,
    using the normal array[index] syntax.
+</p>
+<p>
+   Note that the reverse case also arises quite a lot
+   in C-style APIs, where you have an array object, and
+   you want to treat it as a pointer to the element type,
+   for storing in a struct or passing as a parameter.
+   You can use NativeObject.addressOf() for that, passing
+   in a NativeObject that represents a native array type.
+   That will return a pointer to the array's first element.
 </p>
 
 <p>
@@ -279,11 +294,118 @@ let i = pInt.at.value;
 </p>
 
 <p>
+   <a name="toString"></a>
    <b><i>pointer</i>.toString():</b>  Returns a string
-   representation of the pointer, as the numeric value of the
-   memory address it contains, expressed as a hexadecimal
-   number.
+   representation of the pointer.
 </p>
+<ul>
+   <li>For any of the Windows string
+   types (LPSTR, LPWSTR, etc), the routine will attempt to
+   interpret the data at the pointer as a null-terminated C-style
+   string, and will return a Javascript string containing the
+   text.  For a single-byte string type (LPSTR, LPCSTR), the
+   bytes of the string will be taken to be in the local ANSI
+   character set, and will be converted to the corresponding
+   Unicode characters for the result string (since Javascript
+   uses Unicode internally for strings).
+
+   <li>For any other type, a generic representation is used,
+   showing the pointer's memory address as a hexadecimal number.
+</ul>
+
+<p>
+   <a name="toStringZ"></a>
+   <b><i>pointer</i>.toStringZ(<i>options</i>):</b>  Attempts
+   to interpret the native data at the pointer as a zero-terminated
+   string.  The pointer must refer to an 8-bit or 16-bit integer
+   type:  char, unsigned char, short, unsigned short, INT8, INT16,
+   etc.  An error is thrown if this is called for any other
+   pointer type.
+</p>
+<p>
+   The "Z" in toStringZ() is for "Zero-terminated".  The
+   convention used in the C language, and many Windows API
+   functions, is to represent a string as an array of
+   characters, with a "null" character marking the end
+   of the string.  A null character is a character with
+   ASCII or Unicode value zero.  (That's <i>not</i>
+   the character representing the digit '0' when printed.
+   The digit '0' has ASCII/Unicode value 48.
+   "Null" is a separate character with the code value 0.
+   It doesn't have any standard printed representation;
+   it's normally reserved for special purposes
+   like this.)
+</p>
+<p>
+   <i>options</i>, if present, is an object with any of the
+   properties listed below.  This lets you control some
+   details of how the character conversion is done.  Any of the
+   properties can be omitted to use the corresponding defaults,
+   and the entire <i>options</i> argument can be omitted to
+   use all default settings.
+</p>
+<ul>
+   <li><b><i>options.</i>codePage:</b> a number giving the
+      Windows code page to use for converting a single-byte
+      character string, or the string "utf8" to interpret
+      the bytes as UTF-8 characters.  The system's current
+      ANSI code page, which is determined by the Windows
+      localization control panel settings, is used by
+      default.  This is ignored if the pointer points to
+      a 16-bit integer type, since 16-bit characters are
+      always taken to be Unicode characters, which require
+      no character set conversion.
+      <p>
+         Standard Windows code pages:
+      </p>
+      <ul>
+         <li>437 - IBM PC US (DOS box code page)
+         <li>1250 = Latin 2 - Central European
+         <li>1251 = Cyrillic
+         <li>1252 = Latin 1 - Western European
+         <li>1253 = Greek
+         <li>1254 = Turkish
+         <li>1255 = Hebrew
+         <li>1256 = Arabic
+         <li>1257 = Baltic
+         <li>1258 = Vietnamese
+         <li>"utf8" = Unicode UTF-8
+      </ul>
+
+   <li><b><i>options.</i>maxLength:</b> a number giving
+      the maximum number of array elements to read from the
+      memory at the pointer.  The conversion proceeds until
+      a zero terminator character is reached or this maximum
+      length is reached, whichever comes first.
+      If this is omitted, the string continues until a zero
+      terminator is reached, with no a priori length limit.
+      <p>
+         Note that the length is specified in terms of array
+         elements in the source memory buffer, not characters
+         in the result string.  
+         Some single-byte encodings, including UTF8, can
+         use a varying number of bytes per character, so
+         the resulting string might be shorter (in
+         character count) than your maxLength value.
+      </p>
+
+   <li><b><i>options.</i>length:</b> a number giving
+      the exact length in array elements to read from the
+      memory at the pointer.  If a zero character code is
+      encountered before the length is reached, it's
+      included as a character in the Javascript string.
+      Javascript itself doesn't use zero terminators to
+      mark the ends of strings, so a zero character code
+      is perfectly valid within a Javascript string.
+      if this is omitted, the string continues up to
+      but not including the first zero terminator
+      character reached.
+      <p>
+         If both length and maxLength are supplied, and
+         maxLength is smaller, maxLength takes precedence.
+         (It is, after all, the <i>maximum</i> length.)
+      </p>
+</ul>
 
 <p>
    <b><i>pointer</i>.toUint64():</b>  Returns a

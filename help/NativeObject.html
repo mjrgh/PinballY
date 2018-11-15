@@ -33,8 +33,17 @@
    NativeObject value <i>like an object</i>.
 </p>
 <p>
+   To illustrate, suppose we have a Javascript variable 'i'
+   that contains a NativeObject.  (We'll see how to create
+   one of these in a moment.)  You can use 'i' just like an other
+   Javascript object, by accessing its "." properties.
+   The actual native value is contained in a hidden
+   variable inside that object.
+</p>
+<img class="example" src="NativeObject illustration.png">
+<p>
    The tricky part is that you can only indirectly get to the
-   native value contained in the object, for the exact reason
+   real native value contained in the object, for the exact reason
    that this class exists in the first place: namely, that
    Javascript doesn't have any direct way to represent most
    native types.  For example, suppose the native value is
@@ -64,9 +73,37 @@ let arr = dllImport.create("short[10]");  // an array of 10 16-bit integers
 let s = dllImport.create("struct Foo");   // a structure type, defined elsewhere
 </div>
 
-For more detail on the DLL importer and how the C type declarations
-work, see <a href="DllImport.html">Calling Native DLLs</a>.
+<p>
+   Primitive types like int and short are pre-defined.  You can define
+   any struct types you need using <a href="DllImport.html#dllImportDefine">dllImport.define()</a>.
+   For more detail on the DLL importer and how the C type declarations
+   work, see <a href="DllImport.html">Calling Native DLLs</a>.
+</p>
 
+<p>
+   <b>Initialization:</b>  All bytes of the native data object are
+   initially set to zero when the object is created.
+</p>
+<p>
+   In addition,
+   if the type is a C struct type, and the struct has a member named exactly
+   <b>cbSize</b> and declared as a 16-, 32-, or 64-bit integer type, that field
+   is set to the size in bytes of the  struct type.  If any nested struct
+   type has a <b>cbSize</b> member, that's also initialized to the size
+   of the main struct (<i>not</i> the size of the nested struct).  This is
+   a convenience for Windows API calls.  It's extremely common in the
+   Windows APIs for struct arguments to include cbSize fields, which the
+   caller is required to initialize to the struct size before calling the API.
+   Windows uses the cbSize field as a sanity check and
+   struct version indicator.  The automatic initialization is just meant
+   to save you a little manual code for this common case.  If the automatic
+   initialization is problematic for any given struct, you can either
+   explicitly assign a different value after creating the object, or
+   you can avoid the auto assignment in the first place by changing the
+   member name in the struct definition to anything other than cbSize
+   in the call to dllImport.define().
+</p>
+   
 
 <h2>Native object types</h2>
 
@@ -81,7 +118,7 @@ work, see <a href="DllImport.html">Calling Native DLLs</a>.
    a single value, such as an integer, a HANDLE value, etc.
 </p>
 <p>
-   To access the value in a scalar value, you use the <b>.value</b>
+   To access the internal native data value, you use the <b>.value</b>
    property.  This property is actually a getter/setter, so each time
    you invoke it, it accesses the hidden internal native value.  When
    you use .value to read the value, the native value is converted to
@@ -96,7 +133,16 @@ work, see <a href="DllImport.html">Calling Native DLLs</a>.
    <li>If the native type is HANDLE,  a <a href="HandleObject.html">HANDLE</a>
       object is returned.
 
-   <li>If it's a string type, a Javascript string is returned.
+   <li>If it's a pointer type, a <a href="NativePointer.html">NativePointer</a>
+      object is returned
+
+   <li>If the native type is some kind of string (LPSTR, LPCWSTR, etc),
+      it's handled like a pointer to the underlying character type,
+      so a NativePointer is returned just like for any other pointer type.
+      You can use <a href="NativePointer.html#toString">.toString()</a>
+      or <a href="NativePointer.html#toStringZ">.toStringZ()</a> on
+      that pointer value to translate the character array that the pointer
+      points to into a Javascript string.
 </ul>
 <div class="code">
 let i = dllImport.create("int");
@@ -107,14 +153,103 @@ i.value = 700;
    When you assign a value to the .value property, it invokes the
    setter method, which converts the Javascript value to the
    native value of the type, and stores the result in the internal
-   native value memory.
+   native value memory. 
+</p>
+
+<p>
+   The tricky part here is understanding the difference between
+   the Javascript variable 'i' and the native value itself.  You
+   always have to keep in mind that 'i' contains an object, and
+   the object contains the native value.  So consider the difference
+   between these two statements:
+</p>
+<div class="code">
+i.value = 700;
+i = 800;
+</div>
+<p>
+   The first statement updates the native value stored inside
+   the object that 'i' refers to.  The second statement changes
+   the variable 'i' itself, <i>with no effect on the native
+   value</i>.  The native value inside the object will still
+   be 700 after the second statement finishes.  But 'i' will
+   no longer refer to the native object, since it now just
+   contains the Number value 800.
+</p>
+<p>
+   Another interesting implication is that you can have two or
+   more Javascript variables that point to the same native
+   value.  Consider:
+</p>
+<div class="code">
+let i = dllImport.create("int");
+let j = i;
+
+i.value = 123;
+j.value = 456;
+message(i.value);
+</div>
+
+<p>
+   If you guessed that the message will be "456", you guessed
+   right!  Both variables 'i' and 'j' refer to the same native
+   value object.  There's only one native "int" value here, even
+   though we have two variables referring to it.  Changing
+   i.value will therefore affect j.value, and vice versa.
 </p>
 
 <p>
    <b>Arrays:</b>  For array types, you use the normal Javascript
    <b>[<i>index</i>]</b> syntax to access the elements of the array,
-   and .length to get the number of elements in the array.
+   and .length to get the number of elements in the array.  This
+   makes it act much like a regular Javascript array.
 </p>
+<div class="code">
+let arr = dllImport.create("int[5]");
+for (let i = 0; i &lt; arr.length; ++i)
+   arr[i] = i*100;
+</div>
+
+<p>
+   Note that even though this object looks superficially
+   like a regular Javascript array, it's not a true array.   It's
+   only a a pseudo-array - an object pretending to be an array
+   by defining properties for .length, [0], [1], etc.  If you
+   try to use this object in a context requiring a real array,
+   it might not work properly, because it doesn't have the
+   full set of Javascript Array prototype methods (slice(),
+   concat(), indexOf(), etc).  And of course Array.isArray()
+   will expose it for the fraud it is.
+</p>
+<p>
+   Unlike real Javascript arrays, <b>you can't add more slots</b> to
+   a native array with push(), unshift(), or by assignment.  There's
+   a bit of a gotcha here: if you assign an element beyond the
+   end of the native array, there will be no error, but it
+   also won't change the size of the underlying native array.
+   Consider:
+</p>
+<div class="code">
+let a = dllImport.define("int[5]");
+a[10] = 777;
+</div>
+<p>
+   That <i>doesn't</i> extend the native array out to
+   11 elements (remember, arrays start at index 0, so 
+   index 10 refers to the 11th element).  The native array is
+   still just 5 elements: that's how you declared it, and that's
+   how it will forever remain, because native array types are
+   of fixed size.  What the heck does this assignment do, then?  It
+   creates a property of the Javascript object with name "10"
+   and value 777.  So this is perfectly fine, and you can use it
+   to store as many additional properties as you like on the
+   Javascript object, but
+   it won't have any effect on the underlying native array.
+   When you pass the native array to a DLL function, the DLL
+   will still just see 5 elements, and won't have any way to
+   get at any extra Javascript properties.
+</p>
+
 <p>
    <b>Structs:</b>  For struct or union types, you use the usual
    Javascript "object.property" syntax to access the struct elements.
@@ -129,35 +264,183 @@ foo.l = 1000;
 foo.d = 123.456;
 </div>
 
+<h3>Integer overflows</h3>
+
+<p>
+   The Javascript Number type is implemented as a "double",
+   a 64-bit floating point that can represent very large and
+   very small numbers.  Native integer types (char, short, int, long)
+   don't have nearly as much range.  So what happens if you assign
+   a Number value to a native object's .value property when
+   the Number is out of range for the native type?
+</p>
+<p>
+   Answer: the value is "truncated" to fit into the native
+   integer type.  This means that the value is converted to
+   its binary integer representation, and any bits beyond
+   the number of bits in the type are discarded.  In
+   mathematical terms, the number is reduced "modulo N",
+   where N is one higher than the maximum value that the
+   integer type can represent. 
+</p>
+<p>
+   Note that this bit truncation can have weird effects for
+   signed integer types.  Specifically, a large positive
+   Number value can yield a negative native integer result.
+   Native signed integer types represent negative values using the
+   high-order bit, so truncating a large positive value can
+   have the effect of leaving the high bit in the truncated
+   integer set to 1, which will make the result value negative.
+   This effect is familiar to C programmers, who frequently
+   have to deal with these low-level storage details, but
+   it might be surprising to anyone else.
+</p>
+<p>
+   This behavior isn't as friendly as I might have liked,
+   but it was chosen to parallel the way that Javascript's
+   own built-in Typed Array and DataView classes work.
+   It seemed best to keep the behavior consistent with
+   these built-ins, since they do very similar jobs.
+   Those classes likewise truncate overflowing integer
+   values when assigning from Javascript Numbers.  I think
+   the main reason the built-in classes work this way is
+   that they were created in the first place to allow for
+   high-speed processing of raw integer data; truncation
+   is the fast way to handle overflows, because it's what
+   the CPU will do pretty much by default in these
+   situations.  Adding range checking would require
+   extra computing work on every array update.  It's
+   also the most flexible approach, because you can always
+   add your own range checking at the Javascript level if
+   you need it.
+</p>
+
+
+<h3>Pointer values</h3>
+
+<p>
+   Just above, we said there were three kinds of native objects:
+   scalars, structs, and arrays.  But it's also worth mentioning a
+   fourth case: pointers.
+</p>
+
+</p>
+<div class="code">
+let p = dllImport.create("int *");
+</div>
+<p>
+   Pointers aren't actually a fourth type, but they can <i>seem</i> like
+   it in some ways.  At a technical level, pointers are just scalars.
+   When you create a pointer object on its own like this, it has a
+   .value property, just like an int or float scalar.
+</p>
+<div class="code">
+let v = p.value;                       // get the pointer value
+p.value = NativeObject.addressOf(i);   // set the pointer to point to 'i'
+</div>
+
+<p>
+   Similarly, if you use a pointer within a struct, you can get and
+   set the pointer by accessing the named property in the struct.
+</p>
+<div class="code">
+dllImport.define("struct Pointers { int *a; int *b; };");
+let ptrs = dllImport.create("struct Pointers");
+ptrs.a = NativeObject.addressOf(i);
+ptrs.b = p.value;
+</div>
+
+<p>
+   So, what exactly is the .value of a pointer type?  It's a separate
+   kind of system object, a <a href="NativePointer.html">NativePointer</a>.
+   That object simply holds a pointer to a native memory location.
+   If you get the .value of a NativeObject that contains a pointer
+   type, you'll get a NativePointer.  If you want to assign a new
+   value to a NativeObject that contains a pointer type, you assign
+   it a NativePointer value.
+</p>
+<p>
+   Once you have a NativePointer object, you can get a NativeObject
+   for the native data it points to via its .at property.  You can
+   then operate on the underlying data via the NativeObject's
+   properties.  For example, if you wanted to set the integer
+   value that element 'a' of our 'Pointers' points to, you
+   could use say this:
+</p>
+<div class="code">
+// ptrs = a NativeObject with a 'struct Pointers' native object
+// ptrs.a = a NativePointer value for the pointer in struct element 'a'
+// ptrs.a.at = the native int value the pointer points to, as a NativeObject
+// ptrs.a.at.value = the underlying native value in that NativeObject
+ptrs.a.at.value = 100;
+</div>
+   
+   
 
 
 <h2>Methods and properties</h2>
 
 <p>
-   <b>NativeObject.AddressOf(<i>nativeObject</i>):</b> Returns a
-   <a href="NativePointer.html">NativePointer</a> object representing
+   <b>NativeObject.addressOf(<i>nativeObject</i>):</b>
+   Returns a <a href="NativePointer.html">NativePointer</a> object representing
    the physical memory address of this object's native data.  This can
    be used to set up data structures that require pointers to buffers
    of particular types.
 </p>
 <p>
-   Use this method cautiously, since it deals in physical memory addresses
-   that aren't tracked by the Javascript garbage collector.  You must
-   ensure that the <i>nativeObject</i> whose address you obtain stays
-   alive for as long as you're using the pointer.  If you pass the
-   pointer value to native code, and the native code hangs onto the
-   pointer for its own internally, you have to make sure that the
-   original object stays valid for as long as the native code holds
-   the reference.
+   For native array types, this returns a pointer to the first
+   element of the array.  In C-style APIs, it's common to use arrays
+   and pointers interchangeably; a pointer parameter is often used
+   where an array of the underlying type is actually required.
+   In such cases, you can use NativeObject.addressOf() to turn
+   an array object reference into the corresponding pointer value.
 </p>
 <p>
-   In Javascript, an object stays in memory for as long as it's
-   reachable from some other active object.  Global variables are
-   always reachable, so one way to keep an object valid is to store
-   a reference to it in a global variable.  Anything that a live
-   object references is also reachable, so this principle extends
-   to any number of levels of cross-references.
+   Use this method cautiously!  If you use it to get the address
+   of a native object created by DLL code, that native object
+   isn't tracked by the Javascript garbage collector, so Javascript
+   can't guarantee that the underlying native memory stays valid
+   for the lifetime of the NativePointer object.  It's your
+   responsibility to manage the lifetime of the underlying
+   native memory in such cases, just as though you were programming
+   in a lower level language like C or C++.
 </p>
+<p>
+   <b>NativeObject.addressOf(<i>nativeObject</i>, <i>element</i>):</b>
+   This form of addressOf() lets you get the address of an individual
+   element within a struct or array.  In the case of a struct, <i>element</i>
+   is a string giving the name of the element:
+</p>
+<div class="code">
+let s = dllImport.create("struct { int a; double b; }");
+let p = NativeObject.addressOf(s, "b");  // address of s.b (in C terms, &amp;s-&gt;b)
+</div>
+<p>
+   For an array, <i>element</i> is an integer giving the array index:
+</p>
+<div class="code">
+let arr = dllImport.create("double[10]");
+let p = NativeObject.addressOf(arr, 5);     // address of arr[5]
+</div>
+
+<p>
+   <i>element</i> can only go "one deep" in terms of nested type
+   naming.  In other words, it can <i>only</i> be a single struct element
+   name <i>or</i> a single array index.  For a nested type, dereference the
+   nested object in the native object expression instead of trying to
+   build a complex expression in <i>element</i>:
+</p>
+<div class="code">
+let s = dllImport.create(`
+struct {
+   struct {
+      int a;
+      int b;
+   } sub[5];
+}`);
+let p = NativeObject.addressOf(p, "sub[1].a");  // ERROR
+let p = NativeObject.addressOf(p.sub[1], "a");  // correct
+</div>
 
 <p>
    <b><i>nativeObject</i>[<i>index</i>]:</b>  For array types only, this

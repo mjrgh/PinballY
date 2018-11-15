@@ -357,16 +357,24 @@ void PlayfieldView::InitJavascript()
 	LogFile::Get()->Write(LogFile::JSLogging, _T("Checking for Javascript main script file %s\n"), jsmain);
 	if (FileExists(jsmain))
 	{
+		// if initialization fails, shut down javascript
+		struct Cleanup
+		{
+			Cleanup() : success(false) { }
+			~Cleanup() { if (!success) JavascriptEngine::Terminate(); }
+			bool success;
+		} cleanup;
+
 		// create and initialize the javascript engine
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Main script file exists; initializing Javascript engine\n"));
-		RefPtr<JavascriptEngine> js(new JavascriptEngine());
-		if (!js->Init(eh))
+		if (!JavascriptEngine::Init(eh))
 		{
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization failed; Javascript disabled for this session\n"));
 			return;
 		}
 
 		// set up our callbacks
+		auto js = JavascriptEngine::Get();
 		if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
 			|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
 			|| !js->DefineGlobalFunc("log", &PlayfieldView::JsLog, this, eh)
@@ -442,12 +450,8 @@ void PlayfieldView::InitJavascript()
 			return;
 
 		// We successfully initialized the javascript engine and loaded
-		// the user script.  Save the scripting engine, so that we process
-		// future js events through it.  Up until this point, we've just
-		// been holding onto it through a temporary variable so that the
-		// engine object can be discarded simply by returning, which we
-		// do in many places above in case of error.
-		javascriptEngine.Attach(js.Detach());
+		// the user script.
+		cleanup.success = true;
 
 		// schedule the next javascript timer task
 		SetJavascriptTaskTimer();
@@ -459,7 +463,7 @@ static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
 bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 {
 	bool ret = true;
-	if (javascriptEngine != nullptr)
+	if (auto js = JavascriptEngine::Get(); js  != nullptr)
 	{
 		// get the key label information from the key manager
 		auto const& label = KeyInput::keyName[KeyInput::IsValidKeyCode(vkey) ? vkey : 0];
@@ -526,7 +530,7 @@ bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 
 		OutputDebugString(MsgFmt(_T("%s\n"), script.Get()));
 
-		ret = javascriptEngine->FireEvent(script, _T("system:KeyEvent"));
+		ret = js->FireEvent(script, _T("system:KeyEvent"));
 	}
 	return ret;
 }
@@ -534,7 +538,7 @@ bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
 {
 	bool ret = true;
-	if (javascriptEngine != nullptr)
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
 		MsgFmt script(_T("mainWindow.dispatchEvent(new %s(%d,%d,%s,%s))"),
 			(mode & (KeyDown | KeyBgDown)) != 0 ? _T("JoysticButtonDownEvent") : _T("JoystickButtonUpEvent"),
@@ -544,7 +548,7 @@ bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
 			jsbool((mode & KeyBgDown) != 0));
 
 
-		ret = javascriptEngine->FireEvent(script, _T("system:JoystickButtonEvent"));
+		ret = js->FireEvent(script, _T("system:JoystickButtonEvent"));
 	}
 	return ret;
 }
@@ -552,10 +556,10 @@ bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
 void PlayfieldView::SetJavascriptTaskTimer()
 {
 	// check if any tasks are scheduled
-	if (javascriptEngine != nullptr && javascriptEngine->IsTaskPending())
+	if (auto js = JavascriptEngine::Get(); js != nullptr && js->IsTaskPending())
 	{
 		// get the next scheduled task time
-		ULONGLONG tNext = javascriptEngine->GetNextTaskTime();
+		ULONGLONG tNext = js->GetNextTaskTime();
 
 		// figure the elapsed time to the next task time
 		ULONGLONG tNow = GetTickCount64();
@@ -604,13 +608,13 @@ void PlayfieldView::JsOutputDebugString(TSTRING msg)
 double PlayfieldView::JsSetTimeout(JsValueRef func, double dt)
 {
 	auto task = new JavascriptEngine::TimeoutTask(func, dt);
-	javascriptEngine->AddTask(task);
+	JavascriptEngine::Get()->AddTask(task);
 	return task->id;
 }
 
 void PlayfieldView::JsClearTimeout(double id)
 {
-	javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	JavascriptEngine::Get()->EnumTasks([id](JavascriptEngine::Task *task)
 	{
 		if (auto tt = dynamic_cast<JavascriptEngine::TimeoutTask*>(task); tt != nullptr && tt->id == id)
 		{
@@ -624,13 +628,13 @@ void PlayfieldView::JsClearTimeout(double id)
 double PlayfieldView::JsSetInterval(JsValueRef func, double dt)
 {
 	auto task = new JavascriptEngine::IntervalTask(func, dt);
-	javascriptEngine->AddTask(task);
+	JavascriptEngine::Get()->AddTask(task);
 	return task->id;
 }
 
 void PlayfieldView::JsClearInterval(double id)
 {
-	javascriptEngine->EnumTasks([id](JavascriptEngine::Task *task)
+	JavascriptEngine::Get()->EnumTasks([id](JavascriptEngine::Task *task)
 	{
 		if (auto it = dynamic_cast<JavascriptEngine::IntervalTask*>(task); it != nullptr && it->id == id)
 		{
@@ -933,10 +937,10 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, timer);
 
 		// process javascript events
-		if (javascriptEngine != nullptr)
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
 		{
 			// process tasks that are ready to run
-			javascriptEngine->RunTasks();
+			js->RunTasks();
 
 			// set the next event timer
 			SetJavascriptTaskTimer();
@@ -1643,7 +1647,7 @@ void PlayfieldView::ShowAboutBox()
 				smallerFont.get(), &br, origin, bbox);
 		
 		// add the ChakraCore version if we're using Javascript
-		if (javascriptEngine != nullptr)
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
 		{
 			// retrieve the ChakraCore DLL file version resource data
 			TCHAR ccdll[MAX_PATH];

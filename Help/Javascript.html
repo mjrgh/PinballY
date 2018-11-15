@@ -22,14 +22,6 @@
    <li>It hasn't been field-tested
    <li>Many details may change
 </ul>
-<p>
-   With that in mind, if you're an early adopter type, by all means
-   give it a try.  I think this will make a good foundation for a
-   complete set of customization features over time.  If you have
-   ideas for things you'd like to customize that are beyond the current
-   capabilities, tell me what you have in mind, and I'll see if I can
-   fit your ideas into the framework.
-</p>
 
 <p>
    This feature is preliminary and experimental, but the underlying
@@ -47,7 +39,7 @@
 <p>
    Yes and no.  PinballY's Javascript <i>language</i> is exactly like
    the Javascript in a Web browser, but the programming environment
-   isn't quite the same as in a Web page.  That's because many of the
+   isn't quite the same.  That's because many of the
    objects and functions you'd use when programming in a Web page are part
    of the browser, not part of Javascript itself.  For example, the
    "document" and "window" objects are browser objects, as is the
@@ -97,11 +89,13 @@
    Scripting is automatically enabled.  To use it, create a script file
    called <b>main.js</b>, and put it in the <b>Scripts</b>
    folder within your main PinballY program folder.  At startup, PinballY
-   will look to see if this file exists, and if so, PinballY will
-   automatically load and run the file.
+   looks to see if this file exists, and if it does, the system
+   automatically loads and runs the file.  (If there's no main.js,
+   it's perfectly fine; no error message will pop up.
+   Javascript will simply be disabled for the session.)
 </p>
 <p>
-   What goes in this file?  Well, pretty much anything that's valid
+   What goes in main.js?  Well, pretty much anything that's valid
    Javascript code.  But practically speaking, what you'll usually do here
    is set up some "event listeners" for PinballY's program events.  Event
    listeners are functions that you write in Javascript for PinballY
@@ -112,9 +106,10 @@
    scheme in this case rather than with Web browser events.
 </p>
 <p>
-   It's also possible to organize your code into multiple files, and to use
-   modules written by other people.  See <a href="#multipleFiles">How to
-   use multiple script files</a> below.
+   If you wish, you can organize your code into multiple files. This
+   might be especially interesting if you want to share your code
+   or use modules written by other people.  See <a href="#multipleFiles">How to
+   use multiple script files</a> later in this section.
 
 <h2>Overall program flow</h2>
 
@@ -615,13 +610,18 @@ was called in the course of processing the event.
 <h2>Calling external DLL functions</h2>
 
 <p>
-   PinballY's Javascript has extensive support for calling
+   PinballY's Javascript has extensions that let you call
    external native code in DLLs (dynamic link libraries).
-   This lets you invoke most Windows API functions directly
-   from Javascript, and lets you add in native code of your
-   own (without having to build PinballY itself from source
-   code) by compiling your code into a DLL and then calling
-   it from Javascript.
+   The system is unlike most "plug-in" systems in that you
+   can call most native code directly from Javascript,
+   even if the native code you're calling was never written
+   with PinballY in mind.  In particular, you can use the
+   extensions to call most Windows APIs directly from
+   Javascript, with no external C or C++ code required.
+   You can also use it to add your own custom code to PinballY,
+   written in any native-code language, without having to build
+   PinballY from source.   You just compile your code into a DLL,
+   and call your DLL from Javascript using these same extensions.
    See <a href="DllImport.html">DLL Imports</a> for details.
 </p>
 
