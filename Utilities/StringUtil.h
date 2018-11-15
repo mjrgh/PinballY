@@ -55,6 +55,13 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 #define TCHARToCCHAR(/*const TCHAR* */) tstr) (tstr)
 #endif
 
+// sprintf/vsprintf with automatic allocation.  The caller is responsible for 
+// freeing the returned memory buffer with free[].  Returns the number of 
+// characters in the result string, excluding the trailing null.  Returns 
+// -1 on failure.
+int asprintf(TCHAR **result, const TCHAR *fmt, ...);
+int vasprintf(TCHAR **result, const TCHAR *fmt, va_list ap);
+
 // Overloaded cover for the Ansi and Unicode string loader functions, so
 // that our template loader function can access the right one by type 
 // rather than by name.
@@ -128,7 +135,7 @@ public:
 	StringEx(const typename S::value_type *s) : S(s) { }
 	StringEx(const S &s) : S(s) { }
 	StringEx(const typename S::value_type *s, size_t len) : S(s, len) { }
-	StringEx(class MsgFmt &m) : S(m.Get()) { }
+	StringEx(class MsgFmt &m);
 
 	// load from a resource
 	void Load(int resourceId) { LoadStringT(this, resourceId); }
@@ -187,13 +194,6 @@ bool tstriStartsWith(const TCHAR *str, const TCHAR *substr);
 bool tstrEndsWith(const TCHAR *str, const TCHAR *substr);
 bool tstriEndsWith(const TCHAR *str, const TCHAR *substr);
 
-// sprintf/vsprintf with automatic allocation.  The caller is responsible for 
-// freeing the returned memory buffer with free[].  Returns the number of 
-// characters in the result string, excluding the trailing null.  Returns 
-// -1 on failure.
-int asprintf(TCHAR **result, const TCHAR *fmt, ...);
-int vasprintf(TCHAR **result, const TCHAR *fmt, va_list ap);
-
 // Formatted string object.  This is a convenient way to format a string
 // for assignment to a string value or for a function argument.  Use 
 // printf-style formatting in the constructor.  This yields an object
@@ -222,6 +222,9 @@ protected:
 	// message string
 	TCHAR *msg;
 };
+
+template<class S>
+StringEx<S>::StringEx(MsgFmt &m) : S(m.Get()) { }
 
 // Format a fraction, using Unicode fraction characters.  This
 // formats a float with a fractional part using "vulgar fraction"
