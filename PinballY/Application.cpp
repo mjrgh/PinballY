@@ -185,6 +185,9 @@ int Application::EventLoop(int nCmdShow)
 	{
 		const TCHAR *argp = __targv[i];
 		std::match_results<const TCHAR*> m;
+
+		// AdminHost mode: this means that we're being launched as the
+		// child of the Admin Host program.  
 		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/AdminHost:(\\d+)"))))
 		{
 			// /AdminHost:<pid>
@@ -204,6 +207,14 @@ int Application::EventLoop(int nCmdShow)
 
 			// start the pipe manager thread
 			adminHost.StartThread();
+		}
+
+		// Javascript Debug mode
+		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(\\d+))?"), std::regex_constants::icase)))
+		{
+			javascriptDebugOptions.enabled = true;
+			if (m[2].matched && m[2].length() != 0)
+				javascriptDebugOptions.port = static_cast<uint16_t>(_ttoi(m[2].str().c_str()));
 		}
 	}
 

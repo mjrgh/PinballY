@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Javascript Debugging</h1>
+
+<p>
+   The ChakraCore engine in PinballY works with Visual Studio Code,
+   Microsoft's free and full-featured development environment for
+   scripting languages like Javascript.  This gives you access to
+   powerful source-level debugging tools that are essential to
+   any non-trivial project.
+</p>
+
+<p>
+   According to the developers, the debugger support in ChakraCore
+   is still in the experimental stages.  The debugging interface
+   isn't even built into ChakraCore at this point; it's currently
+   a separate project, and it's not nearly as mature as the main
+   Javascript engine portion.  I've noticed a certain amount of
+   flakiness already in my testing, so you might have to treat
+   the debugger a little delicately.  This is all third-party code
+   that I don't have any control over, so if you run into
+   anything weird or crashy, try to avoid doing it again, per
+   Henny Youngman:  "Doctor, it hurts when I do this." / "Then don't do that!" 
+   Hopefully this will solidify over time and become fully robust.
+   Even with a little shakiness, it's already quite useful.
+</p>
+
+<h2>VS Code setup</h2>
+<p>
+   Visual Studio Code isn't integrated directly into PinballY, so
+   it takes a few extra steps to set it up.
+</p>
+<ul>
+   <li>First, <a href="https://code.visualstudio.com/">download Visual Studio Code</a>
+      from Microsoft
+
+   <li>Run the VS Code installer
+
+   <li>Launch VS Code
+
+   <li>On the menu, select File &gt; Open Folder
+
+   <li>Navigate to your PinballY &gt; Scripts folder and click Select Folder
+
+   <li>On the menu, select Debug &gt; Add Configuration, then select Node.js from
+   the popup menu.  That should open a file called <b>launch.json</b> that looks
+   something like this:
+
+   <div class="code">
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${file}"
+        }
+    ]
+}
+   </div>
+
+   <li>Replace all of that with the text below.  You can just copy and paste
+   this; no customizations should be required.
+
+   <div class="code">
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "PinballY",
+            "runtimeExecutable": "${workspaceFolder}/../PinballY.exe",
+            "runtimeArgs": ["/jsdebug:9228"],
+            "port": 9228,
+            "protocol": "inspector",
+            "stopOnEntry": true
+        }
+    ]
+}
+   </div>
+
+   <li>Save changes
+
+</ul>
+
+<p>
+   VS Code will now be set up to connect to PinballY.  You can return to
+   this configuration in future sessions by using File &gt; Select Folder to
+   return to the same PinballY Scripts folder, since VS Code keeps its
+   configuration data with the folder.
+</p>
+
+<p>
+   <b>Network port numbering:</b>  That magic number <b>9228</b> that's
+   repeated in the <b>runtimeArgs</b> and <b>port</b> is a TCP port number.
+   PinballY and VS Code use this to set up a local network connection
+   to talk to each other.  It's not a true network connection, since it's
+   all on the same machine, but it still uses the network terminology.
+   The choice of a port number is arbitrary.  The only thing that's
+   important is to set it to the same number on both lines, so that
+   the two programs can find each other.  If you have any sort of conflict
+   with other programs using port 9228, you can simply change them to some
+   other number, from 1024 to 49151 - just be sure to change them both
+   to the same number.
+</p>
+
+<h2>Starting a debug session</h2>
+
+<p>
+   This procedure launches PinballY as a child process of the VS Code
+   debugger, so you should close any running instance of PinballY first.
+</p>
+   
+<ul>
+   <li>Open VS Code
+
+   <li>If your PinballY project folder isn't already open, use File &gt; Open Folder
+   to navigate back to your PinballY Scripts folder
+   
+   <li>Select View &gt; Debug
+
+   <li>At the top of the left panel, make sure the Debug drop list is
+   set to <b>PinballY</b>.  If it's not, select that from the drop list.
+
+   <li>Click the big green arrow next to PinballY, or press F5 ("Go"), or
+   select Debug &gt; Start Debugging
+
+</ul>
+
+<p>
+   PinballY will now launch, and the debugger will take control as soon
+   as the first Javascript code starts running.  You can now set breakpoints
+   for any code you want to step through, or do any other initial setup for
+   the debugging session.  Press F5 to continue execution.
+</p>
+
+<h2>VS Code documentation</h2>
+<p>
+   Full documentation for the VS Code debugger is available on
+   the <a href="https://code.visualstudio.com/docs">VS Code docs site</a>.
+</p>

@@ -71,20 +71,20 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
+    <IncludePath>..\ChakraCore\include;..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
+    <IncludePath>..\ChakraCore\include;..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
-    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(PlatformTarget)\lib;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
+    <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

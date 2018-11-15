@@ -7,7 +7,14 @@
 #include "LogFile.h"
 #include "../Utilities/FileUtil.h"
 
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+
+
 #pragma comment(lib, "ChakraCore.lib")
+#pragma comment(lib, "ChakraCore.Debugger.Service.lib")
+#pragma comment(lib, "ChakraCore.Debugger.ProtocolHandler.lib")
+#pragma comment(lib, "ChakraCore.Debugger.Protocol.lib")
 
 // statics
 JavascriptEngine *JavascriptEngine::inst;
@@ -15,6 +22,9 @@ double JavascriptEngine::Task::nextId = 1.0;
 
 JavascriptEngine::JavascriptEngine() :
 	inited(false),
+	runtime(nullptr),
+	debugService(nullptr),
+	debugProtocolHandler(nullptr),
 	nextTaskID(1.0),
 	HANDLE_proto(JS_INVALID_REFERENCE),
 	NativeObject_proto(JS_INVALID_REFERENCE),
@@ -26,7 +36,7 @@ JavascriptEngine::JavascriptEngine() :
 {
 }
 
-bool JavascriptEngine::Init(ErrorHandler &eh)
+bool JavascriptEngine::Init(ErrorHandler &eh, DebugOptions *debug)
 {
 	// if there's already a singleton, there's nothing to do
 	if (inst != nullptr)
@@ -34,10 +44,10 @@ bool JavascriptEngine::Init(ErrorHandler &eh)
 
 	// create the global singleton
 	inst = new JavascriptEngine();
-	return inst->InitInstance(eh);
+	return inst->InitInstance(eh, debug);
 }
 
-bool JavascriptEngine::InitInstance(ErrorHandler &eh)
+bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 {
 	JsErrorCode err;
 	auto Error = [&err, &eh](const TCHAR *where)
@@ -52,6 +62,33 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh)
 	// heap, garbage collector, and compiler.
 	if ((err = JsCreateRuntime(JsRuntimeAttributeEnableExperimentalFeatures, nullptr, &runtime)) != JsNoError)
 		return Error(_T("JsCreateRuntime"));
+
+	// Enable debugging if desired
+	if (debug != nullptr && debug->enable)
+	{
+		// create the debug service
+		if ((err = JsDebugServiceCreate(&debugService)) != JsNoError)
+			return Error(_T("JsDebugServiceCreate"));
+
+		// create the debugger protocol handler
+		if ((err = JsDebugProtocolHandlerCreate(runtime, &debugProtocolHandler)) != JsNoError)
+			return Error(_T("JsDebugProtocolHandlerCreate"));
+
+		// register the protocol handler
+		debugServiceName = debug->serviceName;
+		if ((err = JsDebugServiceRegisterHandler(debugService, debugServiceName.c_str(), debugProtocolHandler, debug->initialBreak)) != JsNoError)
+			return Error(_T("JsDebugServiceRegisterHandler"));
+
+		// listen for connections
+		debugPort = debug->port;
+		if ((err = JsDebugServiceListen(debugService, debugPort)) != JsNoError)
+			return Error(_T("JsDebugServiceListen"));
+
+		// if we're starting in break mode, wait for the debugger to connect before proceeding
+		if (debug->initialBreak
+			&& (err = JsDebugProtocolHandlerWaitForDebugger(debugProtocolHandler)) != JsNoError)
+			return Error(_T("JsDebugProtocolHandlerWaitForDebugger"));
+	}
 
 	// Create the execution context - this represents the "global" object
 	// at the root of the javascript namespace.
@@ -130,6 +167,18 @@ JavascriptEngine::~JavascriptEngine()
 	// the Javascript objects are all being deleted now.
 	for (auto &it : nativeDataMap)
 		delete[] it.first;
+
+	// shut down the debug service
+	if (debugProtocolHandler != nullptr)
+	{
+		JsDebugServiceUnregisterHandler(debugService, debugServiceName.c_str());
+		JsDebugProtocolHandlerDestroy(debugProtocolHandler);
+	}
+	if (debugService != nullptr)
+	{
+		JsDebugServiceClose(debugService);
+		JsDebugServiceDestroy(debugService);
+	}
 	
 	// shut down the javascript runtime
 	JsSetCurrentContext(JS_INVALID_REFERENCE);
@@ -918,9 +967,37 @@ JsErrorCode JavascriptEngine::FetchImportedModuleCommon(
 	if ((err = JsInitializeModuleRecord(referencingModule, normalizedSpecifier, dependentModuleRecord)) != JsNoError)
 		return err;
 
-	// set the URL on the module record, so that it can be shown in error messages
+	// Set the URL on the module record, for error messages and debugging.  VS Code
+	// requires file:/// URLs with regular Windows absolute file paths with drive
+	// letters and backslashes.  VS Code also cares about EXACT capitalization of
+	// the file - it won't match a file system file against one of our URLs unless
+	// the case matches exactly.  So do a file system lookup on the file to get its
+	// exact path.
+	WSTRING fileUrl = L"file:///";
+	if (HandleHolder hfile(CreateFile(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+		hfile.h != NULL && hfile.h != INVALID_HANDLE_VALUE)
+	{
+		// we were able to open the file - get the canonical name
+		WCHAR buf[MAX_PATH];
+		WCHAR *bufp = buf;
+		GetFinalPathNameByHandleW(hfile, buf, countof(buf), FILE_NAME_NORMALIZED);
+
+		// remove the \\?\ prefix if present
+		if (wcsncmp(L"\\\\?\\", buf, 4) == 0)
+			bufp += 4;
+
+		// add it to the URL
+		fileUrl += bufp;
+	}
+	else
+	{
+		// unable to open the file - use the original name
+		fileUrl += specifier;
+	}
+
+	// set the URL in the module record
 	JsValueRef url;
-	JsPointerToString(specifier.c_str(), specifier.length(), &url);
+	JsPointerToString(fileUrl.c_str(), fileUrl.length(), &url);
 	JsSetModuleHostInfo(*dependentModuleRecord, JsModuleHostInfo_Url, url);
 
 	// store the module record in our table
@@ -1078,8 +1155,12 @@ JsErrorCode JavascriptEngine::GetModuleSource(
 			*sl = '\\';
 	}
 
+	// canonicalize it (compress .. sequences, etc)
+	WCHAR canonical[MAX_PATH];
+	PathCanonicalizeW(canonical, path);
+
 	// return the result
-	filename = path;
+	filename = canonical;
 	return JsNoError;
 }
 

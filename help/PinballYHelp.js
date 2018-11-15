@@ -22,6 +22,7 @@ var contents = [
         "+SystemOptions.html Pinball Player System Setup",
             "++SystemOptionsBrowseSubfolder.html System Setup - Browse Subfolders",
     "Javascript.html Javascript scripting",
+        "+JsDebug.html Debugging",
         "+SystemObjects.html PinballY Objects",
             "++MainWindowObject.html mainWindow Object",
             "++SystemInfoObject.html systemInfo Object",

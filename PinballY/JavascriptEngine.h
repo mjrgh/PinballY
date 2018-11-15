@@ -7,6 +7,10 @@
 
 #pragma once
 #include "../ChakraCore/include/ChakraCore.h"
+#include "../ChakraCore/include/ChakraDebug.h"
+#include "../ChakraCore/include/ChakraDebugService.h"
+#include "../ChakraCore/include/ChakraDebugProtocolHandler.h"
+
 #include <map>
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
@@ -21,8 +25,17 @@ public:
 	// get the global singleton
 	static JavascriptEngine *Get() { return inst; }
 
+	// debugger options
+	struct DebugOptions
+	{
+		bool enable;           // enable debugging
+		bool initialBreak;     // break before first Javascript code executes
+		uint16_t port;         // localhost TCP port for debug connection
+		CSTRING serviceName;   // service name
+	};
+
 	// initialize/terminate
-	static bool Init(ErrorHandler &eh);
+	static bool Init(ErrorHandler &eh, DebugOptions *debug);
 	static void Terminate();
 
 	// Bind the DLL import callbacks to the given class
@@ -786,8 +799,23 @@ protected:
 	static JavascriptEngine *inst;
 
 	// instance initialization
-	bool InitInstance(ErrorHandler &eh);
+	bool InitInstance(ErrorHandler &eh, DebugOptions *debug);
 	bool inited;
+
+	// JS runtime handle.  This represents a single-threaded javascript execution
+	// environment (heap, compiler, garbage collector).
+	JsRuntimeHandle runtime;
+
+	// JS execution context.  This essentially is the container of the "global"
+	// javascript object (that is, the object at the root level of the js namespace
+	// that unqualified function and variable names attach to).
+	JsContextRef ctx;
+
+	// Debugger service objects
+	CSTRING debugServiceName;
+	uint16_t debugPort;
+	JsDebugService debugService;
+	JsDebugProtocolHandler debugProtocolHandler;
 
 	// special values
 	JsValueRef nullVal;
@@ -861,15 +889,6 @@ protected:
 
 	// convert a JsErrorCode value to a string representation, for error logging purposes
 	static const TCHAR *JsErrorToString(JsErrorCode err);
-
-	// JS runtime handle.  This represents a single-threaded javascript execution
-	// environment (heap, compiler, garbage collector).
-	JsRuntimeHandle runtime;
-
-	// JS execution context.  This essentially is the container of the "global"
-	// javascript object (that is, the object at the root level of the js namespace
-	// that unqualified function and variable names attach to).
-	JsContextRef ctx;
 
 	// Script cookie struct.  Each time we parse a script, we pass a cookie 
 	// to the JS engine to serve as a host context object that the JS engine

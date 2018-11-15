@@ -365,9 +365,13 @@ void PlayfieldView::InitJavascript()
 			bool success;
 		} cleanup;
 
+		// debug options
+		auto const &opts = Application::Get()->javascriptDebugOptions;
+		JavascriptEngine::DebugOptions debug = { opts.enabled, true, opts.port, "PinballY" };
+
 		// create and initialize the javascript engine
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Main script file exists; initializing Javascript engine\n"));
-		if (!JavascriptEngine::Init(eh))
+		if (!JavascriptEngine::Init(eh, &debug))
 		{
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization failed; Javascript disabled for this session\n"));
 			return;
