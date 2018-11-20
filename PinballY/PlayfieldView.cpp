@@ -366,12 +366,13 @@ void PlayfieldView::InitJavascript()
 		} cleanup;
 
 		// debug options
-		auto const &opts = Application::Get()->javascriptDebugOptions;
-		JavascriptEngine::DebugOptions debug = { opts.enabled, true, opts.port, "PinballY" };
+		auto &debugOpts = Application::Get()->javascriptDebugOptions;
+		debugOpts.messageHwnd = hWnd;
+		debugOpts.messageId = PFVMsgJsDebugMessage;
 
 		// create and initialize the javascript engine
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Main script file exists; initializing Javascript engine\n"));
-		if (!JavascriptEngine::Init(eh, &debug))
+		if (!JavascriptEngine::Init(eh, &debugOpts))
 		{
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization failed; Javascript disabled for this session\n"));
 			return;
@@ -403,6 +404,9 @@ void PlayfieldView::InitJavascript()
 			GetDeployedFilePath(path, name, _T(""));
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading system script file %s\n"), path);
 
+			// get the file:/// URL for the path
+			WSTRING url = js->GetFileUrl(path);
+
 			// load the file
 			long len;
 			std::unique_ptr<WCHAR> contents(ReadFileAsWStr(path, eh, len, ReadFileAsStr_NullTerm));
@@ -410,7 +414,7 @@ void PlayfieldView::InitJavascript()
 				return false;
 
 			// evaluate the script
-			return js->EvalScript(contents.get(), name, nullptr, eh);
+			return js->EvalScript(contents.get(), url.c_str(), nullptr, eh);
 		};
 
 		if (!LoadSysScript(_T("scripts\\system\\CParser.js"))
@@ -3938,6 +3942,15 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// it detects the Next+Prev key combination.
 		Application::Get()->ManualCaptureGo();
 		return true;
+
+	case PFVMsgJsDebugMessage:
+		// We've just received a socket request from an attached debugger UI
+		// (e.g., VS Code).  These requests are received asynchronously (on
+		// background threads) but must be processed on the main thread.
+		// Process the incoming command queue now.
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
+			js->OnDebugMessageQueued();
+		break;
 	}
 
 	// inherit the default handling

@@ -137,12 +137,14 @@
 //
 //   The return type is constructed from the unparse rules, as are the
 //   argument types.  So "int __stdcall foo(const char *p, float f)"
-//   unparses to (Si *%p f).  Note that argument names aren't
+//   unparses to (Si *%p f).  Note that argument names aren't included
+//   in the unparsed form, as they have no significance in the type
+//   formulation.
 //
 // - A pointer to a func is written in the obvious way, *(...)
 //
 
-var CParser = (function()
+let CParser = (function()
 {
     // Create a parser instance.  This creates a parser namespace.  Types
     // defined via typedef, struct declarations, etc are enrolled in our
@@ -164,14 +166,36 @@ var CParser = (function()
 
         const primitiveTypes = {
 
-            // C primitive types, with mappings to DllImport types.  Note that
-            // some of the types have abstracted meanings that don't *portably*
-            // map to the bit sizes that we map to here.  These mappings are
-            // strictly for the type mappings used by the Microsoft compiler,
-            // so we lost portable abstraction in the DllImport conversion.
+            // C primitive types, with mappings to DllImport types.
+            //
+            // In normal C usage, you're supposed to think of short, int, etc
+            // as abstract types that are different sizes on different hardware.
+            // You're not supposed to assume an exact bit size.  So what we're
+            // about to do here will be heresy if you have a proper C way of
+            // thinking.  We're going to map the abstract C types to EXACT
+            // HARDWARE TYPES with specific bit sizes.  That's because this
+            // code works with what comes OUT of the C compiler, not what
+            // goes IN.  It's true that C source code has to think of the C
+            // types as abstract and portable, but when you actually compile
+            // a C program for a given computer, the machine code that comes
+            // out of the compiler is tied to the hardware types of the target
+            // platform.  That's what we're doing here: we're setting up the
+            // type associations from the abstract C type names to the actual
+            // x86 and x64 types.
+            //
+            // The critical thing here is that we use the same type mappings
+            // as the Microsoft compilers.  That's required so that our client
+            // Javascript code that uses this mechanism to declare a function
+            // as taking an 'int' or 'long' argument will get the exact same
+            // stack arrangement that a target DLL using the same type expects.
+            //
             // The MS compiler uses identical bit sizes for x86 and x64 mode
             // for *most* of the basic C types: char, short, int, long, int64,
             // float, double, and long double are all the same in both modes.
+            // The types that vary between x86 and x64 are: all pointer types;
+            // most Windows handle types (which are mostly pointer types under
+            // the covers); INT_PTR and related types; size_t, ptrdiff_t, and
+            // related sizing types.
 
             "bool": "b",
             "char": "c",

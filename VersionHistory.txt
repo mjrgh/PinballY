@@ -2,23 +2,28 @@ PinballY Update History
 
 ? (1.0.0 Beta 2)
 
-* The default "Window Mode" setting for game systems (the window
-display style used for the first window opened when launching a
-game) is now "Show Minimized" instead of "Show".  Before this
-option was added (in Alpha 21), the effect was always "Show
-Minimized", because that works best for the most common systems
-(VP, FP).  But it's not ideal for some of the commercial games,
-which is why the option was added.  The default should have been
-Show Minimized all along, both for the sake of compatibility with
-existing settings files and because it's usually the right setting
-anyway; now it is.
+* PinballY is now equipped with a Javascript engine, which creates
+extensive new customization capabilities.  See "Javascript Scripting"
+in the help for details.
 
-* On some systems, menu graphic arrows weren't drawing properly.
-This is because the font "Wingdings 3" was being used for the
-arrows, and this font isn't available on all Windows systems.  The
-more universal Webdings is now used as a fallback, since that font
-contains similar looking arrows, so the arrows should draw
-properly everywhere now.
+* PinballY Admin Mode.exe now passes through any command line
+arguments to the child PinballY.exe process.
+
+* The default "Window Mode" setting for game systems (the window
+display style used for the first window opened when launching a game)
+is now "Show Minimized" instead of "Show".  Before this option was
+added (in Alpha 21), the effect was always "Show Minimized", because
+that works best for the most common systems (VP, FP).  But it's not
+ideal for some of the commercial games, which is why the option was
+added.  The default should have been Show Minimized all along, both
+for the sake of compatibility with existing settings files and because
+it's usually the right setting anyway; now it is.
+
+* On some systems, menu graphic arrows weren't drawing properly.  This
+is because the font "Wingdings 3" was being used for the arrows, and
+this font isn't available on all Windows systems.  The more universal
+Webdings is now used as a fallback, since that font contains similar
+looking arrows, so the arrows should draw properly everywhere now.
 
 
 10-13-2018 (1.0.0 Beta 1)

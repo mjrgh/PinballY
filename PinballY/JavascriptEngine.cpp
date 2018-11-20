@@ -6,6 +6,7 @@
 #include "JavascriptEngine.h"
 #include "LogFile.h"
 #include "../Utilities/FileUtil.h"
+#include "DialogResource.h"
 
 #include <filesystem>
 namespace fs = std::experimental::filesystem;
@@ -25,6 +26,7 @@ JavascriptEngine::JavascriptEngine() :
 	runtime(nullptr),
 	debugService(nullptr),
 	debugProtocolHandler(nullptr),
+	debugInitBreakPending(false),
 	nextTaskID(1.0),
 	HANDLE_proto(JS_INVALID_REFERENCE),
 	NativeObject_proto(JS_INVALID_REFERENCE),
@@ -58,9 +60,16 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 		return false;
 	};
 
-	// Create the runtime object - this represents a thread of execution,
+	// set up attributes
+	DWORD attrs = JsRuntimeAttributeEnableExperimentalFeatures | JsRuntimeAttributeEnableIdleProcessing;
+		
+	// add debugger attributes
+	if (debug != nullptr && debug->enable)
+		attrs |= JsRuntimeAttributeDispatchSetExceptionsToDebugger;
+		
+		// Create the runtime object - this represents a thread of execution,
 	// heap, garbage collector, and compiler.
-	if ((err = JsCreateRuntime(JsRuntimeAttributeEnableExperimentalFeatures, nullptr, &runtime)) != JsNoError)
+	if ((err = JsCreateRuntime(static_cast<JsRuntimeAttributes>(attrs), nullptr, &runtime)) != JsNoError)
 		return Error(_T("JsCreateRuntime"));
 
 	// Enable debugging if desired
@@ -76,7 +85,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 
 		// register the protocol handler
 		debugServiceName = debug->serviceName;
-		if ((err = JsDebugServiceRegisterHandler(debugService, debugServiceName.c_str(), debugProtocolHandler, debug->initialBreak)) != JsNoError)
+		if ((err = JsDebugServiceRegisterHandler(debugService, debugServiceName.c_str(), debugProtocolHandler, true)) != JsNoError)
 			return Error(_T("JsDebugServiceRegisterHandler"));
 
 		// listen for connections
@@ -84,10 +93,148 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 		if ((err = JsDebugServiceListen(debugService, debugPort)) != JsNoError)
 			return Error(_T("JsDebugServiceListen"));
 
-		// if we're starting in break mode, wait for the debugger to connect before proceeding
-		if (debug->initialBreak
-			&& (err = JsDebugProtocolHandlerWaitForDebugger(debugProtocolHandler)) != JsNoError)
-			return Error(_T("JsDebugProtocolHandlerWaitForDebugger"));
+		// if we're set to stop in the first user code executed, set the module load pause flag
+		if (debug->initBreak == DebugOptions::UserCode)
+			debugInitBreakPending = true;
+
+		// if we're launching under the debugger, wait for the debugger to connect 
+		// before proceeding
+		if (debug->waitForDebugger)
+		{
+			// Set up a thread to show a message box while waiting
+			class ConnectDialog : public RefCounted, public Dialog
+			{
+			public:
+				ConnectDialog(DebugOptions &opts) : opts(opts) { }
+
+				DebugOptions opts;
+
+				static DWORD CALLBACK Main(LPVOID lParam)
+				{
+					// get 'this' into a ref pointer; the main thread already added
+					// our reference, so we just need to release it on return
+					RefPtr<ConnectDialog> self(static_cast<ConnectDialog*>(lParam));
+
+					// Wait a few seconds before showing the message box, so that we
+					// don't annoyingly flash the dialog up briefly if the connection
+					// is fast, as it usually will be when launching as a child process.
+					// If the event is signaled before we time out, it means that the
+					// connection was established and we can skip the dialog.
+					if (WaitForSingleObject(self->event, 2500) == WAIT_OBJECT_0)
+						return 0;
+
+					// show the dialog
+					self->ShowWithMessageBoxFont(IDD_JS_DEBUG_WAIT);
+
+					// exit after the dialog is dismissed
+					return 0;
+				}
+
+				void Close()
+				{
+					// set the event, to cancel any wait loop
+					SetEvent(event);
+
+					// close the dialog, if opened
+					if (hDlg != NULL)
+						SendMessage(hDlg, WM_COMMAND, IDOK, 0);
+				}
+
+				virtual BOOL Proc(UINT message, WPARAM wParam, LPARAM lParam) override
+				{
+					switch (message)
+					{
+					case WM_INITDIALOG:
+						FormatDlgItemText(IDC_TXT_PORT, opts.port);
+						break;
+
+					case WM_COMMAND:
+						switch (LOWORD(wParam))
+						{
+						case IDOK:
+							// OK - this is a message from self that the connection
+							// successfully completed.  Simply dismiss the dialog.
+							EndDialog(hDlg, IDOK);
+							return 0;
+
+						case IDCANCEL:
+							// Cancel - this is the Quit button.  Abort the process.
+							TerminateProcess(GetCurrentProcess(), 0);
+							EndDialog(hDlg, IDCANCEL);
+							return 0;
+						}
+					}
+
+					return __super::Proc(message, wParam, lParam);
+				}
+
+				HandleHolder event = CreateEvent(NULL, FALSE, FALSE, NULL);
+				DWORD tid = 0;
+			};
+			RefPtr<ConnectDialog> dlg(new ConnectDialog(debugOptions));
+
+			// add a reference count on behalf of the thread, and fire off the thread
+			dlg->AddRef();
+			CreateThread(NULL, 0, &dlg->Main, dlg.Get(), 0, &dlg->tid);
+
+			// wait for the debugger
+			err = JsDebugProtocolHandlerWaitForDebugger(debugProtocolHandler);
+
+			// no matter what happened, we're done with the dialog now
+			dlg->Close();
+
+			// check the connection result
+			if (err != JsNoError)
+				return Error(_T("JsDebugProtocolHandlerWaitForDebugger"));
+		}
+
+		// Set a callback to receive notification when an incoming network message
+		// arrives.  The socket is read on a background thread, and incoming requests
+		// are queued for processing on the main thread.  The callback posts a private
+		// window message to our message window to notify it.  That event handler in
+		// turn calls the protocol handler to read and process the queued messages.
+		// The main window event loop runs on the main UI/script thread, of course, 
+		// so this ensures that the message processing happens on the script thread.
+		// The point of the cross-thread window message post is just to ensure that
+		// we wake up and process the incoming requests quickly, rather than waiting
+		// until we come back into the Javascript engine for some other reason.
+		this->debugOptions = *debug;
+		if ((err = JsDebugProtocolHandlerSetCommandQueueCallback(debugProtocolHandler, [](void *state) 
+		{
+			// notify the message window
+			auto js = static_cast<JavascriptEngine*>(state);
+			PostMessage(js->debugOptions.messageHwnd, js->debugOptions.messageId, 0, 0);
+
+		}, this)) != JsNoError)
+			return Error(_T("JsDebugProtocolHandlerSetCommandQueueCallback"));
+
+		// set up for the initial break mode
+		switch (debugOptions.initBreak)
+		{
+		case DebugOptions::SystemCode:
+			// The first break will be in the system startup code.  There's nothing 
+			// extra to do; just let the debugger take control at the first break,
+			// which will naturally happen when we load the first system script.
+			break;
+
+		case DebugOptions::UserCode:
+			// Don't break until we reach the first user script.  We don't want the
+			// debugger to take control when we enter the initial system code, so 
+			// insert a "go" command into the command queue so that we start running 
+			// again after the initial break.  We'll set up a new break later when
+			// we're about to load the first user script.
+			JsDebugProtocolHandlerSendRequest(debugProtocolHandler, "Debugger.go");
+			break;
+
+		case DebugOptions::None:
+			// We don't want to stop at all, at least not interactively.  We *do*
+			// still want an initial break, to allow the debugger to process setup
+			// commands, but we don't want to stay in the debugger interactively.
+			// So queue a "deferred go", which will take effect when the debugger
+			// is about to enter interactive mode.
+			JsDebugProtocolHandlerSendRequest(debugProtocolHandler, "Debugger.deferredGo");
+			break;
+		}
 	}
 
 	// Create the execution context - this represents the "global" object
@@ -135,6 +282,9 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	JsPointerToString(L"xref", 4, &symName);
 	JsCreateSymbol(symName, &symbol);
 	JsGetPropertyIdFromSymbol(symbol, &xrefPropertyId);
+
+	// set up the idle task
+	AddTask(new IdleTask());
 
 	// success
 	inited = true;
@@ -205,7 +355,14 @@ bool JavascriptEngine::LoadModule(const TCHAR *url, ErrorHandler &eh)
 	return true;
 }
 
-bool JavascriptEngine::EvalScript(const WCHAR *scriptText, const TCHAR *url, JsValueRef *returnVal, ErrorHandler &eh)
+void JavascriptEngine::OnDebugMessageQueued()
+{
+	// process queued commands
+	if (debugProtocolHandler != nullptr)
+		JsDebugProtocolHandlerProcessCommandQueue(debugProtocolHandler);
+}
+
+bool JavascriptEngine::EvalScript(const WCHAR *scriptText, const WCHAR *url, JsValueRef *returnVal, ErrorHandler &eh)
 {
 	JsErrorCode err;
 	auto Error = [&err, &eh](const TCHAR *where)
@@ -947,9 +1104,11 @@ JsErrorCode JavascriptEngine::FetchImportedModuleCommon(
 	if ((err = GetModuleSource(fname, specifier, referencingSourcePath)) != JsNoError)
 		return err;
 
-	// get the lower-case version for the table key
-	WSTRING key = fname;
-	std::transform(key.begin(), key.end(), key.begin(), ::towlower);
+	// get the file URL
+	WSTRING fileUrl = GetFileUrl(fname.c_str());
+
+	// use the canonicalized URL as the key
+	WSTRING key = fileUrl;
 
 	// look it up 
 	if (auto it = modules.find(key); it != modules.end())
@@ -966,34 +1125,6 @@ JsErrorCode JavascriptEngine::FetchImportedModuleCommon(
 	// create the new module record
 	if ((err = JsInitializeModuleRecord(referencingModule, normalizedSpecifier, dependentModuleRecord)) != JsNoError)
 		return err;
-
-	// Set the URL on the module record, for error messages and debugging.  VS Code
-	// requires file:/// URLs with regular Windows absolute file paths with drive
-	// letters and backslashes.  VS Code also cares about EXACT capitalization of
-	// the file - it won't match a file system file against one of our URLs unless
-	// the case matches exactly.  So do a file system lookup on the file to get its
-	// exact path.
-	WSTRING fileUrl = L"file:///";
-	if (HandleHolder hfile(CreateFile(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
-		hfile.h != NULL && hfile.h != INVALID_HANDLE_VALUE)
-	{
-		// we were able to open the file - get the canonical name
-		WCHAR buf[MAX_PATH];
-		WCHAR *bufp = buf;
-		GetFinalPathNameByHandleW(hfile, buf, countof(buf), FILE_NAME_NORMALIZED);
-
-		// remove the \\?\ prefix if present
-		if (wcsncmp(L"\\\\?\\", buf, 4) == 0)
-			bufp += 4;
-
-		// add it to the URL
-		fileUrl += bufp;
-	}
-	else
-	{
-		// unable to open the file - use the original name
-		fileUrl += specifier;
-	}
 
 	// set the URL in the module record
 	JsValueRef url;
@@ -1102,6 +1233,25 @@ bool JavascriptEngine::ModuleParseTask::Execute()
 
 bool JavascriptEngine::ModuleEvalTask::Execute()
 {
+	// If we're in debug mode, and this is the first module, do a "step into"
+	// to trigger our initial pause.
+	if (inst->debugInitBreakPending)
+	{
+		// the break is no longer pending
+		inst->debugInitBreakPending = false;
+
+		// Generate a Step Into command.  (We don't just do a "pause", because
+		// the debugger sees a stack frame for "Execute this whole module".  The
+		// weird thing about this state is that the debugger UI will make it look
+		// like we're at the first executable line of the module, but we're not 
+		// really: we're actually in some invisible wrapper that's about to call
+		// into the module.  So it's much more intuitive to step through that
+		// invisible wrapper and actually position the internal frame state in
+		// the engine so that it's inside the module, so that the UI appearance
+		// matches up with reality.)
+		JsDebugProtocolHandlerSendRequest(inst->debugProtocolHandler, "Debugger.stepInto");
+	}
+
 	// evaluate the module
 	JsValueRef result;
 	JsErrorCode err = JsModuleEvaluation(module, &result);
@@ -1117,6 +1267,48 @@ bool JavascriptEngine::ModuleEvalTask::Execute()
 
 	// this is a one shot - don't reschedule
 	return false;
+}
+
+WSTRING JavascriptEngine::GetFileUrl(const WCHAR *path)
+{
+	// Get the URL, for error messages and debugging.  VS Code requires file:/// URLs
+	// with regular Windows absolute file paths with drive letters and backslashes.
+	// VS Code also cares about EXACT capitalization of the file - it won't match a 
+	// file system file against one of our URLs unless the case matches exactly.  So
+	// do a file system lookup on the file to get its exact path.
+	WSTRING url = L"file:///";
+
+	// Try opening the file, so that we can get its "final" filename from the
+	// handle.  The final filename actually looks up the file system entry and
+	// gets the stored capitalization in all path elements.  This is important
+	// when using the VS Code debugger, because it matches exact capitalization
+	// on filenames.  If we tell it we have file C:\foo\bar.js, and the actual
+	// file system entry is C:\Foo\Bar.js, VS will consider our module to be a
+	// separate entity from the file, so it won't match source breakpoints the
+	// user set in the actual file.
+	if (HandleHolder hfile(CreateFile(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+		hfile.h != NULL && hfile.h != INVALID_HANDLE_VALUE)
+	{
+		// we were able to open the file - get the canonical name
+		WCHAR buf[4096];
+		WCHAR *bufp = buf;
+		GetFinalPathNameByHandleW(hfile, buf, countof(buf), FILE_NAME_NORMALIZED);
+
+		// That API uses the \\?\ prefix in most cases.  If present, skip it.
+		if (wcsncmp(L"\\\\?\\", buf, 4) == 0)
+			bufp += 4;
+
+		// use this as the final name
+		url += bufp;
+	}
+	else
+	{
+		// unable to open the file - just use the canonicalized name
+		url += path;
+	}
+
+	// return the result
+	return url;
 }
 
 JsErrorCode JavascriptEngine::GetModuleSource(
@@ -1148,19 +1340,8 @@ JsErrorCode JavascriptEngine::GetModuleSource(
 	// add the relative path
 	PathAppendW(path, p);
 
-	// replace '/' characters in the path with '\'
-	for (TCHAR *sl = path; *sl != 0; ++sl)
-	{
-		if (*sl == '/')
-			*sl = '\\';
-	}
-
-	// canonicalize it (compress .. sequences, etc)
-	WCHAR canonical[MAX_PATH];
-	PathCanonicalizeW(canonical, path);
-
-	// return the result
-	filename = canonical;
+	// return the file URL for this path
+	filename = GetFileUrl(path);
 	return JsNoError;
 }
 

@@ -26,20 +26,22 @@
 #define IDC_BTN_PINBALLX                3019
 #define IDC_BTN_PINBALLY                3020
 #define IDC_TXT_PBX_PROMPT              3021
+#define IDC_TXT_PORT                    3022
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003
 #define IDD_GAME_SETUP                  4005
 #define IDD_ARCHIVE_PASSWORD            4007
 #define IDD_PBX_OR_PBY                  4010
+#define IDD_JS_DEBUG_WAIT               4012
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        4012
+#define _APS_NEXT_RESOURCE_VALUE        4014
 #define _APS_NEXT_COMMAND_VALUE         45000
-#define _APS_NEXT_CONTROL_VALUE         3022
+#define _APS_NEXT_CONTROL_VALUE         3023
 #define _APS_NEXT_SYMED_VALUE           7000
 #endif
 #endif

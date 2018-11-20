@@ -47,6 +47,7 @@ const UINT PFVMsgGameRunBefore = WM_USER + 206;     // WPARAM = launch command
 const UINT PFVMsgGameRunAfter = WM_USER + 207;      // WPARAM = launch command
 const UINT PFVMsgCaptureDone = WM_USER + 208;       // WPARAM = LONG_PTR(&PlayfieldView::CaptureDoneReport)
 const UINT PFVMsgManualGo = WM_USER + 209;          // manual start/stop event from Admin Host
+const UINT PFVMsgJsDebugMessage = WM_USER + 210;    // Javascript debug request received from debugger UI
 
 // DMDView messages
 const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images

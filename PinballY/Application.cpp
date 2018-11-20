@@ -210,11 +210,33 @@ int Application::EventLoop(int nCmdShow)
 		}
 
 		// Javascript Debug mode
-		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(\\d+))?"), std::regex_constants::icase)))
+		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
 		{
-			javascriptDebugOptions.enabled = true;
+			javascriptDebugOptions.enable = true;
 			if (m[2].matched && m[2].length() != 0)
-				javascriptDebugOptions.port = static_cast<uint16_t>(_ttoi(m[2].str().c_str()));
+			{
+				TSTRING subopts = m[2];
+				if (std::regex_search(subopts.c_str(), m, std::basic_regex<TCHAR>(_T("\\bport=(\\d+)\\b"), std::regex_constants::icase)))
+					javascriptDebugOptions.port = static_cast<uint16_t>(_ttoi(m[1].str().c_str()));
+
+				if (std::regex_search(subopts.c_str(), m, std::basic_regex<TCHAR>(_T("\\bbreak=(.+)\\b"), std::regex_constants::icase)))
+				{
+					if (_tcsicmp(m[1].str().c_str(), _T("system")) == 0)
+						javascriptDebugOptions.initBreak = JavascriptEngine::DebugOptions::SystemCode;
+					else if (_tcsicmp(m[1].str().c_str(), _T("user")) == 0)
+						javascriptDebugOptions.initBreak = JavascriptEngine::DebugOptions::UserCode;
+					else if (_tcsicmp(m[1].str().c_str(), _T("none")) == 0)
+						javascriptDebugOptions.initBreak = JavascriptEngine::DebugOptions::None;
+				}
+
+				if (std::regex_search(subopts.c_str(), m, std::basic_regex<TCHAR>(_T("\\bwait=(.+)\\b"), std::regex_constants::icase)))
+				{
+					if (_tcsicmp(m[1].str().c_str(), _T("yes")) == 0)
+						javascriptDebugOptions.waitForDebugger = true;
+					else if (_tcsicmp(m[1].str().c_str(), _T("no")) == 0)
+						javascriptDebugOptions.waitForDebugger = false;
+				}
+			}
 		}
 	}
 
@@ -410,6 +432,16 @@ int Application::EventLoop(int nCmdShow)
 	if (newFileScanThread != nullptr)
 		WaitForSingleObject(newFileScanThread->hThread, 5000);
 
+	// save any updates to the config file or game databases
+	SaveFiles();
+
+	// Shut down Javascript.  Do this after saving files, because if we were
+	// launched by a debugger (e.g., VS Code), the debugger might kill the
+	// debugee child process (that would be us) as soon as we disconnect the
+	// debugger socket.  We don't want to be in the middle of any file writes
+	// if we get asynchronously terminated like that.
+	JavascriptEngine::Terminate();
+
 	// if there's an admin host thread, terminate it
 	adminHost.Shutdown();
 
@@ -431,14 +463,8 @@ int Application::EventLoop(int nCmdShow)
 	topperWin = nullptr;
 	instCardWin = nullptr;
 
-	// shut down javascript
-	JavascriptEngine::Terminate();
-
 	// wait for the audio/video player deletion queue to empty
 	AudioVideoPlayer::WaitForDeletionQueue(5000);
-
-	// save any updates to the config file or game databases
-	SaveFiles();
 
 	// check for a RunAfter program
 	CheckRunAtExit();

@@ -36,38 +36,6 @@ int asprintf(TCHAR **result, const TCHAR *fmt, ...)
 	return r;
 }
 
-// vsprintf with automatic allocation.  The caller is responsible for freeing 
-// the memory with free[].  Returns the number of characters in the result
-// string, excluding the trailing null.  Returns -1 on failure.
-int vasprintf(TCHAR **result, const TCHAR *fmt, va_list ap)
-{
-	// presume failure
-	int r = -1;
-	*result = 0;
-
-	// figure the required buffer size; proceed if in a valid range
-	int size = _vsctprintf(fmt, ap);
-	if (size >= 0 && size < INT_MAX)
-	{
-		// allocate space for the formatted text plus trailing null
-		if ((*result = new (std::nothrow) TCHAR[size + 1]) != 0)
-		{
-			// format the text
-			r = _vsntprintf_s(*result, size + 1, _TRUNCATE, fmt, ap);
-			if (r < 0 || r > size)
-			{
-				// failed - delete the buffer and set the error result
-				delete[] *result;
-				*result = 0;
-				r = -1;
-			}
-		}
-	}
-
-	// return the result length
-	return r;
-}
-
 // -----------------------------------------------------------------------
 //
 // Wide/Ansi and Ansi/Wide conversions

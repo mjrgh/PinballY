@@ -28,11 +28,50 @@ public:
 	// debugger options
 	struct DebugOptions
 	{
-		bool enable;           // enable debugging
-		bool initialBreak;     // break before first Javascript code executes
-		uint16_t port;         // localhost TCP port for debug connection
-		CSTRING serviceName;   // service name
+		// enable debugging
+		bool enable = false;
+
+		// Should we wait for the debugger UI to connect at startup?
+		// This should generally be set to true when the program is
+		// launched as a child process of the debugger UI, to ensure
+		// that the debugger can take control and set up breakpoints
+		// and such before we start executing any Javascript code.
+		bool waitForDebugger = true;
+
+		// where should we break at startup?
+		enum
+		{
+			// don't break at all at startup
+			None,
+
+			// break at first system initialization code
+			SystemCode,
+
+			// break at first user code
+			UserCode
+		}
+		initBreak = UserCode;
+
+		// localhost port number for the debug service connection
+		uint16_t port = 9228;
+
+		// name of the debug service
+		CSTRING serviceName = "PinballY.Javascript.Debug";
+
+		// Message window and callback.  When a message is received on
+		// the debug socket, we'll fire the given message to the given
+		// window.  The window should simply call OnDebugMessageQueued()
+		// when receiving this message.  Socket messages are received
+		// asynchronously in background threads, where they're queued
+		// for later processing on the main thread.  The point of this
+		// window message is to make the main thread respond quickly
+		// when an incoming message is queued.
+		HWND messageHwnd = NULL;
+		UINT messageId = 0;
 	};
+
+	// callback when a debug message is queued
+	void OnDebugMessageQueued();
 
 	// initialize/terminate
 	static bool Init(ErrorHandler &eh, DebugOptions *debug);
@@ -41,8 +80,11 @@ public:
 	// Bind the DLL import callbacks to the given class
 	bool BindDllImportCallbacks(const CHAR *className, ErrorHandler &eh);
 
+	// Get the canonical file:/// URL for a local file path
+	static WSTRING GetFileUrl(const WCHAR *path);
+
 	// Evaluate a script
-	bool EvalScript(const WCHAR *scriptText, const TCHAR *url, JsValueRef *returnVal, ErrorHandler &eh);
+	bool EvalScript(const WCHAR *scriptText, const WCHAR *url, JsValueRef *returnVal, ErrorHandler &eh);
 
 	// Fire an event.  This evaluates the given script text, converts the 
 	// Javascript return value to boolean, and returns the result.  A true
@@ -712,6 +754,21 @@ public:
 		virtual bool Execute() override;
 	};
 
+	// Engine idle task
+	struct IdleTask : Task
+	{
+		virtual bool Execute()
+		{
+			// perform idle tasks
+			unsigned int ticks;
+			JsIdle(&ticks);
+
+			// schedule the next idle task
+			readyTime = GetTickCount64() + ticks;
+			return true;
+		}
+	};
+
 
 	// Javascript event task
 	struct EventTask : Task
@@ -816,6 +873,12 @@ protected:
 	uint16_t debugPort;
 	JsDebugService debugService;
 	JsDebugProtocolHandler debugProtocolHandler;
+
+	// debugger options from host
+	DebugOptions debugOptions;
+
+	// initial debug break pending
+	bool debugInitBreakPending;
 
 	// special values
 	JsValueRef nullVal;

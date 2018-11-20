@@ -27,31 +27,24 @@ really easy to do this:
 4. Build the x86 and x64 versions
 
    a. Select configuration Release/x64
-   b. Build -> Clean Solution
-   c. Build -> Build Solution
-   d. Select configuration Release/x86
-   e. Build -> Clean Solution
-   f. Build -> Build Solution
+   b. Build -> Rebuild Solution
+   c. Select configuration Release/x86
+   d. Build -> Rebuild Solution
 
+5. git clone https://github.com/mjrgh/ChakraCore-Debugger
 
-5. git clone https://github.com/Microsoft/ChakraCore-Debugger
+   (That's the fork with my changes.  I've fixed a number of problems
+   in the original and added some new functionality.  If you want to
+   use the official version instead, well, I'd recommend against it,
+   but if you really want to anyway, see "Extra steps..." below.)
 
 6. Open ChakraCore-Debugger/ChakraCore.Debugger.sln in Visual Studio
 
-7. For each project in the "lib" section (ChakraCore.Debugger.Protocol et al):
+7. Make sure all three "lib" sub-projects are still selected.  Now, FOR EACH
+   configuration in Debug/x86, Debug/x64, Release/x86, Release/x64:
 
-   a. Right-click the project in the solution pane and select properties
-   b. Select Release > All Platforms in the configuration/platform drop lists
-   c. Select C/C++ > Code Generation in the left pane
-   d. In the right pane, under Runtime Library, select "Multi-threaded (/MT)"
-   e. Click Apply
-   f. Select Debug > All Platforms in the configuration/platform drop lists
-   g. In the right pane, under Runtime Library, select "Multi-threaded Debug (/MTd)"
-
-7. For each configuration in Debug/x86, Debug/x64, Release/x86, Release/x64:
-
-   a. For each project in the "lib" section (ChakraCore.Debugger.Protocol et al):
-      (1) Right-click on the project in the Solution pane, select Rebuild
+   a. Select the current configuration in the toolbar
+   b. Right-click the selected "lib" sub-projects, select Rebuild Selection
 
 8. In a CMD prompt, CD to the PinballY folder and run 
    import-chakra-core.bat "<path to ChakraCore>" "<path to ChakraCore-Debugger>"
@@ -67,3 +60,56 @@ drawback is that any time we want to update to a newer release of
 ChakraCore, you have to repeat the manual procedure above.  And even
 that isn't so terrible, as the build process for ChakraCore is really
 simple, as you can see from the steps above.
+
+
+======================================================================
+
+Extra steps needed for the official ChakraCore-Debugger fork
+
+Ignore the following if you're using my forked ChakraCore-Debugger
+version, which is what I strongly recommend.
+
+If you really want to use the original, it's possible, but you'll have
+to do significant work, and the resulting build will have some
+annoying problems when using it with VS Code.
+
+1. The easy part.  Change the project settings to link with the static
+C runtime libs; the default link with the DLL crtls, which is
+incompatible with PinballY's build settings and thus won't allow the
+libs to be linked.  Under the "lib" folder, select all three
+sub-projects by shift-clicking, then:
+
+   a. Right-click the selected group, select Properties
+   b. Navigate to C/C++ > Code Generation
+   c. Select Release > All Platforms in the configuration/platform drop list
+   d. In the right pane, set "Runtime Library" to "Multi-threaded (/MT)"
+   e. Select Debug > All Platforms in the configuration/platform drop list
+   f. In the right pane, set "Runtime Library" to "Multi-threaded Debug (/MTd)"
+   g. Click Apply, OK
+
+2. Not too hard, but a bit of work.  Compile PinballY.  Review the
+link errors.  Remove calls to JsDebug... functions that cause "missing
+external reference" errors in the link.  These are new custom API
+functions that I added to the ChakraCore-Debugger public API.  They
+don't exist in the original, so the PinballY dependencies on them
+will cause link errors.
+
+3. The hard part.  Replicate all of the development work I did to fix
+bugs and add missing functionality to the ChakraCore-Debugger project.
+You'll have to thoroughly test to find the issues, and come up with
+your own alternative solutions.  Or you can just live with the
+problems if you prefer.
+
+Some of the known issues:
+
+a. Breakpoints on non-executable lines aren't resolved correctly in VS
+Code.  Fire up VS Code; launch a PinballY session; stop in the
+debugger.  Set a breakpoint on a line of source that doesn't have any
+executable code.  The Javascript engine will properly set the BP on
+the next exectuable line.  Now click *again* on the same line to set
+another breakpoint there.  VS Code will think it has two breakpoints
+on top of each other at this point; clearing either one will crash the
+debug session.
+
+b. The "break=none" startup mode won't work.  The CC-D layer doesn't
+have a way to let PinballY resume execution after the initial break.

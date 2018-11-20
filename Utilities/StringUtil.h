@@ -60,7 +60,50 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 // characters in the result string, excluding the trailing null.  Returns 
 // -1 on failure.
 int asprintf(TCHAR **result, const TCHAR *fmt, ...);
-int vasprintf(TCHAR **result, const TCHAR *fmt, va_list ap);
+
+// vsprintf with automatic allocation.  The caller is responsible for freeing 
+// the memory with free[].  Returns the number of characters in the result
+// string, excluding the trailing null.  Returns -1 on failure.
+template<typename T>
+int vasprintf(T **result, const T *fmt, va_list ap)
+{
+	// presume failure
+	int r = -1;
+	*result = 0;
+
+	// figure the required buffer size; proceed if in a valid range
+	int size;
+	if constexpr (sizeof(T) == 1)
+		size = _vscprintf(fmt, ap);
+	else
+		size = _vsctprintf(fmt, ap);
+
+	if (size >= 0 && size < INT_MAX)
+	{
+		// allocate space for the formatted text plus trailing null
+		if ((*result = new (std::nothrow) T[size + 1]) != 0)
+		{
+			// format the text
+			if constexpr (sizeof(T) == 1)
+				r = _vsnprintf_s(*result, size + 1, _TRUNCATE, fmt, ap);
+			else
+				r = _vsntprintf_s(*result, size + 1, _TRUNCATE, fmt, ap);
+
+			if (r < 0 || r > size)
+			{
+				// failed - delete the buffer and set the error result
+				delete[] * result;
+				*result = 0;
+				r = -1;
+			}
+		}
+	}
+
+	// return the result length
+	return r;
+}
+
+
 
 // Overloaded cover for the Ansi and Unicode string loader functions, so
 // that our template loader function can access the right one by type 
@@ -163,7 +206,7 @@ public:
 		// Try formatting the string.  If it succeeds, use the formatted
 		// text, otherwise use the template string.
 		typename S::value_type *buf = 0;	
-		if (vasprintf(&buf, format, ap) >= 0)
+		if (vasprintf<S::value_type>(&buf, format, ap) >= 0)
 			this->assign(buf);
 		else
 			this->assign(format);

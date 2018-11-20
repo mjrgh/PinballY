@@ -13,6 +13,7 @@
 #include "TopperWin.h"
 #include "CaptureStatusWin.h"
 #include "DateUtil.h"
+#include "JavascriptEngine.h"
 
 struct ConfigFileDesc;
 class TextureShader;
@@ -381,12 +382,8 @@ public:
 	// get the FFmpeg version string
 	const CHAR *GetFFmpegVersion() const { return ffmpegVersion.c_str(); }
 
-	// Javascript debugging parameters from the command line
-	struct
-	{
-		bool enabled = false;
-		uint16_t port = 9228;
-	} javascriptDebugOptions;
+	// Javascript debugger options
+	JavascriptEngine::DebugOptions javascriptDebugOptions;
 
 protected:
 	Application();

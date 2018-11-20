@@ -59,6 +59,12 @@ CHAKRA_API JsDebugProtocolHandlerDisconnect(_In_ JsDebugProtocolHandler protocol
 /// <returns>The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.</returns>
 CHAKRA_API JsDebugProtocolHandlerSendCommand(_In_ JsDebugProtocolHandler protocolHandler, _In_z_ const char* command);
 
+/// <summay>Send a special request to the protocol handler.</summary>
+/// <param name="protocolHandler">The receiving protocol handler.</parm>
+/// <param name="request">The request to perform.</param>
+/// <returns>The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.</returns>
+CHAKRA_API JsDebugProtocolHandlerSendRequest(_In_ JsDebugProtocolHandler protocolHandler, _In_z_ const char* request);
+
 /// <summary>Blocks the current thread until the debugger has connected.</summary>
 /// <remarks>
 ///     This must be called from the script thread.
