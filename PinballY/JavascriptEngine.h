@@ -93,6 +93,9 @@ public:
 	// Load a module
 	bool LoadModule(const TCHAR *url, ErrorHandler &eh);
 
+	// Debugger console logging
+	void DebugConsoleLog(const TCHAR *type, const TCHAR *msg);
+
 	// special values
 	JsValueRef GetNullVal() const { return nullVal; }
 	JsValueRef GetUndefVal() const { return undefVal; }

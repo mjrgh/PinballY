@@ -339,6 +339,16 @@ JavascriptEngine::~JavascriptEngine()
 	JsDisposeRuntime(runtime);
 }
 
+void JavascriptEngine::DebugConsoleLog(const TCHAR *type, const TCHAR *msg)
+{
+	if (debugProtocolHandler != nullptr)
+	{
+		JsValueRef argv[1];
+		JsPointerToString(msg, _tcslen(msg), &argv[0]);
+		JsDebugConsoleAPIEvent(debugProtocolHandler, TCHARToAnsi(type).c_str(), argv, countof(argv));
+	}
+}
+
 bool JavascriptEngine::LoadModule(const TCHAR *url, ErrorHandler &eh)
 {
 	JsErrorCode err;

@@ -459,7 +459,7 @@ void PlayfieldView::InitJavascript()
 		JsRelease(jsConsole, nullptr);
 
 		// create a system info object with basic system details
-		MsgFmt sysInfo(_T("let systemInfo = {")
+		MsgFmt sysInfo(_T("this.systemInfo = {")
 			_T("programName:\"PinballY\",")
 			_T("platform:\"") IF_32_64(_T("x86"), _T("x64")) _T("\",")
 			_T("version:{")
@@ -563,7 +563,7 @@ bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 		// dispatch the javsacript event
 		JsValueRef eventType = (mode & (KeyDown | KeyBgDown)) != 0 ? jsKeyDownEvent : jsKeyUpEvent;
 		ret = js->FireEvent(jsMainWindow, eventType, vkey,
-			TSTRING(jsKey, jsKeyLen), label.jsEventCode, label.jsEventLocation,
+			TSTRING(jsKey, jsKeyLen).c_str(), label.jsEventCode, label.jsEventLocation,
 			mode == KeyRepeat || mode == KeyBgRepeat, (mode & KeyBgDown) != 0);
 	}
 	return ret;
@@ -676,6 +676,8 @@ void PlayfieldView::JsClearInterval(double id)
 void PlayfieldView::JsConsoleLog(TSTRING level, TSTRING message)
 {
 	OutputDebugString(MsgFmt(_T("console.log(%s, %s)\n"), level.c_str(), message.c_str()));
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->DebugConsoleLog(level.c_str(), message.c_str());
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)

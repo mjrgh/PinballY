@@ -65,6 +65,14 @@ CHAKRA_API JsDebugProtocolHandlerSendCommand(_In_ JsDebugProtocolHandler protoco
 /// <returns>The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.</returns>
 CHAKRA_API JsDebugProtocolHandlerSendRequest(_In_ JsDebugProtocolHandler protocolHandler, _In_z_ const char* request);
 
+/// <summary>Generate a console API event.</summary>
+/// <param name="type">Type of event (log, debug, info, error, warning, dir, dirxml, table, trace, clear, 
+/// startGroup, startGroupCollapsed, endGroup, assert, profile, profileEnd, count, timeEnd)</param>
+/// <param name="argv">Arguments</param>
+/// <param name="argc">Number of arguments</param>
+CHAKRA_API JsDebugConsoleAPIEvent(_In_ JsDebugProtocolHandler protocolHandler, _In_z_ const char* type, 
+    _In_ const JsValueRef* argv, _In_ unsigned short argc);
+
 /// <summary>Blocks the current thread until the debugger has connected.</summary>
 /// <remarks>
 ///     This must be called from the script thread.

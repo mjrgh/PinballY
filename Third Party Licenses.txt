@@ -24,9 +24,10 @@ Project article is a much better starting point.]
 
 ---------------------------------------------------------------------------
 
-Chakra Core
+Chakra Core and the Chakra Core Debugger Companion Project
 Copyright (c) Microsoft Corporation
 https://github.com/Microsoft/ChakraCore/
+https://github.com/Microsoft/ChakraCore-Debugger/
 
 The MIT License
 Copyright (c) Microsoft Corporation

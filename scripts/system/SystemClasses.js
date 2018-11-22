@@ -33,7 +33,7 @@ this.console = {
 
     info: function(...args) { this._log("info", this._format(...args)); },
 
-    log: function(...args) { this._log("info", this._format(...args)); },
+    log: function(...args) { this._log("log", this._format(...args)); },
 
     time: function(label) { this._timeTable[label || "default"] = Date.now(); },
 
@@ -41,7 +41,7 @@ this.console = {
 
     timeLog: function(label) { this._timerOp(label, false); },
 
-    trace: function() { this.log("info", this._stack().join("\n")); },
+    trace: function() { this.log("trace", this._stack().join("\n")); },
 
     warning: function(...args) { this.log("warning", this._format(...args)); },
 
