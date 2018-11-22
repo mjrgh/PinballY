@@ -18,7 +18,7 @@ FileVersionInfo::FileVersionInfo(const TCHAR *filename) :
 	ZeroMemory(version, sizeof(version));
 
 	// "open" file version data
-	DWORD vsInfoHandle;
+	DWORD vsInfoHandle = 0;
 	DWORD vsInfoSize = GetFileVersionInfoSize(filename, &vsInfoHandle);
 	if (vsInfoSize != 0)
 	{

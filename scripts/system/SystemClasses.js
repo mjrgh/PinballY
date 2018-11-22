@@ -8,6 +8,209 @@
 
 // ------------------------------------------------------------------------
 //
+// Console object.  This is designed to act similar to the browser
+// equivalent.
+//
+this.console = {
+    assert: function(assertion, ...args)
+    {
+        if (!assertion)
+        {
+            this.log(...args);
+            this.log(this._stack().join("\n"));
+        }
+    },
+
+    count: function(label) { this._applyCount(label, (key, disp) => {
+        this.log(disp + ": " + (++(this._countTable[key]))); });
+    },
+
+    countReset: function(label) { this._applyCount(label, (key, disp) => { this._countTable[key] = 0; }); },
+
+    error: function(...args) { this._log("error", this._format(...args)); },
+
+    exception: function(...args) { this._log("error", this._format(...args)); },
+
+    info: function(...args) { this._log("info", this._format(...args)); },
+
+    log: function(...args) { this._log("info", this._format(...args)); },
+
+    time: function(label) { this._timeTable[label || "default"] = Date.now(); },
+
+    timeEnd: function(label) { this._timerOp(label, true); },
+
+    timeLog: function(label) { this._timerOp(label, false); },
+
+    trace: function() { this.log("info", this._stack().join("\n")); },
+
+    warning: function(...args) { this.log("warning", this._format(...args)); },
+
+    // internal formatter for assert(), error(), log()
+    _format: function(...args)
+    {
+        if (args.length == 0)
+            return "";
+
+        var pat = /%([\-+ #0]*)(\d+)?(\.\d+)?([oOdisfxX])/g;
+        if (args.length > 1 && pat.test(args[0]))
+        {
+            let ok = true;
+            let i = 1;
+            let expansion = args[0].replace(pat, (match, flags, width, prec, spec) =>
+            {
+                if (i >= args.length)
+                {
+                    ok = false;
+                    return "";
+                }
+                let a = args[i++];
+
+                let doInt = (radix, prefix) =>
+                {
+                    let s = a.toString(radix);
+
+                    if (flags.indexOf("+") >= 0)
+                        s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
+                    else if (flags.indexOf(" ") >= 0 && a >= 0)
+                        s = " " + s;
+
+                    if (prec && prec != "" && +prec.substr(1) > s.length)
+                    {
+                        let extra = +prec.substr(1) - s.length;
+                        if (extra == 0 && a == 0)
+                            s = "";
+                        else
+                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                    }
+                    else if (width && width != "" && +width > s.length)
+                    {
+                        let extra = +width - s.length;
+                        if (flags.indexOf("0") >= 0)
+                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                        else if (flags.indexOf("-") >= 0)
+                            s = s + " ".repeat(extra);
+                        else
+                            s = " ".repeat(extra) + s;
+                    }
+
+                    if (flags.indexOf("#") >= 0 && prefix)
+                        s = s.replace(/^\s*[+\-]?/, "$&" + prefix);
+
+                    return s;
+                };
+
+                let doFloat = () =>
+                {
+                    let s = a.toFixed(prec && prec != "" ? +prec.substr(1) : 6);
+
+                    if (flags.indexOf("+") >= 0)
+                        s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
+                    else if (flags.indexOf(" ") >= 0 && a >= 0)
+                        s = " " + s;
+
+                    if (width && width != "" && +width > s.length)
+                    {
+                        let extra = +width - s.length;
+                        if (flags.indexOf("0") >= 0)
+                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                        else if (flags.indexOf("-") >= 0)
+                            s = s + " ".repeat(extra);
+                        else
+                            s = " ".repeat(extra) + s;
+                    }
+
+                    return s;
+                };
+
+                switch (spec)
+                {
+                case 'o':
+                case 'O':
+                    return (a === null ? "null" :
+                            a === undefined ? "undefined" :
+                            a.toString());
+
+                case 'd':
+                case 'i':
+                    return doInt(10);
+
+                case 'x':
+                    return doInt(16, "0x").toLowerCase();
+                    
+                case 'X':
+                    return doInt(16, "0x").toUpperCase();
+
+                case 'f':
+                    return doFloat();
+
+                case 's':
+                    return a;
+
+                default:
+                    ok = false;
+                    return a;
+                }
+            });
+
+            if (ok)
+                return expansion;
+        }
+
+        return args.join(" ");
+    },
+
+    // internal stack trace formatter
+    _stack: function()
+    {
+        // Get the stack from a synthesized error object, remove the first three lines
+        // ("Error at", _stack() level, and our internal caller level), and reformat
+        // the resulting lines look more like a browser console trace.
+        return new Error().stack.split("\n").slice(3).map(l => {
+            l = l.replace(/^\s*at\s+/, "");
+            if (/(.+)\s*\((.+)\)$/.test(l))
+                l = RegExp.$1 + "@" + RegExp.$2;
+            else
+                l = "@" + l;
+            return l;
+        });
+    },
+
+    // internal handler for count() and countReset()
+    _applyCount: function(label, func)
+    {
+        if (label)
+            func(label, label);
+        else
+            func(this._stack[0], "default");
+    },
+
+    // label table for count() and countReset()
+    _countTable: { },
+
+    // general handler for timeLog() and timeEnd() - logs the time, and
+    // optionally removes the timer
+    _timerOp: function(label, remove)
+    {
+        label = label || "default";
+        let now = Date.now();
+        let t0 = this._timeTable[label];
+        if (t0)
+        {
+            this._log(label + ": " + (Date.now() - now) + "ms");
+            if (remove)
+                delete this._timeTable[label];
+        }
+        else
+            this._log("Timer " + label + " does not exist");
+    },
+
+    // timer table for time() and timeEnd()
+    _timeTable: { },
+};
+
+
+// ------------------------------------------------------------------------
+//
 // Define Event and EventTarget inside a function scope, so that
 // we can define some private properties shared among these classes.
 //
@@ -279,7 +482,7 @@ let { Event, EventTarget } = (() =>
 // Command event.  This is fired on the main application object
 // when a button mapped to a command is pressed.  The default system
 // action is to carry out the command.
-class CommandEvent extends Event
+this.CommandEvent = class CommandEvent extends Event
 {
     constructor(command)
     {
@@ -289,7 +492,7 @@ class CommandEvent extends Event
 }
 
 // Base class for keyboard events
-class KeyEvent extends Event
+this.KeyEvent = class KeyEvent extends Event
 {
     constructor(type, vkey, key, code, location, repeat, background)
     {
@@ -303,7 +506,7 @@ class KeyEvent extends Event
     }
 }
 
-class KeyDownEvent extends KeyEvent
+this.KeyDownEvent = class KeyDownEvent extends KeyEvent
 {
     constructor(vkey, key, code, location, repeat, background)
     {
@@ -311,7 +514,7 @@ class KeyDownEvent extends KeyEvent
     }
 }
 
-class KeyUpEvent extends KeyEvent
+this.KeyUpEvent = class KeyUpEvent extends KeyEvent
 {
     constructor(vkey, key, code, location, repeat, background)
     {
@@ -333,7 +536,7 @@ const DOM_KEY_LOCATION_RIGHT = 2;
 const DOM_KEY_LOCATION_NUMPAD = 3;
 
 // Joystick button events
-class JoystickButtonEvent extends Event
+this.JoystickButtonEvent = class JoystickButtonEvent extends Event
 {
     constructor(type, unit, button, repeat, background)
     {
@@ -341,7 +544,7 @@ class JoystickButtonEvent extends Event
     }
 }
 
-class JoystickButtonDownEvent extends JoystickButtonEvent
+this.JoystickButtonDownEvent = class JoystickButtonDownEvent extends JoystickButtonEvent
 {
     constructor(unit, button, repeat, background)
     {
@@ -349,7 +552,7 @@ class JoystickButtonDownEvent extends JoystickButtonEvent
     }
 }
 
-class JoystickButtonUpEvent extends JoystickButtonEvent
+this.JoystickButtonUpEvent = class JoystickButtonUpEvent extends JoystickButtonEvent
 {
     constructor(unit, button, repeat, background)
     {
@@ -359,7 +562,7 @@ class JoystickButtonUpEvent extends JoystickButtonEvent
 
 // Game launch event.  This is fired on the main application object
 // when a game is about to be launched.
-class LaunchEvent extends Event
+this.LaunchEvent = class LaunchEvent extends Event
 {
     constructor()
     {
@@ -379,7 +582,7 @@ class LaunchEvent extends Event
 //    joyup
 //    command
 //
-let mainWindow = new EventTarget();
+this.mainWindow = new EventTarget();
 
 
 // ------------------------------------------------------------------------

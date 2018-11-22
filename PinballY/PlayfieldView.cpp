@@ -424,6 +424,40 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
+		// get the global objects we need to reference
+		auto GetObj = [&js](JsValueRef &jsval, const char *name)
+		{
+			// get the global property by name
+			const TCHAR *where;
+			JsErrorCode err;
+			if ((err = js->GetGlobProp(jsval, name, where)) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". %hs object missing; Javascript disabled for this session\n"), name);
+				return false;
+			}
+
+			// add a reference
+			JsAddRef(jsval, nullptr);
+			return true;
+		};
+		JsValueRef jsConsole;
+		if (!GetObj(jsMainWindow, "mainWindow")
+			|| !GetObj(jsCommandEvent, "CommandEvent")
+			|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
+			|| !GetObj(jsKeyUpEvent, "KeyUpEvent")
+			|| !GetObj(jsJoystickButtonDownEvent, "JoystickButtonDownEvent")
+			|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
+			|| !GetObj(jsLaunchEvent, "LaunchEvent")
+			|| !GetObj(jsConsole, "console"))
+			return;
+
+		// set up the console functions
+		if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
+			return;
+
+		// we're done with the console object
+		JsRelease(jsConsole, nullptr);
+
 		// create a system info object with basic system details
 		MsgFmt sysInfo(_T("let systemInfo = {")
 			_T("programName:\"PinballY\",")
@@ -526,19 +560,11 @@ bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 				jsKeyLen = bar - jsKey;
 		}
 
-		// generate the javascript event call
-		MsgFmt script(_T("mainWindow.dispatchEvent(new %s(%d,\"%.*s\",\"%s\",%d,%s,%s))"),
-			(mode & (KeyDown | KeyBgDown)) != 0 ? _T("KeyDownEvent") : _T("KeyUpEvent"),
-			vkey,
-			(int)jsKeyLen, jsKey,
-			label.jsEventCode,
-			label.jsEventLocation,
-			jsbool(mode == KeyRepeat || mode == KeyBgRepeat),
-			jsbool((mode & KeyBgDown) != 0));
-
-		OutputDebugString(MsgFmt(_T("%s\n"), script.Get()));
-
-		ret = js->FireEvent(script, _T("system:KeyEvent"));
+		// dispatch the javsacript event
+		JsValueRef eventType = (mode & (KeyDown | KeyBgDown)) != 0 ? jsKeyDownEvent : jsKeyUpEvent;
+		ret = js->FireEvent(jsMainWindow, eventType, vkey,
+			TSTRING(jsKey, jsKeyLen), label.jsEventCode, label.jsEventLocation,
+			mode == KeyRepeat || mode == KeyBgRepeat, (mode & KeyBgDown) != 0);
 	}
 	return ret;
 }
@@ -548,15 +574,9 @@ bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
-		MsgFmt script(_T("mainWindow.dispatchEvent(new %s(%d,%d,%s,%s))"),
-			(mode & (KeyDown | KeyBgDown)) != 0 ? _T("JoysticButtonDownEvent") : _T("JoystickButtonUpEvent"),
-			unit,
-			button,
-			jsbool((mode & (KeyRepeat | KeyBgRepeat)) != 0),
-			jsbool((mode & KeyBgDown) != 0));
-
-
-		ret = js->FireEvent(script, _T("system:JoystickButtonEvent"));
+		JsValueRef eventType = (mode & (KeyDown | KeyBgDown)) != 0 ? jsJoystickButtonDownEvent : jsJoystickButtonUpEvent;
+		ret = js->FireEvent(jsMainWindow, eventType,
+			unit, button, (mode & (KeyRepeat | KeyBgRepeat)) != 0, (mode & KeyBgDown) != 0);
 	}
 	return ret;
 }
@@ -651,6 +671,11 @@ void PlayfieldView::JsClearInterval(double id)
 		}
 		return true;
 	});
+}
+
+void PlayfieldView::JsConsoleLog(TSTRING level, TSTRING message)
+{
+	OutputDebugString(MsgFmt(_T("console.log(%s, %s)\n"), level.c_str(), message.c_str()));
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)

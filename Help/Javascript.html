@@ -26,9 +26,9 @@
 <p>
    This feature is preliminary and experimental, but the underlying
    Javascript engine isn't.  The Javascript system is ChakraCore,
-   Microsoft's modern, ES6-compliant, open-source engine
-   that they built from the ground up for their Edge browser.
-   ChakraCore has top-tier performance and adheres to modern Javascript
+   Microsoft's ES6-compliant engine that they built from the ground up
+   for their Edge browser and released as open source.  ChakraCore
+   has top-tier performance and implements modern Javascript
    standards.  You can use all of the cool new ES6 language features,
    like "let", "class", "for..of", destructuring assignments, "arrow" (=&gt;)
    functions, and typed arrays.
@@ -37,31 +37,32 @@
 <h2>Is this like Web browser Javascript?</h2>
 
 <p>
-   Yes and no.  PinballY's Javascript <i>language</i> is exactly like
-   the Javascript in a Web browser, but the programming environment
-   isn't quite the same.  That's because many of the
-   objects and functions you'd use when programming in a Web page are part
+   Yes and no.  PinballY's Javascript <i>language</i> isn't just "like"
+   the Javascript in a Web browser, it's exactly the same.  But the
+   programming environment isn't.  That's because many of the
+   objects and functions you use when programming a Web page are part
    of the browser, not part of Javascript itself.  For example, the
-   "document" and "window" objects are browser objects, as is the
-   HTML DOM tree.  PinballY doesn't have those objects because it's not a Web browser.
+   "document" and "window" objects, the HTML DOM tree, and the Event
+   objects all come from the browser, not from Javascript.
+   PinballY doesn't have those browser objects because it's not a browser.
    Instead, PinballY provides its own, somewhat different set of objects
    that represent the PinballY user interface environment.
 </p>
 <p>
-   With that in mind, there's still a lot that's similar.
-   We've tried to stick to the familiar elements of browser Javascript wherever
-   possible.  For features in PinballY that have natural analogs in
-   a browser, we've tried to use the same Javascript names and behaviors.
-   For example, events are handled in a very similar way, and a number
-   of common <a href="#browserLikeFuncs">browser-like functions</a> are
-   available, such as timeouts and intervals.
+   With that in mind, there's still a lot that's similar.  Wherever
+   PinballY has functionality that's analogous to something in a
+   browser, we've tried to expose it in a similar way, using similar
+   names and concepts.  For example, PinballY user interface events
+   are handled very much like browser events, and a number of common
+   <a href="#browserLikeFuncs">browser-like functions</a> are available,
+   such as timeouts and intervals.
 </p>
 
 <h2>Javascript language documentation</h2>
 
 <p>
    I won't attempt to offer a Javascript tutorial or reference manual here,
-   since you can find lots of both of those on the Web, and much better
+   since you can find lots of both on the Web, and better
    ones than I could write.  PinballY's Javascript is fully standard,
    so the information in any good language manual will apply here.
    One good place to look is the
@@ -76,11 +77,10 @@
    Javascript documentation is that PinballY doesn't have the
    usual complement of Web browser environment objects ("document",
    the HTML DOM tree, etc).  A lot of Javascript material is
-   really more about Web development than Javascript, and wrongly
-   takes it for granted that the only place you'd want to use this
-   language is in a Web page.  So you might have to rework some 
-   examples in your mind to see past the assumptions about browser
-   objects.
+   really more about Web development than Javascript.  You'll
+   have to rework the examples from more Web-oriented material
+   in your mind to see past the assumption that you're working
+   in a browser.
 </p>
 
 <h2>How to enable scripting</h2>
@@ -114,14 +114,13 @@
 <h2>Debugging</h2>
 
 <p>
-   A good debugger is indispensable for any non-trivial progrmaming
-   project.  Happily, the ChakraCore engine works with Visual Studio
-   Code, Microsoft's free, lightweight programming environment for
-   scripting languages like Javascript.  VS Code has a full-featured
-   Javascript debugger that lets you step through code line-by-line,
-   set breakpoints, inspect variables, and do all of the usual sorts
-   of debugging tasks.  For details on how to set this up, see
-   <a href="JsDebug.html">Javascript Debugging</a>.
+   A good debugger is indispensable for any non-trivial programming
+   project.  PinballY doesn't have a debugger UI built in, but it
+   does have something much better instead: support for connecting <i>real</i>
+   debuggers.  You can use it with a number of popular full-featured
+   Javascript IDEs, including Microsoft's Visual Studio Code and Google's
+   Chrome DevTools, both of which are free and open source.  For
+   details on setting up a debugger, see <a href="JsDebug.html">Javascript Debugging</a>.
 </p>
 
 <h2>Overall program flow</h2>

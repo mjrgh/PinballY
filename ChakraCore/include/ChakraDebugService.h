@@ -10,8 +10,10 @@ typedef struct JsDebugService__* JsDebugService;
 
 /// <summary>Creates a <seealso cref="JsDebugProtocolHandler" /> instance.</summary>
 /// <param name="service">The newly created instance.</param>
+/// <param name="title">Instance title, for display in a list of available services (e.g., Chrome's Remote Target list).</param>
+/// <param name="description">Instance description, for display available service list.</param>
 /// <returns>The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.</returns>
-CHAKRA_API JsDebugServiceCreate(_Out_ JsDebugService* service);
+CHAKRA_API JsDebugServiceCreate(_Out_ JsDebugService* service, const char* title = nullptr, const char* description = nullptr, const char* favIconUrl = nullptr);
 
 /// <summary>Destroys the instance object.</summary>
 /// <param name="service">The instance to destroy.</param>

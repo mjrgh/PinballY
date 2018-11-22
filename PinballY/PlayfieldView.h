@@ -1754,7 +1754,7 @@ protected:
 	//
 	// But wait, it gets even weirder!  If you use the RIGHT shift
 	// key, you get exactly the sequence above at the WM_KEYxxx 
-	// message level, but the raw input sequence gets truly bizarre:
+	// message level, but the Raw Input sequence gets truly bizarre:
 	//
 	//    RSHIFT MAKE
 	//    RSHIFT BREAK       <--- synthetically releases rshift...
@@ -1765,21 +1765,23 @@ protected:
 	//    RSHIFT MAKE        <--- and restores the actual rshift state
 	//    RSHIFT BREAK
 	//
-	// "WTF" doesn't begin to express my boggled mind.  This isn't
-	// documented anywhere that I can find, but I have found a few
-	// other threads on the Web from people who ran into it and were
-	// equally perplexed.  This MUST be intentional; it's universal
-	// to Windows versions and keyboards, and on its face you can
-	// just tell that there's *some* kind of tortured internal logic 
-	// at work, even if the rationale is utterly unfathomable.  My
-	// best guess is that there was some kind of weird hardware
-	// compatibility issue with an oddball keyboard, probably a
-	// very long time ago (I'm imagining a 1987 Compaq model and
-	// Windows 2.0, maybe), and the summer intern at Microsoft who
-	// was tasked with getting it working threw in this hack, and
-	// now we're stuck with it until the heat death of the universe
-	// because God ordained that Windows shall forever be backwards 
-	// compatible all the way to CP/M-86.
+	// "WTF" doesn't begin to express it.  The synthetic left shifts
+	// makes it abundantly clear that this is intentional.  And it's
+	// coming from some really low-level system inside Windows.
+	// There's clearly some kind of tortured logic at work here, but
+	// it's like everything in Lovecraft - unfathomable to the human
+	// mind, unless you want to risk insanity.  Okay, maybe not quite
+	// that unfathomable.  The synthesized shifts must be there to
+	// maintain internal consistency for anyone trying to monitor
+	// the keyboard state.  The mystery is why it has to be this
+	// weird fake key state rather than just reflecting the actual
+	// key state.  My best guess is it's for compatibility with 
+	// something long since obsolete (I'm imagining a 1987 Compaq 
+	// model and Windows 2.0, maybe), and that it was invented by a
+	// too-clever-by-half summer intern at Microsoft who was tasked
+	// with solving said compatibility issue.  And now we're stuck 
+	// with it until the heat death of the universe, because Windows
+	// is the roach motel of compatibility hacks.
 	//
 	// Anyway... Why do I even care?  I discovered this little gem
 	// because I was trying to get consistent translation of keypad
@@ -2063,6 +2065,17 @@ protected:
 	// initialize javascript
 	void InitJavascript();
 
+	// our main window object
+	JsValueRef jsMainWindow = JS_INVALID_REFERENCE;
+
+	// event objects
+	JsValueRef jsCommandEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsKeyDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsKeyUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickButtonDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickButtonUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
+
 	// schedule the next javascript timer event
 	void SetJavascriptTaskTimer();
 
@@ -2106,6 +2119,11 @@ protected:
 
 	// Javascript clearInterval() callback
 	void JsClearInterval(double id);
+
+	// Javascript console _log (low-level write routine that just
+	// emits a message; the Javascript side classes are responsible
+	// for higher level formatting features).
+	void JsConsoleLog(TSTRING level, TSTRING message);
 
 	//
 	// Button command handlers

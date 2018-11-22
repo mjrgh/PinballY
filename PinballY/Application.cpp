@@ -213,6 +213,9 @@ int Application::EventLoop(int nCmdShow)
 		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
 		{
 			javascriptDebugOptions.enable = true;
+			javascriptDebugOptions.serviceName = "PinballY";
+			javascriptDebugOptions.serviceDesc = "PinballY";
+			javascriptDebugOptions.favIconUrl = "http://mjrnet.org/pinscape/PinballYProgramIcon.ico";
 			if (m[2].matched && m[2].length() != 0)
 			{
 				TSTRING subopts = m[2];

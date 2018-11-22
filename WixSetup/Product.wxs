@@ -106,6 +106,7 @@
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
         <File Id="MainThirdPartyLicenses" Source="$(var.SolutionDir)Third Party Licenses.txt" />
         <File Id="MainVersionHistory" Source="$(var.SolutionDir)VersionHistory.txt" />
+				<File Id="ProgramIcon" Source="$(var.SolutionDir)PinballY\res\ProgIcon.ico" />
 
 				<!-- the 64/32-bit DOF COM proxy is required for 64-bit builds only -->
 				<?if $(var.Platform) = x64 ?>

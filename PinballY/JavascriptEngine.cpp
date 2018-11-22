@@ -76,7 +76,8 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	if (debug != nullptr && debug->enable)
 	{
 		// create the debug service
-		if ((err = JsDebugServiceCreate(&debugService)) != JsNoError)
+		if ((err = JsDebugServiceCreate(&debugService, debug->serviceName.c_str(), debug->serviceDesc.c_str(), 
+			debug->favIconUrl.c_str())) != JsNoError)
 			return Error(_T("JsDebugServiceCreate"));
 
 		// create the debugger protocol handler
@@ -272,6 +273,9 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	JsGetFalseValue(&falseVal);
 	JsGetTrueValue(&trueVal);
 
+	// Look up properties we reference
+	JsCreatePropertyId("dispatchEvent", 13, &dispatchEventProp);
+
 	// Initialize our internal symbol properties, which we use for private
 	// properties of some of our objects.
 	JsValueRef symName, symbol;
@@ -395,33 +399,6 @@ bool JavascriptEngine::EvalScript(const WCHAR *scriptText, const WCHAR *url, JsV
 
 	// success
 	return true;
-}
-
-bool JavascriptEngine::FireEvent(const TCHAR *scriptText, const TCHAR *url)
-{
-	// suppress errors
-	SilentErrorHandler eh;
-
-	// evaluate the script
-	JsValueRef result = JS_INVALID_REFERENCE;
-	if (!EvalScript(TCHARToWCHAR(scriptText), url, &result, eh))
-	{
-		// script failed - allow the system handling to proceed by default
-		return true;
-	}
-
-	// convert the return value to bool
-	JsValueRef boolResult;
-	bool b;
-	if (JsConvertValueToBoolean(result, &boolResult) != JsNoError
-		|| JsBooleanToBool(boolResult, &b) != JsNoError)
-	{
-		// invalid type returned - allow the system handling to proceed by default
-		return true;
-	}
-
-	// return the result from the script
-	return b;
 }
 
 JsErrorCode JavascriptEngine::LogAndClearException(ErrorHandler *eh, int msgid)
