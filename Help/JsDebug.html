@@ -13,42 +13,66 @@
 <h1>Javascript Debugging</h1>
 
 <p>
-   You can use a number of interactive Javascript debuggers with
-   PinballY, including Microsoft's Visual Studio Code and the
-   Chrome DevTools.
+   A good interactive debugger is essential for any non-trivial
+   software project.  PinballY doesn't have its own built-in debugger
+   window, but it has something better: it lets you connect a <i>real</i>
+   debugger.  It currently works with the following:
+</p>
+<ul>
+   <li>Visual Studio Code, Microsoft's free, open-source code
+   editor and Javascript IDE
+
+   <li>Chrome DevTools, the debugger console built in to the
+   Chrome browser
+</ul>
+
+<p>
+   Debugging is handled through the Chrome DevTools protocol.
+   This is a standard protocol that's implemented by most Windows
+   Javascript debuggers and IDEs, so in principle, you should
+   be able to use any debugger that implements the protocol.
+   However, be warned that the protocol implementation in ChakraCore
+   is extremely immature and incomplete.  Microsoft is building
+   the debugger interface as a separate project from the main
+   ChakraCore engine, and it looks like it's barely staffed.
+   They're only thinking in terms of VS Code support, and even
+   within that limited scope, they've only gotten as far as
+   what I'd consider a prototype at this point.  Fortunately,
+   they've made it open-source (like Chakra Core itself), so I've
+   been able to flesh it out enough to make it fairly usable
+   with VS Code and the Chrome debugger.  You <i>might</i> be
+   able to get it working with other Javascript debuggers, if
+   you have something else you prefer, but I'd be surprised if
+   it worked very well with anything else given how incomplete
+   it is and how much I had to add to get even VS Code working
+   at a minimally satisfactory level.
 </p>
 <p>
-   The ChakraCore engine implements the Chrome DevTools
-   protocol, which is also used by most Javascript IDEs and
-   debuggers.  The protocol was designed specifically so that
-   you can mix and match Javascript IDEs with Javsascript
-   engines.   It lets you use, say, Visual Studio Code to
-   debug Node.js applications.
-</p>
-<p>
-   Specific instructions for Visual Studio Code and Chrome DevTools
-   are listed below.  If there's another tool you prefer, you should
-   be able to adapt the basic setup described in <a href="#generic">Generic
-   setup</a>.
+   If you run into any problems with debugging, feel free to
+   report them as issues, but be aware that it might not be
+   practical for me to add any substantial missing features
+   until Microsoft makes more progress on this.  Hopefully
+   they'll continue developing it and it'll become more
+   complete in due course. 
 </p>
 
 <h2>Visual Studio Code setup</h2>
 
 <p>
-   VS Code is Microsoft's free and open-source IDE for scripting-type
-   languages like Javascript and Python.  It's a fairly full-featured IDE,
-   and its big attraction is that it's extremely extensible.
-</p>
-<p>
-   (Don't confuse Visual Studio Code with Visual Studio.  They're
-   wholly separate products.  VS Code is primarily a lightweight
-   code editor and scripting IDE, with a special focus on Javascript.
-   Visual Studio is Microsoft's traditional large-scale IDE for system
-   programming using languages like C++ and C#.)
+   VS Code is Microsoft's free and open-source code editor.
+   It also can serve as a fairly full-featured IDE for Javascript,
+   including an interactive debugger.
 </p>
 <p>
    Full documentation for the VS Code debugger is available on
    the <a href="https://code.visualstudio.com/docs">VS Code docs site</a>.
+</p>
+<p>
+   Note that you <b>don't</b> have to install the traditional Visual
+   Studio (Microsoft's IDE for system programming languages
+   like C++ and C#) to use VS Code.  VS Code is a
+   whole separate, standalone program that doesn't depend upon
+   Visual Studio in any way, despite the shared name.
 </p>
 <p>
   Here's the
@@ -189,19 +213,24 @@
 <p>
    The Chrome DevTools are built in to the Google Chrome browser, so
    if you have Chrome installed, you already have a nice Javascript
-   debugger installed.  The Chrome debugger is just a standalone
-   debugger, not a full IDE like VS Code, but I find it faster and
-   more polished.  It's also practically no work to set up if you're
-   already using Chrome as your browser.
+   debugger installed.  The Chrome debugger is more
+   of a standalone debugger than a full IDE like VS Code, so you
+   might prefer VS Code if you want a more integrated user interface.
+   Also note that VS Code support is Microsoft's first
+   (and really only) priority, so Chrome support might lag in some ways.
 </p>
 <p>
-   Chrome DevTools won't launch PinballY for you the way that VS Code
-   does.  Instead, you launch Chrome and PinballY separately from
-   Windows, and then "attach" Chrome to PinballY once everything's
-   running.  PinballY accommodates this by pausing in a "Waiting
-   for debugger" dialog until you attach Chrome, so that you still
-   have a chance to intercept the startup scripts without any
-   super-human feats of timing.
+   The launching procedure with the Chrome debugger is a little
+   different from VS Code.  Chrome won't launch PinballY for you
+   the way that VS Code does.  Instead, you have to launch each
+   program (Chrome and PinballY) separately, and then tell Chrome
+   to connect to the running PinballY instance.  PinballY accommodates this by
+   pausing in a "Waiting for debugger" dialog until a debugger
+   connects, giving you a chance to intercept the startup scripts
+   without any super-human feats of timing.
+</p>
+<p>
+   Here's the setup procedure:
 </p>
 
 <ul>
@@ -244,7 +273,17 @@
 <h2>Generic setup for other tools</h2>
 
 <p>
-   For any other Javascript debugger tools, here's the basic setup:
+   <b>Warning:</b>  As mentioned earlier, ChakraCore's debugger
+   interface is only designed to work with VS Code.  It might work in
+   a limited way with other debuggers that implement the Chrome
+   DevTools protocol, but many functions are likely to be broken.  Even
+   so, I'm documenting the basic setup procedure here for reference,
+   in the hope that support for other tools improves in the future.
+</p>
+<p>
+   If you want to try an alternative debugger, here's the generic setup
+   procedure.  You'll have to adapt the steps to your debugger's particular
+   settings dialogs or configuration file setup, of course.
 </p>
 <ul>
    <li>Start PinballY with Javascript debugging enabled,

@@ -24,6 +24,7 @@ var contents = [
     "Javascript.html Javascript scripting",
         "+JsDebug.html Debugging",
         "+SystemObjects.html PinballY Objects",
+            "++ConsoleObject.html console Object",
             "++MainWindowObject.html mainWindow Object",
             "++SystemInfoObject.html systemInfo Object",
         "+DllImport.html Calling Native DLLs from Javascript",

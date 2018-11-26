@@ -27,13 +27,13 @@ this.console = {
 
     countReset: function(label) { this._applyCount(label, (key, disp) => { this._countTable[key] = 0; }); },
 
-    error: function(...args) { this._log("error", this._format(...args)); },
+    error: function(...args) { this._log("error", this.format(...args)); },
 
-    exception: function(...args) { this._log("error", this._format(...args)); },
+    exception: function(...args) { this._log("error", this.format(...args)); },
 
-    info: function(...args) { this._log("info", this._format(...args)); },
+    info: function(...args) { this._log("info", this.format(...args)); },
 
-    log: function(...args) { this._log("log", this._format(...args)); },
+    log: function(...args) { this._log("log", this.format(...args)); },
 
     time: function(label) { this._timeTable[label || "default"] = Date.now(); },
 
@@ -43,10 +43,10 @@ this.console = {
 
     trace: function() { this.log("trace", this._stack().join("\n")); },
 
-    warning: function(...args) { this.log("warning", this._format(...args)); },
+    warning: function(...args) { this.log("warning", this.format(...args)); },
 
-    // internal formatter for assert(), error(), log()
-    _format: function(...args)
+    // formatter for assert(), error(), log()
+    format: function(...args)
     {
         if (args.length == 0)
             return "";
@@ -67,7 +67,7 @@ this.console = {
 
                 let doInt = (radix, prefix) =>
                 {
-                    let s = a.toString(radix);
+                    let s = Math.trunc(a).toString(radix);
 
                     if (flags.indexOf("+") >= 0)
                         s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
@@ -122,6 +122,25 @@ this.console = {
                     return s;
                 };
 
+                let doString = () =>
+                {
+                    let s = a.toString();
+
+                    if (width && width != "" && +width > s.length)
+                    {
+                        let extra = +width - s.length;
+                        if (flags.indexOf("-") >= 0)
+                            s = s + " ".repeat(extra);
+                        else
+                            s = " ".repeat(extra) + s;
+                    }
+
+                    if (prec && prec != "" && +prec.substr(1) < s.length)
+                        s = s.substr(0, +prec.substr(1));
+
+                    return s;
+                };
+
                 switch (spec)
                 {
                 case 'o':
@@ -144,7 +163,7 @@ this.console = {
                     return doFloat();
 
                 case 's':
-                    return a;
+                    return doString(a);
 
                 default:
                     ok = false;

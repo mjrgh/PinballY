@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>console Object</h1>
+
+<p>
+   <b>console</b> is a pre-defined PinballY object that lets you
+   display text messages on the debugger's console window when you're
+   using a debugger (see <a href="JsDebug.html">Debugging</a>).  This
+   provides a simple way of seeing what's going on in your code when
+   troubleshooting scripts.  The PinballY console object is similar
+   to the console object in a Web browser, with most of the same
+   methods.
+</p>
+
+
+<h2>Methods</h2>
+
+<p>
+   In the method descriptions below, "display" always means
+   displaying on the debugger console.  If you're not currently
+   using a debugger, there is no console, so any messages are
+   simply discarded.  You can thus leave console logging messages in
+   working code without bothering the user with extraneous messages.
+   Even so, it's good practice to remove console messages when
+   you're confident about a section of code and no longer need
+   to instrument it: there's still some overhead in processing
+   the method calls, and when you want to debug some other area
+   of the code, you don't want to sift through the noise of
+   leftover messages from unrelated areas.
+</p>
+
+<p>
+   <b>console.assert(<i>assertion</i>, <i>arguments...</i>):</b>
+   If the <i>assertion</i> expression is false (or "falsey"), the
+   function acts like console.log(), displaying the arguments the
+   same way log() would.  Otherwise nothing is displayed.  This can
+   be used to log messages when unexpected conditions occur.
+</p>
+
+<p>
+   <b>console.count(<i>label</i>):</b>  Displays the number of times
+   that this method has been called with the same label.  If the label
+   is omitted, a default label based on the calling code location is used
+   instead; this can be used to count the number of times a particular
+   line of code is executed.
+</p>
+<p>
+   <b>console.countReset(<i>label</i>):</b> Resets the counter associated
+   with the given label, for the purposes of console.count().
+</p>
+<p>
+   <b>console.error(<i>arguments</i>):</b> Does the same thing as console.log(),
+   but displays the message with special styling (that depends on the debugger)
+   to indicate that it's an error messages.
+</p>
+<p>
+   <b>console.exception(<i>arguments</i>):</b>  Identical to console.error().
+</p>
+
+<p>
+   <b>console.format(<i>formatString</i>, <i>arguments</i>):</b>  Formats the
+   printf-style "%" parameters in the format string, using the given arguments,
+   and returns the resulting string.  This uses the same formatting codes
+   described for console.log().  This lets you access the special formatting
+   features directly for messages displayed in other places besides the
+   console.
+</p>
+   
+<p>
+   <b>console.info(<i>arguments</i>):</b> Does the same thing as console.log(),
+   but displays the message with special styling (that depends on the debugger)
+   to indicate that it's an informational message.
+</p>
+
+<p>
+   <b>console.log(<i>object</i>...)</b>:  Displays a message on the
+   console log by converting each object to its string representation
+   (using toString()), and appending the strings together, separated
+   by spaces.  This is typically used to display simple string
+   messages:
+</p>
+
+<div class="code">
+console.log("This is a log messages!");
+</div>
+
+<p>
+   <b>console.log(<i>formatString</i>, <i>arguments...</i>):</b>
+   If the first argument to console.log() is a string, and it contains
+   one or more "printf"-style "%" format codes, console.log() interprets
+   it as a format string with substitution variables.  Each "%" code is
+   replaced with a formatted version of the corresponding argument
+   from the <i>arguments</i> list, in left-to-right order.  The format
+   codes are:
+</p>
+<ul>
+   <li><b>%o</b> or <b>%O</b>: object format.  The corresponding
+   argument is treated as an object and converted to a string with
+   toString, then substituted for the %o or %O.
+
+   <li><b>%d</b> or <b>%i</b>: decimal integer format.  The corresponding
+   argument is formatted as an integer (any fractional part is
+   discarded), in decimal radix (base 10).
+
+   <li><b>%x</b> or <b>%X</b>: hex integer format.  The corresponding
+   argument is formatted as an integer (any fractional part is
+   discarded), in hexadecimal radix (base 16).  %x renders
+   hex digits A-F in lower-case, while %X renders them in
+   upper-case.
+
+   <li><b>%f</b>: floating point format.  The argument is formatted
+   as a floating point number value.
+
+   <li><b>%s</b>: string.  The string value of the argument is
+   substituted.
+</ul>
+
+<p>
+   <b>Flags, width, precision:</b>  You can include three optional
+   elements before the specifier characters: flags, width, and
+   precision.  These are specified like so:
+</p>
+<div class="indented">
+   <b>%</b> <i>flags</i> <i>width</i> <b>.</b> <i>precision</i> <i>specifier</i>
+</div>
+
+<p>Flags:</b>
+<ul>
+   <li><b>-</b>: left-justify the value in the available width
+      meaning that any needed padding is added at the end of the
+      numeric value.  E.g., "%-7d" formats 100 as "100"
+      followed by four spaces.  The default is to right-justify,
+      with extra spaces at the beginning of the number.
+
+   <li><b>+</b>: for numeric types (%d, %i, %x, %X, %f), show a
+      "+" sign if the value is positive.  E.g., <b>%+d</b> formats
+      100 as "+100".
+
+   <li><b><i>space</i></b>: for numeric types, insert a space at the
+      beginning of the number if it's non-negative (so that positive and
+      negative values use the same overall width).  E.g., "%&nbsp;d"
+      formats 100 as "&nbsp;100" (note the leading space).
+
+   <li><b>#</b>: for %x or %X format, add "0x" or "0X" (respectively)
+      as a prefix to the displayed value, to match the way a hex number
+      would appear in Javascript source code.  E.g., "%#x" formats
+      100 as "0x64".
+
+   <li><b>0</b>: for numeric types, if padding is required by the width
+      specifier, use leading zeroes instead of spaces.  For example,
+      "%05d" formats 100 as "00100".
+</ul>
+
+<p>
+   <b>Width:</b>  
+   This specifies the <i>minimum</i> width for the format.
+   This works for all types except %o and %O, which ignore it.
+   The width is given as an integer value, as in "%5d".
+   If the formatted value is shorter than the minimum given
+   by the width, padding is added, in the form of leading
+   or trailing spaces.  For the numeric formats, the padding
+   is added as leading zeroes ("0" characters) if the "0"
+   flag is specified; for strings, padding is always spaces.
+   The width is a minimum only, not a maximum; values that
+   exceed the width aren't truncated.
+</p>
+<p>   
+   For example, "%5d" formats 100 as "&nbsp;&nbsp;100" (with two leading spaces).
+</p>
+
+<p>
+   <b>Precision:</b>
+   This is a number specified after a "." in the format
+   string: it's the "3" in "%.3f" or "%7.3f".
+</p>
+<p>
+   For %f, the precision specifies the number of digits to
+   show after the decimal point.  Values are rounded if
+   necessary.  For example, "%.3f" displays 123.456789
+   as "123.457".
+</p>
+<p>
+   For integer formats, the precision simply has the effect
+   of left-justifying the result instead of right-justifying it.
+</p>
+<p>
+   For strings, the precision gives the maximum width.  If
+   the string is longer, it's truncated.
+</p>
+   
+<p>
+   <b>console.time(<i>label</i>):</b>  Starts a timer under
+   the given label.  This establishes the starting time for
+   elapsed time measurements using console.timeLog() and console.timeEnd().
+</p>
+<p>
+   <b>console.timeEnd(<i>label</i>):</b>  Displays on the console
+   the current elapsed time for the timer previously started under the
+   given label with console.time(), and then removes the timer.
+</p>
+<p>
+   <b>console.timeLog(<i>label</i>):</b>  Displays on the console
+   the current elapsed time for the timer previously started under
+   the given label with console.time().
+</p>
+
+<p>
+   <b>console.trace()</b>: Displays a call stack trace for the calling code.
+</p>
+
+<p>
+   <b>console.warning(<i>arguments</i>):</b> Does the same thing as console.log(),
+   but displays the message with special styling (that depends on the debugger)
+   to indicate that it's a warning message.
+</p>
+
