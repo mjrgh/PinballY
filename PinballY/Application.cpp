@@ -212,10 +212,22 @@ int Application::EventLoop(int nCmdShow)
 		// Javascript Debug mode
 		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
 		{
+			// enable debugging
 			javascriptDebugOptions.enable = true;
 			javascriptDebugOptions.serviceName = "PinballY";
 			javascriptDebugOptions.serviceDesc = "PinballY";
-			javascriptDebugOptions.favIconUrl = "http://mjrnet.org/pinscape/PinballYProgramIcon.ico";
+
+			// load the favorites icon, if provided
+			if (HRSRC hrsrc = ::FindResource(G_hInstance, _T("MAINICON"), _T("ICOFILE")); hrsrc != NULL)
+			{
+				if (HGLOBAL hglobal = ::LoadResource(G_hInstance, hrsrc); hglobal != NULL)
+				{
+					javascriptDebugOptions.favIcon = static_cast<const BYTE*>(::LockResource(hglobal));
+					javascriptDebugOptions.favIconSize = ::SizeofResource(G_hInstance, hrsrc);
+				}
+			}
+
+			// scan additional options
 			if (m[2].matched && m[2].length() != 0)
 			{
 				TSTRING subopts = m[2];

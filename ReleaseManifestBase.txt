@@ -10,4 +10,3 @@ DefaultSettings.txt
 License.txt
 "Third Party Licenses.txt"
 VersionHistory.txt
-PinballY\res\ProgIcon.ico

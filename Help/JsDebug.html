@@ -34,18 +34,16 @@
    However, be warned that the protocol implementation in ChakraCore
    is extremely immature and incomplete.  Microsoft is building
    the debugger interface as a separate project from the main
-   ChakraCore engine, and it looks like it's barely staffed.
-   They're only thinking in terms of VS Code support, and even
-   within that limited scope, they've only gotten as far as
-   what I'd consider a prototype at this point.  Fortunately,
+   ChakraCore engine, and so far they're really only at the
+   prototype stage.  They're also only thinking in terms of
+   VS Code support, so support for other debuggers (like
+   Chrome) is an afterthought at best.  Fortunately,
    they've made it open-source (like Chakra Core itself), so I've
    been able to flesh it out enough to make it fairly usable
    with VS Code and the Chrome debugger.  You <i>might</i> be
    able to get it working with other Javascript debuggers, if
-   you have something else you prefer, but I'd be surprised if
-   it worked very well with anything else given how incomplete
-   it is and how much I had to add to get even VS Code working
-   at a minimally satisfactory level.
+   there's something else you prefer, but it might be a bit
+   shaky.
 </p>
 <p>
    If you run into any problems with debugging, feel free to
@@ -53,26 +51,28 @@
    practical for me to add any substantial missing features
    until Microsoft makes more progress on this.  Hopefully
    they'll continue developing it and it'll become more
-   complete in due course. 
+   complete over time. 
 </p>
 
 <h2>Visual Studio Code setup</h2>
 
 <p>
-   VS Code is Microsoft's free and open-source code editor.
-   It also can serve as a fairly full-featured IDE for Javascript,
-   including an interactive debugger.
+   VS Code is Microsoft's free and open-source code editor,
+   which can also serve as a fairly full-featured IDE for
+   Javascript.  If you don't already have a good code
+   editor, you might try VS Code as a combined editor
+   and debugging environment.
 </p>
 <p>
-   Full documentation for the VS Code debugger is available on
+   Full documentation for VS Code is available on
    the <a href="https://code.visualstudio.com/docs">VS Code docs site</a>.
 </p>
 <p>
    Note that you <b>don't</b> have to install the traditional Visual
-   Studio (Microsoft's IDE for system programming languages
+   Studio (Microsoft's large-scale IDE for system programming languages
    like C++ and C#) to use VS Code.  VS Code is a
-   whole separate, standalone program that doesn't depend upon
-   Visual Studio in any way, despite the shared name.
+   completely independent, standalone program that doesn't depend upon
+   Visual Studio in any way, despite the similar name.
 </p>
 <p>
   Here's the
@@ -83,6 +83,12 @@
 <ul>
    <li><a href="https://code.visualstudio.com/">Download Visual Studio Code</a>
       from Microsoft and run the installer
+
+      <ul>
+         <li><b>What if I already have Visual Studio installed?</b>  That
+         makes no difference.  It's a completely unrelated program.  You
+         still have to install VS Code separately.
+      </ul>
 
    <li>Launch Visual Studio Code
 

@@ -77,7 +77,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	{
 		// create the debug service
 		if ((err = JsDebugServiceCreate(&debugService, debug->serviceName.c_str(), debug->serviceDesc.c_str(), 
-			debug->favIconUrl.c_str())) != JsNoError)
+			debug->favIcon, debug->favIconSize)) != JsNoError)
 			return Error(_T("JsDebugServiceCreate"));
 
 		// create the debugger protocol handler
@@ -3647,9 +3647,12 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "mul", &XInt64Data<UINT64>::Multiply, this, eh)
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "div", &XInt64Data<UINT64>::Divide, this, eh)
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "mod", &XInt64Data<UINT64>::Modulo, this, eh)
-		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "and", &XInt64Data<UINT64>::And, this, eh)
-		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "or", &XInt64Data<UINT64>::Or, this, eh)
-		|| !DefineObjPropFunc(UInt64_proto, "UInt64", "not", &XInt64Data<UINT64>::Not, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "and", &XInt64Data<UINT64>::And, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "or", &XInt64Data<UINT64>::Or, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "not", &XInt64Data<UINT64>::Not, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "shl", &XInt64Data<UINT64>::Shl, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "ashr", &XInt64Data<UINT64>::Ashr, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "lshr", &XInt64Data<UINT64>::Lshr, this, eh)
 		|| !DefineObjPropFunc(classObj, "UInt64", "_new", &XInt64Data<UINT64>::Create, this, eh))
 		return false;
 
@@ -4703,6 +4706,12 @@ JsValueRef JavascriptEngine::XInt64Data<T>::ToString(JsValueRef callee, bool isC
 		WCHAR *endp = buf + countof(buf);
 		WCHAR *p = endp;
 
+		// To properly handle the case of the smallest negative signed value, do the
+		// actual digit iterations using an unsigned container.  We definitely won't
+		// have a sign after taking the absolute value, so this will work whether the
+		// underlying value is signed or unsigned.
+		UINT64 ui;
+
 		// if the value is negative, start with a sign
 		bool neg = false;
 		if constexpr (std::is_signed<T>::value)
@@ -4710,33 +4719,30 @@ JsValueRef JavascriptEngine::XInt64Data<T>::ToString(JsValueRef callee, bool isC
 			if (i < 0)
 			{
 				neg = true;
-				i = -i;
+				ui = static_cast<UINT64>(-i);
 			}
-		}
-
-		// special case if the value is zero
-		if (i == 0)
-		{
-			*--p = '0';
+			else
+				ui = static_cast<UINT64>(i);
 		}
 		else
+			ui = i;
+
+		// work backwards through the digits from the least significant end
+		do
 		{
-			// work backwards through the digits from the least significant end
-			while (i != 0)
-			{
-				int digit = static_cast<int>(i % radix);
-				if (digit <= 9)
-					*--p = static_cast<WCHAR>(digit + '0');
-				else
-					*--p = static_cast<WCHAR>(digit - 10 + 'A');
+			int digit = static_cast<int>(ui % radix);
+			if (digit <= 9)
+				*--p = static_cast<WCHAR>(digit + '0');
+			else
+				*--p = static_cast<WCHAR>(digit - 10 + 'A');
 
-				i /= radix;
-			}
+			ui /= radix;
 
-			// add the sign
-			if (neg)
-				*--p = '-';
-		}
+		} while (ui != 0);
+
+		// add the sign
+		if (neg)
+			*--p = '-';
 
 		// return the string
 		err = JsPointerToString(p, endp - p, &ret);

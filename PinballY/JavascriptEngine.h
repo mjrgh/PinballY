@@ -59,8 +59,9 @@ public:
 		CSTRING serviceName = "ChakraCore Instance";
 		CSTRING serviceDesc = "ChakraCore Instance";
 
-		// favorite icon URL
-		CSTRING favIconUrl = "";
+		// favorite icon data
+		const BYTE* favIcon = nullptr;
+		size_t favIconSize = 0;
 
 		// Message window and callback.  When a message is received on
 		// the debug socket, we'll fire the given message to the given
