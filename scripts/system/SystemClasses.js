@@ -22,7 +22,7 @@ this.console = {
     },
 
     count: function(label) { this._applyCount(label, (key, disp) => {
-        this.log(disp + ": " + (++(this._countTable[key]))); });
+        this.log(disp + ": " + (this._countTable[key] = (this._countTable[key] || 0) + 1)); });
     },
 
     countReset: function(label) { this._applyCount(label, (key, disp) => { this._countTable[key] = 0; }); },

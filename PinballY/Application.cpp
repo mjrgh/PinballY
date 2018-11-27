@@ -218,7 +218,7 @@ int Application::EventLoop(int nCmdShow)
 			javascriptDebugOptions.serviceDesc = "PinballY";
 
 			// load the favorites icon, if provided
-			if (HRSRC hrsrc = ::FindResource(G_hInstance, _T("MAINICON"), _T("ICOFILE")); hrsrc != NULL)
+			if (HRSRC hrsrc = ::FindResource(G_hInstance, _T("JSDEBUGGERICON"), _T("ICOFILE")); hrsrc != NULL)
 			{
 				if (HGLOBAL hglobal = ::LoadResource(G_hInstance, hrsrc); hglobal != NULL)
 				{

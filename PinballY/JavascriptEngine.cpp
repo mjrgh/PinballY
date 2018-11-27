@@ -62,7 +62,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 
 	// set up attributes
 	DWORD attrs = JsRuntimeAttributeEnableExperimentalFeatures | JsRuntimeAttributeEnableIdleProcessing;
-		
+
 	// add debugger attributes
 	if (debug != nullptr && debug->enable)
 		attrs |= JsRuntimeAttributeDispatchSetExceptionsToDebugger;

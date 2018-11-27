@@ -14,25 +14,37 @@
 
 <p>
    PinballY includes a full Javascript engine for user scripting customizations.
-   This is a new feature in the v1.0.0 Beta 2 release, and it's still very preliminary
+   This is a new feature in the v1.0.0 Beta 2 release.  It's preliminary
    and experimental, so be aware of some caveats:
 </p>
 <ul>
-   <li>It's not very fleshed out
+   <li>It's not fully fleshed out yet
    <li>It hasn't been field-tested
    <li>Many details may change
 </ul>
 
 <p>
-   This feature is preliminary and experimental, but the underlying
-   Javascript engine isn't.  The Javascript system is ChakraCore,
-   Microsoft's ES6-compliant engine that they built from the ground up
-   for their Edge browser and released as open source.  ChakraCore
+   "Not fully fleshed out yet" means that I've
+   only started adding Javascript event hooks and system functions.
+   If there's something you'd like to customize, and you can't find a
+   way to do it within the current setup, it's probably not because
+   I've thought about and ruled out your idea.  It's much more likely
+   that it just didn't occur to me.  New events and system calls can
+   easily be added over time as ideas come up.  If you have proposals
+   for new functionality, let me know.
+</p>
+
+<p>
+   The idea of Javascript support in PinballY is preliminary and experimental, but the
+   underlying Javascript engine isn't.  Javascript is implemented via ChakraCore,
+   Microsoft's excellent ES6-compliant engine that they built for
+   the Edge browser and released as open source.  ChakraCore
    has top-tier performance and implements modern Javascript
    standards.  You can use all of the cool new ES6 language features,
    like "let", "class", "for..of", destructuring assignments, "arrow" (=&gt;)
    functions, and typed arrays.
 </p>
+
 
 <h2>Is this like Web browser Javascript?</h2>
 

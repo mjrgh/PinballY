@@ -54,6 +54,45 @@
    complete over time. 
 </p>
 
+<h2>Pausing in the debugger</h2>
+
+<p>
+   One of the main functions of any debugger is the ability to
+   pause execution at any arbitrary point in the program, so that
+   you can inspect the current values of all variables and step
+   through sections of code one line at a time.  The exact command
+   to pause execution varies by debugger, but the VS Code and the
+   Chrome debugger have similar UI features, with buttons to pause
+   execution of the running program, step one line at a time, and
+   set breakpoints at source locations.
+</p>
+<p>
+   At program startup, the debugger will normally pause execution
+   at the first line of your main.js script.  You can override
+   the initial stop location using the <a href="#jsdebug">/jsdebug:break=<i>xxx</i></a>
+   command-line option when starting PinballY.
+</p>
+<p>
+   VS Code and Chrome both have "pause" buttons, which cause the
+   debugger to interrupt the Javascript program at the next opportunity
+   while it's running.
+   The debugger can only break into Javascript code, so
+   pressing the button won't have any effect until the next
+   Javascript script executes, which will happen the next time one
+   of your event handlers fires.  The pause button thus might not
+   do anything immediately, since it won't interrupt execution
+   until something is happening in Javascript.
+</p>
+<p>
+   Whenever execution is paused in the debugger, be aware that
+   PinballY's windows won't respond to mouse clicks or keyboard
+   input.  That's because your Javascript scripting code is effectively
+   part of the PinballY's user interface code.  Freezing Javascript
+   execution therefore also freezes the PinballY user interface.
+   When you resume execution from the debugger, the PinballY
+   windows will return to normal.
+</p>
+
 <h2>Visual Studio Code setup</h2>
 
 <p>
@@ -411,17 +450,18 @@ PinballY.exe /jsdebug:port=9228
       startup code and want to control things manually via
       breakpoints or the "pause" button in the debugger UI.
       <p>
-         Tip: Visual Studio Code gets a little confused by this option,
-         because it doesn't pay attention to the target engine's run
-         state correctly.  After starting up with this option, VS Code will <i>think</i>
-         it's paused in the debugger, but PinballY will actually be
-         running.  Just click the "Go" button in VS Code to get it
-         back in sync with reality.  Alternatively, you can set
-         the "stopOnEntry:" parameter in launch.json to false, to
-         tell Code not to expect the initial break in the first
-         place, but I don't like that as much because you'll have to
-         remember to set it back if you change the /jsdebug:break
-         setting later.  I find it easier to just do the extra "Go" click.
+         Tip: Visual Studio Code might be confused by break=none,
+         because it normally expects the target engine to stop in the
+         debugger at startup.  After starting up with this option, VS
+         Code might <i>think</i> it's paused in the debugger,
+         even though the Javascript engine isn't actually paused.
+         You can usually get things back in sync by clicking the "Go"
+         button in VS Code.  The more reliable fix is to change the
+         "stopOnEntry:" setting in launch.json to <b>false</b>, to
+         tell Code not to expect the initial break in the first place.
+         If you do that, remember that you'll have to set it back to
+         <b>true</b> if you change the /jsdebug options back to
+         break=user or break=system.
       </p>
    </ul>
 
