@@ -3314,9 +3314,13 @@ DWORD Application::GameMonitorThread::Main()
 					&& pEnumMoniker != nullptr)
 				{
 					// scan through the audio devices
-					RefPtr<IMoniker> m;
-					while (pEnumMoniker->Next(1, &m, NULL) == S_OK)
+					for (;;)
 					{
+						// get the next device in the enumeration
+						RefPtr<IMoniker> m;
+						if (pEnumMoniker->Next(1, &m, NULL) != S_OK)
+							break;
+
 						// get the friendly name from the object's properties
 						RefPtr<IBindCtx> bindCtx;
 						RefPtr<IPropertyBag> propertyBag;

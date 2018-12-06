@@ -560,6 +560,10 @@ this.JoystickButtonEvent = class JoystickButtonEvent extends Event
     constructor(type, unit, button, repeat, background)
     {
         super(type, { cancelable: true });
+        this.unit = unit;
+        this.button = button;
+        this.repeat = repeat;
+        this.background = background;
     }
 }
 
@@ -609,14 +613,11 @@ this.mainWindow = new EventTarget();
 // Native DLL interface
 //
 
-this.DllImport = class DllImport
+this.dllImport =
 {
-    constructor()
-    {
-        // create a CParser to parse function bindings and struct types
-        this.cparser = new CParser();
-    }
-    
+    // CParser object, to parse function bindings and struct types
+    cparser: new CParser(),
+
     // Bind a collection DLL functions.  This loads the DLL (if it hasn't
     // already been loaded) and binds the functions, returning a callable
     // function object that can be invoked to call the DLL function.
@@ -641,7 +642,7 @@ this.DllImport = class DllImport
     // Javascript function that you can invoke to call the native function
     // declared under that name.
     //
-    bind(dllName, signature)
+    bind: function(dllName, signature)
     {
         // The result will be an object, with properties named for the
         // functions declared.
@@ -663,10 +664,12 @@ this.DllImport = class DllImport
         }
         catch (exc)
         {
-            throw new Error("DllImport.bind(" + signature + "): error parsing function signature: " + exc);
+            throw new Error("dllImport.bind(" + signature.substr(0, 50) + (signature.length > 50 ? "..." : "") +
+                            "): error parsing function signature: " + exc);
         }
         if (!decls || decls.length == 0)
-            throw new Error("DllImport.bind(" + signature + "): unable to parse signature");
+            throw new Error("dllImport.bind(" + signature.substr(0, 50) + (signature.length > 50 ? "..." : "") +
+                            "): unable to parse signature");
 
         // go through the list and pull out all function declarations
         for (let decl of decls)
@@ -680,18 +683,16 @@ this.DllImport = class DllImport
                 var desc = decl.unparse();
 
                 // if it's a function declaration, include it in the results
-                if (/^\((.+)\)$/.test(desc))
+                if (/^\(/.test(desc))
                 {
                     // bind it to create the native function target
                     let func = this._bind(dllName, decl.name);
 
-                    // toss out the enclosing parens, since it has to be a function
-                    desc = RegExp.$1;
-
-                    // now wrap the native function in a lamdba that invokes the
-                    // native function
+                    // Now wrap the native function object in a callable lamdba
+                    // that invokes the native function.  This will make the native
+                    // code callable via the normal Javascript function call syntax.
                     result[decl.name] = ((func, desc) => {
-                        return (...args) => this._call(func, desc, ...args);
+                        return (...args) => dllImport._call(func, desc, ...args);
                     })(func, desc);
                 }
             }
@@ -699,17 +700,20 @@ this.DllImport = class DllImport
 
         // return the result object
         return result;
-    }
+    },
 
     // Define a type.  The argument is a standard C struct, union, enum, or
     // typedef statement, or a list of statements separated by semicolons.
-    // The types are added to the internal type table in the DllImport
+    // The types are added to the internal type table in the dllImport
     // object, so they can be used in subsequent function bindings.  Note
     // that C struct/union/enum namespace rules apply, NOT C++ rules, so
     // "struct foo" doesn't define a global "foo" type, just a "struct foo"
     // type.  You can make it a global name entry with an explicit typedef,
     // as in "typedef struct foo foo".
-    define(types) { this.cparser.parse(types); }
+    define: function(types) { this.cparser.parse(types); },
+
+    // Get the UUID of a COM interface type
+    uuidof: function(type) { return this.cparser.uuidof(type); },
 
     // Create an instance of a native type.  The argument is a string
     // giving a type signature, which can be a native primitive type
@@ -719,7 +723,7 @@ this.DllImport = class DllImport
     // Returns an object representing the native value; this can then
     // be used in calls to native functions where pointers to native
     // types are required.
-    create(type) { return this._create(this.cparser.parse(type)[0].unparse()); }
+    create: function(type) { return this._create(this.cparser.parse(type)[0].unparse()); },
 
     // Get the native size of a given type on the current platform.  This
     // returns thesize in bytes of the given type on this platform.  The
@@ -731,38 +735,131 @@ this.DllImport = class DllImport
     // This essentially gives you the result of the C sizeof() operator
     // for the given type.  Type sizes are sometimes required for setting
     // up structs to pass to native code.
-    sizeof(type) { return this._sizeof(this.cparser.parse(type)[0].unparse()) }
+    sizeof: function(type) { return this._sizeof(this.cparser.parse(type)[0].unparse()) },
 
-    // Internal method to wrap an external function object in a callbable lambda
-    _bindExt(nativeFunc, desc) { return (...args) => (this._call(nativeFunc, desc, ...args)); }
+    // Internal method to wrap an external function object in a callbable lambda.
+    // This is called from the native external object to create a dynamic binding
+    // to a native function pointer passed in to Javascript from external code
+    // via a return return value or "out" variable.  We create one wrapper per
+    // imported function.
+    _bindExt: function(nativeFunc, desc)
+    {
+        return (...args) => (dllImport._call(nativeFunc, desc, ...args));
+    },
+
+    // Internal method to wrap a COM interface member in a callbable lambda.
+    // These wrappers are bound to the interface prototype, so the "this"
+    // pointer on each call is the COMImportData native object wrapping the
+    // native COM object pointer.
+    _bindCOM: function(vtableIndex, desc)
+    {
+        return function(...args) { return dllImport._call(this, vtableIndex, desc, this, ...args); };
+    },
 };
 
-// Default DllImport instance.  Each instance acts as a namespace for
-// imported functions and struct definitions.  If multiple namespaces
-// are needed (for different DLLs with conflicting struct type names,
-// for example), additional instances can be created as needed.
-let dllImport = new DllImport();
+// populate some basic COM types
+dllImport.define(`
+    struct _GUID { ULONG Data1; USHORT Data2; USHORT Data3; UCHAR Data4[8]; };
+    typedef interface IUnknown '00000000-0000-0000-C000-000000000046' {
+        HRESULT QueryInterface(REFIID riid, void **ppvObject);
+        ULONG AddRef();
+        ULONG Release();
+    } IUnknown, *LPUNKNOWN;
+`);
 
-// Prototype for HANDLE objects.  These are created by the DllImport
+// COM VARIANT type codes
+//
+// The [VTPS] codes indicate which contexts each type can be used in:
+//
+//   V = VARIANT
+//   T = TYPEDESC
+//   P = OLE property set
+//   S = Safe Array
+//
+// Codes that aren't marked with V aren't valid in the Variant type.
+//
+const VT_EMPTY = 0;                     // [V P ] empty, similar to Javascript undefined
+const VT_NULL = 1;                      // [V P ] SQL style NULL, similar to Javascript null
+const VT_I2 = 2;                        // [VTPS] 2-byte (16-bit) signed int (C "__int16")
+const VT_I4 = 3;                        // [VTPS] 4-byte (32-bit) signed int (C "__int32")
+const VT_R4 = 4;                        // [VTPS] 4-byte real (C "float")        
+const VT_R8 = 5;                        // [VTPS] 8-byte real (C "double")    
+const VT_CY = 6;                        // [VTPS] Currency - 96-bit fixed point, scaled by 10000
+const VT_DATE = 7;                      // [VTPS] VARIANT Date; double value, days since 12/31/1899
+const VT_BSTR = 8;                      // [VTPS] BSTR (Basic String)    
+const VT_DISPATCH = 9;                  // [VT S] IDispatch* (COM core scripting interface)
+const VT_ERROR = 10;                    // [VTPS] 32-bit signed error code (SCODE)
+const VT_BOOL = 11;                     // [VTPS] VARIANT BOOL: 16-bit signed int, 0=false, -1=true
+const VT_VARIANT = 12;                  // [VTPS] VARIANT* (pointer to VARIANT); Requires VT_BYREF    
+const VT_UNKNOWN = 13;                  // [VT S] IUnknown* (root COM interface)
+const VT_DECIMAL = 14;                  // [VT S] 16-byte floating point with decimal scaling
+const VT_I1 = 16;                       // [VTPS] 1-byte (8-bit) signed int (C "char")
+const VT_UI1 = 17;                      // [VTPS] 1-byte (8-bit) unsigned int (C "unsigned char")
+const VT_UI2 = 18;                      // [VTPS] 2-byte (16-bit) unsigned int (C "unsigned __int16")    
+const VT_UI4 = 19;                      // [VTPS] 4-byte (32-bit) unsigned int (C "unsigned __int32"
+const VT_I8 = 20;                       // [ TP ] 8-byte (64-bit) signed int (C "__int64")
+const VT_UI8 = 21;                      // [ TP ] 8-byte (64-bit) unsigned int (C "unsigned __int64")
+const VT_INT = 22;                      // [VTPS] machine signed int type (C "int"; same as __int32)
+const VT_UINT = 23;                     // [VT S] machine unsigned int typ (C "unsigned int"; same as unsigned __int32)    
+const VT_VOID = 24;                     // [ T  ] no value (C "void")
+const VT_HRESULT = 25;                  // [ T  ] HRESULT (standard system return code)        
+const VT_PTR = 26;                      // [ T  ] generic pointer type, equivalent to C void*
+const VT_SAFEARRAY = 27;                // [ T  ] safe array type; never used in VARIANT (use VT_ARRAY instead)    
+const VT_CARRAY = 28;                   // [ T  ] C-style array
+const VT_USERDEFINED = 29;              // [ T  ] user-defined type
+const VT_LPSTR = 30;                    // [ TP ] C-style null-terminated string, single-byte characters
+const VT_LPWSTR = 31;                   // [ TP ] C-style null-terminated string, wide characters (16-bit)
+const VT_RECORD = 36;                   // [V PS] user-defined struct type
+const VT_INT_PTR	= 37;               // [ T  ] signed machine register size width
+const VT_UINT_PTR	= 38;               // [ T  ] unsigned machine register size width
+const VT_FILETIME = 64;                 // [  P ] system FILETIME struct
+const VT_BLOB = 65;                     // [  P ] binary long object; length-prefixed bytes
+const VT_STREAM = 66;                   // [  P ] name of stream follows
+const VT_STORAGE = 67;                  // [  P ] name of storage follows
+const VT_STREAMED_OBJECT = 68;          // [  P ] stream contains an object
+const VT_STORED_OBJECT = 69;            // [  P ] storage contains an object
+const VT_BLOB_OBJECT = 70;              // [  P ] blob contains an object
+const VT_CF = 71;                       // [  P ] clipboard format
+const VT_CLSID = 72;                    // [  P ] COM CLSID (class ID, a GUID)
+const VT_VERSIONED_STREAM = 73;         // [  P ] stream with a GUID version ID
+const VT_BSTR_BLOB = 0xfff;             // [  P ] reserved for system use
+const VT_VECTOR = 0x1000;               // [  P ] counted array (bit mask: combines with element type code)
+const VT_ARRAY = 0x2000;                // [V   ] SAFEARRAY* (bit mask: combines with element type code)
+const VT_BYREF = 0x4000;                // [V   ] pointer (bit mask: combines with element type code)
+const VT_RESERVED = 0x8000;             // [    ] reserved for system use
+const VT_ILLEGAL = 0xffff;              // [    ] illegal type code
+const VT_ILLEGALMASKED = 0xfff;         // [    ] illegal type code after applying VT_TYPEMASK
+const VT_TYPEMASK = 0xfff;              // [    ] mask for element types (removing vector/array/byref qualifiers)
+
+// Prototype for HANDLE objects.  These are created by the dllImport
 // native code for HANDLE values returned by native DLL calls.
 this.HANDLE = function HANDLE(...args) { return HANDLE._new(...args); };
 
 // Prototype for NativePointer objects.  These are created by the
-// DllImport native code to represent pointers to native objects
+// dllImport native code to represent pointers to native objects
 // passed back from DLL calls.
 this.NativePointer = function NativePointer() {
-    throw new Error("new NativePointer() can't be called directly; use dllImport.create()");
+    throw new Error("new NativePointer() can't be called directly; use <nativeObject>.at()");
+};
+
+this.NativePointer.prototype.to = function(type) { return this._to(dllImport.cparser.parse(type)[0].unparse()); };
+
+// Prototype for COMPointer objects.  These are created by the dllImport
+// native code to represent COM interface pointers returned from COM
+// APIs: CoCreateInstance(), IUnknown::QueryInterface(), etc.
+this.COMPointer = function COMPointer() {
+    throw new Error("new COMPointer() can't be called directly; use dllImport.create()");
 };
 
 // Prototype for NativeObject objects.  These are created by the
-// DllImport native code to represent native primitive types, array
+// dllImport native code to represent native primitive types, array
 // types, and struct types.
 this.NativeObject = function NativeObject() {
     throw new Error("new NativeObject() can't be called directly; use dllImport.create()");
 };
 
 // Prototype for Int64 (signed 64-bit integer) and Uint64 (unsigned
-// 64-bit integer) objects.  These are system objects used by DllImport
+// 64-bit integer) objects.  These are system objects used by dllImport
 // to represent 64-bit integer types from native code.  The system
 // provides basic arithmetic methods on these.
 this.Int64 = function Int64(...args) { return Int64._new(...args); };

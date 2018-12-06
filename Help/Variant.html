@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Variant objects</h1>
+
+<p>
+   Variant is a Javascript system class representing a native COM
+   VARIANT value.
+</p>
+<p>
+   The COM VARIANT type is essentially the native-code (C/C++) representation
+   of the Visual Basic "ANY" type, which can hold any VB value.
+   VARIANT is so named because the type of data stored in a particular
+   VARIANT varies at run-time.  Any type value can be stored there, and the type
+   of value in a particular VARIANT can be changed dynamically
+   each time a new value is stored.  
+</p>
+<p>
+   A VARIANT variable can hold any of a large number of native types,
+   as listed in the <a href="#typeTable">type code table</a> below.
+   A VARIANT is tagged with the specific type of value it's currently
+   holding, so a caller can always determine how to properly
+   interpret the value.  Only one type of value is stored in a given
+   VARIANT at any one time.  Setting it to a new value replaces the
+   old value and can change it to a new type.
+</p>
+<p>
+   VARIANTs are widely used in Windows
+   COM interfaces, especially in scripting-oriented interfaces designed to
+   interoperate with Visual Basic and ActiveX control hosts.
+   VARIANT is implemented in C/C++ code as a struct type, so in principle,
+   you could define the struct yourself in terms of the general-purpose
+   native type mechanisms provided by the DLL Importer.  But you
+   wouldn't want to, because the raw VARIANT C struct is complex, tedious
+   to work with, and demands careful handling to manage its memory properly.
+   So instead, the system provides this built-in type that makes it much
+   easier to work with VARIANTs when you need them for COM calls or
+   other purposes.  The Javascript Variant object provides properties
+   for convenient conversion between Javascript and native types,
+   and it handles the required memory management details automatically.
+</p>
+<p>
+   The Variant type is really only intended for use with COM and other
+   native-code APIs that are written in terms of VARIANTs.  You probably
+   won't want to use Variants in purely Javascript code, as Variant does
+   essentially the same thing as Javascript's own built-in type system,
+   but less efficiently and less conveniently, since it's an external
+   object type.
+</p>
+
+<h2>Creation</h2>
+
+<p>
+   You can create a Variant value with "new", just like any other type.
+</p>
+<div class="code">
+let v = new Variant();
+</div>
+
+<h2>Value access</h2>
+
+<p>
+   A Variant is a Javascript object, so the underlying value that it
+   stores has to be accessed through properties.  The main property for
+   accessing the internal value is the <b>.value</b> property.
+</p>
+<div class="code">
+message("v = " + v.value);
+v.value = "String Value";
+v.value = 100;
+</div>
+
+<p>
+   When you read the .value property, it translates the native type stored
+   in the internal VARIANT struct to the closest Javascript equivalent.  Integer
+   and floating point types are returned as Javascript number values, for
+   example, and native string types are returned as Javascript strings.
+   Similarly, when you assign a new Javascript value to the .value property,
+   the value is translated to a native type and stored in the internal
+   VARIANT, with the VARIANT's type tag automatically set to the new
+   native type.
+</p>
+
+<p>
+   Variant objects also have a <b>.vt</b> property that lets you get or set the
+   current type indicator.  ("vt" stands for "variant type"; it's the name of
+   the element from the C struct, so we use the same name for the sake of
+   people used to the C version.)  This lets you determine the native type
+   being used for the current value.  You can also assign a value to .vt,
+   which has the effect of deleting any old value in the native VARIANT
+   struct and replacing it with a "default" value of the new type, usually
+   zero for numeric types and null or empty for other types.  Some COM
+   interfaces that return values through a VARIANT expect the caller to
+   set the type tag of the VARIANT to the desired return type before making
+   the call, which you can do by setting the .vt property.
+</p>
+
+<h2>Default type assignments</h2>
+
+<p>
+   When you assign a value to a Variant object through the .value method,
+   the native VARIANT type is automatically inferred from the Javascript type
+   assigned.  The type mappings are shown in the table below.
+</p>
+<table class="dataTable">
+   <tr><th>Javascript Type Assigned to .value</th><th>Resulting Variant Type</th><th>Example</th></tr>
+   <tr><td>Number</td><td>VT_R8 (double-precision floating point)</td><td>v.value = 100</td></tr>
+   <tr><td>String</td><td>VT_BSTR (Basic string)</td><td>v.value = "string"</td></tr>
+   <tr><td>Boolean</td><td>VT_BOOL (Variant Boolean)</td><td>v.value = true</td></tr>
+   <tr><td>Date</td><td>VT_DATE (Variant Date)</td><td>v.value = Date.now()</td></tr>
+   <tr><td>undefined</td><td>VT_EMPTY (Empty)</td><td>v.value = undefined</td></tr>
+   <tr><td>null</td><td>VT_NULL (Null)</td><td>v.value = null</td></tr>
+</table>
+
+<h2>Setting a specific type</h2>
+
+<p>
+   You'll notice from the full table of <a href="#typeTable">type codes</a>
+   below that VARIANT has many more sub-types than Javascript variables do.
+   For example, VARIANT includes all of the native integer and floating point
+   types common on Intel hardware, plus some special numeric types used in Visual
+   Basic and the Windows OLE subsystem (Currency, Decimal), whereas Javascript
+   only has the one numeric type "Number".
+</p>
+
+<p>
+   Some COM interfaces that take VARIANT parameters require <i>specific</i>
+   subtypes to be stored in the VARIANT arguments.  Such functions will return
+   an error if you provide the wrong subtype.  The defaults listed above
+   therefore won't always work for all callees.  While the .value property
+   only lets you set the types listed above, the Variant object has other
+   type-specific properties that allow setting an exact subtype.  For the
+   full list, see the <a href="#typeTable">type code</a> table below.  The
+   "Set Via" column shows the property used to set each specific type.
+</p>
+<div class="code">
+v.bVal = 100;        // set the type to VT_UI1 (Byte) and set the byte value to 100
+v.fltVal = 123.456;  // set the type to VT_R4 (Float) and set the float value to 123.456
+</div>
+
+<p>
+   Note that each type-specific property sets the value <i>and</i> the internal
+   type tag in the native VARIANT.  It's not necessary to set the type code
+   separately when assigning through these properties.  If you read the .vt
+   property after making one of these assignments, it will yield the VT_xxx
+   value for the type of the last assigned value.
+</p>
+
+<p>
+   You can also read values from the "Set Via" properties (e.g., <tt>let x = v.bVal</tt>).
+   However, these properties will only work when the Variant contains the corresponding
+   type; they'll throw an error otherwise.
+</p>
+<div class="code">
+v.iVal = 2000;   // set the type to VT_I2 (Short)
+let x = x.iVal;  // okay, v contains an iVal; reads back the 2000 we just stored
+let y = v.bVal;  // THROWS AN ERROR: v does not contain a VT_UI1 (Byte) value
+</div>
+
+<h2>Passing VARIANT* arguments to COM calls</h2>
+
+<p>
+   Nearly all COM interfaces that work with VARIANT values require <i>pointer to VARIANT</i>
+   parameters, written in C function prototypes as <b>VARIANT*</b>.
+</p>
+<div class="code">
+dllImport.define(`
+interface IPropertyBag "55272A00-42CB-11CE-8135-00AA004BB851" : IUnknown
+{
+    HRESULT Read(LPCOLESTR pszPropName, VARIANT *pVar, IErrorLog *pErrorLog);
+    HRESULT Write(LPCOLESTR pszPropName, VARIANT *pVar);
+};`);
+</div>
+
+<p>
+   When calling a function that takes a VARIANT* parameter, you can simply
+   pass a Variant value.  The DLL importer will automatically pass the
+   address of the native VARIANT struct contained in the Javascript Variant
+   object.
+</p>
+<div class="code">
+let v = new Variant();
+propBag.Read("Name", v, null);
+</div>
+
+<a name="typeTable"></a>
+<h2>Type codes</h2>
+
+<p>
+   The native VARIANT's "vt" struct element is an integer value that
+   indicates the current type of value stored in the struct.  The
+   type names from the Windows SDK headers are predefined as Javascript
+   const values in the PinballY system files, so you can use the same
+   names you'd see in C++ examples.
+</p>
+<p>
+   The table below lists only the type codes that are valid with Variants.
+   The Windows headers define a number of other type codes that can be
+   used in other contexts, so you'll find additional codes in the system
+   files, but only the codes listed below can be used with Variants.
+</p>
+<p>
+   The Set Via column shows how to explicitly store a value for each type.
+   The type-specific property names match the member names in the native
+   C VARIANT struct, to make it easier to translate any C/C++ COM coding
+   examples you might refer to.
+</p>
+   
+<style type="text/css">
+.typeTable td:nth-of-type(5) {
+    font: 9.5pt/15pt Courier New, Courier, Lucida Sans, typewriter;
+}
+</style>
+<table class="dataTable typeTable">
+   <tr><th>Name</th><th>vt Value</th><th>Description</th><th>.value reads as</th><th>Set via</th></tr>
+   <tr><td>VT_EMPTY</td><td>0</td><td>Empty, similar to Javascript undefined</td><td>undefined</td><td><i>v</i>.value = undefined</td></tr>
+   <tr><td>VT_NULL</td><td>1</td><td>SQL style NULL, similar to Javascript null</td><td>null</td><td><i>v</i>.value = null</td></tr>
+   <tr><td>VT_I2</td><td>2</td><td>2-byte (16-bit) signed int (C "__int16")</td><td>Number</td><td><i>v</i>.iVal = <i>Number</i></td></tr>
+   <tr><td>VT_I4</td><td>3</td><td>4-byte (32-bit) signed long int (C "__int32")</td><td>Number</td><td><i>v</i>.lVal = <i>Number</i></td></tr>
+   <tr><td>VT_R4</td><td>4</td><td>4-byte real (C "float")</td><td>Number</td><td><i>v</i>.fltVal = <i>Number</i></td></tr>
+   <tr><td>VT_R8</td><td>5</td><td>8-byte real (C "double")</td><td>Number</td><td><i>v</i>.dblVal = <i>Number</i></td></tr>
+   <tr><td>VT_CY</td><td>6</td><td>Currency (96-bit fixed point, scaled by 10000)</td><td>Number</td><td><i>v</i>.cyVal = <i>Number</i></td></tr>
+   <tr><td>VT_DATE</td><td>7</td><td>VARIANT Date</td><td>Date</td><td><i>v</i>.date = <i>Date</i></td></tr>
+   <tr><td>VT_BSTR</td><td>8</td><td>BSTR (Basic String)</td><td>String</td><td><i>v</i>.bstrVal = <i>String</i></td></tr>
+   <tr><td>VT_DISPATCH</td><td>9</td><td>IDispatch* (COM core scripting interface)</td><td><a href="COMPointer.html">COMPointer</a></td><td><i>v</i>.value = <i>COMPointer</i></td></tr>
+   <tr><td>VT_ERROR</td><td>10</td><td>32-bit signed error code (SCODE)</td><td>Number</td><td><i>v</i>.scode = <i>number</i></td></tr>
+   <tr><td>VT_BOOL</td><td>11</td><td>VARIANT BOOL: 16-bit signed int, 0=false, -1=true</td><td>Boolean</td><td><i>v</i>.boolVal = <i>Boolean</i></tr>
+   <tr><td>VT_VARIANT</td><td>12</td><td>VARIANT* (pointer to VARIANT); Requires VT_BYREF</td><td><a href="NativeObject.html">NativeObject</a></td><td><i>v</i>.value = <i>Variant</i></td></tr>
+   <tr><td>VT_UNKNOWN</td><td>13</td><td>IUnknown* (root COM interface)</td><td><a href="COMPointer.html">COMPointer</a></td><td><i>v</i>.value = <i>COMPointer</i></td></tr>
+   <tr><td>VT_DECIMAL</td><td>14</td><td>16-byte floating point with decimal scaling</td><td>Number</td><td><i>v</i>.decVal = <i>Number</i></td></tr>
+   <tr><td>VT_I1</td><td>16</td><td>1-byte (8-bit) signed byte (C "char")</td><td>Number</td><td><i>v</i>.cVal = <i>Number</i></td></tr>
+   <tr><td>VT_UI1</td><td>17</td><td>1-byte (8-bit) unsigned byte (C "unsigned char")</td><td>Number</td><td><i>v</i>.bVal = <i>Number</i></td></tr>
+   <tr><td>VT_UI2</td><td>18</td><td>2-byte (16-bit) unsigned int (C "unsigned __int16")</td><td>Number</td><td><i>v</i>.uiVal = <i>Number</i></td></tr>
+   <tr><td>VT_UI4</td><td>19</td><td>4-byte (32-bit) unsigned long int (C "unsigned __int32"</td><td>Number</td><td><i>v</i>.ulVal = <i>Number</i></td></tr>
+   <tr><td>VT_INT</td><td>22</td><td>Machine signed int type (C "int"; same as __int32)</td><td>Number</td><td><i>v</i>.intVal = <i>Number</i></td></tr>
+   <tr><td>VT_UINT</td><td>23</td><td>Machine unsigned int type (C "unsigned int"; same as unsigned __int32)</td><td>Number</td><td><i>v</i>.uintVal = <i>Number</i></td></tr>
+   <tr><td>VT_RECORD</td><td>36</td><td>User-defined struct type</td><td>Not supported</td><td>Not supported</td></tr>
+   <tr><td>VT_ARRAY</td><td>0x2000</td><td>Array (bit flag: combines with element type code)</td><td>TBD</td><td>TBD</td></tr>
+   <tr><td>VT_BYREF</td><td>0x4000</td><td>Pointer (bit flag: combines with element type code)</td><td><a href="NativeObject.html">NativeObject</a></td><td><i>v</i>.value = <i>NativePointer</i></td></tr>
+</table>
+
+<h2>Properties</h2>
+
+<p>
+   <b><i>variant</i>.value:</b>  Gets or sets the value stored in
+   the native VARIANT.  Reading .value translates the stored native
+   value to the closest Javascript equivalent and returns the value.
+   See the table of types above for the .value results for the
+   native types.
+</p>
+<p>
+   Setting .value to a new value translates the Javascript value
+   to the closest native equivalent.  Numbers are stored as
+   variable "double" values, which are identical to Javascript's
+   internal number format.  Strings are stored as BSTR (Basic
+   string) values.
+</p>
+
+<p>
+   <b><i>variant</i>.vt:</b> Gets or sets the internal "vt" field of the
+   native VARIANT struct, which indicates the current type of the value
+   stored in the VARIANT struct.  Reading .vt returns the current type
+   code, which is one of the VT_xxx values defined above.
+</p>
+<p>
+   Setting .vt to a new value clears any value currently in the native
+   VARIANT, and updates the internal "vt" field in the native struct
+   to the new type code.  The old value is automatically cleared when
+   you set the "vt" property to avoid any chance that the old value
+   would be misinterpreted, which could corrupt memory and crash the
+   program in some cases.  So be aware that setting "vt" will have the
+   side effect of changing the "value" result as well.
+</p>
+
+<h2>Type-specific getter/setter properties</h2>
+
+<p>
+   In addition to the properties listed above, Variant has a property
+   for each of the native VARIANT subtypes, such as .iVal for the
+   "short int" type and .dblVal for the "double precision float" value.
+   These are listed in the <a href="#typeTable">type code table</a>
+   above, in the Set Via column.
+</p>
+<p>
+   When you assign a value
+   to one of the type-specific properties, it sets the internal
+   type tag field ("vt") in the VARIANT object to the corresponding
+   VT_xxx code, converts the assigned value from the Javascript
+   format to the corresponding native type format, and stores
+   the converted native type in the VARIANT's internal data field.
+</p>
+<p>
+   The per-type properties are mostly for <i>setting</i> the
+   VARIANT value, but you can also read from these properties,
+   <i>as long as the stored type matches the property</i>.  An error
+   is thrown if you try to read a type-specific property and the
+   underlying VARIANT object contains a different type.  When you
+   read the type-specific property, the result is a Javascript
+   representation of the native value.  (The native value in
+   the VARIANT isn't affected.  It remains stored in the native
+   representation.  The returned Javascript value is just a
+   copy.)  It's generally easier to read from the .value property
+   instead, since that automatically converts from whichever
+   native type the VARIANT stores, using the automatic conversions
+   listed in the <a href="#typeTable">type code table</a> under
+   the ".value Reads As" column.
+</p>
+
+</body>
+</html>

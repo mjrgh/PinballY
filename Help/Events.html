@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Events</h1>
+
+<p>
+   PinballY's event system is modeled on the event framework used
+   in Web browsers.  There are three main concepts in this framework:
+</p>
+<ul>
+   <li><b>Event:</b>  Abstractly, an event is something that occurs
+   asynchronously (that is, at any time) and externally to the Javascript
+   program, such as the user pressing a keyboard key.  In more concrete
+   terms, each time an outside event occurs, the system creates a
+   Javascript object to represent the event and describe its details.
+   Each event is represented by a new object, derived from the
+   <a href="Event.html">Event</a> class.  This object uses Javascript
+   properties to describe the event, such as which key the user pressed.
+   
+   <li><b>Event target:</b>  This is a system object that receives
+   events from the operating system when they occur.  Most of the
+   user interface events in PinballY are sent to the <a href="MainWindowObject.html">mainWindow</a>
+   object.  All event target objects implement the <a href="EventTarget.html">EventTarget</a>
+   interface, which provides a set of standard methods you can call to
+   add and remove your custom event listeners.  You don't implement
+   these objects yourself - they're provided by the system.  You 
+   refer to them by name to set up your event listeners.
+
+   <li><b>Event Listener:</b>  This is a Javascript function you write to
+   carry out a custom response when a particular type of event occurs.
+   You register a listener function with a specific event target object
+   to tell the system that you want the listener to be called when a
+   particular event occurs.  For example, you can register a function
+   that will be called each time the user presses a key.  After you
+   register a listener, the system calls it each time an event of the
+   desired type occurs.  The system passes an Event object to your
+   listener function as a parameter on each call, to convey the details
+   of that individual event to the listener.
+</ul>
+
+<p>
+   In terms of practical usage, you usually have to perform two tasks
+   to set up custom event handling.
+</p>
+<p>
+   First, you write a listener function for each event you're interested in.
+   This is simply a Javascript function that takes a single "event"
+   parameter.  When invoked, the "event" parameter will be filled in
+   with an Event object describing the details of the event that occurred,
+   such as which keyboard key was pressed.
+</p>
+<div class="code">
+function myKeyListener(ev)
+{
+    log("The " + ev.key + " key was pressed!");
+}
+</div>
+<p>
+   Note: unlike some older browsers, there's no "global" event
+   object that you can refer to.  The event details are always
+   passed to each listener via the event object parameter.
+</p>
+<p>
+   Second, you register the listener with the appropriate target
+   object for that event type.  For example, you register keyboard
+   event listeners with the mainWindow object:
+</p>
+<div class="code">
+mainWindow.on("keydown", myKeyListener);
+</div>
+
+<p>
+   You normally register your event listeners somewhere in the
+   "outer" code in main.js, meaning code that's not contained
+   in any function or class block.  All of the "outer" code in
+   the main file is executed when the system initially loads
+   the script, so putting your registration calls there will
+   ensure that the listeners are set up as soon as the code
+   is loaded.
+</p>
+<p>
+   Event registration is completely dynamic, so you
+   can also add and remove listeners at any time.  You might
+   want to listen for certain events only when the system is
+   in certain modes, for example, so you might have event
+   handlers that are registered and removed by other event
+   handlers.
+</p>
+
+<h2>Event types</h2>
+
+<b>Joystick button events:</b>  See <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>.
+<ul>
+   <li><b>joystickbuttondown:</b>  Fires on the <a href="MainWindowObject.html">mainWindow</a>
+   object when a joystick button is pressed.  Also fires each time a button auto-repeats
+   while the user is holding the button down.
+
+   <li><b>joystickbuttonup:</b>  Fires on the <a href="MainWindowObject.html">mainWindow</a>
+   object when a joystick button is released.
+</ul>
+
+<b>Keyboard events:</b>  See <a href="KeyEvent.html">KeyEvent</a>.
+<ul>
+   <li><b>keydown:</b>  Fires on the <a href="MainWindowObject.html">mainWindow</a>
+   object when a keyboard key is pressed.  Also fires each time a key auto-repeats
+   while the user is holding the key down.
+
+   <li><b>keyup:</b>  Fires on the <a href="MainWindowObject.html">mainWindow</a>
+   object when a keyboard key is released.
+</ul>

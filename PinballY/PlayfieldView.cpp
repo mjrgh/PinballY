@@ -440,7 +440,6 @@ void PlayfieldView::InitJavascript()
 			JsAddRef(jsval, nullptr);
 			return true;
 		};
-		JsValueRef jsConsole;
 		if (!GetObj(jsMainWindow, "mainWindow")
 			|| !GetObj(jsCommandEvent, "CommandEvent")
 			|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
@@ -451,12 +450,13 @@ void PlayfieldView::InitJavascript()
 			|| !GetObj(jsConsole, "console"))
 			return;
 
-		// set up the console functions
+		// set up the console methods
 		if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
 			return;
 
-		// we're done with the console object
-		JsRelease(jsConsole, nullptr);
+		// set up mainWindow methods
+		if (!js->DefineObjPropFunc(jsMainWindow, "mainWindow", "message", &PlayfieldView::JsMessage, this, eh))
+			return;
 
 		// create a system info object with basic system details
 		MsgFmt sysInfo(_T("this.systemInfo = {")
@@ -479,10 +479,10 @@ void PlayfieldView::InitJavascript()
 		);
 		js->EvalScript(sysInfo.Get(), _T("system:sysinfo"), nullptr, eh);
 
-		// Install the DllImport callbacks.  Note that this happens AFTER the system
+		// Install the dllImport callbacks.  Note that this happens AFTER the system
 		// scripts are loaded, since the callbacks are installed on objects created in
 		// the system scripts.
-		if (!js->BindDllImportCallbacks("DllImport", eh))
+		if (!js->BindDllImportCallbacks(eh))
 			return;
 
 		// Execute the user script.  This sets up event handlers for

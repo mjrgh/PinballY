@@ -2068,6 +2068,9 @@ protected:
 	// our main window object
 	JsValueRef jsMainWindow = JS_INVALID_REFERENCE;
 
+	// console object
+	JsValueRef jsConsole = JS_INVALID_REFERENCE;
+
 	// event objects
 	JsValueRef jsCommandEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsKeyDownEvent = JS_INVALID_REFERENCE;

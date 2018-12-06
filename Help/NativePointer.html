@@ -15,7 +15,9 @@
 <p>
    A NativePointer object represents a memory pointer value,
    for use with external DLL functions through the
-   <a href="DllImport.html">DLL importer</a> system.
+   <a href="DllImport.html">DLL importer</a> system.  These
+   objects are automatically created by the system when
+   needed.
 </p>
 <p>
    The reason we need our own "native pointer" type is
@@ -55,9 +57,9 @@
 <h2>Creation</h2>
 
 <p>
-   You usually won't need to create NativePointer objects out of
-   whole cloth.  These objects are usually created automatically by
-   the DLL importer when pointer values are passed to Javascript from
+   You usually won't need to create NativePointer objects manually.
+   The DLL importer usually creates these for you automatically
+   when pointer values are passed to Javascript from
    native DLL code.  For example, if you call a function that returns
    a pointer value as its result, the importer creates a NativePointer
    object to represent the returned pointer value.
@@ -79,8 +81,10 @@ let p = NativePointer.fromNumber(0x12345678);
 </div>
 
 <p>
-   It should go without saying that this should be used only
-   when you have a good reason for it.
+   It should go without saying that this is inherently dangerous,
+   in the sense that it can crash the program if used improperly.
+   Use it only when you know what you're doing and have a good reason
+   for it.
 </p>
 
 
@@ -117,29 +121,26 @@ p.pFloat = NativePointer.addressOf(i); // INVALID - different pointer type
 </p>
 <p>
    However, native APIs sometimes force you to get into the details
-   of how the bytes are laid out, so in some cases it's necessary and
-   proper to forcibly convert one pointer type to another.  NativePointer
-   has a way to bypass the normal checking system rules and force a
-   conversion between unlike pointer types.  The trick is to use a
-   void* intermediary.  "Void" is a special C type meaning "no value",
-   so a void* is essentially a pointer to nothing.  But it has an
-   additional meaning in C: it's a sort of wildcard type that
-   represents a generic pointer that could point to anything.  C
-   therefore allows any pointer type to be converted, without any
-   special overrides, to a void*.  It also allows conversion from
-   a void* to any other pointer type, although some special override
-   syntax (known as a cast) is needed in C to go that direction.  In
-   Javascript, we take this same approach, treating void* as a
-   wildcard pointer.  You can convert any other pointer to a void*
-   pointer, and you can convert a void* to any other point type.
-   So in our example above, we could force the "float" pointer to
-   accept our "int" pointer as follows:
+   of how the bytes are laid out, so in some cases it's necessary 
+   to forcibly convert one pointer type to another.  NativePointer
+   has a way to do this: the <i>pointer</i>.to() method.
+   This lets you do the equivalent of a C "type cast", forcing the
+   pointer to a different type.
 </p>
+<p>
 <div class="code">
-let pv = dllImport.create("void*");
-pv.value = NativePointer.addressOf(i);   // valid - any pointer can be converted to void*
-p.pFloat = pv.value;                     // valid - a void* can be converted to any pointer type
+p.pFloat = NativePointer.addressOf(i).to("float*");
 </div>
+<p>
+   Needless to say, you should only use this type of forced
+   pointer conversion when the underlying memory really is laid
+   out in the way that you're asserting it to be.  Don't make
+   the newbie C programmer mistake of using a type cast to
+   "shut up the compiler" (that is, to override a system
+   safeguard without fully understand the reason for the
+   safeguard).  Be sure you know what you're doing
+   when you mess with the hardware bytes like this.
+</p>
 
 
 <h2>Methods and properties</h2>
@@ -220,8 +221,47 @@ let i = pInt.at.value;
 </p>
 
 <p>
-   <b><i>pointer</i>.toArray(<i>numberOfElements</i>):</b> Returns a new
-   <a href="NativeObject.html">NativeObject</a> 
+   <b><i>pointer</i>.isNull:</b>  Returns true if the underlying
+   native pointer is a null pointer, false if not.  Null pointers
+   are often used in native code to represent special cases, such
+   as missing or default values, or unused "out" parameters.  They're
+   somewhat analogous to the Javascript <b>null</b> value semantically,
+   but of course a native null pointer has a specific native
+   representation.  A null pointer on current Windows platforms
+   <i>happens</i> to be represented as hardware address zero, so
+   toNumber() will return 0 for a null pointer, but it's bad practice
+   to assume this will always be true.  It could change on future
+   platforms, because the underlying representation of a pointer
+   is hardware-specific.  isNull() is the proper way
+   to test for a null pointer, since it uses the appropriate
+   hardware representation for the local machine.
+</p>
+
+<p>
+   <b><i>pointer</i>.to(<i>typeName</i>):</b> Returns a new
+   NativePointer representing the same pointer value, but with
+   its type signature changed to <i>typeName</i>.  This lets you
+   override the normal type checking that prevents mixing unlike
+   pointer types.  Needless to say, that's dangerous, so only
+   use it when (a) it's necessary and (b) you know what you're doing.
+</p>
+<div class="code">
+let pInt = dllImport.create("int*");
+let pFloat = dllImport.create("float*");
+
+pInt.value = pFloat.value;             // INVALID - incompatible type
+pInt.value = pFloat.value.to("int*");  // forcibly convert the type
+</div>
+<p>
+   If the new type name is a numeric type rather than a pointer
+   type, the bits making up the pointer's address are reinterpreted
+   as that numeric type, and a NativeObject is returned instead of
+   a NativePointer.
+</p>
+
+<p>
+   <b><i>pointer</i>.toArray(<i>numberOfElements</i>):</b> Returns
+   a new <a href="NativeObject.html">NativeObject</a> 
    representing a native array of the same type that the pointer
    refers to, at the same native memory location, with the given
    number of elements.
@@ -235,17 +275,17 @@ let i = pInt.at.value;
    has the number of elements that you're asking to view.
 </p>
 <p>
-   This method might seem very strange if you're used to
+   This method will seem bizarre if you're used to
    Javascript.  But it's a very common thing to do in C.
    In C, pointers and arrays are closely related.  A C
    array is a block of contiguous items of the same type,
    arranged in memory one after the other.  A variable
-   that contains the address of an array therefore has
-   exactly the same representation as a simple pointer to
-   the same type.  For that reason, APIs based on C syntax
+   that contains an array of type <i>T</i> therefore has
+   exactly the same representation as a pointer to <i>T</i>.
+   For that reason, APIs based on C syntax
    and C idioms will sometimes (often, in fact) use a
-   pointer parameter or a pointer struct member when
-   they <i>really</i> mean an array.  In many cases, this
+   pointer parameter when they <i>really</i> mean an array.
+   In many cases, this
    is used to refer to an array with a size that will vary
    at run-time, meaning it can't be predicted when the
    function interface is declared.  This function lets
@@ -263,7 +303,7 @@ let i = pInt.at.value;
    using the normal array[index] syntax.
 </p>
 <p>
-   Note that the reverse case also arises quite a lot
+   The reverse case is also common
    in C-style APIs, where you have an array object, and
    you want to treat it as a pointer to the element type,
    for storing in a struct or passing as a parameter.

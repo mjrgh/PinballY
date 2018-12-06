@@ -21,20 +21,7 @@ namespace fs = std::experimental::filesystem;
 JavascriptEngine *JavascriptEngine::inst;
 double JavascriptEngine::Task::nextId = 1.0;
 
-JavascriptEngine::JavascriptEngine() :
-	inited(false),
-	runtime(nullptr),
-	debugService(nullptr),
-	debugProtocolHandler(nullptr),
-	debugInitBreakPending(false),
-	nextTaskID(1.0),
-	HANDLE_proto(JS_INVALID_REFERENCE),
-	NativeObject_proto(JS_INVALID_REFERENCE),
-	NativePointer_proto(JS_INVALID_REFERENCE),
-	Int64_proto(JS_INVALID_REFERENCE),
-	UInt64_proto(JS_INVALID_REFERENCE),
-	marshallerContext(nullptr),
-	deadObjectScanPending(false)
+JavascriptEngine::JavascriptEngine()
 {
 }
 
@@ -67,7 +54,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	if (debug != nullptr && debug->enable)
 		attrs |= JsRuntimeAttributeDispatchSetExceptionsToDebugger;
 		
-		// Create the runtime object - this represents a thread of execution,
+	// Create the runtime object - this represents a thread of execution,
 	// heap, garbage collector, and compiler.
 	if ((err = JsCreateRuntime(static_cast<JsRuntimeAttributes>(attrs), nullptr, &runtime)) != JsNoError)
 		return Error(_T("JsCreateRuntime"));
@@ -281,11 +268,48 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	JsValueRef symName, symbol;
 	JsPointerToString(L"Thunk", 5, &symName);
 	JsCreateSymbol(symName, &symbol);
+	JsAddRef(symbol, nullptr);
 	JsGetPropertyIdFromSymbol(symbol, &callbackPropertyId);
 	
 	JsPointerToString(L"xref", 4, &symName);
 	JsCreateSymbol(symName, &symbol);
+	JsAddRef(symbol, nullptr);
 	JsGetPropertyIdFromSymbol(symbol, &xrefPropertyId);
+
+	// define system functions
+	JsValueRef global;
+	JsGetGlobalObject(&global);
+	if (!DefineObjPropFunc(global, "global", "_defineInternalType", &JavascriptEngine::DllImportDefineInternalType, this, eh)
+		|| !DefineObjPropFunc(global, "Variant", "Variant", &VariantData::Create, this, eh))
+		return false;
+
+	// add Variant prototype methods
+	const TCHAR *where;
+	if ((err = GetProp(Variant_class, global, "Variant", where)) != JsNoError
+		|| (err = GetProp(Variant_proto, Variant_class, "prototype", where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "vt", &VariantData::GetVt, this, &VariantData::SetVt, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "value", &VariantData::GetValue, this, &VariantData::SetValue, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "date", &VariantData::GetDate, this, &VariantData::SetDate, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "boolVal", &VariantData::GetBool, this, &VariantData::SetBool, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "bstrVal", &VariantData::GetBSTR, this, &VariantData::SetBSTR, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "cyVal", &VariantData::GetCY, this, &VariantData::SetCY, this, where)) != JsNoError
+		|| (err = AddGetterSetter(Variant_proto, "decVal", &VariantData::GetDecimal, this, &VariantData::SetDecimal, this, where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<CHAR, VT_I1, &VARIANT::cVal>(this, "cVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<BYTE, VT_UI1, &VARIANT::bVal>(this, "bVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<SHORT, VT_I2, &VARIANT::iVal>(this, "iVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<USHORT, VT_UI2, &VARIANT::uiVal>(this, "uiVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<INT, VT_INT, &VARIANT::intVal>(this, "intVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<UINT, VT_UINT, &VARIANT::uintVal>(this, "uintVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<LONG, VT_I4, &VARIANT::lVal>(this, "lVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<SCODE, VT_ERROR, &VARIANT::scode>(this, "scode", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<ULONG, VT_UI4, &VARIANT::ulVal>(this, "ulVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<FLOAT, VT_R4, &VARIANT::fltVal>(this, "fltVal", where)) != JsNoError
+		|| (err = VariantData::AddNumGetSet<DOUBLE, VT_R8, &VARIANT::dblVal>(this, "dblVal", where)) != JsNoError)
+		return Error(MsgFmt(_T("initializing Variant prototype functions: %s"), where));
+
+	// add references to the variant objects to keep them around
+	JsAddRef(Variant_class, nullptr);
+	JsAddRef(Variant_proto, nullptr);
 
 	// set up the idle task
 	AddTask(new IdleTask());
@@ -315,12 +339,6 @@ JavascriptEngine::~JavascriptEngine()
 	// Likewise, dispose of all native type cache entries, as these 
 	// hold Javascript object references.
 	nativeTypeCache.clear();
-
-	// Delete any remaining Javascript-allocated native objects.  These
-	// were kept alive by inbound references from Javascript objects, but
-	// the Javascript objects are all being deleted now.
-	for (auto &it : nativeDataMap)
-		delete[] it.first;
 
 	// shut down the debug service
 	if (debugProtocolHandler != nullptr)
@@ -735,6 +753,29 @@ JsErrorCode JavascriptEngine::SetReadonlyProp(JsValueRef object, const CHAR *pro
 
 	return JsNoError;
 }
+
+JsErrorCode JavascriptEngine::AddGetterSetter(JsValueRef object, const CHAR *propName,
+	JsNativeFunction getter, void *getterCtx,
+	JsNativeFunction setter, void *setterCtx,
+	const TCHAR* &where)
+{
+	JsValueRef jsGetter = JS_INVALID_REFERENCE, jsSetter = JS_INVALID_REFERENCE;
+	JsErrorCode err;
+	if (getter != nullptr && (err = JsCreateFunction(getter, getterCtx, &jsGetter)) != JsNoError)
+	{
+		where = _T("creating native getter function");
+		return err;
+	}
+
+	if (setter != nullptr && (err = JsCreateFunction(setter, setterCtx, &jsSetter)) != JsNoError)
+	{
+		where = _T("creating native setter function");
+		return err;
+	}
+
+	return AddGetterSetter(object, propName, jsGetter, jsSetter, where);
+}
+
 
 JsErrorCode JavascriptEngine::AddGetterSetter(JsValueRef object, const CHAR *propName, JsValueRef getter, JsValueRef setter, const TCHAR* &where)
 {
@@ -1178,14 +1219,19 @@ JsErrorCode CHAKRA_CALLBACK JavascriptEngine::NotifyModuleReadyCallback(
 
 bool JavascriptEngine::ModuleParseTask::Execute()
 {
+	// remove the file:/// URL prefix if present
+	const WCHAR *path = this->path.c_str();
+	if (wcsncmp(path, L"file:///", 8) == 0)
+		path += 8;
+
 	// load the script
-	LogFile::Get()->Write(LogFile::JSLogging, _T("[Javscript] Loading module from file %ws\n"), path.c_str());
+	LogFile::Get()->Write(LogFile::JSLogging, _T("[Javscript] Loading module from file %ws\n"), path);
 	long len;
 	LogFileErrorHandler eh(_T(". "));
-	std::unique_ptr<WCHAR> contents(ReadFileAsWStr(WSTRINGToTSTRING(path).c_str(), eh, len, 0));
+	std::unique_ptr<WCHAR> contents(ReadFileAsWStr(WCHARToTCHAR(path), eh, len, 0));
 	if (contents == nullptr)
 	{
-		LogFile::Get()->Write(LogFile::JSLogging, _T(". Error loading %ws\n"), path.c_str());
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". Error loading %ws\n"), path);
 		return false;
 	}
 
@@ -1198,7 +1244,7 @@ bool JavascriptEngine::ModuleParseTask::Execute()
 	// cookie as a key into its own internal table to associate the source 
 	// code with the module record, where the URL is actually stored.  The
 	// URL it uses is the one we added to the module record previously.)
-	auto const *cookie = &inst->sourceCookies.emplace_back(path.c_str());
+	auto const *cookie = &inst->sourceCookies.emplace_back(path);
 
 	// Parse the source.  Note that the source memory is provided as BYTEs,
 	// but the file length we have is in WCHARs, so we need to multiply for
@@ -1264,6 +1310,10 @@ WSTRING JavascriptEngine::GetFileUrl(const WCHAR *path)
 	// file system file against one of our URLs unless the case matches exactly.  So
 	// do a file system lookup on the file to get its exact path.
 	WSTRING url = L"file:///";
+
+	// if the path already starts with file:///, remove that part
+	if (wcsncmp(path, L"file:///", 8) == 0)
+		path += 8;
 
 	// Try opening the file, so that we can get its "final" filename from the
 	// handle.  The final filename actually looks up the file system entry and
@@ -1335,196 +1385,23 @@ JsErrorCode JavascriptEngine::GetModuleSource(
 
 // --------------------------------------------------------------------------
 //
-// DllImport marshaller classes
+// Type signature parser.  This is a utility class for parsing signatures
+// generated by the DLL import type parser.
 //
-
-// Parameters the current CPU architecture calling conventions
-static const size_t argSlotSize = IF_32_64(4, 8);   // size in bytes of a generic argument slot
-static const size_t stackAlign = IF_32_64(4, 16);   // stack pointer alignment size in bytes
-static const size_t minArgSlots = IF_32_64(0, 4);   // minimum stack slots allocated for arguments
-
-// Base class for marshallers
-class JavascriptEngine::Marshaller
+class JavascriptEngine::SigParser
 {
 public:
-	Marshaller(const WCHAR *sig, const WCHAR *sigEnd) :
-		sig(sig), sigEnd(sigEnd), p(sig),
-		error(false), isConst(false)
-	{ }
+	// initialize from a full signature
+	SigParser(const WCHAR *sig, size_t len) : sig(sig, len) { }
+	SigParser(const WCHAR *sig, const WCHAR *sigEnd) : sig(sig, sigEnd - sig) { }
+	SigParser(const WSTRING &sig) : sig(sig) { }
+	SigParser(const std::wstring_view &sig) : sig(sig) { }
 
-	Marshaller(const Marshaller &m) :
-		sig(m.sig), sigEnd(m.sigEnd), p(m.sig),
-		error(false), isConst(false)
-	{ }
+	// type signature
+	std::wstring_view sig;
+	const WCHAR *sigEnd() const { return sig.data() + sig.length(); }
 
-	// process a signature
-	virtual bool Marshall()
-	{
-		// no errors yet
-		error = false;
-
-		// process the signature
-		for (; p < sigEnd && !error; NextArg())
-			MarshallValue();
-
-		// return true on success, false if there's an error
-		return !error;
-	}
-
-	// Figure the size of a struct/union in the native representation.  flexErrorMsg
-	// is an error message to show if a flex array is found and the size of the 
-	// unspecified dimension can't be inferred from jsval.
-	size_t SizeofStruct(JsValueRef jsval, const TCHAR *flexErrorMsg);
-	size_t SizeofUnion(JsValueRef jsval, const TCHAR *flexErrorMsg);
-
-	const double MaxIntInDouble = static_cast<double>(2LL << DBL_MANT_DIG);
-
-	// marshall the value at the current signature position
-	virtual void MarshallValue()
-	{
-		// check for a const qualifier
-		isConst = false;
-		if (*p == '%')
-		{
-			// note it, then skip it to get to the actual type
-			isConst = true;
-			++p;
-		}
-
-		// process the type code
-		switch (*p)
-		{
-		case '*': return DoPointer();
-		case '&': return DoReference();
-		case 'b': return DoBool();
-		case 'c': return DoInt8();
-		case 'C': return DoUInt8();
-		case 's': return DoInt16();
-		case 'S': return DoUInt16();
-		case 'i': return DoInt32();
-		case 'I': return DoUInt32();
-		case 'l': return DoInt64();
-		case 'L': return DoUInt64();
-		case 'z': return DoSizeT();
-		case 'Z': return DoSizeT();
-		case 'p': return DoIntPtr();
-		case 'P': return DoUIntPtr();
-		case 'f': return DoFloat();
-		case 'd': return DoDouble();
-		case 'H': return DoHandle();
-		case 't': return DoString();
-		case 'T': return DoString();
-		case 'v': return DoVoid();
-		case '{':
-			return p[1] == 'S' ? DoStruct() : DoUnion();
-
-		case '(': return DoFunction();
-		case '[': return DoArray();
-
-		default:
-			Error(MsgFmt(_T("DllImport: internal error: unknown type code '%c' in signature %.*s"), *p, (int)(sigEnd - sig), sig));
-			break;
-		}
-	}
-
-	// flag: the current type being processed was marked 'const'
-	bool isConst;
-
-	// process individual int types
-	virtual void DoBool() { AnyInt32(); }
-	virtual void DoInt8() { AnyInt32(); }
-	virtual void DoUInt8() { AnyInt32(); }
-	virtual void DoInt16() { AnyInt32(); }
-	virtual void DoUInt16() { AnyInt32(); }
-	virtual void DoInt32() { AnyInt32(); }
-	virtual void DoUInt32() { AnyInt32(); }
-	virtual void DoInt64() { AnyInt64(); }
-	virtual void DoUInt64() { AnyInt64(); }
-	virtual void DoSizeT() { IF_32_64(AnyInt32(), AnyInt64()); }
-	virtual void DoSSizeT() { IF_32_64(AnyInt32(), AnyInt64()); }
-	virtual void DoPtrdiffT() { IF_32_64(AnyInt32(), AnyInt64()); }
-
-	// process any int type up to 32/64 bits
-	virtual void AnyInt32() { }
-	virtual void AnyInt64() { }
-
-	// INT_PTR types
-	virtual void DoIntPtr() { }
-	virtual void DoUIntPtr() { }
-
-	// process float types
-	virtual void DoFloat() { }
-	virtual void DoDouble() { }
-
-	// handle types
-	virtual void DoHandle() { IF_32_64(AnyInt32(), AnyInt64()); }
-
-	// process a pointer/reference type
-	virtual void DoPointer() { }
-	virtual void DoReference() { DoPointer(); }
-
-	// process an array type
-	virtual void DoArray() { }
-
-	// process a struct/union type
-	virtual void DoStruct() { }
-	virtual void DoUnion() { }
-
-	// process a string type
-	virtual void DoString() { }
-
-	// process a void type
-	virtual void DoVoid() { }
-
-	// process a function type
-	virtual void DoFunction() { }
-
-	// error flag
-	bool error;
-
-	// Throw an error.  This doesn't actually "throw" in the C++ exception sense;
-	// it just sets the exception in the Javascript engine, and sets our internal
-	// error flag.
-	void Error(const TCHAR *msg)
-	{
-		error = true;
-		if (!inst->HasException())
-			inst->Throw(msg);
-	}
-
-	// Throw an error from an engine error code
-	void Error(JsErrorCode err, const TCHAR *msg)
-	{
-		error = true;
-		if (!inst->HasException())
-			inst->Throw(err, msg);
-	}
-
-	// signature string bounds
-	const WCHAR *sig;
-	const WCHAR *sigEnd;
-
-	// current position in signature
-	const WCHAR *p;
-
-	// advance p to the next argument slot
-	void NextArg()
-	{
-		// find the end of the current argument
-		const WCHAR *p = EndOfArg();
-
-		// advance to the start of the next argument
-		while (p < sigEnd && *p == ' ')
-			++p;
-
-		// save the result
-		this->p = p;
-	};
-
-	const WCHAR *EndOfArg() const { return EndOfArg(p, sigEnd); }
-	const WCHAR *EndOfArg(const WCHAR *p) const { return EndOfArg(p, sigEnd); }
-
-	// find the end of the current argument slot; does not advance p
+	// find the end of a type element
 	static const WCHAR *EndOfArg(const WCHAR *p, const WCHAR *sigEnd)
 	{
 		// skip to the next space
@@ -1563,6 +1440,300 @@ public:
 		// we reached the end of the signature without finding a separator
 		return sigEnd;
 	}
+};
+
+
+// --------------------------------------------------------------------------
+//
+// DllImport marshaller classes
+//
+
+// Parameters the current CPU architecture calling conventions
+static const size_t argSlotSize = IF_32_64(4, 8);   // size in bytes of a generic argument slot
+static const size_t stackAlign = IF_32_64(4, 16);   // stack pointer alignment size in bytes
+static const size_t minArgSlots = IF_32_64(0, 4);   // minimum stack slots allocated for arguments
+
+// Base class for marshallers
+class JavascriptEngine::Marshaller
+{
+public:
+	Marshaller(SigParser *sig) : sig(sig), p(sig->sig.data()) { }
+
+	Marshaller(const Marshaller &m) : sig(m.sig), p(m.sig->sig.data()) { }
+
+	// signature
+	SigParser *sig;
+
+	// current position in signature
+	const WCHAR *p;
+
+	// flag: the current type being processed was marked 'const'
+	bool isConst = false;
+
+	// error flag
+	bool error = false;
+
+	// process a signature
+	virtual bool Marshall()
+	{
+		// no errors yet
+		error = false;
+
+		// process the signature
+		for (const TCHAR *end = sig->sigEnd(); p < end && !error; NextArg())
+			MarshallValue();
+
+		// return true on success, false if there's an error
+		return !error;
+	}
+
+	// Process the entries in a struct type.  The callback returns false on error, 
+	// in which case we stop the iteration and return false from the overall function.
+	bool MarshallStructMembers(std::function<bool(WSTRING &memberName, WSTRING &memberSig)> cb)
+	{
+		// get the end of the overall signature
+		const WCHAR *end = sig->sigEnd();
+
+		// if we're at the opening '{', reset the bounds to the contents of the braces
+		if (p < end && *p == '{')
+		{
+			end = EndOfArg(p);
+			p += 3;
+		}
+
+		// scan members
+		for (; p < end && *p != '}'; NextArg())
+		{
+			// scan the member tag name
+			const WCHAR *nameStart = p;
+			for (; p < end && *p != ';'; ++p);
+			WSTRING memberName(nameStart, p - nameStart);
+
+			// skip the ';'
+			if (p < end) 
+				++p;
+
+			// scan the type signature, but leave 'p' pointing to the signature
+			WSTRING memberSig(p, EndOfArg(p) - p);
+
+			// invoke the callback
+			if (!cb(memberName, memberSig))
+				return false;
+		}
+
+		// success
+		return true;
+	}
+
+	// Figure the size of a struct/union in the native representation.  flexErrorMsg
+	// is an error message to show if a flex array is found and the size of the 
+	// unspecified dimension can't be inferred from jsval.
+	size_t SizeofStruct(JsValueRef jsval, const TCHAR *flexErrorMsg);
+	size_t SizeofUnion(JsValueRef jsval, const TCHAR *flexErrorMsg);
+
+	const double MaxIntInDouble = static_cast<double>(2LL << DBL_MANT_DIG);
+
+	// marshall the value at the current signature position
+	virtual void MarshallValue()
+	{
+		// check for a const qualifier
+		isConst = false;
+		if (*p == '%')
+		{
+			// note it, then skip it to get to the actual type
+			isConst = true;
+			++p;
+		}
+
+		// process the type code
+		switch (*p)
+		{
+		case '*': return DoPointer();
+		case '&': return DoReference();
+		case 'b': return DoBool();
+		case 'B': return DoBSTR();
+		case 'c': return DoInt8();
+		case 'C': return DoUInt8();
+		case 's': return DoInt16();
+		case 'S': return DoUInt16();
+		case 'i': return DoInt32();
+		case 'I': return DoUInt32();
+		case 'l': return DoInt64();
+		case 'L': return DoUInt64();
+		case 'z': return DoSizeT();
+		case 'Z': return DoSizeT();
+		case 'p': return DoIntPtr();
+		case 'P': return DoUIntPtr();
+		case 'f': return DoFloat();
+		case 'd': return DoDouble();
+		case 'H': return DoHandle();
+		case 't': return DoString();
+		case 'T': return DoString();
+		case 'G': return DoGuid();
+		case 'v': return DoVoid();
+		case 'V': return DoVariant();
+		case '@': return DoTypeRef();
+		case '{':
+			if (p[1] == 'S')
+				DoStruct();
+			else if (p[1] == 'U')
+				DoUnion();
+			else if (p[1] == 'I')
+				DoInterface();
+			else
+				Error(MsgFmt(_T("Internal dllImport error: unknown composite type code '%c' in siguature %.*s"), 
+					p[1], static_cast<int>(sig->sig.length()), sig->sig.data()));
+			break;
+
+		case '(': return DoFunction();
+		case '[': return DoArray();
+
+		default:
+			Error(MsgFmt(_T("Internal dllImport error: unknown type code '%c' in signature %.*s"), 
+				*p, static_cast<int>(sig->sig.length()), sig->sig.data()));
+			break;
+		}
+	}
+
+	// reference to named subtype
+	virtual void DoTypeRef()
+	{
+		// get the bounds of the name - the name is delimited by the next non-symbol character
+		const WCHAR *name = ++p;
+		p = EndOfArg();
+
+		// look up the name in the type table
+		std::wstring_view reftype;
+		if (!inst->LookUpNativeType(name, p - name, reftype))
+			return;
+
+		// push a sub-parser for the type, and marshall the value using the nested parser
+		struct SigStacker
+		{
+			SigStacker(Marshaller *self, const std::wstring_view &reftype) : 
+				self(self), 
+				p(self->p),
+				parentSig(self->sig),
+				subSig(reftype)
+			{
+				self->sig = &subSig; 
+				self->p = subSig.sig.data();
+			}
+			~SigStacker() 
+			{ 
+				self->sig = parentSig; 
+				self->p = p;
+			}
+
+			Marshaller *self;
+			SigParser *parentSig;
+			SigParser subSig;
+			const WCHAR *p;
+		};
+		SigStacker stacker(this, reftype);
+		MarshallValue();
+	}
+
+	// process individual int types
+	virtual void DoBool() { AnyInt32(); }
+	virtual void DoInt8() { AnyInt32(); }
+	virtual void DoUInt8() { AnyInt32(); }
+	virtual void DoInt16() { AnyInt32(); }
+	virtual void DoUInt16() { AnyInt32(); }
+	virtual void DoInt32() { AnyInt32(); }
+	virtual void DoUInt32() { AnyInt32(); }
+	virtual void DoInt64() { AnyInt64(); }
+	virtual void DoUInt64() { AnyInt64(); }
+	virtual void DoSizeT() { IF_32_64(AnyInt32(), AnyInt64()); }
+	virtual void DoSSizeT() { IF_32_64(AnyInt32(), AnyInt64()); }
+	virtual void DoPtrdiffT() { IF_32_64(AnyInt32(), AnyInt64()); }
+
+	// process any int type up to 32/64 bits
+	virtual void AnyInt32() { }
+	virtual void AnyInt64() { }
+
+	// INT_PTR types
+	virtual void DoIntPtr() { }
+	virtual void DoUIntPtr() { }
+
+	// process float types
+	virtual void DoFloat() { }
+	virtual void DoDouble() { }
+
+	// handle types
+	virtual void DoHandle() { IF_32_64(AnyInt32(), AnyInt64()); }
+
+	// variants
+	virtual void DoVariant() { }
+
+	// BSTRs
+	virtual void DoBSTR() { }
+
+	// process a pointer/reference type
+	virtual void DoPointer() { }
+	virtual void DoReference() { DoPointer(); }
+
+	// process an array type
+	virtual void DoArray() { }
+
+	// process a struct/union type
+	virtual void DoStruct() { }
+	virtual void DoUnion() { }
+
+	// process an interface type
+	virtual void DoInterface() { }
+
+	// process a string type
+	virtual void DoString() { }
+
+	// process a GUID type
+	virtual void DoGuid() { }
+
+	// process a void type
+	virtual void DoVoid() { }
+
+	// process a function type
+	virtual void DoFunction() { }
+
+	// Throw an error.  This doesn't actually "throw" in the C++ exception sense;
+	// it just sets the exception in the Javascript engine, and sets our internal
+	// error flag.
+	void Error(const TCHAR *msg)
+	{
+		error = true;
+		if (!inst->HasException())
+			inst->Throw(msg);
+	}
+
+	// Throw an error from an engine error code
+	void Error(JsErrorCode err, const TCHAR *msg)
+	{
+		error = true;
+		if (!inst->HasException())
+			inst->Throw(err, msg);
+	}
+
+	// advance p to the next argument slot
+	void NextArg()
+	{
+		// find the end of the current argument
+		const WCHAR *p = EndOfArg();
+
+		// advance to the start of the next argument
+		for (const TCHAR *end = sig->sigEnd(); p < end && *p == ' '; ++p);
+
+		// save the result
+		this->p = p;
+	};
+
+	const WCHAR *EndOfArg() const { return EndOfArg(p, sig->sigEnd()); }
+	const WCHAR *EndOfArg(const WCHAR *p) const { return EndOfArg(p, sig->sigEnd()); }
+
+	// find the end of the current argument slot; does not advance p
+	static const WCHAR *EndOfArg(const WCHAR *p, const WCHAR *sigEnd)
+	{
+		return SigParser::EndOfArg(p, sigEnd);
+	}
 
 	// Get the length of a Javascript array value
 	int GetArrayLength(JsValueRef jsval)
@@ -1572,7 +1743,7 @@ public:
 		const TCHAR *where;
 		if (JsErrorCode err = inst->GetProp(len, jsval, "length", where); err != JsNoError)
 		{
-			Error(err, MsgFmt(_T("DllImport: getting length of array argument"), where));
+			Error(err, MsgFmt(_T("dllImport: getting length of array argument"), where));
 			return -1;
 		}
 
@@ -1630,7 +1801,7 @@ public:
 			JsErrorCode err;
 			if ((err = JsGetValueType(jsval, &type)) != JsNoError)
 			{
-				Error(err, _T("DllImport: getting type of struct member array"));
+				Error(err, _T("dllImport: getting type of struct member array"));
 				return false;
 			}
 
@@ -1666,7 +1837,7 @@ public:
 					unsigned int arrayByteLength;
 					if ((err = JsGetTypedArrayInfo(jsval, nullptr, nullptr, nullptr, &arrayByteLength)) != JsNoError)
 					{
-						Error(err, _T("DllImport: getting typed array information"));
+						Error(err, _T("dllImport: getting typed array information"));
 						return false;
 					}
 
@@ -1706,9 +1877,7 @@ public:
 class JavascriptEngine::MarshallSizer : public Marshaller
 {
 public:
-	MarshallSizer(const WCHAR *sig, const WCHAR *sigEnd)
-		: Marshaller(sig, sigEnd)
-	{ }
+	MarshallSizer(SigParser *sig) : Marshaller(sig) { }
 
 	// Get the concrete value for the current item being sized, if available
 	virtual JsValueRef GetCurVal() = 0;
@@ -1748,8 +1917,20 @@ public:
 	// process a string type
 	virtual void DoString() override { Add(IF_32_64(4, 8)); }
 
+	// process a GUID type
+	virtual void DoGuid() override { Add(16); }
+
+	// process a VARIANT type
+	virtual void DoVariant() override { Add(sizeof(VARIANT), __alignof(VARIANT)); }
+
+	// process a BSTR type
+	virtual void DoBSTR() override { Add(sizeof(BSTR)); }
+
 	// process a struct type
 	virtual void DoStruct() override;
+
+	// process an interface type
+	virtual void DoInterface() override { Error(_T("dllImport: interface types cannot be passed by value")); }
 
 	// process a union type
 	virtual void DoUnion() override;
@@ -1761,7 +1942,7 @@ public:
 	virtual void DoVoid() override { /* void types have zero size */ }
 
 	// process a function type
-	virtual void DoFunction() override { Error(_T("DllImport: function types can't be passed by value")); }
+	virtual void DoFunction() override { Error(_T("dllImport: function types cannot be passed by value")); }
 };
 
 // Basic sizer.  This simply adds up the sizes for the measured types without
@@ -1769,14 +1950,8 @@ public:
 class JavascriptEngine::MarshallBasicSizer : public MarshallSizer
 {
 public:
-	MarshallBasicSizer(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval) :
-		MarshallSizer(sig, sigEnd),
-		jsval(jsval), size(0), align(0), flex(false)
-	{ }
-
-	MarshallBasicSizer(const WSTRING &sig, JsValueRef jsval = JS_INVALID_REFERENCE) :
-		MarshallSizer(sig.c_str(), sig.c_str() + sig.length()),
-		jsval(jsval), size(0), align(0), flex(false)
+	MarshallBasicSizer(SigParser *sig, JsValueRef jsval = JS_INVALID_REFERENCE) : 
+		MarshallSizer(sig),	jsval(jsval)
 	{ }
 
 	virtual void Add(size_t bytes, size_t align = 0, int nItems = 1) 
@@ -1800,7 +1975,7 @@ public:
 		// Figure the dimension
 		size_t dim;
 		bool isEmpty;
-		if (!ParseArrayDim(p, sigEnd, dim, isEmpty))
+		if (!ParseArrayDim(p, sig->sigEnd(), dim, isEmpty))
 			return;
 
 		// note if we found a flexible array dimension
@@ -1810,7 +1985,8 @@ public:
 		// Figure the size of the underlying type.  Flex arrays aren't 
 		// allowed beyond the first dimension of a multi-dimensional array,
 		// so we don't have to pass an actual value to measure.
-		MarshallBasicSizer sizer(p, EndOfArg(), JS_INVALID_REFERENCE);
+		SigParser subsig(p, EndOfArg());
+		MarshallBasicSizer sizer(&subsig, JS_INVALID_REFERENCE);
 		sizer.MarshallValue();
 
 		// flex sub-arrays are invalid
@@ -1835,8 +2011,10 @@ public:
 	virtual void DoFunction() override
 	{
 		// we can't take the size of a function
-		Error(_T("DllImport: attempting to take the size of a native function; this is an invalid operation"));
+		Error(_T("dllImport: attempting to take the size of a native function; this is an invalid operation"));
 	}
+
+	virtual void DoInterface() override { /* interfaces have zero size */ }
 
 	virtual JsValueRef GetCurVal() override { return jsval; }
 
@@ -1844,40 +2022,37 @@ public:
 	JsValueRef jsval;
 
 	// computed size of type
-	size_t size;
+	size_t size = 0;
 
 	// alignment of the type
-	size_t align;
+	size_t align = 0;
 
 	// a flexible array was encountered
-	bool flex;
+	bool flex = false;
 };
 
 // Common base for structs and unions
 class JavascriptEngine::MarshallStructOrUnionSizer : public MarshallBasicSizer
 {
 public:
-	MarshallStructOrUnionSizer(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval) :
-		MarshallBasicSizer(sig, sigEnd, jsval),
-		lastItemOfs(0), lastItemSize(0), size(0), align(0), flexError(false)
-	{ }
+	MarshallStructOrUnionSizer(SigParser *sig, JsValueRef jsval) : MarshallBasicSizer(sig, jsval) { }
 
 	// Offset of the last item marshalled.  For a struct, this is the aligned
 	// offset of the last item.  For a union, this is always zero, since union
 	// members are all overlaid on the same memory.
-	size_t lastItemOfs;
+	size_t lastItemOfs = 0;
 
 	// size of the last item
-	size_t lastItemSize;
+	size_t lastItemSize = 0;
 
 	// total size of the struct, including padding
-	size_t size;
+	size_t size = 0;
 
 	// alignment
-	size_t align;
+	size_t align = 0;
 
 	// flex member error detected and reported
-	bool flexError;
+	bool flexError = false;
 
 	// current property name and type signature
 	WSTRING curProp;
@@ -1887,48 +2062,55 @@ public:
 	virtual JsValueRef GetCurVal() override 
 	{ 
 		// if there's an object and a current property, retrieve the property
-		JsValueRef curval = inst->undefVal;
+		JsValueRef curval = JS_INVALID_REFERENCE;
 		if (jsval != JS_INVALID_REFERENCE && curProp.length() != 0)
 		{
 			const TCHAR *where;
 			if (JsErrorCode err = inst->GetProp(curval, jsval, WSTRINGToCSTRING(curProp).c_str(), where); err != JsNoError)
-				Error(err, MsgFmt(_T("DllImport: measuring struct/union size: %s"), where));
+				Error(err, MsgFmt(_T("dllImport: measuring struct/union size: %s"), where));
 		}
 
 		return curval;
 	}
 
+	virtual bool Marshall() override
+	{
+		return MarshallStructMembers([this](WSTRING &memberName, WSTRING &memberSig)
+		{
+			// remember the current element name and type
+			curProp = memberName;
+			curPropType = memberSig;
+
+			// A flex array is only allowed as the last element, so if we already 
+			// have a flex array element, we can't have another member following it
+			if (flex && !flexError)
+			{
+				Error(_T("dllImport: an unspecified array dimension can only be used in the last member of a struct"));
+				flexError = true;
+			}
+
+			// marshall the value
+			MarshallValue();
+
+			// continue the iteration
+			return true;
+		});
+
+		return !error;
+	}
+
 	virtual void MarshallValue() override
 	{
-		// skip the struct member name tag if present
-		const TCHAR *tag = p;
-		while (p < sigEnd && *p != ':')
-			++p;
+		// If there's a ';' between here and the end of the argument,
+		// we're looking at a field name.  Skip it to get to the type
+		// code.
+		const WCHAR *q = p, *endp = EndOfArg();
+		for (; q < endp && *q != ';'; ++q);
 
-		// if we found the tag name, store it
-		if (p < sigEnd && *p == ':')
-		{
-			// save the tag name
-			curProp.assign(tag, p - tag);
+		if (q < endp && *q == ';')
+			p = q + 1;
 
-			// skip the ':'
-			++p;
-
-			// save the type
-			curPropType.assign(p, EndOfArg(p));
-		}
-		else
-			curProp = _T("");
-
-		// A flex array is only allowed as the last element, so if we already 
-		// have a flex array element, we can't have another member
-		if (flex && !flexError)
-		{
-			Error(_T("DllImport: an unspecified array dimension can only be used in the last member of a struct"));
-			flexError = true;
-		}
-
-		// do the normal work
+		// now do the regular marshalling
 		__super::MarshallValue();
 	}
 };
@@ -1937,9 +2119,7 @@ public:
 class JavascriptEngine::MarshallStructSizer : public MarshallStructOrUnionSizer
 {
 public:
-	MarshallStructSizer(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval) :
-		MarshallStructOrUnionSizer(sig, sigEnd, jsval), ofs(0)
-	{ }
+	MarshallStructSizer(SigParser *sig, JsValueRef jsval) : MarshallStructOrUnionSizer(sig, jsval) { }
 
 	virtual void Add(size_t itemBytes, size_t itemAlign = 0, int nItems = 1) override
 	{
@@ -1968,16 +2148,14 @@ public:
 
 	// Next offset.  This is the offset of the next byte after the last item
 	// added, without any padding for alignment.
-	size_t ofs;
+	size_t ofs = 0;
 };
 
 // Union size counter
 class JavascriptEngine::MarshallUnionSizer : public MarshallStructOrUnionSizer
 {
 public:
-	MarshallUnionSizer(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval)
-		: MarshallStructOrUnionSizer(sig, sigEnd, jsval)
-	{ }
+	MarshallUnionSizer(SigParser *sig, JsValueRef jsval) : MarshallStructOrUnionSizer(sig, jsval) { }
 
 	virtual void Add(size_t itemBytes, size_t itemAlign, int nItems = 1) override
 	{
@@ -2001,7 +2179,8 @@ public:
 void JavascriptEngine::MarshallSizer::DoStruct()
 {
 	// measure the struct size
-	MarshallStructSizer s(p + 3, EndOfArg() - 1, GetCurVal());
+	SigParser subsig(p + 3, EndOfArg() - 1);
+	MarshallStructSizer s(&subsig, GetCurVal());
 	s.Marshall();
 
 	// add it to our overall size
@@ -2011,7 +2190,8 @@ void JavascriptEngine::MarshallSizer::DoStruct()
 void JavascriptEngine::MarshallSizer::DoUnion()
 {
 	// measure the union size
-	MarshallUnionSizer s(p + 3, EndOfArg() - 1, GetCurVal());
+	SigParser subsig(p + 3, EndOfArg() - 1);
+	MarshallUnionSizer s(&subsig, GetCurVal());
 	s.Marshall();
 
 	// add it to our overall size
@@ -2020,8 +2200,14 @@ void JavascriptEngine::MarshallSizer::DoUnion()
 
 size_t JavascriptEngine::Marshaller::SizeofStruct(JsValueRef jsval, const TCHAR *flexErrorMsg)
 {
+	// expand references
+	std::wstring_view refsig(p, EndOfArg() - p);
+	if (*p == '@' && !inst->LookUpNativeType(p + 1, refsig.length() - 1, refsig))
+		return 0;
+
 	// measure the struct size
-	MarshallStructSizer s(p + 3, EndOfArg() - 1, jsval);
+	SigParser subsig(refsig.data() + 3, refsig.data() + refsig.length() - 1);
+	MarshallStructSizer s(&subsig, jsval);
 	s.Marshall();
 
 	// check for flex errors
@@ -2034,8 +2220,14 @@ size_t JavascriptEngine::Marshaller::SizeofStruct(JsValueRef jsval, const TCHAR 
 
 size_t JavascriptEngine::Marshaller::SizeofUnion(JsValueRef jsval, const TCHAR *flexErrorMsg)
 {
+	// expand references
+	std::wstring_view refsig(p, EndOfArg() - p);
+	if (*p == '@' && !inst->LookUpNativeType(p + 1, refsig.length() - 1, refsig))
+		return 0;
+
 	// measure the struct size
-	MarshallUnionSizer s(p + 3, EndOfArg() - 1, jsval);
+	SigParser subsig(refsig.data() + 3, refsig.data() + refsig.length() - 1);
+	MarshallUnionSizer s(&subsig, jsval);
 	s.Marshall();
 
 	// check for flex errors
@@ -2050,12 +2242,9 @@ size_t JavascriptEngine::Marshaller::SizeofUnion(JsValueRef jsval, const TCHAR *
 class JavascriptEngine::MarshallToNative : public Marshaller
 {
 public:
-	MarshallToNative(const WCHAR *sig, const WCHAR *sigEnd) :
-		Marshaller(sig, sigEnd)
-	{ }
+	MarshallToNative(SigParser *sig) : Marshaller(sig) { }
 
-	MarshallToNative(const Marshaller &m) : Marshaller(m)
-	{ }
+	MarshallToNative(const Marshaller &m) : Marshaller(m) { }
 
 	// Store a value in newly allocated space
 	template<typename T> void Store(T val)
@@ -2066,6 +2255,14 @@ public:
 
 	// get the next value to marshall
 	virtual JsValueRef GetNextVal() = 0;
+
+	// "unget" the next value, if possible.  This applies to an argument
+	// vector marshaller, allowing the same source argument to be used in
+	// multiple native slots, as in IID_PPV_ARGS.
+	virtual void UngetVal() { }
+
+	// are we marshalling arguments?
+	virtual bool IsArgvMarshaller() const { return false; }
 
 	// allocate storage for a native value
 	virtual void *Alloc(size_t size, int nItems = 1) = 0;
@@ -2093,7 +2290,7 @@ public:
 
 	virtual void DoArray() override = 0;
 
-	virtual void DoVoid() override { Error(_T("DllImport: 'void' arguments are invalid")); }
+	virtual void DoVoid() override { Error(_T("dllImport: 'void' arguments are invalid")); }
 
 	// Common handler for DoArray.  This figures the required storage size
 	// for the array, allocates it via this->Alloc(), and marshalls the array
@@ -2108,7 +2305,7 @@ public:
 		JsErrorCode err = JsGetValueType(jsval, &type);
 		if (err != JsNoError)
 		{
-			Error(err, _T("DllImport: getting string argument type"));
+			Error(err, _T("dllImport: getting string argument type"));
 			return;
 		}
 
@@ -2124,7 +2321,7 @@ public:
 				unsigned int bufferLen;
 				JsErrorCode err = JsGetArrayBufferStorage(jsval, &buffer, &bufferLen);
 				if (err != JsNoError)
-					Error(err, _T("DllImport: retrieving ArrayBuffer storage pointer"));
+					Error(err, _T("dllImport: retrieving ArrayBuffer storage pointer"));
 
 				// store the native pointer
 				Store(buffer);
@@ -2156,7 +2353,7 @@ public:
 
 				if (!typeOk)
 				{
-					Error(_T("DllImport: Javascript typed array type doesn't match native string argument type"));
+					Error(_T("dllImport: Javascript typed array type doesn't match native string argument type"));
 					return;
 				}
 
@@ -2176,7 +2373,7 @@ public:
 				JsErrorCode err;
 				if ((err = JsConvertValueToString(jsval, &strval)) != JsNoError)
 				{
-					Error(err, _T("DllImport: converting argument to string"));
+					Error(err, _T("dllImport: converting argument to string"));
 					return;
 				}
 
@@ -2185,7 +2382,7 @@ public:
 				size_t len;
 				if ((err = JsStringToPointer(strval, &strp, &len)) != JsNoError)
 				{
-					Error(err, _T("DllImport: retrieving string pointer"));
+					Error(err, _T("dllImport: retrieving string pointer"));
 					return;
 				}
 
@@ -2205,13 +2402,78 @@ public:
 					break;
 
 				default:
-					Error(MsgFmt(_T("DllImport: internal error: string type ID expected in signature %.*s, found '%c'"), (int)(sigEnd - sig), sig, *p));
+					Error(MsgFmt(_T("dllImport: internal error: string type ID expected in signature %.*s, found '%c'"),
+						static_cast<int>(sig->sig.length()), sig->sig.data(), *p));
 					break;
 				}
 			}
 			break;
 		}
 	}
+
+	virtual void DoGuid() override
+	{
+		// we always marshall GUIDs from string values
+		JsValueRef jsval = GetNextVal(), strval;
+		JsErrorCode err;
+		const wchar_t *p;
+		size_t len;
+		if ((err = JsConvertValueToString(jsval, &strval)) != JsNoError
+			|| (err = JsStringToPointer(strval, &p, &len)) != JsNoError)
+			return Error(err, _T("dllImport: getting string argument for GUID parameter"));
+
+		// convert the string to a GUID
+		GUID guid;
+		if (!ParseGuid(p, len, guid))
+			return Error(err, _T("dllImport: invalid GUID"));
+
+		// store it
+		Store(guid);
+	}
+
+	virtual void DoVariant() override
+	{
+		VARIANT v;
+		VariantInit(&v);
+		VariantData::CopyFromJavascript(&v, GetNextVal());
+		Store(v);
+	}
+
+	virtual void DoBSTR() override
+	{
+		// get the javascript value
+		JsValueRef jsval = GetNextVal();
+
+		// if it's already a BSTR value, pass it directly
+		if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, nullptr); obj != nullptr)
+		{
+			if (obj->sig == L"B")
+			{
+				Store(*reinterpret_cast<BSTR*>(obj->data));
+				return;
+			}
+		}
+
+		// For anything else, get its Javascript string value (converting
+		// to string if necessary), and create a temporary BSTR out of it.
+		JsErrorCode err;
+		JsValueRef jsstr;
+		const WCHAR *p;
+		size_t len;
+		if ((err = JsConvertValueToString(jsval, &jsstr)) != JsNoError
+			|| (err = JsStringToPointer(jsstr, &p, &len)) != JsNoError)
+			return Error(err, _T("dllImport: converting argument to BSTR"));
+
+		// create a BSTR and store it in the native slot
+		BSTR bstr = SysAllocStringLen(p, len);
+		Store(bstr);
+
+		// schedule the native BSTR for cleanup
+		ScheduleBSTRCleanup(bstr);
+	}
+
+	// schedule BSTR cleanup for a temporary BSTR passed to native code
+	virtual void ScheduleBSTRCleanup(BSTR bstr) = 0;
 
 	// locally allocated string copies, to be cleaned up on return
 	std::list<WSTRING> wstrings;
@@ -2222,11 +2484,16 @@ public:
 	virtual void DoFunction() override
 	{
 		// functions can't be passed by value, only by reference
-		Error(_T("DllImport: functions can't be passed by value (pointer required)"));
+		Error(_T("dllImport: functions can't be passed by value (pointer required)"));
 	}
 
 	virtual void DoStruct() override;
 	virtual void DoUnion() override;
+
+	virtual void DoInterface() override
+	{
+		Error(_T("dllImport: interfaces can't be passed by value (pointer required)"));
+	}
 
 	// get a boolean value
 	bool GetBool(JsValueRef v)
@@ -2236,7 +2503,7 @@ public:
 		JsValueRef boolVal;
 		if ((err = JsConvertValueToBoolean(v, &boolVal)) != JsNoError)
 		{
-			Error(err, _T("DllImport: marshalling bool argument"));
+			Error(err, _T("dllImport: marshalling bool argument"));
 			return false;
 		}
 
@@ -2244,7 +2511,7 @@ public:
 		bool b;
 		if ((err = JsBooleanToBool(boolVal, &b)) != JsNoError)
 		{
-			Error(err, _T("DllImport: marshalling bool argument"));
+			Error(err, _T("dllImport: marshalling bool argument"));
 			return false;
 		}
 
@@ -2263,7 +2530,7 @@ public:
 			{
 				// range-check the signed value
 				if (obj->i < static_cast<INT64>(-MaxIntInDouble) || obj->i > static_cast<INT64>(MaxIntInDouble))
-					Error(_T("DllImport: Int64 value is out of range for conversion to Number"));
+					Error(_T("dllImport: Int64 value is out of range for conversion to Number"));
 
 				// cast it and return the result
 				return static_cast<double>(obj->i);
@@ -2274,7 +2541,7 @@ public:
 			{
 				// range-check the unsigned value
 				if (obj->i > static_cast<UINT64>(MaxIntInDouble))
-					Error(_T("DllImport: Int64 value is out of range for conversion to Number"));
+					Error(_T("dllImport: Int64 value is out of range for conversion to Number"));
 
 				// cast it and return the result
 				return static_cast<double>(obj->i);
@@ -2286,7 +2553,7 @@ public:
 		JsValueRef numVal;
 		if ((err = JsConvertValueToNumber(v, &numVal)) != JsNoError)
 		{
-			Error(err, _T("DllImport: marshalling integer argument"));
+			Error(err, _T("dllImport: marshalling integer argument"));
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -2296,7 +2563,7 @@ public:
 		double d;
 		if ((err = JsNumberToDouble(numVal, &d)) != JsNoError)
 		{
-			Error(err, _T("DllImport: marshalling integer argument"));
+			Error(err, _T("dllImport: marshalling integer argument"));
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -2313,7 +2580,7 @@ public:
 		// check the range
 		if (d < FLT_MIN || d > FLT_MAX)
 		{
-			Error(_T("DllImport: single-precision float argument value out of range"));
+			Error(_T("dllImport: single-precision float argument value out of range"));
 			return NAN;
 		}
 
@@ -2330,7 +2597,7 @@ public:
 		// check the range
 		if (d < minVal || d > maxVal)
 		{
-			Error(_T("DllImport: integer argument value out of range"));
+			Error(_T("dllImport: integer argument value out of range"));
 			return 0;
 		}
 
@@ -2347,7 +2614,7 @@ public:
 		JsValueType t;
 		if ((err = JsGetValueType(v, &t)) != JsNoError)
 		{
-			Error(err, _T("DllImport: JsGetValueType failed converting 64-bit integer argument"));
+			Error(err, _T("dllImport: JsGetValueType failed converting 64-bit integer argument"));
 			return 0;
 		}
 
@@ -2360,7 +2627,7 @@ public:
 			// check the range
 			if (isSigned ? (d < (double)INT64_MIN || d >(double)INT64_MAX) : (d < 0 || d >(double)UINT64_MAX))
 			{
-				Error(_T("DllImport: 64-bit integer argument out of range"));
+				Error(_T("dllImport: 64-bit integer argument out of range"));
 				return 0;
 			}
 
@@ -2378,14 +2645,14 @@ public:
 			{
 				// if the caller wants an unsigned result, it's an error if the value is negative
 				if (!isSigned && obj->i < 0)
-					Error(_T("DllImport: 64-bit unsigned integer argument value is negative"));
+					Error(_T("dllImport: 64-bit unsigned integer argument value is negative"));
 				return obj->i;
 			}
 			if (auto obj = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(v, nullptr); obj != nullptr)
 			{
 				// if the caller wants a signed result, range-check the unsigned value
 				if (isSigned && obj->i > static_cast<UINT64>(INT64_MAX))
-					Error(_T("DllImport: 64-bit signed integer argument out of range"));
+					Error(_T("dllImport: 64-bit signed integer argument out of range"));
 				return obj->i;
 			}
 		}
@@ -2394,7 +2661,7 @@ public:
 		JsValueRef strval;
 		if ((err = JsConvertValueToString(v, &strval)) != JsNoError)
 		{
-			Error(err, _T("DllImport: converting 64-bit integer argument value to string"));
+			Error(err, _T("dllImport: converting 64-bit integer argument value to string"));
 			return 0;
 		}
 
@@ -2420,7 +2687,7 @@ public:
 		JsValueType t;
 		if ((err = JsGetValueType(v, &t)) != JsNoError)
 		{
-			Error(err, _T("DllImport: JsGetValueType failed converting HANDLE argument"));
+			Error(err, _T("dllImport: JsGetValueType failed converting HANDLE argument"));
 			return NULL;
 		}
 
@@ -2442,12 +2709,12 @@ public:
 		case JsObject:
 			// if it's an external HandleData object, use that handle; otherwise it's an error
 			{
-				auto h = JavascriptEngine::HandleData::Recover<HandleData>(v, _T("DllImport: converting HANDLE argument"));
+				auto h = JavascriptEngine::HandleData::Recover<HandleData>(v, _T("dllImport: converting HANDLE argument"));
 				return h != nullptr ? h->h : NULL;
 			}
 
 		default:
-			Error(err, _T("DllImport: invalid value for HANDLE argument"));
+			Error(err, _T("dllImport: invalid value for HANDLE argument"));
 			return NULL;
 		}
 	};
@@ -2457,9 +2724,9 @@ public:
 class JavascriptEngine::MarshallStackArgSizer : public MarshallSizer
 {
 public:
-	MarshallStackArgSizer(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef *argv, int argc, int firstArg) :
-		MarshallSizer(sig, sigEnd),
-		jsArgv(argv), jsArgc(argc), jsArgCur(firstArg), nSlots(0), hiddenStructArg(false)
+	MarshallStackArgSizer(SigParser *sig, JsValueRef *argv, int argc, int firstArg) :
+		MarshallSizer(sig),
+		jsArgv(argv), jsArgc(argc), jsArgCur(firstArg)
 	{ }
 
 	virtual JsValueRef GetCurVal() { return jsArgCur < jsArgc ? jsArgv[jsArgCur] : inst->undefVal; }
@@ -2484,9 +2751,9 @@ public:
 		// the platform's standard return registers for a 64-bit scalar
 		// (EDX:EAX for x86, RAX for x64), so the hidden parameter isn't
 		// required.
-		if (*p == '{')
+		if (*p == '@' && (p[1] == 'S' || p[1] == 'U'))
 		{
-			const TCHAR *flexErr = _T("DllImport: struct with unspecified array dimension can't be used as a return value");
+			const TCHAR *flexErr = _T("dllImport: struct with unspecified array dimension can't be used as a return value");
 			size_t size = p[1] == 'S' ? SizeofStruct(JS_INVALID_REFERENCE, flexErr) : SizeofUnion(JS_INVALID_REFERENCE, flexErr);
 			if (size > 8)
 			{
@@ -2534,8 +2801,8 @@ public:
 	}
 
 	// structs, unions, functions, and void can't be passed by value
-	virtual void DoFunction() override { Error(_T("DllImport: function by value parameters are not supported (pointer type required)")); }
-	virtual void DoVoid() override { Error(_T("DllImport: 'void' is not a valid parameter type")); }
+	virtual void DoFunction() override { Error(_T("dllImport: function by value parameters are not supported (pointer type required)")); }
+	virtual void DoVoid() override { Error(_T("dllImport: 'void' is not a valid parameter type")); }
 
 	// array-by-value decays to a pointer to the underlying type
 	virtual void DoArray() override { Add(sizeof(void*)); }
@@ -2546,30 +2813,32 @@ public:
 	int jsArgCur;
 
 	// number of stack slots required for the native argument vector
-	int nSlots;
+	int nSlots = 0;
 
 	// is there a hidden first argument for a return-by-value struct?
-	bool hiddenStructArg;
+	bool hiddenStructArg = false;
 };
 
 // marshall arguments to the native argument vector in the stack
 class JavascriptEngine::MarshallToNativeArgv : public MarshallToNative
 {
 public:
-	MarshallToNativeArgv(const WCHAR *sig, const WCHAR *sigEnd,
+	MarshallToNativeArgv(SigParser *sig,
 		arg_t *nativeArgArray, JsValueRef *argvIn, int argcIn, int firstDllArg) :
-		MarshallToNative(sig, sigEnd),
+		MarshallToNative(sig),
 		nativeArgArray(nativeArgArray), argOut(nativeArgArray), 
-		argvIn(argvIn), argcIn(argcIn), argInCur(firstDllArg), firstDllArg(firstDllArg),
-		structByValueReturn(JS_INVALID_REFERENCE), structByValueReturnPtr(nullptr), structByValueReturnSize(0)
+		argvIn(argvIn), argcIn(argcIn), argInCur(firstDllArg), firstDllArg(firstDllArg)		
 	{ }
 
+	// we're an argument marshaller
+	virtual bool IsArgvMarshaller() const override { return true; }
+
 	// Flag: we allocated a hidden struct/union for a by-value return
-	JsValueRef structByValueReturn;
+	JsValueRef structByValueReturn = JS_INVALID_REFERENCE;
 
 	// pointer to and byte size of the native data of the by-value return struct
-	void *structByValueReturnPtr;
-	size_t structByValueReturnSize;
+	void *structByValueReturnPtr = nullptr;
+	size_t structByValueReturnSize = 0;
 
 	virtual bool Marshall()
 	{
@@ -2584,14 +2853,26 @@ public:
 		// hidden first argument containing a pointer to the temp struct. 
 		// For structs <= 8 bytes, no temp pointer is required because of the
 		// register return convention.
-		if (*p == '{')
+		if (*p == '@' && (p[1] == 'S' || p[1] == 'U'))
 		{
 			// create the native object
-			NativeTypeWrapper *wrapper;
-			structByValueReturn = inst->CreateNativeObject(p, EndOfArg(), wrapper);
+			NativeTypeWrapper *wrapper = nullptr;
+			SigParser subsig(p, EndOfArg());
+			structByValueReturn = inst->CreateNativeObject(&subsig, nullptr, &wrapper);
 
-			// if the struct size is over 8 bytes, add the hiddden argument
+			// figure the size of the returned struct
 			structByValueReturnSize = (p[1] == 'S' ? SizeofStruct(JS_INVALID_REFERENCE, nullptr) : SizeofUnion(JS_INVALID_REFERENCE, nullptr));
+
+			// If wrapper object creation failed, allocate temp space for the return 
+			// struct.  (This is just an extra bit of protection against crashing with 
+			// a write to a null pointer or an uninitialized pointer.  We shouldn't
+			// actually make it far enough to to the write, though, because the failure
+			// to create the wrapper should have recorded a marshaller error that will
+			// cause the overall argv marshalling to fail, which should prevent us 
+			// from reaching the native call.)
+			void *data = wrapper != nullptr ? wrapper->data : inst->marshallerContext->Alloc(structByValueReturnSize);
+
+			// if the struct size is over 8 bytes, add the hidden argument
 			if (structByValueReturnSize > 8)
 			{
 				// pass a pointer to the native storage as the hidden first argument
@@ -2614,13 +2895,36 @@ public:
 		return __super::Marshall();
 	}
 
+	virtual void DoVariant() override
+	{
+		// Don't allow passing variants by value.  The cleanup implications
+		// are too messy - variants can contain resources that have to be
+		// freed when the variant is destroyed, and a variant on the stack
+		// can be beyond our control on return for some calling conventions.
+		Error(_T("VARIANT cannot be passed as an argument by value"));
+	}
+
+	virtual void ScheduleBSTRCleanup(BSTR bstr) override
+	{
+		// temporary BSTRs created as stack arguments marshalling must
+		// be deleted on return
+		class BSTRCleanupItem : public MarshallerContext::CleanupItem 
+		{
+		public:
+			BSTRCleanupItem(BSTR bstr) : bstr(bstr) { }
+			~BSTRCleanupItem() { if (bstr != nullptr) SysFreeString(bstr); }
+			BSTR bstr;
+		};
+		inst->marshallerContext->AddCleanupItem(new BSTRCleanupItem(bstr));
+	}
+
 	virtual void DoArray() override
 	{
 		// In an argument list, an array decays to a pointer to the
 		// underlying type.  This only goes one deep, so scan to the
 		// first ']', and process the rest as though it were a pointer
 		// to the underlying type.
-		for (; p < sigEnd && *p != ']'; ++p);
+		for (const TCHAR *end = sig->sigEnd(); p < end && *p != ']'; ++p);
 
 		// Note that we leave p parked at the ']', because DoPointer
 		// expects to be lined at the pointer signifier, usually * or &,
@@ -2639,6 +2943,8 @@ public:
 	{
 		return (argInCur < argcIn ? argvIn[argInCur] : inst->undefVal);
 	}
+
+	virtual void UngetVal() override { --argInCur; }
 
 	// allocate storage
 	void *Alloc(size_t size, int nItems = 1) override
@@ -2710,12 +3016,11 @@ public:
 class JavascriptEngine::MarshallToNativeArray : public MarshallToNative
 {
 public:
-	MarshallToNativeArray(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsArray,
+	MarshallToNativeArray(SigParser *sig, JsValueRef jsArray,
 		void *nativeArray, size_t eleSize, int nEles) :
-		MarshallToNative(sig, sigEnd),
+		MarshallToNative(sig),
 		jsArray(jsArray),
-		nativeArray(static_cast<BYTE*>(nativeArray)), eleSize(eleSize), nEles(nEles),
-		idxIn(0), idxOut(0)
+		nativeArray(static_cast<BYTE*>(nativeArray)), eleSize(eleSize), nEles(nEles)
 	{ }
 
 	virtual void MarshallValue() override
@@ -2724,12 +3029,17 @@ public:
 		for (int i = 0; i < nEles; ++i)
 		{
 			// reset to the start of the signature
-			p = sig;
+			p = sig->sig.data();
 
 			// marshall this value
 			__super::MarshallValue();
 		}
 	}
+
+	// Don't allow marshalling arrays of BSTR or VARIANT to native code
+	virtual void DoBSTR() override { Error(_T("Array of BSTR cannot be passed to native code")); }
+	virtual void DoVariant() override { Error(_T("Array of VARIANT cannot be passed to native code")); }
+	virtual void ScheduleBSTRCleanup(BSTR) { /* not necessary because of DoBSTR() prohibition */ }
 
 	// get the next value
 	virtual JsValueRef GetNextVal() override
@@ -2743,7 +3053,7 @@ public:
 		JsErrorCode err = JsGetIndexedProperty(jsArray, jsIdx, &val);
 		if (err != JsNoError)
 		{
-			Error(err, _T("DllImport: indexing argument array"));
+			Error(err, _T("dllImport: indexing argument array"));
 			return inst->nullVal;
 		}
 
@@ -2767,17 +3077,17 @@ public:
 	{
 		// An array within an array isn't possible, as we collapse adjacent
 		// array dimensions into a C-style square array.
-		Error(_T("DllImport: array of array not supported"));
+		Error(_T("dllImport: array of array not supported"));
 	}
 
 	// javascript array
 	JsValueRef jsArray;
 
 	// current input element
-	int idxIn;
+	int idxIn = 0;
 
 	// current output element
-	int idxOut;
+	int idxOut = 0;
 
 	// native array: pointer, element size, number of elements
 	BYTE *nativeArray;
@@ -2791,19 +3101,35 @@ public:
 class JavascriptEngine::MarshallToNativeByReference : public MarshallToNative
 {
 public:
-	MarshallToNativeByReference(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval) :
-		MarshallToNative(sig, sigEnd),
-		jsval(jsval),
-		pointer(nullptr)
+	MarshallToNativeByReference(SigParser *sig, JsValueRef jsval) :
+		MarshallToNative(sig), jsval(jsval)
 	{
 		// get the value type
 		if (JsGetValueType(jsval, &jstype) != JsNoError)
 			jstype = JsUndefined;
 	}
 
+	virtual void MarshallValue() override
+	{
+		// if we've already marshalled this object, return the existing pointer
+		auto &map = inst->marshallerContext->byRefMarshalledObjects;
+		if (auto it = map.find(jsval); it != map.end())
+		{
+			pointer = it->second;
+			return;
+		}
+
+		// do the normal work
+		__super::MarshallValue();
+
+		// store the pointer in the map, in case we encounter this object again
+		// during this call
+		map.emplace(jsval, pointer);
+	}
+
 	// Pointer to the native storage for the referenced value.  This is set
 	// by Marshall() to the allocated storage.
-	void *pointer;
+	void *pointer = nullptr;
 
 	virtual void DoArray() override { DoArrayCommon(jsval); }
 
@@ -2812,6 +3138,9 @@ public:
 
 	// get the next value
 	virtual JsValueRef GetNextVal() override { return jsval; }
+
+	// no BSTR cleanup is necessary when passing by reference
+	virtual void ScheduleBSTRCleanup(BSTR) override { }
 
 	// the javascript source value we're marshalling
 	JsValueRef jsval;
@@ -2822,10 +3151,10 @@ public:
 class JavascriptEngine::MarshallToNativeStruct : public MarshallToNative
 {
 public:
-	MarshallToNativeStruct(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval, void *pointer, size_t size)
-		: MarshallToNative(sig, sigEnd),
-		structSizer(sig, sigEnd, jsval),
-		jsval(jsval), pointer(static_cast<BYTE*>(pointer)), size(size), propval(JS_INVALID_REFERENCE)
+	MarshallToNativeStruct(SigParser *sig, JsValueRef jsval, void *pointer, size_t size) :
+		MarshallToNative(sig),
+		structSizer(sig, jsval),
+		jsval(jsval), pointer(static_cast<BYTE*>(pointer)), size(size)
 	{ }
 
 	virtual void DoArray() override { DoArrayCommon(propval); }
@@ -2837,21 +3166,21 @@ public:
 		JsErrorCode err;
 		if ((err = JsGetValueType(jsval, &jstype)) != JsNoError)
 		{
-			Error(err, _T("DllImport: getting value type for struct argument"));
+			Error(err, _T("dllImport: getting value type for struct argument"));
 			return false;
 		}
 
 		// we can't dereference null or undefined
 		if (jstype == JsNull || jstype == JsUndefined)
 		{
-			Error(err, _T("DllImport: null or missing value for struct argument"));
+			Error(err, _T("dllImport: null or missing value for struct argument"));
 			return false;
 		}
 
 		// we can only convert object types
 		if (jstype != JsObject)
 		{
-			Error(err, _T("DllImport: object required for struct argument"));
+			Error(err, _T("dllImport: object required for struct argument"));
 			return false;
 		}
 
@@ -2859,9 +3188,9 @@ public:
 		if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, nullptr); obj != nullptr)
 		{
 			// the type signature has to match exactly
-			if (obj->sig != sig)
+			if (obj->sig == sig->sig)
 			{
-				Error(_T("DllImport: wrong struct/union type for argument"));
+				Error(_T("dllImport: wrong struct/union type for argument"));
 				return false;
 			}
 
@@ -2872,27 +3201,21 @@ public:
 			return true;
 		}
 
-		// Visit each field.  The signature is of the form {S fields}, so note
-		// that we skip the "{S " prefix and the "}" suffix.
-		for (p += 3; p < sigEnd - 1; NextArg(), structSizer.NextArg())
+		// visit each member
+		MarshallStructMembers([this](WSTRING &memberName, WSTRING &memberSig)
 		{
-			// get and skip the property name
-			const WCHAR *propStart = p;
-			for (; p < sigEnd && *p != ':'; ++p);
-			const WCHAR *propEnd = p;
-			if (p < sigEnd) ++p;
-			WSTRING propName(propStart, propEnd - propStart);
-
 			// Marshall the field into the sizer.  This will set the "last offset"
 			// field in the sizer to the current field offset, taking into account
 			// its alignment.
 			structSizer.MarshallValue();
+			structSizer.NextArg();
 
 			// look up the property in the object
+			JsErrorCode err;
 			JsPropertyIdRef propId;
-			if ((err = JsGetPropertyIdFromName(propName.c_str(), &propId)) != JsNoError)
+			if ((err = JsGetPropertyIdFromName(memberName.c_str(), &propId)) != JsNoError)
 			{
-				Error(err, _T("DllImport: looking up property name for struct conversion"));
+				Error(err, _T("dllImport: looking up property name for struct conversion"));
 				return false;
 			}
 
@@ -2903,14 +3226,14 @@ public:
 				// retrieve the property value
 				if ((err = JsGetProperty(jsval, propId, &propval)) != JsNoError)
 				{
-					Error(err, _T("DllImport: retrieving property value for struct conversion"));
+					Error(err, _T("dllImport: retrieving property value for struct conversion"));
 					return false;
 				}
 
 				// marshall the current value
 				MarshallValue();
 			}
-			else if (propName == _T("cbSize"))
+			else if (memberName == L"cbSize")
 			{
 				const WCHAR *tp = p;
 				if (*tp == '%')
@@ -2943,11 +3266,19 @@ public:
 					break;
 				}
 			}
-		}
+
+			return true;
+		});
 
 		// success
 		return true;
 	}
+
+	// Don't allow marshalling structs containing BSTR or VARIANT, as it's
+	// too hard to figure out what to do about cleanup.
+	virtual void DoBSTR() override { Error(_T("Array of BSTR cannot be passed to native code")); }
+	virtual void DoVariant() override { Error(_T("Array of VARIANT cannot be passed to native code")); }
+	virtual void ScheduleBSTRCleanup(BSTR) { /* not necessary because of DoBSTR() prohibition */ }
 
 	// the next marshalling value is the current property value
 	virtual JsValueRef GetNextVal() override { return propval; }
@@ -2959,7 +3290,7 @@ public:
 	JsValueRef jsval;
 
 	// current property value being visited
-	JsValueRef propval;
+	JsValueRef propval = JS_INVALID_REFERENCE;
 
 	// struct sizer - we walk this through the fields as we populate the struct, to
 	// keep track of the current slot offset in the struct
@@ -2975,8 +3306,8 @@ public:
 class JavascriptEngine::MarshallToNativeUnion : public MarshallToNativeStruct
 {
 public:
-	MarshallToNativeUnion(const WCHAR *sig, const WCHAR *sigEnd, JsValueRef jsval, void *pointer, size_t size) :
-		MarshallToNativeStruct(sig, sigEnd, jsval, pointer, size)
+	MarshallToNativeUnion(SigParser *sig, JsValueRef jsval, void *pointer, size_t size) :
+		MarshallToNativeStruct(sig, jsval, pointer, size)
 	{ }
 
 	// union members always go at the start of the shared memory area
@@ -2990,17 +3321,18 @@ void JavascriptEngine::MarshallToNative::DoArrayCommon(JsValueRef jsval)
 	// out of the recursive measurement of the underlying type size.
 	size_t dim;
 	bool isEmpty;
-	if (!ParseArrayDim(p, sigEnd, dim, isEmpty))
+	if (!ParseArrayDim(p, sig->sigEnd(), dim, isEmpty))
 		return;
 
 	// figure the size of the underlying type
-	MarshallBasicSizer sizer(p, EndOfArg(), jsval);
+	SigParser subsig(p, EndOfArg());
+	MarshallBasicSizer sizer(&subsig, jsval);
 	sizer.MarshallValue();
 
 	// indeterminate size isn't allowed in a sub-array
 	if (sizer.flex)
 	{
-		Error(_T("DllImport: sub-array with indeterminate dimension is invalid"));
+		Error(_T("dllImport: sub-array with indeterminate dimension is invalid"));
 		return;
 	}
 
@@ -3014,7 +3346,8 @@ void JavascriptEngine::MarshallToNative::DoArrayCommon(JsValueRef jsval)
 		}
 
 		// marshall the native array
-		MarshallToNativeArray ma(p, EndOfArg(), jsval, Alloc(sizer.size, dim), sizer.size, dim);
+		SigParser subsig(p, EndOfArg());
+		MarshallToNativeArray ma(&subsig, jsval, Alloc(sizer.size, dim), sizer.size, dim);
 		ma.MarshallValue();
 	}
 }
@@ -3030,7 +3363,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 
 	// get the referenced type
 	const WCHAR *tp = p + 1;
-	if (tp < sigEnd && *tp == '%')
+	if (tp < sig->sigEnd() && *tp == '%')
 		++tp;
 
 	// check the type
@@ -3041,7 +3374,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 		// A null or missing/undefined value passed as a pointer type maps
 		// to a native null pointer.  Nulls can't be used for references.
 		if (*p == '&')
-			Error(_T("DllImport: null or missing value is invalid for a reference ('&') type"));
+			return Error(_T("dllImport: null or missing value is invalid for a reference ('&') type"));
 
 		// store the null
 		Store<void*>(nullptr);
@@ -3051,24 +3384,50 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 		// If the underlying type is an 8- or 16-bit int, convert the string
 		// to a character buffer of the appropriate type, with null termination,
 		// and pass a pointer to the buffer.
-		switch (*tp)
 		{
-		case 'c':
-		case 'C':
-			// Pointer to int8.  Marshall as a pointer to a null-terminated
-			// buffer of ANSI characters.
-			break;
+			// get the string's contents
+			const wchar_t *p;
+			size_t len;
+			if ((err = JsStringToPointer(jsval, &p, &len)) != JsNoError)
+				return Error(err, _T("dllImport: getting argumnet string text"));
 
-		case 's':
-		case 'S':
-			// Pointer to int16.  Marshall as a pointer to a null-terminated
-			// buffer of Unicode characters.
-			break;
+			// convert it to a buffer of the appropriate underlying type
+			void *pointer = nullptr;
+			switch (*tp)
+			{
+			case 'c':
+			case 'C':
+				// Pointer to int8.  Marshall as a pointer to a null-terminated
+				// buffer of ANSI characters.
+				pointer = inst->marshallerContext->Alloc(len + 1);
+				WideCharToMultiByte(CP_ACP, 0, p, len, static_cast<LPSTR>(pointer), len + 1, NULL, NULL);
+				Store(pointer);
+				break;
 
-		default:
-			// strings can't be passed for other reference types
-			Error(_T("DllImport: string argument can only be used for char and wchar pointers"));
-			break;
+			case 's':
+			case 'S':
+				// Pointer to int16.  Marshall as a pointer to a null-terminated
+				// buffer of Unicode characters.
+				pointer = inst->marshallerContext->Alloc(sizeof(WCHAR)*(len + 1));
+				memcpy(pointer, p, len * sizeof(WCHAR));
+				static_cast<LPWSTR>(pointer)[len] = 0;
+				Store(pointer);
+				break;
+
+			case 'G':
+				// GUID.  Parse the string into a temporary GUID struct, and pass a
+				// pointer to the temp struct.
+				pointer = inst->marshallerContext->Alloc(sizeof(GUID));
+				if (!ParseGuid(p, len, *static_cast<GUID*>(pointer)))
+					return Error(_T("dllImport: invalid GUID string"));
+				Store(pointer);
+				break;
+
+			default:
+				// strings can't be passed for other reference types
+				Error(_T("dllImport: string argument can only be used for char and wchar pointers"));
+				break;
+			}
 		}
 		break;
 
@@ -3081,7 +3440,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			ChakraBytePtr buffer = nullptr;
 			unsigned int bufferLen;
 			if ((err = JsGetArrayBufferStorage(jsval, &buffer, &bufferLen)) != JsNoError)
-				Error(err, _T("DllImport: retrieving ArrayBuffer storage pointer"));
+				Error(err, _T("dllImport: retrieving ArrayBuffer storage pointer"));
 
 			// store the native pointer
 			Store(buffer);
@@ -3101,14 +3460,15 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			if (len > 0)
 			{
 				// measure the size of the underlying type
-				MarshallBasicSizer sizer(p + 1, EndOfArg(), jsval);
+				SigParser subsig(p + 1, EndOfArg());
+				MarshallBasicSizer sizer(&subsig, jsval);
 				sizer.MarshallValue();
 
 				// allocate temporary storage for the array copy
 				void *pointer = inst->marshallerContext->Alloc(sizer.size * len);
 
 				// marshall the array values into the native array
-				MarshallToNativeArray ma(p + 1, EndOfArg(), jsval, pointer, sizer.size, len);
+				MarshallToNativeArray ma(&subsig, jsval, pointer, sizer.size, len);
 				ma.MarshallValue();
 
 				// store the temporary array pointer as the result
@@ -3147,7 +3507,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 
 			if (!typeOk)
 			{
-				Error(_T("DllImport: Javascript typed array type doesn't match native pointer argument type"));
+				Error(_T("dllImport: Javascript typed array type doesn't match native pointer argument type"));
 				return;
 			}
 
@@ -3162,7 +3522,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			// a function can only be passed in a function pointer slot
 			if (*tp != '(')
 			{
-				Error(_T("DllImport: function argument value can only be used for a function pointer parameter"));
+				Error(_T("dllImport: function argument value can only be used for a function pointer parameter"));
 				return;
 			}
 
@@ -3172,7 +3532,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			if ((err = JsHasOwnProperty(jsval, inst->callbackPropertyId, &hasThunk)) != JsNoError
 				|| (hasThunk && (err = JsGetProperty(jsval, inst->callbackPropertyId, &thunk)) != JsNoError))
 			{
-				Error(err, _T("DllImport: getting callback function thunk"));
+				Error(err, _T("dllImport: getting callback function thunk"));
 				return;
 			}
 
@@ -3184,17 +3544,18 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 				const TCHAR *where = nullptr;
 				if (!JavascriptCallbackWrapper::Recover<JavascriptCallbackWrapper>(thunk, where))
 				{
-					Error(err, MsgFmt(_T("DllImport: recovering callback function thunk data: %s"), where));
+					Error(err, MsgFmt(_T("dllImport: recovering callback function thunk data: %s"), where));
 					return;
 				}
 			}
 			else
 			{
 				// create a new thunk
-				wrapper = new JavascriptCallbackWrapper(jsval, tp + 1, EndOfArg(tp) - 1);
+				SigParser subsig(tp + 1, EndOfArg(tp) - 1);
+				wrapper = new JavascriptCallbackWrapper(jsval, &subsig);
 				if ((err = JsCreateExternalObject(wrapper, &JavascriptCallbackWrapper::Finalize, &thunk)) != JsNoError)
 				{
-					Error(err, _T("DllImport: creating callback function thunk external object"));
+					Error(err, _T("dllImport: creating callback function thunk external object"));
 					return;
 				}
 
@@ -3204,7 +3565,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 				if ((err = JsSetProperty(thunk, inst->callbackPropertyId, jsval, true)) != JsNoError
 					|| (err = JsSetProperty(jsval, inst->callbackPropertyId, thunk, true)) != JsNoError)
 				{
-					Error(err, _T("DllImport: setting callback function/thunk cross-references"));
+					Error(err, _T("dllImport: setting callback function/thunk cross-references"));
 					return;
 				}
 			}
@@ -3216,21 +3577,149 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 
 	case JsObject:
 		{
-			const TCHAR *where = nullptr;
-			WSTRING toSig(p + 1, EndOfArg(p + 1) - tp);
-			if (auto nativeObj = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, where); nativeObj != nullptr)
+			SigParser toSig(p + 1, EndOfArg(p + 1));
+			if (auto nativeObj = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, nullptr); nativeObj != nullptr)
 			{
-				// Native data.  Check that it's compatible with the underlying type.
-				if (IsPointerConversionValid(SkipPointerOrArrayQual(nativeObj->sig.c_str()), toSig.c_str()))
-					Store(nativeObj->data);
+				// Native data.  The native object must be a pointer type, and its
+				// underlying type must be compatible with the referenced type.
+				// Alternatively, if the native object is of the same type as the
+				// pointer reference, we'll automatically infer that the address
+				// of the native object was intended.
+				const WSTRING &nativeSig = nativeObj->sig;
+				bool isPtr = IsPointerType(nativeSig.c_str());
+				bool isArray = IsArrayType(nativeSig.c_str());
+				const WCHAR *nativeType = SkipPointerOrArrayQual(nativeObj->sig.c_str());
+				SigParser fromSig(nativeType, nativeSig.c_str() + nativeSig.length());
+				if (IsPointerConversionValid(&fromSig, &toSig))
+				{
+					// Check if it's a pointer type, an array type, or value type
+					if (isPtr)
+					{
+						// pointer type - 'data' points to the pointer value to pass
+						Store(*reinterpret_cast<void**>(nativeObj->data));
+					}
+					else if (isArray)
+					{
+						// array type - 'data' points to the base of the array
+						Store(nativeObj->data);
+					}
+					else
+					{
+						// value type - 'data' is the pointer to the value
+						Store(nativeObj->data);
+					}
+				}
 				else
 					Error(_T("Incompatible pointer type conversion"));
 			}
-			else if (auto nativePtr = NativePointerData::Recover<NativePointerData>(jsval, where); nativePtr != nullptr)
+			else if (auto nativePtr = NativePointerData::Recover<NativePointerData>(jsval, nullptr); nativePtr != nullptr)
 			{
 				// Native pointer.  Check that it's compatible with the underlying type.
-				if (IsPointerConversionValid(SkipPointerOrArrayQual(nativePtr->sig.c_str()), toSig.c_str()))
+				// Note that the signature stored in a NativePointer type is the signature
+				// of the referenced type, so there's no pointer qualifier to remove.
+				SigParser fromSig(nativePtr->sig);
+				if (IsPointerConversionValid(&fromSig, &toSig))
+				{
+					// If the FROM signature is a pointer to a pointer to a COM interface,
+					// assume this is an OUT parameter that will overwrite any current
+					// interface pointer.  Release the old pointer before the call to
+					// maintain the integrity of the reference count.
+					if (fromSig.sig.substr(0, 3) == L"*@I")
+					{
+						auto pUnk = reinterpret_cast<IUnknown**>(nativePtr->ptr);
+						if (*pUnk != nullptr)
+						{
+							(*pUnk)->Release();
+							*pUnk = nullptr;
+						}
+					}
+
+					// store the pointer
 					Store(nativePtr->ptr);
+				}
+				else
+					Error(_T("Incompatible pointer type conversion"));
+			}
+			else if (auto comObj = COMImportData::Recover<COMImportData>(jsval, nullptr); comObj != nullptr)
+			{
+				// COM object.
+				//
+				// If the underlying type is "pointer to GUID", automatically pass the GUID
+				// of the interface instead of the interface pointer.
+				//
+				// Otherwise, pass the interface pointer.
+				//
+				if (*tp == 'G')
+				{
+					// they want the GUID, not the interface pointer
+					void *pointer = inst->marshallerContext->Alloc(sizeof(GUID));
+					if (!ParseGuid(comObj->guid.c_str(), *static_cast<GUID*>(pointer)))
+						return Error(MsgFmt(_T("Invalid GUID \"%s\" in COMPointer"), comObj->guid.c_str()));
+					Store(pointer);
+
+					// SPECIAL CASE: Check for the IID_PPV_ARGS() format.  In C++, the macro
+					// IID_PPV_ARGS(p) expands to "__uuidof(p), (void**)&p", simplifying the
+					// syntax for the extremely common case in COM where you have to pass the
+					// IID of an interface you want to retrieve and the address of the variable
+					// that will receive the interface pointer.  We simulate this when passing
+					// arguments by not consuming the COM pointer when we see a REFIID,void**
+					// argument pair and a COM pointer object is passed for the REFIID argument.
+					if (IsArgvMarshaller())
+					{
+						// advance to the next argument
+						const WCHAR *pnxt = EndOfArg(p), *endp = sig->sigEnd();
+						for (; pnxt < endp && *pnxt == ' '; ++pnxt);
+
+						// if it's a void**, reuse the current argument for it
+						if (pnxt + 2 < endp && pnxt[0] == '*' && pnxt[1] == '*' && pnxt[2] == 'v')
+							UngetVal();
+					}
+				}
+				else
+				{
+					// Validate that we have a valid conversion from the COM interface pointer
+					// type.  COM objects always have pointer type signatures, so skip the pointer
+					// qualifier '*' to get to the underlying interface type.
+					//
+					// Special case 1: if we're passing a COM pointer to a void** parameter, 
+					// assume that this is a standard COM interface OUT param, so pass the 
+					// address of the COM pointer.
+					//
+					// Special case 2: if we're passing a IFoo* to an IFoo** parameter, do the
+					// same thing as for a void**.  We'll likewise assume that this is an OUT
+					// param returning a COM pointer of the same type.
+					//
+					SigParser fromSig(comObj->sig.data() + 1, comObj->sig.length() - 1);
+					if (IsPointerConversionValid(&fromSig, &toSig))
+					{
+						// compatible COM interface pointer - pass the pointer
+						Store(comObj->pUnknown);
+					}
+					else if (toSig.sig == L"*v" || toSig.sig == comObj->sig)
+					{
+						// void** or <my interface type>**.  Take this to be an OUT pointer 
+						// receiving a new interface pointer, so pass the address of our
+						// internal IUnknown pointer.
+						Store(&comObj->pUnknown);
+
+						// If we currently have a non-null interface, release it and clear the
+						// pointer.  We always have to assume that a void** is a strictly OUT
+						// variable that the callee will overwrite, so our counted reference
+						// would be lost if we didn't clear the variable here.
+						if (comObj->pUnknown != nullptr)
+						{
+							comObj->pUnknown->Release();
+							comObj->pUnknown = nullptr;
+						}
+					}
+					else
+						Error(_T("Incompatible pointer type conversion"));
+				}
+			}
+			else if (auto v = VariantData::Recover<VariantData>(jsval, nullptr); v != nullptr)
+			{
+				if (toSig.sig == L"V")
+					Store(&v->v);
 				else
 					Error(_T("Incompatible pointer type conversion"));
 			}
@@ -3246,7 +3735,8 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 	by_ref:
 		// anything else gets marshalled by reference
 		{
-			MarshallToNativeByReference mbr(p + 1, EndOfArg(), jsval);
+			SigParser subsig(p + 1, EndOfArg());
+			MarshallToNativeByReference mbr(&subsig, jsval);
 			mbr.MarshallValue();
 			Store(mbr.pointer);
 		}
@@ -3264,7 +3754,8 @@ void JavascriptEngine::MarshallToNative::DoStruct()
 	void *pointer = AllocStruct(size);
 
 	// marshall through a struct marshaller
-	MarshallToNativeStruct ms(p, EndOfArg(), jsval, pointer, size);
+	SigParser subsig(p + 3, EndOfArg() - 1);
+	MarshallToNativeStruct ms(&subsig, jsval, pointer, size);
 	ms.Marshall();
 }
 
@@ -3278,16 +3769,15 @@ void JavascriptEngine::MarshallToNative::DoUnion()
 	void *pointer = AllocStruct(size);
 
 	// marshall through a struct marshaller
-	MarshallToNativeUnion mu(p, EndOfArg(), jsval, pointer, size);
+	SigParser subsig(p + 3, EndOfArg() - 1);
+	MarshallToNativeUnion mu(&subsig, jsval, pointer, size);
 	mu.Marshall();
 }
 
 class JavascriptEngine::MarshallFromNative : public Marshaller
 {
 public:
-	MarshallFromNative(const WCHAR *sig, const WCHAR *sigEnd) :
-		Marshaller(sig, sigEnd)
-	{ }
+	MarshallFromNative(SigParser *sig) : Marshaller(sig) { }
 
 	MarshallFromNative(Marshaller &m) : Marshaller(m) { }
 
@@ -3295,7 +3785,7 @@ public:
 	{
 		if (err != JsNoError)
 		{
-			Error(err, _T("DllImport: converting native value to Javascript"));
+			Error(err, _T("dllImport: converting native value to Javascript"));
 			error = true;
 		}
 		return !error;
@@ -3305,13 +3795,12 @@ public:
 class JavascriptEngine::MarshallFromNativeValue : public MarshallFromNative
 {
 public:
-	MarshallFromNativeValue(const WCHAR *sig, const WCHAR *sigEnd, void *valp) :
-		MarshallFromNative(sig, sigEnd),
-		valp(valp), jsval(JS_INVALID_REFERENCE)
+	MarshallFromNativeValue(SigParser *sig, void *valp) :
+		MarshallFromNative(sig), valp(valp)
 	{ }
 
 	// Javascript result value
-	JsValueRef jsval;
+	JsValueRef jsval = JS_INVALID_REFERENCE;
 
 	virtual void DoBool() override { Check(JsBoolToBoolean(*reinterpret_cast<const bool*>(valp), &jsval)); }
 	virtual void DoInt8() override { Check(JsIntToNumber(*reinterpret_cast<const INT8*>(valp), &jsval)); }
@@ -3352,7 +3841,7 @@ public:
 		// make sure it's a recognized string type
 		if (*tp != 'T' && *tp != 't')
 		{
-			Error(_T("DllImport: unrecognized string type code in type signature"));
+			Error(_T("dllImport: unrecognized string type code in type signature"));
 			return;
 		}
 
@@ -3370,7 +3859,32 @@ public:
 		size_t size = *tp == 'T' ? sizeof(WCHAR) : sizeof(CHAR);
 
 		// create a native pointer type, recording the string type
-		Check(NativePointerData::Create(ptr, size, p, EndOfArg(p) - p, *tp, &jsval));
+		SigParser subsig(p, EndOfArg(p));
+		Check(NativePointerData::Create(ptr, size, &subsig, *tp, &jsval));
+	}
+
+	virtual void DoGuid() override
+	{
+		// get the GUID
+		const GUID *pguid = static_cast<const GUID*>(valp);
+
+		// convert it to a string
+		TSTRING str = FormatGuid(*pguid);
+
+		// return it as a Javascript string
+		Check(JsPointerToString(str.c_str(), str.length(), &jsval));
+	}
+
+	virtual void DoVariant() override
+	{
+		Check(VariantData::CreateFromNative(static_cast<const VARIANT*>(valp), jsval));
+	}
+
+	virtual void DoBSTR() override
+	{
+		// create a Javascript string from the BSTR
+		BSTR bstr = *static_cast<BSTR*>(valp);
+		Check(JsPointerToString(bstr, SysStringLen(bstr), &jsval));
 	}
 
 	virtual void DoFloat() override { Check(JsDoubleToNumber(*reinterpret_cast<const float*>(valp), &jsval)); }
@@ -3386,7 +3900,7 @@ public:
 			&HandleData::Finalize, inst->HANDLE_proto, &jsval));
 	}
 
-	virtual void DoFunction() override { Error(_T("DllImport: function can't be returned by value (pointer required)")); }
+	virtual void DoFunction() override { Error(_T("dllImport: function can't be returned by value (pointer required)")); }
 
 	void DoPointerToFunction(const WCHAR *funcSig)
 	{
@@ -3411,32 +3925,30 @@ public:
 		// have to wrap the function in a lambda that calls <dllImport>.call() 
 		// with the function object and its signature.
 
-		// Set up the signature.  By convention, we normalize out the parens
-		// in the normal signature for a function type.
+		// create a javascript string argument for the signature
 		JsValueRef funcSigVal;
 		JsErrorCode err;
-		if ((err = JsPointerToString(funcSig + 1, EndOfArg(funcSig) - funcSig - 2, &funcSigVal)) != JsNoError)
+		if ((err = JsPointerToString(funcSig, EndOfArg(funcSig) - funcSig, &funcSigVal)) != JsNoError)
 		{
-			Error(err, _T("DllImport: JsPointerToString(native callback signature"));
+			Error(err, _T("dllImport: JsPointerToString(native callback signature"));
 			return;
 		}
 		
 		// Get this._bindExt
 		const TCHAR *where;
 		JsValueRef bindExt;
-		JsValueRef jsthis = inst->marshallerContext->jsthis;
-		if ((err = inst->GetProp(bindExt, jsthis, "_bindExt", where)) != JsNoError)
+		if ((err = inst->GetProp(bindExt, inst->dllImportObject, "_bindExt", where)) != JsNoError)
 		{
-			Error(err, MsgFmt(_T("DllImport: getting this._bindExt(): %s"), where));
+			Error(err, MsgFmt(_T("dllImport: getting this._bindExt(): %s"), where));
 			return;
 		}
 
-		// Call this._bind(this, extObj, funcsig).  This return value from that function
+		// Call DllImport._bindExt(this, extObj, funcsig).  This return value from that function
 		// is the wrapped function pointer.
-		JsValueRef bindArgv[3] = { jsthis, extObj, funcSigVal };
+		JsValueRef bindArgv[3] = { inst->dllImportObject, extObj, funcSigVal };
 		if ((err = JsCallFunction(bindExt, bindArgv, static_cast<unsigned short>(countof(bindArgv)), &jsval)) != JsNoError)
 		{
-			Error(err, _T("DllImport: JsCallFunction(this._bindExt())"));
+			Error(err, _T("dllImport: JsCallFunction(this._bindExt())"));
 			return;
 		}
 	}
@@ -3471,11 +3983,12 @@ public:
 			// pointer, so wrap this in an external data object.
 			{
 				// get the size of the dereferenced type
-				MarshallBasicSizer sizer(tp, EndOfArg(tp), JS_INVALID_REFERENCE);
+				SigParser subsig(tp, EndOfArg(tp));
+				MarshallBasicSizer sizer(&subsig, JS_INVALID_REFERENCE);
 				sizer.MarshallValue();
 
 				// create the native pointer wrapper
-				Check(NativePointerData::Create(ptr, sizer.size, tp, sizer.sigEnd - tp, 0, &jsval));
+				Check(NativePointerData::Create(ptr, sizer.size, &subsig, 0, &jsval));
 			}
 			break;
 		}
@@ -3484,6 +3997,8 @@ public:
 	virtual void DoStruct() override;
 	virtual void DoUnion() override;
 	virtual void DoArray() override;
+	
+	virtual void DoInterface() override { Error(_T("dllImport: interface can't be returned by value (pointer required)")); }
 
 	// pointer to native value we're marshalling
 	void *valp;
@@ -3494,23 +4009,23 @@ void JavascriptEngine::MarshallFromNativeValue::DoStruct()
 {
 	// marshall the native struct
 	NativeTypeWrapper *obj = nullptr;
-	WSTRING structSig(p, EndOfArg(p));
-	jsval = inst->CreateNativeObject(structSig, valp);
+	SigParser subsig(p, EndOfArg(p));
+	jsval = inst->CreateNativeObject(&subsig, valp);
 }
 
 void JavascriptEngine::MarshallFromNativeValue::DoUnion()
 {
 	// marshall the native union
 	NativeTypeWrapper *obj = nullptr;
-	WSTRING unionSig(p, EndOfArg(p));
-	jsval = inst->CreateNativeObject(unionSig, valp);
+	SigParser subsig(p, EndOfArg(p));
+	jsval = inst->CreateNativeObject(&subsig, valp);
 }
 
 void JavascriptEngine::MarshallFromNativeValue::DoArray()
 {
 	NativeTypeWrapper *obj = nullptr;
-	WSTRING arraySig(p, EndOfArg(p));
-	jsval = inst->CreateNativeObject(arraySig, valp);
+	SigParser subsig(p, EndOfArg(p));
+	jsval = inst->CreateNativeObject(&subsig, valp);
 }
 
 // --------------------------------------------------------------------------
@@ -3518,14 +4033,14 @@ void JavascriptEngine::MarshallFromNativeValue::DoArray()
 // DllImport implementation
 //
 
-bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandler &eh)
+bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 {
 	JsErrorCode err;
 	const TCHAR *subwhere = nullptr;
-	auto Error = [&err, className, &eh](const TCHAR *where)
+	auto Error = [&err, &eh](const TCHAR *where)
 	{
 		eh.SysError(LoadStringT(IDS_ERR_JSINIT),
-			MsgFmt(_T("Binding DLL import callbacks: %s: %s"), where, JsErrorToString(err)));
+			MsgFmt(_T("Binding dllImport callbacks: %s: %s"), where, JsErrorToString(err)));
 		return false;
 	};
 
@@ -3534,24 +4049,34 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 	if ((err = JsGetGlobalObject(&global)) != JsNoError)
 		return Error(_T("JsGetGlobalObject"));
 
-	// look up the class in the global object
-	JsValueRef classObj;
-	if ((err = GetProp(classObj, global, className, subwhere)) != JsNoError)
+	// look up dllImport object, which should be defined by the system
+	// scripts as a property of the global object
+	if ((err = GetProp(dllImportObject, global, "dllImport", subwhere)) != JsNoError)
 		return Error(subwhere);
 
-	// get its prototype
-	JsValueRef proto;
-	if ((err = GetProp(proto, classObj, "prototype", subwhere)) != JsNoError)
-		return Error(subwhere);
+	// set up the bindings for prototype methods and class methods
+	if (!DefineObjPropFunc(dllImportObject, "dllImport", "_bind", &JavascriptEngine::DllImportBind, this, eh)
+		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_sizeof", &JavascriptEngine::DllImportSizeof, this, eh)
+		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_create", &JavascriptEngine::DllImportCreate, this, eh)
+		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_call", &JavascriptEngine::DllImportCall, this, eh))
+		return false;
 
-	// set up the bindings
-	if (!DefineObjPropFunc(proto, className, "_bind", &JavascriptEngine::DllImportBind, this, eh)
-		|| !DefineObjPropFunc(proto, className, "_call", &JavascriptEngine::DllImportCall, this, eh)
-		|| !DefineObjPropFunc(proto, className, "_sizeof", &JavascriptEngine::DllImportSizeof, this, eh)
-		|| !DefineObjPropFunc(proto, className, "_create", &JavascriptEngine::DllImportCreate, this, eh))
+	// find the COMPoinpter class and prototype
+	if ((err = GetProp(COMPointer_class, global, "COMPointer", subwhere)) != JsNoError
+		|| (err = GetProp(COMPointer_proto, COMPointer_class, "prototype", subwhere)) != JsNoError)
+		return Error(subwhere);
+	
+	// add a reference on each
+	JsAddRef(COMPointer_class, nullptr);
+	JsAddRef(COMPointer_proto, nullptr);
+
+	// add methods
+	if (!DefineObjPropFunc(COMPointer_class, "COMPointer", "isNull", &COMImportData::IsNull, this, eh)
+		|| !DefineObjPropFunc(COMPointer_class, "COMPointer", "clear", &COMImportData::Clear, this, eh))
 		return false;
 
 	// find the HANDLE object's prototype
+	JsValueRef classObj;
 	if ((err = GetProp(classObj, global, "HANDLE", subwhere)) != JsNoError
 		|| (err = GetProp(HANDLE_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
@@ -3601,7 +4126,9 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toUint64", &NativePointerData::ToUInt64, this, eh)
 		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toArrayBuffer", &NativePointerData::ToArrayBuffer, this, eh)
 		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "toArray", &NativePointerData::ToArray, this, eh)
+		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "_to", &NativePointerData::To, this, eh)
 		|| !AddGetter(NativePointer_proto, "at", &NativePointerData::At, this)
+		|| !DefineObjPropFunc(NativePointer_proto, "NativePointer", "isNull", &NativePointerData::IsNull, this, eh)
 		|| !DefineObjPropFunc(classObj, "NativePointer", "fromNumber", &NativePointerData::FromNumber, this, eh))
 		return false;
 
@@ -3628,6 +4155,7 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		|| !DefineObjPropFunc(Int64_proto, "Int64", "shl", &XInt64Data<INT64>::Shl, this, eh)
 		|| !DefineObjPropFunc(Int64_proto, "Int64", "ashr", &XInt64Data<INT64>::Ashr, this, eh)
 		|| !DefineObjPropFunc(Int64_proto, "Int64", "lshr", &XInt64Data<INT64>::Lshr, this, eh)
+		|| !DefineObjPropFunc(Int64_proto, "Int64", "compare", &XInt64Data<INT64>::Compare, this, eh)
 		|| !DefineObjPropFunc(classObj, "Int64", "_new", &XInt64Data<INT64>::Create, this, eh))
 		return false;
 
@@ -3653,6 +4181,7 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "shl", &XInt64Data<UINT64>::Shl, this, eh)
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "ashr", &XInt64Data<UINT64>::Ashr, this, eh)
 		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "lshr", &XInt64Data<UINT64>::Lshr, this, eh)
+		|| !DefineObjPropFunc(UInt64_proto, "Uint64", "compare", &XInt64Data<UINT64>::Compare, this, eh)
 		|| !DefineObjPropFunc(classObj, "UInt64", "_new", &XInt64Data<UINT64>::Create, this, eh))
 		return false;
 
@@ -3662,8 +4191,8 @@ bool JavascriptEngine::BindDllImportCallbacks(const CHAR *className, ErrorHandle
 	return true;
 }
 
-// DllImportBind - this is set up in the Javascript as DllImport.prototype.bind_(),
-// an internal method that bind() calls to get the native function pointer.  Javascript
+// DllImportBind - this is set up in the Javascript as dllImport.bind_(), an
+// internal method that bind() calls to get the native function pointer.  Javascript
 // doesn't have a type that can represent a native FARPROC directly, so we use an
 // external object instead.  Our DllImport code on the Javascript then wraps that in
 // a lambda that calls DllImportCall with the external object as a parameter.
@@ -3687,7 +4216,7 @@ JsValueRef JavascriptEngine::DllImportBind(TSTRING dllName, TSTRING funcName)
 		if (hmod == NULL)
 		{
 			WindowsErrorMessage winErr;
-			Throw(MsgFmt(_T("DllImport.bind(): Error loading DLL %s: %s"), dllName.c_str(), winErr.Get()));
+			Throw(MsgFmt(_T("dllImport.bind: Error loading DLL %s: %s"), dllName.c_str(), winErr.Get()));
 			return nullVal;
 		}
 
@@ -3700,7 +4229,7 @@ JsValueRef JavascriptEngine::DllImportBind(TSTRING dllName, TSTRING funcName)
 	if (addr == NULL)
 	{
 		WindowsErrorMessage winErr;
-		Throw(MsgFmt(_T("DllImport.bind(): Error binding %s!%s: %s"), dllName.c_str(), funcName.c_str(), winErr.Get()));
+		Throw(MsgFmt(_T("dllImport.bind: Error binding %s!%s: %s"), dllName.c_str(), funcName.c_str(), winErr.Get()));
 		return nullVal;
 	}
 
@@ -3710,7 +4239,7 @@ JsValueRef JavascriptEngine::DllImportBind(TSTRING dllName, TSTRING funcName)
 		new DllImportData(addr, dllName, funcName), 
 		&DllImportData::Finalize, &ret); err != JsNoError)
 	{
-		Throw(err, _T("DllImport.bind()"));
+		Throw(err, _T("dllImport.bind"));
 		return nullVal;
 	}
 
@@ -3724,33 +4253,58 @@ extern "C" UINT64 DllCallGlue64_RAX(FARPROC func, const void *args, size_t nArgB
 extern "C" __m128 DllCallGlue64_XMM0(FARPROC func, const void *args, size_t nArgBytes);
 #endif
 
-// DllImportSizeof is set up in the Javascript as DllImport.prototype._sizeof(),
-// an internal method of the DllImport object.  This can be used to retrieve the
+// DllImportSizeof is set up in the Javascript as dllImport._sizeof(), an 
+// internal method of the DllImport object.  This can be used to retrieve the
 // size of a native data structure defined via the Javascript-side C parser.
-JsValueRef JavascriptEngine::DllImportSizeof(WSTRING typeInfo)
+size_t JavascriptEngine::DllImportSizeof(WSTRING typeInfo)
 {
 	// measure the size
-	MarshallBasicSizer sizer(typeInfo);
+	SigParser sig(typeInfo);
+	MarshallBasicSizer sizer(&sig);
 	sizer.Marshall();
 
 	// return the result
-	JsValueRef ret;
-	JsIntToNumber(sizer.size, &ret);
-	return ret;
+	return sizer.size;
 }
 
-// DllImportCreate is set up in the Javascript as DllImport.prototype._create(),
-// an internal method of the DllImport object.  This creates an instance of a
+// DllImportCreate is set up in the Javascript as dllImport._create(), an 
+// internal method of the DllImport object.  This creates an instance of a
 // native type, for use in calls to native code.
 JsValueRef JavascriptEngine::DllImportCreate(WSTRING typeInfo)
 {
-	return CreateNativeObject(typeInfo);
+	SigParser sig(typeInfo);
+	return CreateNativeObject(&sig);
 }
 
-// DllImportCall is set up in the Javascript as DllImport.prototype._call(), an 
-// internal method of the DllImport object.  When the Javascript caller calls the
-// lambda returned from bind(), the lambda invokes DllImport.prototype.call(),
-// which in turn invokes _call() (which is how we're exposed to Javascript) as:
+// DllImportDefineInternalType = Javascript _defineInternalType.  This is a
+// global function that the Javascript-side C type parser calls this on each
+// successful struct, union, and interface type definition.  This allows us
+// to store type definitions for reference during marshalling between native
+// and Javascript types.
+void JavascriptEngine::DllImportDefineInternalType(WSTRING name, WSTRING typeInfo)
+{
+	nativeTypeMap.emplace(name, typeInfo);
+}
+
+bool JavascriptEngine::LookUpNativeType(const WSTRING &s, std::wstring_view &sig, bool silent)
+{
+	if (auto it = nativeTypeMap.find(s); it != nativeTypeMap.end())
+	{
+		sig = it->second;
+		return true;
+	}
+
+	if (!silent)
+		Throw(MsgFmt(_T("Undefined type reference @%s"), s.c_str()));
+	
+	return false;
+}
+
+
+// DllImportCall is set up in the Javascript as dllImport._call(), an internal
+// method of the dllImport object.  When the Javascript caller calls the lambda
+// returned from bind(), the lambda invokes dllImport.call(), which in turn 
+// invokes _call() (which is how we're exposed to Javascript) as:
 //
 //   dllImport._call(nativeFunc, signature, ...args)
 //
@@ -3762,54 +4316,88 @@ JsValueRef JavascriptEngine::DllImportCreate(WSTRING typeInfo)
 //
 // args: the javascript arguments to the call
 //
-// The DllImport 'this' argument is important because it's where the Javascript caller
-// will have registered any struct type declarations it wishes to define as part of the
-// DLL interface.  If any of our arguments contains a struct reference, we'll need to
-// query the DllImport object to get the struct layouts for marshalling to the native
-// callee.  We can use this to marshall between Javascript objects and native struct
-// layouts, so that callers can call API functions that take struct references as input
-// or output parameters.
+//
+// Alternatively, for COM interface imports, the binding is called like this:
+//
+//   dllImport._call(comObject, vtableIndex, functionSignature, ...args)
+//
+// In this case, we get the native function pointer from the vtable in the COM 
+// object pointer, using the vtable index.  The additional vtable index argument
+// is required to select the appropriate function from the interface method
+// vector.
 //
 JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	JsErrorCode err;
 
-	// we need at least two arguments (
+	// we need at least two arguments ('this', native function, signature)
 	if (argc < 3)
-		return inst->Throw(_T("DllImport.call(): missing arguments"));
+		return inst->Throw(_T("dllImport.call: missing arguments"));
 
 	// get the javascript this pointer
 	int ai = 0;
 	auto jsthis = argv[ai++];
 
 	// set up a temporary allocator for the marshallers
-	MarshallerContext tempAlloc(jsthis);
+	MarshallerContext tempAlloc;
 
-	// get the native function object
-	auto func = DllImportData::Recover<DllImportData>(argv[ai++], _T("DllImport.call()"));
-	auto funcPtr = func->procAddr;
+	// Get the native function object
+	FARPROC funcPtr = nullptr;
+	if (auto dllFuncObj = DllImportData::Recover<DllImportData>(argv[ai], nullptr); dllFuncObj != nullptr)
+	{
+		// DLL import function pointer - get the proc address from the import object
+		funcPtr = dllFuncObj->procAddr;
+		++ai;
+	}
+	else if (auto comObj = COMImportData::Recover<COMImportData>(argv[ai], nullptr); comObj != nullptr)
+	{
+		// COM import - make sure the underlying COM object has been populated
+		if (comObj->pUnknown == nullptr)
+			return inst->Throw(_T("dllImport.call: COM object pointer is null"));
+		
+		// get the proc address from the vtable
+		int vtableIndex;
+		++ai;
+		if ((err = JsNumberToInt(argv[ai++], &vtableIndex)) != JsNoError)
+			return inst->Throw(err, _T("dllImport.call: getting COM object vtable index"));
+
+		// sanity-check it
+		if (vtableIndex < 0 || vtableIndex >= comObj->vtableCount)
+			return inst->Throw(_T("dllImport.call: COM object vtable index out of range"));
+
+		// get the proc address from the vtable
+		funcPtr = comObj->GetVTable()[vtableIndex];
+	}
+	else
+		return inst->Throw(_T("dllImport.call: invalid native function object"));
 
 	// get the function signature, as a string
-	const WCHAR *sig;
+	const WCHAR *sigStr;
 	size_t sigLen;
-	if ((err = JsStringToPointer(argv[ai++], &sig, &sigLen)) != JsNoError)
-		return inst->Throw(err, _T("DllImport.call()"));
-
-	// figure the signature end pointer, for limiting traversals
-	const WCHAR *sigEnd = sig + sigLen;
+	if ((err = JsStringToPointer(argv[ai++], &sigStr, &sigLen)) != JsNoError)
+		return inst->Throw(err, _T("dllImport.call"));
+		
+	// Set up a signature parser for the function, and a sub-parser with just
+	// the return value + argument vector portion.  That is, the part inside
+	// the parentheses, skipping the calling convention prefix:
+	//
+	//   (<callingConv><returnType> <arg1> <arg2> ...)
+	//
+	SigParser funcSig(sigStr, sigLen);
+	SigParser argvSig(sigStr + 2, Marshaller::EndOfArg(sigStr, sigStr + sigLen) - 1);
 
 	// the rest of the Javascript arguments are the arguments to pass to the DLL
 	int firstDllArg = ai;
 
 	// Get the calling convention.  This is the first letter of the first token:
 	// S[__stdcall], C[__cdecl], F[__fastcall], T[__thiscall], V[__vectorcall]
-	WCHAR callConv = *sig++;
+	WCHAR callConv = sigStr[1];
 
 	// Set up a stack argument sizer to measure how much stack space we need
 	// for the native copies of the arguments.  The first type in the function 
 	// signature is the return type, so skip that.
-	MarshallStackArgSizer stackSizer(sig, sigEnd, argv, argc, firstDllArg);
+	MarshallStackArgSizer stackSizer(&argvSig, argv, argc, firstDllArg);
 
 	// the remaining items in the signature are the argument types - size them
 	if (!stackSizer.Marshall())
@@ -3862,7 +4450,7 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 	ZeroMemory(argArray, argArraySize);
 
 	// marshall the arguments into the native stack
-	MarshallToNativeArgv argPacker(sig, sigEnd, argArray, argv, argc, firstDllArg);
+	MarshallToNativeArgv argPacker(&argvSig, argArray, argv, argc, firstDllArg);
 	if (!argPacker.Marshall() || inst->HasException())
 	{
 		// marshalling failed or threw a JS error - fail
@@ -3918,16 +4506,16 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 		break;
 
 	case 'F':
-		return inst->Throw(_T("DllImport.call(): __fastcall calling convention not supported"));
+		return inst->Throw(_T("dllImport.call: __fastcall calling convention not supported"));
 
 	case 'T':
-		return inst->Throw(_T("DllImport.call(): __thiscall calling convention not supported"));
+		return inst->Throw(_T("dllImport.call: __thiscall calling convention not supported"));
 
 	case 'V':
-		return inst->Throw(_T("DllImport.call(): __vectorcall calling convention not supported"));
+		return inst->Throw(_T("dllImport.call: __vectorcall calling convention not supported"));
 
 	default:
-		return inst->Throw(_T("DllImport.call(): unknown calling convention in function signature"));
+		return inst->Throw(_T("dllImport.call: unknown calling convention in function signature"));
 	}
 
 #elif defined(_M_X64)
@@ -4008,7 +4596,7 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 	else
 	{
 		// Marshall the raw return value to javascript and return the result
-		MarshallFromNativeValue marshallRetVal(sig, sigEnd, &rawret);
+		MarshallFromNativeValue marshallRetVal(&argvSig, &rawret);
 		marshallRetVal.MarshallValue();
 		return marshallRetVal.jsval;
 	}
@@ -4103,9 +4691,8 @@ JsValueRef CALLBACK JavascriptEngine::HandleData::ToNumber(JsValueRef callee, bo
 // Native pointer type
 //
 
-JavascriptEngine::NativePointerData::NativePointerData(
-	void *ptr, size_t size, const WCHAR *sig, size_t sigLen, WCHAR stringType) :
-	ptr(ptr), size(size), sig(sig, sigLen) 
+JavascriptEngine::NativePointerData::NativePointerData(void *ptr, size_t size, SigParser *sig, WCHAR stringType) :
+	ptr(ptr), size(size), sig(sig->sig)
 {
 	// add me to the native pointer map, to keep the underlying native
 	// data block we reference alive in dead object scans
@@ -4123,7 +4710,7 @@ JavascriptEngine::NativePointerData::~NativePointerData()
 
 
 JsErrorCode JavascriptEngine::NativePointerData::Create(
-	void *ptr, size_t size, const WCHAR *sig, size_t sigLen, WCHAR stringType, JsValueRef *jsval)
+	void *ptr, size_t size, SigParser *sig, WCHAR stringType, JsValueRef *jsval)
 {
 	// if the native value is a null pointer, return Javascript null
 	if (ptr == nullptr)
@@ -4135,7 +4722,7 @@ JsErrorCode JavascriptEngine::NativePointerData::Create(
 	// create the external object
 	JsErrorCode err;
 	if ((err = JsCreateExternalObjectWithPrototype(
-		new NativePointerData(ptr, size, sig, sigLen, stringType),
+		new NativePointerData(ptr, size, sig, stringType),
 		&NativePointerData::Finalize, inst->NativePointer_proto, jsval)) != JsNoError)
 		return err;
 
@@ -4353,7 +4940,8 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::FromNumber(JsValueRef c
 
 	// create a void* pointer for the value
 	JsValueRef jsval;
-	if (JsErrorCode err = Create(reinterpret_cast<void*>(i), 0, _T("v"), 1, 0, &jsval); err != JsNoError)
+	SigParser sig(_T("v"), 1);
+	if (JsErrorCode err = Create(reinterpret_cast<void*>(i), 0, &sig, 0, &jsval); err != JsNoError)
 		inst->Throw(err, _T("NativePointer.fromNumber"));
 
 	// return the object
@@ -4381,6 +4969,55 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArrayBuffer(JsValueRe
 	return ret;
 }
 
+JsValueRef CALLBACK JavascriptEngine::NativePointerData::To(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the new pointer type
+	JsErrorCode err;
+	const wchar_t *p = nullptr;
+	size_t len = 0;
+	if (argc >= 2)
+	{
+		JsValueRef str;
+		if ((err = JsConvertValueToString(argv[1], &str)) != JsNoError
+			|| (err = JsStringToPointer(str, &p, &len)) != JsNoError)
+			return inst->Throw(err, _T("NativePointer.to"));
+	}
+
+	// make sure we got a non-empty string
+	if (p == 0 || len == 0)
+		return inst->Throw(_T("NativePointer.to: new type missing"));
+
+	// get our native pointer
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.to()")); self != nullptr)
+	{
+		// if the new type a pointer type, create another pointer object;
+		// otherwise create a regular native object
+		if (*p == '*')
+		{
+			// get the size of the new dereferenced type
+			SigParser sig(p + 1, SigParser::EndOfArg(p + 1, p + len));
+			MarshallBasicSizer sizer(&sig, JS_INVALID_REFERENCE);
+			sizer.MarshallValue();
+
+			// create the pointer
+			if ((err = NativePointerData::Create(self->ptr, sizer.size, &sig, 0, &ret)) != JsNoError)
+				return inst->Throw(err, _T("NativePointer.to"));
+		}
+		else
+		{
+			// create a main signature parser with all of our reference types
+			SigParser sig(p, len);
+			ret = inst->CreateNativeObject(&sig, &self->ptr);
+		}
+	}
+
+	return ret;
+
+}
+
+
 JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArray(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
@@ -4401,20 +5038,32 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArray(JsValueRef call
 	JsValueRef ret = JS_INVALID_REFERENCE;
 	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.toArrayBuffer()")); self != nullptr)
 	{
-		// create an array of nEles of our referenced type
-		WSTRINGEx sig;
-		sig.Format(_T("[%Iu]%s"), static_cast<size_t>(nEles), self->sig.c_str());
-		ret = inst->CreateNativeObject(sig, self->ptr);
+		// create a signature for an array of nEles of our referenced type
+		WSTRINGEx arraySig;
+		arraySig.Format(_T("[%Iu]%s"), static_cast<size_t>(nEles), self->sig.c_str());
+		SigParser sigprs(arraySig);
+		ret = inst->CreateNativeObject(&sigprs, self->ptr);
 	}
 
 	return ret;
 }
 
+JsValueRef CALLBACK JavascriptEngine::NativePointerData::IsNull(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsValueRef ret = JS_INVALID_REFERENCE;
+	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.isNull()")); self != nullptr)
+		JsBoolToBoolean(self->ptr == nullptr, &ret);
+
+	return ret;
+}
+
+
 JsValueRef CALLBACK JavascriptEngine::NativePointerData::At(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	JsValueRef ret = JS_INVALID_REFERENCE;
-	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.toArrayBuffer()")); self != nullptr)
+	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.at()")); self != nullptr)
 	{
 		// we can't dereference a null pointer
 		if (self->ptr == nullptr)
@@ -4425,34 +5074,44 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::At(JsValueRef callee, b
 			return inst->Throw(_T("Native pointer to 'void' can't be dereferenced (pointer.at())"));
 
 		// test the memory area to make sure it's valid
-		__try
-		{
-			// Try reading from the memory.  Declare the referenced memory as
-			// volatile so that the compiler doesn't try to optimize away the
-			// references.
-			volatile BYTE a, b;
-			volatile BYTE *p = static_cast<volatile BYTE*>(self->ptr);
-			a = p[0];
-			b = (self->size != 0 ? p[self->size - 1] : 0);
-
-			// If the referenced type isn't const ('%' prefix), try writing back
-			// the same values to make sure the memory is writable.
-			if (self->sig[0] != '%')
-			{
-				p[0] = a;
-				if (self->size != 0)
-					p[self->size - 1] = b;
-			}
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
+		if (!self->TestAt(self->ptr, self->size))
 			return inst->Throw(_T("Bad native pointer dereference: referenced memory location is invalid or inaccessible (pointer.at())"));
-		}
 
 		// looks good - create the native data wrapper
-		ret = inst->CreateNativeObject(self->sig, self->ptr);
+		SigParser sig(self->sig);
+		ret = inst->CreateNativeObject(&sig, self->ptr);
 	}
 	return ret;
+}
+
+bool JavascriptEngine::NativePointerData::TestAt(void *ptr, size_t size)
+{
+	__try
+	{
+		// Try reading from the memory.  Declare the referenced memory as
+		// volatile so that the compiler doesn't try to optimize away the
+		// references.
+		volatile BYTE a, b;
+		volatile BYTE *p = static_cast<volatile BYTE*>(ptr);
+		a = p[0];
+		b = (size != 0 ? p[size - 1] : 0);
+
+		// If the referenced type isn't const ('%' prefix), try writing back
+		// the same values to make sure the memory is writable.
+		if (sig[0] != '%')
+		{
+			p[0] = a;
+			if (size != 0)
+				p[size - 1] = b;
+		}
+
+		// passed
+		return true;
+	}
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		return false;
+	}
 }
 
 // -----------------------------------------------------------------------
@@ -4507,19 +5166,39 @@ T JavascriptEngine::XInt64Data<T>::FromJavascript(JsValueRef jsval)
 	case JsObject:
 		// we can construct from other 64-bit types
 		{
+			// check for an external Int64 or Uint64 object
 			void *extdata;
-			if ((err = JsGetExternalData(jsval, &extdata)) != JsNoError)
+			if ((err = JsGetExternalData(jsval, &extdata)) == JsNoError)
 			{
-				inst->Throw(err, _T("Int64 math"));
-				return 0;
+				if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(extdata, nullptr); b != nullptr)
+					return static_cast<T>(b->i);
+				else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(extdata, nullptr); b != nullptr)
+					return static_cast<T>(b->i);
 			}
 
-			if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(extdata, nullptr); b != nullptr)
-				return static_cast<T>(b->i);
-			else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(extdata, nullptr); b != nullptr)
-				return static_cast<T>(b->i);
-			else
-				goto use_string;
+			// Check for "high" and "low" properties.  If the properties are
+			// present, interpret them as numbers, and build the result out
+			// of the two values.
+			JsPropertyIdRef highId, lowId;
+			JsValueRef highVal, lowVal, highNum, lowNum;
+			double high, low;
+			bool hasProp;
+			if (JsCreatePropertyId("high", 4, &highId) == JsNoError
+				&& JsHasProperty(jsval, highId, &hasProp) == JsNoError && hasProp
+				&& JsCreatePropertyId("low", 3, &lowId) == JsNoError
+				&& JsHasProperty(jsval, lowId, &hasProp) == JsNoError && hasProp
+				&& JsGetProperty(jsval, highId, &highVal) == JsNoError
+				&& JsConvertValueToNumber(highVal, &highNum) == JsNoError
+				&& JsNumberToDouble(highNum, &high) == JsNoError
+				&& JsGetProperty(jsval, lowId, &lowVal) == JsNoError
+				&& JsConvertValueToNumber(lowVal, &lowNum) == JsNoError
+				&& JsNumberToDouble(lowNum, &low) == JsNoError)
+			{
+				return (static_cast<T>(high) << 32) | static_cast<DWORD>(low);
+			}
+
+			// use the default string handling
+			goto use_string;
 		}
 		break;
 
@@ -4856,7 +5535,6 @@ JsValueRef JavascriptEngine::XInt64Data<T>::BinOp(JsValueRef *argv, unsigned sho
 	if (err != JsNoError)
 		return inst->Throw(err, _T("Int64 math"));
 
-	T result;
 	switch (type)
 	{
 	case JsUndefined:
@@ -4883,8 +5561,8 @@ JsValueRef JavascriptEngine::XInt64Data<T>::BinOp(JsValueRef *argv, unsigned sho
 			if (overflow)
 				return inst->Throw(_T("Int64 math overflow converting number operand"));
 
-			// do the math
-			result = op(a, static_cast<T>(d));
+			// convert it to our type and do the math
+			return ToJs(op(a, static_cast<T>(d)));
 		}
 		break;
 
@@ -4892,9 +5570,9 @@ JsValueRef JavascriptEngine::XInt64Data<T>::BinOp(JsValueRef *argv, unsigned sho
 		// we can operate on other 64-bit types
 		{
 			if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(argv[1], nullptr); b != nullptr)
-				result = op(a, static_cast<T>(b->i));
+				return ToJs(op(a, static_cast<T>(b->i)));
 			else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(argv[1], nullptr); b != nullptr)
-				result = op(a, static_cast<T>(b->i));
+				return ToJs(op(a, static_cast<T>(b->i)));
 			else
 				return inst->Throw(_T("Int64 math: invalid operand"));
 		}
@@ -4907,18 +5585,156 @@ JsValueRef JavascriptEngine::XInt64Data<T>::BinOp(JsValueRef *argv, unsigned sho
 			if (!ParseString(argv[1], b))
 				return inst->undefVal;
 
-			result = op(a, b);
+			return ToJs(op(a, b));
 		}
 		break;
 	}
+}
 
+template<typename T>
+JsValueRef CALLBACK JavascriptEngine::XInt64Data<T>::Compare(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// we need a 'this'
+	if (argc == 0)
+		return inst->undefVal;
+
+	// return self unchanged if there's no second operand
+	if (argc == 1)
+		return argv[0];
+
+	// get the source value
+	T a = 0;
+	if (auto self = XInt64Data<T>::Recover<XInt64Data<T>>(argv[0], _T("Int64 math")); self != nullptr)
+		a = self->i;
+	else
+		return inst->Throw(_T("Int64 math: 'this' is not an int64 type"));
+
+	// get the operand type
+	JsValueType type;
+	JsErrorCode err = JsGetValueType(argv[1], &type);
+	if (err != JsNoError)
+		return inst->Throw(err, _T("Int64 math"));
+
+	// basic comparison operator
+	auto Cmp = [](T a, T b) { return ToJsInt(a == b ? 0 : a < b ? -1 : 1); };
+
+	switch (type)
+	{
+	case JsUndefined:
+		// compare to zero if the second operand is null or undefined
+		return Cmp(a, 0);
+
+	case JsNull:
+		// math op on null yields null
+		return inst->nullVal;
+
+	case JsNumber:
+		// Number - a native double type
+		{
+			// get the double
+			double d;
+			JsNumberToDouble(argv[1], &d);
+
+			// check if we're signed or unsigned
+			if constexpr (std::is_signed<T>::value)
+			{
+				// Unsigned:
+				//
+				//  - self is non-negative, so if d < 0, self > d
+				//  - self is in 0..UINT64_MAX, so if d is > UINT64_MAX, self < d
+				if (d < 0)
+					return ToJsInt(1);
+				else if (d > static_cast<double>(UINT64_MAX))
+					return ToJsInt(-1);
+			}
+			else
+			{
+				// Signed:  self is in INT64_MIN..INT64_MAX, so if d is outside that
+				// range above or below, self < or > d
+				if (d < static_cast<double>(INT64_MIN))
+					return ToJsInt(1);
+				else if (d > static_cast<double>(INT64_MAX))
+					return ToJsInt(-1);
+			}
+
+			// it's in range - cast it to our type and compare it
+			return Cmp(a, static_cast<T>(d));
+		}
+		break;
+
+	case JsObject:
+		// we can operate on another 64-bit int type
+		if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(argv[1], nullptr); b != nullptr)
+		{
+			// b is signed
+			if (std::is_signed<T>::value)
+			{
+				// apples to apples
+				return Cmp(a, b->i);
+			}
+			else
+			{
+				// compare(unsigned, signed): if b < 0, a > b; otherwise b fits
+				// in an unsigned, so cast it and compare two unsigneds
+				return b->i < 0 ? ToJsInt(1) : Cmp(a, static_cast<T>(b->i));
+			}
+		}
+		else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(argv[1], nullptr); b != nullptr)
+		{
+			// b is unsigned
+			if (std::is_unsigned<T>::value)
+			{
+				// apples to apples
+				return Cmp(a, b->i);
+			}
+			else
+			{
+				// compare(signed, unsigned): if a < 0, a < b; otherwise a fits
+				// in an unsigned, so cast it and compare two unsigneds
+				return a < 0 ? ToJsInt(-1) : Cmp(static_cast<std::make_unsigned<T>::type>(a), b->i);
+			}
+		}
+		else
+			return inst->Throw(_T("Int64 math: invalid operand"));
+		break;
+
+	default:
+		// for anything else, try parsing it as a string and converting to type T
+		{
+			T b;
+			if (!ParseString(argv[1], b))
+				return inst->undefVal;
+
+			return Cmp(a, b);
+		}
+		break;
+	}
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::ToJs(T val)
+{
 	// create a new object to represent the result
 	JsValueRef newobj;
-	if ((err = CreateFromInt(result, newobj)) != JsNoError)
-		return  inst->Throw(err, _T("Int64 math"));
+	JsErrorCode err;
+	if ((err = CreateFromInt(val, newobj)) != JsNoError)
+		return inst->Throw(err, _T("Int64 math"));
 
 	// return the result object
 	return newobj;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::XInt64Data<T>::ToJsInt(int val)
+{
+	// create a new object to represent the result
+	JsValueRef ret;
+	JsErrorCode err;
+	if ((err = JsIntToNumber(val, &ret)) != JsNoError)
+		return inst->Throw(err, _T("Int64 math"));
+
+	// return the result
+	return ret;
 }
 
 // -----------------------------------------------------------------------
@@ -5054,9 +5870,10 @@ FARPROC JavascriptEngine::CodeGenManager::Generate(JavascriptCallbackWrapper *wr
 		// that we can come back to the thunk.
 		{
 			// count argument stack slots
-			MarshallStackArgSizer mas(wrapper->sig.c_str(), wrapper->sig.c_str() + wrapper->sig.length(), nullptr, 0, 0);
+			SigParser sig(wrapper->sig);
+			MarshallStackArgSizer mas(&sig, nullptr, 0, 0);
 			mas.Marshall();
-
+			
 			// generate the return with argument removal
 			addr[10] = 0xc2;    // RET <bytes to remove>
 			Put2(addr + 11, mas.nSlots * 4);
@@ -5064,7 +5881,7 @@ FARPROC JavascriptEngine::CodeGenManager::Generate(JavascriptCallbackWrapper *wr
 		break;
 
 	default:
-		inst->Throw(MsgFmt(_T("DllImport: unsupported calling convention in callback function (%c)"), wrapper->callingConv));
+		inst->Throw(MsgFmt(_T("dllImport: unsupported calling convention in callback function (%c)"), wrapper->callingConv));
 		break;
 	}
 
@@ -5155,9 +5972,8 @@ FARPROC JavascriptEngine::CodeGenManager::Generate(JavascriptCallbackWrapper *wr
 class JavascriptEngine::MarshallFromNativeArgv : public Marshaller
 {
 public:
-	MarshallFromNativeArgv(JavascriptCallbackWrapper *wrapper, void *argv, JsValueRef *jsArgv) :
-		Marshaller(wrapper->sig.c_str(), wrapper->sig.c_str() + wrapper->sig.length()),
-		argv(static_cast<arg_t*>(argv)), jsArgv(jsArgv)
+	MarshallFromNativeArgv(SigParser *sig, void *argv, JsValueRef *jsArgv) :
+		Marshaller(sig), argv(static_cast<arg_t*>(argv)), jsArgv(jsArgv)
 	{
 		// store the implied 'this' argument in the first slot
 		jsArgv[0] = inst->undefVal;
@@ -5173,7 +5989,7 @@ public:
 		NextArg();
 
 		// process each argument from the native vector
-		for (; p < sigEnd; NextArg())
+		for (const WCHAR *end = sig->sigEnd(); p < end ; NextArg())
 		{
 			if (*p == '%')
 				++p;
@@ -5181,12 +5997,21 @@ public:
 			// structs/unions require special handling
 			if (*p == '{')
 			{
-				p[1] == 'S' ? DoStruct() : DoUnion();
+				if (p[1] == 'S')
+					DoStruct();
+				else if (p[1] == 'U')
+					DoUnion();
+				else if (p[1] == 'I')
+					DoInterface();
+				else
+					Error(MsgFmt(_T("dllImport: internal error: invalid composite type '%c' in signature %.*s"), 
+						p[1], static_cast<int>(sig->sig.length()), sig->sig.data()));
 			}
 			else
 			{
 				// marshall one value
-				MarshallFromNativeValue mv(p, EndOfArg(), curArg);
+				SigParser subsig(p, EndOfArg());
+				MarshallFromNativeValue mv(&subsig, curArg);
 				mv.MarshallValue();
 
 				// store it in the javascript argument array
@@ -5237,7 +6062,8 @@ public:
 #error Processor architecture not supported.  Add the appropriate code here to build for this target
 #endif
 		// process the struct
-		MarshallFromNativeValue mv(p, EndOfArg(), structp);
+		SigParser subsig(p, EndOfArg());
+		MarshallFromNativeValue mv(&subsig, structp);
 		mv.MarshallValue();
 
 		// store it in the javascript argument array
@@ -5249,15 +6075,17 @@ public:
 
 	virtual void DoStruct() override
 	{
-		size_t size = SizeofStruct(JS_INVALID_REFERENCE, _T("DllImport: struct type in callback cannot use indetermine array size"));
+		size_t size = SizeofStruct(JS_INVALID_REFERENCE, _T("dllImport: struct type in callback cannot use indetermine array size"));
 		DoStructOrUnion(size);
 	}
 
 	virtual void DoUnion() override
 	{
-		size_t size = SizeofUnion(JS_INVALID_REFERENCE, _T("DllImport: array type in callback cannot use indetermine array size"));
+		size_t size = SizeofUnion(JS_INVALID_REFERENCE, _T("dllImport: array type in callback cannot use indetermine array size"));
 		DoStructOrUnion(size);
 	}
+
+	virtual void DoInterface() override { Error(_T("dllImport: interface cannot be passed by reference")); }
 
 	// native arguments on stack
 	arg_t *argv;
@@ -5274,9 +6102,8 @@ public:
 class JavascriptEngine::MarshallToNativeReturn : public MarshallToNative
 {
 public:
-	MarshallToNativeReturn(const WSTRING &sig, JsValueRef jsval, void *hiddenStructp) :
-		MarshallToNative(sig.c_str(), sig.c_str() + sig.length()),
-		jsval(jsval), hiddenStructp(hiddenStructp), retval(0)
+	MarshallToNativeReturn(SigParser *sig, JsValueRef jsval, void *hiddenStructp) :
+		MarshallToNative(sig), jsval(jsval), hiddenStructp(hiddenStructp)
 	{ }
 
 	virtual JsValueRef GetNextVal() override { return jsval; }
@@ -5297,17 +6124,26 @@ public:
 
 		// the return value is larger than expected - allocate temp space so
 		// that we don't crash, and flag it as an error
-		Error(_T("DllImport: return value from Javascript callback doesn't fit in return register"));
+		Error(_T("dllImport: return value from Javascript callback doesn't fit in return register"));
 		return inst->marshallerContext->Alloc(size);
 	}
 
 	virtual void DoArray() override
 	{
 		// array returns are invalid
-		Error(_T("DllImport: array types is invalid as Javascript callback return"));
+		Error(_T("dllImport: array types is invalid as Javascript callback return"));
 	}
 
 	virtual void DoVoid() override { /* void return - we have nothing to do */ }
+
+	// A returned BSTR is the caller's responsibility to clean up
+	virtual void ScheduleBSTRCleanup(BSTR) override { }
+
+	// Don't allow returning VARIANT values, since the cleanup
+	// requirements are unclear.  COM doesn't normally use
+	// VARIANT returns; when they need to be passed from callee
+	// to caller, it's normally through OUT parameters instead.
+	virtual void DoVariant() override { Error(_T("VARIANT cannot be used as a return type")); }
 
 	// javascript value we're marshalling
 	JsValueRef jsval;
@@ -5320,7 +6156,7 @@ public:
 	void *hiddenStructp;
 
 	// native return value
-	UINT64 retval;
+	UINT64 retval = 0;
 };
 
 // C++ entrypoint for assembler glue 
@@ -5350,7 +6186,8 @@ UINT64 JavascriptEngine_CallCallback(void *wrapper_, void *argv_)
 	JsValueRef *jsArgv = static_cast<JsValueRef*>(alloca(sizeof(JsValueRef) * (argc + 1)));
 
 	// marshall the arguments to javascript
-	JavascriptEngine::MarshallFromNativeArgv m(wrapper, argv, jsArgv);
+	JavascriptEngine::SigParser sig(wrapper->sig);
+	JavascriptEngine::MarshallFromNativeArgv m(&sig, argv, jsArgv);
 	m.Marshall();
 
 	// call the Javascript function
@@ -5358,18 +6195,18 @@ UINT64 JavascriptEngine_CallCallback(void *wrapper_, void *argv_)
 	JsCallFunction(wrapper->jsFunc, jsArgv, argc + 1, &jsResult);
 
 	// marshall the result to native code
-	JavascriptEngine::MarshallToNativeReturn mr(wrapper->sig, jsResult, hiddenStructp);
+	JavascriptEngine::MarshallToNativeReturn mr(&sig, jsResult, hiddenStructp);
 	mr.MarshallValue();
 
 	// return the marshalling result
 	return mr.retval;
 }
 
-JavascriptEngine::JavascriptCallbackWrapper::JavascriptCallbackWrapper(
-	JsValueRef jsFunc, const WCHAR *sig, const WCHAR *sigEnd) :
+JavascriptEngine::JavascriptCallbackWrapper::JavascriptCallbackWrapper(JsValueRef jsFunc, SigParser *sigprs) :
 	jsFunc(jsFunc), hasHiddenStructArg(false)
 {
 	// store the calling convention code - it's the first character of the function signature
+	const WCHAR *sig = sigprs->sig.data(), *sigEnd = sigprs->sigEnd();
 	callingConv = *sig++;
 
 	// save the signature, minus the calling convention
@@ -5382,39 +6219,47 @@ JavascriptEngine::JavascriptCallbackWrapper::JavascriptCallbackWrapper(
 	// argument counts in the native stack but doesn't get passed to Javascript,
 	// so we'll have to know whether it's there or not when the glue function
 	// is invoked.
-	if (*sig == '{')
+	if (*sig == '@')
 	{
-		if (sig[1] == 'S')
+		// expand the type reference
+		std::wstring_view refsig;
+		if (inst->LookUpNativeType(sig + 1, Marshaller::EndOfArg(sig + 1, sigEnd) - (sig + 1), refsig))
 		{
-			MarshallStructSizer ss(sig + 3, Marshaller::EndOfArg(sig, sigEnd) - 1, JS_INVALID_REFERENCE);
-			ss.Marshall();
-			if (ss.size > 8)
-				hasHiddenStructArg = true;
-		}
-		else if (sig[1] == 'U')
-		{
-			MarshallUnionSizer ss(sig + 3, Marshaller::EndOfArg(sig, sigEnd) - 1, JS_INVALID_REFERENCE);
-			ss.Marshall();
-			if (ss.size > 8)
-				hasHiddenStructArg = true;
+			if (refsig[1] == 'S')
+			{
+				SigParser subsig(refsig.data() + 3, refsig.data() + refsig.length() - 1);
+				MarshallStructSizer ss(&subsig, JS_INVALID_REFERENCE);
+				ss.Marshall();
+				if (ss.size > 8)
+					hasHiddenStructArg = true;
+			}
+			else if (sig[1] == 'U')
+			{
+				SigParser subsig(refsig.data() + 3, refsig.data() + refsig.length() - 1);
+				MarshallUnionSizer ss(&subsig, JS_INVALID_REFERENCE);
+				ss.Marshall();
+				if (ss.size > 8)
+					hasHiddenStructArg = true;
+			}
 		}
 	}
 
 	// set up a basic marshaller just to count the arguments
-	MarshallBasicSizer sizer(sig, sigEnd, JS_INVALID_REFERENCE);
+	SigParser argsig(sig, sigEnd);
+	MarshallBasicSizer sizer(&argsig, JS_INVALID_REFERENCE);
 
 	// skip the return value argument
 	sizer.NextArg();
 
 	// count arguments
-	for (argc = 0; sizer.p < sizer.sigEnd; sizer.NextArg(), ++argc);
+	for (argc = 0; sizer.p < sizer.sig->sigEnd(); sizer.NextArg(), ++argc);
 
 	// Create a thunk.  Do this after parsing the arguments, since the thunk
 	// generator might take special action based on the argument types.
 	thunk = inst->codeGenManager.Generate(this);
 	if (thunk == nullptr)
 	{
-		inst->Throw(_T("DllImport: unable to create thunk for Javascript callback"));
+		inst->Throw(_T("dllImport: unable to create thunk for Javascript callback"));
 		return;
 	}
 }
@@ -5431,7 +6276,8 @@ JavascriptEngine::JavascriptCallbackWrapper::~JavascriptCallbackWrapper()
 // Native objects
 //
 
-JsValueRef JavascriptEngine::CreateNativeObject(const WSTRING &sig, void *data, NativeTypeWrapper **pCreatedObj)
+template<typename T>
+JsValueRef JavascriptEngine::CreateNativeObject(SigParser *sig, void *data, T **pCreatedObj)
 {
 	// no object created yet
 	if (pCreatedObj != nullptr)
@@ -5444,22 +6290,21 @@ JsValueRef JavascriptEngine::CreateNativeObject(const WSTRING &sig, void *data, 
 		return JS_INVALID_REFERENCE;
 	};
 
-	// we can't have an empty signature, obviously
-	if (sig.length() == 0)
-		return Error(_T("DllImport: creating native object: missing type signature"));
+	// check if it's a COM interface
+	const WCHAR *p = sig->sig.data();
+	bool isCOM = (p[0] == '*' && p[1] == '@' && p[2] == 'I') || (p[0] == '@' && p[1] == 'I');
 
-	// set up to scan the signature
-	const WCHAR *p = sig.c_str();
-	const WCHAR *sigEnd = p + sig.length();
-
-	// get the size of the object
-	MarshallBasicSizer sizer(p, sigEnd, JS_INVALID_REFERENCE);
+	// get the size of the object	if (!isCOM)
+	MarshallBasicSizer sizer(sig, JS_INVALID_REFERENCE);
 	if (!sizer.Marshall() || sizer.error)
 		return JS_INVALID_REFERENCE;
 
 	// Zero-size objects (e.g., void or void[5]) are invalid
-	if (sizer.size == 0)
-		return Error(_T("DllImport: creating native object: can't create type with zero size"));
+	if (sizer.size == 0 && !isCOM)
+		return Error(_T("dllImport: creating native object: can't create type with zero size"));
+
+	// Cache based on the type signature
+	WSTRING cacheKey(sig->sig);
 
 	// Look up the prototype object for the native type signature in
 	// our type cache.  If we've encountered this same type before,
@@ -5467,7 +6312,7 @@ JsValueRef JavascriptEngine::CreateNativeObject(const WSTRING &sig, void *data, 
 	// have to create a new prototype for a data view object for this
 	// type signature.
 	NativeTypeCacheEntry *entry = nullptr;
-	if (auto it = nativeTypeCache.find(sig); it != nativeTypeCache.end())
+	if (auto it = nativeTypeCache.find(cacheKey); it != nativeTypeCache.end())
 	{
 		// got it - reuse the existing entry
 		entry = &it->second;
@@ -5479,20 +6324,41 @@ JsValueRef JavascriptEngine::CreateNativeObject(const WSTRING &sig, void *data, 
 		// view object for this type.
 		JsValueRef proto = JS_INVALID_REFERENCE;
 		if ((err = JsCreateObject(&proto)) != JsNoError)
-			return Throw(err, _T("DllImport: creating prototype for native data view object"));
+			return Throw(err, _T("dllImport: creating prototype for native data view object"));
+
+		// if it's a COM object, set the prototype's prototype to COMObject
+		if (isCOM && (err = JsSetPrototype(proto, COMPointer_proto)) != JsNoError)
+			return Throw(err, _T("dllImport: setting COMPointer prototype"));
 
 		// create the cache entry
 		entry = &nativeTypeCache.emplace(
 			std::piecewise_construct,
-			std::forward_as_tuple(sig),
+			std::forward_as_tuple(cacheKey),
 			std::forward_as_tuple(proto)).first->second;
 
 		// add getters and setters
 		InitNativeObjectProto(entry, sig);
 	}
 
-	// Create a NativeTypeWrapper for the object
-	return NativeTypeWrapper::Create(pCreatedObj, entry->proto, p, sigEnd, sizer.size, data);
+	// create the appropriate native wrapper
+	if (isCOM)
+	{
+		// COM interface pointer
+		COMImportData **n = nullptr;
+		if constexpr (std::is_same<T, COMImportData>::value) n = pCreatedObj;
+		SigParser ifcSig(sig->sig);
+		IUnknown *pUnknown = data == nullptr ? nullptr :
+			p[0] == '*' ? *static_cast<IUnknown**>(data) : 
+			static_cast<IUnknown*>(data);
+		return COMImportData::Create(n, entry->proto, pUnknown, &ifcSig);
+	}
+	else
+	{
+		// For all other types, create a NativeTypeWrapper for the object
+		NativeTypeWrapper **n = nullptr;
+		if constexpr (std::is_same<T, NativeTypeWrapper>::value) n = pCreatedObj;
+		return NativeTypeWrapper::Create(n, entry->proto, sig, sizer.size, data);
+	}
 }
 
 // Add a getter, setter, and (optionally) valueOf to a native type view object
@@ -5508,7 +6374,7 @@ void JavascriptEngine::AddToNativeTypeView(NativeTypeCacheEntry *entry, const WC
 	JsErrorCode err;
 	if ((err = JsPointerToString(name, wcslen(name), &nameStr)) != JsNoError)
 	{
-		Throw(err, _T("DllImport: creating getter/setter for native object"));
+		Throw(err, _T("dllImport: creating getter/setter for native object"));
 		return;
 	}
 
@@ -5548,15 +6414,15 @@ void JavascriptEngine::AddToNativeTypeView(NativeTypeCacheEntry *entry, const WC
 
 	// throw on any error
 	if (err != JsNoError)
-		Throw(err, _T("DllImport: creating getter/setter for native object"));
+		Throw(err, _T("dllImport: creating getter/setter for native object"));
 }
 
 
-void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const WSTRING &sig)
+void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigParser *sigprs)
 {
 	// get the native signature
-	const WCHAR *p = sig.c_str();
-	const WCHAR *endp = p + sig.length();
+	const WCHAR *p = sigprs->sig.data();
+	const WCHAR *endp = sigprs->sigEnd();
 
 	// check for const qualification
 	bool isConst = false;
@@ -5566,9 +6432,32 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 		++p;
 	}
 
-	// service routine to add the getter/setter property
-	auto AddGetterSetter = [this, entry, isConst](size_t offset, const WCHAR *name, const WCHAR *sig, size_t siglen, bool hasValueOf)
+	// if it's a reference type, descend into the referenced typed
+	if (p < endp && *p == '@')
 	{
+		++p;
+		std::wstring_view reftype;
+		if (!LookUpNativeType(p, endp - p, reftype))
+			return;
+
+		p = reftype.data();
+		endp = p + reftype.length();
+	}
+
+	// service routine to add the getter/setter property
+	auto AddGetterSetter = [this, entry, isConst, sigprs](size_t offset, const WCHAR *name, const WCHAR *sig, size_t siglen, bool hasValueOf)
+	{
+		// expand references
+		if (sig[0] == '@')
+		{
+			std::wstring_view reftype;
+			if (!inst->LookUpNativeType(sig + 1, siglen - 1, reftype))
+				return;
+
+			sig = reftype.data();
+			siglen = reftype.length();
+		}
+
 		switch (*sig)
 		{
 		case 'b':
@@ -5608,11 +6497,11 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 			break;
 
 		case 'l':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<INT64>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<INT64, INT64>(offset), hasValueOf, !isConst);
 			break;
 
 		case 'L':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<UINT64>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<UINT64, INT64>(offset), hasValueOf, !isConst);
 			break;
 
 
@@ -5622,23 +6511,31 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 			// even though these are nominally "int64" viewers, they'll
 			// follow the templates and actually use int32 types on x86.
 		case 'z':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<SSIZE_T>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<SSIZE_T, INT64>(offset), hasValueOf, !isConst);
 			break;
 
 		case 'Z':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<SIZE_T>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<SIZE_T, UINT64>(offset), hasValueOf, !isConst);
 			break;
 
 		case 'p':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<INT_PTR>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<INT_PTR, INT64>(offset), hasValueOf, !isConst);
 			break;
 
 		case 'P':
-			AddToNativeTypeView(entry, name, new Int64NativeTypeView<UINT_PTR>(offset), hasValueOf, !isConst);
+			AddToNativeTypeView(entry, name, new Int64NativeTypeView<UINT_PTR, UINT64>(offset), hasValueOf, !isConst);
 			break;
 
 		case 'H':
 			AddToNativeTypeView(entry, name, new HandleNativeTypeView(offset), hasValueOf, !isConst);
+			break;
+
+		case 'B':
+			AddToNativeTypeView(entry, name, new BSTRNativeTypeView(offset), hasValueOf, !isConst);
+			break;
+
+		case 'V':
+			AddToNativeTypeView(entry, name, new VariantNativeTypeView(offset), hasValueOf, !isConst);
 			break;
 
 		case 't':
@@ -5653,27 +6550,39 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 					(isConst ? L"%S" : L"S"));
 
 				// add the pointer view
-				AddToNativeTypeView(entry, name, new PointerNativeTypeView(offset, ptrsig, wcslen(ptrsig), *sig), hasValueOf, !isConst);
+				SigParser subsig(ptrsig, wcslen(ptrsig));
+				AddToNativeTypeView(entry, name, new PointerNativeTypeView(offset, &subsig, *sig), hasValueOf, !isConst);
 			}
-			break;
-
-		case '*':
-		case '&':
-			// generic pointer type
-			AddToNativeTypeView(entry, name, new PointerNativeTypeView(offset, sig + 1, siglen - 1, 0), hasValueOf, !isConst);
 			break;
 
 		case '{':
 		case '[':
 			// Add a nested type viewer.  These don't have setters, as they're
 			// structural elements of the enclosing type.
-			AddToNativeTypeView(entry, name, new NestedNativeTypeView(offset, sig, siglen), false, false);
+			{
+				SigParser subsig(sig, siglen);
+				AddToNativeTypeView(entry, name, new NestedNativeTypeView(offset, &subsig), false, !isConst);
+			}
+			break;
+
+		case '*':
+		case '&':
+			// Pointer/ref
+			{
+				// check if it's a COM interface pointer
+				bool isCom = (sig[1] == '@' && sig[2] == 'I');
+
+				// Pointer to other type.  Add a getter/setter of the given name, using
+				// a PointerNativeTypeView of the underlying pointer.
+				SigParser subsig(sig + 1, Marshaller::EndOfArg(sig, sig + siglen));
+				AddToNativeTypeView(entry, name, new PointerNativeTypeView(offset, &subsig, 0), hasValueOf && !isCom, !isConst);
+			}
 			break;
 		}
 	};
 
 	// check the native value type
-	switch (*p)
+	switch (auto curType = *p)
 	{
 	case '[':
 		// Array type.  An array doesn't have any getter/setters; instead, it has
@@ -5684,17 +6593,18 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 			bool empty;
 			if (!Marshaller::ParseArrayDim(p, endp, dim, empty))
 			{
-				Throw(_T("DllImport: invalid array dimension in native type view"));
+				Throw(_T("dllImport: invalid array dimension in native type view"));
 				break;
 			}
 			if (empty)
 			{
-				Throw(_T("DllImport: unspecified array dimension not allowed in native type view"));
+				Throw(_T("dllImport: unspecified array dimension not allowed in native type view"));
 				break;
 			}
 
 			// figure the size of the underlying type
-			MarshallBasicSizer sizer(p, endp, JS_INVALID_REFERENCE);
+			SigParser subsig(p, endp);
+			MarshallBasicSizer sizer(&subsig, JS_INVALID_REFERENCE);
 			sizer.MarshallValue();
 
 			// Add a read-only length property with the array length
@@ -5717,26 +6627,39 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 		break;
 
 	case '{':
-		// Struct/union type.  The prototype has a getter and setter for 
-		// each element, with the same name as the struct element.
+		// Composite type
+		if (p[1] == 'S' || p[1] == 'U')
 		{
+			// Struct or union type.  The prototype has a getter and setter for
+			// each element, with the same name as the struct element.
 			auto Parse = [this, p, endp, &AddGetterSetter](MarshallStructOrUnionSizer &sizer)
 			{
-				for ( ; sizer.p < sizer.sigEnd; sizer.NextArg())
+				sizer.MarshallStructMembers([this, &sizer, &AddGetterSetter](WSTRING &memberName, WSTRING &memberSig)
 				{
-					// Marshall one value through the sizer.  This will read the
-					// next tag name and figure the size and offset of the item.
+					// marshall the value
 					sizer.MarshallValue();
 
 					// add a getter and setter for this type
-					AddGetterSetter(sizer.lastItemOfs, sizer.curProp.c_str(), sizer.curPropType.c_str(), sizer.curPropType.length(), false);
-				}
+					AddGetterSetter(sizer.lastItemOfs, memberName.c_str(), memberSig.c_str(), memberSig.length(), false);
+
+					// continue the iteration
+					return true;
+				});
 			};
+			SigParser subsig(p + 3, endp - 1);
 			if (p + 1 < endp && p[1] == 'U')
-				Parse(MarshallUnionSizer(p + 3, endp - 1, JS_INVALID_REFERENCE));
+				Parse(MarshallUnionSizer(&subsig, JS_INVALID_REFERENCE));
 			else
-				Parse(MarshallStructSizer(p + 3, endp - 1, JS_INVALID_REFERENCE));
+				Parse(MarshallStructSizer(&subsig, JS_INVALID_REFERENCE));
 		}
+		else if (p[1] == 'I')
+		{
+			// COM interface.  Treat this the same as a pointer to a COM interface, 
+			// as "COM interface by value" isn't meaningful.
+			COMImportData::CreatePrototype(entry->proto, p, Marshaller::EndOfArg(p, endp));
+		}
+		else
+			Throw(MsgFmt(_T("dllImport: native object prototype setup: invalid composite type code '%c'"), p[1]));
 		break;
 
 	case 'b':
@@ -5756,6 +6679,8 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 	case 'p':
 	case 'P':
 	case 'H':
+	case 'V':
+	case 'B':
 		// The whole native object is a primitive scalar type.  Add a getter/setter
 		// for "value".  Also add the same getter as the valueOf() method.  Since
 		// this is the only value in the object, it's at offset zero.
@@ -5764,9 +6689,21 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 
 	case '*':
 	case '&':
-		// Pointer types are scalars with .value getter/setters, plus an .at
-		// property that dereferences the pointer.
-		AddGetterSetter(0, L"value", p, Marshaller::EndOfArg(p, endp) - p, true);
+		// Check what we're pointing at
+		if (curType == '*' && p[1] == '@' && p[2] == 'I')
+		{
+			// Pointer to COM interface type.  This use a prototype with properties
+			// named for the interface members, each with a Javascript function that
+			// invokes the native function via the normal JS-to-native marshalling.
+			COMImportData::CreatePrototype(entry->proto, p + 1, Marshaller::EndOfArg(p + 1, endp));
+		}
+		else
+		{
+			// A pointer to anything else is a scalar value containing the pointer.
+			// The 'value' yields a NativePointer object containing a dereferencable
+			// version of the pointer.
+			AddGetterSetter(0, L"value", p, Marshaller::EndOfArg(p, endp) - p, true);
+		}
 		break;
 
 	case 't':
@@ -5777,14 +6714,28 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, const 
 
 	case 'v':
 		// Void can't be used for in a data view
-		Throw(_T("DllImport: a native type view can't be created for VOID data"));
+		Throw(_T("dllImport: a native type view can't be created for VOID data"));
 		break;
 
 	default:
 		// other types are invalid
-		Throw(MsgFmt(_T("DllImport: native object prototype setup: invalid native type code '%c'"), *p));
+		Throw(MsgFmt(_T("dllImport: native object prototype setup: invalid native type code '%c'"), *p));
 		break;
 	}
+}
+
+bool JavascriptEngine::IsPointerType(const WCHAR *sig)
+{
+	if (*sig == '%')
+		++sig;
+	return (*sig == '*');
+}
+
+bool JavascriptEngine::IsArrayType(const WCHAR *sig)
+{
+	if (*sig == '%')
+		++sig;
+	return (*sig == '[');
 }
 
 const WCHAR *JavascriptEngine::SkipPointerOrArrayQual(const WCHAR *sig)
@@ -5803,84 +6754,109 @@ const WCHAR *JavascriptEngine::SkipPointerOrArrayQual(const WCHAR *sig)
 	return sig;
 }
 
-bool JavascriptEngine::IsPointerConversionValid(const WCHAR *from, const WCHAR *to)
+bool JavascriptEngine::IsPointerConversionValid(SigParser *fromSig, SigParser *toSig)
 {
-	// we can cast anything to void* or const void*
-	if (to[0] == 'v' || (to[0] == '%' && to[1] == 'v'))
-		return true;
+	const WCHAR *from = fromSig->sig.data(), *fromEnd = from + fromSig->sig.length();
+	const WCHAR *to = toSig->sig.data(), *toEnd = to + toSig->sig.length();
 
-	// check for const qualification on the 'from' type
-	if (*from == '%')
+	// scan pointer qualifiers
+	while (from < fromEnd && to < toEnd)
 	{
-		// we can't remove const qualification with a cast
-		if (*to != '%')
-			return false;
+		// check for const qualification on the 'from' type
+		if (*from == '%')
+		{
+			// we can't remove const qualification with a cast
+			if (*to != '%')
+				return false;
 
-		// matching const qualifiers; skip the '%' in both types so that
-		// we can compare the underlying types
-		++from;
-		++to;
+			// matching const qualifiers; skip the '%' in both types so that
+			// we can compare the underlying types
+			++from;
+			++to;
+		}
+
+		// a cast that adds const qualification is legal, so if the 'to'
+		// type is const-qualified, skip the qualifier and compare the rest
+		// according to the underlying type
+		if (to < toEnd && *to == '%')
+			++to;
+
+		// if we have two pointers at this point, remove this level of
+		// pointer qualification and proceed to the underlying types
+		if (to < toEnd && *to == '*' && from < fromEnd && *from == '*')
+		{
+			++to;
+			++from;
+		}
+		else
+			break;
 	}
 
-	// a cast that adds const qualification is legal, so if the 'to'
-	// type is const-qualified, skip the qualifier and compare the rest
-	// according to the underlying type
-	if (*to == '%')
-		++to;
-
-	// cast from anything to or from void* is legal
+	// A cast from anything to or from void* is legal.  Note that this
+	// is less restrictive than the standard C rules: in standard C, a
+	// cast-less conversion from any pointer type to void* is valid, but
+	// the reverse isn't true: a cast form void* to another pointer type
+	// requires an explicit cast.  It would be cumbersome to represent
+	// explicit casting operators in Javascript, though, so we instead
+	// use void* to allow a cast to anything: if you want to perform an
+	// otherwise incompatible conversion, assign the source pointer to
+	// a void* variable, and assign void* to your destination pointer.
+	//
+	// This is also less restrictive than standard C in another subtler
+	// way.  In standard C, the ability to cast from T* to void* for any
+	// type T only goes one pointer level deep: conversion from T** to 
+	// void** isn't allowed without a cast.  That's not just for the sake
+	// of fastidiousness; there exist actual platforms where pointers to 
+	// different types have different representations, which makes it
+	// impossible for the compiler to correctly generate code in general
+	// for a cast from T** to void**.  However, on all Windows hardware,
+	// pointer representations are in fact identical across all types,
+	// so double- (or N-)indirect casts are fine at the hardware level.
+	// They're still usually dubious at the program logic level, of
+	// course, but they're nonetheless required in practice for at
+	// least one common Windows programming situation: COM.  Many COM
+	// calls, including CoCreateInstance() and the ubiquitous
+	// IUnknown::QueryInterface(), use void** arguments to represent
+	// OUT parameters that are populated by the callee with interface
+	// pointers of types that vary at run-time.  Microsoft resorted to
+	// this because there was no type-safe alternative in C.  It would
+	// have been possible to come up with something more type-safe in 
+	// C++, but COM was specifically designed to be language-neutral,
+	// which would have ruled out anything like C++ RTTI or templates.
 	if (*to == 'v' || *from == 'v')
 		return true;
 
 	// casts between identical pointer types are legal
-	if (wcscmp(from, to) == 0)
+	if (std::wstring_view(from, fromEnd - from) == std::wstring_view(to, toEnd - to))
 		return true;
 
-	// If the 'from' type is a struct, and the first struct element
-	// is the 'to' type, it's legal.  This corresponds to a C++ cast
-	// from derived class to base class.
-	if (from[0] == '{' && from[1] == 'S')
-	{
-		// find the first element type, and test for compatibility
-		// from that element type to the 'to' type
-		const WCHAR *p = from + 3;
-		for (; *p != 0 && *p != ':'; ++p);
-		if (*p == ':')
-		{
-			++p;
-			WSTRING eletype(p, Marshaller::EndOfArg(p, p + wcslen(p)) - p);
-			if (IsPointerConversionValid(eletype.c_str(), to))
-				return true;
-		}
-	}
-
 	// A cast to a smaller array of the same type is legal
-	if (from[0] == '[' && to[0] == '[')
+	if (from < fromEnd && from[0] == '[' && to < toEnd && to[0] == '[')
 	{
 		// read the two array dimensions
 		size_t fromDim, toDim;
 		bool fromEmpty, toEmpty;
 		const WCHAR *pfrom = from, *pto = to;
-		if (Marshaller::ParseArrayDim(pfrom, pfrom + wcslen(pfrom), fromDim, fromEmpty)
-			&& Marshaller::ParseArrayDim(pto, pto + wcslen(pto), toDim, toEmpty)
+		if (Marshaller::ParseArrayDim(pfrom, fromEnd, fromDim, fromEmpty)
+			&& Marshaller::ParseArrayDim(pto, toEnd, toDim, toEmpty)
 			&& toDim <= fromDim)
 		{
 			// The dimensions are compatible; allow it if the types are identical.
 			// Note that the types have to be identical, not just compatible, since
 			// the element types have to be the same for the pointer arithmetic
 			// within the new array to work properly.
-			if (wcscmp(pfrom, pto) == 0)
+			if (std::wstring_view(pfrom, fromEnd - pfrom) == std::wstring_view(pto, toEnd - pto))
 				return true;
 		}
 	}
 
 	// A cast from an array to a single element of the same type is legal
-	if (from[0] == '[')
+	if (from < fromEnd && from[0] == '[')
 	{
 		// skip the array specifier in the 'from'
 		const WCHAR *pfrom = from;
-		for (; *pfrom != 0 && *pfrom != ']'; ++pfrom);
-		if (*pfrom == ']' && wcscmp(pfrom + 1, to) == 0)
+		for (; pfrom < fromEnd && *pfrom != ']'; ++pfrom);
+		if (pfrom < fromEnd && *pfrom == ']' && std::wstring_view(pfrom + 1, fromEnd - pfrom - 1) == std::wstring_view(to, toEnd - to))
 			return true;
 	}
 
@@ -5898,7 +6874,7 @@ JsValueRef CALLBACK JavascriptEngine::ScalarNativeTypeView::Getter(JsValueRef ca
 {
 	// recover the native object from 'this'
 	JsValueRef jsval;
-	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: data object view: primitive data getter")); obj != nullptr)
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("dllImport: data object view: primitive data getter")); obj != nullptr)
 	{
 		// get the data view definition for this getter from the context
 		auto view = static_cast<const ScalarNativeTypeView*>(ctx);
@@ -5917,7 +6893,7 @@ JsValueRef CALLBACK JavascriptEngine::ScalarNativeTypeView::ToString(JsValueRef 
 {
 	// recover the native object from 'this'
 	JsValueRef jsval;
-	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: data object view: primitive data getter")); obj != nullptr)
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("dllImport: data object view: primitive data getter")); obj != nullptr)
 	{
 		// get the data view definition for this getter from the context
 		auto view = static_cast<const ScalarNativeTypeView*>(ctx);
@@ -5957,7 +6933,7 @@ JsValueRef CALLBACK JavascriptEngine::ScalarNativeTypeView::Setter(JsValueRef ca
 		return JavascriptEngine::ThrowSimple("Setting: missing value");
 
 	// recover the native object from 'this'
-	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: native object view: primitive data setter")); obj != nullptr)
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("dllImport: native object view: primitive data setter")); obj != nullptr)
 	{
 		// get the data view definition for this setter, from the context
 		auto view = static_cast<const ScalarNativeTypeView*>(ctx);
@@ -5976,25 +6952,39 @@ JsValueRef CALLBACK JavascriptEngine::ScalarNativeTypeView::Setter(JsValueRef ca
 // type (int*, etc) in a native data object.
 //
 
-JavascriptEngine::PointerNativeTypeView::PointerNativeTypeView(size_t offset, const WCHAR *sig, size_t sigLen, WCHAR stringType) :
-	ScalarNativeTypeView(offset), sig(sig, sigLen), stringType(stringType)
+JavascriptEngine::PointerNativeTypeView::PointerNativeTypeView(size_t offset, SigParser *sig, WCHAR stringType) :
+	ScalarNativeTypeView(offset), 
+	sig(sig->sig), stringType(stringType)
 {
 	// figure the size of the underlying type
-	MarshallBasicSizer sizer(sig, sig + sigLen, JS_INVALID_REFERENCE);
+	MarshallBasicSizer sizer(sig, JS_INVALID_REFERENCE);
 	sizer.MarshallValue();
-
 	this->size = sizer.size;
 }
 
 JsErrorCode JavascriptEngine::PointerNativeTypeView::Get(JsValueRef self, void *nativep, JsValueRef *jsval) const
 {
+	// create the NativePointer javascript object to represent the pointer
+	SigParser sigprs(sig);
+	return TryGet(&sigprs, nativep, jsval);
+}
+
+JsErrorCode JavascriptEngine::PointerNativeTypeView::TryGet(SigParser *sig, void *nativep, JsValueRef *jsval) const
+{
 	__try
 	{
-		// The native field is a pointer type - retrieve it as a void*
-		void *ptr = *reinterpret_cast<void* const*>(nativep);
-
-		// create the NativePointer javascript object to represent the pointer
-		return NativePointerData::Create(ptr, size, sig.c_str(), sig.length(), stringType, jsval);
+		if (sig->sig[0] == '@' && sig->sig[1] == 'I')
+		{
+			// COM interface pointer.  Create a COMPointer object.
+			*jsval = inst->CreateNativeObject(sig, *reinterpret_cast<IUnknown**>(nativep));
+			return JsNoError;
+		}
+		else
+		{
+			// non-COM type - return a NativePointer object
+			void *ptr = *reinterpret_cast<void* const*>(nativep);
+			return NativePointerData::Create(ptr, size, sig, stringType, jsval);
+		}
 	}
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
@@ -6005,26 +6995,61 @@ JsErrorCode JavascriptEngine::PointerNativeTypeView::Get(JsValueRef self, void *
 
 JsErrorCode JavascriptEngine::PointerNativeTypeView::Set(JsValueRef self, void *nativep, JsValueRef jsval) const
 {
+	auto Apply = [this, nativep](void *newPointerVal)
+	{
+		// check what we're pointing at
+		if (sig[0] == '@' && sig[1] == 'I')
+		{
+			// COM interface pointer.  Add a reference on the new pointer to
+			// reflect the reference we're creating by copying the pointer value 
+			// into this new location.  Note that we must always count a new
+			// reference before releasing an old one in a situation like this,
+			// to account for the situation where the new and old pointer are
+			// the same (as releasing first in this case could incorrectly let
+			// the ref count reach zero and delete the underlying object, even
+			// though we have two live pointers to it).
+			IUnknown *pNewUnk = reinterpret_cast<IUnknown*>(newPointerVal);
+			if (pNewUnk != nullptr)
+				pNewUnk->AddRef();
+
+			// now release the old object whose reference we're about to overwrite
+			IUnknown **ppDestUnk = reinterpret_cast<IUnknown**>(nativep);
+			if (*ppDestUnk != nullptr)
+				(*ppDestUnk)->Release();
+
+			// move the new interface pointer into the target slot
+			*ppDestUnk = pNewUnk;
+		}
+		else
+		{
+			// other - just set the new pointer value
+			*reinterpret_cast<void**>(nativep) = newPointerVal;
+		}
+
+		// success
+		return JsNoError;
+	};
+
 	// Javascript null or undefined counts as a null pointer
 	if (jsval == inst->nullVal || jsval == inst->undefVal)
-	{
-		*reinterpret_cast<void**>(nativep) = nullptr;
-		return JsNoError;
-	}
+		return Apply(nullptr);
 
+	// set up a signature parser for my reference element signature
+	SigParser toEle(sig);
+		
 	// if the value is another native pointer object, use its pointer value
 	if (auto ptr = NativePointerData::Recover<NativePointerData>(jsval, nullptr); ptr != nullptr)
 	{
 		// Make sure the other pointer conversion is legal
-		if (!IsPointerConversionValid(ptr->sig.c_str(), sig.c_str()))
+		SigParser fromEle(ptr->sig);
+		if (!IsPointerConversionValid(&fromEle, &toEle))
 		{
 			inst->Throw(_T("Incompatible pointer type conversion; assign through a void* to override type checking"));
 			return JsErrorInvalidArgument;
 		}
 
 		// looks good - set the pointer
-		*reinterpret_cast<void**>(nativep) = ptr->ptr;
-		return JsNoError;
+		return Apply(ptr->ptr);
 	}
 
 	// if the value is a native object of the same type as the pointer referent,
@@ -6032,15 +7057,15 @@ JsErrorCode JavascriptEngine::PointerNativeTypeView::Set(JsValueRef self, void *
 	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, nullptr); obj != nullptr)
 	{
 		// if it's a native object of the pointer referent type, use its address
-		if (!IsPointerConversionValid(obj->sig.c_str(), sig.c_str()))
+		SigParser fromEle(obj->sig);
+		if (!IsPointerConversionValid(&fromEle, &toEle))
 		{
 			inst->Throw(_T("Incompatible pointer type conversion; assign through a void* to override type checking"));
 			return JsErrorInvalidArgument;
 		}
 
 		// set the pointer
-		*reinterpret_cast<void**>(nativep) = obj->data;
-		return JsNoError;
+		return Apply(obj->data);
 	}
 
 	inst->Throw(_T("Invalid type for pointer assignment"));
@@ -6059,8 +7084,9 @@ JsErrorCode JavascriptEngine::PointerNativeTypeView::Set(JsValueRef self, void *
 // its setters to set the individual fields therein.
 //
 
-JavascriptEngine::NestedNativeTypeView::NestedNativeTypeView(size_t offset, const WCHAR *sig, size_t siglen) :
-	NativeTypeView(offset), sig(sig, siglen)
+JavascriptEngine::NestedNativeTypeView::NestedNativeTypeView(size_t offset, SigParser *sig) :
+	NativeTypeView(offset), 
+	sig(sig->sig)
 {
 }
 
@@ -6068,13 +7094,14 @@ JsValueRef CALLBACK JavascriptEngine::NestedNativeTypeView::Getter(JsValueRef ca
 {
 	// recover the native object from 'this'
 	JsValueRef jsval;
-	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("DllImport: data object view: nested type getter")); obj != nullptr)
+	if (auto obj = NativeTypeWrapper::Recover<NativeTypeWrapper>(argv[0], _T("dllImport: data object view: nested type getter")); obj != nullptr)
 	{
 		// get the data view definition for this getter from the context
 		auto view = static_cast<const NestedNativeTypeView*>(ctx);
 
 		// create a native data viewer for the element data
-		return inst->CreateNativeObject(view->sig, obj->data + view->offset);
+		SigParser sig(view->sig);
+		return inst->CreateNativeObject(&sig, obj->data + view->offset);
 	}
 
 	// failed - return undefined
@@ -6088,10 +7115,10 @@ JsValueRef CALLBACK JavascriptEngine::NestedNativeTypeView::Getter(JsValueRef ca
 //
 
 JsValueRef JavascriptEngine::NativeTypeWrapper::Create(
-	NativeTypeWrapper **pCreatedObject, JsValueRef proto, const WCHAR *sig, const WCHAR *sigEnd, size_t size, void *extData)
+	NativeTypeWrapper **pCreatedObject, JsValueRef proto, SigParser *sig, size_t size, void *extData)
 {
 	// create the wrapper object
-	auto *wrapper = new NativeTypeWrapper(sig, sigEnd, size, extData);
+	auto *wrapper = new NativeTypeWrapper(sig, size, extData);
 
 	// pass it back to the caller if desired
 	if (pCreatedObject != nullptr)
@@ -6101,25 +7128,27 @@ JsValueRef JavascriptEngine::NativeTypeWrapper::Create(
 	JsValueRef jsobj;
 	JsErrorCode err;
 	if ((err = JsCreateExternalObjectWithPrototype(wrapper, &NativeTypeWrapper::Finalize, proto, &jsobj)) != JsNoError)
-		return inst->Throw(err, _T("DllImport: creating external object for native data"));
+		return inst->Throw(err, _T("dllImport: creating external object for native data"));
 
 	// return the object
 	return jsobj;
 }
 
-void JavascriptEngine::NativeTypeWrapper::InitCbSize(const WCHAR *sig, const WCHAR *sigEnd, BYTE *data, size_t mainStructSize)
+void JavascriptEngine::NativeTypeWrapper::InitCbSize(SigParser *sig, BYTE *data, size_t mainStructSize)
 {
-	if (sig + 2 < sigEnd && sig[0] == '{' && sig[1] == 'S')
+	const WCHAR *p = sig->sig.data(), *end = sig->sigEnd();
+	if (p + 2 < end && p[0] == '{' && p[1] == 'S')
 	{
 		// set up a sizer
-		JavascriptEngine::MarshallStructSizer sizer(sig + 3, sigEnd - 1, JS_INVALID_REFERENCE);
+		SigParser sigprs(p + 3, end - 1);
+		JavascriptEngine::MarshallStructSizer sizer(&sigprs, JS_INVALID_REFERENCE);
 
 		// if we don't know the overall size yet, figure it
 		if (mainStructSize == 0)
 			mainStructSize = sizer.SizeofStruct(JS_INVALID_REFERENCE, nullptr);
 
 		// search for a cbSize field
-		while (sizer.p < sizer.sigEnd)
+		while (sizer.p < sigprs.sigEnd())
 		{
 			// marshall the next item to get its name and offset
 			sizer.MarshallValue();
@@ -6150,14 +7179,15 @@ void JavascriptEngine::NativeTypeWrapper::InitCbSize(const WCHAR *sig, const WCH
 			else if (t[0] == '{' && t[1] == 'S')
 			{
 				// sub-struct: visit it
-				InitCbSize(t.c_str(), t.c_str() + t.length(), data + sizer.lastItemOfs, mainStructSize);
+				SigParser subsig(t);
+				InitCbSize(&subsig, data + sizer.lastItemOfs, mainStructSize);
 			}
 		}
 	}
 }
 
-JavascriptEngine::NativeTypeWrapper::NativeTypeWrapper(const WCHAR *sig, const WCHAR *sigEnd, size_t size, void *extData) :
-	sig(sig, sigEnd - sig), size(size)
+JavascriptEngine::NativeTypeWrapper::NativeTypeWrapper(SigParser *sig, size_t size, void *extData) :
+	sig(sig->sig), size(size)
 {
 	// If the caller didn't provide an external data for us to view, create
 	// our own internal data.
@@ -6176,7 +7206,7 @@ JavascriptEngine::NativeTypeWrapper::NativeTypeWrapper(const WCHAR *sig, const W
 		inst->nativeDataMap.emplace(
 			std::piecewise_construct,
 			std::forward_as_tuple(data),
-			std::forward_as_tuple(size));
+			std::forward_as_tuple(data, size, this->sig));
 	}
 	else
 	{
@@ -6220,12 +7250,25 @@ JsValueRef CALLBACK JavascriptEngine::NativeTypeWrapper::AddressOf(JsValueRef ca
 	if (argc >= 2)
 	{
 		// recover the native object
-		if (auto obj = Recover<NativeTypeWrapper>(argv[1], _T("NativeObject.addressOf() argument is not a NativeObject")); obj != nullptr)
+		if (auto obj = Recover<NativeTypeWrapper>(argv[1], nullptr); obj != nullptr)
 		{
 			// get our type signature
 			const WCHAR *sig = obj->sig.c_str();
 			const WCHAR *sigEnd = sig + obj->sig.length();
 			WSTRING eleSig = obj->sig;
+
+			// drill down into the reference type if applicable
+			if (sig[0] == '@')
+			{
+				// look up the reference
+				std::wstring_view refsig;
+				if (!inst->LookUpNativeType(obj->sig.substr(1), refsig))
+					return jsval;
+
+				// use the reference
+				sig = refsig.data();
+				sigEnd = sig + refsig.length();
+			}
 
 			// Assume we'll return the address at offset zero from the main object.
 			// For composite objects (structs, arrays), we can get element offsets
@@ -6250,31 +7293,60 @@ JsValueRef CALLBACK JavascriptEngine::NativeTypeWrapper::AddressOf(JsValueRef ca
 					// search for the struct member
 					auto Search = [p, len, &offset, &size, &eleSig](MarshallStructOrUnionSizer &sizer) -> bool
 					{
-						// search the for field
-						for (; sizer.p < sizer.sigEnd; sizer.NextArg())
+						bool found = false;
+						sizer.MarshallStructMembers([p, len, &offset, &size, &eleSig, &sizer, &found](WSTRING &memberName, WSTRING &memberSig)
 						{
+							// marshall the value
 							sizer.MarshallValue();
-							if (sizer.curProp.length() == len && sizer.curProp.compare(0, std::string::npos, p, len) == 0)
+
+							// is this the member we're looking for?
+							if (memberName.compare(0, std::string::npos, p, len) == 0)
 							{
+								// it's a match - save the stats
 								offset = sizer.lastItemOfs;
 								size = sizer.lastItemSize;
-								eleSig = sizer.curPropType;
-								return true;
+								eleSig = memberSig;
+								found = true;
+
+								// done - stop searching
+								return false;
 							}
+							
+							// continue searching
+							return true;
+						});
+
+						// throw an error if we didn't find it
+						if (!found)
+						{
+							inst->Throw(MsgFmt(_T("NativeObject.addressOf(): field \"%.*s\" not found in struct/union"), (int)len, p));
+							return false;
 						}
 
-						// not found
-						inst->Throw(MsgFmt(_T("NativeObject.addressOf(): field \"%.*s\" not found in struct/union"), (int)len, p));
-						return false;
+						// success
+						return true;
 					};
 
 					// find the offset of the field
-					bool ok = (sig[1] == 'S' ?
-						Search(MarshallStructSizer(sig + 3, sigEnd - 1, JS_INVALID_REFERENCE)) :
-						Search(MarshallUnionSizer(sig + 3, sigEnd - 1, JS_INVALID_REFERENCE)));
+					SigParser sigprs(sig + 3, sigEnd - 1);
+					switch (sig[1])
+					{
+					case 'S':
+						if (!Search(MarshallStructSizer(&sigprs, JS_INVALID_REFERENCE)))
+							return inst->undefVal;
+						break;
 
-					if (!ok)
-						return inst->undefVal;
+					case 'U':
+						if (!Search(MarshallUnionSizer(&sigprs, JS_INVALID_REFERENCE)))
+							return inst->undefVal;
+						break;
+
+					case 'I':
+						return inst->Throw(_T("NativeObject.addressOf(): cannot take address of interface member element"));
+
+					default:
+						return inst->Throw(_T("NativeObject.addressOf(): invalid composite type"));
+					}
 				}
 				else if (sig[0] == '[')
 				{
@@ -6297,7 +7369,8 @@ JsValueRef CALLBACK JavascriptEngine::NativeTypeWrapper::AddressOf(JsValueRef ca
 
 					// figure the element size
 					eleSig = SkipPointerOrArrayQual(sig);
-					MarshallBasicSizer sizer(eleSig);
+					SigParser elePrs(eleSig);
+					MarshallBasicSizer sizer(&elePrs);
 					sizer.MarshallValue();
 
 					// figure the offset
@@ -6310,12 +7383,24 @@ JsValueRef CALLBACK JavascriptEngine::NativeTypeWrapper::AddressOf(JsValueRef ca
 			// has the simple pointer type "pointer to T", T*, NOT "pointer to array of T",
 			// (T*)[n].  So strip the array dimension specifier in this case to get the
 			// underlying type.
-			if (sig[0] == '[')
-				sig = SkipPointerOrArrayQual(sig);
+			if (eleSig[0] == '[')
+				eleSig = SkipPointerOrArrayQual(eleSig.c_str());
 
 			// create a native pointer object pointing to the object's data
-			if ((err = NativePointerData::Create(obj->data + offset, size, eleSig.c_str(), eleSig.length(), 0, &jsval)) != JsNoError)
+			SigParser subSig(eleSig);
+			if ((err = NativePointerData::Create(obj->data + offset, size, &subSig, 0, &jsval)) != JsNoError)
 				return inst->Throw(err, _T("NativeObject.addressOf()"));
+		}
+		else if (auto comObj = Recover<COMImportData>(argv[1], nullptr); comObj != nullptr)
+		{
+			// create the wrapper
+			SigParser mainSig(comObj->sig);
+			if ((err = NativePointerData::Create(&comObj->pUnknown, sizeof(IUnknown*), &mainSig, 0, &jsval)) != JsNoError)
+				return inst->Throw(err, _T("NativeObject.addressOf(COM object)"));
+		}
+		else
+		{
+			return inst->Throw(_T("NativeObject.addressOf() argument is not a native object"));
 		}
 	}
 
@@ -6386,6 +7471,10 @@ void JavascriptEngine::DeadObjectScan()
 		}
 	};
 
+	// Trace references from NativePointer objects
+	for (auto &it : nativePointerMap)
+		Trace(it.second);
+
 	// Process the work queue
 	while (workQueue.size() != 0)
 	{
@@ -6412,10 +7501,6 @@ void JavascriptEngine::DeadObjectScan()
 		workQueue.pop_front();
 	}
 
-	// Trace references from NativePointer objects
-	for (auto &it : nativePointerMap)
-		Trace(it.second);
-
 	// All reachable objects should now be marked as referenced.  Objects not
 	// marked as referenced are unreachable and can be deleted.  Make a list of
 	// the unreachable items.
@@ -6428,11 +7513,1046 @@ void JavascriptEngine::DeadObjectScan()
 
 	// Delete the unreachable objects
 	for (auto &it : deadList)
-	{
-		// delete this item from the map
 		nativeDataMap.erase(it);
+}
 
-		// delete the item's memory
-		delete[] it;
+JavascriptEngine::NativeDataTracker::~NativeDataTracker()
+{
+	std::function<void(const WCHAR*, size_t, BYTE*)> Visit = [&Visit](const WCHAR *sig, size_t sigLen, BYTE *data)
+	{
+		// If this is a struct, scan for COM pointers.  This only applies
+		// to structs: don't do it for unions, as we can't make assumptions
+		// about which union interpretation applies; and don't do it for
+		// bare pointers, because these are handled as COMImportData objects,
+		// which manage the reference counting directly.
+		if (sig[0] == '@' && sig[1] == 'S')
+		{
+			std::wstring_view subsig;
+			if (inst->LookUpNativeType(sig + 1, sigLen - 1, subsig, true))
+			{
+				// set up a sizer
+				SigParser sigprs(subsig);
+				MarshallStructSizer sizer(&sigprs, JS_INVALID_REFERENCE);
+
+				// process each field
+				sizer.MarshallStructMembers([&sizer, &data, &Visit](WSTRING &memberName, WSTRING &memberSig)
+				{
+					// marshall the value to figure its size
+					sizer.MarshallValue();
+
+					// get its offset
+					BYTE *memberData = data + sizer.lastItemOfs;
+
+					// process it
+					Visit(memberSig.c_str(), memberSig.length(), memberData);
+
+					// continue the scan
+					return true;
+				});
+			}
+		}
+		else if (sig[0] == '[')
+		{
+			// array - visit each item
+			size_t dim;
+			bool empty;
+			const WCHAR *sigEnd = sig + sigLen;
+			if (Marshaller::ParseArrayDim(sig, sigEnd, dim, empty) && !empty)
+			{
+				SigParser subsig(sig, sigEnd);
+				MarshallBasicSizer sizer(&subsig, JS_INVALID_REFERENCE);
+				sizer.Marshall();
+
+				for (size_t i = 0; i < dim; ++i, data += sizer.size)
+					Visit(sig, sigEnd - sig, data);
+			}
+		}
+		else if (sig[0] == '*' && sig[1] == '@' && sig[2] == 'I')
+		{
+			// Embedded IUnknown pointer
+			if (auto ppUnk = reinterpret_cast<IUnknown**>(data); *ppUnk != nullptr)
+			{
+				(*ppUnk)->Release();
+				*ppUnk = nullptr;
+			}
+		}
+		else if (sig[0] == 'B')
+		{
+			// Embedded BSTR
+			if (auto pbstr = reinterpret_cast<BSTR*>(data); *pbstr != nullptr)
+			{
+				SysFreeString(*pbstr);
+				*pbstr = nullptr;
+			}
+		}
+		else if (sig[0] == 'V')
+		{
+			// Embedded VARIANT
+			VariantClear(reinterpret_cast<VARIANT*>(data));
+		}
+	};
+
+	// free internal objects
+	Visit(sig.c_str(), sig.length(), data);
+
+	// release the memory
+	delete[] data;
+}
+
+// -----------------------------------------------------------------------
+//
+// Imported COM object reference
+//
+
+JavascriptEngine::COMImportData::COMImportData(IUnknown *pUnknown, SigParser *ifcSig) :
+	pUnknown(pUnknown), sig(ifcSig->sig)
+{
+	// Our type is always "pointer to interface", with a signature of the form
+	//
+	//   *@I.name
+	//
+	// However, our caller might pass us just the interface type.  If our type
+	// signature uses the plain {I...} form, add the pointer qualifier.
+	if (this->sig[0] != '*')
+		this->sig = L"*" + this->sig;
+
+	// set up to parse the interface signature
+	const WCHAR *p = this->sig.c_str();
+	const WCHAR *end = p + this->sig.length();
+
+	// get the name reference
+	if (p < end && *p == '*')
+		++p;
+	if (p < end && *p == '@')
+	{
+		std::wstring_view r;
+		++p;
+		if (!inst->LookUpNativeType(p, Marshaller::EndOfArg(p, end) - p, r))
+			return;
+
+		p = r.data();
+		end = p + r.length();
+	}
+
+	if (p + 2 >= end || p[0] != '{' || p[1] != 'I' || p[2] != ' ')
+	{
+		inst->Throw(_T("DllImport: invalid interface type signature"));
+		return;
+	}
+
+	// extract the GUID - it comes after the *{I<space>
+	p += 3;
+	const WCHAR *guid = p;
+	for (; p < end && *p != ' '; ++p);
+	this->guid.assign(guid, p - guid);
+
+	// count the number of vtable entries
+	for (p = Marshaller::EndOfArg(p + 1, end); p < end && *p != '}'; ++vtableCount)
+	{
+		for (p = Marshaller::EndOfArg(p, end); p < end && *p == ' '; ++p);
 	}
 }
+
+JavascriptEngine::COMImportData::~COMImportData()
+{
+	// release our underlying interface if we have one
+	if (pUnknown != nullptr)
+	{
+		pUnknown->Release();
+		pUnknown = nullptr;
+	}
+}
+
+JsValueRef JavascriptEngine::COMImportData::Create(COMImportData **pCreatedObj, JsValueRef proto, IUnknown *pUnknown, SigParser *sig)
+{
+	// create the wrapper object
+	auto *obj = new COMImportData(pUnknown, sig);
+
+	// create a Javascript external object for the wrapper
+	JsValueRef jsobj;
+	JsErrorCode err;
+	if ((err = JsCreateExternalObjectWithPrototype(obj, &COMImportData::Finalize, proto, &jsobj)) != JsNoError)
+		return inst->Throw(err, _T("dllImport: creating external object for COM interface pointer"));
+
+	// if this is a new alias to an existing object, count the new reference
+	if (pUnknown != nullptr)
+		pUnknown->AddRef();
+
+	// return the new object if desired
+	if (pCreatedObj != nullptr)
+		*pCreatedObj = obj;
+
+	// return the object
+	return jsobj;
+}
+
+bool JavascriptEngine::COMImportData::CreatePrototype(JsValueRef proto, const WCHAR *sig, const WCHAR *sigEnd)
+{
+	auto Error = [](const char *msg)
+	{
+		ThrowSimple(msg);
+		return false;
+	};
+
+	// traverse into a type reference
+	const WCHAR *p = sig;
+	if (p < sigEnd && *p == '@')
+	{
+		// look up the name
+		std::wstring_view r;
+		const WCHAR *name = ++p, nameLen = Marshaller::EndOfArg(p, sigEnd) - p;
+		if (!inst->LookUpNativeType(name, nameLen, r))
+			return false;
+
+		// parse from the name
+		p = r.data();
+		sigEnd = p + r.length();
+	}
+
+	// check for the "{I" prefix
+	if (p + 2 >= sigEnd || p[0] != '{' || p[1] != 'I' || p[2] != ' ')
+		return Error("Importing COM object: invalid interface signature");
+
+	// skip the "{I" prefix and GUID
+	p += 3;
+	const WCHAR *guid = p;
+	for (; p < sigEnd && *p != ' '; ++p);
+
+	// Get DllImport._bindCOM
+	const TCHAR *where;
+	JsValueRef bindExt;
+	if (inst->GetProp(bindExt, inst->dllImportObject, "_bindCOM", where) != JsNoError)
+		return Error("Importing COM object: Unable to find dllImport._bindCOM");
+
+	// get the "value" and "enumerable" property IDs, for property descriptors
+	JsPropertyIdRef valuePropId, enumerablePropId, trueVal;
+	if (JsCreatePropertyId("value", 5, &valuePropId) != JsNoError
+		|| JsCreatePropertyId("enumerable", 10, &enumerablePropId) != JsNoError
+		|| JsGetTrueValue(&trueVal) != JsNoError)
+		return Error("Importing COM object: getting descriptor property IDs/values");
+
+	// bind each function
+	int vtableIndex = 0;
+	for (; p < sigEnd && *p != '}'; p = Marshaller::EndOfArg(p, sigEnd), ++vtableIndex)
+	{
+		// skip spaces
+		for (; p < sigEnd && *p == ' '; ++p);
+
+		// parse out the function name
+		const WCHAR *f = p;
+		for (; p < sigEnd && *p != ';'; ++p);
+
+		// turn it into a string
+		JsValueRef funcName;
+		if (JsPointerToString(f, p - f, &funcName) != JsNoError)
+			return false;
+
+		// skip the ';'
+		if (*p != ';')
+			return false;
+		++p;
+
+		// find the end of the function signature
+		const WCHAR *funcSig = p;
+		const WCHAR *funcSigEnd = p = Marshaller::EndOfArg(p, sigEnd);
+
+		// make a javascript string from the function signature
+		JsValueRef funcSigVal;
+		if (JsPointerToString(funcSig, funcSigEnd - funcSig, &funcSigVal) != JsNoError)
+			return Error("Importing COM object: Error creating string from COM method signature");
+
+		// get the vtable index as a javascript number
+		JsValueRef vtableIndexVal;
+		if (JsIntToNumber(vtableIndex, &vtableIndexVal) != JsNoError)
+			return Error("Importing COM object: Error converting vtable index to number");
+
+		// Call dllImport._bindCOM(dllImport, comObj, vtableIndex, funcsig).  The return value 
+		// is the wrapped function pointer.
+		JsValueRef boundFunc;
+		JsValueRef bindArgv[3] = { inst->dllImportObject, vtableIndexVal, funcSigVal };
+		if (JsCallFunction(bindExt, bindArgv, static_cast<unsigned short>(countof(bindArgv)), &boundFunc) != JsNoError)
+			return Error("Importing COM object: JsCallFunction(dllImport._bindCOM() failed");
+
+		// Now store the wrapped function pointer as the Javascript property
+		// named for the COM interface method.  This will allow calling the
+		// native COM method as though it were a normal Javascript method.
+		bool ok;
+		JsValueRef propDesc;
+		if (JsCreateObject(&propDesc) != JsNoError
+			|| JsSetProperty(propDesc, valuePropId, boundFunc, true) != JsNoError
+			|| JsSetProperty(propDesc, enumerablePropId, trueVal, true) != JsNoError
+			|| JsObjectDefineProperty(proto, funcName, propDesc, &ok) != JsNoError)
+			return Error("Importing COM object: adding bound function property to object");
+	}
+
+	// success
+	return true;
+}
+
+JsValueRef CALLBACK JavascriptEngine::COMImportData::IsNull(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	if (argc >= 2)
+	{
+		if (auto comObj = Recover<COMImportData>(argv[1], _T("COMPointer::isNull")); comObj != nullptr)
+			return comObj->pUnknown == nullptr ? inst->trueVal : inst->falseVal;
+	}
+
+	return inst->Throw(_T("COMPointer.isNull: invalid argument"));
+}
+
+JsValueRef CALLBACK JavascriptEngine::COMImportData::Clear(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	if (argc >= 2)
+	{
+		if (auto comObj = Recover<COMImportData>(argv[1], _T("COMPointer::clear")); comObj != nullptr)
+		{
+			if (comObj->pUnknown != nullptr)
+			{
+				comObj->pUnknown->Release();
+				comObj->pUnknown = nullptr;
+			}
+			return inst->undefVal;
+		}
+	}
+
+	return inst->Throw(_T("COMPointer.clear: invalid argument"));
+}
+
+// -----------------------------------------------------------------------
+//
+// Native COM VARIANT object
+//
+
+JsValueRef JavascriptEngine::VariantData::Create(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	if (!isConstructCall)
+		return js->Throw(_T("Variant() must be called as constructor"));
+
+	// create the external object
+	auto v = new VariantData();
+	JsValueRef jsval;
+	JsErrorCode err;
+	if ((err = JsCreateExternalObjectWithPrototype(v, &VariantData::Finalize, js->Variant_proto, &jsval)) != JsNoError)
+		return js->Throw(err, _T("creating Variant"));
+
+	// set the value if there's an initializer argument
+	if (argc >= 2)
+		Set(v->v, argv[1]);
+
+	// return the new object
+	return jsval;
+}
+
+JsErrorCode JavascriptEngine::VariantData::CreateFromNative(const VARIANT *src, JsValueRef &dest)
+{
+	// create the external object
+	auto js = inst;
+	JsErrorCode err;
+	auto v = new VariantData();
+	if ((err = JsCreateExternalObjectWithPrototype(v, &VariantData::Finalize, js->Variant_proto, &dest)) != JsNoError)
+		return err;
+
+	// copy the source value
+	VariantCopy(&v->v, src);
+	return JsNoError;
+}
+
+void JavascriptEngine::VariantData::CopyFromJavascript(VARIANT *dest, JsValueRef src)
+{
+	if (auto v = VariantData::Recover<VariantData>(src, nullptr); v != nullptr)
+	{
+		// it's a variant - copy it directly
+		VariantCopy(dest, &v->v);
+	}
+	else
+	{
+		// set the value from the Javsacript source
+		Set(*dest, src);
+	}
+}
+
+JsValueRef JavascriptEngine::VariantData::GetVt(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant.vt")); v != nullptr)
+		JsIntToNumber(static_cast<int>(v->v.vt), &ret);
+
+	return ret;
+}
+
+JsValueRef JavascriptEngine::VariantData::SetVt(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	
+	if (argc < 2)
+		return js->Throw(_T("Variant.vt [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant.vt")); v != nullptr)
+	{
+		// clear any prior value
+		VariantClear(&v->v);
+
+		// set the new value to the number in the argument
+		JsErrorCode err;
+		JsValueRef numval;
+		int i;
+		if ((err = JsConvertValueToNumber(argv[1], &numval)) != JsNoError
+			|| (err = JsNumberToInt(numval, &i)) != JsNoError)
+			return js->Throw(err, _T("Variant.vt [setter]"));
+
+		v->v.vt = i;
+	}
+	return ret;
+}
+
+template<typename T>
+T *JavascriptEngine::VariantData::SetByRef(VARIANT &v, void *pData, VARTYPE vt)
+{
+	v.vt = vt | VT_BYREF;
+	return static_cast<T*>(pData);
+}
+
+void JavascriptEngine::VariantData::Set(VARIANT &v, JsValueRef val)
+{
+	auto js = inst;
+	JsValueType type;
+	JsErrorCode err;
+	if ((err = JsGetValueType(val, &type)) != JsNoError)
+	{
+		js->Throw(err, _T("Variant.Set"));
+		return;
+	}
+
+	// clear any old value
+	VariantClear(&v);
+
+	switch (type)
+	{
+	case JsUndefined:
+		v.vt = VT_EMPTY;
+		break;
+
+	case JsNull:
+		v.vt = VT_NULL;
+		break;
+
+	case JsNumber:
+		v.vt = VT_R8;
+		err = JsNumberToDouble(val, &v.dblVal);
+		break;
+
+	case JsString:
+		v.vt = VT_BSTR;
+		{
+			const wchar_t *p;
+			size_t len;
+			if ((err = JsStringToPointer(val, &p, &len)) == JsNoError)
+				v.bstrVal = SysAllocStringLen(p, len);
+		}
+		break;
+
+	case JsBoolean:
+		v.vt = VT_BOOL;
+		{
+			bool b;
+			if ((err = JsBooleanToBool(val, &b)) == JsNoError)
+				v.boolVal = b ? VARIANT_TRUE : VARIANT_FALSE;
+		}
+		break;
+
+	case JsObject:
+		if (auto i = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(val, nullptr); i != nullptr)
+		{
+			v.vt = VT_I8;
+			v.llVal = i->i;
+		}
+		else if (auto u = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(val, nullptr); u != nullptr)
+		{
+			v.vt = VT_UI8;
+			v.ullVal = u->i;
+		}
+		else if (auto p = NativePointerData::Recover<NativePointerData>(val, nullptr); p != nullptr)
+		{
+			switch (p->sig[0])
+			{
+			case 'c': v.pcVal = SetByRef<CHAR>(v, p->ptr, VT_I1); break;
+			case 'C': v.pbVal = SetByRef<BYTE>(v, p->ptr, VT_UI1); break;
+			case 's': v.piVal = SetByRef<SHORT>(v, p->ptr, VT_I2); break;
+			case 'S': v.puiVal = SetByRef<USHORT>(v, p->ptr, VT_UI2); break;
+			case 'i': v.plVal = SetByRef<LONG>(v, p->ptr, VT_I4); break;
+			case 'I': v.pulVal = SetByRef<ULONG>(v, p->ptr, VT_UI4); break;
+			case 'f': v.pfltVal = SetByRef<FLOAT>(v, p->ptr, VT_R4); break;
+			case 'd': v.pdblVal = SetByRef<DOUBLE>(v, p->ptr, VT_R8); break;
+			default:
+				js->Throw(_T("Variant.Set: pointer type not supported"));
+				break;
+			}
+		}
+		else if (auto pv = VariantData::Recover<VariantData>(val, nullptr); pv != nullptr)
+		{
+			v.vt = VT_BYREF | VT_VARIANT;
+			v.pvarVal = &v;
+		}
+		else if (auto pi = COMImportData::Recover<COMImportData>(val, nullptr); pi != nullptr)
+		{
+			v.vt = VT_UNKNOWN;
+			if ((v.punkVal = pi->pUnknown) != nullptr)
+				v.punkVal->AddRef();
+		}
+		else
+			js->Throw(_T("Variant.Set: invalid object type"));
+		break;
+
+	case JsArray:
+		// TO DO
+
+	case JsArrayBuffer:
+		// TO DO
+
+	case JsTypedArray:
+		// TO DO
+
+	case JsFunction:
+	case JsError:
+	case JsSymbol:
+	case JsDataView:
+	default:
+		js->Throw(_T("Variant.Set: invalid type"));
+		return;
+	}
+
+	if (err != JsNoError)
+		js->Throw(err, _T("Variant.Set"));
+}
+
+JsValueRef JavascriptEngine::VariantData::GetValue(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant.value")); v != nullptr)
+		ret = Get(v->v);
+
+	return ret;
+}
+
+template<typename T>
+JsValueRef JavascriptEngine::VariantData::GetByRef(T *pData, const WCHAR *sig)
+{
+	SigParser s(sig, wcslen(sig));
+	return inst->CreateNativeObject(&s, pData);
+}
+
+JsValueRef JavascriptEngine::VariantData::GetByRefArray(const VARIANT &v, const WCHAR *sig)
+{
+	inst->Throw(_T("Variant arrays are not implemented"));
+	return inst->undefVal;
+
+	// TO DO?
+#if 0
+	SAFEARRAY *a = (v.vt & VT_BYREF) != 0 ? *v.pparray : v.parray;
+	UINT nDims = SafeArrayGetDim(a);
+	for (UINT i = 0; i < nDims; ++i)
+	{
+		LONG lb, ub;
+		SafeArrayGetLBound(a, i, &lb);
+		SafeArrayGetUBound(a, i, &ub);
+	}
+#endif
+}
+
+DATE JavascriptEngine::VariantData::JsDateToVariantDate(JsValueRef val)
+{
+	// Date.prototype.valueOf returns the primitive date value
+	auto js = inst;
+	JsErrorCode err;
+	JsValueRef valueOfFunc, value;
+	double d;
+	const TCHAR *where;
+	if ((err = js->GetProp(valueOfFunc, val, "valueOf", where)) != JsNoError
+		|| (err = JsCallFunction(valueOfFunc, &val, 1, &value)) != JsNoError
+		|| (err = JsNumberToDouble(value, &d)) != JsNoError)
+	{
+		js->Throw(err, _T("converting Javascript Date to Variant Date"));
+		return 0;
+	}
+
+	// Date.prototype.valueOf returns a double representing the Date
+	// value as the number of milliseconds since the Unix epoch 
+	// (1/1/1970 00:00 UTC).  Re-base this to the Variant Date
+	// epoch (12/30/1899 00:00 UTC).
+	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
+	double msSinceVariantEpoch = d + variantEpochMinusUnixEpoch;
+
+	// Javascript dates are in milliseconds since the epoch, whereas
+	// Variant dates are in days since the epooch.  Convert from seconds
+	// to days, treating one day as exactly 24 hours.  This will yield
+	// a whole part in days, and a fractional part as the fraction of
+	// a day past midnight UTC, equivalent to the time of day.
+	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
+	return msSinceVariantEpoch / msPerDay;
+}
+
+JsValueRef JavascriptEngine::VariantData::VariantDateToJsDate(DATE date)
+{
+	// A Variant Date is a double that represents the number of days since
+	// 12/30/1899 00:00 UTC.  Any fractional part represents the time of day,
+	// as a fraction of 24 hours.
+	//
+	// Javascript also represents a date as a double, but in a wholly
+	// different way.  Javascript uses milliseconds since the Unix epoch,
+	// 1/1/1970 00:00 UTC.  Leap seconds are ignored per the ES spec.
+	// 
+	// Converting between the two is straightforward, particularly because
+	// Javascript doesn't consider leap seconds.  We treat each day as
+	// 24 hours.  Start by converting the days-and-fraction-of-a-day 
+	// value in the Variant Date to milliseconds since the Variant Date 
+	// epoch.
+	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
+	double msSinceVariantEpoch = date * msPerDay;
+
+	// Now re-base the millisecond count from the Variant epoch to the 
+	// Unix epoch
+	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
+	double msSinceUnixEpoch = msSinceVariantEpoch - variantEpochMinusUnixEpoch;
+
+	// finally, create a Javascript Date value representing this number
+	// of milliseconds since the Unix epoch
+	auto js = inst;
+	JsErrorCode err;
+	const TCHAR *where;
+	JsValueRef global, dateFunc, ms, argv[2], result = js->undefVal;
+	if ((err = JsGetGlobalObject(&global)) != JsNoError
+		|| (err = js->GetProp(dateFunc, global, "Date", where)) != JsNoError
+		|| (err = JsDoubleToNumber(msSinceUnixEpoch, &ms)) != JsNoError
+		|| (argv[0] = global, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
+		js->Throw(err, _T("converting Variant Date to Javascript Date"));
+
+	return result;
+}
+
+JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
+{
+	auto js = inst;
+	JsErrorCode err = JsNoError;
+	JsValueRef ret = inst->undefVal;
+
+	// if it's by reference, and the pointer is null, return null
+	if ((v.vt & VT_BYREF) != 0 && v.byref == nullptr)
+		return js->nullVal;
+
+	switch (v.vt)
+	{
+	case VT_EMPTY: ret = js->undefVal; break;
+	case VT_NULL: ret = js->nullVal; break;
+
+	case VT_DATE: ret = VariantDateToJsDate(v.date); break;
+
+	case VT_CY: // TO DO - native CURRENCY type
+		{
+			double d;
+			if (!SUCCEEDED(VarR8FromCy(v.cyVal, &d)))
+				js->Throw(_T("Error converting Variant CURRENCY to number"));
+			err = JsDoubleToNumber(d, &ret);
+		}
+		break;
+
+	case VT_BYREF | VT_DECIMAL:  // TO DO - native DECIMAL type
+		{
+			double d;
+			if (!SUCCEEDED(VarR8FromDec(v.pdecVal, &d)))
+				js->Throw(_T("Error converting Variant CURRENCY to number"));
+			err = JsDoubleToNumber(d, &ret);
+		}
+		break;
+
+	case VT_ARRAY: err = JsErrorNotImplemented; break; // TO DO
+
+	case VT_BSTR:
+		err = (v.bstrVal == nullptr ? JsPointerToString(L"", 0, &ret) : JsPointerToString(v.bstrVal, SysStringLen(v.bstrVal), &ret));
+		break;
+
+	case VT_UNKNOWN: ret = GetByRef(v.punkVal, L"@I.IUnknown"); break;
+	case VT_BYREF | VT_UNKNOWN: ret = GetByRef(v.ppunkVal, L"**@I.IUnknown"); break;
+
+	case VT_DISPATCH: ret = GetByRef(v.punkVal, L"@I.IDispatch"); break;
+	case VT_BYREF | VT_DISPATCH: ret = GetByRef(v.ppunkVal, L"**@I.IDispatch"); break;
+
+	case VT_BYREF | VT_VARIANT: ret = GetByRef(v.pvarVal, L"*V"); break;
+
+	case VT_I1: err = JsIntToNumber(v.cVal, &ret); break;
+	case VT_UI1: err = JsIntToNumber(v.bVal, &ret); break;
+	case VT_I2: err = JsIntToNumber(v.iVal, &ret); break;
+	case VT_UI2: err = JsIntToNumber(v.uiVal, &ret); break;
+	case VT_I4: err = JsIntToNumber(v.lVal, &ret); break;
+	case VT_UI4: err = JsIntToNumber(v.ulVal, &ret); break;
+	case VT_INT: err = JsIntToNumber(v.intVal, &ret); break;
+	case VT_UINT: err = JsIntToNumber(v.uintVal, &ret); break;
+	case VT_I8: err = XInt64Data<INT64>::CreateFromInt(v.llVal, ret); break;
+	case VT_UI8: err = XInt64Data<UINT64>::CreateFromInt(v.ullVal, ret); break;
+	case VT_R4: err = JsDoubleToNumber(v.fltVal, &ret); break;
+	case VT_R8: err = JsDoubleToNumber(v.dblVal, &ret); break;
+	case VT_BOOL: err = JsBoolToBoolean(v.boolVal != 0, &ret); break;
+	case VT_ERROR: err = JsIntToNumber(v.scode, &ret); break;
+
+	case VT_BYREF | VT_I1: ret = GetByRef(v.pcVal, L"*c"); break;
+	case VT_BYREF | VT_UI1: ret = GetByRef(v.pbVal, L"*C"); break;
+	case VT_BYREF | VT_I2: ret = GetByRef(v.piVal, L"*s"); break;
+	case VT_BYREF | VT_UI2: ret = GetByRef(v.puiVal, L"*S"); break;
+	case VT_BYREF | VT_I4: ret = GetByRef(v.plVal, L"*i"); break;
+	case VT_BYREF | VT_UI4: ret = GetByRef(v.pulVal, L"*I"); break;
+	case VT_BYREF | VT_I8: ret = GetByRef(v.pllVal, L"*l"); break;
+	case VT_BYREF | VT_UI8: ret = GetByRef(v.pullVal, L"*L"); break;
+	case VT_BYREF | VT_INT: ret = GetByRef(v.pintVal, L"*i"); break;
+	case VT_BYREF | VT_UINT: ret = GetByRef(v.puintVal, L"*I"); break;
+	case VT_BYREF | VT_R4: ret = GetByRef(v.pfltVal, L"*f"); break;
+	case VT_BYREF | VT_R8: ret = GetByRef(v.pdblVal, L"*d"); break;
+	case VT_BYREF | VT_ERROR: ret = GetByRef(v.pscode, L"*i"); break;
+	case VT_BYREF | VT_BOOL: ret = GetByRef(v.pboolVal, L"*s"); break;  // VARIANT_BOOL = SHORT
+	case VT_BYREF | VT_BSTR: ret = GetByRef(v.pbstrVal, L"*B"); break; // TO DO
+
+	case VT_BYREF | VT_CY: err = JsErrorNotImplemented; break; // TO DO?
+	case VT_BYREF | VT_DATE: err = JsErrorNotImplemented; break; // TO DO?
+	case VT_BYREF | VT_ARRAY: err = JsErrorNotImplemented; break; // TO DO
+
+	case VT_ARRAY | VT_I1: ret = GetByRefArray(v, L"c"); break;
+	case VT_ARRAY | VT_UI1: ret = GetByRefArray(v, L"C"); break;
+	case VT_ARRAY | VT_I2: ret = GetByRefArray(v, L"s"); break;
+	case VT_ARRAY | VT_UI2: ret = GetByRefArray(v, L"S"); break;
+	case VT_ARRAY | VT_I4: ret = GetByRefArray(v, L"i"); break;
+	case VT_ARRAY | VT_UI4: ret = GetByRefArray(v, L"I"); break;
+	case VT_ARRAY | VT_I8: ret = GetByRefArray(v, L"l"); break;
+	case VT_ARRAY | VT_UI8: ret = GetByRefArray(v, L"L"); break;
+	case VT_ARRAY | VT_INT: ret = GetByRefArray(v, L"i"); break;
+	case VT_ARRAY | VT_UINT: ret = GetByRefArray(v, L"I"); break;
+	case VT_ARRAY | VT_R4: ret = GetByRefArray(v, L"f"); break;
+	case VT_ARRAY | VT_R8: ret = GetByRefArray(v, L"d"); break;
+	case VT_ARRAY | VT_ERROR: ret = GetByRefArray(v, L"i"); break;
+	case VT_ARRAY | VT_BOOL: ret = GetByRefArray(v, L"s"); break;  // VARIANT_BOOL = SHORT
+	case VT_ARRAY | VT_BSTR: ret = GetByRefArray(v, L"B"); break;
+	case VT_ARRAY | VT_VARIANT: ret = GetByRefArray(v, L"V"); break;
+
+	default:
+		js->Throw(_T("Variant.Get: untranslatable type"));
+		break;
+	}
+
+	if (err != JsNoError)
+		return js->Throw(err, _T("Variant.Get"));
+
+	return ret;
+}
+
+JsValueRef JavascriptEngine::VariantData::SetValue(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant.value [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant.value")); v != nullptr)
+		Set(v->v, argv[1]);
+
+	return ret;
+}
+
+
+template<typename T, VARTYPE vt, T VARIANT::*ele>
+JsErrorCode JavascriptEngine::VariantData::AddNumGetSet(JavascriptEngine *js, const CHAR *name, const TCHAR* &where)
+{
+	return js->AddGetterSetter(js->Variant_proto, name, 
+		&VariantData::GetNumVal<T, vt, ele>, js, 
+		&VariantData::GetNumVal<T, vt, ele>, js,
+		where);
+}
+
+template<typename T, VARTYPE vt, T VARIANT::*ele>
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetNumVal(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant [getter]")); v != nullptr)
+	{
+		if (v->v.vt != vt)
+			return js->Throw(_T("Wrong type for variant getter"));
+
+		JsErrorCode err;
+		if ((err = JsDoubleToNumber(static_cast<double>(v->v.*ele), &ret)) != JsNoError)
+			return js->Throw(_T("Variant [getter]"));
+	}
+
+	return ret;
+}
+
+template<typename T, VARTYPE vt, T VARIANT::*ele>
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetNumVal(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant [setter]")); v != nullptr)
+	{
+		JsValueRef numval;
+		double d;
+		JsErrorCode err;
+		if ((err = JsConvertValueToNumber(argv[1], &numval)) != JsNoError
+			|| (err = JsNumberToDouble(numval, &d)) != JsNoError)
+			return js->Throw(err, _T("Variant [setter]"));
+
+		VariantClear(&v->v);
+		v->v.vt = vt;
+		v->v.*ele = static_cast<T>(d);
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetCY(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant [getter]")); v != nullptr)
+	{
+		if (v->v.vt != VT_CY)
+			return js->Throw(_T("Wrong type for variant getter"));
+
+		JsErrorCode err;
+		double d;
+		if (!SUCCEEDED(VarR8FromCy(v->v.cyVal, &d)))
+			return js->Throw(_T("Error converting Currency value to double"));
+		if ((err = JsDoubleToNumber(d, &ret)) != JsNoError)
+			return js->Throw(_T("Variant cyVal [getter]"));
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetCY(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant [setter]")); v != nullptr)
+	{
+		JsValueRef numval;
+		double d;
+		CY cy;
+		JsErrorCode err;
+		if ((err = JsConvertValueToNumber(argv[1], &numval)) != JsNoError
+			|| (err = JsNumberToDouble(numval, &d)) != JsNoError)
+			return js->Throw(err, _T("Variant [setter]"));
+		
+		if (!SUCCEEDED(VarCyFromR8(d, &cy)))
+			return js->Throw(_T("Error converting Number value to Currency"));
+
+		VariantClear(&v->v);
+		v->v.vt = VT_CY;
+		v->v.cyVal = cy;
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetDecimal(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant decVal [getter]")); v != nullptr)
+	{
+		if (v->v.vt != VT_DECIMAL)
+			return js->Throw(_T("Wrong type for variant getter"));
+
+		if (v->v.pdecVal == nullptr)
+			return js->nullVal;
+
+		JsErrorCode err;
+		double d;
+		if (!SUCCEEDED(VarR8FromDec(v->v.pdecVal, &d)))
+			return js->Throw(_T("Error converting Decimal value to double"));
+		if ((err = JsDoubleToNumber(d, &ret)) != JsNoError)
+			return js->Throw(_T("Variant decVal [getter]"));
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetDecimal(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant decVal [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant decVal [setter]")); v != nullptr)
+	{
+		JsValueRef numval;
+		double d;
+		JsErrorCode err;
+		if ((err = JsConvertValueToNumber(argv[1], &numval)) != JsNoError
+			|| (err = JsNumberToDouble(numval, &d)) != JsNoError)
+			return js->Throw(err, _T("Variant decVal [setter]"));
+
+		if (!SUCCEEDED(VarDecFromR8(d, &v->decimal)))
+			return js->Throw(_T("Error converting Number value to Currency"));
+
+		VariantClear(&v->v);
+		v->v.vt = VT_DECIMAL;
+		v->v.pdecVal = &v->decimal;
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetDate(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant date [getter]")); v != nullptr)
+	{
+		if (v->v.vt != VT_DATE)
+			return js->Throw(_T("Wrong type for variant date getter"));
+
+		ret = VariantDateToJsDate(v->v.date);
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetDate(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant date [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant date [setter]")); v != nullptr)
+	{
+		VariantClear(&v->v);
+		v->v.vt = VT_DATE;
+		v->v.date = JsDateToVariantDate(argv[1]);
+	}
+
+	return ret;
+}
+
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetBool(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant boolVal [getter]")); v != nullptr)
+	{
+		if (v->v.vt != VT_BOOL)
+			return js->Throw(_T("Wrong type for variant boolVal getter"));
+
+		ret = v->v.boolVal ? js->trueVal : js->falseVal;
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetBool(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant boolVal [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant boolVal [setter]")); v != nullptr)
+	{
+		JsErrorCode err;
+		JsValueRef boolVal;
+		bool b;
+		if ((err = JsConvertValueToBoolean(argv[1], &boolVal)) != JsNoError
+			|| (err = JsBooleanToBool(boolVal, &b)) != JsNoError)
+			return js->Throw(err, _T("Variant boolVal [setter]"));
+
+		VariantClear(&v->v);
+		v->v.vt = VT_BOOL;
+		v->v.boolVal = b ? VARIANT_TRUE : VARIANT_FALSE;
+	}
+
+	return ret;
+}
+
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::GetBSTR(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	JsValueRef ret = js->undefVal;
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant bstrVal [getter]")); v != nullptr)
+	{
+		if (v->v.vt != VT_BSTR)
+			return js->Throw(_T("Wrong type for variant bstrVal getter"));
+
+		JsErrorCode err;
+		if ((err = JsPointerToString(v->v.bstrVal, SysStringLen(v->v.bstrVal), &ret)) != JsNoError)
+			return js->Throw(err, _T("Variant bstrVal [getter]"));
+	}
+
+	return ret;
+}
+
+JsValueRef CALLBACK JavascriptEngine::VariantData::SetBSTR(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	if (argc < 2)
+		return js->Throw(_T("Variant bstrVal [setter]: missing value"));
+
+	JsValueRef ret = argv[0];
+	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant bstrVal [setter]")); v != nullptr)
+	{
+		JsErrorCode err;
+		JsValueRef strVal;
+		const wchar_t *p; 
+		size_t len;
+		if ((err = JsConvertValueToString(argv[1], &strVal)) != JsNoError
+			|| (err = JsStringToPointer(strVal, &p, &len)) != JsNoError)
+			return js->Throw(err, _T("Variant bstrVal [setter]"));
+
+		VariantClear(&v->v);
+		v->v.vt = VT_BSTR;
+		v->v.bstrVal = SysAllocStringLen(p, len);
+	}
+
+	return ret;
+}
+

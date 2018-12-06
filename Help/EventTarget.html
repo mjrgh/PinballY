@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>EventTarget Interface</h1>
+
+<p>
+   The EventTarget interface is implemented by each object that
+   generates Javascript events.  The event target objects are:
+</p>
+<ul>
+   <li><a href="MainWindowObject.html">mainWindow</a>
+</ul>
+<p>
+   You call EventTarget methods by addressing the specific object
+   that the events are associated with.  For example, to add a "keydown"
+   event listener to the main playfield window, you'd write:
+</p>
+<div class="code">
+mainWindow.on("keydown", ev => { /* event handler code... */ });
+</div>
+
+
+<h2>Methods</h2>
+
+<p>
+   <b><i>eventTarget</i>.addEventListener(<i>event</i>, <i>listener</i>, <i>options</i>):</b>
+   Adds an event listener.  <i>event</i> is a string giving the name of the event
+   (e.g., "keydown").  <i>listener</i> is a function to call when this event occurs;
+   the function takes a single parameter, an Event object that describes the event.
+   <i>options</i> is an object with the following members:
+</p>
+<ul>
+   <li><b>capture:</b> A boolean indicating whether the listener should be added to the
+   "capture" stage or the "bubble" stage of processing for the event.  This isn't
+   currently used, as no PinballY events distinguish these phases.
+
+   <li><b>data:</b> Any value.  This will be passed to the event listener in
+   <i>event.data</i> (the "data" property of the Event object parameter) each
+   time this listener is invoked.  This can be used to store context information
+   for the event listener.
+
+   <li><b>once:</b>  A boolean.  If true, the listener is automatically removed
+   (as though by calling removeEventListener()) the first time it's called.  Use
+   this to create a listener that only handles the first event it receives.
+</ul>
+<p>
+   The <i>options</i> parameter can be omitted, in which case default options
+   are used.  For the sake of those familiar with the analogous Web browser
+   method, <i>options</i> can also be passed as a boolean (true/false), in which
+   case it specifies the value of the "capture" property.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.dispatchEvent(<i>event</i>):</b>
+   Calls the registered event listeners for the given event.  The <i>event</i>
+   argument is passed as the parameter to each listener invoked, with the
+   event-specific properties (target, data) set appropriately for each call.
+   Returns true if the event's default system processing should proceed,
+   false if not.  Returning false usually means that <i>event</i>.preventDefault()
+   was called in the course of processing the event.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.off(<i>events</i>, <i>listener</i>):</b>
+   Removes event listeners previously registered with on() or addEventListener().
+   As with on(), <i>events</i> is a string listing one or more event names,
+   separated by spaces.  And as with on(), namespaces can be specified in
+   the event names with ".namespace" suffixes ("keydown.MyPlugin", for example).
+   The <i>listener</i> argument is optional; if provided, only listeners
+   originally added using the same function will be removed, otherwise all
+   listeners matching the event name and namespace values will be removed.
+</p>
+<p>
+   When namespaces are specified, <i>any</i> namespace match from the original
+   on() call will match.  You don't have to match the whole list specified in on().  For example,
+   if an event listener was registered as <b>target.on("keydown.MyPlugin.Main", func)</b>,
+   <i>any</i> of these calls will remove it:
+</p>
+<ul>
+   <li>target.off("keydown.MyPlugin")
+   <li>target.off("keydown.Main")
+   <li>target.off("keydown.MyPlugin.Main")
+   <li>target.off("keydown.Main.MyPlugin")
+</ul>
+
+<p>
+   <b><i>eventTarget</i>.on(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
+   Adds an event listener.  <i>events</i> is a string listing one or more
+   events, separated by spaces (for example, "keydown keyup").  <i>data</i>
+   is optional; if provided, it can be any type of value, and specifies a
+   value that will be passed to the listener each time it's invoked in the
+   "data" property of the event object, which is passed to the listener
+   as its single function parameter.  <i>listener</i> is a function to call
+   each time the event fires.
+</p>
+<p>
+   The event name list can include "namespace" qualifiers for the events.
+   A namespace is any arbitrary string appended after a "." to an event
+   name, as in "keydown.MyPlugin".  You can specify multiple namespaces
+   on a single event this way: "keydown.MyPlugin.Main".  The purpose of
+   a namespace is to help identify the event in calls to off().  That
+   method lets you specify namespaces the same way in the event(s) to be
+   removed.  Namespaces are especially useful to create shared code
+   modules that can be mixed and matched with other modules, since it
+   makes it easier to manage your own module's listeners without
+   affecting code from other unrelated modules.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.one(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
+   This works exactly like on(), but registers a one-time-only listener that
+   will be removed the first time it fires.  If this registers listeners for
+   multiple events, each event's listener will be set up as a separate
+   once-only handler.  For example, if <i>events</i> is "keydown keyup", two
+   listeners are registered, and each listener will be called once before
+   it's removed.
+</p>
+
+<p>
+   <b><i>eventTarget</i>.removeEventListener(<i>type</i>, <i>listener</i>, <i>options</i>):</b>
+   Removes an event listener that matches the type, function, and capture setting
+   used in a prior call to addEventListener() or on().  As in the Web browser analog
+   of this method, the only <i>options</i> value used to match the listener
+   is the "capture" property.  
+</p>
+

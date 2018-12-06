@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>System Functions</h1>
+
+<p>
+   In addition to the standard Javascript built-in functions, PinballY
+   provides a number of its own functions for access to system
+   features.  These are described below.
+</p>
+<p>
+   Many of these are similar to the like-named functions in a Web
+   browser.  We've tried to use the same names and behavior when there's
+   a good conceptual match between the way a browser works and the way
+   PinballY works.
+</p>
+
+<p>
+   <b>alert(<i>message</i>):</b>  Shows a system dialog box with the given
+   message text.  This pops up a standard modal Windows message box with an OK
+   button, and pauses the script until the user dismisses the dialog.  This
+   can be handy for script debugging, but it should be avoided for anything
+   else, as it doesn't fit very well with PinballY's pin cab interaction
+   style.  See message() for a friendlier alternative for alerting the
+   user, and log() for another option for debug messages.
+</p>
+<p>
+   <b>clearInterval(<i>id</i>)</b>:  Cancels an interval event created
+   with setInterval().  The <i>id</i> value is the value returned from
+   setInterval() when the event was created.  This removes the event and
+   prevents any pending execution from occurring.  It's harmless to
+   cancel an interval that doesn't exist or that has already been canceled.
+</p>
+<p>
+   <b>clearTimeout(<i>id</i>)</b>:  Cancels a pending timeout event
+   created with setTimeout().  The <i>id</i> value is the value returned
+   from setTimeout() when the event was created.  This removes the event
+   and prevents any pending execution from occurring.  It's harmless
+   to cancel a timeout that doesn't exist or that has already been canceled.
+   This will also have no effect if the timeout has already been executed,
+   since you can't "take back" the previous execution.
+</p>
+<p>
+   <b>log(<i>message</i>):</b> Writes the message text to the PinballY log file.
+   A newline (line break) is always added at the end of the message, so it's
+   not necessary to include one in the string.  This can be useful for
+   debugging, especially for cases where you want to log some information
+   repeatedly and don't want to bother the user with it every time.
+   (This is a PinballY extension, not a typical browser function.)
+</p>
+<p>
+   <b>message(<i>message</i>, <i>style</i>):</b>  This is an alias for
+   <a href="MainWindowObject.html#message">mainWindow.message()</a>.
+</p>
+<p>
+   <b>setInterval(<i>function</i>, <i>interval_in_milliseconds</i>)</b>:  Sets
+   up an interval event, which invokes the given function periodically, at
+   (approximately) the specified interval.  Each the time function is invoked,
+   the internal event timer is automatically reset so that the event will
+   be called again after another interval of the same time elapses.  The
+   function returns an ID value that can be used to cancel the repeating
+   event via clearInterval().  Like Javascript in a browser, PinballY's
+   Javascript is single-threaded, so an interval event can't "interrupt" an
+   executing script; if the next scheduled event time happens to occur
+   while another script is executing, the interval function will be invoked
+   when the current script finishes.
+</p>
+<p>
+   <b>setTimeout(<i>function</i>, <i>timeout_in_milliseconds</i>)</b>:  Sets
+   up a timeout event, which invokes the given function once, after the given
+   interval elapses.  The function returns an ID value that can be used to
+   cancel the timeout before it executes via clearTimeout().  As with
+   Javascript in a browser, PinballY's Javascript is single-threaded, so
+   timer events can't "interrupt" other scripts.  If the timeout period
+   elapses while another script is running, the function will be invoked
+   when the current script finishes.
+</p>
+

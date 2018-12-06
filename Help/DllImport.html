@@ -1606,7 +1606,7 @@ table.typeTable, table.typeTable td, table.typeTable th {
 <p>
    When calling native DLL functions, you'll sometimes need to determine
    the size of a native type in order to pass the right parameters to the
-   function.  The DllImport class has a <b>sizeof()</b> method that helps
+   function.  The dllImport object has a <b>sizeof()</b> method that helps
    with this.
 </p>
 <p>
@@ -1849,24 +1849,221 @@ typedef WndEnumProc* WNDENUMPROC;                 // step 2: pointer to the func
 </div>
 
 
+<h2>COM and OLE objects</h2>
+
+<p>
+   The DLL importer has some support from COM interfaces as well.
+</p>
+<p>
+   The importer pre-defines for the following COM interfaces, so you
+   don't have to define these on your own:
+</p>
+<ul>
+   <li>IUnknown
+</ul>
+<p>
+   For any other COM interfaces you wish to use, you'll have to define them, using
+   the dllImport.define() function.  Unlike most of the definitions we've
+   seen so far, interface definitions <i>don't</i> use standard C language
+   syntax.  Instead, we use a syntax that's similar to the syntax used in
+   Microsoft's IDL (Interface Definition Language) files.  The basic
+   syntax is:
+</p>
+<div class="code">
+<b>interface</b> <i>name</i> '<i>GUID</i>' : <i>baseInterface</i>
+<b>{</b>
+    <i>// C-style function definitions</i>
+<b>};</b>
+</div>
+
+<p>
+   The GUID is specified in the standard Microsoft hex format, with dashes
+   between digit groups; you can optionally use curly braces around the GUID
+   (inside the quote marks), but they're just for decoration and have
+   no other effect.  Every COM interface has a GUID, defined by Microsoft
+   (or whoever else defined the interface).  You can't just make these up
+   as they're permanent features of the interface. You can find the correct
+   GUID for any standard Windows interface in the IDL file in the SDK where
+   the interface is defined; look for the <b>uuid(...)</b> definition
+   preceding the <b>interface</b> statement.
+</p>
+<p>
+   The base interface is the name of a previously defined interface
+   that serves as the "base class" of the interface.  With the single
+   exception IUnknown (which is pre-defined by the DLL importer, so you
+   don't have to define it yourself), all COM interfaces are based on
+   some other interface, and IUnknown is always the ultimate base
+   interface.  An interface automatically "inherits" all of the functions
+   in its base interface.
+<p>
+   The function definitions within the interface use
+   standard C syntax.
+</p>
+<p>
+   For example, here's how you'd define the standard Windows interface IPersist:
+</p>
+<div class="code">
+dllImport.define(`
+    interface IPersist '0000010c-0000-0000-C000-000000000046' : IUnknown
+    {
+        HRESULT GetClassID(CLSID *pClassID);
+    };`);
+</div>
+
+<p>
+   The C parser also accepts the MIDL_INTERFACE syntax used in Windows
+   SDK .idl files.  This makes it fairly easy to copy and paste interface
+   definitions from the .idl files directly into your Javascript code,
+   with little or no hand-editing, which can make it a lot faster to
+   import a bunch of interfaces if you trying to get something complex
+   working.
+</p>
+<div class="code">
+dllImport.define(`
+    MIDL_INTERFACE("0000010c-0000-0000-C000-000000000046")
+    interface IPersist : public IUnknown
+    {
+    public:
+        virtual HRESULT STDMETHODCALL GetClassID(CLSID *pClassID) = 0;
+    };`);
+</div>
+<p>
+   The MIDL_INTERFACE syntax is a little more verbose, since it
+   adds the C++ keywords like "public", "virtual", and the "=0"
+   pure-virtual qualifier.  All of these extra keywords are
+   accepted, but are simply ignored, as they're all implied
+   in an interface anyway. 
+</p>
+
+<p>
+   Note that I like to use the back-quote (`) notation for COM
+   interface definitions, because they tend to be too long to pack
+   onto one line.  But of course, this isn't required; the definition
+   is just a string, and you can use any string delimiters you prefer.
+</p>
+
+<p>
+   As with any C function definition, you can specify a calling
+   convention for each function in an interface, but it <i>must</i>
+   always be STDMETHODCALLTYPE.  This is the default for all interface
+   functions, so you can safely omit it, and it's an error to specify
+   any other convention.
+</p>
+<p>
+   The order of the functions listed in an interface definition is
+   critical.  It must exactly match the definition in the IDL file
+   in the Microsoft SDK where the interface is officially defined.
+   A live COM object instance is essentially an array of function
+   pointers, so the only way that Javascript knows which function you
+   want to call is by matching its position in the interface definition
+   to the position in the pointer array.  The caller and the object
+   have to agree on the order of the functions, which all contained
+   in the IDL layout.
+</p>
+
+<p>
+   <b>Pointers to interfaces:</b>  Once you define an "interface" type,
+   it works a lot like a "struct" or "union" type in terms of referencing
+   it from other type definitions.  For example, you can create a pointer
+   to an interface using syntax like this:
+</p>
+<div class="code">
+let pUnk = dllImport.create("interface IUnknown*");
+</div>
+<p>
+   The same syntax works for typedef statements.  It's common in the Windows SDKs
+   to create the usual raft of type alias for interface pointers, which
+   you can replicate with dllImport.define() using typedefs:
+</p>
+<div class="code">
+dllImport.define("typedef interface IPersist IPersist, *LPPERSIST");
+</div>
+
+<p>
+   The DLL importer has special handling for interface OUT pointers in
+   function arguments.  COM interfaces that return an interface pointer
+   to a caller always do so via a parameter that's defined as a
+   <i>pointer to a pointer to an interface</i>, such as <b>IMoniker**</b>.
+   The double asterisks mean "pointer to pointer".  This is often just
+   <b>void**</b> (pointer to pointer to void) rather than a specific
+   interface type.  You see the void** type used in QueryInterface,
+   for example:
+</p>
+<div class="code">
+HRESULT QueryInterface(REFIID riid, void **ppvInterface);
+</div>
+<p>
+   Whenever a COM interface requires a pointer-to-pointer variable,
+   be it a particular Interface** or a generic void**, the DLL
+   importer lets you pass in a plain Interface* variable.  The
+   importer automatically passes the address of your pointer
+   variable in these cases, as required by the interface definition.
+   This makes it easier to call functions like QueryInterface
+   and CoCreateInstance, since you don't have to explicitly
+   add any "AddressOf" calls.
+</p>
+<div class="code">
+let p = dllImport.create("ITest*");
+i.QueryInterface(IID_ITest, p);
+</div>
+
+<p>
+   <b>IID_PPV_ARGS:</b>
+   In the case of QueryInterface, there's an even quicker short-hand
+   format you can use.  Whenever a function interface has a pair of
+   parameters of the form <b>REFIID, Interface**</b> or
+   <b>REFIID, void**</b>, you can pass an interface pointer
+   for the <i>pair</i> of arguments.  So we could rewrite the
+   call above like this:
+</p>
+<div class="code">
+i.QueryInterface(p);
+</div>
+
+<p>
+   We call this the IID_PPV_ARGS pattern because that's the name
+   of a macro in the Windows COM headers that does basically the
+   same thing in C++ code.  It stands for "interface ID, pointer
+   to pointer to void arguments".  Microsoft created this macro
+   because they noticed that this particular argument combination
+   occurs an awful lot in COM code; people were getting tired of
+   writing it out the long way every time.  In Javascript, this
+   works by matching the interface pointer argument to the
+   GUID argument, and then matching it again to the subsequent
+   Interface** or void** argument.  This works because a
+   <a href="COMPointer.html">COMPointer object</a> (the Javascript
+   object type that represents a native COM interface pointer)
+   knows its own interface GUID, which is what's required for
+   the REFIID argument.
+</p>
+   
 
 <h2>Namespaces</h2>
+
+<p>
+   The C type parser has a feature similar to C++ namespaces.  This is
+   primarily intended for people writing modules that they want to share
+   with other people, since it provides a way to avoid type name conflicts
+   when your shared module is used together with other shared modules
+   written by other people.  If each shared module defines its types
+   within a namespace, and each namespace is given a sufficiently
+   distinctive name, any two modules should be able to work together
+   without type naming conflicts.
+</p>
+   
 <p>
    When you define a struct or other type via dllImport.define(),
-   it goes into a single name table within the dllImport object.  That means
-   that you can only define one struct type for a given name within that
-   table.  For most Windows  SDK headers, that's fine, because the SDK takes pains
+   it goes into a global name table.  That means that you can only
+   define one struct type for a given name, across all scripts.
+   For most Windows  SDK headers, that's fine, because the SDK takes pains
    to give everything a unique name.  If you're mixing custom DLLs from different
    sources, though, you might find that others authors aren't always so careful
    about unique naming, so you might run into conflicts, where two DLLs use
    the same struct name for different purposes.
 </p>
 <p>
-   There are two ways to deal with struct naming conflicts.
-</p>
-<p>
-   The first is that you can just rename one of the types.  The names
-   of structs and other types aren't part of the DLL interfaces; the only
+   The easy way to work around this is to just rename one of the types.  The
+   names of structs and other types aren't part of the DLL interfaces; the only
    names that are actually part of DLL interfaces are the function names.
    So you can use whatever name you like for a struct type.  It's easier
    to keep things straight if you stick to the same names used in the DLL's
@@ -1874,29 +2071,115 @@ typedef WndEnumProc* WNDENUMPROC;                 // step 2: pointer to the func
    compelling you to use the original names.
 </p>
 <p>
-   The second alternative is to use different namespaces for each
-   DLL's struct types.  The table of struct names we mentioned isn't
-   global - it's part of the dllImport object.  If you create a second
-   DLL importer object, it will have its own separate name table.
-   The dllImport object is implemented by a Javascript class called
-   DllImport, so it's easy to create a new one: just use "new DllImport":
+   A more general way to handle name conflicts is to use "namespaces".
+   A namespace is essentially a prefix that's applied to each type name
+   in a group.  You create a namespace using the <b>namespace</b> keyword,
+   followed by an open brace.  Every symbol defined up to the next closing
+   brace is part of that namespace.
+</p>
+<div class="code">
+dll.define(`
+    namespace MyDll
+    {
+        struct Color {
+            UINT8 r;
+            UINT 8 g;
+            UINT8 b;
+        };
+
+        struct Brush {
+            int width;
+            struct Color color;
+        };
+    }
+`);
+</div>
+
+<p>
+   Each name defined within the braces of a <b>namespace</b> statement is
+   implicitly prefixed with the namespace name and a "::" delimiter, so in
+   the example above, <b>struct Color</b> is actually defined as
+   <b>struct MyDll::Color</b>, and <b>struct Brush</b> is actually
+   <b>struct MyDll::Brush</b>.  When you refer to these types in your
+   Javascript code, you must use the fully qualified name, with the
+   "namespace::" prefix:
+</p>
+<div class="code">
+// create a Color struct from the MyDll namespace
+let c = dllImport.create("struct MyDll::Color");
+</div>
+<p>
+   Within a <b>namespace { }</b> section,
+   whenever you <i>reference</i> a type (as opposed to defining a new type),
+   the parser looks for an existing type that matches the name.  It starts
+   by assuming that you're talking about the current namespace, but if no
+   matching type is found there, it looks at the enclosing namespace(s).
+   So in the example above, the reference to <b>struct Color</b> within the
+   definition of <b>struct Brush</b> is matched to the previously defined
+   <b>struct MyDll::Color</b>.  If there hadn't been a struct Brush within
+   the namespace, though, the parser would have looked for a <i>global</i>
+   struct Brush, defined outside of any namespace. 
+   Let's elaborate the example to show how this works:
 </p>
 
 <div class="code">
-var dllImport2 = new DllImport();
+dll.define(`
+    struct Rect {
+       int left;
+       int top;
+       int right;
+       int bottom
+    };
+
+    namespace MyDll
+    {
+        struct Color {
+            UINT8 r;
+            UINT 8 g;
+            UINT8 b;
+        };
+
+        struct Brush {
+            int width;
+            struct Color color;
+        };
+
+        void FillRect(struct Rect *r, struct Brush *br);
+    }
+`);
 </div>
 <p>
-   Note the capitalization!  The default DLL import <i>object</i>, which you
-   use to call the .bind() and .define() methods, is called
-   <b>dllImport</b> with a small d.  The <i>class</i>, which you use with "new"
-   to create new importer objects with their own namespaces, is called
-   <b>DllImport</b> with a big D.  Javascript is picky about capitalization:
-   <b>dllImport</b> and <b>DllImport</b> are separate entities, even
-   though their names differ only by the capitalization of the first letter.
+   In the definition of the function FillRect(),
+   <b>struct Brush</b> refers to <b>struct MyDll::Brush</b>, as in the
+   earlier example, since there's a struct Brush defined in the current
+   namespace.  <b>struct Rect</b> refers to the global struct definition,
+   though, since the MyDll namespace doesn't have its own separate
+   definition of struct Rect.
 </p>
 <p>
-   Once you create your new object, you can call dllImport2.define() to add structs
-   to its namespace without affecting the structs in the original object's namespace.
+   In some cases, you might want to override the implied local namespace
+   reference to refer to a global name.  Suppose, for example, that you
+   <i>also</i> had a global <b>struct Color</b>, in addition to the one
+   defined in the MyDll namespace as in the examples.  You could explicitly
+   refer to the global name by using the "::" prefix with no namespace.
+</p>
+<div class="code">
+dll.define(`
+    struct Color { ... };      // defines a global struct ::Color
+    namespace MyDll
+    {
+        struct Color { ... };  // defines struct MyDll::Color
+        void FillRect2(struct Rect *r, struct ::Color *c);  // uses the global struct
+    };
+`);
+</div>
+
+<p>
+   Namespaces apply to struct, union, interface, enum, and typedef names.
+   They don't apply to the members of any of those objects, since the members
+   are already scoped to the enclosing types.  Namespaces also don't
+   apply to function names, since those don't go into the internal name
+   table.
 </p>
 
 <h2>Predefined type names</h2>
@@ -1913,8 +2196,8 @@ var dllImport2 = new DllImport();
 <p>
    For a full, up-to-the-minute list of the predefined types, refer to the
    <b>primitiveTypes</b> constant object defined in <b>Scripts\System\CParser.js</b>.
-   Any types that you need that aren't present can always be added in your script
-   code via a call like this:
+   Any types that you need but that aren't defined there can always be added in
+   your script code via a call like this:
 </p>
 <div class="code">
 dllImport.define("typedef int *ptrToInt");

@@ -160,6 +160,7 @@ let CParser = (function()
             "__vectorcall": "V",
             "CDECL": "C",
             "STDCALL": "S",
+            "STDMETHODCALLTYPE": "S",
             "WINAPI": "S",
             "CALLBACK": "S"
         };
@@ -231,8 +232,15 @@ let CParser = (function()
             "SIZE_T": "Z",
             "SSIZE_T": "z",   // signed size_t - not an MSVC type name, but defined (in caps) in the SDK
             "ptrdiff_t": "z",
+            "INT_PTR": "p",
+            "LONG_PTR": "p",
+            "UINT_PTR": "P",
+            "ULONG_PTR": "P",
+            "DWORD_PTR": "P",
 
             // Windows SDK type aliases for primitive C types
+            "LPARAM": "P",
+            "WPARAM": "P",
             "BOOL": "i",
             "BOOLEAN": "c",
             "__int8": "c",
@@ -241,11 +249,13 @@ let CParser = (function()
             "CHAR": "c",
             "CCHAR": "c",
             "INT8": "c",
+            "UCHAR": "C",
             "UINT8": "C",
             "__int16": "s",
             "__uint16": "S",
             "__wchar_t": "S",
             "wchar_t": "S",
+            "WORD": "S",
             "ATOM": "S",
             "LANGID": "S",
             "INT16": "s",
@@ -273,15 +283,22 @@ let CParser = (function()
             "UINT64": "L",
             "LONGLONG": "l",
             "DWORDLONG": "L",
+            "ULONGLONG": "L",
             "DWORD64": "L",
             "FLOAT": "f",
             "DOUBLE": "d",
             "VOID": "v",
             "PVOID": "*v",
             "LPVOID": "*v",
+            "HRESULT": "i",
 
             // Windows SDK types with special handling in our DllImport layer
-            "HRESULT": "i",
+            "IID": "G",
+            "GUID": "G",
+            "UUID": "G",
+            "CLSID": "G",
+            "REFIID": "&%G",
+            "REFCLSID": "&%G",
             "HANDLE": "H",
             "HACCEL": "H",
             "HDC": "H",
@@ -322,13 +339,14 @@ let CParser = (function()
             "LPCTSTR": "%T",
             "LPWSTR": "T",
             "LPCWSTR": "%T",
-            "INT_PTR": "p",
-            "LONG_PTR": "p",
-            "UINT_PTR": "P",
-            "ULONG_PTR": "P",
-            "DWORD_PTR": "P",
-            "LPARAM": "P",
-            "WPARAM": "P",
+            "OLECHAR": "S",
+            "LPOLESTR": "T",
+            "LPCOLESTR": "%T",
+            "VARIANT": "V",
+            "LPVARIANT": "*V",
+            "VARIANTARG": "V",
+            "LPVARIANTARG": "*V",
+            "BSTR": "B",
         };
 
         const typeModifiers = [
@@ -336,9 +354,11 @@ let CParser = (function()
             "CONST", "LONG", "SHORT", "SIGNED", "UNSIGNED"       // Windows SDK upper case macros for common modifiers
         ];
 
+        // next anonymous ID serial number
+        var nextAnon = 1;
 
-        // Top-level type namespace.  Primitive types and typedef names go in
-        // this namespace.
+        // Top-level type namespace.  Primitive types, typedef names, and
+        // predefined SDK types go in this namespace.
         var typeMap = { };
         for (let t in primitiveTypes)
             typeMap[t] = { type: "PrimitiveType", primitive: primitiveTypes[t] };
@@ -349,6 +369,9 @@ let CParser = (function()
         var structMap = { };
         var unionMap = { };
         var enumMap = { };
+        var interfaceMap = { };
+        var constantMap = { };
+        var namespaceMap = { };
 
         // type modifiers
         var typeModMap = { };
@@ -374,7 +397,11 @@ let CParser = (function()
             var curr;
             var index = -1;
 
-            var position = {line: 1};
+            var position = {line: 1, column: 1, index: 0};
+
+            // Namespace stack.  Each time we enter a namespace, we add its name to
+            // the stack.
+            var namespaces = [];
 
             next();
             return parseRoot();
@@ -388,9 +415,26 @@ let CParser = (function()
                     var pos = getPos();
 
                     skipBlanks();
-                    if (lookahead("typedef"))
+                    if (lookahead("namespace"))
                     {
-                        let defs = readDefinitions();
+                        let n = readIdentifier();
+                        namespaceMap[n] = true;
+
+                        if (lookahead("{"))
+                        {
+                            // enter the namespace
+                            namespaces.push(n);
+                        }
+                        else if (lookahead(";"))
+                        {
+                            /* just a namespace declaration, with no contents */
+                        }
+                        else
+                            throwError("invalid 'namespace' syntax: expected { or ;")
+                    }
+                    else if (lookahead("typedef"))
+                    {
+                        let defs = readDefinitions(typeMap);
                         endOfStatement();
 
                         for (let def of defs)
@@ -400,26 +444,31 @@ let CParser = (function()
                             stmts.push(def);
                         }
                     }
-                    else if (definitionIncoming())
+                    else if (lookahead(";"))
                     {
-                        var def = readDefinition();
-
-                        if (lookahead("{"))
-                        {
-                            unexpected("Function body definitions are not supported");
-                        }
-
-                        endOfStatement();
-                        stmts.push(def);
+                        // empty statement
+                    }
+                    else if (namespaces.length && lookahead("}"))
+                    {
+                        // end of namespace
+                        namespaces.pop();
                     }
                     else
                     {
-                        unexpected("struct, union, enum, typdef, extern, FunctionDeclaration or VariableDeclaration");
+                        // anything else has to be some kind of declaration
+                        var def = readDefinition();
+
+                        if (lookahead("{"))
+                            unexpected("Function body definitions are not supported");
+
+                        endOfStatement();
+                        stmts.push(def);
                     }
                 }
 
                 for (let s of stmts)
                     s.unparse = () => unparse(s);
+
                 return stmts;
             }
 
@@ -431,54 +480,138 @@ let CParser = (function()
 
             function parseStruct(stype)
             {
-                let [deftype, map] = (stype == "struct" ? ["StructType", structMap] : ["UnionType", unionMap]);
-                let s = {type: deftype, member: [], pos: getPos()};
+                let [deftype, map, typeCode] = (stype == "struct" ? ["StructType", structMap, "S"] : ["UnionType", unionMap, "U"]);
+                let startPos = getPos();
+                let s = {type: deftype, member: [], pos: startPos};
 
                 if (lookahead("{"))
                 {
-                    s.name = "<anonymous>";
+                    // No name - it's an anonymous struct.  Give it a unique
+                    // internal identifier.
+                    s.name = "$" + (nextAnon++);
+                    map[s.name] = s;
                 }
                 else
                 {
-                    s.name = readIdentifier();
+                    // Read the name, which might be a qualified identifier, and
+                    // resolve it within the struct or union namespace.
+                    s.name = resolveQualifiedIdentifier(readQualifiedIdentifier(), map);
+
+                    // Check if this is a defining statement
+                    if (peekPat(/^[;{]/))
+                    {
+                        // A definition is always in the current namespace.  Figure
+                        // the implied symbol and make sure it matches.
+                        let cc = s.name.lastIndexOf("::");
+                        let root = cc >= 0 ? s.name.substr(cc + 2) : s.name;
+                        let fullname = namespaces.concat(root).join("::");
+                        if (fullname != s.name)
+                        {
+                            // It doesn't match our earlier resolution.  They either
+                            // explicitly named a different namespace, or we matched
+                            // an existing symbol and implicitly applied the other
+                            // namespace.  If it was explicit, it's an error.
+                            if (!map[s.name])
+                                throwError("struct definition can not override current namespace");
+
+                            s.name = fullname;
+                        }
+                    }
+
+                    // If there's an open brace, it's a new struct definition;
+                    // otherwise it's either a reference to an existing struct
+                    // or a forward declaration of a struct type.
                     if (!lookahead("{"))
                     {
-                        let prv = map[s.name];
-                        if (!prv)
-                            prv = { type: deftype, member: [], pos: getPos() };
-                        return prv;
+                        // if the symbol wasn't already defined, define it
+                        if (!map[s.name])
+                            map[s.name] = s;
+                        
+                        // return the name for 
+                        return map[s.name];
+                    }
+
+                    // check for a previous definition
+                    let prv = map[s.name];
+                    if (prv)
+                    {
+                        // we can't redefine it, so the previous definition must be
+                        // a forward declaration only
+                        if (prv.defined)
+                            throwError(stype + " " + s.name + " is already defined");
+
+                        // use the previous definition
+                        s = prv;
+                    }
+                    else
+                    {
+                        // not previously seen - add it to the map
+                        map[s.name] = s;
                     }
                 }
 
-                while (definitionIncoming())
+                // set the starting pos for the new definition
+                s.pos = startPos;
+
+                // parse the struct members
+                while (!lookahead("}"))
                 {
                     for (let def of readDefinitions())
                         s.member.push(def);
                     consume(";");
                 }
 
-                consume("}");
-                map[s.name] = s;
+                // mark the struct as defined
+                s.defined = true;
+
+                // pass the definition to the native layer
+                _defineInternalType(
+                    typeCode + "." + s.name,
+                    "{" + typeCode + " "
+                    + s.member.map(m => m.name + ";" + unparse(m)).join(" ")
+                    + "}");
+
+                // return the struct definition
                 return s;
             }
 
             function parseEnum()
             {
-                var e = {type: "EnumDefinition", member: [], pos: getPos()};
+                let startPos = getPos();
+                let e = {type: "EnumDefinition", member: [], pos: startPos};
 
                 if (lookahead("{"))
                 {
-                    e.name = "<anonymous>";
+                    e.name = "$" + (nextAnon++);
                 }
                 else
                 {
                     e.name = readIdentifier();
-                    consume("{");
+
+                    let prv = enumMap[e.name];
+                    if (prv)
+                        e = prv;
+                    else
+                        enumMap[e.name] = e;
+
+                    if (!lookahead("{"))
+                        return e;
+
+                    e.pos = startPos;
                 }
 
-                while(identifierIncoming())
+                let index = 0;
+                while (identifierIncoming())
                 {
-                    e.member.push(readIdentifier());
+                    let eleName = readIdentifier();
+
+                    if (lookahead("="))
+                        index = readNumber();
+
+                    e.member.push({ name: eleName, value: index });
+                    constantMap[eleName] = index;
+
+                    ++index;
 
                     if(!lookahead(","))
                         break;
@@ -489,30 +622,215 @@ let CParser = (function()
                 return e;
             }
 
-            function parseArgumentDefinition()
+            function parseArgumentDefinition(inInterface)
             {
                 var args = [];
-                while (definitionIncoming())
+                if (lookahead(")"))
+                    return args;
+
+                for (;;)
                 {
-                    args.push(readDefinition());
+                    args.push(readDefinition(false, inInterface));
 
                     if (lookahead(")"))
                         return args;
+
                     consume(",");
                 }
-                consume(")");
-                return args;
             }
 
-            function definitionIncoming()
+            function parseInterface(kw)
             {
-                let s = peekSym();
-                return typeModMap[s] || typeMap[s] || s == "struct" || s == "union" || s == "enum";
+                // set up the prospective interface descriptor
+                ifc = {
+                    type: "InterfaceType",
+                    vtable: []
+                };
+
+                // check the format
+                let guid;
+                if (kw == "interface")
+                {
+                    // interface <name> "<guid>" : <base> { ... }
+                    ifc.name = resolveQualifiedIdentifier(readQualifiedIdentifier(), interfaceMap);
+                    if (altStringIncoming())
+                        guid = readAltString();
+                }
+                else if (kw == "MIDL_INTERFACE")
+                {
+                    // MIDL_INTERFACE("<guid>") <name> : public <base> { ... }
+                    consume("(");
+                    guid = readAltString();
+                    consume(")");
+                    ifc.name = resolveQualifiedIdentifier(readQualifiedIdentifier(), interfaceMap);
+                }
+                else
+                    throwError("invalid interface syntax");
+
+                // Check if we're defining the interface or creating a forward declaration.
+                if (peekPat(/^[:{]/))
+                {
+                    // A definition is always in the current namespace.  Figure
+                    // the implied symbol and make sure it matches.
+                    let cc = ifc.name.lastIndexOf("::");
+                    let root = cc >= 0 ? ifc.name.substr(cc + 2) : ifc.name;
+                    let fullname = namespaces.concat(root).join("::");
+                    if (fullname != ifc.name)
+                    {
+                        // It doesn't match our earlier resolution.  They either
+                        // explicitly named a different namespace, or we matched
+                        // an existing symbol and implicitly applied the other
+                        // namespace.  If it was explicit, it's an error.
+                        if (!interfaceMap[ifc.name])
+                            throwError("struct definition can not override current namespace");
+
+                        ifc.name = fullname;
+                    }
+                }
+
+                // If a ":" or "{" follows, we have an interface definition.  Otherwise
+                // we just have an interface reference (e.g., interface IUnknown*).
+                if (lookahead(":"))
+                {
+                    // skip the optional 'public'
+                    lookahead("public");
+                    
+                    // read and look up the base interface - it must already be defined
+                    let baseName = resolveQualifiedIdentifier(readQualifiedIdentifier(), interfaceMap);
+                    let baseIfc = interfaceMap[baseName];
+                    if (!baseIfc || !baseIfc.defined)
+                        throwError("base interface \"" + baseName + "\" is undefined");
+
+                    // add the base interface's vtable to the new interface's vtable
+                    ifc.vtable = [].concat(baseIfc.vtable);
+
+                    // we need a "{" at this point
+                    consume("{");
+                }
+                else if (!lookahead("{"))
+                {
+                    // It's just a reference.  Look up the fully qualified name, and
+                    // return the existing interface definition.
+                    ifc.name = resolveQualifiedIdentifier(ifc.name, interfaceMap);
+
+                    // if it's not already defined, add a new forward entry for it
+                    let prv = interfaceMap[ifc.name];
+                    if (!prv)
+                    {
+                        // add it to the interface namespace
+                        prv = interfaceMap[ifc.name] = ifc;
+
+                        // make sure we're not redefining a top-level typedef
+                        if (typeMap[ifc.name])
+                            throwError("interface " + ifc.name + " is already defined as a different type");
+
+                        // add it to the top-level typedef namespace as well
+                        typeMap[ifc.name] = ifc;
+                    }
+
+                    // return the map entry
+                    return prv;
+                }
+
+                // Look for an existing definition
+                let prv = interfaceMap[ifc.name];
+                if (prv)
+                {
+                    // make sure it was only forward-declared, not defined
+                    if (prv.defined)
+                        throwError("interface " + ifc.name + " is already defined");
+
+                    // use the existing entry, copying the new information we've gathered so far
+                    Object.assign(prv, ifc);
+                    ifc = prv;
+                }
+                else
+                {
+                    // new entry - add it to the map
+                    interfaceMap[ifc.name] = ifc;
+
+                    // make sure it wasn't already defined as a different type at the top level
+                    if (typeMap[ifc.name])
+                        throwError("interface " + ifc.name + " is already defined as a different type");
+
+                    // add it as a top-level typedef
+                    typeMap[ifc.name] = ifc;
+                }
+
+                // validate the GUID format
+                if (!/\{?([0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12})\}?/i.test(guid))
+                    throwError("invalid GUID format: use standard {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx} format (with or without braces)");
+
+                // store the GUID minus any braces, normalizing as upper-case
+                ifc.guid = RegExp.$1.toUpperCase();
+
+                // parse function definitions
+                while (!lookahead("}"))
+                {
+                    // skip "public:" specifiers
+                    if (lookahead("public"))
+                        consume(":");
+                    
+                    // skip "virtual" keywords
+                    lookahead("virtual");
+
+                    // parse a definition
+                    let def = readDefinition(false, true);
+
+                    // skip pure virtual "=0" suffix
+                    if (lookahead("="))
+                        consume("0");
+
+                    // skip the terminating semicolon
+                    consume(";");
+
+                    // only function declarations are allowed within an interface
+                    if (def.type != "Declaration" || def.defType.type != "FunctionType")
+                        throwError("an interface must consist solely of function declarations");
+
+                    // Functions in an interface are always STDMETHODCALLTYPE.  It's an error if
+                    // any other calling type is defined.
+                    if (def.defType.callingConvention && def.defType.callingConvention != "STDMETHODCALLTYPE")
+                        throwError("interface functions must use STDMETHODCALLTYPE calling convention");
+
+                    // if it was defaulted, use STDMETHODCALLTYPE
+                    def.defType.callingConvention = "STDMETHODCALLTYPE";
+
+                    // Every COM interface has a hidden 'this' argument in first position.
+                    // Insert it as a void* argument.
+                    def.defType.arguments.unshift({
+                        name: "[this]",
+                        defType: {
+                            type: "PointerType",
+                            target: { type: "PrimitiveType", primitive: "v"}
+                        }
+                    });
+
+                    // add it to the list
+                    ifc.vtable.push(def);
+                }
+
+                // mark the interface as defined
+                ifc.defined = true;
+
+                // pass the definition to the native layer
+                _defineInternalType(
+                    "I." + ifc.name,
+                    "{I " + ifc.guid + " "
+                    + ifc.vtable.map(m => m.name + ";" + unparse(m)).join(" ")
+                    + "}");
+
+                // return the interface as a declaration
+                return ifc;
             }
 
-            function readDefinitions() { return readDefinition(true); }
-            function readDefinition(multi)
+            function readDefinitions(qualifiedTypeMap) { return readDefinition(true, false, qualifiedTypeMap); }
+            function readDefinition(multi, inInterface, qualifiedTypeMap)
             {
+                // If we're in an interface, skip __RPC__xxx IDL annotations
+                if (inInterface)
+                    lookaheadPat(/^(__RPC__|_In_|_Out_)([a-zA-Z0-9_]|\([^)]*\))+/);
+                
                 // A C declaration looks like this:
                 //
                 //   <declaration-specifier> <pointer>[opt] <declarator>
@@ -636,24 +954,57 @@ let CParser = (function()
                         {
                             consume(s);
                             composites.push(parseStruct(s));
+                            break;
+                        }
+                        else if (s == "interface" || s == "MIDL_INTERFACE")
+                        {
+                            consume(s);
+                            composites.push(parseInterface(s));
+                            break;
                         }
                         else if (s == "enum")
                         {
                             consume(s);
                             composites.push(parseEnum());
+                            break;
                         }
                         else if (s == "const" || s == "CONST" || s == "volatile")
                         {
                             consume(s);
                             qualifiers[s.toLowerCase()] = true;
                         }
-                        else if (typeMap[s])
+                        else if (s)
                         {
-                            consume(s);
-                            types.push(s);
+                            // It's some other symbol.  Check if it's a type name.  This
+                            // could require looking ahead several tokens if it has namespace
+                            // qualifiers, so save the current position first so that we can
+                            // backtrack if it doesn't turn out to be a type name.
+                            let oldPos = savePos();
+
+                            // read a (possibly qualified) identifier
+                            let id = resolveQualifiedIdentifier(readQualifiedIdentifier(), typeMap);
+
+                            // try mapping it to a type
+                            if (typeMap[id])
+                            {
+                                // it's a type - add it to the type list
+                                types.push(id);
+                                s = id;
+                            }
+                            else
+                            {
+                                // not a type - pop the position
+                                restorePos(oldPos);
+
+                                // we must have reached the end of the type list section
+                                break;
+                            }
                         }
                         else
+                        {
+                            // not a symbol - we're done with type names
                             break;
+                        }
 
                         all.push(s);
                     }
@@ -666,6 +1017,10 @@ let CParser = (function()
                     let type;
                     if (composites.length)
                     {
+                        // exactly one composite type is allowed
+                        if (composites.length > 1)
+                            throwError("invalid declaration: multiple composite types specified");
+                        
                         // use the parsed composite type
                         type = composites[0];
                     }
@@ -771,9 +1126,13 @@ let CParser = (function()
                     {
                         ret = {
                             type: "name",
-                            callingConvention: parseCallingConvention(),
-                            name: identifierIncoming() && readIdentifier()
+                            callingConvention: parseCallingConvention()
                         };
+
+                        if (qualifiedTypeMap)
+                            ret.name = qualifiedIdentifierIncoming() && resolveQualifiedIdentifier(readQualifiedIdentifier(), qualifiedTypeMap);
+                        else
+                            ret.name = identifierIncoming() && readIdentifier();
                     }
 
                     // check for function and array postfixes
@@ -782,7 +1141,7 @@ let CParser = (function()
                         if (lookahead("("))
                         {
                             // parse arguments
-                            let args = parseArgumentDefinition();
+                            let args = parseArgumentDefinition(inInterface);
 
                             // exactly one 'void' argument actually means there are zero arguments
                             if (args.length == 1 && args[0].defType.name == "void")
@@ -872,6 +1231,37 @@ let CParser = (function()
 
                 return val.join("");
             }
+
+            // "alternative" string - " or ' quoting
+            function altStringIncoming()
+            {
+                return curr && (curr == "\"" || curr == "'");
+            }
+            function readAltString(keepBlanks)
+            {
+                let val = [];
+                let qu = curr;
+                next(true, true);
+                while (curr && curr != qu)
+                {
+                    if (curr == "\\")
+                    {
+                        next(true, true);
+                        val.push(readEscapeSequence());
+                    }
+                    else
+                    {
+                        val.push(curr);
+                        next(true, true);
+                    }
+                }
+
+                if (!lookahead(qu, keepBlanks))
+                    unexpected(qu);
+
+                return val.join("");
+            }
+
             function readEscapeSequence()
             {
                 if(curr == "x")
@@ -917,6 +1307,56 @@ let CParser = (function()
                 return parseFloat(val);
             }
 
+            function qualifiedIdentifierIncoming()
+            {
+                return curr && /::|[A-Za-z_]/.test(curr);
+            }
+
+            function resolveQualifiedIdentifier(id, map)
+            {
+                // if it starts with an explicit global qualifier, strip the
+                // "::" prefixand return the result
+                if (id.startsWith("::"))
+                    return id.substr(2);
+
+                // It's not explicitly global, so it could be implicitly qualified
+                // by the current namespace or any parent namespace.  Search from
+                // the current namespace outwards for an existing identifier.
+                for (let cur = [].concat(namespaces) ; ; cur.pop())
+                {
+                    let qual = cur.concat(id).join("::");
+                    if (map[qual])
+                        return qual;
+
+                    // If we're out of parents, this is a new name, which means
+                    // that it's implicitly in the current namespace.
+                    if (cur.length == 0)
+                        return namespaces.concat(id).join("::");
+                }
+            }
+
+            function readQualifiedIdentifier()
+            {
+                let lst = [];
+
+                if (lookahead("::"))
+                    lst.push("::");
+
+                while (identifierIncoming())
+                {
+                    lst.push(readIdentifier());
+                    if (lookahead("::"))
+                        lst.push("::");
+                    else
+                        break;
+                }
+
+                if (lst.length == 0 || lst[lst.length-1] == "::")
+                    unexpected("identifier");
+
+                return lst.join("");
+            }
+
             function identifierIncoming()
             {
                 return curr && /[A-Za-z_]/.test(curr);
@@ -952,7 +1392,8 @@ let CParser = (function()
             {
                 return {
                     line: position.line,
-                    column: index
+                    column: position.column,
+                    index: index
                 };
             }
 
@@ -969,7 +1410,9 @@ let CParser = (function()
                     "line ",
                     pos.line,
                     ", col ",
-                    index,
+                    pos.column,
+                    ", index ",
+                    pos.index,
                     ": ",
                     msg
                 ].join(""));
@@ -977,10 +1420,29 @@ let CParser = (function()
 
             function peekSym()
             {
-                if (/^([_a-zA-Z][_a-zA-Z0-9]*)/.test(src.substr(index)))
+                if (/^(::|[_a-zA-Z][_a-zA-Z0-9]*)/.test(src.substr(index)))
                     return RegExp.$1;
                 else
                     return false;
+            }
+
+            function peekPat(pat)
+            {
+                if (pat.test(src.substr(index)))
+                    return RegExp.lastMatch;
+                else
+                    return false;
+            }
+
+            function lookaheadPat(pat)
+            {
+                if (pat.test(src.substr(index)))
+                {
+                    var s = RegExp.lastMatch;
+                    consume(s);
+                    return s;
+                }
+                return false;
             }
 
             function lookahead(str, keepBlanks)
@@ -1026,12 +1488,35 @@ let CParser = (function()
                     next();
             }
 
+            function savePos()
+            {
+                let p = {
+                    curr: curr,
+                    index: index,
+                    position: { }
+                };
+                Object.assign(p.position, position);
+                return p;
+            }
+
+            function restorePos(p)
+            {
+                curr = p.curr;
+                index = p.index;
+                Object.assign(position, p.position);
+            }
+
             function next(includeSpaces, includeComments)
             {
                 includeSpaces = includeSpaces || false;
 
+                position.column++;
+                position.index++;
                 if(curr == "\n")
+                {
                     position.line++;
+                    position.column = 1;
+                }
                 index++;
                 curr = src[index];
 
@@ -1049,8 +1534,13 @@ let CParser = (function()
                     {
                         while(curr && /[\s\n]/.test(curr))
                         {
+                            position.column++;
+                            position.index++;
                             if(curr == "\n")
+                            {
                                 position.line++;
+                                position.column = 1;
+                            }
                             index++;
                             curr = src[index];
                         }
@@ -1075,8 +1565,13 @@ let CParser = (function()
                     {
                         while(curr != "*" || src[index + 1] != "/")
                         {
+                            position.column++;
+                            position.index++;
                             if(curr == "\n")
+                            {
                                 position.line++;
+                                position.column = 1;
+                            }
                             index++;
                             curr = src[index];
                         }
@@ -1114,19 +1609,22 @@ let CParser = (function()
                     throwError("Unknown type in unparse: " + t.name);
 
                 case "PointerType":
-                    return (t.isConst ? "%*" : "*") + unparseType(t.target);
+                    return (t.isConst ? "%*" : "*") + unparseType(t.target, true);
 
                 case "ReferenceType":
-                    return (t.isConst ? "%&" : "&") + unparseType(t.target);
+                    return (t.isConst ? "%&" : "&") + unparseType(t.target, true);
 
                 case "ArrayType":
-                    return "[" + t.length + "]" + unparseType(t.target);
+                    return "[" + t.length + "]" + unparseType(t.target, false);
 
                 case "IncompleteArrayType":
-                    return "[]" + unparseType(t.target);
+                    return "[]" + unparseType(t.target, false);
 
                 case "FunctionType":
-                    return "(" + unparseFunc(t) + ")";
+                    return "(" + unparseFunc(t, false) + ")";
+
+                case "InterfaceType":
+                    return unparseInterface(t);
 
                 case "StructType":
                     return unparseStruct(t);
@@ -1150,29 +1648,27 @@ let CParser = (function()
                 s = (callingConvMap[t.callingConvention] || "C")
                     + unparseType(t.returnType);
                 for (let a of t.arguments)
-                    s += " " + unparseType(a.defType);
+                    s += " " + unparseType(a.defType, false);
                 return s;
             }
 
             function unparseStruct(t)
             {
-                let s = [];
-                for (let m of t.member)
-                    s.push(m.name + ":" + unparseType(m.defType));
-                return "{S " + s.join(" ") + "}";
+                return "@S." + t.name;
             }
 
             function unparseUnion(t)
             {
-                let s = [];
-                for (let m of t.member)
-                    s.push(m.name + ":" + unparseType(m.defType));
-                return "{U " + s.join(" ") + "}";
+                return "@U." + t.name;
+            }
+
+            function unparseInterface(t)
+            {
+                return "@I." + t.name;
             }
 
             function unparseEnum(t)
             {
-                let s = [];
                 return "E" + t.name;
             }
 
@@ -1181,38 +1677,58 @@ let CParser = (function()
             {
             case "Declaration":
                 return unparseType(stmt.defType);
-                break;
 
             case "TypeDefStatement":
                 return unparseType(stmt.defType);
-                break;
-
-            case "StructType":
-                return unparseStruct(stmt);
-                break;
-
-            case "UnionType":
-                return unparseUnion(stmt);
-                break;
-
-            case "EnumDefinition":
-                return unparseEnum(stmt);
-                break;
 
             default:
-                throw new Error("CParser.unparse: unknown node type " + stmt.type);
-                break;
+                return unparseType(stmt);
             }
         }
 
-        // our only exposed entrypoint is the parse() function
-        return parse;
+        let uuidof = function(type)
+        {
+            // check for a global type alias
+            let alias = typeMap[type];
+            if (alias)
+            {
+                if (alias.type == "InterfaceType")
+                    return alias.guid;
+
+                throw new Error("\"" + type + "\" is not an interface");
+            }
+            
+            // check if it's an "interface <foo>" type
+            if (/^\s*interface\s+([a-z_][a-z0-9_]*\s*$)/i.test(type))
+                type = RegExp.$1;
+
+            // check if it's the name of an interface
+            let i = interfaceMap[type];
+            if (i)
+                return i.guid;
+
+            // unknown type
+            throw new Error("unknown interface");
+        }
+
+        // return our collection of public entrypoints
+        return {
+            parse: parse,
+            uuidof: uuidof,
+            enums: enumMap,
+            structs: structMap,
+            unions: unionMap,
+            interfaces: interfaceMap,
+            constants: constantMap
+        };
     }
 
     // CParser constructor
     return function()
     {
-        this.parse = createParser();
-    }
+        // create a unique parser instance, and assign its methods as
+        // our methods
+        Object.assign(this, createParser());
+    };
 
 })();

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>mainWindow Object</h1>
+
+<p>
+   <b>mainWindow</b> is a pre-defined PinballY object representing the main user
+   interface window (the "playfield" window).  This window is the event target
+   for most UI-related events.
+</p>
+
+<h2>Event target</h2>
+
+<p>
+   mainWindow is an event target object, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.
+</p>
+
+
+<h2>Methods</h2>
+
+
+<p>
+   <a name="message"></a>
+   <b>message(<i>message</i>, <i>style</i>):</b>  Shows a message using a
+   graphical popup box in the main window.  Unlike the global alert() function,
+   this doesn't pause the script until the user acknowledges the message;
+   it simply shows or queues the message and returns immediately.  This
+   is a good option for showing error messages or status updates, since it
+   doesn't interrupt the flow of the user interface with a modal dialog.
+   If <i>style</i> is provided, it's a string value specifying the
+   visual style of the popup message.  This can be "info", "warning", or
+   "error", which show the message with green, orange, or red trim
+   (respectively), to visually signal the nature of the message.  The
+   regular "info" style is used if <i>style</i> is omitted.
+</p>
+
+
+<h2>Events</h2>
+
+<p>
+   <b>keydown:</b> This keyboard event fires when a keyboard key is pressed,
+    and is then repeated each time Windows sends an "auto repeat" event
+    while the key is being held down.
+</p>
+
+<p>
+   <b>keyup:</b> This keyboard event fires when a keyboard key is released.
+</p>
+
+
+</body>
+</html>

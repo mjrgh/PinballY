@@ -115,15 +115,16 @@ let s = dllImport.create("struct Foo");   // a structure type, defined elsewhere
 
 <p>
    <b>Scalars:</b>  A scalar native object is one that contains
-   a single value, such as an integer, a HANDLE value, etc.
+   a single value, such as an integer, a HANDLE value, etc.  A pointer
+   value (e.g., "int *" or "struct foo *") is also a scalar, since
+   the pointer only takes up a single memory location.
 </p>
 <p>
    To access the internal native data value, you use the <b>.value</b>
-   property.  This property is actually a getter/setter, so each time
-   you invoke it, it accesses the hidden internal native value.  When
-   you use .value to read the value, the native value is converted to
-   the corresponding Javascript type, and the Javascript value is
-   returned:
+   property.  This is a getter/setter that accesses the hidden internal
+   native value.  When you use .value to read the value, the native value
+   is converted to the corresponding Javascript type, and the Javascript
+   value is returned:
 </p>
 <ul>
    <li>If the native value is an integer type, float, or double,
@@ -133,7 +134,10 @@ let s = dllImport.create("struct Foo");   // a structure type, defined elsewhere
    <li>If the native type is HANDLE,  a <a href="HandleObject.html">HANDLE</a>
       object is returned.
 
-   <li>If it's a pointer type, a <a href="NativePointer.html">NativePointer</a>
+   <li>If it's a COM interface pointer, a <a href="COMPointer.html">COMPointer</a>
+      object is returned
+
+   <li>If it's any other pointer type, a <a href="NativePointer.html">NativePointer</a>
       object is returned
 
    <li>If the native type is some kind of string (LPSTR, LPCWSTR, etc),
@@ -394,6 +398,21 @@ ptrs.a.at.value = 100;
    where an array of the underlying type is actually required.
    In such cases, you can use NativeObject.addressOf() to turn
    an array object reference into the corresponding pointer value.
+</p>
+<p>
+   If the native object is a <a href="COMPointer.html">COMPointer</a>
+   (a pointer to a native COM object interface), this function
+   releases the underlying COM Object and sets the native pointer
+   to null.  This is necessary to maintain the integrity of the COM
+   reference counting: the new native pointer will be able to
+   overwrite the underlying COM pointer data, which would lose
+   track of the reference count if it were to still contain a
+   valid COM pointer.  The usual reason to take the address of
+   a COM pointer is to pass it as an OUT parameter to a function,
+   so in most cases the automatic release/clear is exactly what
+   you want, but be aware that this makes it impossible to
+   create a pointer alias to a COM object pointer without
+   losing the live object at the pointer.
 </p>
 <p>
    Use this method cautiously!  If you use it to get the address

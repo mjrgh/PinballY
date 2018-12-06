@@ -24,75 +24,45 @@
 </ul>
 
 <p>
-   "Not fully fleshed out yet" means that I've
-   only started adding Javascript event hooks and system functions.
-   If there's something you'd like to customize, and you can't find a
-   way to do it within the current setup, it's probably not because
-   I've thought about and ruled out your idea.  It's much more likely
-   that it just didn't occur to me.  New events and system calls can
-   easily be added over time as ideas come up.  If you have proposals
-   for new functionality, let me know.
+   "Not fully fleshed out yet" means that I've only started adding Javascript
+   event hooks and system functions. If there's something you'd like to
+   customize, and you can't find a way to do it, it's probably not because
+   I considered it and ruled it out; it probably just didn't occur to me.
+   Send me your ideas.
 </p>
 
 <p>
    The idea of Javascript support in PinballY is preliminary and experimental, but the
    underlying Javascript engine isn't.  Javascript is implemented via ChakraCore,
-   Microsoft's excellent ES6-compliant engine that they built for
-   the Edge browser and released as open source.  ChakraCore
-   has top-tier performance and implements modern Javascript
-   standards.  You can use all of the cool new ES6 language features,
+   Microsoft's high-performance, standards-compliant Javascript engine.  Microsoft
+   built ChakraCore for the Edge  browser and released it as open source.  It has
+   top-tier performance and implements modern Javascript standards.  You can use all
+   of the cool new ES6 language features,
    like "let", "class", "for..of", destructuring assignments, "arrow" (=&gt;)
-   functions, and typed arrays.
+   functions, template literals, promises, the spread operator, and typed arrays.
 </p>
 
 
 <h2>Is this like Web browser Javascript?</h2>
 
 <p>
-   Yes and no.  PinballY's Javascript <i>language</i> isn't just "like"
-   the Javascript in a Web browser, it's exactly the same.  But the
-   programming environment isn't.  That's because many of the
-   objects and functions you use when programming a Web page are part
-   of the browser, not part of Javascript itself.  For example, the
-   "document" and "window" objects, the HTML DOM tree, and the Event
-   objects all come from the browser, not from Javascript.
-   PinballY doesn't have those browser objects because it's not a browser.
+   Yes and no.  PinballY's Javascript <i>language</i> is exactly
+   the same as the Javascript language in a modern Web browser.
+</p>
+<p>
+   But the programming environment isn't quite the same as in a Web browser.
+   Many of the objects and functions you use when programming a Web page are
+   part of the browser, not part of Javascript itself.  For example, the
+   "document" and "window" objects, the HTML DOM tree, and events like
+   "onclick" and "onchar" all come from the browser, not from Javascript.
+   PinballY doesn't have those browser elements because it's not a browser.
    Instead, PinballY provides its own, somewhat different set of objects
-   that represent the PinballY user interface environment.
-</p>
-<p>
-   With that in mind, there's still a lot that's similar.  Wherever
-   PinballY has functionality that's analogous to something in a
-   browser, we've tried to expose it in a similar way, using similar
-   names and concepts.  For example, PinballY user interface events
-   are handled very much like browser events, and a number of common
-   <a href="#browserLikeFuncs">browser-like functions</a> are available,
-   such as timeouts and intervals.
-</p>
-
-<h2>Javascript language documentation</h2>
-
-<p>
-   I won't attempt to offer a Javascript tutorial or reference manual here,
-   since you can find lots of both on the Web, and better
-   ones than I could write.  PinballY's Javascript is fully standard,
-   so the information in any good language manual will apply here.
-   One good place to look is the
-   <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>,
-   which has extensive and up-to-date Javscript documentation:
-</p>
-<div class="indented">
-   <a target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript">JavaScript documentation on MDN</a>
-</div>
-<p>
-   The only thing you have to keep in mind while reading Web
-   Javascript documentation is that PinballY doesn't have the
-   usual complement of Web browser environment objects ("document",
-   the HTML DOM tree, etc).  A lot of Javascript material is
-   really more about Web development than Javascript.  You'll
-   have to rework the examples from more Web-oriented material
-   in your mind to see past the assumption that you're working
-   in a browser.
+   that represent the PinballY user interface environment.  With that in
+   mind, there's still a lot that's similar, because we've tried to maintain
+   familiar names and familiar behaviors wherever there's good overlap
+   in functionality.  For example, PinballY's
+   event model is very much like a browser's, and a number of common
+   browser-like functions are available, such as timeouts and intervals.
 </p>
 
 <h2>How to enable scripting</h2>
@@ -122,17 +92,6 @@
    might be especially interesting if you want to share your code
    or use modules written by other people.  See <a href="#multipleFiles">How to
    use multiple script files</a> later in this section.
-
-<h2>Debugging</h2>
-
-<p>
-   A good debugger is indispensable for any non-trivial programming
-   project.  PinballY doesn't have a debugger UI built in, but it
-   does have something much better instead: support for connecting
-   a <i>real</i> debugger.  You can use it with Visual Studio Code,
-   Microsoft's free code editor and Javascript IDE.  For details on
-   setting up the debugger, see <a href="JsDebug.html">Javascript Debugging</a>.
-</p>
 
 <h2>Overall program flow</h2>
 
@@ -284,308 +243,61 @@ mainWindow.off("keydown.MyPlugin");   // removes only the MyPlugin handler(s)
 <div class="code">
 mainWindow.off(".MyPlugin");  // removes every mainWindow event with a .MyPlugin namespace
 </div>
-   
-
-<h2>PinballY Objects</h2>
 
 <p>
-   <b><a href="MainWindowObject.html">mainWindow</a>:</b>
-   Represents the main user interface window (the "playfield" window).
-   This is the event target for most UI-related events.
-</p>
-
-<p>
-   <b><a href="SystemInfoObject.html">systemInfo</a>:</b>
-   Provides information on the PinballY program.
-</p>
-
-[TO DO - more objects]
-
-<h2>PinballY Events</h2>
-
-<p>
-   Every event listener function receives an <i>event</i> argument,
-   which is an object containing information about the event.  All
-   event objects have some common properties and methods:
-</p>
-
-<ul>
-   <li><b>bubbles:</b>  A boolean indicating if the event "bubbles".  Bubbling
-       is a concept from the Web browser event model, indicating if the event
-       is sent to parent HTML elements after being sent to the one where it
-       actually occurs.  This doesn't currently apply to any PinballY objects,
-       so this property is always false, but it's included in the object for
-       the sake of familiarity and in case it becomes relevant in the future.
-
-   <li><b>cancelable:</b>  A boolean indicating if the event can be canceled.
-       If true, Event.preventDefault() can be used to stop the default system
-       action from occurring; if false, the system action will always occur
-       whether or not you call preventDefault().  (This is read-only; you can't
-       change it for a system event.)
-
-   <li><b>defaultPrevented:</b>  Returns true if preventDefault() has been called
-      on the event, false if not.
-
-   <li><b>preventDefault():</b>  Call this method to tell the system to skip the
-      normal default processing for the event.  This will have no effect unless
-      the event can be canceled, as indicated by the <b>cancelable</b> property.
-
-   <li><b>stopPropagation():</b>  Stop "bubbling" for the event.  This prevents
-      the event from being dispatched to listeners in parent objects, if the
-      event bubbles from child to parent.  This doesn't affect other event
-      listeners on the same target; use stopImmediatePropagation() to prevent
-      any other listeners from being called.  No current
-      PinballY events use bubbling, so this currently has no effect.
-
-   <li><b>stopImmediatePropagation():</b>  Stop propagating the event to any
-      other listeners.  This prevents any other listeners registered in the
-      same event target from being called after this listener returns.  (Other
-      listeners that were already called <i>before</i> this listener was
-      invoked obviously aren't affected, as they can't be "un-called".)
-      If the event uses bubbling (dispatching the event to parent objects),
-      this also stops any parent object listeners from being called.
-       
-   <li><b>timestamp:</b>  A number containing the Date.now() value when the
-       event was fired.
-       
-   <li><b>type:</b>  A string with the name of the event ("keydown", "keyup", etc)
-</ul>
-
-<p>
-   Individual event types add their own properties as well, described
-   below.
-</p>
-
-<p>
-   <b>keydown, keyup:</b>  These events are used with the <b>mainWindow</b>
-   object. The keydown event fires when the user
-   presses a keyboard key.  If the user holds down the key long enough
-   for the key to start auto-repeating, another keydown event is fired
-   on each auto-repeat.  keyup fires when the user releases a key.
+   See also:
 </p>
 <ul>
-   <li><b>background:</b> true if the application was in the background when
-       the event occurred, false if not.  PinballY processes key presses
-       that occur while it's in the background so that it can monitor
-       "Exit Game" and "Pause Game" command keys while a game is running.
-   <li><b>code:</b> A string representing the key pressed, using the same
-       naming as in standard Web browser keydown messages.  See, for
-       example, <a href="https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values">Key Values (MDN)</a>.
-   <li><b>key:</b> A string representing the key pressed, using the same
-       format used in Web browser keydown messages.  For printable characters,
-       this is the character itself, with shift key status applied (e.g.,
-       holding down shift and pressing the "2" key produces a keydown event
-       with key set to "@").  For special characters (cursor keys, F-keys, etc),
-       this uses the standard browser name for the key, usually the same
-       name as in <b>code</b>.
-   <li><b>location:</b>  A keyboard location code for the key:
-   <ul>
-      <li>KEY_LOCATION_STANDARD (0), standard location used by most keys
-      <li>KEY_LOCATION_LEFT (1), the left key of a paired modifier key (Shift, Control, Alt, Meta)
-      <li>KEY_LOCATION_RIGHT (2), the right key of a pair modifier key
-      <li>KEY_LOCATION_NUMPAD (3), the numeric keypad
-   </ul>
-   <li><b>repeat:</b>  true if this is an auto-repeat key event from a key being held down, false if not
-   <li><b>vkey:</b>  A number representing the Windows "virtual key code" value for the key
+   <li><a href="EventTarget.html">EventTarget</a>, for a full reference
+   to the methods for adding and removing event listeners to event
+   target objects like <a href="MainWindowObject.html">mainWindow</a>.
+
+   <li><a href="Event.html">Event</a>, for a reference to the properties
+   and methods of the Event object that's passed as a parameter to each
+   event listener.  The Event object describes the details of the event,
+   such as which key was pressed.
 </ul>
 
-<p>
-   Note that the common Web browser "which", "keyCode", and "charCode" properties
-   are all missing.  That's because these were always problematic and poorly
-   defined.  I didn't want to add to that mess with yet another ad hoc
-   variation.  All modern browsers have  moved to the better-defined "code" and
-   "key" system, which provides more complete and consistent information.
-   The PinballY-specific "vkey" value is provided in case you really want
-   the low-level Windows event information, but you'd really be better off
-   in nearly all cases using the code and/or key values.
-</p>
-
-[TO DO - more event types]
-   
-
-<h2>EventTarget reference</h2>
+<h2>Built-in functions</h2>
 
 <p>
-   <b><i>eventTarget</i>.addEventListener(<i>event</i>, <i>listener</i>, <i>options</i>):</b>
-   Adds an event listener.  <i>event</i> is a string giving the name of the event
-   (e.g., "keydown").  <i>listener</i> is a function to call when this event occurs;
-   the function takes a single parameter, an Event object that describes the event.
-   <i>options</i> is an object with the following members:
-</p>
-<ul>
-   <li><b>capture:</b> A boolean indicating whether the listener should be added to the
-   "capture" stage or the "bubble" stage of processing for the event.  This isn't
-   currently used, as no PinballY events distinguish these phases.
-
-   <li><b>data:</b> Any value.  This will be passed to the event listener in
-   <i>event.data</i> (the "data" property of the Event object parameter) each
-   time this listener is invoked.  This can be used to store context information
-   for the event listener.
-
-   <li><b>once:</b>  A boolean.  If true, the listener is automatically removed
-   (as though by calling removeEventListener()) the first time it's called.  Use
-   this to create a listener that only handles the first event it receives.
-</ul>
-<p>
-   The <i>options</i> parameter can be omitted, in which case default options
-   are used.  For the sake of those familiar with the analogous Web browser
-   method, <i>options</i> can also be passed as a boolean (true/false), in which
-   case it specifies the value of the "capture" property.
+   All of the standard Javascript built-in functions are implemented in
+   the ChakraCore engine.  You can find documentation on those in any
+   Javascript reference.  In addition, PinballY provides a number of
+   its own built-in functions for access to the program environment
+   and to replicate some of the basic built-in features in Web browsers,
+   such as timeouts and intervals.  See <a href="SystemFunctions.html">System Functions</a>
+   for details.
 </p>
 
-<p>
-   <b><i>eventTarget</i>.dispatchEvent(<i>event</i>):</b>
-Calls the registered event listeners for the given event.  The <i>event</i>
-argument is passed as the parameter to each listener invoked, with the
-event-specific properties (target, data) set appropriately for each call.
-Returns true if the event's default system processing should proceed,
-false if not.  Returning false usually means that <i>event</i>.preventDefault()
-was called in the course of processing the event.
-</p>
+<h2>System objects and classes</h2>
 
 <p>
-   <b><i>eventTarget</i>.off(<i>events</i>, <i>listener</i>):</b>
-   Removes event listeners previously registered with on() or addEventListener().
-   As with on(), <i>events</i> is a string listing one or more event names,
-   separated by spaces.  And as with on(), namespaces can be specified in
-   the event names with ".namespace" suffixes ("keydown.MyPlugin", for example).
-   The <i>listener</i> argument is optional; if provided, only listeners
-   originally added using the same function will be removed, otherwise all
-   listeners matching the event name and namespace values will be removed.
+   PinballY provides access to the program environment through a number
+   of pre-defined system objects.  These are analogous to the system
+   objects in a Web browser ("window", "document", etc), but are tailored
+   to the PinballY environment instead of a browser environment.
+   See <a href="SystemObjects.html">System Objects</a> for details.
 </p>
 <p>
-   When namespaces are specified, <i>any</i> namespace match from the original
-   on() call will match.  You don't have to match the whole list specified in on().  For example,
-   if an event listener was registered as <b>target.on("keydown.MyPlugin.Main", func)</b>,
-   <i>any</i> of these calls will remove it: <b>target.off("keydown.MyPlugin")</b>,
-   <b>target.off("keydown.Main")</b>, <b>target.off("keydown.MyPlugin.Main")</b>,
-   <b>target.off("keydown.Main.MyPlugin")</b>.
+   In addition, the system provides some additional functionality
+   through pre-defined system classes.  These are object classes that
+   you and/or the system can instantiate to carry out operations
+   beyond the normal scope of Javascript's type system.
+   See <a href="SystemClasses.html">System Classes</a> for details.
+
+
+<h2>Debugging</h2>
 
 <p>
-   <b><i>eventTarget</i>.on(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
-   Adds an event listener.  <i>events</i> is a string listing one or more
-   events, separated by spaces (for example, "keydown keyup").  <i>data</i>
-   is optional; if provided, it can be any type of value, and specifies a
-   value that will be passed to the listener each time it's invoked in the
-   "data" property of the event object, which is passed to the listener
-   as its single function parameter.  <i>listener</i> is a function to call
-   each time the event fires.
-</p>
-<p>
-   The event name list can include "namespace" qualifiers for the events.
-   A namespace is any arbitrary string appended after a "." to an event
-   name, as in "keydown.MyPlugin".  You can specify multiple namespaces
-   on a single event this way: "keydown.MyPlugin.Main".  The purpose of
-   a namespace is to help identify the event in calls to off().  That
-   method lets you specify namespaces the same way in the event(s) to be
-   removed.  Namespaces are especially useful to create shared code
-   modules that can be mixed and matched with other modules, since it
-   makes it easier to manage your own module's listeners without
-   affecting code from other unrelated modules.
+   A good debugger is indispensable for any non-trivial programming
+   project.  PinballY doesn't have a debugger UI built in, but it
+   does have something much better instead: support for connecting
+   a <i>real</i> debugger.  You can use it with Visual Studio Code,
+   Microsoft's free code editor and Javascript IDE.  For details on
+   setting up the debugger, see <a href="JsDebug.html">Javascript Debugging</a>.
 </p>
 
-<p>
-   <b><i>eventTarget</i>.one(<i>events</i>, <i>data</i>, <i>listener</i>):</b>
-   This works exactly like on(), but registers a one-time-only listener that
-   will be removed the first time it fires.  If this registers listeners for
-   multiple events, each event's listener will be set up as a separate
-   once-only handler.  For example, if <i>events</i> is "keydown keyup", two
-   listeners are registered, and each listener will be called once before
-   it's removed.
-</p>
-
-<p>
-   <b><i>eventTarget</i>.removeEventListener(<i>type</i>, <i>listener</i>, <i>options</i>):</b>
-   Removes an event listener that matches the type, function, and capture setting
-   used in a prior call to addEventListener() or on().  As in the Web browser analog
-   of this method, the only <i>options</i> value used to match the listener
-   is the "capture" property.  
-</p>
-
-<a name="browserLikeFuncs"></a>
-<h2>Browser-like functions</h2>
-
-<p>
-   As mentioned earlier, many of the functions and objects
-   that you'd find in a normal Web browser environment are part
-   of the browser, not built-in Javascript elements.  So many of
-   those are missing in PinballY.  Even so, some concepts carry over
-   pretty much intact, and where they do, we've tried to provide functions
-   with the same names and behaviors that you'd find in a browser.
-   PinballY also has some extensions with similar functionality, but
-   tailored more to the PinballY environment.
-</p>
-
-<p>
-   <b>alert(<i>message</i>):</b>  Shows a system dialog box with the given
-   message text.  This pops up a standard modal Windows message box with an OK
-   button, and pauses the script until the user dismisses the dialog.  This
-   can be handy for script debugging, but it should be avoided for anything
-   else, as it doesn't fit very well with PinballY's pin cab interaction
-   style.  See message() for a friendlier alternative for alerting the
-   user, and log() for another option for debug messages.
-</p>
-<p>
-   <b>clearInterval(<i>id</i>)</b>:  Cancels an interval event created
-   with setInterval().  The <i>id</i> value is the value returned from
-   setInterval() when the event was created.  This removes the event and
-   prevents any pending execution from occurring.  It's harmless to
-   cancel an interval that doesn't exist or that has already been canceled.
-</p>
-<p>
-   <b>clearTimeout(<i>id</i>)</b>:  Cancels a pending timeout event
-   created with setTimeout().  The <i>id</i> value is the value returned
-   from setTimeout() when the event was created.  This removes the event
-   and prevents any pending execution from occurring.  It's harmless
-   to cancel a timeout that doesn't exist or that has already been canceled.
-   This will also have no effect if the timeout has already been executed,
-   since you can't "take back" the previous execution.
-</p>
-<p>
-   <b>log(<i>message</i>):</b> Writes the message text to the PinballY log file.
-   A newline (line break) is always added at the end of the message, so it's
-   not necessary to include one in the string.  This can be useful for
-   debugging, especially for cases where you want to log some information
-   repeatedly and don't want to bother the user with it every time.
-   (This is a PinballY extension, not a typical browser function.)
-</p>
-<p>
-   <b>message(<i>message</i>, <i>style</i>):</b>  Shows a message using a
-   graphical popup box in the main PinballY playfield window.  Unlike alert(),
-   this doesn't pause the script until the user acknowledges the message;
-   this simply shows or queues the message and returns immediately.  This
-   is a good option for showing error messages or status updates, since it
-   doesn't interrupt the flow of the user interface with a modal dialog.
-   If <i>style</i> is provided, it's a string value specifying the
-   visual style of the popup message.  This can be "info", "warning", or
-   "error", which show the message with green, orange, or red trim
-   (respectively), to visually signal the nature of the message.  The
-   regular "info" style is used if <i>style</i> is omitted.
-   (This is a PinballY extension, not a typical browser function.)
-</p>
-<p>
-   <b>setInterval(<i>function</i>, <i>interval_in_milliseconds</i>)</b>:  Sets
-   up an interval event, which invokes the given function periodically, at
-   (approximately) the specified interval.  Each the time function is invoked,
-   the internal event timer is automatically reset so that the event will
-   be called again after another interval of the same time elapses.  The
-   function returns an ID value that can be used to cancel the repeating
-   event via clearInterval().  Like Javascript in a browser, PinballY's
-   Javascript is single-threaded, so an interval event can't "interrupt" an
-   executing script; if the next scheduled event time happens to occur
-   while another script is executing, the interval function will be invoked
-   when the current script finishes.
-</p>
-<p>
-   <b>setTimeout(<i>function</i>, <i>timeout_in_milliseconds</i>)</b>:  Sets
-   up a timeout event, which invokes the given function once, after the given
-   interval elapses.  The function returns an ID value that can be used to
-   cancel the timeout before it executes via clearTimeout().  As with
-   Javascript in a browser, PinballY's Javascript is single-threaded, so
-   timer events can't "interrupt" other scripts.  If the timeout period
-   elapses while another script is running, the function will be invoked
-   when the current script finishes.
-</p>
 
 <a name="multipleFiles"></a>
 <h2>How to use multiple script files</h2>
@@ -693,6 +405,32 @@ was called in the course of processing the event.
    <li><b>CParser.js:</b>  Code that parses C-style function and
       struct definitions for use in the DllImport system.
 </ul>
+
+<h2>Javascript language documentation</h2>
+
+<p>
+   I won't attempt to offer a Javascript tutorial or reference manual here,
+   since you can find lots of both on the Web, and better
+   ones than I could write.  PinballY's Javascript is fully standard,
+   so the information in any good language manual will apply here.
+   One good place to look is the
+   <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>,
+   which has extensive and up-to-date Javscript documentation:
+</p>
+<div class="indented">
+   <a target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript">JavaScript documentation on MDN</a>
+</div>
+<p>
+   The only thing you have to keep in mind while reading Web
+   Javascript documentation is that PinballY doesn't have the
+   usual complement of Web browser environment objects ("document",
+   the HTML DOM tree, etc).  A lot of Javascript material is
+   really more about Web development than Javascript.  You'll
+   have to rework the examples from more Web-oriented material
+   in your mind to see past the assumption that you're working
+   in a browser.
+</p>
+
 
 </body>
 </html>

@@ -153,18 +153,19 @@ TSTRINGEx LoadStringT(int resourceId)
 // Guid parsing and formatting
 //
 
-bool ParseGuid(const TCHAR *guidString, GUID &guid)
+bool ParseGuid(const TCHAR *guidString, size_t len, GUID &guid)
 {
 	// skip leading space
-	for (; _istspace(*guidString); ++guidString);
+	const TCHAR *p = guidString, *endp = guidString + len;
+	for (; p < endp && _istspace(*p); ++p);
 
 	// skip opening "{"
-	if (*guidString == '{')
-		++guidString;
+	if (*p == '{')
+		++p;
 
 	// parse it
 	unsigned int d2, d3, a[8];
-	if (_stscanf_s(guidString, _T("%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"),
+	if (_sntscanf_s(p, endp - p, _T("%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"),
 		&guid.Data1, &d2, &d3, &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &a[6], &a[7]) != 11)
 		return false;
 

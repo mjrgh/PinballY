@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>KeyEvent</h1>
+
+<p>
+   This is the Event subclass that represents keyboard events.
+</p>
+<ul>
+   <li><b>keydown:</b>  Fires when the user presses a key.  Also fires each
+      time a key "auto-repeats" while the user is holding it down.
+
+   <li><b>keyup:</b>  Fires when the user releases a key.
+</ul>
+
+<p>
+   Keyboard events are always fired on the <a href="MainWindowObject.html">mainWindow</a>
+   object.
+</p>
+
+<h2>Properties</h2>
+
+<ul>
+   <li><b>background:</b> true if the application was in the background when
+       the event occurred, false if not.  PinballY processes key presses
+       that occur while it's in the background so that it can monitor
+       "Exit Game" and "Pause Game" command keys while a game is running.
+   <li><b>code:</b> A string representing the key pressed, using the same
+       naming as in standard Web browser keydown messages.  See, for
+       example, <a href="https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values">Key Values (MDN)</a>.
+   <li><b>key:</b> A string representing the key pressed, using the same
+       format used in Web browser keydown messages.  For printable characters,
+       this is the character itself, with shift key status applied (e.g.,
+       holding down shift and pressing the "2" key produces a keydown event
+       with key set to "@").  For special characters (cursor keys, F-keys, etc),
+       this uses the standard browser name for the key, usually the same
+       name as in <b>code</b>.
+   <li><b>location:</b>  A keyboard location code for the key:
+   <ul>
+      <li>KEY_LOCATION_STANDARD (0), standard location used by most keys
+      <li>KEY_LOCATION_LEFT (1), the left key of a paired modifier key (Shift, Control, Alt, Meta)
+      <li>KEY_LOCATION_RIGHT (2), the right key of a pair modifier key
+      <li>KEY_LOCATION_NUMPAD (3), the numeric keypad
+   </ul>
+   <li><b>repeat:</b>  true if this is an auto-repeat key event from a key being held down, false if not
+   <li><b>vkey:</b>  A number representing the Windows "virtual key code" value for the key
+</ul>
+
+<p>
+   Note that the common Web browser "which", "keyCode", and "charCode" properties
+   are all missing.  That's because these were always problematic and poorly
+   defined.  I didn't want to add to that mess with yet another ad hoc
+   variation.  All modern browsers have  moved to the better-defined "code" and
+   "key" system, which provides more complete and consistent information.
+   The PinballY-specific "vkey" value is provided in case you really want
+   the low-level Windows event information, but you'd really be better off
+   in nearly all cases using the code and/or key values.
+</p>
+
+
+

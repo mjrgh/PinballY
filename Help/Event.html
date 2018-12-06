@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Event Class</h1>
+
+<p>
+   This is the base class for all event objects.  The system
+   creates an Event object each time a listenable event occurs,
+   storing the details of what happened in properties of the
+   Event object.  The Event object is passed as a parameter to
+   each event listener method registered for the event.  For
+   example, when the user presses a key on the keyboard, the
+   system creates an Event object with properties describing
+   which key was pressed, then passes this object as a parameter
+   to each "keydown" event listener registered with the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+<p>
+   There are several subclasses of Event used for specific
+   types of events.  These all have the basic properties and
+   methods of the Event base class, and add their own
+   additional properties of their own that describe the
+   details of the specific type of event they represent.
+</p>
+<div id="TOC"></div>
+
+<h2>Common properties</h2>
+
+<p>
+   All Event objects have a set of basic properties, regardless
+   of the event type.
+</p>
+
+<ul>
+   <li><b>bubbles:</b>  A boolean indicating if the event "bubbles".  Bubbling
+       is a concept from the Web browser event model, indicating if the event
+       is sent to parent HTML elements after being sent to the one where it
+       actually occurs.  This doesn't currently apply to any PinballY objects,
+       so this property is always false, but it's included in the object for
+       the sake of familiarity and in case it becomes relevant in the future.
+
+   <li><b>cancelable:</b>  A boolean indicating if the event can be canceled.
+       If true, Event.preventDefault() can be used to stop the default system
+       action from occurring; if false, the system action will always occur
+       whether or not you call preventDefault().  (This is read-only; you can't
+       change it for a system event.)
+
+   <li><b>defaultPrevented:</b>  Returns true if preventDefault() has been called
+      on the event, false if not.
+
+       
+   <li><b>timestamp:</b>  A number containing the Date.now() value when the
+       event was fired.
+       
+   <li><b>type:</b>  A string with the name of the event ("keydown", "keyup", etc)
+</ul>
+
+<h2>Common methods</h2>
+<p>
+   All Event objects have a set of basic methods, regardless of
+   the event type.
+</p>
+<ul>
+      
+
+   <li><b>preventDefault():</b>  Call this method to tell the system to skip the
+      normal default processing for the event.  This will have no effect unless
+      the event can be canceled, as indicated by the <b>cancelable</b> property.
+
+   <li><b>stopPropagation():</b>  Stop "bubbling" for the event.  This prevents
+      the event from being dispatched to listeners in parent objects, if the
+      event bubbles from child to parent.  This doesn't affect other event
+      listeners on the same target; use stopImmediatePropagation() to prevent
+      any other listeners from being called.  No current
+      PinballY events use bubbling, so this currently has no effect.
+
+   <li><b>stopImmediatePropagation():</b>  Stop propagating the event to any
+      other listeners.  This prevents any other listeners registered in the
+      same event target from being called after this listener returns.  (Other
+      listeners that were already called <i>before</i> this listener was
+      invoked obviously aren't affected, as they can't be "un-called".)
+      If the event uses bubbling (dispatching the event to parent objects),
+      this also stops any parent object listeners from being called.
+</ul>
+
+

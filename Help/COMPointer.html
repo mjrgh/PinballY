@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>COMPointer Objects</h1>
+
+<p>
+   A COMPointer object represents a pointer to a native Windows
+   COM object.  This is a Javascript object that stores a native
+   COM object pointer internally, allowing you to work with
+   the COM interface from Javascript as though it were a normal
+   Javascript object.
+</p>
+
+<h2>Creation</h2>
+
+<p>
+   It's a little tricky to think about COMPointer objects because
+   of their dual nature.  A COMPointer is a Javascript object that
+   represents a native pointer.  The COMPointer construct is
+   designed to make the two appear as one entity as much as
+   possible, but you have to be aware of the two pieces during
+   the creation process.
+</p>
+<p>
+   The first step in the creation process is to create the
+   Javascript portion of the object.  You do this the same way
+   you create all other native object types, by calling
+   dllImport.create(), in this case with the type signature
+   of a COM interface pointer:
+</p>
+<div class="code">
+let pCreateDeviceEnum = dllImport.create("ICreateDevEnum*");
+</div>
+
+<p>
+   A COM pointer is always a C pointer type, so the type name is
+   always a COM interface name followed by a "*" (for "pointer").
+</p>
+<p>
+   The second step is to create the underlying COM object.
+   The call to dllImport.create() created the Javascript portion
+   of the object, but remember that there's also a native COM object
+   pointer hidden inside that Javascript object.  dllImport.create()
+   <i>doesn't</i> create that part.  It just sets the hidden internal
+   native pointer inside the new COMPointer object to "null", meaning
+   that there's no actual native COM object associated with it yet.
+</p>
+<p>
+   The reason that dllImport.create() doesn't create the COM
+   object automatically is that you haven't said how to do that
+   yet.  There are several ways to create COM objects, so
+   dllImport.create() can't guess at what you intend.
+   COM object creation isn't like C or Javascript object
+   creation where new objects are created with a built-in
+   language keyword like "new".  Instead, you have to use COM
+   APIs to create COM objects.  There are many ways such APIs,
+   but they mostly fall into three categories:
+</p>
+<ul>
+   <li>The global API function CoCreateInstance()
+
+   <li>QueryInterface() on an existing COM object
+
+   <li>Other interface methods on existing COM objects
+</ul>
+
+<p>
+   In every one of these cases, the standard COM formulation
+   is to call one of these functions or interface methods,
+   passing in the address of a pointer variable that will
+   receive the new interface pointer.  That's where our
+   thus-far "empty" COMPointer object - the one we created
+   above via dllImport.create() - comes into play.  For this
+   example, we'll use CoCreateInstance() to create our object:
+</p>
+<div class="code">
+const CLSID_SystemDeviceEnum = "62BE5D10-60EB-11d0-BD3B-00A0C911CE86";
+let hr = COM.CoCreateInstance(CLSID_SystemDeviceEnum, null, CLSCTX_INPROC_SERVER, pCreateDeviceEnum);
+</div>
+
+<p>
+   That function creates a new native COM object, and stores
+   the resulting native pointer in our pCreateDeviceEnum object.
+   Our Javascript variable still contains the same object
+   reference as before, but that object's hidden internal
+   COM pointer now points to a real COM interface rather
+   than a NULL pointer.  We can now call the methods defined
+   on the interface, which will invoke the corresponding
+   native COM code.
+</p>
+
+<p>
+   Note that we took advantage of the special handling in the
+   native COM call mechanism that lets us pass a COMPointer
+   object (pCreateDeviceEnum) to represent <b>two parameters</b>
+   in the function signature.  See "IID_PPV_ARGS" below.
+</p>
+
+
+<h2>Special handling for IID_PPV_ARGS</h2>
+
+<p>
+   In COM functions, there's a common pattern in methods that return
+   new interface pointers, where you pass a pair of arguments
+   known as IID_PPV_ARGS.  That stands for "Interface ID, pointer
+   to pointer to void arguments".  The term IID_PPV_ARGS is the
+   name of a C macro in the standard COM SDK headers, which they
+   created because it's so pervasive in COM functions.
+</p>
+<p>
+   The canonical example is IUnknown::QueryInterface, which takes
+   the following arguments:
+</p>
+<div class="code">
+HRESULT QueryInterface(REFIID, void**);
+</div>
+
+<p>
+   The REFIID is a reference to an IID or Interface ID, which is
+   just another name for a GUID, "globally unique identifier".
+   GUIDs are those 32-character hex strings that identify COM
+   interfaces and classes.
+</p>
+<p>
+   The "void**" is a "</i>pointer to</i> a pointer to void".
+   That's a double level of pointer indirection, which is awfully
+   hard to visualize if you're used to Javascript, and not much
+   easier for most C programmers.  All you really have to know
+   about it here is that it's an "out" parameter that will
+   <i>receive a pointer on return</i> to a COM interface.
+</p>
+
+<p>
+   In C and C++, the IID_PPV_ARGS macro we mentioned lets you
+   call functions with REFIID,void** pairs using a single COM
+   interface pointer variable.  The reason this is possible is
+   that a COM pointer variable is declared with its GUID, so
+   the one variable contains both pieces of information needed
+   by the function.  Here's how the call might look in C++:
+</p>
+<div class="code">
+IPersistStream *ips;
+if (SUCCESS(obj->QueryInterface(IID_PPV_ARGS(ips)))) ...
+</div>
+   
+<p>
+   The Javascript-to-native calling mechanism has special handling
+   that simulates the IID_PPV_ARGS macro.  But in this case, you don't
+   even have to use the macro; the Javascript engine recognizes the
+   pattern automatically from the function arguments.
+</p>
+<p>
+   Here's the rule:
+</p>
+<ul>
+   <li>If the function requires a pair of arguments of type
+   REFIID, void**;
+
+   <li>And you pass a COMPointer argument in the REFIID position;
+
+   <li>Then the Javascript-to-native mechanism gets the GUID from
+   the COMPointer object, and passes a pointer to the COMPointer's
+   internal native pointer as the void** argument
+</ul>
+
+<p>
+   So in Javascript, the equivalent of the C++ example above is
+   even simpler:
+</p>
+<div class="code">
+let ips = dllImport.create("IPersistStream*");
+let hr = obj->QueryInterface(ips);
+</div>
+
+<h2>Calling COM methods</h2>
+
+<p>
+   Once you've created the Javascript COMPointer object via
+   dllImport.create(), and populated the internal COM pointer
+   via CoCreateInstance(), QueryInterface(), or some other
+   COM API, you can call the COM interface's methods directly,
+   as though they were ordinary Javascript methods on the
+   COMPointer object.
+</p>
+
+<div class="code">
+const CLSID_SystemDeviceEnum = "62BE5D10-60EB-11d0-BD3B-00A0C911CE86";
+let pCreateDevEnum = dllImport.create("ICreateDevEnum*");
+let hr = COM.CoCreateInstance(CLSID_SystemDeviceEnum, null, CLSCTX_INPROC_SERVER, pCreateDevEnum);
+
+let pEnumMoniker = dllImport.create("IEnumMoniker*");
+hr = pCreateDevEnum.CreateClassEnumerator("33D9A762-90C8-11d0-BD43-00A0C911CE86", pEnumMoniker, 0);
+
+for (;;)
+{
+    let pMoniker = dllImport.create("IMoniker*");
+    if (pEnumMoniker.Next(1, pMoniker, null) != 0)
+        break;
+}
+</div>
+
+<h2>AddRef and Release</h2>
+
+<p>
+   In most cases, <b>you shouldn't call AddRef() or Release()</b> on COMPointer
+   objects.  The reference counting should be automatic for most use cases,
+   so you shouldn't have to worry about these the way you do in C/C++ code.
+</p>
+<p>
+   The basic COM rules require that the constructor of
+   an object - CoCreateInstance(), QueryInterface(), etc - will always add
+   a reference count on behalf of the caller.  So you don't have to make
+   your own AddRef() call when creating a new object or retrieving an
+   interface.
+</p>
+<p>
+   The COMPointer object itself automatically calls Release() when the
+   Javascript object is deleted by the garbage collector.  So you don't
+   have to call Release() when you're done with the object; just let
+   Javascript clean it up automatically, like any other Javascript object.
+</p>
+<p>
+   In fact, it's important that you <i>don't</i> call Release() on a
+   COMPointer object yourself, <i>unless</i> you made a matching call
+   to AddRef() earlier.  You must exactly balance each call you
+   make to AddRef() with a corresponding call to Release().  But
+   you musn't call Release() more times than you called AddRef()
+   on the same object, because that could cause the underlying
+   COM object to be deleted while the COMPointer object is still
+   holding its reference to it, which could result in memory
+   corruption and crash the program.
+</p>
+<p>
+   If you want to explicitly free the underlying COM object at a
+   particular point in time, rather than waiting for Javascript
+   to delete it as part of the normal automatic garbage collection
+   procedure, use COMPointer.clear().
+</p>
+   
+<h2>Methods</h2>
+
+<p>
+   The methods on a COM pointer object are defined by the COM interface,
+   and have the same names as the members of the interface.  You call
+   these like ordinary Javascript methods:
+</p>
+<div class="code">
+let p = dllImport.create("IMyInterface*");
+let other = dllImport.create("ISubInterface*");
+let hr = CoCreateInstance(CLSID_MyClass, null, CLSCTX_INPROC_SERVER, p);
+hr = p.QueryInterface(other);
+</div>
+
+<p>
+   The Javascript COMPointer class adds some additional <i>class</i> methods.
+   These are defined on the class rather than the individual instance
+   objects, to avoid any possibility of naming conflicts with methods
+   defined in COM interfaces.
+</p>
+
+<p>
+   <b>COMPointer.clear(<i>comPointer</i>)</b>: Releases the Javascript
+   reference on the underlying COM object, and sets the internal hidden
+   pointer in the COMPointer object to null.  You can call this to
+   explicitly release the underlying COM object at a particular point
+   in time, so that the native object can be deleted if it's no longer
+   needed by any other callers.
+</p>
+<p>
+   You don't normally have to call this method, because the COMPointer
+   object automatically releases its reference on the COM object
+   when the Javascript garbage collector deletes the COMPointer
+   object itself.  In most cases it's simpler to let Javascript
+   handle this automatically.  The only drawback is that the garbage
+   collector's timing is unpredictable, so a COM object might stay
+   around for a while after you're done with it if you wait for
+   automatic collection.  It might be desirable in some cases to
+   explicitly release a COM object as soon as you know you're
+   done with it, such as when the object holds a system resource
+   that shouldn't be held longer than necessary.
+</p>
+
+<p>
+   <b>COMPointer.isNull(<i>comPointer</i>)</b>: Returns true if the 
+   internal native COM interface pointer in the object is null, false
+   if it's populated with a live COM object instance.
+</p>
+
