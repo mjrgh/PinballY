@@ -5,14 +5,15 @@ If you carefully read through the code, you'll find that there's a
 provision for multi-threaded access to D3D11 objects, particularly the
 device context.  This was a nice idea that turned out not to work, so
 we don't actually attempt any multi-threaded D3D11 access in this
-program.  However, the framework is still in place, in case ever want
-to revisit this and perhaps re-instate some multi-therading capability
-in the future.  It's the sort of thing that's fairly easy to design
-into a program from the early stages and extremely hard to retrofit
-into an existing program that wasn't designed with it in mind, so I
-think that's a good enough reason to leave it in place.  And by its
-nature, having this framework in place makes it easy and natural to
-stick to the same good practices in new code as the program evolves.
+program.  However, the framework is still in place, in case we ever
+want to revisit this and perhaps reinstate some multi-threading
+capability in the future.  It's the sort of thing that's fairly easy
+to design into a program from the early stages and extremely hard to
+retrofit into an existing program that wasn't designed with it in
+mind, so I think that's a good enough reason to leave it in place.
+And by its nature, having this framework in place makes it easy and
+natural to stick to the same good practices in new code as the program
+evolves.
 
 
 1. Background and motivation

@@ -287,6 +287,7 @@ TSTRING FormatFraction(float value);
 class BString
 {
 public:
+	BString() { bstr = nullptr; }
 	BString(const CHAR *src) { _Set(src); }
 	BString(const WCHAR *src) { _Set(src); }
 
@@ -315,6 +316,46 @@ protected:
 		
 	// the underlying BSTR
 	BSTR bstr;
+};
+
+// array of BSTR
+class BStringArray
+{
+public:
+	BStringArray(size_t n) : n(n), bstrs(new BSTR[n]) { ZeroMemory(bstrs, n * sizeof(BSTR)); }
+	~BStringArray()
+	{
+		for (size_t i = 0; i < n; ++i)
+		{
+			if (bstrs[i] != nullptr)
+			{
+				SysFreeString(bstrs[i]);
+				bstrs[i] = nullptr;
+			}
+		}
+		delete[] bstrs;
+	}
+
+	size_t n;
+	BSTR* operator&() { return bstrs; }
+
+	class Cover
+	{
+	public:
+		Cover(BSTR &bstr) : bstr(bstr) { }
+		operator BSTR() { return bstr; }
+		BSTR operator =(const WCHAR *src) 
+		{
+			if (bstr != nullptr)
+				SysFreeString(bstr);
+			bstr = SysAllocString(src);
+		}
+
+		BSTR &bstr;
+	};
+	Cover operator[](size_t i) { return Cover(bstrs[i]); }
+
+	BSTR *bstrs;
 };
 
 

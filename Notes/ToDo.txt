@@ -1,6 +1,3 @@
-- Batch media capture - start a media capture process and run it for
-all tables, or some selectable subset of tables.
-
 - *IF* people get stuck looking for a dialog box where you type in the
 window layout numbers, and don't immediately recognize that you
 position the windows the "normal" way, add a tip popup that appears
@@ -17,3 +14,4 @@ few different themes for people to choose from.
 PBX play time/count information.  It might be nice for migration
 purposes to read this and use it for tables that aren't already in our
 database, so that the play statistics from PBX are carried over.
+

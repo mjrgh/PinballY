@@ -6,5 +6,5 @@
 #include "stdafx.h"
 #include "Pointers.h"
 
-const RefCounted::DoAddRef_t DoAddRef;
+const RefCounted::DoAddRef_t RefCounted::DoAddRef;
 

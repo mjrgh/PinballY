@@ -6,6 +6,7 @@
 #include "JavascriptEngine.h"
 #include "LogFile.h"
 #include "../Utilities/FileUtil.h"
+#include "../Utilities/ComUtil.h"
 #include "DialogResource.h"
 
 #include <filesystem>
@@ -280,6 +281,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 	JsValueRef global;
 	JsGetGlobalObject(&global);
 	if (!DefineObjPropFunc(global, "global", "_defineInternalType", &JavascriptEngine::DllImportDefineInternalType, this, eh)
+		|| !DefineObjPropFunc(global, "global", "createAutomationObject", &JavascriptEngine::CreateAutomationObject, this, eh)
 		|| !DefineObjPropFunc(global, "Variant", "Variant", &VariantData::Create, this, eh))
 		return false;
 
@@ -1381,6 +1383,40 @@ JsErrorCode JavascriptEngine::GetModuleSource(
 	filename = GetFileUrl(path);
 	return JsNoError;
 }
+
+// --------------------------------------------------------------------------
+//
+// Create an external object
+//
+JsErrorCode JavascriptEngine::CreateExternalObject(JsValueRef &jsobj, ExternalObject *obj, JsFinalizeCallback finalize)
+{
+	// try creating the external object
+	if (JsErrorCode err = JsCreateExternalObject(obj, finalize, &jsobj); err != JsNoError)
+	{
+		// failed - destroy the external object
+		delete obj;
+		return err;
+	}
+
+	// success
+	return JsNoError;
+}
+
+JsErrorCode JavascriptEngine::CreateExternalObjectWithPrototype(JsValueRef &jsobj, JsValueRef prototype,
+	ExternalObject *obj, JsFinalizeCallback finalize)
+{
+	// try creating the external object
+	if (JsErrorCode err = JsCreateExternalObjectWithPrototype(obj, finalize, prototype, &jsobj); err != JsNoError)
+	{
+		// failed - destroy the external object
+		delete obj;
+		return err;
+	}
+
+	// success
+	return JsNoError;
+}
+
 
 
 // --------------------------------------------------------------------------
@@ -2774,7 +2810,7 @@ public:
 		// figure the number of slots required, widening to the slot size
 		size_t slotsPerItem = (itemBytes + argSlotSize - 1) / argSlotSize;
 
-		// add the slots
+		// add the number of stack slots required
 		nSlots += slotsPerItem * nItems;
 	}
 
@@ -2812,12 +2848,50 @@ public:
 	int jsArgc;
 	int jsArgCur;
 
-	// number of stack slots required for the native argument vector
+	// Number of stack slots required for the native argument vector.  This
+	// counts the actual stack usage based on item size.  For example, a struct
+	// that requires 16 bytes will take up 4 slots in 32-bit mode.
 	int nSlots = 0;
 
 	// is there a hidden first argument for a return-by-value struct?
 	bool hiddenStructArg = false;
 };
+
+
+// Variant argument sizer.  This counts the number of arguments to
+// an IDispatch function taking a VARIANGARG array.
+class JavascriptEngine::MarshallVariantArgSizer : public MarshallSizer
+{
+public:
+	MarshallVariantArgSizer(SigParser *sig) : MarshallSizer(sig)
+	{ }
+
+	virtual bool Marshall()
+	{
+		// skip the return value entry
+		NextArg();
+
+		// do the rest of the marshalling normally
+		return __super::Marshall();
+	}
+
+	virtual JsValueRef GetCurVal() override { return JS_INVALID_REFERENCE; }
+
+	virtual void Add(size_t itemBytes, size_t itemAlign = 0, int nItems = 1) override { ++nSlots; }
+	virtual void AddStruct(size_t itemBytes, size_t itemAlign = 0, int nItems = 1) override { ++nSlots; }
+	virtual void DoArray() override { ++nSlots; }
+
+	// structs, unions, functions, and void can't be passed by value
+	virtual void DoFunction() override { Error(_T("dllImport: function by value parameters are not supported (pointer type required)")); }
+	virtual void DoVoid() override { Error(_T("dllImport: 'void' is not a valid parameter type")); }
+
+	// Number of stack slots required for the native argument vector.  This
+	// counts the actual stack usage based on item size.  For example, a struct
+	// that requires 16 bytes will take up 4 slots in 32-bit mode.
+	int nSlots = 0;
+};
+
+
 
 // marshall arguments to the native argument vector in the stack
 class JavascriptEngine::MarshallToNativeArgv : public MarshallToNative
@@ -3552,8 +3626,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			{
 				// create a new thunk
 				SigParser subsig(tp + 1, EndOfArg(tp) - 1);
-				wrapper = new JavascriptCallbackWrapper(jsval, &subsig);
-				if ((err = JsCreateExternalObject(wrapper, &JavascriptCallbackWrapper::Finalize, &thunk)) != JsNoError)
+				if ((err = CreateExternalObject(thunk, wrapper = new JavascriptCallbackWrapper(jsval, &subsig))) != JsNoError)
 				{
 					Error(err, _T("dllImport: creating callback function thunk external object"));
 					return;
@@ -3895,9 +3968,7 @@ public:
 		// HANDLE values are 64 bits on x64, so we can't reliably convert
 		// these to and from Javascript Number values.  Wrap it in an 
 		// external data object to ensure we preserve all bits.
-		Check(JsCreateExternalObjectWithPrototype(
-			new HandleData(*reinterpret_cast<const HANDLE*>(valp)),
-			&HandleData::Finalize, inst->HANDLE_proto, &jsval));
+		Check(CreateExternalObjectWithPrototype(jsval, inst->HANDLE_proto, new HandleData(*reinterpret_cast<const HANDLE*>(valp))));
 	}
 
 	virtual void DoFunction() override { Error(_T("dllImport: function can't be returned by value (pointer required)")); }
@@ -3916,9 +3987,8 @@ public:
 
 		// wrap the function pointer in an external data object
 		JsValueRef extObj;
-		Check(JsCreateExternalObject(
-			new DllImportData(procAddr, TSTRING(_T("[Return/OUT value from DLL invocation]")), TSTRING(_T("[Anonymous]"))),
-			&DllImportData::Finalize, &extObj));
+		Check(CreateExternalObject(extObj,
+			new DllImportData(procAddr, TSTRING(_T("[Return/OUT value from DLL invocation]")), TSTRING(_T("[Anonymous]")))));
 
 		// The external object isn't by itself callbable from Javascript;
 		// it has to go through our special system _call() function.  We now 
@@ -4058,7 +4128,8 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 	if (!DefineObjPropFunc(dllImportObject, "dllImport", "_bind", &JavascriptEngine::DllImportBind, this, eh)
 		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_sizeof", &JavascriptEngine::DllImportSizeof, this, eh)
 		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_create", &JavascriptEngine::DllImportCreate, this, eh)
-		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_call", &JavascriptEngine::DllImportCall, this, eh))
+		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_call", &JavascriptEngine::DllImportCall, this, eh)
+		|| !DefineObjPropFunc(dllImportObject, "dllImport", "_invokeAutomationMethod", &JavascriptEngine::InvokeAutomationMethod, this, eh))
 		return false;
 
 	// find the COMPoinpter class and prototype
@@ -4235,9 +4306,7 @@ JsValueRef JavascriptEngine::DllImportBind(TSTRING dllName, TSTRING funcName)
 
 	// create an external object with a DllImportData object to represent the result
 	JsValueRef ret;
-	if (JsErrorCode err = JsCreateExternalObject(
-		new DllImportData(addr, dllName, funcName), 
-		&DllImportData::Finalize, &ret); err != JsNoError)
+	if (JsErrorCode err = CreateExternalObject(ret, new DllImportData(addr, dllName, funcName)); err != JsNoError)
 	{
 		Throw(err, _T("dllImport.bind"));
 		return nullVal;
@@ -4610,8 +4679,7 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 
 JsErrorCode JavascriptEngine::HandleData::CreateFromNative(HANDLE h, JsValueRef &jsval)
 {
-	return JsCreateExternalObjectWithPrototype(
-		new HandleData(h), &HandleData::Finalize, inst->HANDLE_proto, &jsval);
+	return CreateExternalObjectWithPrototype(jsval, inst->HANDLE_proto, new HandleData(h));
 }
 
 HANDLE JavascriptEngine::HandleData::FromJavascript(JsValueRef jsval)
@@ -4721,9 +4789,8 @@ JsErrorCode JavascriptEngine::NativePointerData::Create(
 
 	// create the external object
 	JsErrorCode err;
-	if ((err = JsCreateExternalObjectWithPrototype(
-		new NativePointerData(ptr, size, sig, stringType),
-		&NativePointerData::Finalize, inst->NativePointer_proto, jsval)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(*jsval, inst->NativePointer_proto,
+		new NativePointerData(ptr, size, sig, stringType))) != JsNoError)
 		return err;
 
 	// set the length property to the byte length
@@ -5344,13 +5411,11 @@ bool JavascriptEngine::XInt64Data<T>::ParseString(JsValueRef jsval, T &val)
 template<typename T> 
 JsErrorCode JavascriptEngine::XInt64Data<T>::CreateFromInt(T val, JsValueRef &jsval)
 {
-	// create a new object to represent the result
-	auto extobj = new XInt64Data<T>(val);
-
 	// wrap it in a javsacript external object
 	JsErrorCode err;
-	if ((err = JsCreateExternalObjectWithPrototype(extobj, XInt64Data<T>::Finalize,
-		std::is_signed<T>::value ? inst->Int64_proto : inst->UInt64_proto, &jsval)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(jsval, 
+		std::is_signed<T>::value ? inst->Int64_proto : inst->UInt64_proto,
+		new XInt64Data<T>(val))) != JsNoError)
 		inst->Throw(err, _T("Int64 math: creating result"));
 
 	// return the result
@@ -6671,7 +6736,6 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigPar
 	case 'I':
 	case 'd':
 	case 'f':
-	case 'D':
 	case 'l':
 	case 'L':
 	case 'z':
@@ -7120,15 +7184,15 @@ JsValueRef JavascriptEngine::NativeTypeWrapper::Create(
 	// create the wrapper object
 	auto *wrapper = new NativeTypeWrapper(sig, size, extData);
 
-	// pass it back to the caller if desired
-	if (pCreatedObject != nullptr)
-		*pCreatedObject = wrapper;
-
 	// create a Javascript external object for our wrapper
 	JsValueRef jsobj;
 	JsErrorCode err;
-	if ((err = JsCreateExternalObjectWithPrototype(wrapper, &NativeTypeWrapper::Finalize, proto, &jsobj)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(jsobj, proto, wrapper)) != JsNoError)
 		return inst->Throw(err, _T("dllImport: creating external object for native data"));
+
+	// pass it back to the caller if desired
+	if (pCreatedObject != nullptr)
+		*pCreatedObject = wrapper;
 
 	// return the object
 	return jsobj;
@@ -7671,7 +7735,7 @@ JsValueRef JavascriptEngine::COMImportData::Create(COMImportData **pCreatedObj, 
 	// create a Javascript external object for the wrapper
 	JsValueRef jsobj;
 	JsErrorCode err;
-	if ((err = JsCreateExternalObjectWithPrototype(obj, &COMImportData::Finalize, proto, &jsobj)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(jsobj, proto, obj)) != JsNoError)
 		return inst->Throw(err, _T("dllImport: creating external object for COM interface pointer"));
 
 	// if this is a new alias to an existing object, count the new reference
@@ -7836,7 +7900,7 @@ JsValueRef JavascriptEngine::VariantData::Create(JsValueRef callee, bool isConst
 	auto v = new VariantData();
 	JsValueRef jsval;
 	JsErrorCode err;
-	if ((err = JsCreateExternalObjectWithPrototype(v, &VariantData::Finalize, js->Variant_proto, &jsval)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(jsval, js->Variant_proto, v)) != JsNoError)
 		return js->Throw(err, _T("creating Variant"));
 
 	// set the value if there's an initializer argument
@@ -7853,7 +7917,7 @@ JsErrorCode JavascriptEngine::VariantData::CreateFromNative(const VARIANT *src, 
 	auto js = inst;
 	JsErrorCode err;
 	auto v = new VariantData();
-	if ((err = JsCreateExternalObjectWithPrototype(v, &VariantData::Finalize, js->Variant_proto, &dest)) != JsNoError)
+	if ((err = CreateExternalObjectWithPrototype(dest, js->Variant_proto, v)) != JsNoError)
 		return err;
 
 	// copy the source value
@@ -8183,8 +8247,8 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 	case VT_UNKNOWN: ret = GetByRef(v.punkVal, L"@I.IUnknown"); break;
 	case VT_BYREF | VT_UNKNOWN: ret = GetByRef(v.ppunkVal, L"**@I.IUnknown"); break;
 
-	case VT_DISPATCH: ret = GetByRef(v.punkVal, L"@I.IDispatch"); break;
-	case VT_BYREF | VT_DISPATCH: ret = GetByRef(v.ppunkVal, L"**@I.IDispatch"); break;
+	case VT_DISPATCH: ret = js->WrapAutomationObject(WSTRING(L"[Return Value]"), static_cast<IDispatch*>(v.punkVal)); break;
+	case VT_BYREF | VT_DISPATCH: ret = js->WrapAutomationObject(WSTRING(L"[Return Value]"), static_cast<IDispatch*>(*v.ppunkVal)); break;
 
 	case VT_BYREF | VT_VARIANT: ret = GetByRef(v.pvarVal, L"*V"); break;
 
@@ -8556,3 +8620,571 @@ JsValueRef CALLBACK JavascriptEngine::VariantData::SetBSTR(JsValueRef callee, bo
 	return ret;
 }
 
+// --------------------------------------------------------------------------
+//
+// OLE Automation interface.  This implements access to scripting objects
+// through IDispatch interfaces.  We provide automatic mapping to Javscript
+// types to allow calling automation methods directly from Javascript.
+//
+
+//
+// createAutomationObject() implementation
+//
+JsValueRef CALLBACK JavascriptEngine::CreateAutomationObject(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	JsErrorCode err;
+	auto js = static_cast<JavascriptEngine*>(ctx);
+
+	// check arguments
+	WSTRING className;
+	if (argc >= 2)
+	{
+		JsValueRef strval;
+		const wchar_t *p;
+		size_t len;
+		if ((err = JsConvertValueToString(argv[1], &strval)) != JsNoError
+			|| (err = JsStringToPointer(strval, &p, &len)) != JsNoError)
+			return js->Throw(err, _T("createAutomationObject: getting class name argument"));
+
+		className.assign(p, len);
+	}
+
+	HRESULT hr;
+	auto ComErr = [js, &hr, &className](const CHAR *where)
+	{
+		WindowsErrorMessage err(hr);
+		return js->Throw(MsgFmt(_T("createAutomationObject(\"%ws\"): %hs: %s"), className.c_str(), where, err.Get()));
+	};
+
+	// If it looks like a GUID, use the GUID.  Otherwise, take it as a
+	// Program ID (ProgID) and look up the class that way.
+	CLSID clsid;
+	if (!ParseGuid(className.c_str(), clsid))
+	{
+		if (!SUCCEEDED(hr = CLSIDFromProgID(className.c_str(), &clsid)))
+			return ComErr("looking up program ID");
+	}
+
+	// create the COM object
+	RefPtr<IDispatch> disp;
+	if (!SUCCEEDED(hr = CoCreateInstance(clsid, NULL, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&disp))))
+		return ComErr("creating instance");
+
+	// wrap it in an AutomationObjectData external object
+	return js->WrapAutomationObject(className, disp);
+}
+
+JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch *disp)
+{
+	HRESULT hr;
+	auto ComErr = [this, &hr, &className](const CHAR *where)
+	{
+		WindowsErrorMessage err(hr);
+		return Throw(MsgFmt(_T("createAutomationObject(\"%ws\"): %hs: %s"), className.c_str(), where, err.Get()));
+	};
+
+	// get the type info
+	RefPtr<ITypeInfo> typeInfo;
+	if (!SUCCEEDED(hr = disp->GetTypeInfo(0, LOCALE_SYSTEM_DEFAULT, &typeInfo)))
+		return ComErr("getting type information");
+
+	// get the type attributes
+	TYPEATTRHolder typeAttr(typeInfo);
+	if (!SUCCEEDED(hr = typeInfo->GetTypeAttr(&typeAttr)))
+		return ComErr("getting type attributes");
+
+	// create the Javascript object wrapping the external object
+	JsValueRef jsobj;
+	JsErrorCode err;
+	if ((err = CreateExternalObject(jsobj, new AutomationObjectData(disp))) != JsNoError)
+		return Throw(err, _T("createAutomationObject: creating Javascript external object"));
+
+	// Get dllImport._bindDispatch
+	JsValueRef bindProp;
+	const TCHAR *where;
+	if ((err = GetProp(bindProp, inst->dllImportObject, "_bindDispatch", where)) != JsNoError)
+		return Throw(err, MsgFmt(_T("createAutomationObject: getting dllImport._bindDispatch: %s"), where));
+
+	// getter/setters
+	struct GetSet
+	{
+		struct
+		{
+			INVOKEKIND invkind = INVOKE_PROPERTYGET;
+			JsValueRef func = JS_INVALID_REFERENCE;
+		}
+		get, set;
+	};
+	std::map<WSTRING, GetSet> getSet;
+
+	// get the function descriptors
+	for (WORD i = 0; i < typeAttr->cFuncs; ++i)
+	{
+		// get this function descriptor
+		FUNCDESCHolder funcDesc(typeInfo);
+		if (!SUCCEEDED(hr = typeInfo->GetFuncDesc(i, &funcDesc)))
+			return ComErr("getting function descriptor");
+
+		// skip restricted, hidden, and non-dispatch functions
+		if ((funcDesc->wFuncFlags & (FUNCFLAG_FRESTRICTED | FUNCFLAG_FHIDDEN)) != 0
+			|| funcDesc->funckind != FUNC_DISPATCH)
+			continue;
+
+		// get the function name
+		UINT nNames;
+		BStringArray names(32);
+		if (!SUCCEEDED(hr = typeInfo->GetNames(funcDesc->memid, &names, names.n, &nNames)))
+			return ComErr("getting function name");
+
+		// if it's not named, skip it
+		if (nNames == 0)
+			continue;
+
+		// Build the lambda wrapping the method via
+		//    dllImport._bindDispatch(funcIndex, dispatchType)
+		//
+		JsValueRef bindArgs[3] = { inst->dllImportObject }, bindResult;
+		if ((err = JsIntToNumber(static_cast<int>(i), &bindArgs[1])) != JsNoError
+			|| (err = JsIntToNumber(static_cast<int>(funcDesc->invkind), &bindArgs[2])) != JsNoError
+			|| (err = JsCallFunction(bindProp, bindArgs, static_cast<unsigned short>(countof(bindArgs)), &bindResult)) != JsNoError)
+			return Throw(err, _T("createAutomationObject: creating method wrapper"));
+
+		// If it's a regular "method call" dispatch, bind it immediately.  If it's
+		// a getter or setter, add it to the get/set map.  We have to bind each
+		// get/set pair as a unit, so we have to wait until we've visited all of
+		// the functions to be sure we have the full set.  
+		//
+		// Some functions that take arguments are marked as property getters, such
+		// as OLE automation collection .Item methods.  For Javascript purposes,
+		// such a function is a function, not a getter, as a JS getter can't take
+		// any arguments.
+		if (funcDesc->invkind == INVOKE_FUNC || funcDesc->cParams != 0 || funcDesc->cParamsOpt != 0)
+		{
+			// method call - bind now
+			JsValueRef propKey;
+			if ((err = JsPointerToString(names[0], SysStringLen(names[0]), &propKey)) != JsNoError
+				|| (err = JsObjectSetProperty(jsobj, propKey, bindResult, true)) != JsNoError)
+				return Throw(err, _T("createAutomationObject: binding method wrapper"));
+		}
+		else
+		{
+			// property get/set - find the map entry for this property name
+			WSTRING name(names[0], SysStringLen(names[0]));
+			auto it = getSet.find(name);
+			if (it == getSet.end())
+				it = getSet.emplace(name, GetSet()).first;
+
+			if (funcDesc->invkind == INVOKE_PROPERTYGET)
+			{
+				it->second.get.invkind = funcDesc->invkind;
+				it->second.get.func = bindResult;
+			}
+			else
+			{
+				it->second.set.invkind = funcDesc->invkind;
+				it->second.set.func = bindResult;
+			}
+
+			// Stash the function reference in the stack to protect it from the javascript
+			// garbage collector.  The Get/Set map won't protect it because it allocates heap
+			// memory to store the struct data.
+			*reinterpret_cast<JsValueRef*>(alloca(sizeof(JsValueRef))) = bindResult;
+		}
+	}
+
+	// find all of the getter/setters
+	JsPropertyIdRef enumerableProp, getProp, setProp;
+	if ((err = JsCreatePropertyId("enumerable", 10, &enumerableProp)) != JsNoError
+		|| (err = JsCreatePropertyId("get", 3, &getProp)) != JsNoError
+		|| (err = JsCreatePropertyId("set", 3, &setProp)) != JsNoError)
+		return Throw(err, _T("creating get/set descriptor"));
+
+	for (auto &gs : getSet)
+	{
+		// create the decriptor and add 'enumerable'
+		JsValueRef propKey, propDesc;
+		if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
+			|| (err = JsCreateObject(&propDesc)) != JsNoError
+			|| (err = JsSetProperty(propDesc, enumerableProp, trueVal, true)) != JsNoError)
+			return Throw(err, _T("initializing get/set descriptor"));
+
+		// add 'get' if there's a getter
+		if (gs.second.get.func != JS_INVALID_REFERENCE
+			&& (err = JsSetProperty(propDesc, getProp, gs.second.get.func, true)) != JsNoError)
+			return Throw(err, _T("creating getter descriptor"));
+
+		// add 'set' if there's a setter
+		if (gs.second.set.func != JS_INVALID_REFERENCE
+			&& (err = JsSetProperty(propDesc, setProp, gs.second.set.func, true)) != JsNoError)
+			return Throw(err, _T("creating setter descriptor"));
+
+		// add the property
+		bool ok;
+		if ((err = JsObjectDefineProperty(jsobj, propKey, propDesc, &ok)) != JsNoError || !ok)
+			return Throw(err, _T("binding get/set"));
+	}
+
+	// return the external object
+	return jsobj;
+}
+
+template<typename T, T VARIANTARG::*ele>
+bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
+{
+	JsErrorCode err;
+	JsValueRef numval;
+	double d;
+	if ((err = JsConvertValueToNumber(jsval, &numval)) != JsNoError
+		|| (err = JsNumberToDouble(numval, &d)) != JsNoError)
+	{
+		JavascriptEngine::Get()->Throw(err, _T("Passing numeric argument to automation function"));
+		return false;
+	}
+
+	v.*ele = static_cast<T>(d);
+	return true;
+}
+
+// IDispatch type parser
+ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc)
+{
+	JsErrorCode err;
+	switch (v.vt = desc.vt)
+	{
+	case VT_I2:
+		return MarshallAutomationNum<SHORT, &VARIANTARG::iVal>(v, jsval);
+
+	case VT_I4:
+		return MarshallAutomationNum<LONG, &VARIANTARG::lVal>(v, jsval);
+
+	case VT_R4:
+		return MarshallAutomationNum<FLOAT, &VARIANTARG::fltVal>(v, jsval);
+
+	case VT_R8:
+		return MarshallAutomationNum<DOUBLE, &VARIANTARG::dblVal>(v, jsval);
+
+	case VT_DATE:
+		v.date = VariantData::JsDateToVariantDate(jsval);
+		return true;
+
+	case VT_BSTR:
+		{
+			JsValueRef strval;
+			const wchar_t *p;
+			size_t len;
+			if ((err = JsConvertValueToString(jsval, &strval)) != JsNoError
+				|| (err = JsStringToPointer(strval, &p, &len)) != JsNoError)
+				return Throw(err, _T("Passing string argument to automation function")), false;
+
+			v.bstrVal = SysAllocStringLen(p, len);
+			return true;
+		}
+
+	case VT_DISPATCH:
+		return L"@I.IDispatch";
+
+	case VT_ERROR:
+		return MarshallAutomationNum<SCODE, &VARIANTARG::scode>(v, jsval);
+
+	case VT_BOOL:
+		{
+			JsValueRef boolval;
+			bool b;
+			if ((err = JsConvertValueToBoolean(jsval, &boolval)) != JsNoError
+				|| (err = JsBooleanToBool(boolval, &b)) != JsNoError)
+				return Throw(err, _T("Passing boolean argument to automation function")), false;
+
+			v.boolVal = b ? VARIANT_TRUE : VARIANT_FALSE;
+			return true;
+		}
+
+	case VT_VARIANT:
+		return L"V";
+
+	case VT_I1:
+		return MarshallAutomationNum<CHAR, &VARIANTARG::cVal>(v, jsval);
+
+	case VT_UI1:
+		return MarshallAutomationNum<BYTE, &VARIANTARG::bVal>(v, jsval);
+
+	case VT_UI2:
+		return MarshallAutomationNum<USHORT, &VARIANTARG::uiVal>(v, jsval);
+
+	case VT_UI4:
+		return MarshallAutomationNum<ULONG, &VARIANTARG::ulVal>(v, jsval);
+
+	case VT_INT:
+		return MarshallAutomationNum<INT, &VARIANTARG::intVal>(v, jsval);
+
+	case VT_UINT:
+		return MarshallAutomationNum<UINT, &VARIANTARG::uintVal>(v, jsval);
+
+	case VT_VOID:
+		return true;
+
+	case VT_HRESULT:
+		return MarshallAutomationNum<SCODE, &VARIANTARG::scode>(v, jsval);
+
+	case VT_PTR:
+		// TO DO
+		Throw(_T("pointers are not implemented"));
+		return false;
+
+	case VT_SAFEARRAY:
+		Throw(_T("arrays are not implemented"));
+		return false;
+
+	case VT_USERDEFINED:
+		{
+			HRESULT hr;
+			auto ComErr = [&hr](const CHAR *msg)
+			{
+				WindowsErrorMessage werr(hr);
+				JavascriptEngine::Get()->Throw(MsgFmt(_T("Getting automation type info: %hs: %s"), msg, werr.Get()));
+				return L"";
+			};
+
+			RefPtr<ITypeInfo> subInfo;
+			if (!SUCCEEDED(hr = typeInfo->GetRefTypeInfo(desc.hreftype, &subInfo)))
+				return ComErr("Getting referenced type info");
+
+			// get the type attributes
+			TYPEATTRHolder attr(subInfo);
+			if (!SUCCEEDED(hr = subInfo->GetTypeAttr(&attr)))
+				return ComErr("Getting referenced type attributes");
+
+			// let's see what we have
+			switch (attr->typekind)
+			{
+			case TKIND_ENUM:
+				// enum type
+				switch (attr->cbSizeInstance)
+				{
+				case 1:
+					v.vt = VT_I1;
+					return MarshallAutomationNum<CHAR, &VARIANTARG::cVal>(v, jsval);
+
+				case 2:
+					v.vt = VT_I2;
+					return MarshallAutomationNum<SHORT, &VARIANTARG::iVal>(v, jsval);
+
+				case 4:
+					v.vt = VT_I4;
+					return MarshallAutomationNum<LONG, &VARIANTARG::lVal>(v, jsval);
+				}
+
+				Throw(_T("Invalid enum type size"));
+				return false;
+
+			case TKIND_RECORD:
+				// struct type
+				{
+					if (!SUCCEEDED(hr = GetRecordInfoFromTypeInfo(subInfo, &v.pRecInfo)))
+						return ComErr("Getting enum record info");
+
+					for (USHORT i = 0; i < attr->cVars; ++i)
+					{
+						VARDESCHolder vardesc(subInfo);
+						if (!SUCCEEDED(hr = subInfo->GetVarDesc(i, &vardesc)))
+							return ComErr("getting struct member descriptor");
+
+						BStringArray bstr(1);
+						UINT nNames;
+						if (!SUCCEEDED(hr = subInfo->GetNames(vardesc->memid, &bstr, bstr.n, &nNames)))
+							return ComErr("getting struct member name");
+					}
+
+					Throw(_T("structs are not implemented"));
+					return false;
+				}
+
+			case TKIND_DISPATCH:
+				// dispatch interface
+				{
+					if (auto dispobj = AutomationObjectData::Recover<AutomationObjectData>(jsval, nullptr); dispobj != nullptr)
+					{
+						v.vt = VT_DISPATCH;
+						v.punkVal = dispobj->disp;
+						return true;
+					}
+				}
+
+			case TKIND_ALIAS:
+				return MarshallAutomationArg(v, jsval, subInfo, attr->tdescAlias);
+
+			default:
+				// others aren't handled
+				JavascriptEngine::ThrowSimple("Unhandled referenced type in automation object interface");
+				return L"";
+			}
+		}
+
+	default:
+		JavascriptEngine::ThrowSimple("Unhandled type in automation object interface");
+		return L"";
+	}
+}
+
+//
+// Invoke an automation IDispatch method
+//
+// This is called from a js wrapper function that we bind for each method
+// in an automation object.  Called as:
+//
+//   _invokeAutomationMethod(extobj, funcIndex, dispType, ...args);
+//
+// extobj = AutomationObjectData external object, containing the 
+//   IDispatch interface pointer to be invoked
+//
+// funcIndex = int, function index in dispatch interface
+//
+// dispType = int, dispatch type (DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPATCH_PROPERTYPUT)
+//
+// ...args = the Javscript caller's arguments
+// 
+//
+JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	auto js = static_cast<JavascriptEngine*>(ctx);
+	JsErrorCode err;
+	HRESULT hr;
+	auto ComErr = [js, &hr](const CHAR *where)
+	{
+		WindowsErrorMessage err(hr);
+		return js->Throw(MsgFmt(_T("invoking automation object method: %hs: %s"), where, err.Get()));
+	};
+
+	// make sure the base arguments are present
+	unsigned short jsargi = 1;
+	if (argc < 3)
+		return js->Throw(_T("_invokeAutomationMethod: missing arguments"));
+
+	// get the IDispatch wrapper
+	auto obj = AutomationObjectData::Recover<AutomationObjectData>(argv[jsargi++], _T("_invokeAutomationMethod"));
+	if (obj == nullptr)
+		return js->undefVal;
+
+	// get the function index
+	int funcIndex;
+	if ((err = JsNumberToInt(argv[jsargi++], &funcIndex)) != JsNoError)
+		return js->Throw(err, _T("_invokeAutomationMethod: invalid member ID"));
+
+	// get the dispatch type
+	int dispType;
+	if ((err = JsNumberToInt(argv[jsargi++], &dispType)) != JsNoError)
+		return js->Throw(err, _T("_invokeAutomationMethod: invalid dispatch type"));
+
+	// get the type info
+	RefPtr<ITypeInfo> typeInfo;
+	if (!SUCCEEDED(hr = obj->disp->GetTypeInfo(0, LOCALE_SYSTEM_DEFAULT, &typeInfo)))
+		return ComErr("getting type information");
+
+	// get the type attributes
+	TYPEATTRHolder typeAttr(typeInfo);
+	if (!SUCCEEDED(hr = typeInfo->GetTypeAttr(&typeAttr)))
+		return ComErr("getting type attributes");
+
+	// get the function descriptor
+	FUNCDESCHolder funcDesc(typeInfo);
+	if (!SUCCEEDED(hr = typeInfo->GetFuncDesc(static_cast<UINT>(funcIndex), &funcDesc)))
+		return ComErr("getting function descriptor");
+
+	// Allocate space for the parameters, including optional parameters.  We'll
+	// leave optional parameter slots empty if the caller didn't provide the
+	// corresponding actuals.
+	VARIANTARGArray va(funcDesc->cParams + funcDesc->cParamsOpt);
+
+	// populate the arguments
+	unsigned short firstJsArg = jsargi;
+	SHORT vargc;
+	for (vargc = 0; vargc < funcDesc->cParams; ++vargc, ++jsargi)
+	{
+		// get this parameter descriptor
+		auto &desc = funcDesc->lprgelemdescParam[vargc];
+
+		// check if there's a javascript actual for this slot
+		if (jsargi < argc)
+		{
+			// copy it into the vector only if it's IN argument only
+			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FIN) != 0
+				&& !js->MarshallAutomationArg(va.v[vargc], argv[jsargi], typeInfo, desc.tdesc))
+				return js->undefVal;
+		}
+		else
+		{
+			// We're past the last javascript actual.
+			//
+			// - If this parameter is optional, pass "missing"
+			// - Otherwise, if there's a default value, use the default
+			// - Otherwise throw an error
+			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FOPT) != 0)
+			{
+				// optional - pass "missing"
+				va.v[argc].vt = VT_ERROR;
+				va.v[argc].scode = DISP_E_PARAMNOTFOUND;
+			}
+			else if ((desc.paramdesc.wParamFlags & PARAMFLAG_FHASDEFAULT) != 0)
+			{
+				// default value provided - pass it
+				VariantCopy(&va.v[vargc], &desc.paramdesc.pparamdescex->varDefaultValue);
+			}
+			else
+			{
+				// this argument was required, so this is an error
+				return js->Throw(_T("Not enough arguments"));
+			}
+		}
+	}
+
+	// set up the argument DISPPARAMS
+	DISPPARAMS params = { va.v, NULL, static_cast<UINT>(vargc), 0 };
+
+	// call the function
+	VARIANTEx result;
+	EXCEPINFOEx exc;
+	hr = obj->disp->Invoke(funcDesc->memid, IID_NULL, LOCALE_SYSTEM_DEFAULT, static_cast<WORD>(dispType), &params, &result, &exc, NULL);
+
+	// check the results
+	if (SUCCEEDED(hr))
+	{
+		// Success.  Pass back any OUT arguments.
+		for (vargc = 0, jsargi = firstJsArg; vargc < funcDesc->cParams; ++vargc, ++jsargi)
+		{
+			// get this parameter descriptor
+			auto &desc = funcDesc->lprgelemdescParam[vargc];
+
+			// stop if we're past the last javascript argument
+			if (jsargi >= argc)
+				break;
+	
+			// if this is an OUT parameter, copy it back
+			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FOUT) != 0)
+			{
+				// TO DO 
+			}
+		}
+
+		// translate and return the return value
+		return VariantData::Get(result);
+	}
+
+	// check for an exception
+	if (hr == DISP_E_EXCEPTION)
+	{
+		if (exc.bstrDescription != nullptr)
+			js->Throw(exc.bstrDescription);
+		else
+		{
+			WindowsErrorMessage werr(exc.scode);
+			js->Throw(MsgFmt(_T("%s (system error code %08lx)"), werr.Get(), werr.GetCode()));
+		}
+		return js->undefVal;
+	}
+
+	// other error
+	WindowsErrorMessage werr(hr);
+	js->Throw(MsgFmt(_T("IDispatch::Invoke failed: %s (%08lx)"), werr.Get(), werr.GetCode()));
+	return js->undefVal;
+}

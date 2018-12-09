@@ -113,6 +113,24 @@
    PinballY will call it whenever the associated event occurs.
 </p>
 
+<h2>Avoid long-running operations</h2>
+
+<p>
+   You should avoid any operations in Javascript that will take a long
+   time to complete, especially things like timing loops or waiting
+   for external calls (such as network reads) to complete.  Javascript
+   runs as part of the main user interface thread, so operations that
+   involve long waits are a no-no.  Long waits in Javascript can make the UI
+   windows appear to be frozen.
+</p>
+<p>
+   Any timed waits should be done via a timeout or interval.  Waits
+   for external events should be handled with asynchronous mechanisms,
+   ideally through Javascript Promise objects.  In the unlikely event
+   that you have a time-consume computational task to perform, it's
+   best to break it up into small time slices using intervals.
+</p>
+
 <h2>Events</h2>
 
 <p>

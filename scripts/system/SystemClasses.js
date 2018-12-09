@@ -755,6 +755,14 @@ this.dllImport =
     {
         return function(...args) { return dllImport._call(this, vtableIndex, desc, this, ...args); };
     },
+
+    // Internal method to wrap a COM IDispatch interface member.  This is
+    // used for automation objects.  "this" is the AutomationObject native
+    // object wrapping the IDispatch pointer.
+    _bindDispatch: function(funcIndex, dispType)
+    {
+        return function(...args) { return dllImport._invokeAutomationMethod(this, funcIndex, dispType, ...args); };
+    },
 };
 
 // populate some basic COM types

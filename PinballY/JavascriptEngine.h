@@ -1288,6 +1288,13 @@ protected:
 		CHAR typeTag[8];
 	};
 
+	// Create an external object.  Destroys the external object on failure.
+	static JsErrorCode CreateExternalObject(JsValueRef &jsobj, ExternalObject *obj, 
+		JsFinalizeCallback finalize = &ExternalObject::Finalize);
+	static JsErrorCode CreateExternalObjectWithPrototype(JsValueRef &jsobj, JsValueRef prototype,
+		ExternalObject *obj, JsFinalizeCallback finalize = &ExternalObject::Finalize);
+
+
 	// External object data representing a DLL entrypoint.  We use this
 	// because there's no good way to represent a FARPROC in a Javascript
 	// native type.  The DLL and entrypoint names are stored purely for
@@ -1367,6 +1374,37 @@ protected:
 	// COMPointer clas and prototype
 	JsValueRef COMPointer_class;
 	JsValueRef COMPointer_proto;
+
+	// OLE Automation script object.  This represents an IDispatch object
+	// created via createAutomationObject().  When we create one of these
+	// objects, we populate it with a method for each IDispatch entrypoint.
+	class AutomationObjectData : public ExternalObject
+	{
+	public:
+		AutomationObjectData(IDispatch *disp) : disp(disp, RefCounted::DoAddRef) { }
+		~AutomationObjectData() { }
+
+		// The underlying scripting object's IDispatch interface
+		RefPtr<IDispatch> disp;
+	};
+
+	// createAutomationObject()
+	static JsValueRef CALLBACK CreateAutomationObject(JsValueRef callee, bool isConstructCall,
+		JsValueRef *argv, unsigned short argc, void *ctx);
+
+	// wrap an automation object in an AutomationObjectData
+	JsValueRef WrapAutomationObject(WSTRING &className, IDispatch *disp);
+
+	// _invokeAutomationMethod()
+	static JsValueRef CALLBACK InvokeAutomationMethod(JsValueRef callee, bool isConstructCall,
+		JsValueRef *argv, unsigned short argc, void *ctx);
+
+	// marshall a Javascript value to an automation VARIANTARG
+	bool MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc);
+
+	// marshall to a numeric VARIANTARG type
+	template<typename T, T VARIANTARG::*ele>
+	bool MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval);
 
 	// External object data representing a COM VARIANT object
 	class VariantData : public ExternalObject
@@ -1776,6 +1814,7 @@ protected:
 	class MarshallSizer;
 	class MarshallBasicSizer;
 	class MarshallStackArgSizer;
+	class MarshallVariantArgSizer;
 	class MarshallStructOrUnionSizer;
 	class MarshallStructSizer;
 	class MarshallUnionSizer;

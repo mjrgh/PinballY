@@ -87,18 +87,19 @@ sub-projects by shift-clicking, then:
    f. In the right pane, set "Runtime Library" to "Multi-threaded Debug (/MTd)"
    g. Click Apply, OK
 
-2. Not too hard, but a bit of work.  Compile PinballY.  Review the
-link errors.  Remove calls to JsDebug... functions that cause "missing
-external reference" errors in the link.  These are new custom API
-functions that I added to the ChakraCore-Debugger public API.  They
-don't exist in the original, so the PinballY dependencies on them
-will cause link errors.
+2. The not-too-hard-but-labor-intensive part.  Compile PinballY.
+Review the link errors.  Remove calls to JsDebug... functions that
+cause "missing external reference" errors in the link.  These are new
+custom API functions that I added to the ChakraCore-Debugger public
+API.  They don't exist in the original, so the PinballY dependencies
+on them will cause link errors.
 
 3. The hard part.  Replicate all of the development work I did to fix
 bugs and add missing functionality to the ChakraCore-Debugger project.
 You'll have to thoroughly test to find the issues, and come up with
-your own alternative solutions.  Or you can just live with the
-problems if you prefer.
+your own alternative solutions.  You might try to just live with the
+problems if you prefer, but I find this code unusable for anything
+beyond the most basic demonstration purposes in its original state.
 
 Some of the known issues:
 
@@ -113,3 +114,46 @@ debug session.
 
 b. The "break=none" startup mode won't work.  The CC-D layer doesn't
 have a way to let PinballY resume execution after the initial break.
+
+c. The base version doesn't implement interactive expression
+evaluation (from the debug UI console).
+
+d. The base version doesn't implement console.log().
+
+e. The base version can't handle debugging into "import" modules, due
+to some brittle expectations about the stack frame that change when
+stopped in a module.
+
+f. There are a bunch of other small, miscellaneous bug fixes and
+additions in my fork for cases that weren't handled properly in the
+base version.  Some of these are outright bugs and some are just
+missing basic functionality.  
+
+
+On a more general note:
+
+CC-D has a basic design flaw (in my opinion) in how it handles errors.
+Specifically, it tends to throw a fatal error on encountering anything
+unexpected or unimplemented (and in its current prototype-level stage
+of development, there's *a lot* that's unimplemented).  This makes it
+tend to terminate abruptly - killing any running Javascript script,
+and disconnecting from the debugger UI client - when anything goes
+wrong.  It doesn't usually generate any useful diagnostics in these
+cases, either; it just throws an error up to the main CC layer, which
+CC in turn bubbles up to the main application as a JsErrorFatal, with
+no further information attached.  Not a robust design.
+
+It would probably be possible to fix this in some kind of general way
+so that fatals are never thrown out of the debug layer.  There might
+be *some* situations where throwing a fatal is actually called for,
+but the situations I've encountered so far definitely do not fit that
+description.  They're mostly simple validation errors that are easily
+recoverable - just report what's wrong to the user (when that would be
+useful information), abort the command (or whatever) that caused the
+error, and return to normal processing.  But the current (lack of)
+error handling is basically baked into the design and used
+ubiquitously throughout the code, so it might take some significant
+work to change.  In the meantime, this is why I've been trying to
+flesh out the implementation to cover common situations more
+thoroughly, so that ordinary debug events are less likely to trigger
+internal CC-D layer errors in the first place.
