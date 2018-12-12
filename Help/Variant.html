@@ -315,5 +315,19 @@ propBag.Read("Name", v, null);
    the ".value Reads As" column.
 </p>
 
+<h2>Limitations</h2>
+
+<ul>
+   <li>The CURRENCY and DECIMAL types are represented in Javascript
+   as simple Javascript numbers.  This could result in a loss of
+   precision when converted to Javascript and back to native.
+   We'd have to add a new system class (along the lines of <a href="Int64.html">Int64</a>)
+   if we wanted to represent these values without loss of precision.
+   We don't currently offer such system classes mostly because we don't
+   anticipate that PinballY will be used extensively for developing
+   financial applications.
+   
+</ul>
+
 </body>
 </html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>OLE Automation Objects</h1>
+
+<p>
+   OLE Automation is a Windows feature that lets scripting languages
+   access system functions and features in other applications.  This is also known
+   as "Scripting Objects", but that's a vague term that can mean other
+   things as well.  Automation was created originally for the Visual Basic
+   language, and is most often used in VB.   Windows Power Users will be
+   familiar with this from working with Visual Basic scripts in programs
+   like Excel, Word, or WScript.  If you've done any work creating Visual
+   Pinball tables, you might have used automation objects in VP's Visual Basic
+   scripts.
+</p>
+<p>
+   In Javascript, you create an OLE scripting object like this:
+</p>
+<div class="code">
+let fs = createAutomationObject("Scripting.FileSystemObject");
+</div>
+<p>
+   If you're a Visual Basic user, it might be helpful if we mention
+   that this is the equivalent of VB's CreateObject() function.
+</p>
+
+<p>
+   The object name in quotes is the "class name" of the object you wish
+   to create.  This isn't defined by Javascript; it's defined by whatever
+   application or system facility provides the automation object.  Windows
+   provides a set of pre-installed "Scripting" objects, including
+   "Scripting.FileSystemObject", which provides functions to access files
+   and folders on the local hard disks.  Many other objects come from
+   separate applications, such as Excel or Word. 
+</p>
+<p>
+   If the named class is installed on your system, createAutomationObject()
+   returns a Javascript object that provides the set of methods and properties
+   defined by the system object.  You can now simply call methods on the
+   returned object to access the system features provided by the object.
+</p>
+<div class="code">
+// list the files in the Windows folder
+for (let file of fs.GetSpecialFolder(0).Files)
+    console.log(file.Name);
+</div>
+
+<h2>"Variant" arguments</h2>
+
+<p>
+   Many Automation objects work in terms of "Variant" variables, which
+   is a special object formatted the same way that Visual Basic represents
+   its variable values.  (Microsoft originally designed Automation around
+   Visual Basic's needs, so the whole system is very VB-centric.)  When
+   you call a method on an automation object, any Javascript arguments
+   you pass to slots expecting Variant values have to be converted to
+   Variant before being passed to the external object.
+</p>
+<p>
+   Javascript will perform the conversion to Variant automatically if you
+   use regular Javascript values as arguments, so in most cases you can just
+   call methods on these objects without worrying about special data types.
+</p>
+<p>
+   There's a snag, though.  The automatic conversion can't always figure out
+   which type the callee expects, so it always uses a standard conversion
+   from each Javascript type to a suitable corresponding Variant type.  For
+   example, if you  pass a Javascript number value as an argument, it will
+   always be converted to a Variant "double", which is the VB equivalent of
+   a Javascript number.  The snag is that some automation methods are picky
+   about the exact types they receive as arguments, and will return an
+   error if you pass the "default" type used in the standard conversion
+   from Javascript.
+</p>
+<p>
+   In such cases, you can solve the mismatch by explicitly creating your
+   own Variant variable, and setting it to the expected type.  You can do
+   this as follows:
+</p>
+<div class="code">
+// create a Variant variable and set its "short int" value
+let v = new Variant();
+v.iVal = 7;
+
+// now pass "short int" 7 to an automation method
+let x = createAutomationObject("Example.Object");
+x.RequiresShortInt(v);
+</div>
+
+
+<p>
+   See <a href="Variant.html">Variants</a> for details on the special
+   Variant type.
+</p>
+
+<h2>OUT parameters</h2>
+
+<p>
+   Some automation object methods take "Out" parameters, which are
+   arguments that the callee uses to return data to the caller.
+</p>
+<p>
+   There's no direct equivalent of "Out" parameters in normal Javascript, as
+   all arguments in Javascript function and method calls are passed by value.
+   The data transfer in Javascript is always one-way, from caller to callee.
+   When calling an automation method that returns information through an "Out"
+   parameter, therefore, we have to do something a little unusual.
+</p>
+<p>
+   Specifically, we use <a href="Variant.html">Variant</a> objects.  If
+   an automation method passes information back through an Out parameter,
+   simply pass a Variant to the method for that parameter.  On return, the
+   Variant will be modified to contain the returned information.
+</p>
+<div class="code">
+let v = new Variant();
+autoObj.FuncThatChangesArgument(v);
+
+// v now contains the updated value
+</div>
+
+<p>
+   Note that you don't have to use a Variant for such arguments, but
+   if you don't, any updated value will simply be discarded.  If
+   you pass any other value type to a method taking an Out parameter,
+   the value you specify will be sent to the callee as usual, using the
+   normal type conversions, and any update to the value will be ignored.
+</p>
+   
+   
+
+<h2>Limitations</h2>
+
+<p>
+   The Automation interface doesn't currently support the following:
+</p>
+<ul>
+   <li>"Record" types (the Visual Basic equivalent of a C struct)
+</ul>
+
+

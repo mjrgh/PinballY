@@ -2079,9 +2079,6 @@ protected:
 	JsValueRef jsJoystickButtonUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
 
-	// schedule the next javascript timer event
-	void SetJavascriptTaskTimer();
-
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
 	// event (via preventDefault() or similar).  Non-blockable events

@@ -62,24 +62,32 @@ public:
 		// favorite icon data
 		const BYTE* favIcon = nullptr;
 		size_t favIconSize = 0;
+	};
 
-		// Message window and callback.  When a message is received on
-		// the debug socket, we'll fire the given message to the given
-		// window.  The window should simply call OnDebugMessageQueued()
-		// when receiving this message.  Socket messages are received
-		// asynchronously in background threads, where they're queued
-		// for later processing on the main thread.  The point of this
-		// window message is to make the main thread respond quickly
-		// when an incoming message is queued.
-		HWND messageHwnd = NULL;
-		UINT messageId = 0;
+	// Message window options.  This is a UI window that the caller provides
+	// for processing messages, for timers and asynchronous event handling.
+	struct MessageWindow
+	{
+		// The window to use
+		HWND hwnd = NULL;
+
+		// Timer ID.  We'll set and kill this timer in the message window
+		// as needed to schedule processing for asynchronous events.  The
+		// window should simply call RunTasks() whenever this timer fires.
+		UINT timerId = 0;
+
+		// Debug event message.  When a debug message is received on the
+		// debug socket, we'll post this message to the message window.
+		// The window should simply call OnDebugMessageQueued() upon
+		// receiving this message.
+		UINT debugEventMessageId = 0;
 	};
 
 	// callback when a debug message is queued
 	void OnDebugMessageQueued();
 
 	// initialize/terminate
-	static bool Init(ErrorHandler &eh, DebugOptions *debug);
+	static bool Init(ErrorHandler &eh, MessageWindow const &messageWindow, DebugOptions *debug);
 	static void Terminate();
 
 	// Bind the dllImport callbacks
@@ -169,6 +177,9 @@ public:
 
 	// Add a task to the queue
 	void AddTask(Task *task);
+
+	// Update the task timer
+	void UpdateTaskTimer();
 
 	// Enumerate tasks.  The predicate returns true to continue the enumeration.
 	void EnumTasks(std::function<bool(Task *)>);
@@ -310,6 +321,9 @@ public:
 	template<typename ReturnType, typename... ArgTypes>
 	static ReturnType CallFunc(JsValueRef func, ArgTypes... args)
 	{
+		// entering Javascript scope
+		JavascriptScope jsc;
+
 		const size_t argc = sizeof...(ArgTypes) + 1;
 		JsValueRef args[argc] = { JS_INVALID_REFERENCE, NativeToJs(args)... };
 		JsGetUndefinedValue(&args[0]);
@@ -323,6 +337,9 @@ public:
 	template<typename ReturnType, typename... ArgTypes>
 	static ReturnType CallMethod(JsValueRef thisval, JsPropertyIdRef prop, ArgTypes... args)
 	{
+		// entering Javascript scope
+		JavascriptScope jsc;
+
 		JsValueRef func;
 		if (JsGetProperty(thisval, prop, &func) == JsNoError)
 		{
@@ -1074,12 +1091,28 @@ protected:
 	static JavascriptEngine *inst;
 
 	// instance initialization
-	bool InitInstance(ErrorHandler &eh, DebugOptions *debug);
+	bool InitInstance(ErrorHandler &eh, const MessageWindow &messageWindow, DebugOptions *debug);
 	bool inited = false;
+
+	// message window settings
+	MessageWindow messageWindow;
 
 	// JS runtime handle.  This represents a single-threaded javascript execution
 	// environment (heap, compiler, garbage collector).
 	JsRuntimeHandle runtime = nullptr;
+
+	// Entering Javascript scope.  We instantiate one of these when calling into
+	// Javascript from the outside (e.g., firing an event handler).  We defer
+	// asynchronous tasks while in Javascript.
+	class JavascriptScope
+	{
+	public:
+		JavascriptScope() { Get()->inJavascript += 1; }
+		~JavascriptScope() { Get()->inJavascript -= 1; }
+	};
+
+	// current Javascript call nesting level
+	int inJavascript = 0;
 
 	// dispatchEvent property
 	JsPropertyIdRef dispatchEventProp;
@@ -1406,6 +1439,16 @@ protected:
 	template<typename T, T VARIANTARG::*ele>
 	bool MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval);
 
+	// Automation interface prototype cache.  Each time we encounter a new
+	// automation interface, we create a prototype for the dispatch interface,
+	// and cache the prototype here.  This lets us create a new instance of
+	// the same type without having to re-parse the type information; we 
+	// just create a new object with the cached prototype.  The type information
+	// is keyed by the GUID from the TYPEATTR for the interface, converted to
+	// standard string representation.
+	std::map<TSTRING, JsValueRef> automationInterfaceCache;
+
+
 	// External object data representing a COM VARIANT object
 	class VariantData : public ExternalObject
 	{
@@ -1492,6 +1535,10 @@ protected:
 
 		// set from a Javascript value, inferring the Variant type
 		static void Set(VARIANT &v, JsValueRef val);
+
+		// set a value type from native data
+		template<typename T>
+		static T SetByValue(VARIANT &v, void *pData, VARTYPE vt);
 
 		// set a pointer type
 		template<typename T>

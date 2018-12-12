@@ -26,18 +26,18 @@ JavascriptEngine::JavascriptEngine()
 {
 }
 
-bool JavascriptEngine::Init(ErrorHandler &eh, DebugOptions *debug)
+bool JavascriptEngine::Init(ErrorHandler &eh, const MessageWindow &messageWindow, DebugOptions *debug)
 {
 	// if there's already a singleton, there's nothing to do
 	if (inst != nullptr)
 		return true;
 
-	// create the global singleton
+	// create and initialize the global singleton
 	inst = new JavascriptEngine();
-	return inst->InitInstance(eh, debug);
+	return inst->InitInstance(eh, messageWindow, debug);
 }
 
-bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
+bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messageWindow, DebugOptions *debug)
 {
 	JsErrorCode err;
 	auto Error = [&err, &eh](const TCHAR *where)
@@ -47,6 +47,9 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization error: %s\n"), details.Get());
 		return false;
 	};
+
+	// save the message window options
+	this->messageWindow = messageWindow;
 
 	// set up attributes
 	DWORD attrs = JsRuntimeAttributeEnableExperimentalFeatures | JsRuntimeAttributeEnableIdleProcessing;
@@ -192,7 +195,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, DebugOptions *debug)
 		{
 			// notify the message window
 			auto js = static_cast<JavascriptEngine*>(state);
-			PostMessage(js->debugOptions.messageHwnd, js->debugOptions.messageId, 0, 0);
+			PostMessage(js->messageWindow.hwnd, js->messageWindow.debugEventMessageId, 0, 0);
 
 		}, this)) != JsNoError)
 			return Error(_T("JsDebugProtocolHandlerSetCommandQueueCallback"));
@@ -393,11 +396,17 @@ void JavascriptEngine::OnDebugMessageQueued()
 {
 	// process queued commands
 	if (debugProtocolHandler != nullptr)
+	{
+		JavascriptScope jsc;
 		JsDebugProtocolHandlerProcessCommandQueue(debugProtocolHandler);
+	}
 }
 
 bool JavascriptEngine::EvalScript(const WCHAR *scriptText, const WCHAR *url, JsValueRef *returnVal, ErrorHandler &eh)
 {
+	// we're entering Javascript scope
+	JavascriptScope jsc;
+
 	JsErrorCode err;
 	auto Error = [&err, &eh](const TCHAR *where)
 	{
@@ -898,7 +907,42 @@ void CALLBACK JavascriptEngine::PromiseContinuationCallback(JsValueRef task, voi
 
 void JavascriptEngine::AddTask(Task *task)
 {
+	// add the task
 	taskQueue.emplace_back(task);
+
+	// update the message window timer, if affected
+	UpdateTaskTimer();
+}
+
+void JavascriptEngine::UpdateTaskTimer()
+{
+	if (IsTaskPending())
+	{
+		// get the next scheduled task time
+		ULONGLONG tNext = GetNextTaskTime();
+
+		// figure the elapsed time to the next task time
+		ULONGLONG tNow = GetTickCount64();
+		ULONGLONG dt64 = tNext <= tNow ? 0 : tNext - tNow;
+
+		// The window timer can only hold a UINT, so limit the interval
+		// to UINT_MAX.  This will result in a premature timer event, 
+		// but that won't result in any incorrect behavior because the
+		// event processor won't run any tasks that aren't actually ready
+		// at that point; and it won't cause excessive performance impact,
+		// because the premature events along the way will only occur
+		// once every 49.7 days.  So we'll do an unnecessary queue scan
+		// every 49.7 days until the actual event occurs.
+		UINT dt = (UINT)(dt64 > UINT_MAX ? UINT_MAX : dt64);
+
+		// schedule a timer event
+		SetTimer(messageWindow.hwnd, messageWindow.timerId, dt, NULL);
+	}
+	else
+	{
+		// no tasks are pending
+		KillTimer(messageWindow.hwnd, messageWindow.timerId);
+	}
 }
 
 void JavascriptEngine::EnumTasks(std::function<bool(Task*)> func)
@@ -936,39 +980,49 @@ ULONGLONG JavascriptEngine::GetNextTaskTime()
 
 void JavascriptEngine::RunTasks() 
 {
-	// scan the task queue
-	for (auto it = taskQueue.begin(); it != taskQueue.end(); )
+	// only process tasks when we're not in a recursive Javascript invocation
+	if (inJavascript == 0)
 	{
-		// remember the next task, in case we remove this one
-		auto nxt = it;
-		nxt++;
+		// count the tasks as entering Javascript scope
+		JavascriptScope jsc;
 
-		// get the task object
-		Task *task = it->get();
-
-		// presume we'll keep the task
-		bool keep = true;
-
-		// check the task status
-		if (task->cancelled)
+		// scan the task queue
+		for (auto it = taskQueue.begin(); it != taskQueue.end(); )
 		{
-			// The task has been canceled.  Simply delete it from the
-			// queue without invoking it.
-			keep = false;
-		}
-		else if (GetTickCount64() >= task->readyTime)
-		{
-			// The task is ready to run.  Execute it.
-			keep = task->Execute();
-		}
+			// remember the next task, in case we remove this one
+			auto nxt = it;
+			nxt++;
 
-		// If we're not keeping the task, remove it
-		if (!keep)
-			taskQueue.erase(it);
+			// get the task object
+			Task *task = it->get();
 
-		// advance to the next task
-		it = nxt;
+			// presume we'll keep the task
+			bool keep = true;
+
+			// check the task status
+			if (task->cancelled)
+			{
+				// The task has been canceled.  Simply delete it from the
+				// queue without invoking it.
+				keep = false;
+			}
+			else if (GetTickCount64() >= task->readyTime)
+			{
+				// The task is ready to run.  Execute it.
+				keep = task->Execute();
+			}
+
+			// If we're not keeping the task, remove it
+			if (!keep)
+				taskQueue.erase(it);
+
+			// advance to the next task
+			it = nxt;
+		}
 	}
+
+	// update the task timer
+	UpdateTaskTimer();
 }
 
 bool JavascriptEngine::EventTask::Execute()
@@ -7978,6 +8032,13 @@ JsValueRef JavascriptEngine::VariantData::SetVt(JsValueRef callee, bool isConstr
 }
 
 template<typename T>
+T JavascriptEngine::VariantData::SetByValue(VARIANT &v, void *pData, VARTYPE vt)
+{
+	v.vt = vt;
+	return *static_cast<T*>(pData);
+}
+
+template<typename T>
 T *JavascriptEngine::VariantData::SetByRef(VARIANT &v, void *pData, VARTYPE vt)
 {
 	v.vt = vt | VT_BYREF;
@@ -8043,6 +8104,45 @@ void JavascriptEngine::VariantData::Set(VARIANT &v, JsValueRef val)
 			v.vt = VT_UI8;
 			v.ullVal = u->i;
 		}
+		else if (auto o = NativeTypeWrapper::Recover<NativeTypeWrapper>(val, nullptr); o != nullptr)
+		{
+			switch (o->sig[0])
+			{
+			case 'c': v.cVal = SetByValue<CHAR>(v, o->data, VT_I1); break;
+			case 'C': v.bVal = SetByValue<BYTE>(v, o->data, VT_UI1); break;
+			case 's': v.iVal = SetByValue<SHORT>(v, o->data, VT_I2); break;
+			case 'S': v.uiVal = SetByValue<USHORT>(v, o->data, VT_UI2); break;
+			case 'i': v.lVal = SetByValue<LONG>(v, o->data, VT_I4); break;
+			case 'I': v.ulVal = SetByValue<ULONG>(v, o->data, VT_UI4); break;
+			case 'f': v.fltVal = SetByValue<FLOAT>(v, o->data, VT_R4); break;
+			case 'd': v.dblVal = SetByValue<DOUBLE>(v, o->data, VT_R8); break;
+			case 'B': v.bstrVal = SysAllocString(SetByValue<BSTR>(v, o->data, VT_BSTR)); break;
+			case '*':
+				switch (o->sig[1])
+				{
+				case 't':
+					// single-byte string
+					if (o->data != nullptr)
+						v.bstrVal = SysAllocString(AnsiToWide(SetByValue<CHAR*>(v, o->data, VT_BSTR)).c_str());
+					else
+						v.bstrVal = SetByValue<BSTR>(v, nullptr, VT_BSTR);
+					break;
+
+				case 'T':
+					// unicode string
+					v.bstrVal = SysAllocString(SetByValue<OLECHAR*>(v, o->data, VT_BSTR));
+					break;
+
+				default:
+					js->Throw(_T("Variant.Set: native pointer type not supported"));
+				}
+				break;
+
+			default:
+				js->Throw(_T("Variant.Set: native type not supported"));
+				break;
+			}
+		}
 		else if (auto p = NativePointerData::Recover<NativePointerData>(val, nullptr); p != nullptr)
 		{
 			switch (p->sig[0])
@@ -8055,6 +8155,7 @@ void JavascriptEngine::VariantData::Set(VARIANT &v, JsValueRef val)
 			case 'I': v.pulVal = SetByRef<ULONG>(v, p->ptr, VT_UI4); break;
 			case 'f': v.pfltVal = SetByRef<FLOAT>(v, p->ptr, VT_R4); break;
 			case 'd': v.pdblVal = SetByRef<DOUBLE>(v, p->ptr, VT_R8); break;
+			case 'B': v.pbstrVal = SetByRef<BSTR>(v, p->ptr, VT_BSTR); break;
 			default:
 				js->Throw(_T("Variant.Set: pointer type not supported"));
 				break;
@@ -8220,7 +8321,7 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 
 	case VT_DATE: ret = VariantDateToJsDate(v.date); break;
 
-	case VT_CY: // TO DO - native CURRENCY type
+	case VT_CY: // TO DO? - add a native CURRENCY type
 		{
 			double d;
 			if (!SUCCEEDED(VarR8FromCy(v.cyVal, &d)))
@@ -8229,7 +8330,7 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 		}
 		break;
 
-	case VT_BYREF | VT_DECIMAL:  // TO DO - native DECIMAL type
+	case VT_BYREF | VT_DECIMAL:  // TO DO? - add native DECIMAL type
 		{
 			double d;
 			if (!SUCCEEDED(VarR8FromDec(v.pdecVal, &d)))
@@ -8238,7 +8339,8 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 		}
 		break;
 
-	case VT_ARRAY: err = JsErrorNotImplemented; break; // TO DO
+	case VT_ARRAY: 
+		err = JsErrorNotImplemented; break; // TO DO
 
 	case VT_BSTR:
 		err = (v.bstrVal == nullptr ? JsPointerToString(L"", 0, &ret) : JsPointerToString(v.bstrVal, SysStringLen(v.bstrVal), &ret));
@@ -8336,7 +8438,7 @@ JsErrorCode JavascriptEngine::VariantData::AddNumGetSet(JavascriptEngine *js, co
 {
 	return js->AddGetterSetter(js->Variant_proto, name, 
 		&VariantData::GetNumVal<T, vt, ele>, js, 
-		&VariantData::GetNumVal<T, vt, ele>, js,
+		&VariantData::SetNumVal<T, vt, ele>, js,
 		where);
 }
 
@@ -8677,6 +8779,7 @@ JsValueRef CALLBACK JavascriptEngine::CreateAutomationObject(JsValueRef callee, 
 
 JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch *disp)
 {
+	JsErrorCode err;
 	HRESULT hr;
 	auto ComErr = [this, &hr, &className](const CHAR *where)
 	{
@@ -8684,9 +8787,13 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 		return Throw(MsgFmt(_T("createAutomationObject(\"%ws\"): %hs: %s"), className.c_str(), where, err.Get()));
 	};
 
+	// if the dispatch interface is null, return javascript null
+	if (disp == nullptr)
+		return nullVal;
+
 	// get the type info
 	RefPtr<ITypeInfo> typeInfo;
-	if (!SUCCEEDED(hr = disp->GetTypeInfo(0, LOCALE_SYSTEM_DEFAULT, &typeInfo)))
+	if (!SUCCEEDED(hr = disp->GetTypeInfo(0, LOCALE_USER_DEFAULT, &typeInfo)))
 		return ComErr("getting type information");
 
 	// get the type attributes
@@ -8694,138 +8801,179 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 	if (!SUCCEEDED(hr = typeInfo->GetTypeAttr(&typeAttr)))
 		return ComErr("getting type attributes");
 
-	// create the Javascript object wrapping the external object
-	JsValueRef jsobj;
-	JsErrorCode err;
-	if ((err = CreateExternalObject(jsobj, new AutomationObjectData(disp))) != JsNoError)
-		return Throw(err, _T("createAutomationObject: creating Javascript external object"));
-
-	// Get dllImport._bindDispatch
-	JsValueRef bindProp;
-	const TCHAR *where;
-	if ((err = GetProp(bindProp, inst->dllImportObject, "_bindDispatch", where)) != JsNoError)
-		return Throw(err, MsgFmt(_T("createAutomationObject: getting dllImport._bindDispatch: %s"), where));
-
-	// getter/setters
-	struct GetSet
+	// look up the GUID in the interface cache
+	JsValueRef proto;
+	TSTRING typeGuid = FormatGuid(typeAttr->guid);
+	if (auto it = automationInterfaceCache.find(typeGuid); it != automationInterfaceCache.end())
 	{
-		struct
-		{
-			INVOKEKIND invkind = INVOKE_PROPERTYGET;
-			JsValueRef func = JS_INVALID_REFERENCE;
-		}
-		get, set;
-	};
-	std::map<WSTRING, GetSet> getSet;
-
-	// get the function descriptors
-	for (WORD i = 0; i < typeAttr->cFuncs; ++i)
+		// we already have a prototype for this interface type
+		proto = it->second;
+	}
+	else
 	{
-		// get this function descriptor
-		FUNCDESCHolder funcDesc(typeInfo);
-		if (!SUCCEEDED(hr = typeInfo->GetFuncDesc(i, &funcDesc)))
-			return ComErr("getting function descriptor");
+		// We don't have a prototype for this interface yet.  Create one.
+		if ((err = JsCreateObject(&proto)) != JsNoError)
+			return Throw(err, _T("createAutomationObject: creating object for interface prototype"));
 
-		// skip restricted, hidden, and non-dispatch functions
-		if ((funcDesc->wFuncFlags & (FUNCFLAG_FRESTRICTED | FUNCFLAG_FHIDDEN)) != 0
-			|| funcDesc->funckind != FUNC_DISPATCH)
-			continue;
+		// add an external reference on the proto, since we're going to keep it
+		// in our cache
+		JsAddRef(proto, nullptr);
 
-		// get the function name
-		UINT nNames;
-		BStringArray names(32);
-		if (!SUCCEEDED(hr = typeInfo->GetNames(funcDesc->memid, &names, names.n, &nNames)))
-			return ComErr("getting function name");
+		// add it to the cache
+		automationInterfaceCache.emplace(typeGuid, proto);
 
-		// if it's not named, skip it
-		if (nNames == 0)
-			continue;
+		// Get dllImport._bindDispatch
+		JsValueRef bindProp;
+		const TCHAR *where;
+		if ((err = GetProp(bindProp, inst->dllImportObject, "_bindDispatch", where)) != JsNoError)
+			return Throw(err, MsgFmt(_T("createAutomationObject: getting dllImport._bindDispatch: %s"), where));
 
-		// Build the lambda wrapping the method via
-		//    dllImport._bindDispatch(funcIndex, dispatchType)
-		//
-		JsValueRef bindArgs[3] = { inst->dllImportObject }, bindResult;
-		if ((err = JsIntToNumber(static_cast<int>(i), &bindArgs[1])) != JsNoError
-			|| (err = JsIntToNumber(static_cast<int>(funcDesc->invkind), &bindArgs[2])) != JsNoError
-			|| (err = JsCallFunction(bindProp, bindArgs, static_cast<unsigned short>(countof(bindArgs)), &bindResult)) != JsNoError)
-			return Throw(err, _T("createAutomationObject: creating method wrapper"));
-
-		// If it's a regular "method call" dispatch, bind it immediately.  If it's
-		// a getter or setter, add it to the get/set map.  We have to bind each
-		// get/set pair as a unit, so we have to wait until we've visited all of
-		// the functions to be sure we have the full set.  
-		//
-		// Some functions that take arguments are marked as property getters, such
-		// as OLE automation collection .Item methods.  For Javascript purposes,
-		// such a function is a function, not a getter, as a JS getter can't take
-		// any arguments.
-		if (funcDesc->invkind == INVOKE_FUNC || funcDesc->cParams != 0 || funcDesc->cParamsOpt != 0)
+		// Map of getter/setters.  We populate this as we encounter get/set
+		// methods in the automation interface.  We have to defer creation
+		// of the Javascript equivalents until we've traversed the entire
+		// interface, because Javascript requires us to set up the get/set
+		// pair for a given property name as a unit.
+		struct GetSet
 		{
-			// method call - bind now
-			JsValueRef propKey;
-			if ((err = JsPointerToString(names[0], SysStringLen(names[0]), &propKey)) != JsNoError
-				|| (err = JsObjectSetProperty(jsobj, propKey, bindResult, true)) != JsNoError)
-				return Throw(err, _T("createAutomationObject: binding method wrapper"));
-		}
-		else
-		{
-			// property get/set - find the map entry for this property name
-			WSTRING name(names[0], SysStringLen(names[0]));
-			auto it = getSet.find(name);
-			if (it == getSet.end())
-				it = getSet.emplace(name, GetSet()).first;
-
-			if (funcDesc->invkind == INVOKE_PROPERTYGET)
+			struct
 			{
-				it->second.get.invkind = funcDesc->invkind;
-				it->second.get.func = bindResult;
+				INVOKEKIND invkind = INVOKE_PROPERTYGET;
+				JsValueRef func = JS_INVALID_REFERENCE;
+			}
+			get, set;
+		};
+		std::map<WSTRING, GetSet> getSet;
+
+		// get the function descriptors
+		for (WORD i = 0; i < typeAttr->cFuncs; ++i)
+		{
+			// get this function descriptor
+			FUNCDESCHolder funcDesc(typeInfo);
+			if (!SUCCEEDED(hr = typeInfo->GetFuncDesc(i, &funcDesc)))
+				return ComErr("getting function descriptor");
+
+			// If this is the special _NewEnum member, the enclosing interface is a
+			// collection interface with an enumerator, and this is the dispatch method
+			// to create the enumerator. 
+			if (funcDesc->memid == DISPID_NEWENUM)
+			{
+				// create the Javascript iterator binding
+				JsValueRef makeIterProp;
+				JsValueRef bindArgs[4] = { inst->dllImportObject, proto }, bindResult;
+				if ((err = GetProp(makeIterProp, inst->dllImportObject, "_makeIterable", where)) != JsNoError
+					|| (err = JsIntToNumber(static_cast<int>(i), &bindArgs[2])) != JsNoError
+					|| (err = JsIntToNumber(static_cast<int>(funcDesc->invkind), &bindArgs[3])) != JsNoError
+					|| (err = JsCallFunction(makeIterProp, bindArgs, static_cast<unsigned short>(countof(bindArgs)), &bindResult)) != JsNoError)
+					return Throw(err, _T("createAutomationObject: creating @@iterator wrapper"));
+			}
+
+			// Skip restricted, hidden, and non-dispatch functions, with the
+			// following special exceptions:
+			if ((funcDesc->wFuncFlags & (FUNCFLAG_FRESTRICTED | FUNCFLAG_FHIDDEN)) != 0
+				|| funcDesc->funckind != FUNC_DISPATCH)
+				continue;
+
+			// get the function name
+			UINT nNames;
+			BStringArray names(32);
+			if (!SUCCEEDED(hr = typeInfo->GetNames(funcDesc->memid, &names, names.n, &nNames)))
+				return ComErr("getting function name");
+
+			// if it's not named, skip it
+			if (nNames == 0)
+				continue;
+
+			// Build the lambda wrapping the method via
+			//    dllImport._bindDispatch(funcIndex, dispatchType)
+			//
+			JsValueRef bindArgs[3] = { inst->dllImportObject }, bindResult;
+			if ((err = JsIntToNumber(static_cast<int>(i), &bindArgs[1])) != JsNoError
+				|| (err = JsIntToNumber(static_cast<int>(funcDesc->invkind), &bindArgs[2])) != JsNoError
+				|| (err = JsCallFunction(bindProp, bindArgs, static_cast<unsigned short>(countof(bindArgs)), &bindResult)) != JsNoError)
+				return Throw(err, _T("createAutomationObject: creating method wrapper"));
+
+			// If it's a regular "method call" dispatch, bind it immediately.  If it's
+			// a getter or setter, add it to the get/set map.  We have to bind each
+			// get/set pair as a unit, so we have to wait until we've visited all of
+			// the functions to be sure we have the full set.  
+			//
+			// Some functions that take arguments are marked as property getters, such
+			// as OLE automation collection .Item methods.  For Javascript purposes,
+			// such a function is a function, not a getter, as a JS getter can't take
+			// any arguments.
+			if (funcDesc->invkind == INVOKE_FUNC || funcDesc->cParams != 0 || funcDesc->cParamsOpt != 0)
+			{
+				// method call - bind now
+				JsValueRef propKey;
+				if ((err = JsPointerToString(names[0], SysStringLen(names[0]), &propKey)) != JsNoError
+					|| (err = JsObjectSetProperty(proto, propKey, bindResult, true)) != JsNoError)
+					return Throw(err, _T("createAutomationObject: binding method wrapper"));
 			}
 			else
 			{
-				it->second.set.invkind = funcDesc->invkind;
-				it->second.set.func = bindResult;
-			}
+				// property get/set - find the map entry for this property name
+				WSTRING name(names[0], SysStringLen(names[0]));
+				auto it = getSet.find(name);
+				if (it == getSet.end())
+					it = getSet.emplace(name, GetSet()).first;
 
-			// Stash the function reference in the stack to protect it from the javascript
-			// garbage collector.  The Get/Set map won't protect it because it allocates heap
-			// memory to store the struct data.
-			*reinterpret_cast<JsValueRef*>(alloca(sizeof(JsValueRef))) = bindResult;
+				if (funcDesc->invkind == INVOKE_PROPERTYGET)
+				{
+					it->second.get.invkind = funcDesc->invkind;
+					it->second.get.func = bindResult;
+				}
+				else
+				{
+					it->second.set.invkind = funcDesc->invkind;
+					it->second.set.func = bindResult;
+				}
+
+				// Stash the function reference in the stack to protect it from the javascript
+				// garbage collector.  The Get/Set map won't protect it because it allocates heap
+				// memory to store the struct data.
+				*reinterpret_cast<JsValueRef*>(alloca(sizeof(JsValueRef))) = bindResult;
+			}
+		}
+
+		// find all of the getter/setters
+		JsPropertyIdRef enumerableProp, getProp, setProp;
+		if ((err = JsCreatePropertyId("enumerable", 10, &enumerableProp)) != JsNoError
+			|| (err = JsCreatePropertyId("get", 3, &getProp)) != JsNoError
+			|| (err = JsCreatePropertyId("set", 3, &setProp)) != JsNoError)
+			return Throw(err, _T("creating get/set descriptor"));
+
+		for (auto &gs : getSet)
+		{
+			// create the decriptor and add 'enumerable'
+			JsValueRef propKey, propDesc;
+			if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
+				|| (err = JsCreateObject(&propDesc)) != JsNoError
+				|| (err = JsSetProperty(propDesc, enumerableProp, trueVal, true)) != JsNoError)
+				return Throw(err, _T("initializing get/set descriptor"));
+
+			// add 'get' if there's a getter
+			if (gs.second.get.func != JS_INVALID_REFERENCE
+				&& (err = JsSetProperty(propDesc, getProp, gs.second.get.func, true)) != JsNoError)
+				return Throw(err, _T("creating getter descriptor"));
+
+			// add 'set' if there's a setter
+			if (gs.second.set.func != JS_INVALID_REFERENCE
+				&& (err = JsSetProperty(propDesc, setProp, gs.second.set.func, true)) != JsNoError)
+				return Throw(err, _T("creating setter descriptor"));
+
+			// add the property
+			bool ok;
+			if ((err = JsObjectDefineProperty(proto, propKey, propDesc, &ok)) != JsNoError || !ok)
+				return Throw(err, _T("binding get/set"));
 		}
 	}
 
-	// find all of the getter/setters
-	JsPropertyIdRef enumerableProp, getProp, setProp;
-	if ((err = JsCreatePropertyId("enumerable", 10, &enumerableProp)) != JsNoError
-		|| (err = JsCreatePropertyId("get", 3, &getProp)) != JsNoError
-		|| (err = JsCreatePropertyId("set", 3, &setProp)) != JsNoError)
-		return Throw(err, _T("creating get/set descriptor"));
+	// create a new Javascript object based on the automation interface prototype
+	JsValueRef jsobj;
+	if ((err = CreateExternalObjectWithPrototype(jsobj, proto, new AutomationObjectData(disp))) != JsNoError)
+		return Throw(err, _T("createAutomationObject: creating Javascript external object"));
 
-	for (auto &gs : getSet)
-	{
-		// create the decriptor and add 'enumerable'
-		JsValueRef propKey, propDesc;
-		if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
-			|| (err = JsCreateObject(&propDesc)) != JsNoError
-			|| (err = JsSetProperty(propDesc, enumerableProp, trueVal, true)) != JsNoError)
-			return Throw(err, _T("initializing get/set descriptor"));
-
-		// add 'get' if there's a getter
-		if (gs.second.get.func != JS_INVALID_REFERENCE
-			&& (err = JsSetProperty(propDesc, getProp, gs.second.get.func, true)) != JsNoError)
-			return Throw(err, _T("creating getter descriptor"));
-
-		// add 'set' if there's a setter
-		if (gs.second.set.func != JS_INVALID_REFERENCE
-			&& (err = JsSetProperty(propDesc, setProp, gs.second.set.func, true)) != JsNoError)
-			return Throw(err, _T("creating setter descriptor"));
-
-		// add the property
-		bool ok;
-		if ((err = JsObjectDefineProperty(jsobj, propKey, propDesc, &ok)) != JsNoError || !ok)
-			return Throw(err, _T("binding get/set"));
-	}
-
-	// return the external object
+	// return the new object
 	return jsobj;
 }
 
@@ -8847,9 +8995,221 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 }
 
 // IDispatch type parser
- bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc)
+bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc)
 {
 	JsErrorCode err;
+	HRESULT hr;
+	auto ComErr = [this, &hr](const CHAR *where)
+	{
+		WindowsErrorMessage err(hr);
+		Throw(MsgFmt(_T("invoking automation object method: %hs: %s"), where, err.Get()));
+		return false;
+	};
+
+	// get the datatype of the javascript actual that we're converting to VARIANT
+	JsValueType jstype;
+	if ((err = JsGetValueType(jsval, &jstype)) != JsNoError)
+	{
+		Throw(err, _T("Getting argument value type"));
+		return false;
+	}
+
+	// If we're converting to a user-defined type, decode the destination
+	// type first so that we can determine what we're really converting to.
+	if (desc.vt == VT_USERDEFINED)
+	{
+		HRESULT hr;
+		auto ComErr = [&hr](const CHAR *msg)
+		{
+			WindowsErrorMessage werr(hr);
+			JavascriptEngine::Get()->Throw(MsgFmt(_T("Getting automation type info: %hs: %s"), msg, werr.Get()));
+			return L"";
+		};
+
+		// get the type info for the referenced user-defined type
+		RefPtr<ITypeInfo> subInfo;
+		if (!SUCCEEDED(hr = typeInfo->GetRefTypeInfo(desc.hreftype, &subInfo)))
+			return ComErr("Getting referenced type info");
+
+		// get the type attributes
+		TYPEATTRHolder attr(subInfo);
+		if (!SUCCEEDED(hr = subInfo->GetTypeAttr(&attr)))
+			return ComErr("Getting referenced type attributes");
+
+		// let's see what we have
+		switch (attr->typekind)
+		{
+		case TKIND_ENUM:
+			// Enum type.  The type attributes don't say what the underlying VT_ type
+			// is, and I can't find any documentation about a standard type.  So far,
+			// the ones I've encountered use VT_I4, but I've also seen Stack Overflow
+			// questions saying that VT_I4 *doesn't* work for some interfaces.  So
+			// maybe there is no standard and it's just up to the interface to decide
+			// what it wants to use.  What seems safe is to iterate over the named
+			// constants making up the enum, and use the VT_ type of the first one.
+			{
+				// assume VT_I4 if we don't have any constants to inspect
+				TYPEDESC enumdesc;
+				enumdesc.vt = VT_I4;
+
+				// if we have any constants, get the first one and use its type
+				if (attr->cVars != 0)
+				{
+					VARDESCHolder vardesc(subInfo);
+					if (!SUCCEEDED(hr = subInfo->GetVarDesc(0, &vardesc)))
+						return ComErr("getting struct member descriptor");
+
+					// use its type
+					if (vardesc->varkind == VAR_CONST && vardesc->lpvarValue != nullptr)
+						enumdesc.vt = vardesc->lpvarValue->vt;
+				}
+
+				// now marshall the value as the target type
+				return MarshallAutomationArg(v, jsval, subInfo, enumdesc);
+			}
+
+		case TKIND_RECORD:
+			// struct type
+			{
+				// get the record type
+				if (!SUCCEEDED(hr = GetRecordInfoFromTypeInfo(subInfo, &v.pRecInfo)))
+					return ComErr("Getting Variant RECORD type info");
+
+				// if the source value is a variant of the same type, copy it
+				if (auto vo = VariantData::Recover<VariantData>(jsval, nullptr); vo != nullptr)
+				{
+					if (vo->v.vt == VT_USERDEFINED && vo->v.pRecInfo == v.pRecInfo)
+					{
+						if (!SUCCEEDED(hr = VariantCopy(&v, &vo->v)))
+							return ComErr("Copying Variant RECORD type");
+
+						return true;
+					}
+					else
+					{
+						Throw(_T("Variant RECORD parameter type mismatch"));
+						return false;
+					}
+				}
+				
+				// we need a Javascript object as the source
+				if (jstype != JsObject)
+				{
+					Throw(_T("Type mismatch for Variant RECORD parameter "));
+					return false;
+				}
+
+				// get the size of the struct
+				ULONG recSize;
+				if (!SUCCEEDED(v.pRecInfo->GetSize(&recSize)))
+					return ComErr("Getting user-define record size");
+
+				// allocate a temporary copy of the struct
+				void *tempRec = marshallerContext->Alloc(recSize);
+
+				// use this as the result value
+				v.vt = VT_USERDEFINED | VT_BYREF;
+				v.pvRecord = tempRec;
+
+				// marshall the individual fields
+				for (USHORT i = 0; i < attr->cVars; ++i)
+				{
+					// get this member descriptor
+					VARDESCHolder vardesc(subInfo);
+					if (!SUCCEEDED(hr = subInfo->GetVarDesc(i, &vardesc)))
+						return ComErr("getting struct member descriptor");
+
+					// get the member name
+					BString fieldName;
+					UINT nNames;
+					if (!SUCCEEDED(hr = subInfo->GetNames(vardesc->memid, &fieldName, 1, &nNames)))
+						return ComErr("getting struct member name");
+
+					// get the corresponding Javascript property
+					JsValueRef jsPropKey, jsPropVal;
+					if ((err = JsPointerToString(fieldName, SysStringLen(fieldName), &jsPropKey)) != JsNoError
+						|| (err = JsObjectGetProperty(jsval, jsPropKey, &jsPropVal)) != JsNoError)
+					{
+						Throw(err, _T("Getting object property for Variant RECORD"));
+						return false;
+					}
+
+					// convert it to a variant, recursively
+					VARIANTARG vfield;
+					if (!MarshallAutomationArg(vfield, jsPropVal, subInfo, vardesc->elemdescVar.tdesc))
+						return false;
+
+					// store the field
+					v.pRecInfo->PutField(0, tempRec, fieldName, &vfield);
+				}
+
+				// success
+				return true;
+			}
+
+		case TKIND_DISPATCH:
+			// dispatch interface
+			{
+				if (auto dispobj = AutomationObjectData::Recover<AutomationObjectData>(jsval, nullptr); dispobj != nullptr)
+				{
+					v.vt = VT_DISPATCH;
+					v.punkVal = dispobj->disp;
+					return true;
+				}
+			}
+
+		case TKIND_ALIAS:
+			return MarshallAutomationArg(v, jsval, subInfo, attr->tdescAlias);
+
+		default:
+			// others aren't handled
+			JavascriptEngine::ThrowSimple("Unimplemented user-defined parameter type in automation object interface");
+			return L"";
+		}
+	}
+
+	// Given a VARIANT value in, copy or convert to the desired type using
+	// VARIANT coercion rules.
+	auto FromVariant = [this, &v, &desc, &hr, &ComErr](VARIANT &vsrc)
+	{
+		// if the desired type is VARIANT, just copy it
+		if (desc.vt == VT_VARIANT)
+		{
+			if (!SUCCEEDED(hr = VariantCopy(&v, &vsrc)))
+				return ComErr("copying Variant to parameter slot");
+		}
+		else
+		{
+			// convert it to the desired variant type
+			if (!SUCCEEDED(hr = VariantChangeType(&v, &vsrc, 0, desc.vt)))
+				return ComErr("converting Variant to parameter type");
+		}
+
+		// success
+		return true;
+	};
+
+	// If the source value is a Variant object, copy it or convert it using VARIANT
+	// type coercion rules.  This allows callers to manage type conversion on the JS
+	// side by creating a JS Variant and assigning a value to the desired VARIANT
+	// subtype field.
+	if (auto vo = VariantData::Recover<VariantData>(jsval, nullptr); vo != nullptr)
+		return FromVariant(vo->v);
+
+	// If the source value is a native data value, convert it to a variant
+	// of the same native type, then coerce the variant to the desired type,
+	// using VARIANT coercion rules.
+	if (auto o = NativeTypeWrapper::Recover<NativeTypeWrapper>(jsval, nullptr); o != nullptr)
+	{
+		// convert the native value to VARIANT
+		VARIANT nv;
+		VariantData::Set(nv, jsval);
+
+		// coerce the variant to the desired slot type
+		return FromVariant(nv);
+	}
+
+	// convert from the javascript type
 	switch (v.vt = desc.vt)
 	{
 	case VT_I2:
@@ -8882,7 +9242,120 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 		}
 
 	case VT_DISPATCH:
-		return L"@I.IDispatch";
+		// The parameter calls for a dispatch interface 
+		if (jstype == JsFunction)
+		{
+			// They passed us a function.  Wrap the function in a simple
+			// IDispatch with that function as its only member.
+			class TestDispatch : public IDispatch, public RefCounted
+			{
+			public:
+				TestDispatch(JsValueRef jsfunc) : jsfunc(jsfunc)
+				{
+					// keep the callback function alive as long as the interface
+					// is around
+					JsAddRef(jsfunc, nullptr);
+				}
+
+				~TestDispatch()
+				{
+					JsRelease(jsfunc, nullptr);
+				}
+
+				// caller's javascript function passed in as the argument
+				JsValueRef jsfunc;
+
+				STDMETHODIMP QueryInterface(REFIID riid, void **ppvObj)
+				{
+					// we support IUnknown and IDispatch
+					if (riid == IID_IDispatch || riid == IID_IUnknown)
+					{
+						*ppvObj = this;
+						AddRef();
+						return S_OK;
+					}
+					return E_NOINTERFACE;
+				}
+
+				STDMETHODIMP_(ULONG) AddRef() { return RefCounted::AddRef(); }
+				STDMETHODIMP_(ULONG) Release() { return RefCounted::Release(); }
+
+				STDMETHODIMP GetTypeInfoCount(UINT *pctinfo)
+				{
+					*pctinfo = 0;
+					return S_OK;
+				}
+				STDMETHODIMP GetTypeInfo(UINT iTInfo, LCID lcid, ITypeInfo **ppTInfo) { return E_NOTIMPL; }
+				STDMETHODIMP GetIDsOfNames(REFIID riid, LPOLESTR *rgszNames, UINT cNames, LCID lcid, DISPID *rgDispId) { return E_NOTIMPL; }
+				STDMETHODIMP Invoke(DISPID dispIdMember, REFIID riid, LCID lcid, WORD wFlags, DISPPARAMS *pDispParams, VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
+				{
+					// if no arguments were provided, set up a default empty argument list
+					DISPPARAMS defaultParams = { NULL, NULL, 0, 0 };
+					if (pDispParams == nullptr)
+						pDispParams = &defaultParams;
+
+					// return a Javascript error
+					JsErrorCode err;
+					auto js = Get();
+					auto Error = [&err, &js, pExcepInfo]()
+					{
+						if (pExcepInfo != nullptr)
+							pExcepInfo->bstrDescription = SysAllocString(js->JsErrorToString(err));
+
+						js->Throw(err, _T("Callback via auto IDispatch"));
+
+						return DISP_E_EXCEPTION;
+					};
+
+
+					// we support an unnamed member with dispid 0
+					if (dispIdMember == 0)
+					{
+						// pass arguments to javascript as variants, plus a 'this' parameter
+						unsigned int jsargc = pDispParams->cArgs + 1;
+						JsValueRef *jsargv = static_cast<JsValueRef*>(alloca(jsargc * sizeof(JsValueRef)));
+						jsargv[0] = js->GetUndefVal();
+						for (unsigned int jsargi = 1, dispargi = pDispParams->cArgs - 1; jsargi < jsargc; ++jsargi, --dispargi)
+						{
+							if ((err = VariantData::CreateFromNative(&pDispParams->rgvarg[dispargi], jsargv[jsargi])) != JsNoError)
+								return Error();
+						}
+
+						// invoke the javascript function
+						JsValueRef jsresult;
+						if ((err = JsCallFunction(jsfunc, jsargv, static_cast<unsigned short>(jsargc), &jsresult)) != JsNoError)
+							return Error();
+
+						// translate the result back to a variant
+						if (pVarResult != nullptr)
+							VariantData::CopyFromJavascript(pVarResult, jsresult);
+
+						// success
+						return S_OK;
+					}
+
+					return DISP_E_UNKNOWNINTERFACE;
+				}
+			};
+
+			v.vt = VT_DISPATCH;
+			v.pdispVal = new TestDispatch(jsval);
+
+			return true;
+		}
+		else if (auto cp = COMImportData::Recover<COMImportData>(jsval, nullptr); cp != nullptr)
+		{
+			IDispatch *idisp;
+			if (cp->pUnknown != nullptr && SUCCEEDED(cp->pUnknown->QueryInterface(IID_PPV_ARGS(&idisp))))
+			{
+				v.vt = VT_DISPATCH;
+				v.pdispVal = idisp;
+				return true;
+			}
+		}
+
+		Throw(_T("Invalid value for IDispatch argument"));
+		return false;
 
 	case VT_ERROR:
 		return MarshallAutomationNum<SCODE, &VARIANTARG::scode>(v, jsval);
@@ -8900,8 +9373,10 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 		}
 
 	case VT_VARIANT:
-		return L"V";
-
+		// variant requested - use the default conversion
+		VariantData::CopyFromJavascript(&v, jsval);
+		return true;
+		
 	case VT_I1:
 		return MarshallAutomationNum<CHAR, &VARIANTARG::cVal>(v, jsval);
 
@@ -8935,91 +9410,6 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 		Throw(_T("arrays are not implemented"));
 		return false;
 
-	case VT_USERDEFINED:
-		{
-			HRESULT hr;
-			auto ComErr = [&hr](const CHAR *msg)
-			{
-				WindowsErrorMessage werr(hr);
-				JavascriptEngine::Get()->Throw(MsgFmt(_T("Getting automation type info: %hs: %s"), msg, werr.Get()));
-				return L"";
-			};
-
-			RefPtr<ITypeInfo> subInfo;
-			if (!SUCCEEDED(hr = typeInfo->GetRefTypeInfo(desc.hreftype, &subInfo)))
-				return ComErr("Getting referenced type info");
-
-			// get the type attributes
-			TYPEATTRHolder attr(subInfo);
-			if (!SUCCEEDED(hr = subInfo->GetTypeAttr(&attr)))
-				return ComErr("Getting referenced type attributes");
-
-			// let's see what we have
-			switch (attr->typekind)
-			{
-			case TKIND_ENUM:
-				// enum type
-				switch (attr->cbSizeInstance)
-				{
-				case 1:
-					v.vt = VT_I1;
-					return MarshallAutomationNum<CHAR, &VARIANTARG::cVal>(v, jsval);
-
-				case 2:
-					v.vt = VT_I2;
-					return MarshallAutomationNum<SHORT, &VARIANTARG::iVal>(v, jsval);
-
-				case 4:
-					v.vt = VT_I4;
-					return MarshallAutomationNum<LONG, &VARIANTARG::lVal>(v, jsval);
-				}
-
-				Throw(_T("Invalid enum type size"));
-				return false;
-
-			case TKIND_RECORD:
-				// struct type
-				{
-					if (!SUCCEEDED(hr = GetRecordInfoFromTypeInfo(subInfo, &v.pRecInfo)))
-						return ComErr("Getting enum record info");
-
-					for (USHORT i = 0; i < attr->cVars; ++i)
-					{
-						VARDESCHolder vardesc(subInfo);
-						if (!SUCCEEDED(hr = subInfo->GetVarDesc(i, &vardesc)))
-							return ComErr("getting struct member descriptor");
-
-						BStringArray bstr(1);
-						UINT nNames;
-						if (!SUCCEEDED(hr = subInfo->GetNames(vardesc->memid, &bstr, bstr.n, &nNames)))
-							return ComErr("getting struct member name");
-					}
-
-					Throw(_T("structs are not implemented"));
-					return false;
-				}
-
-			case TKIND_DISPATCH:
-				// dispatch interface
-				{
-					if (auto dispobj = AutomationObjectData::Recover<AutomationObjectData>(jsval, nullptr); dispobj != nullptr)
-					{
-						v.vt = VT_DISPATCH;
-						v.punkVal = dispobj->disp;
-						return true;
-					}
-				}
-
-			case TKIND_ALIAS:
-				return MarshallAutomationArg(v, jsval, subInfo, attr->tdescAlias);
-
-			default:
-				// others aren't handled
-				JavascriptEngine::ThrowSimple("Unhandled referenced type in automation object interface");
-				return L"";
-			}
-		}
-
 	default:
 		JavascriptEngine::ThrowSimple("Unhandled type in automation object interface");
 		return L"";
@@ -9043,7 +9433,6 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 //
 // ...args = the Javscript caller's arguments
 // 
-//
 JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
@@ -9055,6 +9444,9 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 		WindowsErrorMessage err(hr);
 		return js->Throw(MsgFmt(_T("invoking automation object method: %hs: %s"), where, err.Get()));
 	};
+
+	// set up a temporary memory allocator context
+	MarshallerContext marshallCtx;
 
 	// make sure the base arguments are present
 	unsigned short jsargi = 1;
@@ -9078,7 +9470,7 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 
 	// get the type info
 	RefPtr<ITypeInfo> typeInfo;
-	if (!SUCCEEDED(hr = obj->disp->GetTypeInfo(0, LOCALE_SYSTEM_DEFAULT, &typeInfo)))
+	if (!SUCCEEDED(hr = obj->disp->GetTypeInfo(0, LOCALE_USER_DEFAULT, &typeInfo)))
 		return ComErr("getting type information");
 
 	// get the type attributes
@@ -9091,44 +9483,73 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 	if (!SUCCEEDED(hr = typeInfo->GetFuncDesc(static_cast<UINT>(funcIndex), &funcDesc)))
 		return ComErr("getting function descriptor");
 
-	// Allocate space for the parameters, including optional parameters.  We'll
-	// leave optional parameter slots empty if the caller didn't provide the
-	// corresponding actuals.
-	VARIANTARGArray va(funcDesc->cParams + funcDesc->cParamsOpt);
+	// Allocate space for the VARIANTARG parameter array.  This will
+	// contain the arguments that we actually pass to Javascript.
+	VARIANTARGArray va(funcDesc->cParams);
+
+	// Figure the number of FIXED arguments in the va array (that is,
+	// excluding any varargs).  If we don't have varargs, this is simply
+	// the total array size.  If we do have varargs, this is one less
+	// than the total array size, because the last slot is the special
+	// SAFEARRAY slot.
+	SHORT vargcFixed = static_cast<SHORT>(va.n);
+	if (funcDesc->cParamsOpt == -1)
+	{
+		// We have varargs, so the last va slot is actually the SAFEARRAY
+		// containing the varargs.  Remove it from the fixed argument count.
+		vargcFixed -= 1;
+
+		// Figure the the number of slots needed for the varargs array.  We
+		// need one slot for each javascript actual past the last fixed 
+		// parameter slot.
+		int nActualArgs = argc - jsargi;
+		int nExtraArgs = max(0, nActualArgs - vargcFixed);
+
+		// allocate the array
+		SAFEARRAYBOUND bounds;
+		bounds.cElements = static_cast<ULONG>(nExtraArgs);
+		bounds.lLbound = 0;
+		va.v[vargcFixed].vt = VT_ARRAY | VT_VARIANT;
+		va.v[vargcFixed].parray = SafeArrayCreate(VT_VARIANT, 1, &bounds);
+	}
 
 	// populate the arguments
 	unsigned short firstJsArg = jsargi;
 	SHORT vargc;
-	for (vargc = 0; vargc < funcDesc->cParams; ++vargc, ++jsargi)
+	for (vargc = 0; vargc < vargcFixed; ++vargc, ++jsargi)
 	{
 		// get this parameter descriptor
 		auto &desc = funcDesc->lprgelemdescParam[vargc];
+
+		// the argument array is built in reverse order
+		VARIANTARG &vdest = va.v[va.n - vargc - 1];
 
 		// check if there's a javascript actual for this slot
 		if (jsargi < argc)
 		{
 			// copy it into the vector only if it's IN argument only
 			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FIN) != 0
-				&& !js->MarshallAutomationArg(va.v[vargc], argv[jsargi], typeInfo, desc.tdesc))
+				&& !js->MarshallAutomationArg(vdest, argv[jsargi], typeInfo, desc.tdesc))
 				return js->undefVal;
 		}
 		else
 		{
 			// We're past the last javascript actual.
 			//
-			// - If this parameter is optional, pass "missing"
-			// - Otherwise, if there's a default value, use the default
+			// - If there's a default value, use the default
+			// - Otherwise, if the parameter is optional, pass "missing"
 			// - Otherwise throw an error
-			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FOPT) != 0)
-			{
-				// optional - pass "missing"
-				va.v[argc].vt = VT_ERROR;
-				va.v[argc].scode = DISP_E_PARAMNOTFOUND;
-			}
-			else if ((desc.paramdesc.wParamFlags & PARAMFLAG_FHASDEFAULT) != 0)
+			//
+			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FHASDEFAULT) != 0)
 			{
 				// default value provided - pass it
-				VariantCopy(&va.v[vargc], &desc.paramdesc.pparamdescex->varDefaultValue);
+				VariantCopy(&vdest, &desc.paramdesc.pparamdescex->varDefaultValue);
+			}
+			else if ((desc.paramdesc.wParamFlags & PARAMFLAG_FOPT) != 0)
+			{
+				// optional - pass "missing"
+				vdest.vt = VT_ERROR;
+				vdest.scode = DISP_E_PARAMNOTFOUND;
 			}
 			else
 			{
@@ -9138,19 +9559,60 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 		}
 	}
 
+	// If we have a varargs slot, and we haven't exhausted all of the 
+	// Javascript actuals, copy the remaining Javascript actuals to the
+	// varargs array.
+	if (funcDesc->cParamsOpt == -1)
+	{
+		// set up a generic VARIANT type descriptor for the varargs slots
+		TYPEDESC tdesc;
+		tdesc.vt = VT_VARIANT;
+
+		// lock the SAFEARRAY data
+		auto psa = va.v[0].parray;
+		if (!SUCCEEDED(hr = SafeArrayLock(psa)))
+			return ComErr("locking varargs safearray");
+
+		// get the raw VARIANT array
+		VARIANT *psav = static_cast<VARIANT*>(psa->pvData);
+
+		// add each additional argument to the varargs array
+		for (; jsargi < argc; ++jsargi, ++psav)
+		{
+			if (!js->MarshallAutomationArg(*psav, argv[jsargi], typeInfo, tdesc))
+				return js->undefVal;
+		}
+
+		// unlock the array
+		SafeArrayUnlock(psa);
+	}
+
 	// set up the argument DISPPARAMS
 	DISPPARAMS params = { va.v, NULL, static_cast<UINT>(vargc), 0 };
+
+	// If we're calling a "property put" method (that is, we're assigning a new
+	// value to a property variable of the dispatch interface), OLE requires us
+	// to provide the value as a named property, with name DISPID_PROPERTYPUT.
+	DISPID dispidNamed = DISPID_PROPERTYPUT;
+	if ((dispType & (DISPATCH_PROPERTYPUT | DISPATCH_PROPERTYPUTREF)) != 0)
+	{
+		params.cNamedArgs = 1;
+		params.rgdispidNamedArgs = &dispidNamed;
+	}
 
 	// call the function
 	VARIANTEx result;
 	EXCEPINFOEx exc;
-	hr = obj->disp->Invoke(funcDesc->memid, IID_NULL, LOCALE_SYSTEM_DEFAULT, static_cast<WORD>(dispType), &params, &result, &exc, NULL);
+	hr = obj->disp->Invoke(funcDesc->memid, IID_NULL, LOCALE_USER_DEFAULT, static_cast<WORD>(dispType), &params, &result, &exc, NULL);
 
 	// check the results
 	if (SUCCEEDED(hr))
 	{
-		// Success.  Pass back any OUT arguments.
-		for (vargc = 0, jsargi = firstJsArg; vargc < funcDesc->cParams; ++vargc, ++jsargi)
+		// Success
+		
+		// Copy any OUT parameters back to the corresponding Javascript Variant 
+		// argument variables
+		for (vargc = 0, jsargi = firstJsArg; vargc < vargcFixed; ++vargc, ++jsargi)
 		{
 			// get this parameter descriptor
 			auto &desc = funcDesc->lprgelemdescParam[vargc];
@@ -9162,7 +9624,13 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 			// if this is an OUT parameter, copy it back
 			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FOUT) != 0)
 			{
-				// TO DO 
+				// We can only copy OUT parameters back to Variant objects.  For
+				// anything that's not a variant, simply ignore the OUT result.
+				if (auto vo = VariantData::Recover<VariantData>(argv[jsargi], nullptr); vo != nullptr)
+				{
+					VariantClear(&vo->v);
+					VariantCopy(&vo->v, &va.v[vargc]);
+				}
 			}
 		}
 

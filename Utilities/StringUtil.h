@@ -294,6 +294,7 @@ public:
 	~BString() { SysFreeString(bstr); }
 
 	operator BSTR() { return bstr; }
+	BSTR* operator&() { return &bstr; }
 
 	BString& operator =(const CHAR *src) { Set(src); return *this; }
 	BString& operator =(const WCHAR *src) { Set(src); return *this; }

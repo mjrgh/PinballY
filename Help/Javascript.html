@@ -288,6 +288,38 @@ mainWindow.off(".MyPlugin");  // removes every mainWindow event with a .MyPlugin
    for details.
 </p>
 
+<h2>HTTP requests</h2>
+<p>
+   You can use Javascript to send HTTP requests to Web sites and process
+   the results.  See <a href="HttpRequest.html">HttpRequest</a> for
+   details.
+</p>
+
+<h2>File system access</h2>
+<p>
+   Javascript doesn't have any built-in access to the local file system,
+   since Javascript is most widely used in browsers, where file system
+   access isn't just unsupported, it's actively blocked, due to the security
+   risks it would create.  But PinballY is obviously a very different
+   context, and it does give you a couple of ways to access files.
+</p>
+<p>
+   The easiest is to use FileSystemObject, a standard Windows scripting component.
+   You can access this using PinballY's <a href="OLEAutomation">OLE Automation</a>
+   support.  FileSystemObject provides simple scripting access to basic file
+   functions, such as getting directory listings and reading and writing text files.
+</p>
+<div class="code">
+let fs = createAutomationObject("Scripting.FileSystemObject");
+</div>
+
+<p>
+   If you need lower-level access, or more advanced functions beyond what
+   FileSystemObject provides, you can call most native Windows API functions
+   directly via the <a href="DllImport.html">DLL Import</a> system.
+</p>
+   
+
 <h2>System objects and classes</h2>
 
 <p>
@@ -310,10 +342,12 @@ mainWindow.off(".MyPlugin");  // removes every mainWindow event with a .MyPlugin
 <p>
    A good debugger is indispensable for any non-trivial programming
    project.  PinballY doesn't have a debugger UI built in, but it
-   does have something much better instead: support for connecting
-   a <i>real</i> debugger.  You can use it with Visual Studio Code,
-   Microsoft's free code editor and Javascript IDE.  For details on
-   setting up the debugger, see <a href="JsDebug.html">Javascript Debugging</a>.
+   has something better: support for connecting an external debugger
+   of your chocie.  You can use it with Visual Studio Code
+   (Microsoft's free code editor and Javascript IDE) as well as
+   the Chrome DevTools debugger (built into the Chrome browser).
+   For details on setting up a debugger, see
+   <a href="JsDebug.html">Javascript Debugging</a>.
 </p>
 
 

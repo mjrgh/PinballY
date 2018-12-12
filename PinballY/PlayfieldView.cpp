@@ -365,14 +365,18 @@ void PlayfieldView::InitJavascript()
 			bool success;
 		} cleanup;
 
+		// message window settings
+		JavascriptEngine::MessageWindow messageWindow;
+		messageWindow.hwnd = hWnd;
+		messageWindow.timerId = javascriptTimerID;
+		messageWindow.debugEventMessageId = PFVMsgJsDebugMessage;
+
 		// debug options
 		auto &debugOpts = Application::Get()->javascriptDebugOptions;
-		debugOpts.messageHwnd = hWnd;
-		debugOpts.messageId = PFVMsgJsDebugMessage;
 
 		// create and initialize the javascript engine
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Main script file exists; initializing Javascript engine\n"));
-		if (!JavascriptEngine::Init(eh, &debugOpts))
+		if (!JavascriptEngine::Init(eh, messageWindow, &debugOpts))
 		{
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Javascript engine initialization failed; Javascript disabled for this session\n"));
 			return;
@@ -494,9 +498,6 @@ void PlayfieldView::InitJavascript()
 		// We successfully initialized the javascript engine and loaded
 		// the user script.
 		cleanup.success = true;
-
-		// schedule the next javascript timer task
-		SetJavascriptTaskTimer();
 	}
 }
 
@@ -579,33 +580,6 @@ bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
 			unit, button, (mode & (KeyRepeat | KeyBgRepeat)) != 0, (mode & KeyBgDown) != 0);
 	}
 	return ret;
-}
-
-void PlayfieldView::SetJavascriptTaskTimer()
-{
-	// check if any tasks are scheduled
-	if (auto js = JavascriptEngine::Get(); js != nullptr && js->IsTaskPending())
-	{
-		// get the next scheduled task time
-		ULONGLONG tNext = js->GetNextTaskTime();
-
-		// figure the elapsed time to the next task time
-		ULONGLONG tNow = GetTickCount64();
-		ULONGLONG dt64 = tNext <= tNow ? 0 : tNext - tNow;
-		
-		// The window timer can only hold a UINT, so limit the interval
-		// to UINT_MAX.  This will result in a premature timer event, 
-		// but that won't result in any incorrect behavior because the
-		// event processor won't run any tasks that aren't actually ready
-		// at that point; and it won't cause excessive performance impact,
-		// because the premature events along the way will only occur
-		// once every 49.7 days.  So we'll do an unnecessary queue scan
-		// every 49.7 days until the actual event occurs.
-		UINT dt = (UINT)(dt64 > UINT_MAX ? UINT_MAX : dt64);
-		
-		// schedule a timer event
-		SetTimer(hWnd, javascriptTimerID, dt, NULL);
-	}
 }
 
 void PlayfieldView::JsAlert(TSTRING msg)
@@ -968,18 +942,9 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		return true;
 
 	case javascriptTimerID:
-		// this is a one-shot
-		KillTimer(hWnd, timer);
-
 		// process javascript events
 		if (auto js = JavascriptEngine::Get(); js != nullptr)
-		{
-			// process tasks that are ready to run
 			js->RunTasks();
-
-			// set the next event timer
-			SetJavascriptTaskTimer();
-		}
 		return true;
 	}
 

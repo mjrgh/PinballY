@@ -763,6 +763,60 @@ this.dllImport =
     {
         return function(...args) { return dllImport._invokeAutomationMethod(this, funcIndex, dispType, ...args); };
     },
+
+    // Internal method to make an automation object iterable.  This is
+    // called by the system code during setup of a new automation type's
+    // Javascript prototype, when the _NewEnum (DISPID_NEWENUM) member is
+    // encountered in the automation object's dispatch interface.  We
+    // create and bind an [@@iterator] method to the prototype, so that
+    // Javascript recognizes the automation object as iterable.  The
+    // [@@iterator] method we create is a lambda that invokes _NewEnum
+    // on the 'this' object to create the automation iterator, queries
+    // it for IEnumVARIANT, and then returns a new Javscript object
+    // conforming to the Iterator protocol, with the next() method
+    // implemented in terms of the IEnumVARIANT.
+    _makeIterable: function(target, _NewEnumIndex, dispType)
+    {
+        // make the target object iterable by giving it an [@@iterator] method
+        target[Symbol.iterator] = function() 
+        { 
+            // This is the [@@iterator] method implementation.  Our job is
+            // to create an object exposing the Iterator protocol, which is
+            // simply a next() method that returns the next item in the 
+            // series.  The underlying collection comes from an IEnumVARIANT
+            // that comes from the automation objet's _NewEnum method.  So
+            // call this._NewEnum() to create the OLE enumerator, and query
+            // its IEnumVARIANT interface.
+            const S_OK = 0, S_FALSE = 1;
+            let pUnk = dllImport._invokeAutomationMethod(this, _NewEnumIndex, dispType);
+            let pEnumVar = dllImport.create("IEnumVARIANT*");
+            if (pUnk && pUnk.QueryInterface(pEnumVar) == S_OK)
+            {
+                // We now have an IEnumVARIANT that will enumerate the native
+                // collection for us.  Create and return the Iterator protocol
+                // object.
+                let done = false;
+                let nFetched = dllImport.create("ULONG");
+                let ele = new Variant();
+                return {
+                    next: function() {
+                        if (done) 
+                            return { value: ele, done: true };
+
+                        let hr = pEnumVar.Next(1, ele, nFetched);
+                        if (hr == S_FALSE)
+                            done = true;
+                        else if (hr != S_OK)
+                            throw new Error(console.format("Error in IEnumVARIANT (HRESULT=%08x)", hr));
+
+                        return { value: ele.value, done: done };
+                    }
+                };
+            }
+            else
+                throw new Error("Unable to create IEnumVARIANT for automation object");
+        };
+    },
 };
 
 // populate some basic COM types
@@ -772,7 +826,15 @@ dllImport.define(`
         HRESULT QueryInterface(REFIID riid, void **ppvObject);
         ULONG AddRef();
         ULONG Release();
-    } IUnknown, *LPUNKNOWN;
+    } *LPUNKNOWN;
+
+    typedef interface IEnumVARIANT '00020404-0000-0000-C000-000000000046' : public IUnknown
+    {
+        HRESULT Next(ULONG celt, VARIANT *rgVar, ULONG *pCeltFetched);
+        HRESULT Skip(ULONG celt);
+        HRESULT Reset();
+        HRESULT Clone(IEnumVARIANT **ppEnum);
+    } *LPENUMVARIANT;
 `);
 
 // COM VARIANT type codes
@@ -908,3 +970,101 @@ Int16Array.fromString = Uint16Array.fromString = Int8Array.fromString = Uint8Arr
 
     return buf;
 };
+
+// ------------------------------------------------------------------------
+//
+// HttpRequest.  This provides a cover object similar to the standard Web
+// browser XMLHttpRequest object.
+//
+
+this.HttpRequest = (function()
+{
+    let className;
+    return function()
+    {
+        function wrap(obj)
+        {
+            let super_send = obj.send;
+            obj.send = function(...args)
+            {
+                return new Promise((resolve, reject) =>
+                {
+                    // Set up the native object's onreadystatechange to invoke
+                    // our Promise functions.
+                    //
+                    // IMPORTANT:  user code shouldn't use onreadystatechange
+                    // directly.  Our main UI thread runs in COM STA (single-
+                    // threaded apartment) mode, so the underlying COM object
+                    // will always call us back on the main UI thread - that's
+                    // the only reason we don't have to add another layer of
+                    // wrappers here to make sure we're on the original thread.
+                    // However, we'll get called from the COM message pump on
+                    // this thread, which runs any time we're in a message
+                    // read/dispatch loop, including nested event loops for
+                    // dialog boxes or the Javascript debugger.  One of the
+                    // cardinal rules in Javascript is that client code is
+                    // non-reentrant, so allowing the dispatch callback to
+                    // invoke the client callback from a nested event loop
+                    // could violate that.  We fix that with Promises.  We
+                    // can call resolve() and reject() on a Promise at any
+                    // time, and the Javascript engine will properly sequence
+                    // the client callback as an event handled after any
+                    // currently executing code returns.  So this little
+                    // snippet here might be entered while we're executing
+                    // other Javascript client code, but that's okay because
+                    // we're written to be safe for a nested call.  We just
+                    // call resolve() or reject() to tell the JS engine to
+                    // schedule the client callback.  The client code will
+                    // be safely postponed until any current code finishes,
+                    // ensuring that no client code is ever re-entered.
+                    this.onreadystatechange(() =>
+                    {
+                        if (this.readyState == 4) {
+                            if (this.status == 200)
+                                resolve(this.responseText);
+                            else
+                                reject(new Error(this.statusText));
+                        }
+                    });
+
+                    super_send.call(this, ...args);
+                });
+            };
+            return obj;
+        }
+
+        // if we don't know the class name yet, figure out what's installed locally
+        if (className)
+        {
+            return wrap(createAutomationObject(className));
+        }
+        else
+        {
+            // try each known version, newest first
+            for (let name of ["Msxml2.XMLHTTP.6.0", "Msxml2.XMLHTTP.5.0", "Msxml2.XMLHTTP.4.0", "Msxml2.XMLHTTP.3.0",
+                              "Msxml2.XMLHTTP", "Microsoft.XMLHTTP"])
+            {
+                try
+                {
+                    // try creating an object of this class
+                    let obj = createAutomationObject(name);
+                    if (obj)
+                    {
+                        // this is the class - remember it for next time
+                        className = name;
+
+                        // wrap and return the object
+                        return wrap(obj);
+                    }
+                }
+                catch (e)
+                {
+                    // failed - ignore the error and try the next one
+                }
+            }
+        }
+
+        // failed to find an installed object
+        throw new Error("Required system component MSXML is not installed");
+    }
+})();

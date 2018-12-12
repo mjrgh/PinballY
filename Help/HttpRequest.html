@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>HttpRequest Objects</h1>
+
+<p>
+   This class is similar to the standard XmlHttpRequest class in Web
+   browsers.  It provides access to network resources via the HTTP
+   protocol, using asynchronous requests.
+</p>
+
+<h2>System requirements</h2>
+
+<p>
+   The HttpRequest object depends upon the Windows MSXML system component.
+   This is normally installed as part of the basic Windows installation,
+   but as with any component on Windows, it's always possible that it's
+   missing due to some past configuration change or setup error.  If you
+   get an error ("Required system component MSXML is not installed") when
+   trying to create an HttpRequest object, you should be able to correct
+   it by installing the latest MSXML from the Microsoft support site.
+</p>
+
+<h2>Basic usage</h2>
+
+<p>
+   Other than the slightly different name,
+   HttpRequest works <i>mostly</i> like XmlHttpRequest in a browser.
+   The main difference is how it handles completion notifications.
+   HttpRequest uses the modern Javascript "Promise" mechanism,
+   whereas the XmlHttpRequest in browsers uses an older ad hoc event
+   handler scheme.
+</p>
+<p>
+   There are four steps to sending a basic HTTP request:
+</p>
+<ul>
+   <li>Create an HttpRequest object with <tt>new</tt>
+   <li>Set up the HTTP verb and URL via the open() method
+   <li>Initiate the actual network transaction via the send() method
+   <li>Handle the response in a "then" function
+</ul>
+
+<p>
+   If you've used XmlHttpRequest in a browser, you're already familiar
+   with this process.  The first three steps are exactly the same,
+   right down to the method names and parameters (apart from the
+   the different class name).  The process diverges - very slightly -
+   in the final step, where we handle the response.  In a browser,
+   you have to set up a callback function <i>before</i> you do the
+   send() operation, typically by setting the "onreadystatechange"
+   property.  The callback has to monitor the "readyState" property
+   of the request object and wait until it changes to the special
+   state "4", meaning "done".  Our version is a little simpler and
+   cleaner.
+</p>
+<p>
+   With HttpRequest, instead of setting up a callback ahead
+   of time, you use the Promise object that send() returns.
+   The Promise object is a standard ES6 feature, so you can find
+   lots of information about it on the Web, but the basics are
+   pretty simple.  Promise has two main methods that you use to set
+   up completion handlers: then(), which invokes a function when
+   the operation completes successfully, and catch(), which invokes
+   a function if the operation fails.
+</p>
+<p>
+   The actual handling of the completion event is up to you,
+   and that part is just like in a browser.  The only difference
+   with the Promise approach is that the syntax is a little
+   simpler.
+</p>
+
+<p>
+   Here's an example of a simple HTTP GET operation to fetch
+   a page from a Web site.
+</p>
+<div class="code">
+// create the request object
+let request = new HttpRequest();
+
+// Set up the HTTP verb and URL.  Important: always use true for the
+// "async" parameter.  If you make the request synchronous, the main
+// user interface window will freeze while Javascript waits for the
+// request to finish.  Note that this only *prepares* the request;
+// this doesn't trigger any network activity yet.
+request.open("GET", "http://mjrnet.org/pinscape/", true);
+
+// Initiate the network request, and set up handlers for
+// completion and failure.
+request.send().then(function(reply) {
+    // This function handles successful completion.  "reply" is a
+    // string containing the text of the page from the Web server.
+}).catch(function(error) {
+    // This function handles errors.  "error" is an Error object
+    // describing the HTTP or network error.
+});
+</div>
+
+<h2>Methods and properties</h2>
+
+<p>
+   <b>abort():</b>  Call this method to cancel an asynchronous
+   request in progress.
+</p>
+<p>
+   <b>getAllResponseHeaders():</b>  Returns a string containing
+   the full set of HTTP headers in the response, separated by
+   CR/LF ("\r\n") line ending sequences.
+</p>
+<p>
+   <b>getResponseHeader(<i>name</i>):</b>  Returns a string with
+   the value of the header matching the given name.
+</p>
+
+<p>
+   <b>open(<i>method, url, asynchronous, user, password</i>):</b>
+   Sets up the verb (e.g., "GET", "POST") and URL ("http://...")
+   for the request.  Optionally sets the username and password (also
+   as strings).  The username and password will be used if necessary
+   for HTTP authentication.  (HTTP authentication is rarely used these
+   days; it's <i>not</i> the kind where you fill in text boxes on the
+   site's login page, but rather the kind where the browser itself
+   prompts you for credentials.)
+</p>
+<p>
+   Important: always set <i>asynchronous</i> to <b>true</b>.  If
+   you don't, the user interface windows will freeze while Javascript
+   waits for the network request to complete.  You don't want that.
+</p>
+<p>
+   The open() call just prepares the request; it doesn't actually
+   initiate the network operation.  The network operation doesn't
+   start until you call send().  
+</p>
+<p>
+   <b>setRequestHeader(<i>name</i>, <i>value</i>):</b>  Adds an
+   HTTP header to the request, to be sent to the site with the
+   request data.  You can use this to set cookies, for example.
+</p>
+<p>
+   <b>send(<i>body</i>):</b>  Send the request.  <i>body</i> is
+   an optional string containing the "body" data to send with the
+   request, which is needed for verbs like "POST" and "PUT" that
+   include request bodies.  ("GET" doesn't use a request body,
+   so you shouldn't use a <i>body</i> argument with "GET".)
+</p>
+<p>
+   Returns a standard Javascript Promise object that keeps track of
+   the completion state of the request.  Use the returned Promise
+   object to set completion handlers.  Use .then() to set a handler
+   that will be invoked when the request completes successfully,
+   and .catch() to set an error handler.  
+</p>
+   
+<p>
+   <b>readyState:</b>  A read-only property indicating how much
+   progress the request has made so far: 0 (uninitialized), 1 (loading),
+   2 (response headers received), 3 (partial body received), 4 (completed).
+   In most cases, you won't need to monitor this, since you won't have
+   to do anything with a request until it signals completion by
+   calling the "then" handler via the Promise returned from send().
+</p>
+
+<p>
+   <b>responseText:</b>  A read-only property with a string containing
+   the full text of the response from the server.  Valid only after
+   the request has completed.
+</p>
+
+<p>
+   <b>responseXML:</b>  An XML document object (as an
+   <a href="OLEAutomation.html">OLE Automation object</a>) containing
+   the parsed XML version of the response.  You can use this to interpret
+   response formatted as XML.
+</p>
+
+<p>
+   <b>status:</b>  A read-only property giving the numeric HTTP status
+   code returned from the server.  Only valid after the request has
+   completed.  200 is the standard status code for successful completion.
+   Most other codes indicate errors (e.g., 404 = not found, 500 = internal
+   server error, etc).
+</p>
+
+<p>
+   <b>statusText:</b>  A read-only property with a string giving
+   the full text of the server status response (e.g., "200 OK").  Only
+   valid after the request has completed.
+</p>
