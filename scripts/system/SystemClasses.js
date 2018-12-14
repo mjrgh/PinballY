@@ -8,6 +8,192 @@
 
 // ------------------------------------------------------------------------
 //
+// C-style sprintf emulator.  Implements a subset of sprintf formatting,
+// tailored to Javascript datatypes.
+//
+function sprintf(...args)
+{
+    return trySprintf(...args).expansion;
+}
+
+// "try sprintf": attempts to format the arguments sprintf-style, and
+// returns details on .  Returns
+// an object { ok: boolean, fields: int, expansion: string }.  'ok' is true
+// if the formatting fully succeeded, false if not.  Fully success means
+// that all "%" fields were properly constructed and had matching arguments
+// in the argument list.  On failure, 'expansion' will contain the first
+// argument string with as many fields substituted as possible, and fields
+// that couldn't be expanded left with their "%" codes unchanged.  In any
+// case, 'fields' returns with the number of substitution fields found.
+function trySprintf(...args)
+{
+    if (args.length == 0)
+        return { ok: false, fields: 0, expansion: "" };
+
+    var pat = /%%|%([\-+ #0]*)(\d+)?(\.\d+)?([oOdisfxX])/g;
+    if (args.length > 1 && pat.test(args[0]))
+    {
+        let ok = true;
+        let fields = 0;
+        let i = 1;
+        let expansion = args[0].replace(pat, (match, flags, width, prec, spec) =>
+        {
+            if (match == "%%")
+                return "%";
+
+            ++fields;
+
+            if (i >= args.length)
+            {
+                ok = false;
+                return match;
+            }
+            let a = args[i++];
+
+            let doInt = (radix, prefix) =>
+            {
+                let s = Math.trunc(a).toString(radix);
+
+                if (flags.indexOf("+") >= 0)
+                    s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
+                else if (flags.indexOf(" ") >= 0 && a >= 0)
+                    s = " " + s;
+
+                if (prec && prec != "" && +prec.substr(1) > s.length)
+                {
+                    let extra = +prec.substr(1) - s.length;
+                    if (extra == 0 && a == 0)
+                        s = "";
+                    else
+                        s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                }
+                else if (width && width != "" && +width > s.length)
+                {
+                    let extra = +width - s.length;
+                    if (flags.indexOf("0") >= 0)
+                        s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                    else if (flags.indexOf("-") >= 0)
+                        s = s + " ".repeat(extra);
+                    else
+                        s = " ".repeat(extra) + s;
+                }
+
+                if (flags.indexOf("#") >= 0 && prefix)
+                    s = s.replace(/^\s*[+\-]?/, "$&" + prefix);
+
+                return s;
+            };
+
+            let doFloat = () =>
+            {
+                let s = a.toFixed(prec && prec != "" ? +prec.substr(1) : 6);
+
+                if (flags.indexOf("+") >= 0)
+                    s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
+                else if (flags.indexOf(" ") >= 0 && a >= 0)
+                    s = " " + s;
+
+                if (width && width != "" && +width > s.length)
+                {
+                    let extra = +width - s.length;
+                    if (flags.indexOf("0") >= 0)
+                        s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
+                    else if (flags.indexOf("-") >= 0)
+                        s = s + " ".repeat(extra);
+                    else
+                        s = " ".repeat(extra) + s;
+                }
+
+                return s;
+            };
+
+            let doString = () =>
+            {
+                let s = a.toString();
+
+                if (width && width != "" && +width > s.length)
+                {
+                    let extra = +width - s.length;
+                    if (flags.indexOf("-") >= 0)
+                        s = s + " ".repeat(extra);
+                    else
+                        s = " ".repeat(extra) + s;
+                }
+
+                if (prec && prec != "" && +prec.substr(1) < s.length)
+                    s = s.substr(0, +prec.substr(1));
+
+                return s;
+            };
+
+            switch (spec)
+            {
+            case 'o':
+            case 'O':
+                return (a === null ? "null" :
+                        a === undefined ? "undefined" :
+                        a.toString());
+
+            case 'd':
+            case 'i':
+                return doInt(10);
+
+            case 'x':
+                return doInt(16, "0x").toLowerCase();
+
+            case 'X':
+                return doInt(16, "0x").toUpperCase();
+
+            case 'f':
+                return doFloat();
+
+            case 's':
+                return doString(a);
+
+            default:
+                ok = false;
+                return match;
+            }
+        });
+
+        return { ok: ok, fields: fields, expansion: expansion };
+    }
+
+    return { ok: false, fields: 0, expansion: "" + args[0] };
+}
+
+
+// ------------------------------------------------------------------------
+//
+// Base loggable file class.  
+//
+let Logger = {
+    format: function(...args)
+    {
+        let s = trySprintf(...args);
+        return s.fields > 0 ? s.expansion : args.join(" ");
+    },
+
+    // internal stack trace formatter
+    _stack: function()
+    {
+        // Get the stack from a synthesized error object, remove the first three lines
+        // ("Error at", _stack() level, and our internal caller level), and reformat
+        // the resulting lines look more like a browser console trace.
+        return new Error().stack.split("\n").slice(3).map(l => {
+            l = l.replace(/^\s*at\s+/, "");
+            if (/(.+)\s*\((.+)\)$/.test(l))
+                l = RegExp.$1 + "@" + RegExp.$2;
+            else
+                l = "@" + l;
+            return l;
+        });
+    },
+
+};
+
+// ------------------------------------------------------------------------
+//
 // Console object.  This is designed to act similar to the browser
 // equivalent.
 //
@@ -45,155 +231,6 @@ this.console = {
 
     warning: function(...args) { this.log("warning", this.format(...args)); },
 
-    // formatter for assert(), error(), log()
-    format: function(...args)
-    {
-        if (args.length == 0)
-            return "";
-
-        var pat = /%([\-+ #0]*)(\d+)?(\.\d+)?([oOdisfxX])/g;
-        if (args.length > 1 && pat.test(args[0]))
-        {
-            let ok = true;
-            let i = 1;
-            let expansion = args[0].replace(pat, (match, flags, width, prec, spec) =>
-            {
-                if (i >= args.length)
-                {
-                    ok = false;
-                    return "";
-                }
-                let a = args[i++];
-
-                let doInt = (radix, prefix) =>
-                {
-                    let s = Math.trunc(a).toString(radix);
-
-                    if (flags.indexOf("+") >= 0)
-                        s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
-                    else if (flags.indexOf(" ") >= 0 && a >= 0)
-                        s = " " + s;
-
-                    if (prec && prec != "" && +prec.substr(1) > s.length)
-                    {
-                        let extra = +prec.substr(1) - s.length;
-                        if (extra == 0 && a == 0)
-                            s = "";
-                        else
-                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
-                    }
-                    else if (width && width != "" && +width > s.length)
-                    {
-                        let extra = +width - s.length;
-                        if (flags.indexOf("0") >= 0)
-                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
-                        else if (flags.indexOf("-") >= 0)
-                            s = s + " ".repeat(extra);
-                        else
-                            s = " ".repeat(extra) + s;
-                    }
-
-                    if (flags.indexOf("#") >= 0 && prefix)
-                        s = s.replace(/^\s*[+\-]?/, "$&" + prefix);
-
-                    return s;
-                };
-
-                let doFloat = () =>
-                {
-                    let s = a.toFixed(prec && prec != "" ? +prec.substr(1) : 6);
-
-                    if (flags.indexOf("+") >= 0)
-                        s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
-                    else if (flags.indexOf(" ") >= 0 && a >= 0)
-                        s = " " + s;
-
-                    if (width && width != "" && +width > s.length)
-                    {
-                        let extra = +width - s.length;
-                        if (flags.indexOf("0") >= 0)
-                            s = s.replace(/^[+\-]?/, "$&" + "0".repeat(extra));
-                        else if (flags.indexOf("-") >= 0)
-                            s = s + " ".repeat(extra);
-                        else
-                            s = " ".repeat(extra) + s;
-                    }
-
-                    return s;
-                };
-
-                let doString = () =>
-                {
-                    let s = a.toString();
-
-                    if (width && width != "" && +width > s.length)
-                    {
-                        let extra = +width - s.length;
-                        if (flags.indexOf("-") >= 0)
-                            s = s + " ".repeat(extra);
-                        else
-                            s = " ".repeat(extra) + s;
-                    }
-
-                    if (prec && prec != "" && +prec.substr(1) < s.length)
-                        s = s.substr(0, +prec.substr(1));
-
-                    return s;
-                };
-
-                switch (spec)
-                {
-                case 'o':
-                case 'O':
-                    return (a === null ? "null" :
-                            a === undefined ? "undefined" :
-                            a.toString());
-
-                case 'd':
-                case 'i':
-                    return doInt(10);
-
-                case 'x':
-                    return doInt(16, "0x").toLowerCase();
-                    
-                case 'X':
-                    return doInt(16, "0x").toUpperCase();
-
-                case 'f':
-                    return doFloat();
-
-                case 's':
-                    return doString(a);
-
-                default:
-                    ok = false;
-                    return a;
-                }
-            });
-
-            if (ok)
-                return expansion;
-        }
-
-        return args.join(" ");
-    },
-
-    // internal stack trace formatter
-    _stack: function()
-    {
-        // Get the stack from a synthesized error object, remove the first three lines
-        // ("Error at", _stack() level, and our internal caller level), and reformat
-        // the resulting lines look more like a browser console trace.
-        return new Error().stack.split("\n").slice(3).map(l => {
-            l = l.replace(/^\s*at\s+/, "");
-            if (/(.+)\s*\((.+)\)$/.test(l))
-                l = RegExp.$1 + "@" + RegExp.$2;
-            else
-                l = "@" + l;
-            return l;
-        });
-    },
-
     // internal handler for count() and countReset()
     _applyCount: function(label, func)
     {
@@ -226,6 +263,17 @@ this.console = {
     // timer table for time() and timeEnd()
     _timeTable: { },
 };
+Object.assign(console, Logger);
+
+
+// ------------------------------------------------------------------------
+//
+// Log file
+//
+this.logfile = {
+    log: function(...args) { this._log(this.format(...args)); }
+};
+Object.assign(logfile, Logger);
 
 
 // ------------------------------------------------------------------------
@@ -498,18 +546,6 @@ let { Event, EventTarget } = (() =>
     return { Event: Event, EventTarget: EventTarget };
 })();
 
-// Command event.  This is fired on the main application object
-// when a button mapped to a command is pressed.  The default system
-// action is to carry out the command.
-this.CommandEvent = class CommandEvent extends Event
-{
-    constructor(command)
-    {
-        super("command", { cancelable: true });
-        Object.defineProperty(this, "command", { value: command });
-    }
-}
-
 // Base class for keyboard events
 this.KeyEvent = class KeyEvent extends Event
 {
@@ -523,23 +559,39 @@ this.KeyEvent = class KeyEvent extends Event
         this.repeat = repeat;
         this.background = background;
     }
-}
+};
 
 this.KeyDownEvent = class KeyDownEvent extends KeyEvent
 {
-    constructor(vkey, key, code, location, repeat, background)
+    constructor(vkey, key, code, location, repeat)
     {
-        super("keydown", vkey, key, code, location, repeat, background);
+        super("keydown", vkey, key, code, location, repeat, false);
     }
-}
+};
 
 this.KeyUpEvent = class KeyUpEvent extends KeyEvent
 {
-    constructor(vkey, key, code, location, repeat, background)
+    constructor(vkey, key, code, location, repeat)
     {
-        super("keyup", vkey, key,code, location, repeat, background);
+        super("keyup", vkey, key,code, location, repeat, false);
     }
-}
+};
+
+this.KeyBgDownEvent = class KeyBgDownEvent extends KeyEvent
+{
+    constructor(vkey, key, code, location, repeat)
+    {
+        super("keybgdown", vkey, key, code, location, repeat, true);
+    }
+};
+
+this.KeyBgUpEvent = class KeyBgUpEvent extends KeyEvent
+{
+    constructor(vkey, key, code, location, repeat)
+    {
+        super("keybgup", vkey, key,code, location, repeat, true);
+    }
+};
 
 // key location codes
 const KEY_LOCATION_STANDARD = 0;
@@ -565,23 +617,73 @@ this.JoystickButtonEvent = class JoystickButtonEvent extends Event
         this.repeat = repeat;
         this.background = background;
     }
-}
+};
 
 this.JoystickButtonDownEvent = class JoystickButtonDownEvent extends JoystickButtonEvent
 {
-    constructor(unit, button, repeat, background)
+    constructor(unit, button, repeat)
     {
-        super("joystickbuttondown", unit, button, repeat, background);
+        super("joystickbuttondown", unit, button, repeat, false);
     }
-}
+};
 
 this.JoystickButtonUpEvent = class JoystickButtonUpEvent extends JoystickButtonEvent
 {
-    constructor(unit, button, repeat, background)
+    constructor(unit, button, repeat)
     {
-        super("joystickbuttonup", unit, button, repeat, background);
+        super("joystickbuttonup", unit, button, repeat, false);
     }
-}    
+};
+
+this.JoystickButtonBgDownEvent = class JoystickButtonBgDownEvent extends JoystickButtonEvent
+{
+    constructor(unit, button, repeat)
+    {
+        super("joystickbuttonbgdown", unit, button, repeat, true);
+    }
+};
+
+this.JoystickButtonBgUpEvent = class JoystickButtonBgUpEvent extends JoystickButtonEvent
+{
+    constructor(unit, button, repeat)
+    {
+        super("joystickbuttonbgup", unit, button, repeat, true);
+    }
+};
+
+// Command button events.  These are similar to key and joystick
+// button events, but represent the command assigned to the key
+// rather than the key itself.
+this.CommandEvent = class CommandEvent extends Event
+{
+    constructor(type, command, repeat, background)
+    {
+        super(type, { cancelable: true });
+        this.command = command;
+        this.repeat = repeat;
+        this.background = background;
+    }
+};
+
+this.CommandButtonDownEvent = class CommandButtonDownEvent extends CommandEvent
+{
+    constructor(command, repeat) { super("commandbuttondown", command, repeat, false); }
+};
+
+this.CommandButtonUpEvent = class CommandButtonUpEvent extends CommandEvent
+{
+    constructor(command, repeat) { super("commandbuttonup", command, repeat, false); }
+};
+
+this.CommandButtonBgDownEvent = class CommandButtonBgDownEvent extends CommandEvent
+{
+    constructor(command, repeat) { super("commandbuttonbgdown", command, repeat, true); }
+};
+
+this.CommandButtonBgUpEvent = class CommandButtonBgUpEvent extends CommandEvent
+{
+    constructor(command, repeat) { super("commandbuttonbgup", command, repeat, true); }
+};
 
 // Game launch event.  This is fired on the main application object
 // when a game is about to be launched.
@@ -606,6 +708,26 @@ this.LaunchEvent = class LaunchEvent extends Event
 //    command
 //
 this.mainWindow = new EventTarget();
+
+// Backglass window object
+this.backglassWindow = { };
+
+// DMD window
+this.dmdWindow = { };
+
+// Topper window
+this.topperWindow = { };
+
+// Instruction card window
+this.instCardWindow = { };
+
+
+// SetWindowPosition flags
+const SWP_NOACTIVATE = 0x0010;
+const SWP_NOMOVE = 0x0002;
+const SWP_NOOWNERZORDER = 0x0200;
+const SWP_NOSIZE = 0x0001;
+const SWP_NOZORDER = 0x0004;
 
 
 // ------------------------------------------------------------------------
@@ -903,7 +1025,14 @@ const VT_TYPEMASK = 0xfff;              // [    ] mask for element types (removi
 
 // Prototype for HANDLE objects.  These are created by the dllImport
 // native code for HANDLE values returned by native DLL calls.
-this.HANDLE = function HANDLE(...args) { return HANDLE._new(...args); };
+this.HANDLE = class HANDLE {
+    constructor(...args) { return HANDLE_.new(...args); }
+};
+
+// Prototype for HWND objects.  HWND is a suclass of HANDLE
+this.HWND = class HWND extends HANDLE {
+    constructor(...args) { return HWND_.new(...args); }
+};
 
 // Prototype for NativePointer objects.  These are created by the
 // dllImport native code to represent pointers to native objects
@@ -1019,11 +1148,22 @@ this.HttpRequest = (function()
                     // ensuring that no client code is ever re-entered.
                     this.onreadystatechange(() =>
                     {
-                        if (this.readyState == 4) {
+                        // if the readyState is 4, the request is finished
+                        if (this.readyState == 4)
+                        {
+                            // Resolve or reject the promise, according to the
+                            // HTTP status (200 is success, anything else is
+                            // failure)
                             if (this.status == 200)
                                 resolve(this.responseText);
                             else
                                 reject(new Error(this.statusText));
+
+                            // De-register our callback, so that the IDispatch
+                            // that's implicitly wrapping the callback can be
+                            // deleted, which in turn will allow the lambda to
+                            // be collected on the Javascript side.
+                            this.onreadystatechange(null);
                         }
                     });
 

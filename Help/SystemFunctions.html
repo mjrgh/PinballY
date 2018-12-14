@@ -31,7 +31,8 @@
    can be handy for script debugging, but it should be avoided for anything
    else, as it doesn't fit very well with PinballY's pin cab interaction
    style.  See message() for a friendlier alternative for alerting the
-   user, and log() for another option for debug messages.
+   user, and <a href="LogfileObject.html#log">logfile.log()</a> for another
+   option for debug messages.
 </p>
 <p>
    <b>clearInterval(<i>id</i>)</b>:  Cancels an interval event created
@@ -57,14 +58,7 @@
    See <a href="OLEAutomation.html">OLE Automation</a> for more
    details.
 </p>
-<p>
-   <b>log(<i>message</i>):</b> Writes the message text to the PinballY log file.
-   A newline (line break) is always added at the end of the message, so it's
-   not necessary to include one in the string.  This can be useful for
-   debugging, especially for cases where you want to log some information
-   repeatedly and don't want to bother the user with it every time.
-   (This is a PinballY extension, not a typical browser function.)
-</p>
+<a name="message"></a>
 <p>
    <b>message(<i>message</i>, <i>style</i>):</b>  This is an alias for
    <a href="MainWindowObject.html#message">mainWindow.message()</a>.

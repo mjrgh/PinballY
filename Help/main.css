@@ -143,11 +143,14 @@ img.example {
     margin-right: 2em;
 }
 
-.code {
-    margin: -1.75em 2em 1em 2em;
-    white-space: pre;
+.code, tt {
     font: 9.5pt/15pt Courier New, Courier, Lucida Sans, typewriter;
 }
+div.code {
+    margin: -1.75em 2em 1em 2em;
+    white-space: pre;
+}
+    
 .hljs {
     background: #ffffff;
     overflow: visible;

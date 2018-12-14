@@ -42,7 +42,7 @@
    native type mechanisms provided by the DLL Importer.  But you
    wouldn't want to, because the raw VARIANT C struct is complex, tedious
    to work with, and demands careful handling to manage its memory properly.
-   So instead, the system provides this built-in type that makes it much
+   So instead, PinballY provides this built-in type that makes it much
    easier to work with VARIANTs when you need them for COM calls or
    other purposes.  The Javascript Variant object provides properties
    for convenient conversion between Javascript and native types,
@@ -104,6 +104,20 @@ v.value = 100;
    the call, which you can do by setting the .vt property.
 </p>
 
+<h2>Arithmetic</h2>
+
+<p>
+   A Variant is a Javascript object, so you can't use the normal
+   Javascript arithmetic operators directly on a Variant, even if
+   the Variant happens to contain a numeric value.
+   Instead, you'll have to retrieve the contained value as a Javascript
+   number using the .value method, perform the desired arithmetic
+   operations on the Javascript number, and store the result
+   back in the Variant by assigning it to the .value property or
+   to one of the type-specific assignment properties (which we'll
+   come to shortly).
+</p>
+
 <h2>Default type assignments</h2>
 
 <p>
@@ -133,14 +147,15 @@ v.value = 100;
 </p>
 
 <p>
-   Some COM interfaces that take VARIANT parameters require <i>specific</i>
-   subtypes to be stored in the VARIANT arguments.  Such functions will return
-   an error if you provide the wrong subtype.  The defaults listed above
+   Some COM interfaces that take VARIANT parameters require specific
+   subtypes to be stored in the VARIANT arguments, and will fail with an
+   error if the wrong subtype is used.  The defaults listed above
    therefore won't always work for all callees.  While the .value property
    only lets you set the types listed above, the Variant object has other
    type-specific properties that allow setting an exact subtype.  For the
    full list, see the <a href="#typeTable">type code</a> table below.  The
    "Set Via" column shows the property used to set each specific type.
+   For example:
 </p>
 <div class="code">
 v.bVal = 100;        // set the type to VT_UI1 (Byte) and set the byte value to 100
@@ -214,16 +229,16 @@ propBag.Read("Name", v, null);
    C VARIANT struct, to make it easier to translate any C/C++ COM coding
    examples you might refer to.
 </p>
-   
-<style type="text/css">
-.typeTable td:nth-of-type(5) {
-    font: 9.5pt/15pt Courier New, Courier, Lucida Sans, typewriter;
-}
-</style>
+
+<script type="text/javascript">
+$(function(){
+    $(".typeTable td:nth-of-type(5)").not(".NA").addClass("code");
+});
+</script>
 <table class="dataTable typeTable">
    <tr><th>Name</th><th>vt Value</th><th>Description</th><th>.value reads as</th><th>Set via</th></tr>
-   <tr><td>VT_EMPTY</td><td>0</td><td>Empty, similar to Javascript undefined</td><td>undefined</td><td><i>v</i>.value = undefined</td></tr>
-   <tr><td>VT_NULL</td><td>1</td><td>SQL style NULL, similar to Javascript null</td><td>null</td><td><i>v</i>.value = null</td></tr>
+   <tr><td>VT_EMPTY</td><td>0</td><td>Empty; similar to Javascript undefined</td><td>undefined</td><td><i>v</i>.value = undefined</td></tr>
+   <tr><td>VT_NULL</td><td>1</td><td>SQL style NULL; similar to Javascript null</td><td>null</td><td><i>v</i>.value = null</td></tr>
    <tr><td>VT_I2</td><td>2</td><td>2-byte (16-bit) signed int (C "__int16")</td><td>Number</td><td><i>v</i>.iVal = <i>Number</i></td></tr>
    <tr><td>VT_I4</td><td>3</td><td>4-byte (32-bit) signed long int (C "__int32")</td><td>Number</td><td><i>v</i>.lVal = <i>Number</i></td></tr>
    <tr><td>VT_R4</td><td>4</td><td>4-byte real (C "float")</td><td>Number</td><td><i>v</i>.fltVal = <i>Number</i></td></tr>
@@ -243,8 +258,8 @@ propBag.Read("Name", v, null);
    <tr><td>VT_UI4</td><td>19</td><td>4-byte (32-bit) unsigned long int (C "unsigned __int32"</td><td>Number</td><td><i>v</i>.ulVal = <i>Number</i></td></tr>
    <tr><td>VT_INT</td><td>22</td><td>Machine signed int type (C "int"; same as __int32)</td><td>Number</td><td><i>v</i>.intVal = <i>Number</i></td></tr>
    <tr><td>VT_UINT</td><td>23</td><td>Machine unsigned int type (C "unsigned int"; same as unsigned __int32)</td><td>Number</td><td><i>v</i>.uintVal = <i>Number</i></td></tr>
-   <tr><td>VT_RECORD</td><td>36</td><td>User-defined struct type</td><td>Not supported</td><td>Not supported</td></tr>
-   <tr><td>VT_ARRAY</td><td>0x2000</td><td>Array (bit flag: combines with element type code)</td><td>TBD</td><td>TBD</td></tr>
+   <tr><td>VT_RECORD</td><td>36</td><td>User-defined struct type</td><td>Not supported</td><td class="NA">Not supported</td></tr>
+   <tr><td>VT_ARRAY</td><td>0x2000</td><td>Array (bit flag: combines with element type code)</td><td>Not supported</td><td class="NA">Not supported</td></tr>
    <tr><td>VT_BYREF</td><td>0x4000</td><td>Pointer (bit flag: combines with element type code)</td><td><a href="NativeObject.html">NativeObject</a></td><td><i>v</i>.value = <i>NativePointer</i></td></tr>
 </table>
 
@@ -317,16 +332,23 @@ propBag.Read("Name", v, null);
 
 <h2>Limitations</h2>
 
+<p>
+   Some VARIANT subtypes are unsupported or only partially
+   supported:
+</p>
+
 <ul>
-   <li>The CURRENCY and DECIMAL types are represented in Javascript
-   as simple Javascript numbers.  This could result in a loss of
-   precision when converted to Javascript and back to native.
-   We'd have to add a new system class (along the lines of <a href="Int64.html">Int64</a>)
-   if we wanted to represent these values without loss of precision.
-   We don't currently offer such system classes mostly because we don't
-   anticipate that PinballY will be used extensively for developing
-   financial applications.
-   
+   <li>VARIANT Record (structure) types aren't supported
+
+   <li>VARIANT Array types aren't supported
+
+   <li>VARIANT BYREF pointers to most non-primitive types (that is,
+   types other than simple integer and float types) aren't supported
+
+   <li>The CURRENCY and DECIMAL types are supported, but they're
+   represented in Javascript as simple Javascript numbers.  This
+   could result in loss of precision and/or rounding errors
+   when converting to Javascript and back to Variant.
 </ul>
 
 </body>

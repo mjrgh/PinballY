@@ -54,6 +54,18 @@
    complete over time. 
 </p>
 
+<h2>Simple instrumentation</h2>
+<p>
+   For very simple debugging tasks, you can sometimes get enough
+   information by instrumenting your code with debugging messages.
+   One way to do that is to display messages through the user
+   interface, such as via the <a href="SystemFunctions.html#message">message()</a>
+   function.  Another way that's less intrusive in the UI is to
+   use <a href="LogfileObject.html#log">logfile.log()</a>, which
+   writes messages to the log file for review after the session
+   ends.
+</p>
+
 <h2>Pausing in the debugger</h2>
 
 <p>
@@ -416,9 +428,17 @@ PinballY.exe /jsdebug:port=9228
 <p>
    /jsdebug by itself enables debugging and selects a number
    of default settings.  You can change the defaults by adding some
-   extra options to the /jsdebug parameter.  Write these as
-   <b>/jsdebug:<i>option,option,...</i></b>.
+   extra sub-options to the /jsdebug parameter.  Append sub-options
+   to /jsdebug after a colon (":").  To use more than one sub-option,
+   separate them with commas:
 </p>
+<div class="indented">
+PinballY.exe  /jsdebug:port=9228,break=system
+</div>
+<p>
+   The sub-options are:
+</p>
+
 <ul>
    <li><b>port=<i>portNumber</i>:</b> Sets the TCP port number for the
    connection between the VS Code debugger and PinballY's Javascript
@@ -469,17 +489,12 @@ PinballY.exe /jsdebug:port=9228
    wait for the debugger to establish its connection before proceeding
    to execute any Javascript code.  The default is <b>wait=yes</b>.
    Waiting for the connection ensures that the debugger has a chance
-   to establish preconfigured breakpoints before any code is executed.
-   This option is useful if you want to launch PinballY separately from
-   the debugger, and wait to attach the debugger at a later time.
+   to restore saved breakpoints, and lets you step through your startup
+   code if desired.  <b>wait=no</b> tells the program to set up the
+   debugger interface, but doesn't wait for a debugger to connect.
+   Startup Javascript code is executed without trying to pause in
+   the debugger.  This gives you the option to connect a debugger later,
+   but allows the program to run freely without a debugger until you
+   connect one.
 
 </ul>
-<p>
-   If you want to use more than one of those options together, separate
-   them with commas:
-</p>
-<div class="indented">
-PinballY.exe  /jsdebug:port=9228,break=system
-</div>
-   
-

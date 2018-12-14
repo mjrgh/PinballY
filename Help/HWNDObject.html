@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>HWND Objects</h1>
+
+<p>
+   The HWND class represents a native window handle, which is the type
+   used in the Windows APIs to refer to an on-screen window.  This is
+   a subtype of the <a href="HandleObject.html">HANDLE</a> object, which
+   represents any sort of system handle value.
+</p>
+<h2>Creation</h2>
+
+<p>
+   You don't typically create HWND objects directly.  You usually get
+   them from system objects (such as <a href="MainWindowObject.html">mainWindow</a>)
+   or from external DLL functions.
+</p>
+<p>
+   If necessary, though, you can explicitly create an HWND object via <b>new HWND(<i>value</i>)</b>,
+   where <i>value</i> is a string, number, or <a href="Int64.html">Uint64</a> value
+   containing a numeric representation of a window handle value, or another
+   HWND or <a href="HandleObject.html">HANDLE</a> object.  This allows you
+   to coerce a generic object handle to the window handle type, or to
+   create a window handle object from a value you obtained externally.
+</p>
+<p>
+   Note that new HWND() doesn't actually create an on-screen window, and it
+   doesn't magically convert any arbitrary number you give it into a valid
+   window handle.  The number or handle you supply must <i>already</i> be
+   a valid window handle.  If you supply a value that isn't a valid window
+   handle, the various window information methods will return nonsensical
+   results.
+</p>
+
+
+<h2>Methods</h2>
+
+<p>
+   HWND is a subtype of HANDLE, so it has all of the prototype methods of
+   the regular HANDLE object.  It has the following additional methods that
+   are specific to windows.
+</p>
+
+<p>
+   <b><i>hwnd</i>.getWindowPos():</b>  Returns an object with information
+   on the position of the window represented by the handle.  The returned
+   object has the following properties:
+</p>
+<ul>
+   <li>clientRect: a rectangle object with the coordinates
+   of the client area of the window.  The client area is the interior
+   of the window, excluding any border, caption, or framing that the
+   system draws around the window's perimeter.  The client rectangle
+   is always in relative coordinates, relative to its own upper left
+   corner, so the "left" and "top" coordinates are always zero.
+
+   <li>isMaximized: true if the window is currently maximized, false
+   if not.  Note that this returns false for full-screen windows,
+   because full-screen mode and maximized are distinct modes with
+   different display styles.  A maximized window takes over the 
+   <i>work area</i> area of its monitor, which excludes the system
+   task bar, and it still displays its standard Windows caption bar
+   controls.  A full-screen window, in contrast, hides all of its
+   frame controls, and it takes over the full physical <i>display
+   area</i> of its monitor, including space normally taken by the
+   task bar.
+
+   <li>isMinimized: true if the window is currently minimized, false
+   if not.  A minimized window is only visible as an icon on the
+   task bar.
+
+   <li>windowRect: a rectangle object with the coordinates of
+   the outer area of the window, including any system borders, caption,
+   and framing.  The rectangle is expressed in screen coordinates,
+   relative to the top left corner of the desktop area.  Note that
+   it's possible for the coordinates to be negative on a multi-monitor
+   system, because the zero position is the top left of your primary
+   monitor.  If you've arranged another monitor on the virtual desktop
+   (using the Windows display control panel) so that it's above or
+   to the left of the primary monitor's area, that monitor's area
+   will have negative coordinates.
+</ul>
+<p>
+   The rectangle elements are represented as objects, with properties
+   left, top, right, bottom giving the bounding coordinates as integer
+   values.  The bottom right corner is expressed
+   as the position of the first pixel just <i>outside</i> of the window
+   to the right and below.  This might seem a little awkward, but all
+   Windows APIs use the same convention, so it ensures consistency with any
+   window measurements you obtain from direct calls to Windows APIs
+   or other sources.  It also has the useful property that (right - left)
+   yields the rectangle's width and (bottom - top) yields its height.
+</p>
+
+<p>
+   <b><i>hwnd</i>.isVisible():</b>  Returns true if the window is currently
+   visible, false if not.  Visibility is a system attribute that determines
+   whether or not the window is being drawn in the UI, so a visible window
+   isn't necessarily actually visible to the user: it might be minimized,
+   obscured by a foreground window that's positioned in front of it, or
+   positioned outside of the visible area of the display.
+</p>
+
+
+</body>
+</html>

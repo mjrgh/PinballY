@@ -374,6 +374,9 @@ int Application::EventLoop(int nCmdShow)
 		PostQuitMessage(1);
 	}
 
+	// initialize javascript
+	GetPlayfieldView()->InitJavascript();
+
 	// set up raw input through the main playfield window's message loop
 	if (ok)
 		ok = InputManager::GetInstance()->InitRawInput(playfieldWin->GetHWnd());

@@ -351,6 +351,45 @@ void FrameWin::UpdateLayout()
 	}
 }
 
+void FrameWin::JsSetWindowPos(HWND hwndAfter, int x, int y, int cx, int cy, int flags)
+{
+	// if we're currently in full-screen mode, exit full-screen mode
+	if (fullScreenMode)
+		ToggleFullScreen();
+
+	// if we're currently maximized or minimized, restore
+	if (IsIconic(hWnd) || IsMaximized(hWnd))
+		SendMessage(WM_SYSCOMMAND, SC_RESTORE);
+
+	// set the position
+	SetWindowPos(hWnd, hwndAfter, x, y, cx, cy, static_cast<UINT>(flags));
+}
+
+void FrameWin::JsSetWindowState(TSTRING state)
+{
+	// if we're currently in full-screen mode, exit full-screen mode
+	if (fullScreenMode)
+		ToggleFullScreen();
+
+	// check for special state changes - min, max, restore
+	std::transform(state.begin(), state.end(), state.begin(), ::_totlower);
+	if (state == _T("min"))
+	{
+		// minimize
+		SendMessage(WM_SYSCOMMAND, SC_MINIMIZE);
+	}
+	else if (state == _T("max"))
+	{
+		// maximize
+		SendMessage(WM_SYSCOMMAND, SC_MAXIMIZE);
+	}
+	else if (state == _T("restore"))
+	{
+		// restore
+		SendMessage(WM_SYSCOMMAND, SC_RESTORE);
+	}
+}
+
 void FrameWin::ShowHideFrameWindow(bool show)
 {
 	// save the new state in the configuration
@@ -367,6 +406,12 @@ void FrameWin::RestoreVisibility()
 {
 	if (ConfigManager::GetInstance()->GetInt(configVarVisible, 1) != 0)
 		ShowWindow(hWnd, SW_SHOWNOACTIVATE);
+}
+
+void FrameWin::SetBorderless(bool borderless)
+{
+	if (this->borderless != borderless)
+		ToggleBorderless();
 }
 
 void FrameWin::ToggleBorderless()
@@ -386,6 +431,12 @@ void FrameWin::ToggleBorderless()
 	// make sure the frame is redrawn
 	SetWindowPos(hWnd, NULL, -1, -1, -1, -1,
 		SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOSIZE | SWP_FRAMECHANGED);
+}
+
+void FrameWin::SetFullScreen(bool fullScreen)
+{
+	if (fullScreenMode != fullScreen)
+		ToggleFullScreen();
 }
 
 void FrameWin::ToggleFullScreen()

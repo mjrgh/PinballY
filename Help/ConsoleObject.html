@@ -82,6 +82,7 @@
    to indicate that it's an informational message.
 </p>
 
+<a name="log"></a>
 <p>
    <b>console.log(<i>object</i>...)</b>:  Displays a message on the
    console log by converting each object to its string representation
@@ -94,109 +95,122 @@
 console.log("This is a log messages!");
 </div>
 
+<a name="sprintfLog"></a>
 <p>
    <b>console.log(<i>formatString</i>, <i>arguments...</i>):</b>
    If the first argument to console.log() is a string, and it contains
    one or more "printf"-style "%" format codes, console.log() interprets
    it as a format string with substitution variables.  Each "%" code is
    replaced with a formatted version of the corresponding argument
-   from the <i>arguments</i> list, in left-to-right order.  The format
-   codes are:
+   from the <i>arguments</i> list, in left-to-right order.
 </p>
-<ul>
-   <li><b>%o</b> or <b>%O</b>: object format.  The corresponding
-   argument is treated as an object and converted to a string with
-   toString, then substituted for the %o or %O.
-
-   <li><b>%d</b> or <b>%i</b>: decimal integer format.  The corresponding
-   argument is formatted as an integer (any fractional part is
-   discarded), in decimal radix (base 10).
-
-   <li><b>%x</b> or <b>%X</b>: hex integer format.  The corresponding
-   argument is formatted as an integer (any fractional part is
-   discarded), in hexadecimal radix (base 16).  %x renders
-   hex digits A-F in lower-case, while %X renders them in
-   upper-case.
-
-   <li><b>%f</b>: floating point format.  The argument is formatted
-   as a floating point number value.
-
-   <li><b>%s</b>: string.  The string value of the argument is
-   substituted.
-</ul>
-
 <p>
-   <b>Flags, width, precision:</b>  You can include three optional
-   elements before the specifier characters: flags, width, and
-   precision.  These are specified like so:
+   Here's how the printf-style format string is interpreted:
 </p>
 <div class="indented">
-   <b>%</b> <i>flags</i> <i>width</i> <b>.</b> <i>precision</i> <i>specifier</i>
+   <p>
+      <b>Format codes:</b>  Each format code starts with a "%" and
+      ends with a letter indicating the data format to be used to
+      format the corresponding argument.  The main format codes are:
+   </p>
+   <ul>
+      <li><b>%o</b> or <b>%O</b>: object format.  The corresponding
+      argument is treated as an object and converted to a string with
+      toString, then substituted for the %o or %O.
+
+      <li><b>%d</b> or <b>%i</b>: decimal integer format.  The corresponding
+      argument is formatted as an integer (any fractional part is
+      discarded), in decimal radix (base 10).
+
+      <li><b>%x</b> or <b>%X</b>: hex integer format.  The corresponding
+      argument is formatted as an integer (any fractional part is
+      discarded), in hexadecimal radix (base 16).  %x renders
+      hex digits A-F in lower-case, while %X renders them in
+      upper-case.
+
+      <li><b>%f</b>: floating point format.  The argument is formatted
+      as a floating point number value.
+
+      <li><b>%s</b>: string.  The string value of the argument is
+      substituted.
+
+      <li><b>%%</b>: a single "%" sign is substituted.  Use this to
+      insert a literal "%" in the result string.
+   </ul>
+
+   <p>
+      <b>Flags, width, precision:</b>  You can include three optional
+      elements before the format code characters: flags, width, and
+      precision.  These are specified like so:
+   </p>
+   <div class="indented">
+      <b>%</b> <i>flags</i> <i>width</i> <b>.</b> <i>precision</i> <i>format-code</i>
+   </div>
+
+   <p><b>Flags:</b></b>
+   <ul>
+      <li><b>-</b>: left-justify the value in the available width
+         meaning that any needed padding is added at the end of the
+         numeric value.  E.g., "%-7d" formats 100 as "100"
+         followed by four spaces.  The default is to right-justify,
+         with extra spaces at the beginning of the number.
+
+      <li><b>+</b>: for numeric types (%d, %i, %x, %X, %f), show a
+         "+" sign if the value is positive.  E.g., <b>%+d</b> formats
+         100 as "+100".
+
+      <li><b><i>space</i></b>: for numeric types, insert a space at the
+         beginning of the number if it's non-negative (so that positive and
+         negative values use the same overall width).  E.g., "%&nbsp;d"
+         formats 100 as "&nbsp;100" (note the leading space).
+
+      <li><b>#</b>: for %x or %X format, add "0x" or "0X" (respectively)
+         as a prefix to the displayed value, to match the way a hex number
+         would appear in Javascript source code.  E.g., "%#x" formats
+         100 as "0x64".
+
+      <li><b>0</b>: for numeric types, if padding is required by the width
+         specifier, use leading zeroes instead of spaces.  For example,
+         "%05d" formats 100 as "00100".
+   </ul>
+
+   <p>
+      <b>Width:</b>  
+      This specifies the <i>minimum</i> width for the format.
+      This works for all types except %o and %O, which ignore it.
+      The width is given as an integer value, as in "%5d".
+      If the formatted value is shorter than the minimum given
+      by the width, padding is added, in the form of leading
+      or trailing spaces.  For the numeric formats, the padding
+      is added as leading zeroes ("0" characters) if the "0"
+      flag is specified; for strings, padding is always spaces.
+      The width is a minimum only, not a maximum; values that
+      exceed the width aren't truncated.
+   </p>
+   <p>   
+      For example, "%5d" formats 100 as "&nbsp;&nbsp;100" (with two leading spaces).
+   </p>
+
+   <p>
+      <b>Precision:</b>
+      This is a number specified after a "." in the format
+      string: it's the "3" in "%.3f" or "%7.3f".
+   </p>
+   <p>
+      For %f, the precision specifies the number of digits to
+      show after the decimal point.  Values are rounded if
+      necessary.  For example, "%.3f" displays 123.456789
+      as "123.457".
+   </p>
+   <p>
+      For integer formats, the precision simply has the effect
+      of left-justifying the result instead of right-justifying it.
+   </p>
+   <p>
+      For strings, the precision gives the maximum width.  If
+      the string is longer, it's truncated.
+   </p>
 </div>
-
-<p>Flags:</b>
-<ul>
-   <li><b>-</b>: left-justify the value in the available width
-      meaning that any needed padding is added at the end of the
-      numeric value.  E.g., "%-7d" formats 100 as "100"
-      followed by four spaces.  The default is to right-justify,
-      with extra spaces at the beginning of the number.
-
-   <li><b>+</b>: for numeric types (%d, %i, %x, %X, %f), show a
-      "+" sign if the value is positive.  E.g., <b>%+d</b> formats
-      100 as "+100".
-
-   <li><b><i>space</i></b>: for numeric types, insert a space at the
-      beginning of the number if it's non-negative (so that positive and
-      negative values use the same overall width).  E.g., "%&nbsp;d"
-      formats 100 as "&nbsp;100" (note the leading space).
-
-   <li><b>#</b>: for %x or %X format, add "0x" or "0X" (respectively)
-      as a prefix to the displayed value, to match the way a hex number
-      would appear in Javascript source code.  E.g., "%#x" formats
-      100 as "0x64".
-
-   <li><b>0</b>: for numeric types, if padding is required by the width
-      specifier, use leading zeroes instead of spaces.  For example,
-      "%05d" formats 100 as "00100".
-</ul>
-
-<p>
-   <b>Width:</b>  
-   This specifies the <i>minimum</i> width for the format.
-   This works for all types except %o and %O, which ignore it.
-   The width is given as an integer value, as in "%5d".
-   If the formatted value is shorter than the minimum given
-   by the width, padding is added, in the form of leading
-   or trailing spaces.  For the numeric formats, the padding
-   is added as leading zeroes ("0" characters) if the "0"
-   flag is specified; for strings, padding is always spaces.
-   The width is a minimum only, not a maximum; values that
-   exceed the width aren't truncated.
-</p>
-<p>   
-   For example, "%5d" formats 100 as "&nbsp;&nbsp;100" (with two leading spaces).
-</p>
-
-<p>
-   <b>Precision:</b>
-   This is a number specified after a "." in the format
-   string: it's the "3" in "%.3f" or "%7.3f".
-</p>
-<p>
-   For %f, the precision specifies the number of digits to
-   show after the decimal point.  Values are rounded if
-   necessary.  For example, "%.3f" displays 123.456789
-   as "123.457".
-</p>
-<p>
-   For integer formats, the precision simply has the effect
-   of left-justifying the result instead of right-justifying it.
-</p>
-<p>
-   For strings, the precision gives the maximum width.  If
-   the string is longer, it's truncated.
-</p>
    
 <p>
    <b>console.time(<i>label</i>):</b>  Starts a timer under
@@ -224,3 +238,5 @@ console.log("This is a log messages!");
    to indicate that it's a warning message.
 </p>
 
+</body>
+</html>

@@ -23,11 +23,20 @@ public:
 	// are we in full-screen mode?
 	bool IsFullScreen() const { return fullScreenMode; }
 
+	// is the window in borderless mode? 
+	virtual bool IsBorderless() const { return borderless; }
+
 	// handle application foreground/background switches
 	virtual void OnAppActivationChange(bool activating);
 
+	// set full-screen mode
+	void SetFullScreen(bool fullScreen);
+
 	// toggle between regular and full-screen mode
 	void ToggleFullScreen();
+
+	// set borderless mode
+	void SetBorderless(bool borderless);
 
 	// toggle between regular and borderless mode
 	void ToggleBorderless();
@@ -35,6 +44,12 @@ public:
 	// Show/hide the frame window.  This updates the window's UI
 	// visibility and saves the config change.
 	void ShowHideFrameWindow(bool show);
+
+	// Set the window position from Javascript
+	void JsSetWindowPos(HWND hwndAfter, int x, int y, int cx, int cy, int flags);
+
+	// Set the window state
+	void JsSetWindowState(TSTRING state);
 
 	// Restore visibility from the saved configuration settings
 	void RestoreVisibility();
@@ -50,10 +65,6 @@ public:
 
 protected:
 	virtual ~FrameWin();
-
-	// Borderless mode: if set, we hide the title bar and sizing
-	// borders.
-	virtual bool IsBorderless() const { return borderless; }
 
 	// Is this a hideable window?  If true, we'll hide the window on
 	// a Minimize or Close command, instead of actually minimizing or

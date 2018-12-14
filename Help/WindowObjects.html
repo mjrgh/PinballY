@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Window Objects</h1>
+
+<p>
+   PinballY provides a set of pre-defined Javascript objects corresponding
+   to the on-screen windows:
+</p>
+
+<ul>
+   <li><a href="MainWindowObject.html">mainWindow</a>: the main playfield window
+   <li><a href="BackglassWindow.html">backglassWindow</a>: the backglass window
+   <li><a href="DMDWindow.html">dmdWindow</a>: the dot-matrix display (score area) window
+   <li><a href="TopperWindow.html">topperWindow</a>: the "topper" window (an extra window that can display
+       custom graphics for pin cab systems that have a third monitor in the backbox, in addition to the
+       more typical backglass and DMD windows)
+   <li><a href="InstCardWindow.html">instCardWindow</a>: a dedicated window that displays the
+       instruction cards for the current game, for pin cab systems with an extra monitor
+       in the apron area
+</ul>
+
+<p>
+   These objects let you get and set information about the windows from
+   Javascript code.  In addition, the mainWindow object serves as the
+   <a href="EventTarget.html">Event Target</a> for most user input
+   events, such as keyboard keys and joystick buttons.
+</p>
+
+<a name="common"></a>
+<h2>Common properties and methods</h2>
+
+<p>
+   All of the UI window objects define the properties and methods
+   listed below.  Some of the windows add their own additional
+   features beyond this basic set; see the individual window
+   descriptions for details.
+</p>
+
+<p>
+   <b><i>window</i>.borderlessMode:</b> Gets or sets the window's current
+   "borderless" display status.  Reading the property returns a boolean
+   (true/false) indicating whether the window is currently in borderless
+   mode: true means that it's bordlerless, which means that the normal
+   Windows caption bar and sizing borders are hidden, so that only the
+   graphic content area of the window is visible.  Set this property
+   to true to hide the borders; set it to false to show normal Windows
+   frame controls.
+</p>
+
+<p>
+   <b><i>window</i>.fullScreenMode:</b>  Gets or sets the current full-screen
+   status of the window.  Reading this property returns a boolean (true/false)
+   indicating whether or not the window is currently in full-screen mode.
+   Setting it to true switches the window to full-screen mode; setting it
+   to false switches the window to normal windowed mode.
+</p>
+
+<p>
+   <b><i>window</i>.hwndFrame:</b> a read-only property returning an <a href="HWNDObject.html">HWND</a>
+   object representing the system window handle for the frame of the window.  The
+   frame is the main UI window, which includes the caption bar and sizing borders.
+</p>
+<p>
+   Some of the windows, such as the DMD and instruction card window, are
+   normally shown in "borderless" mode, with no frame controls.  Despite this,
+   all of the windows use the same frame/view layered structure, whether or
+   not the frame decorations are visible.  The frame window for a borderless window
+   will have the same size and location as its view content window, but
+   it will nonetheless still exist as a distinct operating system window
+   from the view, and will thus have its own separate window handle.
+   Even though this doesn't matter to the user, it allows the program to
+   internally treat all of the windows uniformly, since they have the
+   same frame/view structure.
+</p>
+<p>
+   hwndFrame retrieves the raw system handle for the window, so you can use it
+   with Windows API functions via the <a href="DllImport.html">DLL Import</a>
+   facility.  Direct Windows API calls are generally safe for retrieving
+   information about the window, but it's not advisable to make changes to the
+   window through the system APIs (e.g., repositioning it, changing its title
+   or other properties), since the main PinballY program won't necessarily be
+   notified of such changes.  This could cause unexpected behavior.  Instead,
+   you should only make changes through the Javascript methods described in this
+   section, since those will coordinate properly with the main program.
+</p>
+<p>
+   <b><i>window</i>.hwndView:</b> a read-only property returning an <a href="HWNDObject.html">HWND</a>
+   object representing the system window handle for the "view" portion of the window.
+   This is the interior graphics content area of the window, which excludes the caption
+   and borders.  All of the Direct3D drawing for the graphical content is done in
+   this window.
+</p>
+<p>
+   From the user's perspective, this is simply the interior of the
+   same window as the frame, but it's actually implemented as a separate operating
+   system object, thus the need for this separate property.  In Windows terms,
+   this is a "child" window of the frame window.
+</p>
+<p>
+   As with the frame handle, this is the raw system window handle, which you
+   can use in direct calls to Windows API functions.  However, it's not
+   advisable to make changes to the window though system APIs, since the
+   main PinballY code won't necessarily be notified of such changes.
+</p>
+
+<p>
+   <b><i>window</i>.setWindowState(<i>state</i>):</b> Minimizes, maximizes, or
+   restores the window position.  <i>state</i> can be one of the following
+   string values:
+</p>
+<ul>
+   <li><b>"min"</b> = minimize the window
+   <li><b>"max"</b> = maximize the window
+   <li><b>"restore"</b> = restore the window from minimized or maximized state
+</ul>
+<p>
+   If the window is currently in full-screen mode, it will automatically
+   be returned to normal windowed mode first.
+</p>
+
+<p>
+   <b><i>window</i>.setWindowPos(<i>afterWindow</i>, <i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>, <i>flags</i>):</b>
+   Sets any combination of the window's position, size, and Z order.  First,
+   if the window is currently in full-screen mode, it's switched to normal
+   windowed mode.  Then, the standard Windows API function SetWindowPos()
+   is called with the provided arguments.
+</p>
+<p>
+   <i>afterWindow</i> is a window handle (an <a href="HWNDObject.html">HWND</a> object)
+   that's used to determine the new Z order, by moving this window immediately behind
+   the specified window.  This is ignored if the SWP_NOZORDER bit (0x0004) is included
+   in the <i>flags</i> value.  The following special values can be set to set
+   absolute positions:
+</p>
+<ul>
+   <li><b>HWND.BOTTOM</b> = place the window behind all other windows on the screen
+   <li><b>HWND.NOTOPMOST</b> = <i>if</i> this window currently has the "topmost"
+   attribute, make it non-topmost by moving it behind the last topmost window.  There's
+   no effect if this isn't currently a topmost window.
+   <li><b>HWND.TOP</b> = move the window to the front of the Z order
+   <li><b>HWND.TOPMOST</b> = give the window the "topmost" attribute, and move it
+   ahead of all other windows.  The window will continue to stay in front of all
+   other non-topmost windows even when deactivated.
+</ul>
+<p>
+   <i>x, y</i> give the new top left position of the window, in screen pixel
+   coordinates, relative to the desktop origin.  This is the same coordinate system
+   that <i>hwnd</i>.getWindowPos() returns in the windowRect rectangle.  <i>x</i>
+   and <i>y</i> are ignored if the SWP_NOMOVE bit (0x0002) is included in <i>flags</i>.
+</p>
+<p>
+   <i>width, height</i> give the new window size, in pixels.  This is the size
+   of the outer frame area of the window, which is the same size reported in
+   the windowRect rectangle returned by <i>hwnd</i>.getWindowPos().  These
+   values are ignored if the SWP_NOSIZE bit (0x0001) is included in <i>flags</i>.
+</p>
+<p>
+   <i>flags</i> is a bitwise combination (with the "|" operator) of the
+   following flags bits:
+</p>
+<ul>
+   <li>SWP_NOACTIVATE (0x0010) prevents the window from being newly activated.
+   If this isn't provided, the function normally activates the window
+   a side effect.  This flag leaves the activation status unchanged.
+   (Note that it doesn't deactivate a window that's already activated;
+   it simply prevents any change in activation status.)
+
+   <li>SWP_NOMOVE (0x0002) tells the function to ignore the new position
+   (x, y) arguments and leave the window at its current top left coordinate
+   position.
+
+   <li>SWP_NOOWNERZORDER (0x0200) prevents any effects on the "owner"
+   window's Z order.  All of the secondary PinballY windows (backglass,
+   DMD, etc) are owned by the main playfield window, so without this flag,
+   the playfield window will be moved to a new Z order along with the
+   secondary window.  This flag lets you move the windows independently,
+   without affecting the playfield window's Z order.
+
+   <li>SWP_NOSIZE (0x0001) tells the function to ignore the new size
+   (width, height) arguments and leave the window's size unchanged.
+
+   <li>SWP_NOZORDER (0x0004) tells the function to ignore the <i>hwndAfter</i>
+   argument and leaves the window's Z order unchanged.
+</ul>
+   
+
+<p>
+   <b><i>window</i>.showWindow(<i>show</i>):</b> Shows or hides the window.
+   <i>show</i> is a boolean (true/false) specifying whether to show (true)
+   or hide (false) the window.
+</p>
+
+
+</body>
+</html>

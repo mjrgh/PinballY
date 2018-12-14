@@ -13,13 +13,27 @@
 <h1>KeyEvent</h1>
 
 <p>
-   This is the Event subclass that represents keyboard events.
+   This is the Event subclass that represents keyboard events.  There
+   are four key event subtypes:
 </p>
 <ul>
-   <li><b>keydown:</b>  Fires when the user presses a key.  Also fires each
-      time a key "auto-repeats" while the user is holding it down.
+   <a name="keydown"></a>
+   <li><b>keydown:</b>  Fires when the user presses a key while the
+   program is running in the foreground.  Also fires each time a key
+   "auto-repeats" while the user is holding it down.
 
-   <li><b>keyup:</b>  Fires when the user releases a key.
+   <a name="keyup"></a>
+   <li><b>keyup:</b>  Fires when the user releases a key while the
+   application is in the foreground.
+
+   <a name="keybgdown"></a>
+   <li><b>keybgdown:</b>  Fires when the user presses a key while the
+   program is running in the background, and fires again each time the
+   key auto-repeats while the user holds the key down.
+
+   <a name="keybgup"></a>
+   <li><b>keybgup:</b>  Fires when the user releases a key while the
+   application is in the background.
 </ul>
 
 <p>
@@ -68,3 +82,55 @@
 
 
 
+<h2>Background key events</h2>
+<p>
+   The "bg" key events are used when the application is running
+   in the background, meaning that some other application's window
+   is activated (that is, the other application's window in the
+   foreground and has keyboard focus).  PinballY monitors the keyboard
+   while it's in the background so that it can carry out commands
+   that operate on a running game, such as "End Game" and "Pause Game".
+</p>
+<p>
+   We use separate Javascript events for foreground and background
+   key presses for two reasons.  The first is to simplify your
+   event handlers.  In most cases, you won't want to do anything
+   at all with background key events, so using separate event types
+   for the two cases lets you skip extra checks for the foreground
+   or background status.  You can simply write all of your foreground
+   key handler code in a foreground key handler function, knowing
+   that that function will only be called for foreground keys.
+   The second reason is that it reduces the performance overhead
+   for processing the background events, by entirely skipping
+   user-written event handler code
+   that only needs to run for foreground keys.  It's especially
+   important to minimize PinballY's performance impact while it's
+   in the background so that it doesn't slow down a running game.
+   (The performance impact when no event handler is present is
+   negligible: in the absence of a user-written event
+   handler, the basic processing to fire a background keyboard
+   event takes on the order of 100&mu;s.)
+</p>
+<p>
+   If you want to write a single handler that operates on both
+   foreground and background key events, the Event Target on()
+   method makes that easy: just specify both event types when
+   adding the handler:
+</p>
+<div class="code">
+mainWindow.on("keydown keybgdown", (ev) => { /* common handler */ });
+</div>
+
+<p>
+   It's not possible to use the background key event handlers
+   to change or block keystrokes that the foreground application
+   receives.  PinballY receives background keys via the Windows
+   RAW INPUT mechanism, which only <i>monitors</i> the keys.
+   It's essentially a passive wire-tap.
+   Windows sends the keystrokes to the foreground application
+   regardless of what PinballY does with the events from its
+   background handler.
+</p>
+
+</body>
+</html>

@@ -39,6 +39,9 @@ public:
 	inline double GetTickTime_sec() const { return tickTime_sec; }
 	inline double GetTickTime_us() const { return tickTime_us; }
 
+	// convert ticks to microseconds
+	inline double TicksToUs(int64_t ticks) const { return ticks * tickTime_us; }
+
 protected:
 	// Peformance counter clock period in seconds.  Multiply an
 	// interval read from the performance counter by this factor to

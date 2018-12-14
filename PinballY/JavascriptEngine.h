@@ -121,6 +121,18 @@ public:
 	JsErrorCode GetProp(TSTRING &strval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(JsValueRef &val, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 
+	// Create an object.  Returns true on success; on error, throws an error
+	// within the javascript engine and returns false.
+	bool CreateObj(JsValueRef &obj);
+
+	// Simple property setters
+	bool SetProp(JsValueRef obj, const CHAR *prop, int val);
+	bool SetProp(JsValueRef obj, const CHAR *prop, bool val);
+	bool SetProp(JsValueRef obj, const CHAR *prop, double val);
+	bool SetProp(JsValueRef obj, const CHAR *prop, const WCHAR *val);
+	bool SetProp(JsValueRef obj, const CHAR *prop, const WSTRING &val);
+	bool SetProp(JsValueRef obj, const CHAR *prop, JsValueRef val);
+
 	// set a read-only property
 	JsErrorCode SetReadonlyProp(JsValueRef object, const CHAR *propName, JsValueRef propVal,
 		const TCHAR* &errWhere);
@@ -134,6 +146,9 @@ public:
 		JsNativeFunction getter, void *getterCtx,
 		JsNativeFunction setter, void *setterCtx,
 		const TCHAR* &where);
+
+	// create a Javascript object representing an HWND value
+	JsErrorCode NewHWNDObj(JsValueRef &jsobj, HWND h, const TCHAR* &where);
 
 	// get a property from the global object
 	template<typename T>
@@ -428,6 +443,7 @@ public:
 
 	template<> class ToNativeConverter<bool> : public ToNativeConverterBase
 	{
+	public:
 		bool Empty() const { return false; }
 		bool Conv(JsValueRef val, bool &ok, const CSTRING &name) const
 		{
@@ -548,6 +564,13 @@ public:
 		JsValueRef Conv(JsValueRef val, bool &, const CSTRING&) const { return val; }
 	};
 
+	template<> class ToNativeConverter<HWND> : public ToNativeConverterBase
+	{
+	public:
+		HWND Empty() const { return NULL; }
+		HWND Conv(JsValueRef val, bool &ok, const CSTRING &) const;
+	};
+
 	// Javascript-to-native function binder.    This collection of template
 	// classes is used to create native callbacks.  The callbacks are
 	// implemented with normal native C++ type signatures; the binder does
@@ -655,6 +678,21 @@ public:
 			// return 'undefined'
 			JsValueRef v;
 			JsGetUndefinedValue(&v);
+			return v;
+		}
+	};
+
+	template<typename... Ts> class FromNativeConverter<bool, Ts...>
+	{
+	public:
+		JsValueRef Apply(std::function<bool(Ts...)> func, std::tuple<Ts...> args)
+		{
+			// call the function
+			bool b = std::apply(func, args);
+
+			// return the boolean value
+			JsValueRef v;
+			JsBoolToBoolean(b, &v);
 			return v;
 		}
 	};
@@ -814,7 +852,7 @@ public:
 	};
 
 	template <typename C, typename R, typename... Ts>
-	static NativeFunction<R(Ts...)>* WrapNativeMemberFunction(R(C::*func)(Ts...), C *self)
+	static NativeFunction<R(Ts...)>* WrapNativeMemberFunction(R (C::*func)(Ts...), C *self)
 	{
 		class GenericNativeMemberFunction : public NativeFunction<R(Ts...)>
 		{
@@ -830,6 +868,44 @@ public:
 		return new GenericNativeMemberFunction(func, self);
 	};
 
+	template <typename C, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeMemberFunction(R (C::*func)(Ts...) const, C *self)
+	{
+		class GenericNativeMemberFunction : public NativeFunction<R(Ts...)>
+		{
+		public:
+			GenericNativeMemberFunction(R (C::*func)(Ts...) const, C *self) : func(func), self(self) { }
+
+			R (C::*func)(Ts...) const;
+			C *self;
+
+			virtual R Impl(Ts... args) const override { return (self->*func)(args...); }
+		};
+
+		return new GenericNativeMemberFunction(func, self);
+	};
+
+	template<typename ContextType, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeMethod(R (*func)(ContextType, JsValueRef, Ts...), ContextType context)
+	{
+		class GenericNativeMethod : public NativeFunction<R(Ts...)>
+		{
+		public:
+			using FuncType = R(ContextType, JsValueRef, Ts...);
+
+			GenericNativeMethod(FuncType *func, ContextType context) :
+				func(func), context(context) { }
+
+			FuncType *func;
+			ContextType context;
+
+			virtual R DImpl(struct CallDesc &desc, Ts... args) const override { return (*func)(context, desc.this_, args...); }
+			virtual R Impl(Ts...) const { return static_cast<R>(0); /* unused due to DImpl override */ }
+		};
+
+		return new GenericNativeMethod(func, context);
+	};
+
 	// Create a global native callback function.  This creates a property
 	// of the 'global' object of the given name, and assigns it to a native
 	// callback to the given function object.
@@ -841,21 +917,27 @@ public:
 	// Install a native callback function as an object property
 	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, NativeFunctionBinderBase *func, ErrorHandler &eh);
 
+	// Install a native getter/setter pair
+	bool DefineGetterSetter(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		NativeFunctionBinderBase *getter, NativeFunctionBinderBase *setter, ErrorHandler &eh);
+
 	// Create a native function wrapper and add it to our internal tracking
 	// list for eventual disposal.
 	template <typename ContextType, typename R, typename... Ts>
 	NativeFunctionBinderBase *CreateAndSaveWrapper(R (*func)(ContextType*, Ts...), ContextType *context)
-	{
-		// create the wrapper, enlist it, and return it
-		return this->nativeWrappers.emplace_back(WrapNativeFunction(func, context)).get();
-	}
+		{ return this->nativeWrappers.emplace_back(WrapNativeFunction(func, context)).get(); }
 
 	template <class C, typename R, typename... Ts>
 	NativeFunctionBinderBase *CreateAndSaveWrapper(R (C::*func)(Ts...), C *self)
-	{
-		// create the wrapper, enlist it, and return it
-		return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get();
-	}
+		{ return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get(); }
+
+	template <class C, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveWrapper(R(C::*func)(Ts...) const, C *self)
+		{ return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get(); }
+
+	template <typename ContextType, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveMethodWrapper(R (*func)(ContextType*, JsValueRef, Ts...), ContextType *context)
+		{ return this->nativeWrappers.emplace_back(WrapNativeMethod(func, context)).get(); }
 
 	// Define a global function, creating a native wrapper for it.  The wrapper
 	// is added to an internal list to ensure that it's deleted with the engine.
@@ -877,6 +959,20 @@ public:
 	bool DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, 
 		R (C::*func)(Ts...), C *self, ErrorHandler &eh)
 		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveWrapper(func, self), eh); }
+
+	template <typename ContextType, typename R, typename... Ts>
+	bool DefineObjMethod(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		R (*func)(ContextType*, JsValueRef, Ts...), ContextType *ctx, ErrorHandler &eh)
+		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveMethodWrapper(func, ctx), eh); }
+
+	template <class C, typename R>
+	bool DefineGetterSetter(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		R (C::*getter)() const, void (C::*setter)(R), C *self, ErrorHandler &eh)
+	{
+		NativeFunctionBinderBase *getterWrapper = getter != nullptr ? CreateAndSaveWrapper(getter, self) : nullptr;
+		NativeFunctionBinderBase *setterWrapper = setter != nullptr ? CreateAndSaveWrapper(setter, self) : nullptr;
+		return this->DefineGetterSetter(obj, objName, propName, getterWrapper, setterWrapper, eh);
+	}
 
 	// Exported value.  This allows the caller to store a javascript value
 	// in C++ native code, for later use.  For example, this can be used to
@@ -1582,6 +1678,27 @@ protected:
 
 	// HANDLE prototype in the Javascript code
 	JsValueRef HANDLE_proto = JS_INVALID_REFERENCE;
+
+	// HWND object
+	class HWNDData : public HandleData
+	{
+	public:
+		HWNDData(HWND h) : HandleData(h) { }
+
+		HWND hwnd() const { return static_cast<HWND>(h); }
+
+		static JsErrorCode CreateFromNative(HWND h, JsValueRef &jsval);
+		static HWND FromJavascript(JsValueRef jsval);
+
+		static JsValueRef CALLBACK CreateWithNew(JsValueRef callee, bool isConstructCall,
+			JsValueRef *argv, unsigned short argc, void *ctx);
+
+		static bool IsVisible(JavascriptEngine *ctx, JsValueRef self);
+		static JsValueRef GetWindowPos(JavascriptEngine *ctx, JsValueRef self);
+	};
+
+	// HWND prototype in the Javascript code
+	JsValueRef HWND_proto = JS_INVALID_REFERENCE;
 
 	// External data object representing a native pointer.  We use this to
 	// wrap pointers returned from native code calls, since Javascript has no
@@ -2305,6 +2422,38 @@ protected:
 			__try
 			{
 				*reinterpret_cast<HANDLE*>(nativep) = HandleData::FromJavascript(jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer write: memory location is invalid, inaccessible, or read-only");
+			}
+			return JsNoError;
+		}
+	};
+
+	// Native type view for HWND types
+	struct HWNDNativeTypeView : public ScalarNativeTypeView
+	{
+		using ScalarNativeTypeView::ScalarNativeTypeView;
+
+		virtual JsErrorCode Get(JsValueRef self, void *nativep, JsValueRef *jsval) const override
+		{
+			__try
+			{
+				return HWNDData::CreateFromNative(*reinterpret_cast<const HWND*>(nativep), *jsval);
+			}
+			__except (EXCEPTION_EXECUTE_HANDLER)
+			{
+				ThrowSimple("Bad native pointer dereference: memory location is invalid or inaccessible");
+				return JsNoError;
+			}
+		}
+
+		virtual JsErrorCode Set(JsValueRef self, void *nativep, JsValueRef jsval) const override
+		{
+			__try
+			{
+				*reinterpret_cast<HWND*>(nativep) = HWNDData::FromJavascript(jsval);
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{

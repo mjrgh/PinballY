@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+
+<h1>CommandButtonEvent</h1>
+
+<p>
+   This Event subclass is similar to <a href="KeyEvent.html">KeyEvent</a> and
+   <a href="JoystickEvent.html">JoystickEvent</a>, but represents a
+   notional "command" button, which is what a physical key press
+   turns into after being translated into the PinballY command
+   that's assigned to the physical key that was actually pressed.
+   This event lets you work in terms of the assigned meaning of
+   a key rather than in terms of the physical key.  Since PinballY
+   lets users reassign commands to whichever keys they want, the
+   physical key pressed is often irrelevant to a program function;
+   the assigned command is often all that matters.
+</p>
+<p>
+   When the user presses a physical key, it goes through several
+   steps of processing.  These steps generate Javascript events
+   that you can monitor:
+</p>
+<ul>
+   <li>A "keydown" or "joystickbuttondown" event is generated for
+   the physical key.  (The "bg" equivalent is used instead if the
+   program is running in the background.)  This gives you a chance
+   to take action according to the actual physical key pressed,
+   regardless of which command it's assigned to, or whether it's
+   assigned to a command at all.
+
+   <li>PinballY determines if the key is assigned to any command(s)
+   in the settings.  If so, it puts the command in a queue for
+   processing.  If not, no Command Button events will be generated
+   for the key, but you'll still see the physical key events.
+
+   <li>When it's time to process the command, a "commandbuttondown"
+   (or the "bg" equivalent) is generated for the mapped command.
+   It doesn't matter to PinballY which physical key generated
+   the command at this point, so this event only has the mapped
+   command, with no information on the original key that was
+   pressed.  This event lets you work in terms of the assigned
+   meaning of the key, regardless of which physical key was used
+   to generate the command.
+</ul>
+   
+<p>
+   As with key and joystick events, a "button down" event is sent
+   when the user presses the button, and a "button up" event is
+   sent when the user releases the button.  A command button event
+   can also auto-repeat if the user holds down the originating key.
+</p>
+<p>
+   The default processing that PinballY does almost always ignores
+   the "up" events; commands are generally only triggered by
+   key press events.  PinballY repeats some command actions on
+   auto-repeat events, such as moving through the game wheel with
+   the next/previous keys, and it ignores auto-repeats for
+   some other commands.  Regardless of the internal response,
+   though, the sequence of Command Button events - button down,
+   repeat button down, button up - is always generated the
+   same way for all keys with commands assigned.
+</p>
+<p>
+   The settings allow a single physical key to be mapped to
+   more than one command.  When a key with multiple assigned
+   commands is pressed, the program fires multiple Command
+   Button events - one per assigned command - for the same
+   physical key press.  The only button that's commonly
+   mapped to multiple commands is the Exit button, which
+   is usually mapped to both the "Exit" command and the
+   "Exit Game" command.  However, the ability to map
+   multiple commands to a key isn't restricted to that
+   case and could be applied to any key and any combination
+   of commands.
+</p>
+
+<p>
+   There are four command button event subtypes:
+</p>
+<ul>
+   <li><b>commandbuttondown:</b> Fires when a key mapped to a
+   command is pressed while the application is in the foreground.
+   Fires again each time the key auto-repeats.
+
+   <li><b>commandbuttonup:</b> Fires when a key mapped to a command
+   is released and the application is in the foreground.
+
+   <li><b>commandbuttonbgdown:</b>  Fires when a key mapped to
+   a command is pressed while the application is in the background,
+   and again on each auto-repeat.
+
+   <li><b>commandbuttonbgup:</b>  Fires when a command key is
+   released while the application is in the background.
+</ul>
+
+<h2>Properties</h2>
+
+<ul>
+   <li><b>background:</b> true if the original key press happened
+   while the program was in the background.
+
+   <li><b>command:</b> a string with the name of the command assigned
+   to the key.  This is one of the following:
+
+   <ul>
+      <li>"Coin1" = the first coin chute switch (usually the leftmost chute),
+      sometimes wired to a "Coin In" button on the front panel
+
+      <li>"Coin2" = the second coin chute switch (usually the middle chute,
+      not typically present on a two-chute US coin door)
+
+      <li>"Coin3" = the third coin chute switch (usually the right chute)
+      
+      <li>"Coin4" = the fourth coin chute switch (on a US coin door, typically
+      wired to the dollar bill acceptor)
+
+      <li>"CoinDoor" = the Coin Door button (usually assigned to the coin
+      door switch in a pin cab, which either sends a keystroke each time
+      the door switches between closed and open, or is held down while
+      the door is open, depending on how the cabinet is wired)
+
+      <li>"Exit" = the Exit button, which cancels the current menu,
+      closes popups, etc; usually assigned to the Exit button on a pin cab
+      
+      <li>"ExitGame" = the Exit Game button, which terminates a running game;
+      usually assigned to the Exit button on a pin cab
+
+      <li>"FrameCounter" = toggles the on-screen frame counter on or off
+      in the active window
+
+      <li>"FullScreen" = toggles between full-screen and windowed mode in
+      the active window
+
+      <li>"Information" = shows the game information popup (the same display
+      activated with the "Information" command in the main menu)
+
+      <li>"Instructions" = shows the instruction card for the current game
+      as a popup overlay
+      
+      <li>"Launch" = launch the current game without displaying the menu;
+      usually assigned to the Launch Ball button on a pin cab
+      
+      <li>"Next" = the Next button, which switches to the next game,
+      selects the next menu item, etc; usually assigned to the right
+      flipper button on a pin cab
+
+      <li>"NextPage" = the Next Page button, which advances to the next
+      letter of the alphabet in the game wheel, advances to the next page
+      of menu items, etc; usually assigned to the right MagnaSave button
+      on a pin cab
+      
+      <li>"PauseGame" = brings PinballY to the foreground if it's currently
+      in the background.  When a game is running, this usually has the
+      effect of pausing the game by deactivating its window.
+
+      <li>"Prev" = the Previous button, which switches to the prior
+      game, selects the previous menu item, etc; usually assigned to the
+      left flipper button on a pin cab
+      
+      <li>"PrevPage" = the Previous Page button, which switches to the
+      previous letter of the alphabet in the game wheel, scrolls up a page
+      of menu items, etc; usually assigned to the left MagnaSave button
+      on a pin cab
+
+      <li>"RotateMonitor" = rotates the active window's interior graphics
+      clockwise by 90&deg;
+
+      <li>"Select" = the Select button, which brings up the menu,
+      selects the current menu item, etc; usually assigned to the Start
+      button on a pin cab
+
+      <li>"Service1" = the first service panel button, usually assigned
+      to the "Escape/Cancel" button on the operator controls inside the
+      coin door on a cabinet
+      
+      <li>"Service2" = the second service panel button, usually "-/Previous"
+      on the operator controls
+
+      <li>"Service3" = the third service panel button, usually "+/Next" on
+      the operator controls
+      
+      <li>"Service4" = the fourth service panel button, usually "Enter/Select"
+      on the operator controls
+      
+      <li>"Settings" = shows the Options dialog
+
+   </ul>
+
+   <li><b>repeat:</b> true if the key is an auto-repeat event while
+   the key is being held down.
+</ul>
+
+</body>
+</html>

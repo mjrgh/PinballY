@@ -727,6 +727,70 @@ JsErrorCode JavascriptEngine::GetProp(JsValueRef &val, JsValueRef obj, const CHA
 	return JsNoError;
 }
 
+bool JavascriptEngine::CreateObj(JsValueRef &obj)
+{
+	if (JsErrorCode err = JsCreateObject(&obj); err != JsNoError)
+		return Throw(err, _T("JsCreateObject")), false;
+
+	return true;
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, JsValueRef val)
+{
+	JsErrorCode err;
+	JsPropertyIdRef propkey;
+	if ((err = JsCreatePropertyId(prop, strlen(prop), &propkey)) != JsNoError
+		|| (err = JsSetProperty(obj, propkey, val, true)) != JsNoError)
+		return Throw(err, _T("SetProp")), false;
+
+	return true;
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, int val)
+{
+	JsErrorCode err;
+	JsValueRef jsval;
+	if ((err = JsIntToNumber(val, &jsval)) != JsNoError)
+		return Throw(err, _T("SetProp(int)")), false;
+	return SetProp(obj, prop, jsval);
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, bool val)
+{
+	JsErrorCode err;
+	JsValueRef jsval;
+	if ((err = JsBoolToBoolean(val, &jsval)) != JsNoError)
+		return Throw(err, _T("SetProp(bool)")), false;
+	return SetProp(obj, prop, jsval);
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, double val)
+{
+	JsErrorCode err;
+	JsValueRef jsval;
+	if ((err = JsDoubleToNumber(val, &jsval)) != JsNoError)
+		return Throw(err, _T("SetProp(double)")), false;
+	return SetProp(obj, prop, jsval);
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, const WCHAR *val)
+{
+	JsErrorCode err;
+	JsValueRef jsval;
+	if ((err = JsPointerToString(val, wcslen(val), &jsval)) != JsNoError)
+		return Throw(err, _T("SetProp(int)")), false;
+	return SetProp(obj, prop, jsval);
+}
+
+bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, const WSTRING &val)
+{
+	JsErrorCode err;
+	JsValueRef jsval;
+	if ((err = JsPointerToString(val.c_str(), val.length(), &jsval)) != JsNoError)
+		return Throw(err, _T("SetProp(int)")), false;
+	return SetProp(obj, prop, jsval);
+}
+
 JsErrorCode JavascriptEngine::SetReadonlyProp(JsValueRef object, const CHAR *propName, JsValueRef propVal, const TCHAR* &where)
 {
 	JsErrorCode err = JsNoError;
@@ -862,6 +926,58 @@ bool JavascriptEngine::DefineObjPropFunc(JsValueRef obj, const CHAR *objName, co
 
 	// define the property
 	return DefineObjPropFunc(obj, objName, propName, &NativeFunctionBinderBase::SInvoke, func, eh);
+}
+
+bool JavascriptEngine::DefineGetterSetter(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+	NativeFunctionBinderBase *getter, NativeFunctionBinderBase *setter, ErrorHandler &eh)
+{
+	JsErrorCode err;
+	auto Error = [objName, propName, &err, &eh](const TCHAR *where)
+	{
+		eh.SysError(LoadStringT(IDS_ERR_JSINITHOST), MsgFmt(_T("Setting up native getter/setter for %hs.%hs: %s failed: %s"),
+			objName, propName, where, JsErrorToString(err)));
+		return false;
+	};
+
+	// set up the native functions
+	auto Init = [&eh, &err, &Error, objName, propName](JsValueRef &jsfunc, NativeFunctionBinderBase *func, CSTRING prefix)
+	{
+		// skip it if this one isn't used
+		if (func == nullptr)
+		{
+			jsfunc = JS_INVALID_REFERENCE;
+			return true;
+		}
+
+		// set the name
+		func->callbackName = prefix + propName;
+
+		// create the function name value
+		JsValueRef nameval;
+		MsgFmt name(_T("%hs.%hs"), objName, propName);
+		JsErrorCode err;
+		if ((err = JsPointerToString(name.Get(), wcslen(name.Get()), &nameval)) != JsNoError)
+			return Error(_T("JsPointerToString"));
+
+		// create the native function wrapper
+		if ((err = JsCreateNamedFunction(nameval, &NativeFunctionBinderBase::SInvoke, func, &jsfunc)) != JsNoError)
+			return Error(_T("JsCreateFunction"));
+
+		// success
+		return true;
+	};
+
+	JsValueRef jsGetter, jsSetter;
+	if (!Init(jsGetter, getter, "get_") || !Init(jsSetter, setter, "set_"))
+		return false;
+
+	// add the getter/setter
+	const TCHAR *where;
+	if ((err = AddGetterSetter(obj, propName, jsGetter, jsSetter, where)) != JsNoError)
+		return Error(where);
+
+	// success
+	return true;
 }
 
 
@@ -1621,7 +1737,7 @@ public:
 	size_t SizeofStruct(JsValueRef jsval, const TCHAR *flexErrorMsg);
 	size_t SizeofUnion(JsValueRef jsval, const TCHAR *flexErrorMsg);
 
-	const double MaxIntInDouble = static_cast<double>(2LL << DBL_MANT_DIG);
+	const double MaxIntInDouble = static_cast<double>(1LL << DBL_MANT_DIG);
 
 	// marshall the value at the current signature position
 	virtual void MarshallValue()
@@ -1657,6 +1773,7 @@ public:
 		case 'f': return DoFloat();
 		case 'd': return DoDouble();
 		case 'H': return DoHandle();
+		case 'h': return DoWinHandle();
 		case 't': return DoString();
 		case 'T': return DoString();
 		case 'G': return DoGuid();
@@ -1752,6 +1869,7 @@ public:
 
 	// handle types
 	virtual void DoHandle() { IF_32_64(AnyInt32(), AnyInt64()); }
+	virtual void DoWinHandle() { DoHandle(); }
 
 	// variants
 	virtual void DoVariant() { }
@@ -4025,6 +4143,11 @@ public:
 		Check(CreateExternalObjectWithPrototype(jsval, inst->HANDLE_proto, new HandleData(*reinterpret_cast<const HANDLE*>(valp))));
 	}
 
+	virtual void DoWinHandle() override
+	{
+		Check(CreateExternalObjectWithPrototype(jsval, inst->HWND_proto, new HWNDData(*reinterpret_cast<const HWND*>(valp))));
+	}
+
 	virtual void DoFunction() override { Error(_T("dllImport: function can't be returned by value (pointer required)")); }
 
 	void DoPointerToFunction(const WCHAR *funcSig)
@@ -4215,6 +4338,33 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 
 	// save a reference on the handle prototype, as we're hanging onto it
 	JsAddRef(HANDLE_proto, nullptr);
+
+	// find the HWND object's prototype
+	if ((err = GetProp(classObj, global, "HWND", subwhere)) != JsNoError
+		|| (err = GetProp(HWND_proto, classObj, "prototype", subwhere)) != JsNoError)
+		return Error(subwhere);
+
+	// set up prototype methods and properties
+	auto SetSpecialHWND = [this, classObj, &err, &subwhere, &Error](const CHAR *name, HWND hwnd)
+	{
+		JsValueRef val;
+		if ((err = HWNDData::CreateFromNative(hwnd, val)) != JsNoError
+			|| (err = SetReadonlyProp(classObj, name, val, subwhere)) != JsNoError)
+			return Error(_T("Creating special HWND window property"));
+
+		return true;
+	};
+	if (!DefineObjPropFunc(classObj, "HWND", "_new", &HWNDData::CreateWithNew, this, eh)
+		|| !DefineObjMethod(HWND_proto, "HWND", "isVisible", &HWNDData::IsVisible, this, eh)
+		|| !DefineObjMethod(HWND_proto, "HWND", "getWindowPos", &HWNDData::GetWindowPos, this, eh)
+		|| !SetSpecialHWND("BOTTOM", HWND_BOTTOM)
+		|| !SetSpecialHWND("NOTOPMOST", HWND_NOTOPMOST)
+		|| !SetSpecialHWND("TOP", HWND_TOP)
+		|| !SetSpecialHWND("TOPMOST", HWND_TOPMOST))
+		return false;
+
+	// save a reference on it
+	JsAddRef(HWND_proto, nullptr);
 
 	// find the NativeObject object's prototype
 	if ((err = GetProp(classObj, global, "NativeObject", subwhere)) != JsNoError
@@ -4796,7 +4946,7 @@ JsValueRef CALLBACK JavascriptEngine::HandleData::ToNumber(JsValueRef callee, bo
 	{
 		double d = static_cast<double>(reinterpret_cast<UINT_PTR>(self->h));
 		JsDoubleToNumber(d, &ret);
-		if (d > static_cast<double>(1LL < DBL_MANT_DIG))
+		if (d > static_cast<double>(1LL << DBL_MANT_DIG))
 		{
 			JsValueRef msg, exc;
 			const WCHAR *txt = L"Value out of range";
@@ -4806,6 +4956,130 @@ JsValueRef CALLBACK JavascriptEngine::HandleData::ToNumber(JsValueRef callee, bo
 		}
 	}
 	return ret;
+}
+
+// -----------------------------------------------------------------------
+//
+// Native HWND type
+//
+
+HWND JavascriptEngine::ToNativeConverter<HWND>::Conv(JsValueRef val, bool &ok, const CSTRING &name) const
+{
+	return HWNDData::FromJavascript(val);
+}
+
+JsErrorCode JavascriptEngine::NewHWNDObj(JsValueRef &jsval, HWND h, const TCHAR* &where)
+{
+	where = _T("Creating HWND object");
+	return HWNDData::CreateFromNative(h, jsval);
+}
+
+JsErrorCode JavascriptEngine::HWNDData::CreateFromNative(HWND h, JsValueRef &jsval)
+{
+	return CreateExternalObjectWithPrototype(jsval, inst->HWND_proto, new HWNDData(h));
+}
+
+HWND JavascriptEngine::HWNDData::FromJavascript(JsValueRef jsval)
+{
+	// If the value is a HANDLE object, use the same underlying handle value. 
+	// Note that we can coerce any HANDLE value to an HWND.
+	if (auto handleObj = Recover<HandleData>(jsval, nullptr); handleObj != nullptr)
+		return static_cast<HWND>(handleObj->h);
+
+	// otherwise, reinterpret a numeric value (possibly 64-bit) as a handle
+	return reinterpret_cast<HWND>(XInt64Data<UINT64>::FromJavascript(jsval));
+}
+
+JsValueRef CALLBACK JavascriptEngine::HWNDData::CreateWithNew(JsValueRef callee, bool isConstructCall,
+	JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// if we have an argument, interpret it into an HWND value
+	HWND h = NULL;
+	if (argc >= 2)
+		h = FromJavascript(argv[1]);
+
+	// create the handle
+	JsValueRef retval;
+	if (JsErrorCode err = CreateFromNative(h, retval); err != JsNoError)
+		inst->Throw(err, _T("new HWND()"));
+
+	// return the new HANDLE js object
+	return retval;
+}
+
+bool JavascriptEngine::HWNDData::IsVisible(JavascriptEngine *js, JsValueRef self)
+{
+	if (auto hwndObj = Recover<HWNDData>(self, _T("HWND.IsVisible")); hwndObj != nullptr)
+		return ::IsWindowVisible(hwndObj->hwnd());
+
+	return js->undefVal;
+}
+
+JsValueRef JavascriptEngine::HWNDData::GetWindowPos(JavascriptEngine *js, JsValueRef self)
+{
+	if (auto hwndObj = Recover<HWNDData>(self, _T("HWND.IsVisible")); hwndObj != nullptr)
+	{
+		// get the window position - frame and client
+		HWND hwnd = hwndObj->hwnd();
+		RECT rcWin, rcClient;
+		::GetWindowRect(hwnd, &rcWin);
+		::GetClientRect(hwnd, &rcClient);
+
+		// get the min/max state
+		BOOL isMin = ::IsIconic(hwnd);
+		BOOL isMax = ::IsMaximized(hwnd);
+
+		// set up the return object:
+		//
+		// { windowRect: { rect }, clientRect: { rect }, isMinimized: bool, isMaximized: bool }
+		// 
+		// where rect is { left: int, top: int, right: int, bottom: int }
+		//
+		JsErrorCode err;
+		JsPropertyIdRef propkey;
+		JsValueRef retval, propval;
+		auto MakeRect = [](const RECT &rc, JsValueRef &jsrc)
+		{
+			JsErrorCode err;
+			JsValueRef numval;
+			JsPropertyIdRef propkey;
+			if ((err = JsCreateObject(&jsrc)) != JsNoError
+				|| (err = JsIntToNumber(rc.left, &numval)) != JsNoError
+				|| (err = JsCreatePropertyId("left", 4, &propkey)) != JsNoError
+				|| (err = JsSetProperty(jsrc, propkey, numval, true)) != JsNoError
+				|| (err = JsIntToNumber(rc.right, &numval)) != JsNoError
+				|| (err = JsCreatePropertyId("right", 5, &propkey)) != JsNoError
+				|| (err = JsSetProperty(jsrc, propkey, numval, true)) != JsNoError
+				|| (err = JsIntToNumber(rc.top, &numval)) != JsNoError
+				|| (err = JsCreatePropertyId("top", 3, &propkey)) != JsNoError
+				|| (err = JsSetProperty(jsrc, propkey, numval, true)) != JsNoError
+				|| (err = JsIntToNumber(rc.bottom, &numval)) != JsNoError
+				|| (err = JsCreatePropertyId("bottom", 6, &propkey)) != JsNoError
+				|| (err = JsSetProperty(jsrc, propkey, numval, true)) != JsNoError)
+				return err;
+
+			return JsNoError;
+		};
+
+		if ((err = JsCreateObject(&retval)) != JsNoError
+			|| (err = MakeRect(rcWin, propval)) != JsNoError
+			|| (err = JsCreatePropertyId("windowRect", 10, &propkey)) != JsNoError
+			|| (err = JsSetProperty(retval, propkey, propval, true)) != JsNoError
+			|| (err = MakeRect(rcClient, propval)) != JsNoError
+			|| (err = JsCreatePropertyId("clientRect", 10, &propkey)) != JsNoError
+			|| (err = JsSetProperty(retval, propkey, propval, true)) != JsNoError
+			|| (err = JsBoolToBoolean(isMax, &propval)) != JsNoError
+			|| (err = JsCreatePropertyId("maximized", 9, &propkey)) != JsNoError
+			|| (err = JsSetProperty(retval, propkey, propval, true)) != JsNoError
+			|| (err = JsBoolToBoolean(isMin, &propval)) != JsNoError
+			|| (err = JsCreatePropertyId("minimized", 9, &propkey)) != JsNoError
+			|| (err = JsSetProperty(retval, propkey, propval, true)) != JsNoError)
+			return js->Throw(err, _T("HWND.getWindowPos"));
+
+		return retval;
+	}
+
+	return js->undefVal;
 }
 
 // -----------------------------------------------------------------------
@@ -5029,7 +5303,7 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToNumber(JsValueRef cal
 	{
 		double d = static_cast<double>(reinterpret_cast<UINT_PTR>(self->ptr));
 		JsDoubleToNumber(d, &ret);
-		if (d > static_cast<double>(2LL < DBL_MANT_DIG))
+		if (d > static_cast<double>(1LL << DBL_MANT_DIG))
 		{
 			JsValueRef msg, exc;
 			const WCHAR *txt = L"Value out of range";
@@ -6649,6 +6923,10 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigPar
 			AddToNativeTypeView(entry, name, new HandleNativeTypeView(offset), hasValueOf, !isConst);
 			break;
 
+		case 'h':
+			AddToNativeTypeView(entry, name, new HWNDNativeTypeView(offset), hasValueOf, !isConst);
+			break;
+
 		case 'B':
 			AddToNativeTypeView(entry, name, new BSTRNativeTypeView(offset), hasValueOf, !isConst);
 			break;
@@ -6797,6 +7075,7 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigPar
 	case 'p':
 	case 'P':
 	case 'H':
+	case 'h':
 	case 'V':
 	case 'B':
 		// The whole native object is a primitive scalar type.  Add a getter/setter
@@ -8015,7 +8294,17 @@ JsValueRef JavascriptEngine::VariantData::SetVt(JsValueRef callee, bool isConstr
 	JsValueRef ret = argv[0];
 	if (auto v = VariantData::Recover<VariantData>(argv[0], _T("Variant.vt")); v != nullptr)
 	{
-		// clear any prior value
+		// Clear any prior value, so that we free any memory allocated
+		// with the prior type.  If we didn't do this, we could leak
+		// the allocated memory, since the new type would make us lose
+		// track of the original interpretation that implied allocated
+		// memory.  Worse, the new type could cause us to misinterpret
+		// the old value as some kind of reference type that it never
+		// was, which could cause us to try to free a block of memory
+		// that isn't actually a block of memory, or otherwise follow
+		// a bad pointer.  Clearing the old value will avoid all of 
+		// those misadventures by freeing any old memory and resetting
+		// the internal pointer field to null.
 		VariantClear(&v->v);
 
 		// set the new value to the number in the argument
@@ -8177,14 +8466,8 @@ void JavascriptEngine::VariantData::Set(VARIANT &v, JsValueRef val)
 		break;
 
 	case JsArray:
-		// TO DO
-
 	case JsArrayBuffer:
-		// TO DO
-
 	case JsTypedArray:
-		// TO DO
-
 	case JsFunction:
 	case JsError:
 	case JsSymbol:
@@ -8221,7 +8504,6 @@ JsValueRef JavascriptEngine::VariantData::GetByRefArray(const VARIANT &v, const 
 	inst->Throw(_T("Variant arrays are not implemented"));
 	return inst->undefVal;
 
-	// TO DO?
 #if 0
 	SAFEARRAY *a = (v.vt & VT_BYREF) != 0 ? *v.pparray : v.parray;
 	UINT nDims = SafeArrayGetDim(a);
@@ -8321,7 +8603,12 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 
 	case VT_DATE: ret = VariantDateToJsDate(v.date); break;
 
-	case VT_CY: // TO DO? - add a native CURRENCY type
+	case VT_CY:
+		// Currency type (96-bit fixed point, scaled by 10000).  Note:
+		// converting to Javascript Number (== C double) can result in
+		// loss of precision, plus rounding errors due to binary vs
+		// decimal scaling.  For faithful conversion, we'd have to
+		// implement a new native class for this type.
 		{
 			double d;
 			if (!SUCCEEDED(VarR8FromCy(v.cyVal, &d)))
@@ -8330,7 +8617,11 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 		}
 		break;
 
-	case VT_BYREF | VT_DECIMAL:  // TO DO? - add native DECIMAL type
+	case VT_BYREF | VT_DECIMAL:
+		// Decimal type (96-bit floating point, decimal scaling).  As
+		// with Currency, this type cannot be represented with perfect
+		// fidelity via Javascript Number, so we'd have to add a new
+		// native class if we needed round-trip fidelity.
 		{
 			double d;
 			if (!SUCCEEDED(VarR8FromDec(v.pdecVal, &d)))
@@ -8340,7 +8631,8 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 		break;
 
 	case VT_ARRAY: 
-		err = JsErrorNotImplemented; break; // TO DO
+		err = JsErrorNotImplemented; 
+		break;
 
 	case VT_BSTR:
 		err = (v.bstrVal == nullptr ? JsPointerToString(L"", 0, &ret) : JsPointerToString(v.bstrVal, SysStringLen(v.bstrVal), &ret));
@@ -8383,32 +8675,67 @@ JsValueRef JavascriptEngine::VariantData::Get(const VARIANT &v)
 	case VT_BYREF | VT_R8: ret = GetByRef(v.pdblVal, L"*d"); break;
 	case VT_BYREF | VT_ERROR: ret = GetByRef(v.pscode, L"*i"); break;
 	case VT_BYREF | VT_BOOL: ret = GetByRef(v.pboolVal, L"*s"); break;  // VARIANT_BOOL = SHORT
-	case VT_BYREF | VT_BSTR: ret = GetByRef(v.pbstrVal, L"*B"); break; // TO DO
+	case VT_BYREF | VT_BSTR: ret = GetByRef(v.pbstrVal, L"*B"); break;
 
-	case VT_BYREF | VT_CY: err = JsErrorNotImplemented; break; // TO DO?
-	case VT_BYREF | VT_DATE: err = JsErrorNotImplemented; break; // TO DO?
-	case VT_BYREF | VT_ARRAY: err = JsErrorNotImplemented; break; // TO DO
+	case VT_BYREF | VT_DATE: err = JsErrorNotImplemented; break;
 
+	case VT_BYREF | VT_CY: err = JsErrorNotImplemented; break;
+
+	case VT_BYREF | VT_ARRAY: err = JsErrorNotImplemented; break;
+
+	case VT_ARRAY | VT_BYREF | VT_I1:
 	case VT_ARRAY | VT_I1: ret = GetByRefArray(v, L"c"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_UI1:
 	case VT_ARRAY | VT_UI1: ret = GetByRefArray(v, L"C"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_I2:
 	case VT_ARRAY | VT_I2: ret = GetByRefArray(v, L"s"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_UI2:
 	case VT_ARRAY | VT_UI2: ret = GetByRefArray(v, L"S"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_I4:
 	case VT_ARRAY | VT_I4: ret = GetByRefArray(v, L"i"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_UI4:
 	case VT_ARRAY | VT_UI4: ret = GetByRefArray(v, L"I"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_I8:
 	case VT_ARRAY | VT_I8: ret = GetByRefArray(v, L"l"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_UI8:
 	case VT_ARRAY | VT_UI8: ret = GetByRefArray(v, L"L"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_INT:
 	case VT_ARRAY | VT_INT: ret = GetByRefArray(v, L"i"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_UINT:
 	case VT_ARRAY | VT_UINT: ret = GetByRefArray(v, L"I"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_R4:
 	case VT_ARRAY | VT_R4: ret = GetByRefArray(v, L"f"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_R8:
 	case VT_ARRAY | VT_R8: ret = GetByRefArray(v, L"d"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_ERROR:
 	case VT_ARRAY | VT_ERROR: ret = GetByRefArray(v, L"i"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_BOOL:
 	case VT_ARRAY | VT_BOOL: ret = GetByRefArray(v, L"s"); break;  // VARIANT_BOOL = SHORT
+
+	case VT_ARRAY | VT_BYREF | VT_BSTR:
 	case VT_ARRAY | VT_BSTR: ret = GetByRefArray(v, L"B"); break;
+
+	case VT_ARRAY | VT_BYREF | VT_VARIANT:
 	case VT_ARRAY | VT_VARIANT: ret = GetByRefArray(v, L"V"); break;
 
+	case VT_USERDEFINED:
+		return js->Throw(_T("Variant.Get: user-defined types are not supported"));
+
 	default:
-		js->Throw(_T("Variant.Get: untranslatable type"));
-		break;
+		return js->Throw(_T("Variant.Get: untranslatable type"));
 	}
 
 	if (err != JsNoError)
@@ -9078,7 +9405,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 				// if the source value is a variant of the same type, copy it
 				if (auto vo = VariantData::Recover<VariantData>(jsval, nullptr); vo != nullptr)
 				{
-					if (vo->v.vt == VT_USERDEFINED && vo->v.pRecInfo == v.pRecInfo)
+					if (vo->v.vt == VT_USERDEFINED && v.pRecInfo->IsMatchingType(vo->v.pRecInfo))
 					{
 						if (!SUCCEEDED(hr = VariantCopy(&v, &vo->v)))
 							return ComErr("Copying Variant RECORD type");
@@ -9243,10 +9570,25 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 
 	case VT_DISPATCH:
 		// The parameter calls for a dispatch interface 
-		if (jstype == JsFunction)
+		if (jstype == JsNull || jstype == JsUndefined)
 		{
-			// They passed us a function.  Wrap the function in a simple
-			// IDispatch with that function as its only member.
+			// pass a null interface pointer
+			v.vt = VT_DISPATCH;
+			v.punkVal = nullptr;
+			return true;
+		}
+		else if (jstype == JsFunction)
+		{
+			// Javascript function.  Wrap it in a simple IDispatch with the JS
+			// function as its only member, at dispatch member ID 0.  VARIANT
+			// doesn't have a "function pointer" type per se, so some automation
+			// interfaces that need the equivalent of a callback function pointer
+			// use a single-member IDispatch as a proxy.  It's a nice universal
+			// way to represent a callback across language boundaries.  Because
+			// our dispatch interface only contains a single member, we don't
+			// need to provide any type information; the convention for a
+			// callback proxy IDispatch object is to simply provide one member
+			// function at member ID 0.
 			class TestDispatch : public IDispatch, public RefCounted
 			{
 			public:
@@ -9282,6 +9624,9 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 
 				STDMETHODIMP GetTypeInfoCount(UINT *pctinfo)
 				{
+					if (pctinfo == nullptr)
+						return E_INVALIDARG;
+
 					*pctinfo = 0;
 					return S_OK;
 				}
@@ -9345,6 +9690,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 		}
 		else if (auto cp = COMImportData::Recover<COMImportData>(jsval, nullptr); cp != nullptr)
 		{
+			// We have a COM interface.  Make sure it supports IDispatch.
 			IDispatch *idisp;
 			if (cp->pUnknown != nullptr && SUCCEEDED(cp->pUnknown->QueryInterface(IID_PPV_ARGS(&idisp))))
 			{
@@ -9352,8 +9698,13 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 				v.pdispVal = idisp;
 				return true;
 			}
+
+			// no IDispatch available
+			Throw(_T("COM interface does not support IDispatch"));
+			return false;
 		}
 
+		// anything else is invalid
 		Throw(_T("Invalid value for IDispatch argument"));
 		return false;
 
@@ -9402,7 +9753,6 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 		return MarshallAutomationNum<SCODE, &VARIANTARG::scode>(v, jsval);
 
 	case VT_PTR:
-		// TO DO
 		Throw(_T("pointers are not implemented"));
 		return false;
 
@@ -9627,10 +9977,7 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 				// We can only copy OUT parameters back to Variant objects.  For
 				// anything that's not a variant, simply ignore the OUT result.
 				if (auto vo = VariantData::Recover<VariantData>(argv[jsargi], nullptr); vo != nullptr)
-				{
-					VariantClear(&vo->v);
 					VariantCopy(&vo->v, &va.v[vargc]);
-				}
 			}
 		}
 

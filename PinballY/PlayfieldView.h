@@ -54,6 +54,9 @@ public:
 	// Initialize real DMD support
 	void InitRealDMD(ErrorHandler &eh);
 
+	// initialize javascript
+	void InitJavascript();
+
 	// Update keyboard shortcut listings in a menu.  We call this when
 	// creating a menu and again whenever the keyboard preferences are
 	// updated.  The parent window can also call this to update Player
@@ -1083,8 +1086,11 @@ protected:
 	} 
 	popupType;
 
+	// Popup name, for javascript purposes
+	WSTRING popupName;
+
 	// start a popup animation
-	void StartPopupAnimation(PopupType popupType, bool opening);
+	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening);
 
 	// close the current popup
 	void ClosePopup();
@@ -1888,17 +1894,18 @@ protected:
 	{
 		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand) { }
 
-		QueuedKey(HWND hWndSrc, KeyPressType mode, const KeyCommand *cmd)
-			: hWndSrc(hWndSrc), mode(mode), cmd(cmd) { }
+		QueuedKey(HWND hWndSrc, KeyPressType mode, bool bg, const KeyCommand *cmd)
+			: hWndSrc(hWndSrc), mode(mode), bg(bg), cmd(cmd) { }
 
 		HWND hWndSrc;           // source window
 		KeyPressType mode;      // key press mode
+		bool bg;                // background mode
 		const KeyCommand *cmd;  // command
 	};
 	std::list<QueuedKey> keyQueue;
 
 	// Add a key press to the queue and process it
-	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<const KeyCommand*> cmds);
+	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, std::list<const KeyCommand*> cmds);
 
 	// Process the key queue.  On a keyboard event, we add the key
 	// to the queue and call this routine; we also call it whenever
@@ -2062,21 +2069,34 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
-	// initialize javascript
-	void InitJavascript();
-
-	// our main window object
+	// Javascript object for the main window object
 	JsValueRef jsMainWindow = JS_INVALID_REFERENCE;
+
+	// Javascript objects for secondary window objects
+	JsValueRef jsBackglassWindow = JS_INVALID_REFERENCE;
+	JsValueRef jsDMDWindow = JS_INVALID_REFERENCE;
+	JsValueRef jsTopperWindow = JS_INVALID_REFERENCE;
+	JsValueRef jsInstCardWindow = JS_INVALID_REFERENCE;
 
 	// console object
 	JsValueRef jsConsole = JS_INVALID_REFERENCE;
 
+	// logfile object
+	JsValueRef jsLogfile = JS_INVALID_REFERENCE;
+
 	// event objects
-	JsValueRef jsCommandEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsCommandButtonDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsCommandButtonUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsCommandButtonBgDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsCommandButtonBgUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsKeyDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsKeyBgDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsKeyBgUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsKeyUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonDownEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickButtonBgDownEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickButtonBgUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
@@ -2086,8 +2106,9 @@ protected:
 	// is always to proceed with system handling; this applies if 
 	// javscript isn't being used, or if anything fails trying to run
 	// the script.
-	bool FireKeyEvent(KeyPressType mode, int vkey);
-	bool FireJoystickEvent(KeyPressType mode, int unit, int button);
+	bool FireCommandButtonEvent(const QueuedKey &key);
+	bool FireKeyEvent(int vkey, bool down, bool repeat, bool bg);
+	bool FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg);
 
 	// Javascript alert() callback.  Shows a message in a popup message box, 
 	// a la alert() in a Web browser.  As with browser alert(), the dialog
@@ -2124,6 +2145,9 @@ protected:
 	// emits a message; the Javascript side classes are responsible
 	// for higher level formatting features).
 	void JsConsoleLog(TSTRING level, TSTRING message);
+
+	// Javascript UI mode query
+	JsValueRef JsGetUIMode();
 
 	//
 	// Button command handlers

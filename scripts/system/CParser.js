@@ -302,7 +302,7 @@ let CParser = (function()
             "HANDLE": "H",
             "HACCEL": "H",
             "HDC": "H",
-            "HWND": "H",
+            "HWND": "h",
             "HGDIOBJ": "H",
             "HCOLORSPACE": "H",
             "HCONV": "H",

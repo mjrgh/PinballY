@@ -325,7 +325,7 @@ bool PlayfieldView::InitWin()
 	// setup has been completed.
 	D3DView::SubscribeIdleEvents(this);
 
-	// register for Manual Go notifications from the Admin Host, if present
+	// register for Capture Manual Go notifications from the Admin Host, if present
 	if (auto app = Application::Get(); app->IsAdminHostAvailable())
 	{
 		MsgFmt shwnd(_T("%ld"), (long)(INT_PTR)hWnd);
@@ -337,9 +337,6 @@ bool PlayfieldView::InitWin()
 		};
 		app->PostAdminHostRequest(req, countof(req));
 	}
-
-	// initialize javascript extensions
-	InitJavascript();
 
 	// success
 	return true;
@@ -386,7 +383,6 @@ void PlayfieldView::InitJavascript()
 		auto js = JavascriptEngine::Get();
 		if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
 			|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
-			|| !js->DefineGlobalFunc("log", &PlayfieldView::JsLog, this, eh)
 			|| !js->DefineGlobalFunc("OutputDebugString", &PlayfieldView::JsOutputDebugString, this, eh)
 			|| !js->DefineGlobalFunc("setTimeout", &PlayfieldView::JsSetTimeout, this, eh)
 			|| !js->DefineGlobalFunc("clearTimeout", &PlayfieldView::JsClearTimeout, this, eh)
@@ -428,40 +424,6 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
-		// get the global objects we need to reference
-		auto GetObj = [&js](JsValueRef &jsval, const char *name)
-		{
-			// get the global property by name
-			const TCHAR *where;
-			JsErrorCode err;
-			if ((err = js->GetGlobProp(jsval, name, where)) != JsNoError)
-			{
-				LogFile::Get()->Write(LogFile::JSLogging, _T(". %hs object missing; Javascript disabled for this session\n"), name);
-				return false;
-			}
-
-			// add a reference
-			JsAddRef(jsval, nullptr);
-			return true;
-		};
-		if (!GetObj(jsMainWindow, "mainWindow")
-			|| !GetObj(jsCommandEvent, "CommandEvent")
-			|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
-			|| !GetObj(jsKeyUpEvent, "KeyUpEvent")
-			|| !GetObj(jsJoystickButtonDownEvent, "JoystickButtonDownEvent")
-			|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
-			|| !GetObj(jsLaunchEvent, "LaunchEvent")
-			|| !GetObj(jsConsole, "console"))
-			return;
-
-		// set up the console methods
-		if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
-			return;
-
-		// set up mainWindow methods
-		if (!js->DefineObjPropFunc(jsMainWindow, "mainWindow", "message", &PlayfieldView::JsMessage, this, eh))
-			return;
-
 		// create a system info object with basic system details
 		MsgFmt sysInfo(_T("this.systemInfo = {")
 			_T("programName:\"PinballY\",")
@@ -489,6 +451,93 @@ void PlayfieldView::InitJavascript()
 		if (!js->BindDllImportCallbacks(eh))
 			return;
 
+		// get the global objects we need to reference
+		auto GetObj = [&js](JsValueRef &jsval, const char *name)
+		{
+			// get the global property by name
+			const TCHAR *where;
+			JsErrorCode err;
+			if ((err = js->GetGlobProp(jsval, name, where)) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". %hs object missing; Javascript disabled for this session\n"), name);
+				return false;
+			}
+
+			// add a reference
+			JsAddRef(jsval, nullptr);
+			return true;
+		};
+		if (!GetObj(jsCommandButtonDownEvent, "CommandButtonDownEvent")
+			|| !GetObj(jsCommandButtonUpEvent, "CommandButtonUpEvent")
+			|| !GetObj(jsCommandButtonBgDownEvent, "CommandButtonBgDownEvent")
+			|| !GetObj(jsCommandButtonBgUpEvent, "CommandButtonBgUpEvent")
+			|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
+			|| !GetObj(jsKeyUpEvent, "KeyUpEvent")
+			|| !GetObj(jsKeyBgDownEvent, "KeyBgDownEvent")
+			|| !GetObj(jsKeyBgUpEvent, "KeyBgUpEvent")
+			|| !GetObj(jsJoystickButtonDownEvent, "JoystickButtonDownEvent")
+			|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
+			|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
+			|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
+			|| !GetObj(jsLaunchEvent, "LaunchEvent")
+			|| !GetObj(jsConsole, "console")
+			|| !GetObj(jsLogfile, "logfile"))
+			return;
+
+		// Initialize generic properties for a js window object.  Note that this has
+		// to wait until after binding the DLL import subsystem, since we depend upon
+		// the native HANDLE object type.
+		auto InitWinObj = [&js, &GetObj, &eh](FrameWin *frame, JsValueRef &jswinobj, const CHAR *name)
+		{
+			// get the window object
+			if (!GetObj(jswinobj, name))
+				return false;
+
+			// get the view
+			auto view = dynamic_cast<D3DView*>(frame->GetView());
+
+			// set up the HWND properties
+			JsErrorCode err;
+			const TCHAR *where;
+			JsValueRef propval;
+			if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
+				|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
+				|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
+				|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
+				return false;
+			}
+			if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
+				|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
+				|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
+				|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
+				|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh))
+				return false;
+
+			// success 
+			return true;
+		};
+		if (!InitWinObj(Application::Get()->GetPlayfieldWin(), jsMainWindow, "mainWindow")
+			|| !InitWinObj(Application::Get()->GetBackglassWin(), jsBackglassWindow, "backglassWindow")
+			|| !InitWinObj(Application::Get()->GetDMDWin(), jsDMDWindow, "dmdWindow")
+			|| !InitWinObj(Application::Get()->GetTopperWin(), jsTopperWindow, "topperWindow")
+			|| !InitWinObj(Application::Get()->GetInstCardWin(), jsInstCardWindow, "instCardWindow"))
+			return;
+
+		// set up the console methods
+		if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
+			return;
+
+		// set up logfile methods
+		if (!js->DefineObjPropFunc(jsLogfile, "logfile", "_log", &PlayfieldView::JsLog, this, eh))
+			return;
+
+		// set up mainWindow methods
+		if (!js->DefineObjPropFunc(jsMainWindow, "mainWindow", "message", &PlayfieldView::JsMessage, this, eh)
+			|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getUIMode", &PlayfieldView::JsGetUIMode, this, eh))
+			return;
+
 		// Execute the user script.  This sets up event handlers for
 		// any events the script wants to be notified about.
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
@@ -503,10 +552,30 @@ void PlayfieldView::InitJavascript()
 
 static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
 
-bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
+bool PlayfieldView::FireCommandButtonEvent(const QueuedKey &key)
 {
 	bool ret = true;
-	if (auto js = JavascriptEngine::Get(); js  != nullptr)
+	if (key.cmd != nullptr)
+	{
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
+		{
+			// figure the event type
+			JsValueRef event = key.bg ?
+				(key.mode ? jsCommandButtonBgDownEvent : jsCommandButtonBgUpEvent) :
+				(key.mode ? jsCommandButtonDownEvent : jsCommandButtonUpEvent);
+
+			// fire it
+			ret = js->FireEvent(jsMainWindow, event, key.cmd->name, key.mode == KeyRepeat || key.mode == KeyBgRepeat);
+		}
+	}
+
+	return ret;
+}
+
+bool PlayfieldView::FireKeyEvent(int vkey, bool down, bool repeat, bool bg)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
 		// get the key label information from the key manager
 		auto const& label = KeyInput::keyName[KeyInput::IsValidKeyCode(vkey) ? vkey : 0];
@@ -561,23 +630,29 @@ bool PlayfieldView::FireKeyEvent(KeyPressType mode, int vkey)
 				jsKeyLen = bar - jsKey;
 		}
 
+		// figure the javascript event type
+		JsValueRef eventType = bg ? 
+			(down ? jsKeyBgDownEvent : jsKeyBgUpEvent) :
+			(down ? jsKeyDownEvent : jsKeyUpEvent);
+
 		// dispatch the javsacript event
-		JsValueRef eventType = (mode & (KeyDown | KeyBgDown)) != 0 ? jsKeyDownEvent : jsKeyUpEvent;
 		ret = js->FireEvent(jsMainWindow, eventType, vkey,
-			TSTRING(jsKey, jsKeyLen).c_str(), label.jsEventCode, label.jsEventLocation,
-			mode == KeyRepeat || mode == KeyBgRepeat, (mode & KeyBgDown) != 0);
+			TSTRING(jsKey, jsKeyLen).c_str(), label.jsEventCode, label.jsEventLocation, 
+			repeat, bg);
 	}
 	return ret;
 }
 
-bool PlayfieldView::FireJoystickEvent(KeyPressType mode, int unit, int button)
+bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg)
 {
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
-		JsValueRef eventType = (mode & (KeyDown | KeyBgDown)) != 0 ? jsJoystickButtonDownEvent : jsJoystickButtonUpEvent;
-		ret = js->FireEvent(jsMainWindow, eventType,
-			unit, button, (mode & (KeyRepeat | KeyBgRepeat)) != 0, (mode & KeyBgDown) != 0);
+		JsValueRef eventType = bg ?
+			(down ? jsJoystickButtonBgDownEvent : jsJoystickButtonBgUpEvent) :
+			(down ? jsJoystickButtonDownEvent : jsJoystickButtonUpEvent);
+
+		ret = js->FireEvent(jsMainWindow, eventType, unit, button, repeat, bg);
 	}
 	return ret;
 }
@@ -652,6 +727,58 @@ void PlayfieldView::JsConsoleLog(TSTRING level, TSTRING message)
 	OutputDebugString(MsgFmt(_T("console.log(%s, %s)\n"), level.c_str(), message.c_str()));
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 		js->DebugConsoleLog(level.c_str(), message.c_str());
+}
+
+JsValueRef PlayfieldView::JsGetUIMode()
+{
+	JsValueRef obj = JS_INVALID_REFERENCE;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		// create the mode descriptor object
+		if (js->CreateObj(obj))
+		{
+			// figure the main mode, and set sub-mode information as appropriate
+			const WCHAR *mode = nullptr;
+			if (curMenu != nullptr)
+			{
+				mode = L"menu";
+			}
+			else if (popupSprite != nullptr)
+			{
+				mode = L"popup";
+				js->SetProp(obj, "popup", popupName);
+			}
+			else if (runningGameMode != None)
+			{
+				mode = L"running";
+			}
+			else if (attractMode.active)
+			{
+				mode = L"attract";
+			}
+			else
+			{
+				mode = L"wheel";
+			}
+
+			if (runningGameMode != None)
+			{
+				js->SetProp(obj, "runMode",
+					runningGameMode == Starting ? L"starting" :
+					runningGameMode == Running ? L"running" :
+					runningGameMode == Exiting ? L"exiting" :
+					L"other");
+
+				if (lastPlayGameCmd == ID_CAPTURE_GO)
+					js->SetProp(obj, "capture", batchCaptureMode.active ? L"batch" : L"single");
+			}
+		
+			// set the main mode string
+			js->SetProp(obj, "mode", mode);
+		}
+	}
+
+	return obj;
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
@@ -1502,10 +1629,12 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	// or an auto-repeat event (KeyRepeat).  We can distinguish those by 
 	// bit 30 of the lParam.
 	KeyPressType mode;
+	bool down;
 	if (msg == WM_KEYUP)
 	{
 		// key up event
 		mode = KeyUp;
+		down = false;
 
 		// stop any auto-repeat in effect
 		StopAutoRepeat();
@@ -1523,20 +1652,21 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	{
 		// first key-down event for a key press
 		mode = KeyDown;
+		down = true;
 
 		// start a new auto-repeat timer
 		KbAutoRepeatStart(vkey, vkeyOrig, KeyRepeat);
 	}
 
 	// fire a javascript key event; if that says to ignore it, we're done
-	if (!FireKeyEvent(mode, vkey))
+	if (!FireKeyEvent(vkey, down, false, false))
 		return false;
 
 	// determine if we have a handler
 	if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 	{
 		// We found a handler for the key.  Process the key press.
-		ProcessKeyPress(win->GetHWnd(), mode, it->second);
+		ProcessKeyPress(win->GetHWnd(), mode, false, it->second);
 
 		// the key event was handled
 		return true;
@@ -1547,13 +1677,13 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 }
 
 // Add a key press to the queue and process it
-void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, std::list<const KeyCommand*> cmds)
+void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, std::list<const KeyCommand*> cmds)
 {
 	// add each command to the key queue
 	for (auto c : cmds)
 	{
 		// queue the command
-		keyQueue.emplace_back(hwndSrc, mode, c);
+		keyQueue.emplace_back(hwndSrc, mode, bg, c);
 
 		// Immediately process any DOF effects associated with the key
 		if (c->func == &PlayfieldView::CmdNext)
@@ -1676,7 +1806,7 @@ void PlayfieldView::ShowAboutBox()
 	// open the popup, positioning it in the upper half of the screen
 	popupSprite->offset.y = .2f;
 	popupSprite->UpdateWorld();
-	StartPopupAnimation(PopupAboutBox, true);
+	StartPopupAnimation(PopupAboutBox, L"about box", true);
 	UpdateDrawingList();
 }
 
@@ -2062,7 +2192,7 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 
 	// if we're switching to instruction card mode, animate the popup
 	if (popupType != PopupInstructions)
-		StartPopupAnimation(PopupInstructions, true);
+		StartPopupAnimation(PopupInstructions, L"instructions", true);
 
 	// update the drawing list for the new sprite
 	UpdateDrawingList();
@@ -2134,7 +2264,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 
 	// if we're switching to flyer mode, animate the popup
 	if (popupType != PopupFlyer)
-		StartPopupAnimation(PopupFlyer, true);
+		StartPopupAnimation(PopupFlyer, L"flyer", true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -2271,7 +2401,7 @@ void PlayfieldView::UpdateRateGameDialog()
 
 	// if we're switching to flyer mode, animate the popup
 	if (popupType != PopupRateGame)
-		StartPopupAnimation(PopupRateGame, true);
+		StartPopupAnimation(PopupRateGame, L"rate game", true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -2336,7 +2466,7 @@ void PlayfieldView::AdjustRating(float delta)
 	UpdateRateGameDialog();
 }
 
-void PlayfieldView::StartPopupAnimation(PopupType popupType, bool opening)
+void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening)
 {
 	// if showing a new popup, close any menu
 	if (opening && curMenu != nullptr)
@@ -2348,6 +2478,8 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, bool opening)
 
 	// remember the popup type
 	this->popupType = popupType;
+	if (popupName != nullptr)
+		this->popupName = popupName;
 
 	// start the animation timer
 	StartAnimTimer(popupAnimStartTime);
@@ -2380,7 +2512,7 @@ void PlayfieldView::ClosePopup()
 			RemoveInstructionsCard();
 
 		// start the fade-out animation
-		StartPopupAnimation(popupType, false);
+		StartPopupAnimation(popupType, nullptr, false);
 	}
 }
 
@@ -2735,7 +2867,7 @@ void PlayfieldView::ShowGameInfo()
 
 	// start the animation
 	if (popupType != PopupGameInfo && popupType != PopupHighScores)
-		StartPopupAnimation(PopupGameInfo, true);
+		StartPopupAnimation(PopupGameInfo, L"game info", true);
 	else
 		popupType = PopupGameInfo;
 
@@ -2863,7 +2995,7 @@ void PlayfieldView::ShowHighScores()
 
 	// start the animation
 	if (popupType != PopupHighScores && popupType != PopupGameInfo)
-		StartPopupAnimation(PopupHighScores, true);
+		StartPopupAnimation(PopupHighScores, L"high scores", true);
 	else
 		popupType = PopupHighScores;
 
@@ -3065,8 +3197,12 @@ void PlayfieldView::ProcessKeyQueue()
 		QueuedKey key = keyQueue.front();
 		keyQueue.pop_front();
 
-		// process the command
-		(this->*key.cmd->func)(key);
+		// run it through the Javascript handler
+		if (FireCommandButtonEvent(key))
+		{
+			// process the command
+			(this->*key.cmd->func)(key);
+		}
 
 		// this counts as a key event for attract mode idle purposes
 		attractMode.OnKeyEvent(this);
@@ -4200,7 +4336,7 @@ void PlayfieldView::ShowQueuedError()
 	queuedErrors.pop_front();
 
 	// animate the popup
-	StartPopupAnimation(PopupErrorMessage, true);
+	StartPopupAnimation(PopupErrorMessage, L"message", true);
 	UpdateDrawingList();
 }
 
@@ -4962,7 +5098,7 @@ void PlayfieldView::SyncInfoBox()
 {
 	// Don't show the info box if there's a menu or popup
 	// showing, or if any animation is running.
-	if (isAnimTimerRunning || popupSprite != 0 || curMenu != 0 || attractMode.active)
+	if (isAnimTimerRunning || popupSprite != nullptr || curMenu != nullptr || attractMode.active)
 		return;
 
 	// skip the info box if it's disabled in the options
@@ -5755,10 +5891,17 @@ void PlayfieldView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 
 bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize)
 {
-	// If this is a keyboard event, observe shift key changes.
+	// If this is a keyboard event, translate the virtual key and
+	// keep track of shift key changes.
+	USHORT vkey = 0;
 	if (raw->header.dwType == RIM_TYPEKEYBOARD)
 	{
-		switch (InputManager::GetInstance()->TranslateVKey(raw))
+		// get the vkey, translated for special key distinctions
+		// (left/right shift, keypad versions of keys, etc)
+		vkey = InputManager::GetInstance()->TranslateVKey(raw);
+
+		// if it's a shift key, update our internal shift state tracking
+		switch (vkey)
 		{
 		case VK_LSHIFT:
 			rawShiftKeyState.left = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
@@ -5782,10 +5925,6 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		// event.
 		if (raw->header.dwType == RIM_TYPEKEYBOARD)
 		{
-			// get the vkey, translated for special key distinctions
-			// (left/right shift, keypad versions of keys, etc)
-			USHORT vkey = InputManager::GetInstance()->TranslateVKey(raw);
-
 			// Figure if it's a key-down or key-up based on the make/break
 			// state.  Note that the Windows headers are muddled about the 
 			// bit flags here: they provide the 0 and 1 bit values without 
@@ -5796,19 +5935,18 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 			// after masking off the other bits.  I'm not sure why they
 			// bothered to define a bit flag with no bits, but there it is.
 			// This means the test for MAKE is really !BREAK.
-			KeyPressType keyType =
-				((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0) ? KeyBgRepeat :
-				((raw->data.keyboard.Flags & RI_KEY_BREAK) != 0) ? KeyUp : 
-				KeyBgDown;
+			bool down = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+			bool repeat = ((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0);
+			KeyPressType keyType = repeat ? KeyBgRepeat : down ? KeyBgDown : KeyUp;
 
-			// look up the command; if we find a match, process the key press
-			if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
+			// run it through any Javascript event handlers
+			if (FireKeyEvent(vkey, down, repeat, true))
 			{
-				// fire a javascript key event
-				if (FireKeyEvent(keyType, vkey))
+				// look up the command; if we find a match, process the key press
+				if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 				{
 					// process the key press
-					ProcessKeyPress(hWnd, keyType, it->second);
+					ProcessKeyPress(hWnd, keyType, true, it->second);
 				}
 			}
 		}
@@ -5836,14 +5974,14 @@ bool PlayfieldView::OnJoystickButtonChange(
 	KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
 
 	// fire a javascript joystick event; if that says to ignore it, we're done
-	if (!FireJoystickEvent(mode, js->logjs->index, button))
+	if (!FireJoystickEvent(js->logjs->index, button, pressed, false, !foreground))
 		return false;
 
 	// look up the button in the command table
 	if (auto it = jsCommands.find(JsCommandKey(js->logjs->index, button)); it != jsCommands.end())
 	{
 		// process the key press
-		ProcessKeyPress(hWnd, mode, it->second);
+		ProcessKeyPress(hWnd, mode, !foreground, it->second);
 
 		// if it's a key-press event, start auto-repeat; otherwise cancel
 		// any existing auto-repeat
@@ -5896,11 +6034,11 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 		if (wheelAnimMode == WheelAnimNone)
 		{
 			// fire a javascript key event; if that says to ignore it, we're done
-			if (FireKeyEvent(kbAutoRepeat.repeatMode, kbAutoRepeat.vkey))
+			if (FireKeyEvent(kbAutoRepeat.vkey, true, true, kbAutoRepeat.repeatMode == KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
-					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, it->second);
+					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatMode == KeyBgRepeat, it->second);
 			}
 		}
 
@@ -5953,11 +6091,11 @@ void PlayfieldView::OnJsAutoRepeatTimer()
 		if (wheelAnimMode == WheelAnimNone)
 		{
 			// fire a joystick event
-			if (FireJoystickEvent(jsAutoRepeat.repeatMode, jsAutoRepeat.unit, jsAutoRepeat.button))
+			if (FireJoystickEvent(jsAutoRepeat.unit, jsAutoRepeat.button, true, true, jsAutoRepeat.repeatMode == KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
-					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, it->second);
+					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatMode == KeyBgRepeat, it->second);
 			}
 		}
 
@@ -8954,7 +9092,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 	// start the animation
 	// start the animation
 	if (popupType != PopupMediaList)
-		StartPopupAnimation(PopupMediaList, true);
+		StartPopupAnimation(PopupMediaList, L"media list", true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -9274,7 +9412,7 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 	{
 		AdjustSpritePosition(popupSprite);
 		if (popupType != PopupCaptureDelay)
-			StartPopupAnimation(PopupCaptureDelay, true);
+			StartPopupAnimation(PopupCaptureDelay, L"capture delay", true);
 	}
 	else
 	{
@@ -10727,7 +10865,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 
 	// animate the popup opening if it wasn't already displayed
 	if (popupType != PopupBatchCapturePreview)
-		StartPopupAnimation(PopupBatchCapturePreview, true);
+		StartPopupAnimation(PopupBatchCapturePreview, L"batch capture preview", true);
 
 	// update the drawing list
 	UpdateDrawingList();

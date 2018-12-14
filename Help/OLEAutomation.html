@@ -55,6 +55,14 @@ for (let file of fs.GetSpecialFolder(0).Files)
     console.log(file.Name);
 </div>
 
+<p>
+   One common Windows OLE object that you <i>shouldn't</i> use is
+   MSXML.XMLHTTP (or any of its several versions).  You should use PinballY's
+   <a href="HttpRequest.html">HttpRequest</a> instead, as it has provisions
+   for asynchronous event handling that can't be easily reproduced with
+   the generic Automation facility.
+</p>
+
 <h2>"Variant" arguments</h2>
 
 <p>
@@ -142,10 +150,26 @@ autoObj.FuncThatChangesArgument(v);
 <h2>Limitations</h2>
 
 <p>
-   The Automation interface doesn't currently support the following:
+   <b>Unsupported types:</b>
+   The Automation system doesn't currently support calling methods taking
+   the following VARIANT argument types.  The VARIANT argument types are
+   specified in the IDispatch COM interface provided by the automation
+   object's native code, so this isn't a question of the argument values
+   you pass from Javascript code; it's a fixed feature of each automation
+   object's method interfaces.  Functions that require unsupported argument
+   types will throw a Javascript error to that effect if you attempt to
+   call them.
 </p>
 <ul>
-   <li>"Record" types (the Visual Basic equivalent of a C struct)
+   <li>Pointer ("by reference") types
+   <li>Array types
 </ul>
 
-
+<p>
+   <b>Event handling:</b>
+   There's no built-in provision for the COM "event sink" system, which
+   is used in some of the more complex automation objects to send asynchronous
+   events back to the host program.  Objects with event callbacks
+   therefore can't easily be used, or at least can't easily be used with
+   their full event systems.
+</p>
