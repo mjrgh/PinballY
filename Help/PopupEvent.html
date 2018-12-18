@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>PopupEvent</h1>
+
+<p>
+   This event class is fired when a popup is about to be displayed,
+   or when a popup is closed.
+</p>
+<p>
+   This event has two subtypes:
+<ul>
+   <li><b>popupopen:</b> Fires when a new popup is about to be displayed.
+   This is fired before the popup is shown (and before any side effects of
+   showing it occur, such as removing a menu or a prior popup that was
+   already showing).  If you cancel it by calling preventDefault(), the
+   popup isn't displayed, and any side effects are skipped.
+
+   <li><b>popupclose:</b>  Fires after a popup has been closed.  This is
+   fired after the fact, so the event can't be canceled.
+</ul>
+
+<p>
+   When a new popup replaces an old popup, the "open" event for the new
+   popup will occur before the "close" event for the old popup.  The
+   events occur in this order (which might seem a little surprising)
+   because the proximate cause of the old popup closing is the opening
+   of the new popup, and it's not a foregone conclusion that the new
+   popup will open at all until the "open" event returns without
+   canceling the new popup.
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  In addition, it has
+   the following:
+</p>
+
+<ul>
+   <li><b>id:</b>  A string with the ID of the popup.  See <a href="Popups.html">Popups</a>
+   for a list of the system popup IDs.
+
+</ul>
+
+</body>
+</html>

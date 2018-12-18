@@ -109,7 +109,7 @@ function trySprintf(...args)
 
             let doString = () =>
             {
-                let s = a.toString();
+                let s = (a || "").toString();
 
                 if (width && width != "" && +width > s.length)
                 {
@@ -357,11 +357,11 @@ let { Event, EventTarget } = (() =>
         // string of event names to bind; each event can optionally include a
         // list of dot-delimited namespaces, to identify the same item for
         // later removal via off().
-        on(events, ...rest) { on(this, events, false, rest); }
+        on(events, ...rest) { on(this, events, false, rest); return this; }
         
         // jquery style one(events, data, func).  Same as on(), but registers
         // a once-only event.
-        one(events, ...rest) { on(this, events, true, rest); }
+        one(events, ...rest) { on(this, events, true, rest); return this; }
 
         // jquery-style off(events, func).  'events' can include namespaces
         off(events, func)
@@ -429,6 +429,8 @@ let { Event, EventTarget } = (() =>
                     _off(type);
                 }
             }
+
+            return this;
         }
 
         removeEventListener(type, listener, options)
@@ -573,7 +575,7 @@ this.KeyUpEvent = class KeyUpEvent extends KeyEvent
 {
     constructor(vkey, key, code, location, repeat)
     {
-        super("keyup", vkey, key,code, location, repeat, false);
+        super("keyup", vkey, key, code, location, repeat, false);
     }
 };
 
@@ -589,7 +591,7 @@ this.KeyBgUpEvent = class KeyBgUpEvent extends KeyEvent
 {
     constructor(vkey, key, code, location, repeat)
     {
-        super("keybgup", vkey, key,code, location, repeat, true);
+        super("keybgup", vkey, key, code, location, repeat, true);
     }
 };
 
@@ -654,7 +656,7 @@ this.JoystickButtonBgUpEvent = class JoystickButtonBgUpEvent extends JoystickBut
 // Command button events.  These are similar to key and joystick
 // button events, but represent the command assigned to the key
 // rather than the key itself.
-this.CommandEvent = class CommandEvent extends Event
+this.CommandButtonEvent = class CommandButtonEvent extends Event
 {
     constructor(type, command, repeat, background)
     {
@@ -665,24 +667,45 @@ this.CommandEvent = class CommandEvent extends Event
     }
 };
 
-this.CommandButtonDownEvent = class CommandButtonDownEvent extends CommandEvent
+this.CommandButtonDownEvent = class CommandButtonDownEvent extends CommandButtonEvent
 {
     constructor(command, repeat) { super("commandbuttondown", command, repeat, false); }
 };
 
-this.CommandButtonUpEvent = class CommandButtonUpEvent extends CommandEvent
+this.CommandButtonUpEvent = class CommandButtonUpEvent extends CommandButtonEvent
 {
     constructor(command, repeat) { super("commandbuttonup", command, repeat, false); }
 };
 
-this.CommandButtonBgDownEvent = class CommandButtonBgDownEvent extends CommandEvent
+this.CommandButtonBgDownEvent = class CommandButtonBgDownEvent extends CommandButtonEvent
 {
     constructor(command, repeat) { super("commandbuttonbgdown", command, repeat, true); }
 };
 
-this.CommandButtonBgUpEvent = class CommandButtonBgUpEvent extends CommandEvent
+this.CommandButtonBgUpEvent = class CommandButtonBgUpEvent extends CommandButtonEvent
 {
     constructor(command, repeat) { super("commandbuttonbgup", command, repeat, true); }
+};
+
+// Attract mode events
+this.AttractModeEvent = class AttractModeEvent extends Event
+{
+    constructor(type, options) { super(type, options); }
+};
+this.AttractModeStartEvent = class AttractModeStartEvent extends AttractModeEvent
+{
+    constructor() { super("attractmodestart", { cancelable: true }); }
+};
+this.AttractModeEndEvent = class AttractModeEndEvent extends AttractModeEvent
+{
+    constructor() { super("attractmodeend", { cancelable: false }); }
+};
+
+// Wheel mode event.  This fires when returning to the regular wheel mode
+// from menu or popup mode.
+this.WheelModeEvent = class WheelModeEvent extends Event
+{
+    constructor() { super("wheelmode", { cancelable: false }); }
 };
 
 // Game launch event.  This is fired on the main application object
@@ -695,6 +718,94 @@ this.LaunchEvent = class LaunchEvent extends Event
     }
 }
 
+// Command event.  This represents a specific command action to be
+// performed in response to a user button or menu input, such as "play
+// the current game" or "show the high scores".  The command is identified
+// by an integer; mnemonics for the names are set up as properties of the
+// command object below.
+this.CommandEvent = class CommandEvent extends Event
+{
+    constructor(id)
+    {
+        super("command", { cancelable: true });
+        this.id = id;
+        let n = command.nameAndIndex(id);
+        this.name = n.name;
+        if (n.index !== undefined)
+            this.index = n.index;
+    }
+};
+
+// Command mnemonics.  The system populates this with a property for
+// each numeric command code.
+this.command =
+{
+    _init: function()
+    {
+        delete this._init;
+        let name = { };
+        for (let o of Object.keys(this))
+            name[this[o]] = o;
+
+        this._name = name;
+    },
+
+    name: function(id)
+    {
+        let n = nameAndOffset(id);
+        return n.index ? n.name + "+" + n.index : n.name;
+    },
+
+    nameAndIndex: function(id)
+    {
+        ranged = (a, b) => (id >= this[a] && id <= this[b] ? ({ name: a, index: id - this[a] }) : undefined);
+        return ranged("CaptureFirst", "CaptureLast")
+            || ranged("FilterFirst", "FilterLast")
+            || ranged("MediadropFirst", "MediaDropLast")
+            || ranged("PickSysFirst", "PickSysLast")
+            || { name: this._name[id] || ("" + id) };
+    },
+};
+
+// Menu events
+this.MenuEvent = class MenuEvent extends Event
+{
+    constructor(type, options, id)
+    {
+        super(type, options);
+        this.id = id;
+    }
+};
+this.MenuOpenEvent = class MenuOpenEvent extends MenuEvent
+{
+    constructor(id, items, options) {
+        super("menuopen", { cancelable: true }, id);
+        this.items = items;
+        this.options = options;
+    }
+};
+this.MenuCloseEvent = class MenuCloseEvent extends MenuEvent
+{
+    constructor(id) { super("menuclose", { cancelable: false }, id); }
+};
+
+// Popup events
+this.PopupEvent = class PopupEvent extends Event
+{
+    constructor(type, options, id)
+    {
+        super(type, options);
+        this.id = id;
+    }
+};
+this.PopupOpenEvent = class PopupOpenEvent extends PopupEvent
+{
+    constructor(id) { super("popupopen", { cancelable: true }, id); }
+};
+this.PopupCloseEvent = class PopupCloseEvent extends PopupEvent
+{
+    constructor(id) { super("popupclose", { cancelable: false }, id); }
+};
 
 // ------------------------------------------------------------------------
 //
@@ -708,18 +819,19 @@ this.LaunchEvent = class LaunchEvent extends Event
 //    command
 //
 this.mainWindow = new EventTarget();
+this.mainWindow.name = "playfield";
 
 // Backglass window object
-this.backglassWindow = { };
+this.backglassWindow = { name: "backglass" };
 
 // DMD window
-this.dmdWindow = { };
+this.dmdWindow = { name: "dmd" };
 
 // Topper window
-this.topperWindow = { };
+this.topperWindow = { name: "topper" };
 
 // Instruction card window
-this.instCardWindow = { };
+this.instCardWindow = { name: "instCard" };
 
 
 // SetWindowPosition flags
@@ -1122,20 +1234,31 @@ this.HttpRequest = (function()
                     // our Promise functions.
                     //
                     // IMPORTANT:  user code shouldn't use onreadystatechange
-                    // directly.  Our main UI thread runs in COM STA (single-
-                    // threaded apartment) mode, so the underlying COM object
-                    // will always call us back on the main UI thread - that's
-                    // the only reason we don't have to add another layer of
-                    // wrappers here to make sure we're on the original thread.
-                    // However, we'll get called from the COM message pump on
-                    // this thread, which runs any time we're in a message
-                    // read/dispatch loop, including nested event loops for
-                    // dialog boxes or the Javascript debugger.  One of the
-                    // cardinal rules in Javascript is that client code is
-                    // non-reentrant, so allowing the dispatch callback to
-                    // invoke the client callback from a nested event loop
-                    // could violate that.  We fix that with Promises.  We
-                    // can call resolve() and reject() on a Promise at any
+                    // directly, because the native code can invoke our callback
+                    // when we're already nested in other Javascript code,
+                    // contrary to Javascript event sequencing rules.  This is
+                    // NOT a threading issue, fortunately, because the main
+                    // PinballY UI thread runs in COM STA (single-threaded
+                    // apartment mode), which guarantees that the underlying
+                    // COM object can only invoke our IDispatch callback on
+                    // the main UI thread.  That allows us to avoid having to
+                    // add a separate layer of wrappers to deal with threading
+                    // issues, since the underlying COM object is in fact using
+                    // a separate thread to handle the asynchronous network op.
+                    // But single-threaded isn't good enough: we *also* need
+                    // to guarantee that we don't call back into the user's
+                    // completion code from a nested call from other js code.
+                    // The COM STA forces the callback onto the single thread
+                    // by dispatching through the window message pump, so the
+                    // IDispatch callback can occur anywhere a nested message
+                    // loop runs, such as a call to MessageBox() or any other
+                    // model dialog.  It's a cardinal rule of Javascript event
+                    // that client code can be non-reentrant, so allowing the
+                    // dispatch callback to invoke the client callback from a
+                    // nested event loop would violate that.
+                    //
+                    // We accomplish the non-nesting guarantee with a Promise.
+                    // We can call resolve() and reject() on the Promise at any
                     // time, and the Javascript engine will properly sequence
                     // the client callback as an event handled after any
                     // currently executing code returns.  So this little

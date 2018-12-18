@@ -2,9 +2,8 @@ PinballY Update History
 
 ? (1.0.0 Beta 2)
 
-* PinballY is now equipped with a Javascript engine, which creates
-extensive new customization capabilities.  See "Javascript Scripting"
-in the help for details.
+* You can now customize the program via Javascript code.  See
+"Javascript Scripting" in the help for details.
 
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.
@@ -24,6 +23,10 @@ is because the font "Wingdings 3" was being used for the arrows, and
 this font isn't available on all Windows systems.  The more universal
 Webdings is now used as a fallback, since that font contains similar
 looking arrows, so the arrows should draw properly everywhere now.
+
+* The Filter by System and Filter by Manufacturer menus are now
+paginated if necessary (that is, if there are too many items to fit
+the available display space).
 
 
 10-13-2018 (1.0.0 Beta 1)

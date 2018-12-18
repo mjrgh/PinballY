@@ -60,16 +60,41 @@
 </p>
 
 <p>
+   <a name="doCommand"></a>
+   <b>mainWindow.doCommand(<i>id</i>):</b>  Executes the command specified by
+   <i>id</i>, which is one of the integer command codes in the
+   <a href="Commands.html">Commands</a> set.
+</p>
+
+<p>
+   <a name="endAttractMode"></a>
+   <b>mainWindow.endAttractMode():</b>  Exits "Attract Mode" if it's currently
+   active.  There's no effect if the program isn't already in attract mode.
+   The <a href="AttractModeEvent.html"><b>attractmodeend</b></a> event isn't
+   fired when you use this method.
+
+<p>
+   <a name="getActiveWindow"></a>
+   <b>mainWindow.getActiveWindow():</b>  Returns the <a href="WindowObjects.html">window object</a> (mainWindow,
+   <a href="BackglassWindow.html">backglassWindow</a>, etc) corresponding to the
+   current active window in the application.  This is the active window at the
+   operating system level, which means that it's in the foreground and has
+   keyboard focus.  If the application is currently in the background, none
+   of the windows are active, so this returns null.
+</p>
+   
+<p>
    <a name="getUIMode"></a>
    <b>mainWindow.getUIMode():</b>  Returns an object describing the current UI
    state.  Here's a quick summary of the object's contents:
 </p>
 <div class="code">
 {
-    mode: "wheel",       // or other (see list)
-    popup: "about box",  // or other (see list); present only in "popup" mode
-    runMode: "running",  // or "starting", "exiting"; present only when a game is running
-    capture: "single"    // or "batch"; present only when running a game in media capture mode
+    mode: "wheel",         // see list
+    menuID: "main",        // see list; present only in "menu" mode
+    popupID: "about box",  // see list; present only in "popup" mode
+    runMode: "running",    // or "starting", "exiting"; present only when a game is running
+    capture: "single"      // or "batch"; present only when running a game in media capture mode
 }
 </div>
 <p>
@@ -82,23 +107,15 @@
 
    <li>"menu": a menu is being displayed (this refers to the graphical
    menu that PinballY displays as an overlay in the playfield window, not
-   a standard Windows menu)
+   a standard Windows menu).  In this case, the .menuID property of the
+   mode object will contain a string identifying which particular menu
+   is being displayed.  See <a href="Menus.html#systemMenus">system menus</a>
+   for a list of the built-in menus and their identifiers.
 
-   <li>"popup": a popup box is being displayed.  The .popup property of
-   the mode object is a string specifying the type of popup:
-
-   <ul>
-      <li>"about box": the program about box
-      <li>"batch capture preview": the batch capture preview dialog
-      <li>"capture delay": the capture delay selection dialog box
-      <li>"media list": the media list for the current game
-      <li>"message": a message box, with an error, warning, or informational alert
-      <li>"flyer": a game flyer
-      <li>"game info": the detailed game information box
-      <li>"high scores": the high scores box
-      <li>"instructions": a game instruction card
-      <li>"rate game": the game rating dialog (for entering a star rating)
-   </ul>
+   <li>"popup": a popup box is being displayed.  The .popupID property of
+   the mode object is a string specifying the type of popup.  See
+   <a href="Popups.html#systemPopups">system popups</a> for a list
+   of the system popup types.
 
    <li>"running": a running game is in progress.  Note that "menu" mode can
    supersede this, since the user can still bring up menus while a game is
@@ -134,6 +151,23 @@
    regular "info" style is used if <i>style</i> is omitted.
 </p>
 
+<p>
+   <a name="showMenu"></a>
+   <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Display a custom
+   menu in the main window, in the same style as the main menu, exit menu, etc.
+   See <a href="Menus.html">Menus</a> for more details.  The <a href="MenuEvent.html"><b>menuopen</b></a>
+   event isn't fired when you use this method.
+</p>
+
+<p>
+   <a name="startAttractMode"></a>
+   <b>mainWindow.startAttractMode():</b>  Enters "Attract Mode", the screen saver
+   mode that normally kicks in automatically after a period without any user input
+   (the exact amount of time is configurable in the settings).  This function
+   lets you create your own conditions for entering attract mode. 
+   The <a href="AttractModeEvent.html"><b>attractmodestart</b></a> event isn't
+   fired when you use this method.
+</p>
 
 </body>
 </html>

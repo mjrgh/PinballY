@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Popups</h1>
+
+<p>
+   PinballY uses popup boxes to display messages and detailed information.
+   Popup boxes are functionally similar to Windows dialog boxes, but they're
+   visually styled to fit the arcade graphics environment, rather than appearing
+   as separate windows.  They're also operable with the basic pin cab buttons
+   rather than requiring a mouse.  Popups are mostly limited to information displays,
+   as they don't have a full complement of input controls like Windows dialogs do.
+   PinballY resorts to regular Windows dialogs for anything involving keyboard
+   input or other complex input gestures.
+</p>
+
+<h2>Popup events</h2>
+
+<p>
+   When a popup opens or closes, the system fires <b>popupopen</b> and
+   <b>popupclose</b> events (respectively).  See <a href="PopupEvent.html">PopupEvent</a>
+   for details.
+</p>
+
+
+<h2>System popups</h2>
+
+<p>
+   Here's a list of the system popup display types, with the ID strings
+   reported in the .popupID property of the object returned from
+   <a href="MainWindowObject.html#getUIMode">mainWindow.getUIMode()</a> while the
+   popup is being displayed.
+</p>
+
+<ul>
+   <li>"about box": the program about box
+   <li>"batch capture preview": the batch capture preview dialog
+   <li>"capture delay": the capture delay selection dialog box
+   <li>"media list": the media list for the current game
+   <li>"message": a message box, with an error, warning, or informational alert
+   <li>"flyer": a game flyer
+   <li>"game info": the detailed game information box
+   <li>"high scores": the high scores box
+   <li>"instructions": a game instruction card
+   <li>"rate game": the game rating dialog (for entering a star rating)
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>AttractModeEvent</h1>
+
+<p>
+   This event class is fired when the program enters or exits "Attract Mode".
+   Attract Mode is the screen saver mode that kicks in after a period of
+   time (configurable in the user's option settings) without any button
+   input from the user.  In Attract Mode, the system randomly switches
+   between games every few seconds.  This serves the dual purposes of
+   avoiding "burn-in" (image retention) by ensuring that the same image
+   isn't left on the screen for long periods when the machine is idle,
+   and adding to the arcade ambiance by making the graphics more dynamic
+   when the machine isn't being used.
+</p>
+<p>
+   There are two subtypes of AttractModeEvent:
+<ul>
+   <li><b>attractmodestart:</b> Fires when the system is about to enter
+   Attract Mode.  This event is cancelable: you can call preventDefault()
+   on the event object passed to the handler to prevent the system from
+   entering attract mode.  If you cancel the event, the system resets
+   the attract mode timer, as though the user had pressed a key.
+
+   <li><b>attractmodeend:</b>  Fires when the system exits attract mode
+   due to user input.  This event can't be canceled, as we don't want to
+   prevent the user from returning from attract mode.
+</ul>
+
+<p>
+   These events aren't fired when you start or exit attract mode directly from scripting code via
+   <a href="MainWindowObject.html#startAttractMode">mainWindow.startAttractMode()</a> or
+   <a href="MainWindowObject.html#endAttractMode">mainWindow.endAttractMode()</a>,
+   respectively.
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  It has no additional
+   properties beyond the standard set.
+</p>
+
+</body>
+</html>

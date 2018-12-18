@@ -541,6 +541,8 @@
 #define ID_BATCH_CAPTURE_NEXT_GAME      32865
 #define ID_PAUSE_GAME                   32866
 #define ID_WINDOW_BORDERS               32867
+#define ID_SHOW_MAIN_MENU               32868
+#define ID_SHOW_EXIT_MENU               32869
 
 
 // Next default values for new objects
@@ -601,3 +603,6 @@
 #define ID_MEDIADROP_FIRST              42150
 #define ID_MEDIADROP_LAST               42199
 
+// Command range reserved for user-written Javascript commands.
+#define ID_USER_FIRST                   42200
+#define ID_USER_LAST                    44199

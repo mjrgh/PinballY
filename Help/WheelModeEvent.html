@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>WheelModeEvent</h1>
+
+<p>
+   This event class is fired whenever the program returns to the
+   base "Wheel" user interface, after being in another modal UI state
+   (showing a popup, showing a menu, in attract mode, running a game).
+</p>
+<p>
+   This event has only one subtype:
+<ul>
+   <li><b>wheelmode:</b> Fires when returning to the regular wheel UI.
+   This event fires after the fact, so it's not cancelable.
+</ul>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  It has no additional
+   properties beyond the standard set.
+</p>
+
+</body>
+</html>

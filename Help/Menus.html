@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Menus</h1>
+
+<p>
+   PinballY's on-screen menu system is the workhorse of its UI, handling most
+   user interactions.  The menu system is functionally similar to conventional
+   Windows mouse menus, but it's designed to be convenient to operate with just
+   the basic pin cab buttons, and it's visually styled to look more like arcade
+   graphics and with larger type for readability at a distance.
+</p>
+<p>
+   You can use the menu system from your Javascript code to create your own
+   custom menus and display them whenever needed.  You display a custom menu
+   by calling   <a href="MainWindowObject.html">mainWindow</a>.<a href="MainWindowObject.html#showMenu">showMenu()</a>.
+   This function lets you create a menu that looks and operates
+   exactly like the built-in menus, and lets you populate it with standard
+   system commands and/or your own custom commands.
+</p>
+<p>
+   The showMenu() function is called as follows:
+</p>
+<div class="code">
+mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>);
+</div>
+
+
+<p>
+   <i>id</i> is a string giving an internal identifier for the menu.  This can be
+   any string you want; the system merely stores it, and reports it back to
+   you via the .menuID property of the status object returned from
+   <a href="MainWindowObject.html#getUIMode">mainWindow.getUIMode()</a> while the
+   menu is still being displayed.
+</p>
+<p>
+   <i>items</i> is an array of menu item descriptors.  Each descriptor is an
+   object with the following properties.  The boolean flag properties are all
+   optional; if omitted, they default to false.
+</p>
+<ul>
+   <li>title: a string giving the title of the item, or an empty string to display
+   a separator bar instead of a named item
+   <li>cmd: an integer giving the command number (see <a href="Commands.html">Commands</a>),
+   or -1 if this item can't be selected as a command item
+   <li>selected: true if the item is pre-selected when the menu opens, as though the user
+   had navigated to this item already.  Only one item can be selected at a time, so if
+   multiple items have this flag, the last one with the flag is the one that's actually
+   selected.
+   <li>checked: true if the item should be displayed with a checkmark
+   <li>radio: true if the item should be displayed with a radio button bullet (this is
+   mutually exclusive with "checked", as only one type of mark can be displayed)
+   <li>hasSubmenu: true if the item should be displayed with an arrow indicating that
+   it has a sub-menu
+   <li>stayOpen: true if the menu should stay open when the item is selected.  This can
+   be used for items that update a setting in place and leave the menu open for further
+   selections.
+</ul>
+<p>
+   The <i>options</i> object can be omitted, in which case the default settings are
+   used.  If present, <i>options</i> can have the following properties, all of which
+   are optional and default to false or zero as appropriate:
+</p>
+<ul>
+   <li>isExitMenu: true if this should be treated as an "Exit" menu.  The special
+   feature of an Exit menu is that the Exit button acts like the Select button within
+   the menu, if that behavior is configured in the user's option settings.  The rationale
+   for this behavior is that some people find it more intuitive to make selections in a
+   menu with the same button that opened the menu, so a menu that's opened with the Exit
+   button should also use the Exit button to make selections.
+
+   <li>noAnimation: true if you want to skip the normal menu opening animation and
+   just display the menu instantly.  This is useful when you're updating a menu in
+   place in response to a command, such as toggling a checkmark in a "stay open" item.
+
+   <li>dialogStyle: true to display a "dialog style" menu.  This style is designed to
+   accommodate a long-ish message at the top of the menu, followed by the usual
+   complement of menu options below.  Dialog menus are displayed at a slightly wider
+   size than regular menus, and the first item in the menu is displayed with a
+   slightly smaller font than regular menu items, to pack more text into the available
+   space.  The first item is also word-wrapped onto multiple lines if necessary
+   (normal menu items are forced onto one line and clipped if they're
+   too wide).  The first item in a dialog menu is
+   by convention a static (non-selectable) message only, so it should have "cmd"
+   set to -1 in its item descriptor.  It also usually looks best to use a separator
+   bar as the second item, to visually reinforce the dialog styling.  The remaining
+   items are ordinary menu items.
+</ul>
+
+<h2>Custom commands</h2>
+
+<p>
+   If you're creating your own menus, you'll probably want to populate them with
+   your own custom commands, since the whole point is usually to add features
+   that aren't already built in to the system via existing commands.  To
+   facilitate this, the system reserves the range of command IDs from
+   <a href="Commands.html#UserFirst">command.UserFirst</a> to
+   <a href="Commands.html#UserLast">command.UserFirst</a> specifically
+   for your use in Javascript code.  You can assign commands in this range
+   as you see fit.
+</p>
+
+<h2>Flow of control</h2>
+
+<p>
+   When you call mainWindow.showMenu(), the system displays the menu, and the
+   function immediately returns.  It doesn't wait for the user to make a selection.
+   Instead, the program continues running with the menu displayed.  The program
+   will interpret user input in the context of menu navigation, so the user will
+   be able to navigate among the menu items.  There's no need for your Javascript
+   code to concern itself with any of the menu navigation, as that's handled
+   automatically by the system.  When the user selects an item from the menu,
+   it will trigger a <a href="CommandEvent.html">CommandEvent</a>, with the
+   command ID that you specified in the selected menu item stored in the event
+   object.  So the way you handle a command selected from your custom menu is
+   to write a CommandEvent handler that responds to the custom command.
+</p>
+
+<div class="code">
+// Display a custom menu when the user presses the Insert key
+mainWindow.on("keydown", ev =&gt; {
+    if (ev.code == "Insert") {
+        mainWindow.showMenu("custom1", [
+            { title: "Custom Command", cmd: command.UserFirst },
+            { cmd: -1 },
+            { title: "Return", cmd: command.MenuReturn }
+        ]);
+    }    
+});
+
+// Handle our "Custom Command" command
+mainWindow.on("command", ev =&gt; {
+    if (ev.id == command.UserFirst) {
+       /* carry out the command here */;
+    }
+}); 
+</div>
+
+<h2>Paged menus</h2>
+
+<p>
+   In some cases, a menu might have too many items to fit into the available
+   display space all at once.  This is especially possible when a menu gets
+   its items from a dynamic source, where you don't know in advance exactly
+   how many items will be included, such as the list manufacturer filters.
+</p>
+<p>
+   To deal with menus that are known to be too large or that merely <i>could</i>
+   be too large, depending on dynamic source data, the menu system can divide
+   a menu into "pages" - groups of items that are displayed one page at a
+   time.  The user can switch between the pages using the "Next Page" and
+   "Previous Page" buttons (typically assigned to the Magna save buttons on
+   a pin cab) or by selecting up/down arrow items shown graphically in the
+   menu.
+</p>
+<p>
+   Most paged menus have a <i>section</i> that's divided into pages, with
+   some fixed items above and/or below the paged section.  This lets you
+   keep the options common to all pages (e.g., "Cancel", "Save") on the
+   screen at all times.
+</p>
+<p>
+   To designate a section of a menu as paged, simply include an item
+   with command ID <a href="Commands.html#MenuPageUp">command.MenuPageUp</a>
+   before the first paged item, and another item with command ID
+   <a href="Commands.html#MenuPageDown">command.MenuPageDown</a> after
+   the last paged item.  The Page Up and Page Down items don't need
+   titles; they'll be displayed with up/down arrow graphics instead.
+   The menu system will automatically measure the height of the menu
+   and determine if the paged area actually has to be split up into
+   multiple pages.  If so, the menu will initially display the first
+   page and will include the up/down arrows.  If the full menu fits
+   the available screen height without any page divisions, the up/down
+   arrow items are simply omitted.  So there's no need to figure out
+   in advance whether or not the menu is "too big"; if there's any
+   chance of that, you can simply include the page section markers
+   and let the menu system figure out whether or not paging is
+   necessary.
+</p>
+
+<h2>Menu events</h2>
+
+<p>
+   When a menu opens or closes, the system fires a <b>menuopen</b>
+   or <b>menuclose</b> event (respectively).  See <a href="MenuEvent.html">MenuEvent</a>
+   for details.
+</p>
+
+
+<h2>Customizing system menus</h2>
+
+<p>
+   You can suppress, edit, or replace any system menu by taking advantage of
+   the <a href="MenuEvent.html"><b>menuopen</b></a> event.  This event lets
+   you intervene every time the system is about to display one of its own
+   standard menus.  You can use that opportunity to block a system menu
+   entirely, make slight modifications (such as renaming items or adding
+   your own custom items), or replace the system menu with your own
+   entirely custom menu.  See <a href="MenuEvent.html#overrideSysMenu">Overriding a system menu</a>
+   for details on how to accomplish these tricks.
+</p>
+
+<a name="systemMenus"></a>
+<h2>System menus</h2>
+
+<p>
+   Here's a list of the built-in menus generated by PinballY, and their menu IDs.  The
+   ID is the string reported in the .menuID property of the result object returned
+   from <a href="MainWindowObject.html#getUIMode">mainWindow.getUIMode()</a>.
+</p>
+
+<ul>
+   <li>"approve elevation": prompt to confirm privilege elevation for launching a game that
+   can only run in Admin Mode
+   <li>"batch capture disposition": batch capture file disposition selection menu (lists the media
+   types selected for the batch capture, with options for what to do about existing files for each
+   type)
+   <li>"batch capture games": batch capture game selection menu
+   <li>"batch capture media": batch capture media type selection menu (basically the same menu as
+   "capture", but shown during the batch capture setup workflow)
+   <li>"batch capture ready": final step of the batch capture workflow, showing a summary of the
+   proposed capture, with options to view details or launch the capture
+   <li>"capture needs gameinfo": shown when the user attempts a Capture command on a game that
+   doesn't have an XML database entry; offers an option to set up the game information entry now
+   <li>"capture": single-game capture setup menu, with options for which media types to capture
+   <li>"confirm delete gameinfo": confirmation menu for deleting the current game's XML database entry
+   <li>"confirm delete media": confirmation menu for deleting a media file from the media file viewer
+   <li>"elevation required": prompt to allow restarting the program with the Admin Host enabled,
+   triggered when the user tries to launch a game requiring Admin Mode and the Admin Host isn't
+   already running
+   <li>"exit": the exit menu, shown when the user presses the Exit button from the main wheel UI
+   <li>"filter by category": filter submenu for selecting a category filter
+   <li>"filter by era": filter submenu for selecting an era filter
+   <li>"filter by manuf": filter submenu for selecting a manufacturer filter
+   <li>"filter by rating": filter submenu for selecting a star rating filter
+   <li>"filter by system": filter submenu for selecting a player system filter
+   <li>"filter by when added": filter submenu for selecting a recently-added filter
+   <li>"filter by when played": filter submenu for selecting a recently-played filter
+   <li>"game categories": menu for editing the category tags assigned to the current game
+   <li>"game setup": the game setup options menu
+   <li>"main": the main menu, shown when the user presses the Select button from the main wheel UI
+   <li>"media drop confirm replace": confirmation menu asking if a dropped media file should
+   replace an existing file
+   <li>"media drop confirm": confirmation menu shown when a media drop is ready to go, to confirm
+   that it should proceed
+   <li>"media drop needs gameinfo": shown when the user attempts to drop media files onto a game that
+   doesn't have an XML database entry; offers an option to set up the game information entry now
+   <li>"media drop rename": confirmation menu shown when dropped media files don't match the current
+   game's name, to warn that the wrong files might have been dropped
+   <li>"media search": media search confirmation menu (options to proceed with the search or cancel it)
+   <li>"operator": the operator menu
+   <li>"pause game": shown when the user presses the Pause Game button while a game is running;
+   PinballY tries to bring its window to the foreground, and then displays this menu
+   <li>"play pick system": system selection menu, displayed when the user tries to launch a game that
+   doesn't have a database entry and has multiple systems associated with its file type
+   <li>"power off": system shutdown confirmation menu, shown when the user selects "Power Off" from the
+   exit menu
+   <li>Your custom ID: if the menu is a custom menu that you displayed via <a href="#showMenu">showMenu()</a>,
+   the ID string that you provided when creating the menu is used.
+</ul>
+
+
+
+</body>
+</html>

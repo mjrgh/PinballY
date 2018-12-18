@@ -125,6 +125,12 @@ public:
 	// within the javascript engine and returns false.
 	bool CreateObj(JsValueRef &obj);
 
+	// create an array
+	bool CreateArray(JsValueRef &arr);
+
+	// push a value onto an array
+	JsErrorCode ArrayPush(JsValueRef &arr, JsValueRef ele);
+
 	// Simple property setters
 	bool SetProp(JsValueRef obj, const CHAR *prop, int val);
 	bool SetProp(JsValueRef obj, const CHAR *prop, bool val);
@@ -187,6 +193,12 @@ public:
 	// Check if the Javascript context is in an exception state
 	bool HasException();
 
+	// Log the current engine exception and clear it.  If an error handler is
+	// provided, we'll log the given error message through the handler, in 
+	// addition to writing the exception data to the log file; otherwise we'll
+	// only write the exception to the log file.
+	JsErrorCode LogAndClearException(ErrorHandler *eh = nullptr, int msgid = 0);
+
 	// Queued task - timeout, interval, promise completion, module ready, etc
 	struct Task;
 
@@ -210,6 +222,21 @@ public:
 	// Run ready scheduled tasks 
 	void RunTasks();
 
+	class CallException : public std::exception 
+	{
+	public:
+		using exception::exception;
+		CallException(const char *msg, JsErrorCode err) : exception(Format(msg, err).c_str()), jsErrorCode(err) { }
+
+		static CSTRING Format(const char *msg, JsErrorCode err)
+		{
+			CSTRINGEx m;
+			m.Format("%hs: %ws", msg, JsErrorToString(err));
+			return m;
+		}
+		JsErrorCode jsErrorCode;
+	};
+
 	// Default return values for type conversions from Javascript to
 	// native.  These are used in case of errors in function calls,
 	// conversions, etc.
@@ -229,103 +256,311 @@ public:
 
 	// Type converters from Javascript to native
 	template<typename T> static T JsToNative(JsValueRef jsval);
+	template<> static void JsToNative<void>(JsValueRef) { }
 	template<> static JsValueRef JsToNative<JsValueRef>(JsValueRef jsval) { return jsval; }
 	template<typename NumType> static NumType JsToNativeNumType(JsValueRef jsval)
 	{
+		JsErrorCode err;
 		JsValueRef num;
 		double d;
-		if (JsConvertValueToNumber(jsval, &num) == JsNoError
-			&& JsNumberToDouble(num, &d) == JsNoError)
+		if ((err = JsConvertValueToNumber(jsval, &num)) == JsNoError
+			&& (err = JsNumberToDouble(num, &d)) == JsNoError)
 			return static_cast<NumType>(d);
-		throw "JsToNativeNumType error";
+		throw CallException("JsToNativeNumType error", err);
 	}
 	template<> static int JsToNative<int>(JsValueRef jsval) { return JsToNativeNumType<int>(jsval); }
 	template<> static float JsToNative<float>(JsValueRef jsval) { return JsToNativeNumType<float>(jsval); }
 	template<> static double JsToNative<double>(JsValueRef jsval) { return JsToNativeNumType<double>(jsval); }
 	template<> static bool JsToNative<bool>(JsValueRef jsval)
 	{
+		JsErrorCode err;
 		JsValueRef boolval;
 		bool b;
-		if (JsConvertValueToBoolean(jsval, &boolval) == JsNoError
-			&& JsBooleanToBool(boolval, &b) == JsNoError)
+		if ((err = JsConvertValueToBoolean(jsval, &boolval)) == JsNoError
+			&& (err = JsBooleanToBool(boolval, &b)) == JsNoError)
 			return b;
-		throw "JsToNative<bool> error";
+
+		throw CallException("JsToNative<bool> error", err);
 	}
 	template<> static WSTRING JsToNative<WSTRING>(JsValueRef jsval)
 	{
+		JsErrorCode err;
 		JsValueRef strval;
 		const wchar_t *p;
 		size_t len;
-		if (JsConvertValueToString(jsval, &strval) == JsNoError
-			&& JsStringToPointer(strval, &p, &len) == JsNoError)
+		if ((err = JsConvertValueToString(jsval, &strval)) == JsNoError
+			&& (err = JsStringToPointer(strval, &p, &len)) == JsNoError)
 			return WSTRING(p, len);
-		throw "JsToNative<WSTRING> error";
+
+		throw CallException("JsToNative<WSTRING> error", err);
 	}
 	template<> static CSTRING JsToNative<CSTRING>(JsValueRef jsval)
 	{
+		JsErrorCode err;
 		JsValueRef strval;
 		const wchar_t *p;
 		size_t len;
-		if (JsConvertValueToString(jsval, &strval) == JsNoError
-			&& JsStringToPointer(strval, &p, &len) == JsNoError)
+		if ((err = JsConvertValueToString(jsval, &strval)) == JsNoError
+			&& (err = JsStringToPointer(strval, &p, &len)) == JsNoError)
 			return WideToAnsiCnt(p, len);
-		throw "JsToNative<CSTRING> error";
+
+		throw CallException("JsToNative<CSTRING> error", err);
 	}
+
+	// default values for common native types, used for 'undefined' in property gets
+	template<typename T> static T DefaultVal();
+	template<> static bool DefaultVal<bool>() { return false; }
+	template<> static int DefaultVal<int>() { return 0; }
+	template<> static double DefaultVal<double>() { return 0.0; }
+	template<> static CSTRING DefaultVal<CSTRING>() { return ""; }
+	template<> static WSTRING DefaultVal<WSTRING>() { return L""; }
+
+	// Native representation of a Javascript object, as a map of JsValueRef
+	// values keyed by WSTRING property names.
+	struct JsObjMap
+	{
+		// the raw map
+		std::unordered_map<WSTRING, JsValueRef> map;
+
+		// set an entry by name
+		void Set(const WCHAR *name, JsValueRef val) { map.emplace(name, val); }
+		void Set(const WCHAR *name, size_t len, JsValueRef val) { map.emplace(WSTRING(name, len), val); }
+		void Set(const WSTRING &name, JsValueRef val) { map.emplace(name, val); }
+
+		// Retrieve a property value.  Returns 'undefined' if not present.
+		JsValueRef Get(const WCHAR *name)
+		{
+			if (auto it = map.find(name); it != map.end())
+				return it->second;
+			else
+			{
+				JsValueRef undef;
+				JsGetUndefinedValue(&undef);
+				return undef;
+			}
+		}
+
+		template<typename T> T Get(const WCHAR *name) 
+		{ 
+			JsValueRef v = this->Get(name);
+			JsValueType t;
+			if (JsGetValueType(v, &t) == JsNoError && (t == JsUndefined || t == JsNull))
+				return DefaultVal<T>();
+
+			return JsToNative<T>(Get(name)); 
+		}
+	};
+
+	// Convert a Javascript object to a map of (WSTRING,JsValueRef) pairs,
+	// where each key is an "own" property from the object.  Returns an empty
+	// map for undefined or null.
+	template<> static JsObjMap JsToNative<JsObjMap>(JsValueRef jsval)
+	{
+		// check for null or undefined - return an empty map in these cases
+		JsObjMap map;
+		JsErrorCode err;
+		JsValueType type;
+		if ((err = JsGetValueType(jsval, &type)) == JsNoError
+			&& (type == JsUndefined || type == JsNull))
+			return map;
+
+		// get the list of the object's "own" properties
+		JsPropertyIdRef propid;
+		JsValueRef propNames, lenval;
+		int len;
+		if ((err = JsGetOwnPropertyNames(jsval, &propNames)) != JsNoError
+			|| (err = JsCreatePropertyId("length", 6, &propid)) != JsNoError
+			|| (err = JsGetProperty(propNames, propid, &lenval)) != JsNoError
+			|| (err = JsNumberToInt(lenval, &len)) != JsNoError)
+			throw CallException("JsToNative<map> error", err);
+
+		// add the "own" properties to the map
+		for (int i = 0; i < len; ++i)
+		{
+			JsValueRef idxval, eleval, propval;
+			const wchar_t *propName;
+			size_t propLen;
+			if ((err = JsIntToNumber(i, &idxval)) != JsNoError
+				|| (err = JsGetIndexedProperty(propNames, idxval, &eleval)) != JsNoError
+				|| (err = JsStringToPointer(eleval, &propName, &propLen)) != JsNoError
+				|| (err = JsObjectGetProperty(jsval, eleval, &propval)) != JsNoError)
+				throw CallException("JsToNative<vector> error", err);
+
+			map.Set(propName, propLen, propval);
+		}
+
+		return map;
+	}
+
+	// Convert a Javascript array (or other indexed object) to a vector
+	// of JsValueRef elements.
+	template<> static std::vector<JsValueRef> JsToNative<std::vector<JsValueRef>>(JsValueRef jsval)
+	{
+		JsErrorCode err;
+		JsPropertyIdRef propid;
+		JsValueRef lenval;
+		int len;
+		if ((err = JsCreatePropertyId("length", 6, &propid)) != JsNoError
+			|| (err = JsGetProperty(jsval, propid, &lenval)) != JsNoError
+			|| (err = JsNumberToInt(lenval, &len)) != JsNoError)
+			throw CallException("JsToNative<vector> error", err);
+
+		std::vector<JsValueRef> vec;
+		vec.reserve(static_cast<size_t>(len));
+		for (int i = 0; i < len; ++i)
+		{
+			JsValueRef idxval, eleval;
+			if ((err = JsIntToNumber(i, &idxval)) != JsNoError
+				|| (err = JsGetIndexedProperty(jsval, idxval, &eleval)) != JsNoError)
+				throw CallException("JsToNative<vector> error", err);
+
+			vec.emplace_back(eleval);
+		}
+
+		return vec;
+	}
+
+	// A Javascript object in its original form, but wrapped with accessor
+	// methods to retrieve properties as native values.
+	struct JsObj
+	{
+		JsObj(JsValueRef obj) : jsobj(obj) { }
+
+		// the underlying object value
+		JsValueRef jsobj;
+
+		// create an object
+		static JsObj CreateObject()
+		{
+			JsValueRef v;
+			if (JsErrorCode err = JsCreateObject(&v); err != JsNoError)
+				throw CallException("JsObj::CreateObject()", err);
+
+			return JsObj(v);
+		}
+
+		// create an array
+		static JsObj CreateArray()
+		{
+			JsValueRef v;
+			if (JsErrorCode err = JsCreateArray(0, &v); err != JsNoError)
+				throw CallException("JsObj::CreateArray()", err);
+
+			return JsObj(v);
+		}
+
+		// get a native value
+		template<typename T> T Get(const CHAR *name)
+		{
+			// retrieve the property and gets its type
+			JsPropertyIdRef propkey;
+			JsValueRef propval;
+			JsValueType type;
+			JsErrorCode err;
+			if ((err = JsCreatePropertyId(name, strlen(name), &propkey)) != JsNoError
+				|| (err = JsGetProperty(jsobj, propkey, &propval)) != JsNoError
+				|| (err = JsGetValueType(propval, &type)) != JsNoError)
+				throw CallException("JsObj::Get()", err);
+
+			// if it's undefined or null, use the default value for the type
+			if (type == JsUndefined || type == JsNull)
+				return DefaultVal<T>();
+
+			// convert to the native type
+			return JsToNative<T>(propval);
+		}
+
+		// set a value
+		template<typename T> void Set(const CHAR *name, T val)
+		{
+			JsValueRef jsval = NativeToJs(val);
+
+			JsErrorCode err;
+			JsPropertyIdRef propkey;
+			if ((err = JsCreatePropertyId(name, strlen(name), &propkey)) != JsNoError
+				|| (err = JsSetProperty(jsobj, propkey, NativeToJs(val), true)) != JsNoError)
+				throw CallException("JsObj::Set()", err);
+		}
+
+		// push an element (my object must be an array)
+		template<typename T> void Push(T val) 
+		{
+			if (JsErrorCode err = JavascriptEngine::Get()->ArrayPush(jsobj, NativeToJs(val)); err != JsNoError)
+				throw CallException("JsObj::Push()", err);
+		}
+	};
+
+	template<> static JsObj JsToNative<JsObj>(JsValueRef jsval) { return JsObj(jsval); }
 
 	// Native-to-javascript type converters
 	template<typename T> static JsValueRef NativeToJs(T t);
 	template<> static JsValueRef NativeToJs(JsValueRef jsval) { return jsval; }
+	template<> static JsValueRef NativeToJs(JsObj obj) { return obj.jsobj; }
 	template<> static JsValueRef NativeToJs(bool b)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
-		if (JsBoolToBoolean(b, &jsval) == JsNoError)
+		if ((err = JsBoolToBoolean(b, &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<bool> Error";
+
+		throw CallException("NativeToJs<bool> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(int i)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
-		if (JsIntToNumber(i, &jsval) == JsNoError)
+		if ((err = JsIntToNumber(i, &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<int> Error";
+
+		throw CallException("NativeToJs<int> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(double d)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
-		if (JsDoubleToNumber(d, &jsval) == JsNoError)
+		if ((err = JsDoubleToNumber(d, &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<double> Error";
+
+		throw CallException("NativeToJs<double> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(const CHAR *p)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
 		WSTRING s = AnsiToWide(p);
-		if (JsPointerToString(s.c_str(), s.length(), &jsval) == JsNoError)
+		if ((err = JsPointerToString(s.c_str(), s.length(), &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<CHAR*> Error";
+
+		throw CallException("NativeToJs<CHAR*> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(const CSTRING &c)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
 		WSTRING s = AnsiToWide(c.c_str());
-		if (JsPointerToString(s.c_str(), s.length(), &jsval) == JsNoError)
+		if ((err = JsPointerToString(s.c_str(), s.length(), &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<CSTRING&> Error";
+
+		throw CallException("NativeToJs<CSTRING&> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(CSTRING c) { return NativeToJs<const CSTRING&>(c); }
 	template<> static JsValueRef NativeToJs(const WCHAR *p)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
-		if (JsPointerToString(p, wcslen(p), &jsval) == JsNoError)
+		if ((err = JsPointerToString(p, wcslen(p), &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<WCHAR*> error";
+
+		throw CallException("NativeToJs<WCHAR*> error", err);
 	}
 	template<> static JsValueRef NativeToJs(const WSTRING &s)
 	{
+		JsErrorCode err;
 		JsValueRef jsval;
-		if (JsPointerToString(s.c_str(), s.length(), &jsval) == JsNoError)
+		if ((err = JsPointerToString(s.c_str(), s.length(), &jsval)) == JsNoError)
 			return jsval;
-		throw "NativeToJs<WSTRING&> error";
+
+		throw CallException("NativeToJs<WSTRING&> error", err);
 	}
 	template<> static JsValueRef NativeToJs(WSTRING s) { return NativeToJs<const WSTRING&>(s); }
 
@@ -339,32 +574,47 @@ public:
 		// entering Javascript scope
 		JavascriptScope jsc;
 
+		JsErrorCode err;
 		const size_t argc = sizeof...(ArgTypes) + 1;
-		JsValueRef args[argc] = { JS_INVALID_REFERENCE, NativeToJs(args)... };
-		JsGetUndefinedValue(&args[0]);
+		JsValueRef argv[argc] = { JS_INVALID_REFERENCE, NativeToJs(args)... };
+		JsGetUndefinedValue(&argv[0]);
 		JsValueRef result;
-		if (JsCallFunction(func, args, static_cast<unsigned short>(argc), &result) != JsNoError)
-			throw "CallFunc Error";
+		if ((err = JsCallFunction(func, argv, static_cast<unsigned short>(argc), &result)) != JsNoError)
+			throw CallException("CallFunc Error", err);
+
 		return JsToNative<ReturnType>(result);
 	}
 
-	// Call a Javascript method of an object.
+	// Call a Javascript method of an object by property ID key
 	template<typename ReturnType, typename... ArgTypes>
 	static ReturnType CallMethod(JsValueRef thisval, JsPropertyIdRef prop, ArgTypes... args)
 	{
 		// entering Javascript scope
 		JavascriptScope jsc;
 
+		JsErrorCode err;
 		JsValueRef func;
-		if (JsGetProperty(thisval, prop, &func) == JsNoError)
+		if ((err = JsGetProperty(thisval, prop, &func)) == JsNoError)
 		{
 			const size_t argc = sizeof...(ArgTypes) + 1;
 			JsValueRef argv[argc] = { thisval, NativeToJs(args)... };
 			JsValueRef result;
-			if (JsCallFunction(func, argv, static_cast<unsigned short>(argc), &result) == JsNoError)
+			if ((err = JsCallFunction(func, argv, static_cast<unsigned short>(argc), &result)) == JsNoError)
 				return JsToNative<ReturnType>(result);
 		}
-		throw "CallMethod Error";
+		throw CallException("CallMethod Error", err);
+	}
+
+	// Call a Javascript method of an object by name
+	template<typename ReturnType, typename... ArgTypes>
+	static ReturnType CallMethod(JsValueRef thisval, const CHAR *prop, ArgTypes... args)
+	{
+		JsErrorCode err;
+		JsPropertyIdRef propid;
+		if ((err = JsCreatePropertyId(prop, strlen(prop), &propid)) != JsNoError)
+			throw CallException("CallMethod: creating property ID", err);
+
+		return CallMethod<ReturnType>(thisval, propid, args...);
 	}
 
 	// Call a Javascript constructor.  The 'this' argument is automatically
@@ -372,13 +622,15 @@ public:
 	template<typename... ArgTypes>
 	static JsValueRef CallNew(JsValueRef ctor, ArgTypes... args)
 	{
+		JsErrorCode err;
 		const size_t argc = sizeof...(ArgTypes) + 1;
 		JsValueRef argv[argc] = { JS_INVALID_REFERENCE, NativeToJs(args)... };
 		JsGetUndefinedValue(&argv[0]);
 		JsValueRef result;
-		if (JsConstructObject(ctor, argv, static_cast<unsigned short>(argc), &result) == JsNoError)
+		if ((err = JsConstructObject(ctor, argv, static_cast<unsigned short>(argc), &result)) == JsNoError)
 			return result;
-		throw "CallNew Error";
+
+		throw CallException("CallNew Error", err);
 	}
 
 	template<typename... ArgTypes> 
@@ -408,6 +660,10 @@ public:
 		}
 		catch (...)
 		{
+			// clear any Javascript exception
+			JsValueRef jsexc;
+			JsGetAndClearException(&jsexc);
+
 			// on any error, return true to indicate that system default processing
 			// for the event should proceed
 			return true;
@@ -569,6 +825,49 @@ public:
 	public:
 		HWND Empty() const { return NULL; }
 		HWND Conv(JsValueRef val, bool &ok, const CSTRING &) const;
+	};
+
+	template<> class ToNativeConverter<std::vector<JsValueRef>> : public ToNativeConverterBase
+	{
+	public:
+		std::vector<JsValueRef> Empty() const { return std::vector<JsValueRef>(); }
+		std::vector<JsValueRef> Conv(JsValueRef val, bool &ok, const CSTRING &name) const
+		{
+			try
+			{
+				return JsToNative<std::vector<JsValueRef>>(val);
+			}
+			catch (CallException exc)
+			{
+				this->Check(exc.jsErrorCode, ok, name);
+				return Empty();
+			}
+		}
+	};
+
+	template<> class ToNativeConverter<JsObjMap> : public ToNativeConverterBase
+	{
+	public:
+		JsObjMap Empty() const { return JsObjMap(); }
+		JsObjMap Conv(JsValueRef val, bool &ok, const CSTRING &name) const
+		{
+			try
+			{
+				return JsToNative<JsObjMap>(val);
+			}
+			catch (CallException exc)
+			{
+				this->Check(exc.jsErrorCode, ok, name);
+				return Empty();
+			}
+		}
+	};
+
+	template<> class ToNativeConverter<JsObj> : public ToNativeConverterBase
+	{
+	public:
+		JsObj Empty() const { return JsObj(JS_INVALID_REFERENCE); }
+		JsObj Conv(JsValueRef val, bool &ok, const CSTRING &name) const { return JsObj(val); }
 	};
 
 	// Javascript-to-native function binder.    This collection of template
@@ -1236,12 +1535,6 @@ protected:
 	JsValueRef zeroVal;
 	JsValueRef falseVal;
 	JsValueRef trueVal;
-
-	// Log the current engine exception and clear it.  If an error handler is
-	// provided, we'll log the given error message through the handler, in 
-	// addition to writing the exception data to the log file; otherwise we'll
-	// only write the exception to the log file.
-	JsErrorCode LogAndClearException(ErrorHandler *eh = nullptr, int msgid = 0);
 
 	// Module import callbacks
 	static JsErrorCode CHAKRA_CALLBACK FetchImportedModule(

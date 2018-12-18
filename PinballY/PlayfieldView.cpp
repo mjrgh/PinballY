@@ -379,178 +379,362 @@ void PlayfieldView::InitJavascript()
 			return;
 		}
 
-		// set up our callbacks
 		auto js = JavascriptEngine::Get();
-		if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
-			|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
-			|| !js->DefineGlobalFunc("OutputDebugString", &PlayfieldView::JsOutputDebugString, this, eh)
-			|| !js->DefineGlobalFunc("setTimeout", &PlayfieldView::JsSetTimeout, this, eh)
-			|| !js->DefineGlobalFunc("clearTimeout", &PlayfieldView::JsClearTimeout, this, eh)
-			|| !js->DefineGlobalFunc("setInterval", &PlayfieldView::JsSetInterval, this, eh)
-			|| !js->DefineGlobalFunc("clearInterval", &PlayfieldView::JsClearInterval, this, eh))
+		try
 		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error setting up Javascript native callbacks; Javascript disabled for this session\n"));
-			return;
-		}
-
-		// Load our system scripts.  These define the basic class framework 
-		// for the system objects, as far as we can in pure Javascript.  We'll
-		// still have to attach native code functions to some of the object
-		// methods after everything is set up.
-		auto LoadSysScript = [&js, &eh](const TCHAR *name)
-		{
-			// get the full path
-			TCHAR path[MAX_PATH];
-			GetDeployedFilePath(path, name, _T(""));
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading system script file %s\n"), path);
-
-			// get the file:/// URL for the path
-			WSTRING url = js->GetFileUrl(path);
-
-			// load the file
-			long len;
-			std::unique_ptr<WCHAR> contents(ReadFileAsWStr(path, eh, len, ReadFileAsStr_NullTerm));
-			if (contents == nullptr)
-				return false;
-
-			// evaluate the script
-			return js->EvalScript(contents.get(), url.c_str(), nullptr, eh);
-		};
-
-		if (!LoadSysScript(_T("scripts\\system\\CParser.js"))
-			|| !LoadSysScript(_T("scripts\\system\\SystemClasses.js")))
-		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". Error loading system scripts; Javascript disabled for this session\n"));
-			return;
-		}
-
-		// create a system info object with basic system details
-		MsgFmt sysInfo(_T("this.systemInfo = {")
-			_T("programName:\"PinballY\",")
-			_T("platform:\"") IF_32_64(_T("x86"), _T("x64")) _T("\",")
-			_T("version:{")
-			   _T("display:\"%hs\",")
-			   _T("semantic:\"%hs\",")
-               _T("basic:\"") _T(PINBALLY_VERSION) _T("\",")
-			   _T("status:\"%hs\",")
-			   _T("build:%d,")
-			   _T("buildDate:new Date(%I64d)}")
-			_T("};"),
-
-			G_VersionInfo.fullVerWithStat,
-			G_VersionInfo.semVer,
-			G_VersionInfo.fullVer,
-			G_VersionInfo.buildNo,
-			G_VersionInfo.unix_date * 1000
-		);
-		js->EvalScript(sysInfo.Get(), _T("system:sysinfo"), nullptr, eh);
-
-		// Install the dllImport callbacks.  Note that this happens AFTER the system
-		// scripts are loaded, since the callbacks are installed on objects created in
-		// the system scripts.
-		if (!js->BindDllImportCallbacks(eh))
-			return;
-
-		// get the global objects we need to reference
-		auto GetObj = [&js](JsValueRef &jsval, const char *name)
-		{
-			// get the global property by name
-			const TCHAR *where;
-			JsErrorCode err;
-			if ((err = js->GetGlobProp(jsval, name, where)) != JsNoError)
+			// set up our callbacks
+			if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
+				|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
+				|| !js->DefineGlobalFunc("OutputDebugString", &PlayfieldView::JsOutputDebugString, this, eh)
+				|| !js->DefineGlobalFunc("setTimeout", &PlayfieldView::JsSetTimeout, this, eh)
+				|| !js->DefineGlobalFunc("clearTimeout", &PlayfieldView::JsClearTimeout, this, eh)
+				|| !js->DefineGlobalFunc("setInterval", &PlayfieldView::JsSetInterval, this, eh)
+				|| !js->DefineGlobalFunc("clearInterval", &PlayfieldView::JsClearInterval, this, eh))
 			{
-				LogFile::Get()->Write(LogFile::JSLogging, _T(". %hs object missing; Javascript disabled for this session\n"), name);
-				return false;
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". Error setting up Javascript native callbacks; Javascript disabled for this session\n"));
+				return;
 			}
 
-			// add a reference
-			JsAddRef(jsval, nullptr);
-			return true;
-		};
-		if (!GetObj(jsCommandButtonDownEvent, "CommandButtonDownEvent")
-			|| !GetObj(jsCommandButtonUpEvent, "CommandButtonUpEvent")
-			|| !GetObj(jsCommandButtonBgDownEvent, "CommandButtonBgDownEvent")
-			|| !GetObj(jsCommandButtonBgUpEvent, "CommandButtonBgUpEvent")
-			|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
-			|| !GetObj(jsKeyUpEvent, "KeyUpEvent")
-			|| !GetObj(jsKeyBgDownEvent, "KeyBgDownEvent")
-			|| !GetObj(jsKeyBgUpEvent, "KeyBgUpEvent")
-			|| !GetObj(jsJoystickButtonDownEvent, "JoystickButtonDownEvent")
-			|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
-			|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
-			|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
-			|| !GetObj(jsLaunchEvent, "LaunchEvent")
-			|| !GetObj(jsConsole, "console")
-			|| !GetObj(jsLogfile, "logfile"))
-			return;
-
-		// Initialize generic properties for a js window object.  Note that this has
-		// to wait until after binding the DLL import subsystem, since we depend upon
-		// the native HANDLE object type.
-		auto InitWinObj = [&js, &GetObj, &eh](FrameWin *frame, JsValueRef &jswinobj, const CHAR *name)
-		{
-			// get the window object
-			if (!GetObj(jswinobj, name))
-				return false;
-
-			// get the view
-			auto view = dynamic_cast<D3DView*>(frame->GetView());
-
-			// set up the HWND properties
-			JsErrorCode err;
-			const TCHAR *where;
-			JsValueRef propval;
-			if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
-				|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
-				|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
-				|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
+			// Load our system scripts.  These define the basic class framework 
+			// for the system objects, as far as we can in pure Javascript.  We'll
+			// still have to attach native code functions to some of the object
+			// methods after everything is set up.
+			auto LoadSysScript = [&js, &eh](const TCHAR *name)
 			{
-				LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
-				return false;
+				// get the full path
+				TCHAR path[MAX_PATH];
+				GetDeployedFilePath(path, name, _T(""));
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading system script file %s\n"), path);
+
+				// get the file:/// URL for the path
+				WSTRING url = js->GetFileUrl(path);
+
+				// load the file
+				long len;
+				std::unique_ptr<WCHAR> contents(ReadFileAsWStr(path, eh, len, ReadFileAsStr_NullTerm));
+				if (contents == nullptr)
+					return false;
+
+				// evaluate the script
+				return js->EvalScript(contents.get(), url.c_str(), nullptr, eh);
+			};
+
+			if (!LoadSysScript(_T("scripts\\system\\CParser.js"))
+				|| !LoadSysScript(_T("scripts\\system\\SystemClasses.js")))
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". Error loading system scripts; Javascript disabled for this session\n"));
+				return;
 			}
-			if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
-				|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
-				|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
-				|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
-				|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh))
-				return false;
 
-			// success 
-			return true;
-		};
-		if (!InitWinObj(Application::Get()->GetPlayfieldWin(), jsMainWindow, "mainWindow")
-			|| !InitWinObj(Application::Get()->GetBackglassWin(), jsBackglassWindow, "backglassWindow")
-			|| !InitWinObj(Application::Get()->GetDMDWin(), jsDMDWindow, "dmdWindow")
-			|| !InitWinObj(Application::Get()->GetTopperWin(), jsTopperWindow, "topperWindow")
-			|| !InitWinObj(Application::Get()->GetInstCardWin(), jsInstCardWindow, "instCardWindow"))
-			return;
+			// create a system info object with basic system details
+			MsgFmt sysInfo(_T("this.systemInfo = {")
+				_T("programName:\"PinballY\",")
+				_T("platform:\"") IF_32_64(_T("x86"), _T("x64")) _T("\",")
+				_T("version:{")
+				_T("display:\"%hs\",")
+				_T("semantic:\"%hs\",")
+				_T("basic:\"") _T(PINBALLY_VERSION) _T("\",")
+				_T("status:\"%hs\",")
+				_T("build:%d,")
+				_T("buildDate:new Date(%I64d)}")
+				_T("};"),
 
-		// set up the console methods
-		if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
-			return;
+				G_VersionInfo.fullVerWithStat,
+				G_VersionInfo.semVer,
+				G_VersionInfo.fullVer,
+				G_VersionInfo.buildNo,
+				G_VersionInfo.unix_date * 1000
+			);
+			js->EvalScript(sysInfo.Get(), _T("system:sysinfo"), nullptr, eh);
 
-		// set up logfile methods
-		if (!js->DefineObjPropFunc(jsLogfile, "logfile", "_log", &PlayfieldView::JsLog, this, eh))
-			return;
+			// Install the dllImport callbacks.  Note that this happens AFTER the system
+			// scripts are loaded, since the callbacks are installed on objects created in
+			// the system scripts.
+			if (!js->BindDllImportCallbacks(eh))
+				return;
 
-		// set up mainWindow methods
-		if (!js->DefineObjPropFunc(jsMainWindow, "mainWindow", "message", &PlayfieldView::JsMessage, this, eh)
-			|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getUIMode", &PlayfieldView::JsGetUIMode, this, eh))
-			return;
+			// get the global objects we need to reference
+			auto GetObj = [&js](JsValueRef &jsval, const char *name)
+			{
+				// get the global property by name
+				const TCHAR *where;
+				JsErrorCode err;
+				if ((err = js->GetGlobProp(jsval, name, where)) != JsNoError)
+				{
+					LogFile::Get()->Write(LogFile::JSLogging, _T(". %hs object missing; Javascript disabled for this session\n"), name);
+					return false;
+				}
 
-		// Execute the user script.  This sets up event handlers for
-		// any events the script wants to be notified about.
-		LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
-		if (!js->LoadModule(jsmain, eh))
-			return;
+				// add a reference
+				JsAddRef(jsval, nullptr);
+				return true;
+			};
+			if (!GetObj(jsCommandButtonDownEvent, "CommandButtonDownEvent")
+				|| !GetObj(jsCommandButtonUpEvent, "CommandButtonUpEvent")
+				|| !GetObj(jsCommandButtonBgDownEvent, "CommandButtonBgDownEvent")
+				|| !GetObj(jsCommandButtonBgUpEvent, "CommandButtonBgUpEvent")
+				|| !GetObj(jsKeyDownEvent, "KeyDownEvent")
+				|| !GetObj(jsKeyUpEvent, "KeyUpEvent")
+				|| !GetObj(jsKeyBgDownEvent, "KeyBgDownEvent")
+				|| !GetObj(jsKeyBgUpEvent, "KeyBgUpEvent")
+				|| !GetObj(jsJoystickButtonDownEvent, "JoystickButtonDownEvent")
+				|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
+				|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
+				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
+				|| !GetObj(jsLaunchEvent, "LaunchEvent")
+				|| !GetObj(jsCommandEvent, "CommandEvent")
+				|| !GetObj(jsMenuOpenEvent, "MenuOpenEvent")
+				|| !GetObj(jsMenuCloseEvent, "MenuCloseEvent")
+				|| !GetObj(jsAttractModeStartEvent, "AttractModeStartEvent")
+				|| !GetObj(jsAttractModeEndEvent, "AttractModeEndEvent")
+				|| !GetObj(jsWheelModeEvent, "WheelModeEvent")
+				|| !GetObj(jsPopupOpenEvent, "PopupOpenEvent")
+				|| !GetObj(jsPopupCloseEvent, "PopupCloseEvent")
+				|| !GetObj(jsConsole, "console")
+				|| !GetObj(jsLogfile, "logfile"))
+				return;
 
-		// We successfully initialized the javascript engine and loaded
-		// the user script.
-		cleanup.success = true;
+			// Initialize generic properties for a js window object.  Note that this has
+			// to wait until after binding the DLL import subsystem, since we depend upon
+			// the native HANDLE object type.
+			auto InitWinObj = [&js, &GetObj, &eh](FrameWin *frame, JsValueRef &jswinobj, const CHAR *name)
+			{
+				// get the window object
+				if (!GetObj(jswinobj, name))
+					return false;
+
+				// get the view
+				auto view = dynamic_cast<D3DView*>(frame->GetView());
+
+				// set up the HWND properties
+				JsErrorCode err;
+				const TCHAR *where;
+				JsValueRef propval;
+				if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
+					|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
+					|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
+					|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
+				{
+					LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
+					return false;
+				} 
+				if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
+					|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
+					|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
+					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
+					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh))
+					return false;
+
+				// success 
+				return true;
+			};
+			if (!InitWinObj(Application::Get()->GetPlayfieldWin(), jsMainWindow, "mainWindow")
+				|| !InitWinObj(Application::Get()->GetBackglassWin(), jsBackglassWindow, "backglassWindow")
+				|| !InitWinObj(Application::Get()->GetDMDWin(), jsDMDWindow, "dmdWindow")
+				|| !InitWinObj(Application::Get()->GetTopperWin(), jsTopperWindow, "topperWindow")
+				|| !InitWinObj(Application::Get()->GetInstCardWin(), jsInstCardWindow, "instCardWindow"))
+				return;
+
+			// set up the console methods
+			if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
+				return;
+
+			// set up logfile methods
+			if (!js->DefineObjPropFunc(jsLogfile, "logfile", "_log", &PlayfieldView::JsLog, this, eh))
+				return;
+
+			// set up mainWindow methods
+			if (!js->DefineObjPropFunc(jsMainWindow, "mainWindow", "message", &PlayfieldView::JsMessage, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getUIMode", &PlayfieldView::JsGetUIMode, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getActiveWindow", &PlayfieldView::JsGetActiveWindow, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "doCommand", &PlayfieldView::JsDoCommand, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showMenu", &PlayfieldView::JsShowMenu, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "startAttractMode", &PlayfieldView::JsStartAttractMode, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh))
+				return;
+
+			// set up command IDs in the Command object
+			JsValueRef jsCommand;
+			const TCHAR *where;
+			if (js->GetGlobProp(jsCommand, "command", where) == JsNoError)
+			{
+#define C(name, id) js->SetProp(jsCommand, #name, id)
+				C(MenuReturn, ID_MENU_RETURN);
+				C(PlayGame, ID_PLAY_GAME);
+				C(Flyer, ID_FLYER);
+				C(GameInfo, ID_GAMEINFO);
+				C(HighScores, ID_HIGH_SCORES);
+				C(Instructions, ID_INSTRUCTIONS);
+				C(AboutBox, ID_ABOUT);
+				C(Help, ID_HELP);
+				C(Quit, ID_EXIT);
+				C(PowerOff, ID_SHUTDOWN);
+				C(PowerOffConfirm, ID_SHUTDOWN_CONFIRM);
+				C(MuteVideos, ID_MUTE_VIDEOS);
+				C(MuteTableAudio, ID_MUTE_TABLE_AUDIO);
+				C(MuteButtons, ID_MUTE_BUTTONS);
+				C(MuteAttractMode, ID_MUTE_ATTRACTMODE);
+				C(PinscapeNightMode, ID_PINSCAPE_NIGHT_MODE);
+				C(Options, ID_OPTIONS);
+				C(KillGame, ID_KILL_GAME);
+				C(PauseGame, ID_PAUSE_GAME);
+				C(ResumeGame, ID_RESUME_GAME);
+				C(RealDmdAutoEnable, ID_REALDMD_AUTO_ENABLE);
+				C(RealDmdEnable, ID_REALDMD_ENABLE);
+				C(RealDmdDisable, ID_REALDMD_DISABLE);
+				C(RealDmdMirrorHorz, ID_REALDMD_MIRROR_HORZ);
+				C(RealDmdMirrorVert, ID_REALDMD_MIRROR_VERT);
+				C(AddFavorite, ID_ADD_FAVORITE);
+				C(RemoveFavorite, ID_REMOVE_FAVORITE);
+				C(RateGame, ID_RATE_GAME);
+				C(FilterByEra, ID_FILTER_BY_ERA);
+				C(FilterByManufacturer, ID_FILTER_BY_MANUF);
+				C(FilterBySystem, ID_FILTER_BY_SYS);
+				C(FilterByRating, ID_FILTER_BY_RATING);
+				C(FilterByCategory, ID_FILTER_BY_CATEGORY);
+				C(FilterByRecency, ID_FILTER_BY_RECENCY);
+				C(FilterByAdded, ID_FILTER_BY_ADDED);
+				C(ClearCredits, ID_CLEAR_CREDITS);
+				C(ShowOperatorMenu, ID_OPERATOR_MENU);
+				C(BatchCaptureStep1, ID_BATCH_CAPTURE_STEP1);
+				C(BatchCaptureAll, ID_BATCH_CAPTURE_ALL);
+				C(BatchCaptureFilter, ID_BATCH_CAPTURE_FILTER);
+				C(BatchCaptureMarked, ID_BATCH_CAPTURE_MARKED);
+				C(BatchCaptureStep3, ID_BATCH_CAPTURE_STEP3);
+				C(BatchCaptureStep4, ID_BATCH_CAPTURE_STEP4);
+				C(BatchCaptureView, ID_BATCH_CAPTURE_VIEW);
+				C(BatchCaptureGo, ID_BATCH_CAPTURE_GO);
+				C(EditGameInfo, ID_EDIT_GAME_INFO);
+				C(DeleteGameInfo, ID_DEL_GAME_INFO);
+				C(ConfirmDeleteGameInfo, ID_CONFIRM_DEL_GAME_INFO);
+				C(SetCategories, ID_SET_CATEGORIES);
+				C(MenuPageUp, ID_MENU_PAGE_UP);
+				C(MenuPageDown, ID_MENU_PAGE_DOWN);
+				C(SaveCategories, ID_SAVE_CATEGORIES);
+				C(EditCategories, ID_EDIT_CATEGORIES);
+				C(CaptureMediaSetup, ID_CAPTURE_MEDIA);
+				C(CaptureGo, ID_CAPTURE_GO);
+				C(MarkForBatchCapture, ID_MARK_FOR_BATCH_CAPTURE);
+				C(ShowFindMediaMenu, ID_FIND_MEDIA);
+				C(FindMediaGo, ID_MEDIA_SEARCH_GO);
+				C(ShowMediaFiles, ID_SHOW_MEDIA_FILES);
+				C(DeleteMediaFile, ID_DEL_MEDIA_FILE);
+				C(HideGame, ID_HIDE_GAME);
+				C(EnableVideos, ID_ENABLE_VIDEO_GLOBAL);
+				C(RestartAsAdmin, ID_RESTART_AS_ADMIN);
+				C(MediaDropPhase2, ID_MEDIA_DROP_PHASE2);
+				C(MediaDropGo, ID_MEDIA_DROP_GO);
+				C(AdjustCaptureDelay, ID_CAPTURE_ADJUSTDELAY);
+				C(FilterFirst, ID_FILTER_FIRST);
+				C(FilterLast, ID_FILTER_LAST);
+				C(PickSysFirst, ID_PICKSYS_FIRST);
+				C(PickSysLast, ID_PICKSYS_LAST);
+				C(CaptureFirst, ID_CAPTURE_FIRST);
+				C(CaptureLast, ID_CAPTURE_LAST);
+				C(MediaDropFirst, ID_MEDIADROP_FIRST);
+				C(MediaDropLast, ID_MEDIADROP_LAST);
+				C(ShowGameSetupMenu, ID_GAME_SETUP);
+				C(ShowMainMenu, ID_SHOW_MAIN_MENU);
+				C(ShowExitMenu, ID_SHOW_EXIT_MENU);
+				C(UserFirst, ID_USER_FIRST);
+				C(UserLast, ID_USER_LAST);
+#undef C
+
+				// initialize the ID-to-name table
+				js->CallMethod<void>(jsCommand, "_init");
+			}
+
+			// Execute the user script.  This sets up event handlers for
+			// any events the script wants to be notified about.
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
+			if (!js->LoadModule(jsmain, eh))
+				return;
+
+			// We successfully initialized the javascript engine and loaded
+			// the user script.
+			cleanup.success = true;
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing javascript: %hs\n"), exc.what());
+			if (js->HasException())
+				js->LogAndClearException(&eh);
+		}
 	}
 }
 
 static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
+
+bool PlayfieldView::FireCommandEvent(int cmd)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(jsMainWindow, jsCommandEvent, cmd);
+
+	return ret;
+}
+
+bool PlayfieldView::FireMenuEvent(bool open, Menu *menu)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		if (open && menu != nullptr)
+		{
+			// menu open event
+			try
+			{
+				// build the Javascript menu descriptor
+				using JsObj = JavascriptEngine::JsObj;
+				JsObj arr = JsObj::CreateArray();
+				for (auto &m : menu->descs)
+				{
+					// create en element object and add it to the array
+					JsObj ele = JsObj::CreateObject();
+					arr.Push(ele);
+
+					// populate it
+					ele.Set("title", m.text);
+					ele.Set("cmd", m.cmd);
+					if (m.selected) ele.Set("selected", true);
+					if (m.checked) ele.Set("checked", true);
+					if (m.radioChecked) ele.Set("radio", true);
+					if (m.hasSubmenu) ele.Set("hasSubmenu", true);
+					if (m.stayOpen) ele.Set("stayOpen", true);
+				}
+
+				// set up the options object
+				JsObj options = JsObj::CreateObject();
+				if ((menu->flags & SHOWMENU_IS_EXIT_MENU) != 0) options.Set("isExitMenu", true);
+				if ((menu->flags & SHOWMENU_NO_ANIMATION) != 0) options.Set("noAmination", true);
+				if ((menu->flags & SHOWMENU_DIALOG_STYLE) != 0) options.Set("dialogStyle", true);
+
+				// fire the event
+				ret = js->FireEvent(jsMainWindow, jsMenuOpenEvent, menu->id.c_str(), arr, options);
+			}
+			catch (...)
+			{
+				// ignore errors
+			}
+		}
+		else if (curMenu != nullptr)
+		{
+			// menu close event
+			ret = js->FireEvent(jsMainWindow, jsMenuCloseEvent, curMenu->id.c_str());
+		}
+	}
+
+	return ret;
+}
+
+bool PlayfieldView::FirePopupEvent(bool open, const WCHAR *name)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(jsMainWindow, open ? jsPopupOpenEvent : jsPopupCloseEvent, name);
+
+	return ret;
+}
 
 bool PlayfieldView::FireCommandButtonEvent(const QueuedKey &key)
 {
@@ -657,6 +841,50 @@ bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, bool repe
 	return ret;
 }
 
+bool PlayfieldView::FireAttractModeEvent(bool starting)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(jsMainWindow, starting ? jsAttractModeStartEvent : jsAttractModeEndEvent);
+
+	return ret;
+}
+
+void PlayfieldView::UpdateJsUIMode()
+{
+	// figure the new mode
+	JSUIMode newMode;
+	if (curMenu != nullptr)
+		newMode = jsuiMenu;
+	else if (popupSprite != nullptr)
+		newMode = jsuiPopup;
+	else if (runningGameMode != None)
+		newMode = jsuiRun;
+	else if (attractMode.active)
+		newMode = jsuiAttract;
+	else
+		newMode = jsuiWheel;
+
+	// if this is a different mode, update it
+	if (newMode != jsuiMode)
+	{
+		// note the new mode
+		jsuiMode = newMode;
+
+		// On switching to wheel mode, fire an event.  This isn't necessary
+		// on other events, as we have other more event-specific handling
+		// for the rest.
+		if (newMode == jsuiWheel)
+			FireWheelModeEvent();
+	}
+}
+
+void PlayfieldView::FireWheelModeEvent()
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->FireEvent(jsMainWindow, jsWheelModeEvent);
+}
+
 void PlayfieldView::JsAlert(TSTRING msg)
 {
 	MessageBox(GetParent(hWnd), msg.c_str(), _T("PinballY"), MB_OK | MB_ICONINFORMATION);
@@ -742,11 +970,12 @@ JsValueRef PlayfieldView::JsGetUIMode()
 			if (curMenu != nullptr)
 			{
 				mode = L"menu";
+				js->SetProp(obj, "menuID", curMenu->id.c_str());
 			}
 			else if (popupSprite != nullptr)
 			{
 				mode = L"popup";
-				js->SetProp(obj, "popup", popupName);
+				js->SetProp(obj, "popupID", popupName);
 			}
 			else if (runningGameMode != None)
 			{
@@ -779,6 +1008,33 @@ JsValueRef PlayfieldView::JsGetUIMode()
 	}
 
 	return obj;
+}
+
+JsValueRef PlayfieldView::JsGetActiveWindow()
+{
+	// test a window to see if it's the active window; if so, sets jsobj to
+	// the Javascript object representing the window and returns true
+	JsValueRef jsobj = JavascriptEngine::Get()->GetNullVal();
+	auto W = [&jsobj](FrameWin *win, JsValueRef obj)
+	{
+		if (win != nullptr && win->IsNcActive())
+		{
+			jsobj = obj;
+			return true;
+		}
+		return false;
+	};
+
+	// try each window, stopping when we find the active one
+	auto app = Application::Get();
+	W(app->GetPlayfieldWin(), jsMainWindow)
+		|| W(app->GetBackglassWin(), jsBackglassWindow)
+		|| W(app->GetDMDWin(), jsDMDWindow)
+		|| W(app->GetInstCardWin(), jsInstCardWindow)
+		|| W(app->GetTopperWin(), jsTopperWindow);
+
+	// return whatever we found
+	return jsobj;
 }
 
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
@@ -1081,8 +1337,109 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 
 bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 {
+	// some commands are more of the nature of internal events; these bypass javascript
 	switch (cmd)
 	{
+	case ID_SYNC_BACKGLASS:
+		// sync the backglass, and do a deferred sync on the DMD
+		if (auto bg = Application::Get()->GetBackglassView(); bg != nullptr)
+			bg->SyncCurrentGame();
+		return true;
+
+	case ID_SYNC_DMD:
+		// sync the simulated DMD window
+		if (auto dmd = Application::Get()->GetDMDView(); dmd != nullptr)
+			dmd->SyncCurrentGame();
+
+		// while we're at it, sync the real DMD, if we're using one
+		if (realDMD != nullptr)
+			realDMD->UpdateGame();
+
+		return true;
+
+	case ID_SYNC_TOPPER:
+		// sync the topper window
+		if (auto topper = Application::Get()->GetTopperView(); topper != nullptr)
+			topper->SyncCurrentGame();
+		return true;
+
+	case ID_SYNC_INSTCARD:
+		// sync the instruction card window
+		if (auto inst = Application::Get()->GetInstCardView(); inst != nullptr)
+			inst->SyncCurrentGame();
+		return true;
+
+	case ID_APPROVE_ELEVATION:
+		// The user has approved launching the current game in Admin mode.
+		// Make sure we have a game to launch...
+		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
+		{
+			// Find the system we're going to run the game with.  If
+			// the game has a configured system, we'll always use that.
+			// Otherwise, it must be an unconfigured file, so the system
+			// comes from the matching systems for its database file.
+			// There can be multiple of these, but since we already
+			// tried to launch the game, we know it's the one at the
+			// game's "recent system index" in the list.
+			GameSystem *system = game->system;
+			if (system == nullptr && game->tableFileSet != nullptr)
+			{
+				// find the system in the list
+				int n = 0;
+				for (auto s : game->tableFileSet->systems)
+				{
+					if (n++ == game->recentSystemIndex)
+					{
+						system = s;
+						break;
+					}
+				}
+			}
+
+			// only proceed if we found a system
+			if (system != nullptr)
+			{
+				// Elevation approval is only required once per system per
+				// session, so this implicitly approves future launches on
+				// this same system.
+				system->elevationApproved = true;
+
+				// Try launching the game again.  Use the same command and the
+				// same system index as the original launch attempt (the most
+				// recent launch attempt), since elevation approval is always
+				// a follow-on step to a launch command.
+				PlayGame(lastPlayGameCmd, game->recentSystemIndex);
+			}
+		}
+		return true;
+	}
+
+	// Fire the Javascript command event.  If it blocks the system action,
+	// stop now and return "handled".
+	if (!FireCommandEvent(cmd))
+		return true;
+
+	// carry out the command
+	return OnCommandImpl(cmd, source, hwndControl);
+}
+
+bool PlayfieldView::JsDoCommand(int cmd)
+{
+	return OnCommandImpl(cmd, 0, NULL);
+}
+
+bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
+{
+	switch (cmd)
+	{
+	case ID_SHOW_MAIN_MENU:
+		ShowMainMenu();
+		return true;
+
+	case ID_SHOW_EXIT_MENU:
+		ShowExitMenu();
+		return true;
+		
 	case ID_PLAY_GAME:
 		PlayGame(cmd);
 		return true;
@@ -1093,7 +1450,7 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_FLYER:
 		ShowFlyer();
-		return 0;
+		return true;
 
 	case ID_GAMEINFO:
 		ShowGameInfo();
@@ -1227,35 +1584,6 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		Application::Get()->ResumeGame();
 		return true;
 
-	case ID_SYNC_BACKGLASS:
-		// sync the backglass, and do a deferred sync on the DMD
-		if (auto bg = Application::Get()->GetBackglassView(); bg != nullptr)
-			bg->SyncCurrentGame();
-		return true;
-
-	case ID_SYNC_DMD:
-		// sync the simulated DMD window
-		if (auto dmd = Application::Get()->GetDMDView(); dmd != nullptr)
-			dmd->SyncCurrentGame();
-
-		// while we're at it, sync the real DMD, if we're using one
-		if (realDMD != nullptr)
-			realDMD->UpdateGame();
-
-		return true;
-
-	case ID_SYNC_TOPPER:
-		// sync the topper window
-		if (auto topper = Application::Get()->GetTopperView(); topper != nullptr)
-			topper->SyncCurrentGame();
-		return true;
-
-	case ID_SYNC_INSTCARD:
-		// sync the instruction card window
-		if (auto inst = Application::Get()->GetInstCardView(); inst != nullptr)
-			inst->SyncCurrentGame();
-		return true;
-
 	case ID_REALDMD_AUTO_ENABLE:
 		SetRealDMDStatus(RealDMDAuto);
 		return true;
@@ -1316,11 +1644,11 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_FILTER_BY_RECENCY:
-		ShowRecencyFilterMenu<RecentlyPlayedFilter>(IDS_PLAYED_WITHIN, IDS_NOT_PLAYED_WITHIN);
+		ShowRecencyFilterMenu<RecentlyPlayedFilter>(L"filter by when played", IDS_PLAYED_WITHIN, IDS_NOT_PLAYED_WITHIN);
 		return true;
 
 	case ID_FILTER_BY_ADDED:
-		ShowRecencyFilterMenu<RecentlyAddedFilter>(IDS_ADDED_WITHIN, IDS_NOT_ADDED_WITHIN);
+		ShowRecencyFilterMenu<RecentlyAddedFilter>(L"filter by when added", IDS_ADDED_WITHIN, IDS_NOT_ADDED_WITHIN);
 		return true;
 
 	case ID_CLEAR_CREDITS:
@@ -1435,50 +1763,6 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 
 	case ID_RESTART_AS_ADMIN:
 		Application::Get()->RestartAsAdmin();
-		return true;
-
-	case ID_APPROVE_ELEVATION:
-		// The user has approved launching the current game in Admin mode.
-		// Make sure we have a game to launch...
-		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
-		{
-			// Find the system we're going to run the game with.  If
-			// the game has a configured system, we'll always use that.
-			// Otherwise, it must be an unconfigured file, so the system
-			// comes from the matching systems for its database file.
-			// There can be multiple of these, but since we already
-			// tried to launch the game, we know it's the one at the
-			// game's "recent system index" in the list.
-			GameSystem *system = game->system;
-			if (system == nullptr && game->tableFileSet != nullptr)
-			{
-				// find the system in the list
-				int n = 0;
-				for (auto s : game->tableFileSet->systems)
-				{
-					if (n++ == game->recentSystemIndex)
-					{
-						system = s;
-						break;
-					}
-				}
-			}
-
-			// only proceed if we found a system
-			if (system != nullptr)
-			{
-				// Elevation approval is only required once per system per
-				// session, so this implicitly approves future launches on
-				// this same system.
-				system->elevationApproved = true;
-
-				// Try launching the game again.  Use the same command and the
-				// same system index as the original launch attempt (the most
-				// recent launch attempt), since elevation approval is always
-				// a follow-on step to a launch command.
-				PlayGame(lastPlayGameCmd, game->recentSystemIndex);
-			}
-		}
 		return true;
 
 	case ID_MEDIA_DROP_PHASE2:
@@ -1717,6 +2001,11 @@ void PlayfieldView::ShowHelp()
 
 void PlayfieldView::ShowAboutBox()
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"about box";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// load the About Box background image
     std::unique_ptr<Gdiplus::Bitmap> bkg(GPBitmapFromPNG(IDB_ABOUTBOX));
 	
@@ -1806,7 +2095,7 @@ void PlayfieldView::ShowAboutBox()
 	// open the popup, positioning it in the upper half of the screen
 	popupSprite->offset.y = .2f;
 	popupSprite->UpdateWorld();
-	StartPopupAnimation(PopupAboutBox, L"about box", true);
+	StartPopupAnimation(PopupAboutBox, popupName, true);
 	UpdateDrawingList();
 }
 
@@ -1902,7 +2191,7 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 				md.emplace_back(LoadStringT(IDS_MENU_CXL_PICK_SYSTEM), ID_MENU_RETURN);
 
 				// show the menu
-				ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+				ShowMenu(md, L"play pick system", SHOWMENU_DIALOG_STYLE);
 
 				// return - the user can initiate the launch again using
 				// the menu selections
@@ -2120,6 +2409,11 @@ void PlayfieldView::OnGameTimeout()
 
 void PlayfieldView::ShowInstructionCard(int cardNumber)
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"instructions";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// get the current game; proceed only if it's valid
 	GameListItem *game = GameList::Get()->GetNthGame(0);
 	if (!IsGameValid(game))
@@ -2191,8 +2485,7 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 	instCardPage = cardNumber;
 
 	// if we're switching to instruction card mode, animate the popup
-	if (popupType != PopupInstructions)
-		StartPopupAnimation(PopupInstructions, L"instructions", true);
+	StartPopupAnimation(PopupInstructions, popupName, true);
 
 	// update the drawing list for the new sprite
 	UpdateDrawingList();
@@ -2203,6 +2496,11 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 
 void PlayfieldView::ShowFlyer(int pageNumber)
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"flyer";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// get the current game; proceed only if it's valid
 	GameListItem *game = GameList::Get()->GetNthGame(0);
 	if (!IsGameValid(game))
@@ -2253,7 +2551,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 	popupSprite.Attach(new Sprite());
 	if (!popupSprite->Load(flyer->c_str(), normalizedSize, pixSize, eh))
 	{
-		popupSprite = 0;
+		popupSprite = nullptr;
 		UpdateDrawingList();
 		ShowQueuedError();
 		return;
@@ -2263,8 +2561,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 	flyerPage = pageNumber;
 
 	// if we're switching to flyer mode, animate the popup
-	if (popupType != PopupFlyer)
-		StartPopupAnimation(PopupFlyer, L"flyer", true);
+	StartPopupAnimation(PopupFlyer, popupName, true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -2291,6 +2588,11 @@ void PlayfieldView::RateGame()
 
 void PlayfieldView::UpdateRateGameDialog()
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"rate game";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// ignore it if there's no game selection
 	GameList *gl = GameList::Get();
 	GameListItem *game = gl->GetNthGame(0);
@@ -2400,8 +2702,7 @@ void PlayfieldView::UpdateRateGameDialog()
 	AdjustSpritePosition(popupSprite);
 
 	// if we're switching to flyer mode, animate the popup
-	if (popupType != PopupRateGame)
-		StartPopupAnimation(PopupRateGame, L"rate game", true);
+	StartPopupAnimation(PopupRateGame, popupName, true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -2466,8 +2767,52 @@ void PlayfieldView::AdjustRating(float delta)
 	UpdateRateGameDialog();
 }
 
-void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening)
+void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupType *replaceTypes)
 {
+	// If we're opening a new popup, and there's an existing popup in the
+	// 'replace types' list, skip the animation.
+	if (opening && this->popupType != PopupNone)
+	{
+		// If there's a replace list, search it.  If there's no replace
+		// list, the default is a list with the new popup type as the
+		// sole entry.
+		bool replacing = false;
+		if (replaceTypes == nullptr)
+		{
+			// no explicit list - we can replace a popup of the same type only
+			replacing = (popupType == this->popupType);
+		}
+		else
+		{
+			// search the provided list of replaceable types
+			for (const PopupType *p = replaceTypes; *p != PopupNone; ++p)
+			{
+				if (*p == popupType)
+				{
+					replacing = true;
+					break;
+				}
+			}
+		}
+
+		// If we're replacing an existing popup, skip the animation.
+		if (replacing)
+		{
+			// Fire a Javascript event to signal that the old popup is being
+			// closed.  This would normally happen at the end of the closing
+			// animation, but the old popup doesn't get any closing animation,
+			// since we're just doing a "cut" from one popup to the next.
+			FirePopupEvent(false, this->popupName.c_str());
+
+			// set the new popup type
+			this->popupType = popupType;
+			this->popupName = popupName;
+
+			// we're done - skip the rest of the animation work
+			return;
+		}
+	}
+
 	// if showing a new popup, close any menu
 	if (opening && curMenu != nullptr)
 		StartMenuAnimation(false);
@@ -2500,6 +2845,9 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 	{
 		popupAnimMode = PopupAnimClose;
 	}
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 void PlayfieldView::ClosePopup()
@@ -2628,6 +2976,11 @@ struct ArrowFont
 
 void PlayfieldView::ShowGameInfo()
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"game info";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// ignore it if there's no game selection
 	GameList *gl = GameList::Get();
 	GameListItem *game = gl->GetNthGame(0);
@@ -2865,11 +3218,10 @@ void PlayfieldView::ShowGameInfo()
 	// adjust it to the canonical popup position
 	AdjustSpritePosition(popupSprite);
 
-	// start the animation
-	if (popupType != PopupGameInfo && popupType != PopupHighScores)
-		StartPopupAnimation(PopupGameInfo, L"game info", true);
-	else
-		popupType = PopupGameInfo;
+	// Start the animation.  We can do a direct switch between Game Info
+	// and High Scores without animation.
+	static const PopupType replaceTypes[] = { PopupGameInfo, PopupHighScores, PopupNone };
+	StartPopupAnimation(PopupGameInfo, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -2880,6 +3232,11 @@ void PlayfieldView::ShowGameInfo()
 
 void PlayfieldView::ShowHighScores()
 {
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"high scores";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
 	// ignore it if there's no game selection
 	GameList *gl = GameList::Get();
 	GameListItem *game = gl->GetNthGame(0);
@@ -2993,11 +3350,10 @@ void PlayfieldView::ShowHighScores()
 	// adjust it to the canonical popup position
 	AdjustSpritePosition(popupSprite);
 
-	// start the animation
-	if (popupType != PopupHighScores && popupType != PopupGameInfo)
-		StartPopupAnimation(PopupHighScores, L"high scores", true);
-	else
-		popupType = PopupHighScores;
+	// Start the animation.  We can do a direct switch between high scores
+	// and Game Info with no animation.
+	static const PopupType replaceTypes[] = { PopupHighScores, PopupGameInfo, PopupNone };
+	StartPopupAnimation(PopupHighScores, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -3116,7 +3472,7 @@ void PlayfieldView::AskPowerOff()
 	std::list<MenuItemDesc> md;
 	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN_CONFIRM), ID_SHUTDOWN_CONFIRM);
 	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN_CANCEL), ID_MENU_RETURN, MenuSelected);
-	ShowMenu(md, SHOWMENU_IS_EXIT_MENU);
+	ShowMenu(md, L"power off", SHOWMENU_IS_EXIT_MENU);
 }
 
 void PlayfieldView::PowerOff()
@@ -3799,6 +4155,9 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 
 	// set up the game inactivity timer
 	ResetGameTimeout();
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
@@ -3910,6 +4269,9 @@ void PlayfieldView::EndRunningGameMode()
 
 	// cancel any keyboard/joystick auto-repeat
 	StopAutoRepeat();
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
@@ -4044,7 +4406,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_GAME_ADMIN), ID_MENU_RETURN, MenuSelected);
 
 			// show the menu in "dialog" mode
-			ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+			ShowMenu(md, L"approve elevation", SHOWMENU_DIALOG_STYLE);
 		}
 		else
 		{
@@ -4061,7 +4423,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_AS_ADMIN), ID_MENU_RETURN, MenuSelected);
 
 			// show the menu in "dialog" mode
-			ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+			ShowMenu(md, L"elevation required", SHOWMENU_DIALOG_STYLE);
 		}
 		return true;
 
@@ -4175,6 +4537,11 @@ void PlayfieldView::ShowQueuedError()
 {
 	// if there are no errors, there's nothing to do
 	if (queuedErrors.size() == 0)
+		return;
+
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"message";
+	if (!FirePopupEvent(true, popupName))
 		return;
 
 	// remove any previous auto-dismiss timer
@@ -4336,7 +4703,7 @@ void PlayfieldView::ShowQueuedError()
 	queuedErrors.pop_front();
 
 	// animate the popup
-	StartPopupAnimation(PopupErrorMessage, L"message", true);
+	StartPopupAnimation(PopupErrorMessage, popupName, true);
 	UpdateDrawingList();
 }
 
@@ -4378,22 +4745,77 @@ void PlayfieldView::MenuPageUpDown(int dir)
 	}
 
 	// re-show the menu at the new page
-	ShowMenu(m->descs, m->flags | SHOWMENU_NO_ANIMATION, menuPage + dir);
+	ShowMenu(m->descs, m->id.c_str(), m->flags | SHOWMENU_NO_ANIMATION, menuPage + dir);
 }
 
-void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, int pageno)
+void PlayfieldView::JsShowMenu(std::vector<JsValueRef> items, WSTRING name, JavascriptEngine::JsObj options)
+{
+	try
+	{
+		// build the native menu descriptor list from the Javascript menu descriptor list
+		auto js = JavascriptEngine::Get();
+		std::list<MenuItemDesc> md;
+		for (auto &i : items)
+		{
+			// convert to object
+			auto mi = JavascriptEngine::JsToNative<JavascriptEngine::JsObj>(i);
+
+			// retrieve the properties
+			auto title = mi.Get<TSTRING>("title");
+			auto cmd = mi.Get<int>("cmd");
+			UINT flags = 0;
+			if (mi.Get<bool>("selected")) flags |= MenuSelected;
+			if (mi.Get<bool>("checked")) flags |= MenuChecked;
+			if (mi.Get<bool>("radio")) flags |= MenuRadio;
+			if (mi.Get<bool>("hasSubmenu")) flags |= MenuHasSubmenu;
+			if (mi.Get<bool>("stayOpen")) flags |= MenuStayOpen;
+
+			// add the menu descriptor
+			md.emplace_back(title.c_str(), cmd, flags);
+		}
+
+		// get the menu flags from the options object argument
+		DWORD menuFlags = SHOWMENU_USER;
+		if (options.Get<bool>("isExitMenu")) menuFlags |= SHOWMENU_IS_EXIT_MENU;
+		if (options.Get<bool>("noAnimation")) menuFlags |= SHOWMENU_NO_ANIMATION;
+		if (options.Get<bool>("dialogStyle")) menuFlags |= SHOWMENU_DIALOG_STYLE;
+
+		// get the page number from the options argument
+		int pageno = options.Get<int>("pageNo");
+
+		// remove any menu/popup currently showing
+		CloseMenusAndPopups();
+
+		// show the menu
+		ShowMenu(md, name.c_str(), menuFlags, pageno);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		JavascriptEngine::Get()->Throw(exc.jsErrorCode, AnsiToTSTRING(exc.what()).c_str());
+	}
+}
+
+void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *id, DWORD flags, int pageno)
 {
 	// create the new menu container
-	RefPtr<Menu> m(new Menu(flags));
-
-	// remember the current page being displayed
-	menuPage = pageno;
+	RefPtr<Menu> m(new Menu(id, flags));
 
 	// copy the descriptor list to the new menu
 	m->descs = items;
 
-	// set the initial animation for the incoming menu to the start
-	// of the sequence
+	// If it's not a user menu, fire Menu Open event
+	if (!(flags & SHOWMENU_USER))
+	{
+		// fire the event; if that prevents the system default handling, cancel
+		// the new menu display
+		if (!FireMenuEvent(true, m))
+			return;
+	}
+
+	// remember the page of the menu being displayed
+	menuPage = pageno;
+
+	// set the initial animation for the incoming menu to the start of the sequence
 	UpdateMenuAnimation(m, true, 0.0f);
 
 	// set up a GDI+ Graphics object on a memory DC to prepare the graphics
@@ -4832,6 +5254,11 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, 
 
 void PlayfieldView::OnCloseMenu(const std::list<MenuItemDesc> *incomingMenu)
 {
+	// Fire the Javascript Menu Close event.  This isn't cancelable, so
+	// ignore the result.
+	if (curMenu != nullptr)
+		FireMenuEvent(false, nullptr);
+
 	// If we're editing a game's category list, remove the 
 	// category list unless we're switching to another menu.
 	if (categoryEditList != nullptr && incomingMenu == nullptr)
@@ -4890,11 +5317,9 @@ void PlayfieldView::UpdateMenuAnimation(Menu *menu, bool opening, float progress
 	menu->sprHilite->alpha = (symProgress == 1.0f ? 1.0f : 0.0f);
 }
 
-PlayfieldView::Menu::Menu(DWORD flags)
+PlayfieldView::Menu::Menu(const WCHAR *id, DWORD flags) :
+	id(id), flags(flags)
 {
-	// remember the flags
-	this->flags = flags;
-
 	// create our sprite objects on creation
 	sprBkg.Attach(new Sprite());
 	sprItems.Attach(new Sprite());
@@ -5055,6 +5480,9 @@ void PlayfieldView::StartMenuAnimation(bool opening)
 
 	// start the animation timer running, noting our start time
 	StartAnimTimer(menuAnimStartTime);
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 // Start a playfield crossfade
@@ -5092,6 +5520,9 @@ void PlayfieldView::UpdateInfoBox()
 {
 	// start the timer to check for an update
 	SetTimer(hWnd, infoBoxSyncTimerID, 250, 0);
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 void PlayfieldView::SyncInfoBox()
@@ -5661,7 +6092,7 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// Animate the popup open/close
-	if (popupAnimMode != PopupAnimNone && popupSprite != 0)
+	if (popupAnimMode != PopupAnimNone && popupSprite != nullptr)
 	{
 		// figure the elapsed time
 		DWORD dt = GetTickCount() - popupAnimStartTime;
@@ -5697,6 +6128,10 @@ void PlayfieldView::UpdateAnimation()
 				popupType = PopupNone;
 				updateDrawingList = true;
 				popupAnimMode = PopupAnimNone;
+
+				// Fire the end-popup event.  This event fires after the fact, so ignore
+				// any attempted cancellation.
+				FirePopupEvent(false, popupName.c_str());
 
 				// if there's a queued error popup, display it
 				if (queuedErrors.size() != 0)
@@ -5827,6 +6262,7 @@ void PlayfieldView::UpdateAnimation()
 				// We're done with the outgoing menu, and we're switching to a
 				// new incoming menu.  Move the new menu over to the current 
 				// menu slot and start the incoming menu animation.
+				OnCloseMenu(&newMenu->descs);
 				curMenu = newMenu;
 				newMenu = nullptr;
 				StartMenuAnimation(true);
@@ -6479,81 +6915,87 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 	}
 	else
 	{
-		// base mode - show the main game menu
-		std::list<MenuItemDesc> md;
-		GameList *gl = GameList::Get();
-		GameListItem *curGame = gl->GetNthGame(0);
-		if (IsGameValid(curGame))
-		{
-			// add "Play Game"
-			md.emplace_back(LoadStringT(IDS_MENU_PLAY), ID_PLAY_GAME);
-
-			// if it's not set up yet, add setup options
-			if (!curGame->isConfigured)
-				md.emplace_back(LoadStringT(IDS_MENU_GAME_SETUP), ID_GAME_SETUP);
-
-			// add a separator
-			md.emplace_back(_T(""), -1);
-
-			// add "Information"
-			md.emplace_back(LoadStringT(IDS_MENU_INFO), ID_GAMEINFO);
-
-			// add "High Scores", if high scores are available
-			if (curGame->highScores.size() != 0)
-				md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
-
-			// add "Flyer", if the game has a flyer
-			if (curGame->MediaExists(GameListItem::flyerImageType))
-				md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
-
-			// add "Instructions",if the game has an instruction card
-			if (curGame->MediaExists(GameListItem::instructionCardImageType))
-				md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
-
-			// add a separator
-			md.emplace_back(_T(""), -1);
-
-			// add "Rate Table"
-			md.emplace_back(LoadStringT(IDS_MENU_RATE_GAME), ID_RATE_GAME);
-
-			// add "Add to Favorites" or "In Favorites", as appropriate
-			if (gl->IsFavorite(curGame))
-				md.emplace_back(LoadStringT(IDS_MENU_INFAVORITES), ID_REMOVE_FAVORITE, MenuChecked);
-			else
-				md.emplace_back(LoadStringT(IDS_MENU_ADDFAVORITE), ID_ADD_FAVORITE);
-
-			// add a separator
-			md.emplace_back(_T(""), -1);
-		}
-
-		// Add the filters.  Start with All Games and Favorites.
-		const GameListFilter *curFilter = gl->GetCurFilter();
-		auto AddFilter = [gl, &md, curFilter](const GameListFilter *f) {
-			md.emplace_back(f->GetFilterTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
-		};
-		AddFilter(gl->GetAllGamesFilter());
-		AddFilter(gl->GetFavoritesFilter());
-
-		// Add the filter classes that have submenus with the specific filters
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_ERA), ID_FILTER_BY_ERA, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_MANUF), ID_FILTER_BY_MANUF, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_SYS), ID_FILTER_BY_SYS, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_CATEGORY), ID_FILTER_BY_CATEGORY, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_RATING), ID_FILTER_BY_RATING, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
-		md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
-
-		// add the "Return" item to exit the menu
-		md.emplace_back(_T(""), -1);
-		md.emplace_back(LoadStringT(IDS_MENU_MAINRETURN), ID_MENU_RETURN);
-
-		// display the menu
-		ShowMenu(md, 0);
-
-		// play the Select sound and show the Menu Open DOF effect
-		PlayButtonSound(_T("Select"));
-		QueueDOFPulse(L"PBYMenuOpen");
+		// Base mode.  Show the main game menu.  Do this through the
+		// command handler to give Javascript a chance to intervene.
+		OnCommand(ID_SHOW_MAIN_MENU, 0, NULL);
 	}
+}
+
+void PlayfieldView::ShowMainMenu()
+{
+	std::list<MenuItemDesc> md;
+	GameList *gl = GameList::Get();
+	GameListItem *curGame = gl->GetNthGame(0);
+	if (IsGameValid(curGame))
+	{
+		// add "Play Game"
+		md.emplace_back(LoadStringT(IDS_MENU_PLAY), ID_PLAY_GAME);
+
+		// if it's not set up yet, add setup options
+		if (!curGame->isConfigured)
+			md.emplace_back(LoadStringT(IDS_MENU_GAME_SETUP), ID_GAME_SETUP);
+
+		// add a separator
+		md.emplace_back(_T(""), -1);
+
+		// add "Information"
+		md.emplace_back(LoadStringT(IDS_MENU_INFO), ID_GAMEINFO);
+
+		// add "High Scores", if high scores are available
+		if (curGame->highScores.size() != 0)
+			md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
+
+		// add "Flyer", if the game has a flyer
+		if (curGame->MediaExists(GameListItem::flyerImageType))
+			md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
+
+		// add "Instructions",if the game has an instruction card
+		if (curGame->MediaExists(GameListItem::instructionCardImageType))
+			md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
+
+		// add a separator
+		md.emplace_back(_T(""), -1);
+
+		// add "Rate Table"
+		md.emplace_back(LoadStringT(IDS_MENU_RATE_GAME), ID_RATE_GAME);
+
+		// add "Add to Favorites" or "In Favorites", as appropriate
+		if (gl->IsFavorite(curGame))
+			md.emplace_back(LoadStringT(IDS_MENU_INFAVORITES), ID_REMOVE_FAVORITE, MenuChecked);
+		else
+			md.emplace_back(LoadStringT(IDS_MENU_ADDFAVORITE), ID_ADD_FAVORITE);
+
+		// add a separator
+		md.emplace_back(_T(""), -1);
+	}
+
+	// Add the filters.  Start with All Games and Favorites.
+	const GameListFilter *curFilter = gl->GetCurFilter();
+	auto AddFilter = [gl, &md, curFilter](const GameListFilter *f) {
+		md.emplace_back(f->GetFilterTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
+	};
+	AddFilter(gl->GetAllGamesFilter());
+	AddFilter(gl->GetFavoritesFilter());
+
+	// Add the filter classes that have submenus with the specific filters
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_ERA), ID_FILTER_BY_ERA, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_MANUF), ID_FILTER_BY_MANUF, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_SYS), ID_FILTER_BY_SYS, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_CATEGORY), ID_FILTER_BY_CATEGORY, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_RATING), ID_FILTER_BY_RATING, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
+	md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
+
+	// add the "Return" item to exit the menu
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_MENU_MAINRETURN), ID_MENU_RETURN);
+
+	// display the menu
+	ShowMenu(md, L"main", 0);
+
+	// play the Select sound and show the Menu Open DOF effect
+	PlayButtonSound(_T("Select"));
+	QueueDOFPulse(L"PBYMenuOpen");
 }
 
 // Show the "pause" menu.  This is the menu displayed when a game
@@ -6589,7 +7031,7 @@ void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 	md.emplace_back(LoadStringT(IDS_MENU_GAMERETURN), ID_MENU_RETURN, usingExitKey ? MenuSelected : 0);
 
 	// show the menu
-	ShowMenu(md, usingExitKey ? SHOWMENU_IS_EXIT_MENU : 0);
+	ShowMenu(md, L"pause game", usingExitKey ? SHOWMENU_IS_EXIT_MENU : 0);
 }
 
 void PlayfieldView::ShowFilterSubMenu(int cmd)
@@ -6604,28 +7046,36 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 
 	// create the "filter filter", to select which filters to include
 	bool paginate = false;
+	const WCHAR *menuID = L"filter by";
 	std::function<bool(const GameListFilter*)> includeFilter = [](const GameListFilter *) { return false; };
 	switch (cmd)
 	{
 	case ID_FILTER_BY_ERA:
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const DateFilter*>(f) != nullptr; };
+		menuID = L"filter by era";
 		break;
 
 	case ID_FILTER_BY_MANUF:
+		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameManufacturer*>(f) != nullptr; };
+		menuID = L"filter by manuf";
 		break;
 
 	case ID_FILTER_BY_SYS:
+		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameSystem*>(f) != nullptr; };
+		menuID = L"filter by system";
 		break;
 
 	case ID_FILTER_BY_RATING:
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RatingFilter*>(f) != nullptr; };
+		menuID = L"filter by rating";
 		break;
 
 	case ID_FILTER_BY_CATEGORY:
-		paginate = true;  // paginate this one, as it can have arbitrarily many entries
+		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameCategory*>(f) != nullptr; };
+		menuID = L"filter by category";
 		break;
 
 	case ID_FILTER_BY_RECENCY:
@@ -6638,10 +7088,12 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 		// look - just enumerating them in a single flat list gets a bit
 		// unwieldy because the full names are so long and similar.
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyPlayedFilter*>(f) != nullptr; };
+		menuID = L"filter by when played";
 		break;
 
 	case ID_FILTER_BY_ADDED:
 		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyAddedFilter*>(f) != nullptr; };
+		menuID = L"filter by when added";
 		break;
 	}
 
@@ -6666,7 +7118,7 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 	md.emplace_back(LoadStringT(IDS_MENU_FILTER_RETURN), ID_MENU_RETURN);
 
 	// show the menu
-	ShowMenu(md, 0);
+	ShowMenu(md, menuID, 0);
 
 	// show the Menu Open DOF effect
 	QueueDOFPulse(L"PBYMenuOpen");
@@ -6674,7 +7126,7 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 
 void PlayfieldView::ShowRecencyFilterMenu(
 	std::function<bool(const GameListFilter*)> testFilterType, 
-	int idStrWithin, int idStrNotWithin)
+	const WCHAR *menuID, int idStrWithin, int idStrNotWithin)
 {
 	// set up to add filters to the menu
 	std::list<MenuItemDesc> md;
@@ -6719,7 +7171,7 @@ void PlayfieldView::ShowRecencyFilterMenu(
 	md.emplace_back(LoadStringT(IDS_MENU_FILTER_RETURN), ID_MENU_RETURN);
 
 	// show the menu
-	ShowMenu(md, 0);
+	ShowMenu(md, menuID, 0);
 
 	// show the Menu Open DOF effect
 	QueueDOFPulse(L"PBYMenuOpen");
@@ -6791,34 +7243,39 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 		else if (ConfigManager::GetInstance()->GetBool(ConfigVars::ExitMenuEnabled, true))
 		{
 			// nothing's showing - bring up the Exit menu
-			std::list<MenuItemDesc> md;
-			md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
-			md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
-
-			// add the Operator Meu command if desired
-			if (ConfigManager::GetInstance()->GetBool(ConfigVars::ShowOpMenuInExitMenu, false))
-			{
-				md.emplace_back(_T(""), -1);
-				md.emplace_back(LoadStringT(IDS_MENU_OPERATOR), ID_OPERATOR_MENU);
-			}
-
-			// add the About block
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_HELP), ID_HELP);
-			md.emplace_back(LoadStringT(IDS_MENU_ABOUT), ID_ABOUT);
-
-			// add the Cancel block
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_EXITRETURN), ID_MENU_RETURN, MenuSelected);
-
-			// show the menu
-			ShowMenu(md, SHOWMENU_IS_EXIT_MENU);
-
-			// trigger the normal Menu Open effects
-			PlayButtonSound(_T("Select"));
-			QueueDOFPulse(L"PBYMenuOpen");
+			OnCommand(ID_SHOW_EXIT_MENU, 0, NULL);
 		}
 	}
+}
+
+void PlayfieldView::ShowExitMenu()
+{
+	std::list<MenuItemDesc> md;
+	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
+	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
+	// add the Operator Meu command if desired
+	if (ConfigManager::GetInstance()->GetBool(ConfigVars::ShowOpMenuInExitMenu, false))
+	{
+		md.emplace_back(_T(""), -1);
+		md.emplace_back(LoadStringT(IDS_MENU_OPERATOR), ID_OPERATOR_MENU);
+	}
+
+	// add the About block
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_MENU_HELP), ID_HELP);
+	md.emplace_back(LoadStringT(IDS_MENU_ABOUT), ID_ABOUT);
+
+	// add the Cancel block
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_MENU_EXITRETURN), ID_MENU_RETURN, MenuSelected);
+
+	// show the menu
+	ShowMenu(md, L"exit", SHOWMENU_IS_EXIT_MENU);
+
+	// trigger the normal Menu Open effects
+	PlayButtonSound(_T("Select"));
+	QueueDOFPulse(L"PBYMenuOpen");
 }
 
 void PlayfieldView::PlayButtonSound(const TCHAR *effectName)
@@ -7530,7 +7987,7 @@ void PlayfieldView::ShowOperatorMenu()
 	md.emplace_back(LoadStringT(IDS_MENU_SETUP_RETURN), ID_MENU_RETURN);
 
 	// show the menu
-	ShowMenu(md, 0);
+	ShowMenu(md, L"operator", 0);
 
 	// trigger the normal Menu Open effects
 	PlayButtonSound(_T("Select"));
@@ -7578,7 +8035,7 @@ void PlayfieldView::ShowGameSetupMenu()
 	md.emplace_back(LoadStringT(IDS_MENU_SETUP_RETURN), ID_MENU_RETURN);
 
 	// show the menu
-	ShowMenu(md, 0);
+	ShowMenu(md, L"game setup", 0);
 	QueueDOFPulse(L"PBYMenuOpen");
 }
 
@@ -8372,7 +8829,7 @@ void PlayfieldView::DelGameInfo(bool confirmed)
 		md.emplace_back(_T(""), -1);
 		md.emplace_back(LoadStringT(IDS_CONFIRM_DEL_GAME_YES), ID_CONFIRM_DEL_GAME_INFO);
 		md.emplace_back(LoadStringT(IDS_CONFIRM_DEL_GAME_NO), ID_MENU_RETURN, MenuSelected);
-		ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+		ShowMenu(md, L"confirm delete gameinfo", SHOWMENU_DIALOG_STYLE);
 	}
 }
 
@@ -8457,12 +8914,12 @@ void PlayfieldView::ShowGameCategoriesMenu(GameCategory *curSelection, bool resh
 		// we're re-showing an existing menu, probably for a change in
 		// one of the category items' selection status - stay on the
 		// same page and skip the menu popup animation
-		ShowMenu(md, SHOWMENU_NO_ANIMATION, menuPage);
+		ShowMenu(md, L"game categories", SHOWMENU_NO_ANIMATION, menuPage);
 	}
 	else
 	{
 		// showing a new menu - show it normally
-		ShowMenu(md, 0);
+		ShowMenu(md, L"game categories", 0);
 
 		// signal a Menu Open effect in DOF
 		QueueDOFPulse(L"PBYMenuOpen");
@@ -9090,9 +9547,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 	AdjustSpritePosition(popupSprite);
 
 	// start the animation
-	// start the animation
-	if (popupType != PopupMediaList)
-		StartPopupAnimation(PopupMediaList, L"media list", true);
+	StartPopupAnimation(PopupMediaList, L"media list", true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -9211,7 +9666,7 @@ void PlayfieldView::DoMediaListCommand(bool &closePopup)
 			md.emplace_back(_T(""), -1);
 			md.emplace_back(LoadStringT(IDS_SHOWMEDIA_CONFIRM_DEL_YES), ID_DEL_MEDIA_FILE);
 			md.emplace_back(LoadStringT(IDS_SHOWMEDIA_CONFIRM_DEL_NO), ID_SHOW_MEDIA_FILES);
-			ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+			ShowMenu(md, L"confirm delete media", SHOWMENU_DIALOG_STYLE);
 		}
 
 		// return to the selection when we get back to the dialog
@@ -9280,7 +9735,7 @@ bool PlayfieldView::CanAddMedia(GameListItem *game)
 		md.emplace_back(_T(""), -1);
 		md.emplace_back(LoadStringT(IDS_MENU_EDIT_GAME_INFO), ID_EDIT_GAME_INFO);
 		md.emplace_back(LoadStringT(IDS_MENU_SETUP_RETURN), ID_MENU_RETURN);
-		ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+		ShowMenu(md, L"capture needs gameinfo", SHOWMENU_DIALOG_STYLE);
 
 		// tell the caller we can't add media yet
 		return false;
@@ -9411,8 +9866,7 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 	}, eh, _T("Capture startup delay adjustment dialog")))
 	{
 		AdjustSpritePosition(popupSprite);
-		if (popupType != PopupCaptureDelay)
-			StartPopupAnimation(PopupCaptureDelay, L"capture delay", true);
+		StartPopupAnimation(PopupCaptureDelay, L"capture delay", true);
 	}
 	else
 	{
@@ -9435,6 +9889,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 
 	// Add the appropriate prompt message at the top of the menu, depending
 	// on whether we're in single-game capture mode or batch mode.
+	const WCHAR *menuID = L"capture";
 	if (captureMenuMode == CaptureMenuMode::Single)
 	{
 		// Single game mode.  Figure the estimated time.
@@ -9443,16 +9898,19 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 
 		// generate the prompt message, incorporating the current time estimate
 		md.emplace_back(MsgFmt(IDS_CAPTURE_SELECT_MEDIA, timeEstStr.c_str()), -1);
+		menuID = L"capture";
 	}
 	else if (captureMenuMode == CaptureMenuMode::Batch1)
 	{
 		// Batch mode, step 1
 		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_MEDIA), -1);
+		menuID = L"batch capture media";
 	}
 	else if (captureMenuMode == CaptureMenuMode::Batch2)
 	{
 		// Batch mode, step 2
 		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_DISPOSITION), -1);
+		menuID = L"batch capture disposition";
 	}
 
 	// add the media items
@@ -9522,7 +9980,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 	DWORD flags = SHOWMENU_DIALOG_STYLE;
 	if (updating)
 		flags |= SHOWMENU_NO_ANIMATION;
-	ShowMenu(md, flags);
+	ShowMenu(md, menuID, flags);
 }
 
 int PlayfieldView::EstimateCaptureTime(GameListItem *game)
@@ -9767,7 +10225,7 @@ void PlayfieldView::ShowMediaSearchMenu()
 	md.emplace_back(LoadStringT(IDS_SEARCH_SETUP_GO), ID_MEDIA_SEARCH_GO);
 	md.emplace_back(LoadStringT(IDS_SEARCH_SETUP_CANCEL), ID_MENU_RETURN);
 
-	ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+	ShowMenu(md, L"media search", SHOWMENU_DIALOG_STYLE);
 }
 
 void PlayfieldView::LaunchMediaSearch()
@@ -10077,7 +10535,7 @@ void PlayfieldView::EndFileDrop()
 		md.emplace_back(_T(""), -1);
 		md.emplace_back(LoadStringT(IDS_MENU_EDIT_GAME_INFO), ID_EDIT_GAME_INFO);
 		md.emplace_back(LoadStringT(IDS_MENU_SETUP_RETURN), ID_MENU_RETURN);
-		ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+		ShowMenu(md, L"media drop needs gameinfo", SHOWMENU_DIALOG_STYLE);
 		return;
 	}
 
@@ -10188,7 +10646,7 @@ void PlayfieldView::EndFileDrop()
 		md.emplace_back(LoadStringT(IDS_MEDIA_DROP_CANCEL), ID_MENU_RETURN);
 
 		// show it
-		ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+		ShowMenu(md, L"media drop rename", SHOWMENU_DIALOG_STYLE);
 		return;
 	}
 
@@ -10220,7 +10678,7 @@ void PlayfieldView::MediaDropPhase2()
 
 	// If they dropped an individual media file (not a media pack),
 	// and it's for a media item that doesn't already exist, don't
-	// bother with a confirmation prompt; just to ahead and add the
+	// bother with a confirmation prompt; just go ahead and add the
 	// item.  And if the item does exist, show a simple confirmation
 	// prompt rather than the more complex menu for a multi-file
 	// media pack installation.
@@ -10239,7 +10697,7 @@ void PlayfieldView::MediaDropPhase2()
 				md.emplace_back(_T(""), -1);
 				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_YES), ID_MEDIA_DROP_GO);
 				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_NO), ID_MENU_RETURN);
-				ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+				ShowMenu(md, L"media drop confirm replace", SHOWMENU_DIALOG_STYLE);
 			}
 			else
 			{
@@ -10504,7 +10962,7 @@ void PlayfieldView::DisplayDropMediaMenu(bool updating, int selectedCmd)
 		flags |= SHOWMENU_NO_ANIMATION;
 
 	// show the menu
-	ShowMenu(md, flags);
+	ShowMenu(md, L"media drop confirm", flags);
 }
 
 // Batch Capture step 1.  Show the initial menu, which introduces the process
@@ -10530,7 +10988,7 @@ void PlayfieldView::BatchCaptureStep1()
 	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_CANCEL), ID_MENU_RETURN);
 
 	// show the menu
-	ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+	ShowMenu(md, L"batch capture games", SHOWMENU_DIALOG_STYLE);
 }
 
 // Batch Capture step 2.  Show the media type selection menu, which lets the
@@ -10558,8 +11016,8 @@ void PlayfieldView::BatchCaptureStep2(int cmd)
 	DisplayCaptureMenu(false, -1, CaptureMenuMode::Batch1);
 }
 
-// Batch Capture step 3: Show the type selection menu again, but this time
-// only consider items that we're 
+// Batch Capture step 3: Show the type selection menu again, to get
+// the existing file dispostion per each media type.
 void PlayfieldView::BatchCaptureStep3()
 {
 	// Check to see if any items are selected for capture.  If not, show an
@@ -10648,7 +11106,7 @@ void PlayfieldView::BatchCaptureStep4()
 	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_VIEW), ID_BATCH_CAPTURE_VIEW);
 	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_GO), ID_BATCH_CAPTURE_GO);
 	md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_CANCEL), ID_MENU_RETURN);
-	ShowMenu(md, SHOWMENU_DIALOG_STYLE);
+	ShowMenu(md, L"batch capture ready", SHOWMENU_DIALOG_STYLE);
 }
 
 void PlayfieldView::BatchCaptureView()
@@ -10864,8 +11322,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 	AdjustSpritePosition(popupSprite);
 
 	// animate the popup opening if it wasn't already displayed
-	if (popupType != PopupBatchCapturePreview)
-		StartPopupAnimation(PopupBatchCapturePreview, L"batch capture preview", true);
+	StartPopupAnimation(PopupBatchCapturePreview, L"batch capture preview", true);
 
 	// update the drawing list
 	UpdateDrawingList();
@@ -11721,20 +12178,19 @@ void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 			&& Application::Get()->IsInForeground()
 			&& IsWindowEnabled(GetParent(pfv->GetHWnd())))
 		{
-			// switch to active mode
-			active = true;
-			pfv->QueueDOFPulse(L"PBYScreenSaverStart");
-			pfv->dof.SetUIContext(L"PBYScreenSaver");
-
-			// notify the playfield
-			pfv->OnBeginAttractMode();
-
-			// turn off the cursor while in attract mode
-			SetCursor(0);
-
-			// reset the timer, so that we the next elapsed time check
-			// measures from when we started attract mode
-			t0 = GetTickCount();
+			// fire the attract mode start Javascript event; if the handler
+			// cancels the event, reset the attract mode timer and go skip
+			// the attrac mode entry
+			if (!pfv->FireAttractModeEvent(true))
+			{
+				// event canceled - reset our timers
+				Reset(pfv);
+			}
+			else
+			{
+				// switch to active mode
+				StartAttractMode(pfv);
+			}
 
 			// If a save is pending, do it now.  Given that the user
 			// has left the machine running without interaction for 
@@ -11763,14 +12219,11 @@ void PlayfieldView::AttractMode::Reset(PlayfieldView *pfv)
 	// turn off attract mode if it's active
 	if (active)
 	{
-		// no longer in attract mode
-		active = false;
+		// signal javascript
+		pfv->FireAttractModeEvent(false);
 
-		// fire the DOF Screen Saver Quit event
-		pfv->QueueDOFPulse(L"PBYScreenSaverQuit");
-
-		// notify the playfield
-		pfv->OnEndAttractMode();
+		// exit attract mode
+		EndAttractMode(pfv);
 	}
 
 	// reset the attract mode event timer
@@ -11780,7 +12233,45 @@ void PlayfieldView::AttractMode::Reset(PlayfieldView *pfv)
 	savePending = true;
 }
 
-void PlayfieldView::OnBeginAttractMode()
+void PlayfieldView::AttractMode::StartAttractMode(PlayfieldView *pfv)
+{
+	// enter active mode
+	active = true;
+
+	// notify DOF
+	pfv->QueueDOFPulse(L"PBYScreenSaverStart");
+	pfv->dof.SetUIContext(L"PBYScreenSaver");
+
+	// notify the playfield
+	pfv->OnStartAttractMode();
+
+	// turn off the cursor while in attract mode
+	SetCursor(0);
+
+	// reset the timer, so that we the next elapsed time check
+	// measures from when we started attract mode
+	t0 = GetTickCount();
+}
+
+void PlayfieldView::AttractMode::EndAttractMode(PlayfieldView *pfv)
+{
+	// no longer in attract mode
+	active = false;
+
+	// fire the DOF Screen Saver Quit event
+	pfv->QueueDOFPulse(L"PBYScreenSaverQuit");
+
+	// notify the playfield
+	pfv->OnEndAttractMode();
+
+	// reset the attract mode event timer
+	t0 = GetTickCount();
+
+	// check again for file-save work the next time we're idle
+	savePending = true;
+}
+
+void PlayfieldView::OnStartAttractMode()
 {
 	// turn off the status line
 	DisableStatusLine();
@@ -11794,6 +12285,9 @@ void PlayfieldView::OnBeginAttractMode()
 
 	// update video muting for the new attract mode status
 	Application::Get()->UpdateVideoMuting();
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 void PlayfieldView::OnEndAttractMode()
@@ -11810,6 +12304,9 @@ void PlayfieldView::OnEndAttractMode()
 		
 	// update video muting, in case videos were muted in attract mode
 	Application::Get()->UpdateVideoMuting();
+
+	// update the javascript UI mode
+	UpdateJsUIMode();
 }
 
 // -----------------------------------------------------------------------

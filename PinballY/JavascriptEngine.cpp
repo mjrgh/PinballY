@@ -735,6 +735,31 @@ bool JavascriptEngine::CreateObj(JsValueRef &obj)
 	return true;
 }
 
+bool JavascriptEngine::CreateArray(JsValueRef &arr)
+{
+	if (JsErrorCode err = JsCreateArray(0, &arr); err != JsNoError)
+		return Throw(err, _T("JsCreateArray")), false;
+
+	return true;
+}
+
+JsErrorCode JavascriptEngine::ArrayPush(JsValueRef &arr, JsValueRef ele)
+{
+	JsPropertyIdRef propkey;
+	JsValueRef propval;
+	JsErrorCode err;
+	if ((err = JsCreatePropertyId("push", 4, &propkey)) != JsNoError
+		|| (err = JsGetProperty(arr, propkey, &propval)) != JsNoError)
+		return err;
+
+	JsValueRef argv[2] = { arr, ele };
+	JsValueRef result;
+	if ((err = JsCallFunction(propval, argv, countof(argv), &result)) != JsNoError)
+		return err;
+
+	return JsNoError;
+}
+
 bool JavascriptEngine::SetProp(JsValueRef obj, const CHAR *prop, JsValueRef val)
 {
 	JsErrorCode err;

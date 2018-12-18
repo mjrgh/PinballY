@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>MenuEvent</h1>
+
+<p>
+   This event class is fired when a system menu is displayed or any
+   menu is closed.  There are two subtypes:
+</p>
+<ul>
+   <li><b>menuopen:</b> Fires when a system menu is about to be displayed.
+   No event is fired when a user menu is opened via
+   <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>.
+   The menu display can be stopped by calling
+   <a href="Event.html#preventDefault">preventDefault()</a> on the
+   event object (passed as a parameter to your event handler).
+
+   <li><b>menuclose:</b>  Fires when any menu (including both system menus
+   and user menus) has just been closed.  This event is fired after the
+   fact, so it's not possible to prevent the menu from being closed.
+</ul>
+
+<a name="overrideSysMenu"></a>
+<h2>Overriding a system menu</h2>
+
+<p>
+   You can use the <b>menuopen</b> event to prevent any system menu from
+   displaying, to add or remove items from the default system menu, or to
+   display your own entirely custom menu in place of a system menu.  In
+   all cases, you do this by canceling the default system handling of the
+   <b>menuopen</b> event, which would otherwise proceed by showing the
+   standard system menu, and then optionally displaying your own menu
+   via <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>.
+</p>
+<p>
+   <b>To suppress a system menu:</b>  simply cancel the <b>menuopen</b> event
+   when that menu is about to be opened.  For example, this will
+   prevent the Exit menu from ever showing:
+</p>
+<div class="code">
+mainWindow.on("menuopen", (ev) => {
+    if (ev.id == "exit")
+        ev.preventDefault();
+});
+</div>
+
+<p>
+   <b>To modify a system menu:</b>  You can modify any system menu
+   by taking advantage of the .items property of the <b>menuopen</b>
+   event object, which gives you the complete contents of the menu
+   that the system is about to display.  The list in the same format that
+   <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>
+   uses to describe to be displayed, so it has all of the information
+   you'd need to build an identical custom menu of your own.
+</p>
+<p>
+   Now, you can't just change the .items list in the event object
+   and expect the displayed menu to change.  This list is provided
+   for your information only.  The system keeps its own private copy,
+   and it uses that private copy when it's time to actually display
+   the menu on-screen.  However,
+   remember that you can entirely prevent the proposed menu from
+   being displayed at all, by calling preventDefault() on the event
+   object, and that you can display an entirely custom menu of your
+   own at any time via mainWindow.showMenu().  So the trick to
+   modifying a system menu is to put those two features together:
+   you first cancel the <b>menuopen</b> event to prevent the system
+   menu from being shown, then you call showMenu() with your modified
+   version of the .items list from the event.  Since the .items list
+   is already in the same format that showMenu() expects for its
+   <i>items</i> argument, you don't have to build a completely new
+   menu list for showMenu().  You can just pass the .items list from
+   the event after making any insertions, deletions, or edits that
+   you wish to make.
+</p>
+<p>
+   For example, if you want to change the name of the "Play" command
+   on the main menu to "Run Game", you could do something like this:
+</p>
+<div class="code">
+mainWindow.on("menuopen", (ev) => {
+    if (ev.id = "main") {
+        // edit the menu items
+        ev.items.foreach(i => {
+            if (i.cmd == command.PlayGame)
+                i.title = "Run Game";
+        });
+
+        // cancel the original menu display
+        ev.preventDefault();
+
+        // show our modified version of the menu
+        mainWindow.showMenu(ev.id, ev.items, ev.options);
+    }
+});
+</div>
+
+<p>
+   <b>To replace a system menu with an entirely custom menu:</b>  This is 
+   just like editing a system menu, as in the example above, except that you'd
+   ignore the original items list in the event and build your own from scratch, with
+   your desired list of custom menu items.
+</p>
+   
+
+
+<h2>Timing of open/close events</h2>
+
+<p>
+   The sequencing of the <b>menuopen</b> and <b>menuclose</b> events can
+   be a little confusing when switching straight from one menu to another,
+   such as when navigating into a submenu.  The thing that's confusing is
+   that the <b>menuopen</b> for the new menu will fire <i>before</i> the
+   <b>menuclose</b> for the old menu fires.
+</p>
+<p>
+   To understand why, we have to look at the timing of the open/close events
+   individually.
+   The <b>menuopen</b> event is sent <i>before</i> the new menu is displayed.
+   This is important because it gives you a chance to intervene, by canceling
+   the new menu display entirely or by altering its contents.
+   The <b>menuclose</b> event is sent <i>after</i> the old menu is removed.
+   This event represents a fait accompli; it's not possible to prevent the
+   menu from being closed, since it's already gone by the time the event
+   occurs.
+</p>
+<p>
+   Now, putting those two bits of timing together, we can see what happens
+   when the user does something that switches directly from one menu to another.
+   The <b>menuopen</b> event for the new menu occurs first, <i>before</i>
+   the <b>menuclose</b> event for the old menu is fired.  That's a necessary
+   consequence of the <b>menuopen</b> handler's ability to intervene in the
+   new menu setup, because the display of the new menu is what actually triggers
+   the removal of the old menu.  If your <b>menuopen</b> handler cancels the
+   new menu before it's been opened, any old menu will remain displayed, so a
+   <b>menuclose</b> event for the old menu before the <b>menopen</b> event
+   for the new menu would have been premature.
+</p>
+<p>
+   The reason we point this out is that it might seem reasonable to think
+   that a <b>menuclose</b> event means that a menu is no longer
+   being displayed.  It doesn't actually mean that, though, because the
+   outgoing menu could have been replaced with a new menu by the time
+   the close event fired. 
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the following
+   additional items:
+</p>
+
+<ul>
+   <li><b>id:</b>  a string with the menu ID of the menu that's about
+   to be opened or that just closed.  See <a href="Menus.html#systemMenus">system menus</a>
+   for list of IDs strings for the standard menus.
+
+   <li><b>items:</b>  for the <b>menuopen</b> event, an array of objects
+   describing the items in the menu that's about to be opened.  The list
+   is in the same format as the <i>items</i> argument in
+   <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>,
+   so you can pass this as an argument to that function to show a menu
+   with the same contents.  Modifying the list has no effect on the
+   menu displayed if you allow the <b>menuopen</b> to proceed to the
+   system handling, but you can cancel the event to prevent this menu
+   from showing, and call showMenu() with your own item list instead.
+   This property isn't present for <b>menuclose</b> events.
+
+   <li><b>options:</b>  for the <b>menuopen</b> event, an object with
+   properties describing the menu options, in the same format as the
+   <i>options</i> argument to 
+   <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>.
+   Modifying the object has no effect on the menu displayed if you
+   allow the <b>menuopen</b> event to proceed to the system handling,
+   but you can cancel the event to prevent this menu from showing,
+   and call showMenu() with your own options instead.
+   This property isn't present for <b>menuclose</b> events.
+</ul>
+
+</body>
+</html>

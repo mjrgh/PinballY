@@ -237,6 +237,11 @@ protected:
 	// process a command
 	virtual bool OnCommand(int cmd, int source, HWND hwndControl) override;
 
+	// Internal OnCommand processing.  The main OnCommand passes the command event
+	// to Javascript, which can prevent the system action.  This carries out the
+	// command once Javascript has had its say.
+	bool OnCommandImpl(int cmd, int source, HWND hwndControl);
+
 	// process a timer
 	virtual bool OnTimer(WPARAM timer, LPARAM callback) override;
 		
@@ -399,15 +404,15 @@ protected:
 	void ShowFilterSubMenu(int cmd);
 	
 	// show a recency filter menu for a particular filter subclass
-	template<class FilterClass> void ShowRecencyFilterMenu(int idStrWithin, int idStrNotWithin)
+	template<class FilterClass> void ShowRecencyFilterMenu(const WCHAR *menuID, int idStrWithin, int idStrNotWithin)
 	{
 		ShowRecencyFilterMenu(
 			[](const GameListFilter *f) { return dynamic_cast<const FilterClass*>(f) != nullptr; },
-			idStrWithin, idStrNotWithin);
+			menuID, idStrWithin, idStrNotWithin);
 	}
 	void ShowRecencyFilterMenu(
 		std::function<bool(const GameListFilter*)> testFilter, 
-		int idStrWithin, int idStrNotWithin);
+		const WCHAR *menuID, int idStrWithin, int idStrNotWithin);
 
 
 	// update the animation
@@ -1089,8 +1094,11 @@ protected:
 	// Popup name, for javascript purposes
 	WSTRING popupName;
 
-	// start a popup animation
-	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening);
+	// Start a popup animation.  If replaceTypes is not null, it's an array of
+	// popup types that the new type can replace without any animation effects.
+	// The array must be terminated with a final PopupNone entry.  If the array
+	// pointer is null (or omitted), it defaults to the popup's own type.  
+	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupType *replaceTypes = nullptr);
 
 	// close the current popup
 	void ClosePopup();
@@ -1238,8 +1246,11 @@ protected:
 	// Menu.  This describes the menu currently being displayed.
 	struct Menu : public RefCounted
 	{
-		Menu(DWORD flags);
+		Menu(const WCHAR *id, DWORD flags);
 		~Menu();
+
+		// menu ID
+		WSTRING id;
 
 		// menu flags (SHOWMENU_xxx bit flags)
 		DWORD flags;
@@ -1287,7 +1298,7 @@ protected:
 	// Show a menu.  This creates the graphics resources for the menu
 	// based on the list of item descriptors, and displays the menu.
 	// If a menu is already showing, it's replaced by the new menu.
-	void ShowMenu(const std::list<MenuItemDesc> &items, DWORD flags, int pageno = 0);
+	void ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *id, DWORD flags, int pageno = 0);
 
 	// Show the next/previous page in the current menu
 	void MenuPageUpDown(int dir);
@@ -1307,6 +1318,9 @@ protected:
 	// message, and we allow the prompt message to wrap if necessary
 	// to fit it.
 	const DWORD SHOWMENU_DIALOG_STYLE = 0x00000004;
+
+	// User menu.  Showing a user menu doesn't fire a menuopen event.
+	const DWORD SHOWMENU_USER = 0x80000000;
 
 	// Handle any cleanup tasks when the current menu is closing.
 	// 'incomingMenu' is the new menu replacing the old menu, or
@@ -1539,6 +1553,12 @@ protected:
 		int dofEventA;
 		int dofEventB;
 
+		// Enter attract mode now, regardless of the timer
+		void StartAttractMode(PlayfieldView *pfv);
+
+		// Exit attract mode
+		void EndAttractMode(PlayfieldView *pfv);
+
 		// Handle the attract mode timer event
 		void OnTimer(PlayfieldView *pfv);
 
@@ -1553,7 +1573,7 @@ protected:
 
 	// Receive notification of attract mode entry/exit.  The AttractMode
 	// subobject calls these when the mode changes.
-	void OnBeginAttractMode();
+	void OnStartAttractMode();
 	void OnEndAttractMode();
 
 	// Play a button or event sound effect
@@ -2000,6 +2020,10 @@ protected:
 	// Carry out the Select command
 	void DoSelect(bool usingExitKey);
 
+	// Show menus
+	void ShowMainMenu();
+	void ShowExitMenu();
+
 	// Basic handlers for Next/Previous commands.  These handle
 	// the core action part separately from the key processing, so
 	// they can be called to carry out the effect of a Next/Prev
@@ -2097,6 +2121,14 @@ protected:
 	JsValueRef jsJoystickButtonUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonBgDownEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonBgUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsCommandEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMenuOpenEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMenuCloseEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsPopupOpenEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsPopupCloseEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsAttractModeStartEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsAttractModeEndEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
@@ -2106,9 +2138,28 @@ protected:
 	// is always to proceed with system handling; this applies if 
 	// javscript isn't being used, or if anything fails trying to run
 	// the script.
-	bool FireCommandButtonEvent(const QueuedKey &key);
 	bool FireKeyEvent(int vkey, bool down, bool repeat, bool bg);
 	bool FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg);
+	bool FireCommandButtonEvent(const QueuedKey &key);
+	bool FireCommandEvent(int cmd);
+	bool FireMenuEvent(bool open, Menu *menu);
+	bool FirePopupEvent(bool open, const WCHAR *id);
+	bool FireAttractModeEvent(bool starting);
+	void FireWheelModeEvent();
+
+	// Current UI mode, for Javascript purposes
+	enum JSUIMode
+	{
+		jsuiWheel,
+		jsuiPopup,
+		jsuiMenu,
+		jsuiAttract,
+		jsuiRun
+	} jsuiMode = jsuiWheel;
+
+	// Update the javascript UI mode.  We call this when showing or hiding
+	// popups and menus, and switching to and from run mode or attract mode.
+	void UpdateJsUIMode();
 
 	// Javascript alert() callback.  Shows a message in a popup message box, 
 	// a la alert() in a Web browser.  As with browser alert(), the dialog
@@ -2148,6 +2199,19 @@ protected:
 
 	// Javascript UI mode query
 	JsValueRef JsGetUIMode();
+
+	// Get the active UI window
+	JsValueRef JsGetActiveWindow();
+
+	// Carry out a command
+	bool JsDoCommand(int cmd);
+
+	// Show a menu
+	void JsShowMenu(std::vector<JsValueRef> items, WSTRING name, JavascriptEngine::JsObj options);
+
+	// Enter/exit attract mode via javascript
+	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
+	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
 
 	//
 	// Button command handlers

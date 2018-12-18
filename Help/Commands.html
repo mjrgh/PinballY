@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Commands</h1>
+
+<p>
+   Many of PinballY's program functions are accessible as "commands".
+   A command is an operation that can be triggered by the user via an
+   action in the UI, which in most cases consists of selecting an item
+   from a menu.  Commands can sometimes be triggered directly by pressing
+   a button, but most buttons are mapped to navigation controls that only
+   operate the menus rather than triggering commands directly.  Commands
+   are also sometimes used for internal event sequencing, such as handling
+   the events involved in starting or exiting a game.
+</p>
+<p>
+   The concept of commands is important in the Javascript context in two
+   ways.  The first is that each time a user action (such as a button
+   press or a menu selection) triggers a command, a Javascript
+   <a href="CommandEvent.html">Command Event</a> is fired.  This notifies
+   your scripting code that a command is being executed, lets it know
+   which one, and gives it a chance to intervene.   Your event handler
+   can cancel the command, carry out some additional operation along
+   with the command, or perform some other action instead of
+   the command.  The second way that commands are important to Javascript
+   is that you can intentionally trigger a command from a script, as
+   though the user had selected the command from a menu.  You do this by calling
+   <a href="MainWindowObject.html#doCommand">mainWindow.doCommand()</a>.
+</p>
+
+<h2>Command IDs</h2>
+
+<p>
+   Each available command action is identified by an integer command code.
+   This might seem a little primitive or opaque, but we do it this way
+   because it's the Windows convention for associating commands with
+   window menus.  PinballY uses normal window menus in addition to its
+   own graphical menu system, so we chose a command representation
+   that's compatible with the native Windows APIs.
+</p>
+<p>
+   To make your Javascript code more readable, the
+   system pre-defines named symbols for the command codes, so that you
+   can refer to the commands by name in your code rather than by
+   number.  All of the command codes are defined as properties of
+   the global <b>command</b> object, so you refer to each one as <b>command.<i>commandName</i></b>.
+</p>
+<p>
+   You can also do the reverse lookup.  That is, given a numeric command
+   ID, you can find its name - the name of the property for that ID in the
+   <b>command</b> object - via <b>command.name(<i>id</i>)</b>.  That will give you a
+   string with the corresponding <b>command</b> property name.
+<p>
+   The available command names are listed below.
+</p>
+
+<p>
+   <a name="AboutBox"></a>
+   <b>command.AboutBox:</b>  Display the program's About Box, as a graphic
+   overlay in the main playfield window.
+</p>
+
+<p>
+   <a name="AddFavorite"></a>
+   <b>command.AddFavorite:</b>  Add the current game to the Favorites list.
+</p>
+
+<p>
+   <a name="AdjustCaptureDelay"></a>
+   <b>command.AdjustCaptureDelay:</b>  Displays the dialog to adjust the
+   media capture startup delay time.  This is normally only shown in the
+   course of the capture setup procedure.
+</p>
+
+<p>
+   <a name="BatchCaptureAll"></a>
+   <b>command.BatchCaptureAll:</b>  Activates "step 2" of the batch capture
+   setup workflow, specifying that all games are to be included in the batch.
+</p>
+
+<p>
+   <a name="BatchCaptureFilter"></a>
+   <b>command.BatchCaptureFilter:</b>  Activates "step 2" of the batch capture
+   setup workflow, specifying that games selected by the current filter are
+   to be included in the batch.
+</p>
+
+<p>
+   <a name="BatchCaptureGo"></a>
+   <b>command.BatchCaptureGo:</b>  Executes the batch capture, using the
+   settings entered during the setup workflow process.
+</p>
+
+<p>
+   <a name="BatchCaptureMarked"></a>
+   <b>command.BatchCaptureMarked:</b>  Activates "step 2" of the batch capture
+   setup workflow, specifying that the batch should consist of the games manually
+   marked for capture.  Step 2 displays a menu letting the user select the
+   media types to include in the capture.
+</p>
+
+<p>
+   <a name="BatchCaptureStep1"></a>
+   <b>command.BatchCaptureStep1:</b>  Initiates the batch capture setup workflow.
+   This is the command that the user selects from the game setup menu to initiate
+   a batch capture.  The batch capture setup process consists of a workflow that
+   steps the user through a series of menus to select options for the capture.
+   The immediate effect of this command is to display the first menu in that
+   workflow, so this command doesn't actually initiate a batch capture, but
+   rather starts the UI workflow to set up the options.
+</p>
+
+<p>
+   <a name="BatchCaptureStep3"></a>
+   <b>command.BatchCaptureStep3:</b>  Activates "step 3" of the batch capture
+   setup workflow.  Step 3 displays a menu letting user select the treatment
+   of existing files (replace or keep) for each media type to be included
+   in the capture.
+</p>
+
+<p>
+   <a name="BatchCaptureStep4"></a>
+   <b>command.BatchCaptureStep4:</b>  Activates "step 4" of the batch capture
+   setup workflow.  Step 4 displays a summary of the items to be captured,
+   and presents menu options to view the full capture details and to launch
+   the capture.
+</p>
+
+<p>
+   <a name="BatchCaptureView"></a>
+   <b>command.BatchCaptureView:</b>  Displays a detailed list of the games
+   and media items selected for the batch capture.  This is offered as a menu
+   option on the last step of the batch capture setup workflow, to let the user
+   view the detailed work list before launching the capture.
+</p>
+
+<p>
+   <a name="CaptureFirst"></a>
+   <a name="CaptureLast"></a>
+   <b>command.CaptureFirst ... command.CaptureLast:</b>  These commands are
+   used during the capture setup workflow to refer to the individual media
+   types in the capture.  Activating the command advances the selection
+   state of the associated media type: for example, it might change the
+   selection state of "Playfield Image" from "Capture" to "Skip".  The
+   media type associated with each index in this range isn't fixed; it's
+   determined by the set of media types the user selects during earlier
+   steps in the capture workflow.  And the range of selection options is
+   likewise variable at run-time, as it depends on which media subtype
+   is involved (video, image, audio), whether or not there are existing
+   files of the type, and whether this is a single or batch capture.
+</p>
+
+<p>
+   <a name="CaptureGo"></a>
+   <b>command.CaptureGo:</b>  Launchs a single-game media capture.  In the
+   user interface, this command is offered from the final menu of the
+   capture setup workflow.
+</p>
+
+<p>
+   <a name="CaptureMediaSetup"></a>
+   <b>command.CaptureMediaSetup:</b>  Displays the capture media setup menu.
+   This starts the single-game media capture workflow; it's offered as an
+   option in the UI from the game setup menu.  This command doesn't
+   actually launch a media capture operation, but rather begins the UI
+   workflow to set up a capture.  The immediate effect of the command is
+   to display the capture setup menu.
+</p>
+
+<p>
+   <a name="ClearCredits"></a>
+   <b>command.ClearCredits:</b>  Zeroes the coin credit counters.
+</p>
+
+<p>
+   <a name="ConfirmDeleteGameInfo"></a>
+   <b>command.ConfirmDeleteGameInfo:</b>  This command appears in the UI
+   as an option on the "Confirm Delete Game Information" menu, to let the user confirm
+   that they really want to delete the game data.  This command carries
+   out the deletion of the current game's information in the XML
+   table database file.
+</p>
+
+<p>
+   <a name="DeleteGameInfo"></a>
+   <b>command.DeleteGameInfo:</b>  This command displays the "Confirm Delete
+   Game Information" menu, which asks the user to confirm that they wish
+   to delete the current game's XML data from the table database.  This
+   command doesn't actually perform the deletion; it just shows the menu
+   to prompt the user for confirmation.  If the user does confirm the
+   operation through that menu, the menu will trigger a ConfirmDeleteGameInfo
+   command to actually carry out the deletion.
+</p>
+
+<p>
+   <a name="DeleteMediaFile"></a>
+   <b>command.DeleteMediaFile:</b>  Deletes the currently selected media
+   file for the current game.  The file must be selected first via the
+   media viewer dialog.
+</p>
+
+<p>
+   <a name="EditCategories"></a>
+   <b>command.EditCategories:</b>  Displays the category editor dialog,
+   allowing the user to add, remove, and rename category tags.
+</p>
+
+<p>
+   <a name="EditGameInfo"></a>
+   <b>command.EditGameInfo:</b>  Displays the game information editor
+   dialog, allowing the user to create or modify the XML table database
+   information (title, year, manufacturer, system, etc) for the current
+   game.
+</p>
+
+<p>
+   <a name="EnableVideos"></a>
+   <b>command.EnableVideos:</b>  Toggles the global "enable videos"
+   setting.
+</p>
+
+<p>
+   <a name="FilterByAdded"></a>
+   <b>command.FilterByAdded:</b>  Displays a menu showing options for
+   all of the filters that select for when a game was added to the
+   database.
+</p>
+
+<p>
+   <a name="FilterByCategory"></a>
+   <b>command.FilterByCategory:</b>  Displays a menu showing options
+   for all of the filters that select games by category.
+</p>
+
+<p>
+   <a name="FilterByEra"></a>
+   <b>command.FilterByEra:</b>  Displays a menu showing options for
+   all of the filters that select games by release date.
+</p>
+
+<p>
+   <a name="FilterByManufacturer"></a>
+   <b>command.FilterByManufacturer:</b>  Displays a menu showing
+   options for all of the filters that select games by manufacturer.
+</p>
+
+<p>
+   <a name="FilterByRating"></a>
+   <b>command.FilterByRating:</b>  Displays a menu showing options
+   for all of the filters that select games by "star" ratings.
+</p>
+
+<p>
+   <a name="FilterByRecency"></a>
+   <b>command.FilterByRecency:</b>  Displays a menu showing options
+   for all of the filters that select a game by how recently they
+   were played.
+</p>
+
+<p>
+   <a name="FilterBySystem"></a>
+   <b>command.FilterBySystem:</b>  Displays a menu showing options
+   for all of the filters that select a game by simulator system.
+</p>
+
+<p>
+   <a name="FilterFirst"></a>
+   <a name="FilterLast"></a>
+   <b>command.FilterFirst ... command.FilterLast:</b>  The commands
+   in this range select individual filters.  The menus shown by the
+   "Filter By Xxx" commands all consist of commands in this range,
+   to select specific filters.  The system assigns a unique command
+   ID in this range to each filter during startup.  The ID assigned
+   to a given filter can vary from session to session, because the
+   overall collection of filters depends on the game database.
+   For example, there's one filter per manufacturer found in the
+   database, so the number of manufacturer filters depends on how
+   many unique manufacturers are in the user's database, and can
+   even change during the session if the user adds games with
+   new manufacturers through the game information editor.
+</p>
+
+<p>
+   <a name="FindMediaGo"></a>
+   <b>command.FindMediaGo:</b>  Launches a media search operation
+   for the current game, which opens an external browser window
+   and navigates to a Google search page with a pre-built search term
+   designed to find HyperPin Media Pack files for the current game,
+   using the game's metadata to fill in the search details.   
+   In the UI, this command is accessed from the Media Search menu,
+   which is displayed via the ShowFindMediaMenu command.  
+</p>
+
+<p>
+   <a name="Flyer"></a>
+   <b>command.Flyer:</b>  Displays the current game's flyer
+   graphics, if available, as an overlay in the main window.
+</p>
+
+<p>
+   <a name="GameInfo"></a>
+   <b>command.GameInfo:</b>  Displays an overlay in the main window
+   with details on the current game.
+</p>
+
+<p>
+   <a name="Help"></a>
+   <b>command.Help:</b>  Displays the PinballY help file, by opening
+   an external Web browser window and navigating to the table of
+   contents page.  The help files are local HTML files within the
+   PinballY folder, so this simply navigates to a file:/// URL
+   selecting the main h elp file.
+</p>
+
+<p>
+   <a name="HideGame"></a>
+   <b>command.HideGame:</b>  Toggles the "hidden" status for the
+   current game.  A hidden game is excluded by all filters except
+   for the special "hidden games" filter, so hiding a game allows
+   a user to exclude a non-playable game (e.g., an old version,
+   a backup copy, etc) from the normal UI without actually deleting
+   any of the files involved.
+</p>
+
+<p>
+   <a name="HighScores"></a>
+   <b>command.HighScores:</b>  Displays an overlay showing the
+   high score information for the current game, if available.
+</p>
+
+<p>
+   <a name="Instructions"></a>
+   <b>command.Instructions:</b>  Displays an overlay showing the
+   instruction card for the current game, if available.  The overlay
+   appears as a popup in the main window, backglass window, or
+   topper window, according to the option settings.
+</p>
+
+<p>
+   <a name="KillGame"></a>
+   <b>command.KillGame:</b>  If a game is running, this attempts to
+   terminate the game and make PinballY the foreground application.
+</p>
+
+<p>
+   <a name="MarkForBatchCapture"></a>
+   <b>command.MarkForBatchCapture:</b>  Toggles the current game's
+   "marked for batch capture" status.  One of the options in the
+   batch capture process for selecting which games to include is
+   to include games marked with this status, so this gives the
+   user a way to construct an ad hoc set of games to include in
+   a capture.
+</p>
+
+<p>
+   <a name="MediaDropFirst"></a>
+   <a name="MediaDropLast"></a>
+   <b>command.MediaDropFirst ... command.MediaDropLast:</b>
+   The commands in this range represent the individual entries
+   in a set of media files involved in a drag-and-drop operation,
+   where the user has dragged files from the Windows desktop
+   and dropped them onto a PinballY window for the purposes of
+   installing the files as media for the current games.  Each
+   file in the drop set is assigned a unique ID within this
+   range, with the first file assigned the ID MediaDropFirst,
+   and each additional file getting the next higher ID.
+   These commands are used in "step 2" of the media drop workflow,
+   which displays an option for the disposition (add, skip,
+   replace) for each file in the group of files dropped.  The
+   effect of each of these commands when executed is to toggle
+   to the next disposition for the item.
+</p>
+
+<p>
+   <a name="MediaDropGo"></a>
+   <b>command.MediaDropGo:</b>  Executes the current media
+   drop operation, installing the dropped files according to
+   the selections made in the media drop menu workflow.  In
+   the UI, this is offered as a command in the final step
+   of the workflow, to confirm that the file installation
+   should proceed.
+</p>
+
+<p>
+   <a name="MediaDropPhase2"></a>
+   <b>command.MediaDropPhase2:</b>  Initiates "step 2" of the
+   media drop workflow, which displays a menu showing the items
+   to be dropped, allowing the user to select a disposition
+   (add, skip, replace) for each item.  The available
+   dispositions depend upon whether or not the game already
+   has an existing file of the same type.  Each file in the
+   drop set is assigned a command ID in the range
+   MediaDropFirst to MediaDropLast, and each of these
+   commands is used to let the user select which disposition
+   to use for each file.  Note that "step 2" is normally
+   initiated by "step 1", which is triggered not by a
+   regular menu command but by a mouse drag-and-drop
+   operation.
+</p>
+
+<p>
+   <a name="MenuPageDown"></a>
+   <b>command.MenuPageDown:</b>  If a menu is being displayed,
+   and the menu has a section of items that's divided into multiple
+   pages (because there are too many items in the section to show
+   all at once), this advances to the next group of items in
+   the menu.
+</p>
+
+<p>
+   <a name="MenuPageUp"></a>
+   <b>command.MenuPageUp:</b>  If a multi-page menu is being
+   displayed, this moves to the prior page of items in the menu.
+</p>
+
+<p>
+   <a name="MenuReturn"></a>
+   <b>command.MenuReturn:</b>  Cancel the current menu and return
+   to the previous UI mode.  This is the command associated with the
+   "Cancel" or "Return" items that appear in most menus.  The Exit
+   button also triggers this command when a menu is showing, unless
+   the menu is designated as an Exit Menu and the option to treat
+   the Exit button as the Select button in an Exit menu is set.
+</p>
+
+<p>
+   <a name="MuteAttractMode"></a>
+   <b>command.MuteAttractMode:</b>  Toggles the "mute attract mode"
+   option setting, which controls whether or not sound effects are
+   muted when attract mode is active.
+</p>
+
+<p>
+   <a name="MuteButtons"></a>
+   <b>command.MuteButtons:</b>  Toggles the "mute buttons" setting,
+   which controls whether or not button sound effects are played.
+</p>
+
+<p>
+   <a name="MuteTableAudio"></a>
+   <b>command.MuteTableAudio:</b>  Toggles the "mute table audio"
+   setting, which controls whether or not table audio files are
+   played.
+</p>
+
+<p>
+   <a name="MuteVideos"></a>
+   <b>command.MuteVideos:</b>  Toggles the "mute videos" setting,
+   which controls whether or not the audio portion of a table's
+   video file is played.
+</p>
+
+<p>
+   <a name="Options"></a>
+   <b>command.Options:</b>  Displays the Options dialog.
+</p>
+
+<p>
+   <a name="PauseGame"></a>
+   <b>command.PauseGame:</b>  If a game is running, this attempts to
+   bring the main PinballY window to the foreground.  Despite the
+   name, this doesn't attempt to send the game any explicit commands
+   to pause, since none of the popular game systems have anything
+   like that.  Instead, it depends upon the game recognizing loss
+   of window activation as meaning it should pause, which the
+   popular systems happen to do.
+</p>
+
+<p>
+   <a name="PinscapeNightMode"></a>
+   <b>command.PinscapeNightMode:</b>  If a Pinscape unit has been
+   detected, this sends a "toggle night mode" command to the device.
+</p>
+
+<p>
+   <a name="PickSysFirst"></a>
+   <a name="PickSysLast"></a>
+   <b>command.PickSysFirst ... command.PickSysLast:</b>  These
+   commands are used in the "Pick a system" menu, which is displayed
+   if the user tries to launch a game that doesn't have an XML
+   database entry, and whose file type is associated with more than
+   one system.  The program can't infer which game system to use in
+   this case, so it asks the user by displaying a menu.  Each
+   matching system is assigned a unique command ID from this
+   range; executing one of these command IDs has the effect of
+   launching the game using the assigned system.
+</p>
+
+<p>
+   <a name="PlayGame"></a>
+   <b>command.PlayGame:</b>  Launch the current game.
+</p>
+
+<p>
+   <a name="PowerOff"></a>
+   <b>command.PowerOff:</b>  This command is triggered when the user selects
+   "Shutdown" from the Exit menu.  It doesn't actually shut down the system;
+   it just shows the shutdown confirmation menu, which asks the user to
+   confirm the action before proceeding.
+</p>
+
+<p>
+   <a name="PowerOffConfirm"></a>
+   <b>command.PowerOffConfirm:</b>  This command is triggered when the user
+   selects the "Yes, I really want to shut down the system now" option from the
+   shutdown confirmation menu.  This command proceeds by asking Windows to
+   power off the system.  Assuming that Windows allows the shutdown request,
+   this will have the side effect of terminating the program shortly after
+   the power-off command.
+</p>
+
+<p>
+   <a name="Quit"></a>
+   <b>command.Quit:</b>  Exits the program.
+</p>
+
+<p>
+   <a name="RateGame"></a>
+   <b>command.RateGame:</b>  Displays the Rate Game dialog, allowing the
+   user to enter a "star" rating for the current game interactively.
+</p>
+
+<p>
+   <a name="RemoveFavorite"></a>
+   <b>command.RemoveFavorite:</b>  Removes the current game from the
+   Favorites list.
+</p>
+
+<p>
+   <a name="RestartAsAdmin"></a>
+   <b>command.RestartAsAdmin:</b>  Re-launches the program under the
+   Admin Host program.  This is normally used when a game launch fails
+   because it requires admin privileges, and the user selects this
+   option to restart the session using the Admin Host.
+</p>
+
+<p>
+   <a name="ResumeGame"></a>
+   <b>command.ResumeGame:</b>  If a game is running, attempts to make the
+   game the foreground application, which should return keyboard focus to
+   the game and make it resume normal play.
+</p>
+
+<p>
+   <a name="RealDmdAutoEnable"></a>
+   <b>command.RealDmdAutoEnable:</b>  Sets the Real DMD status
+   to "Automatic", which means that the program will enable the DMD if
+   the DMD DLL can be loaded.
+</p>
+
+<p>
+   <a name="RealDmdDisable"></a>
+   <b>command.RealDmdDisable:</b>  Disables PinballY's Real DMD usage,
+   which prevents PinballY from attempting to load the DMD DLL or access
+   the device.
+</p>
+
+<p>
+   <a name="RealDmdEnable"></a>
+   <b>command.RealDmdEnable:</b>  Enables PinballY's DMD usage.  This
+   tells PinballY that a DMD device is definitely present, so PinballY
+   attempts to load the DMD DLL and connect to the device at startup.
+   The difference between "Enabled" and "Automatic" is that PinballY
+   will display an error message in "Enabled" mode if the DMD can't
+   be accessed, since you've asserted that the device is definitely
+   present and that you definitely want PinballY to use it; whereas
+   there's no error in "Automatic" mode, since that mode means that
+   you want PinballY to determine whether or not a DMD is present,
+   and it's not an error condition if the answer is "no".
+</p>
+
+<p>
+   <a name="RealDmdMirrorHorz"></a>
+   <b>command.RealDmdMirrorHorz:</b>  Set the Real DMD display format
+   to horizontal mirroring.
+</p>
+
+<p>
+   <a name="RealDmdMirrorVert"></a>
+   <b>command.RealDmdMirrorVert:</b>  Set the Real DMD display format
+   to vertical mirroring.
+</p>
+
+<p>
+   <a name="SaveCategories"></a>
+   <b>command.SaveCategories:</b>  This commits changes made in the
+   Set Categories menu.
+</p>
+
+<p>
+   <a name="SetCategories"></a>
+   <b>command.SetCategories:</b>  Displays the Set Categories menu,
+   which lets the user toggle category tags for the current game.
+</p>
+
+<p>
+   <a name="ShowExitMenu"></a>
+   <b>command.ShowExitMenu:</b>  Shows the Exit menu.  This menu is normally
+   shown when the user presses the "Exit" button when no other menu is showing.
+</p>
+
+<p>
+   <a name="ShowFindMediaMenu"></a>
+   <b>command.ShowFindMediaMenu:</b>  Displays the "Media Search"
+   menu, which describes the media search process and gives the
+   user options to proceed or cancel.  If the user proceeds, a
+   FindMediaGo command is triggered.
+</p>
+
+<p>
+   <a name="ShowGameSetupMenu"></a>
+   <b>command.ShowGameSetupMenu:</b>  Shows the Game Setup menu for the
+   current game, which has options for editing the game's details,
+   capturing media, etc.
+</p>
+
+<p>
+   <a name="ShowMainMenu"></a>
+   <b>command.ShowMainMenu:</b>  Shows the main menu.  This menu is normally
+   shown when the user presses the "Select" button (on a pin cab, usually
+   assigned to the Start button) when no other menu or popup is showing.
+</p>
+
+<p>
+   <a name="ShowMediaFiles"></a>
+   <b>command.ShowMediaFiles:</b>  Display the Media Files dialog, which
+   lists all of the media files for the current game, shows the folder
+   search locations, and lets the user delete files and open the folders
+   in the Windows desktop.
+</p>
+
+<p>
+   <a name="ShowOperatorMenu"></a>
+   <b>command.ShowOperatorMenu:</b>  Displays the "Operator Menu",
+   which has options for game setup and system settings.
+</p>
+
+<p>
+   <a name="UserFirst"></a>
+   <a name="UserLast"></a>
+   <b>command.UserFirst ... command.UserLast: </b>  This is a range of
+   commands reserved for user-written Javascript commands, mainly for
+   use in <a href="Menus.html">custom menus</a>.  The system doesn't
+   generate any of these commands itself, and the default processing
+   is to simply ignore them.  This lets you assign these commands to
+   your own custom menu items and write your own handlers to carry
+   them out.
+</p>
+
+<h2>Methods</h2>
+
+<p>
+   <b>command.name(<i>id</i>):</b>  Returns a string with the name for the
+   given command ID (an integer value, one of the command.<i>Name</i> properties).
+   For the "ranged" commands (FilterFirst to FilterLast, CaptureFirst to CaptureLast, etc),
+   a command in the middle of the range will be represented with a name like
+   "FilterFirst+3", indicating the numeric offset from the start of the range.
+</p>
+
+<p>
+   <b>command.nameAndIndex(<i>id</i>):</b>  Returns an object with properties
+   { name: string, index: integer } giving the command's name and, if applicable,
+   the index of the command within its range.  For most commands, the name is
+   set to the same string that command.name() would return for the
+   same ID, and index is undefined.  For the "ranged" commands, name is set to
+   the <i>first</i> command of the range (e.g., "FilterFirst"), and index is set
+   to the ID's offset from the first command in the range.  This provides an
+   easier way to handle ranged commands, since the name is the same for every
+   command in the range, and the index within the range is separated out as a
+   simple integer value.
+</p>
+
+
+</body>
+</html>

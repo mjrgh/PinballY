@@ -52,7 +52,7 @@
    meaning of the key, regardless of which physical key was used
    to generate the command.
 </ul>
-   
+
 <p>
    As with key and joystick events, a "button down" event is sent
    when the user presses the button, and a "button up" event is
@@ -103,15 +103,75 @@
    released while the application is in the background.
 </ul>
 
+<h2>How this event differs from raw keyboard events</h2>
+
+<p>
+   In many cases, the relationship between raw keyboard events and
+   Command Button events is one-to-one.  But it's not always,
+   which is the whole reason that the CommandButton event is exposed
+   as a separate event from the raw keyboard event.
+</p>
+<p>
+   There are two main places where the two event types can differ.
+</p>
+<p>
+   The first is the fairly obvious one:  most keys aren't mapped
+   to commands in the user's settings, so most keys won't generate
+   CommandButton events at all.  We wanted Javascript
+   to have access to all of the low-level keyboard events, for
+   greater flexibility in customizing the program, so we had to
+   provide Javascript events for all keys, whether mapped to
+   commands or not.  That's why the raw key events are there.
+   We also wanted to simplify things for Javascript code that
+   only cares about the abstract commands, which is why the
+   CommandButton events are also there.
+</p>
+<p>
+   The second difference between raw key events and CommandButton
+   events is more complex, and has to do with auto-repeat handling.
+   At the raw hardware level, Windows generates auto-repeat events
+   at fixed intervals, no matter how quickly or slowly the
+   application wants to process the repeat events.
+   Windows stores the repeats in a buffer until the application
+   processes them.  These timed repeat events are reflected in
+   the raw keyboard events in Javascript.  CommandButton events
+   also can auto-repeat, but their auto-repeat timing is
+   determined by PinballY, according to the rate at which
+   PinballY wants to process the repeats.  The simple timing scheme
+   that Windows uses at the hardware level can lead to undesirable
+   behavior when it's faster or slower than the program's natural
+   processing speed for the keys.  PinballY tries to be more
+   responsive by synchronizing CommandButton
+   repeat events to its on-screen animation timing.
+</p>
+<p>
+   In most cases, these differences shouldn't matter to
+   Javascript code, because you'll just handle one or the other
+   type of event depending on the effect you're
+   trying to achieve.  The differences would only matter if
+   you were trying for some reason to correlate raw key events
+   with the CommandButton events they lead to.  If you're doing
+   that, you just need to be sure not to assume that the events
+   are perfectly correlated: that is, don't write code that depends
+   upon one CommandButton event being generated for every raw key
+   event.
+</p>
+
+
 <h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the following:
+</p>
 
 <ul>
    <li><b>background:</b> true if the original key press happened
    while the program was in the background.
 
    <li><b>command:</b> a string with the name of the command assigned
-   to the key.  This is one of the following:
-
+   to the key in the user's option settings.  This is one of the following:
+   
    <ul>
       <li>"Coin1" = the first coin chute switch (usually the leftmost chute),
       sometimes wired to a "Coin In" button on the front panel

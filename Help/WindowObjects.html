@@ -114,6 +114,15 @@
 </p>
 
 <p>
+   <b><i>window</i>.name:</b> a string giving the name of the window ("playfield",
+   "backglass", "dmd", "instCard", "topper").  This is mostly for debugging
+   purposes; if you have a reference to one of the window objects and need to
+   identify it programmatically, it's better to compare the reference to the
+   named window objects (mainWindow, etc), as that insulates you from any
+   future changes to the names.
+</p>
+
+<p>
    <b><i>window</i>.setWindowState(<i>state</i>):</b> Minimizes, maximizes, or
    restores the window position.  <i>state</i> can be one of the following
    string values:

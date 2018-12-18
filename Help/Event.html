@@ -31,6 +31,8 @@
    methods of the Event base class, and add their own
    additional properties of their own that describe the
    details of the specific type of event they represent.
+   See <a href="EventTypes.html">Event Types</a> for a list
+   of the event-specific subtypes.
 </p>
 <div id="TOC"></div>
 
@@ -73,24 +75,29 @@
 <ul>
       
 
-   <li><b>preventDefault():</b>  Call this method to tell the system to skip the
-      normal default processing for the event.  This will have no effect unless
-      the event can be canceled, as indicated by the <b>cancelable</b> property.
+   <li><a name="preventDefault"></a>
+   <b>preventDefault():</b>  Call this method to tell the system to skip the
+   normal default processing for the event.  This will have no effect unless
+   the event can be canceled, as indicated by the <b>cancelable</b> property.
 
-   <li><b>stopPropagation():</b>  Stop "bubbling" for the event.  This prevents
-      the event from being dispatched to listeners in parent objects, if the
-      event bubbles from child to parent.  This doesn't affect other event
-      listeners on the same target; use stopImmediatePropagation() to prevent
-      any other listeners from being called.  No current
-      PinballY events use bubbling, so this currently has no effect.
+   <li><a name="stopPropagation"></a>
+   <b>stopPropagation():</b>  Stop "bubbling" for the event.  This prevents
+   the event from being dispatched to listeners in parent objects, if the
+   event bubbles from child to parent.  This doesn't affect other event
+   listeners on the same target; use stopImmediatePropagation() to prevent
+   any other listeners from being called.  No current
+   PinballY events use bubbling, so this currently has no effect.
 
-   <li><b>stopImmediatePropagation():</b>  Stop propagating the event to any
-      other listeners.  This prevents any other listeners registered in the
-      same event target from being called after this listener returns.  (Other
-      listeners that were already called <i>before</i> this listener was
-      invoked obviously aren't affected, as they can't be "un-called".)
-      If the event uses bubbling (dispatching the event to parent objects),
-      this also stops any parent object listeners from being called.
+   <li><a name="stopImmediatePropagation"></a>
+   <b>stopImmediatePropagation():</b>  Stop propagating the event to any
+   other listeners.  This prevents any other listeners registered in the
+   same event target from being called after this listener returns.  (Other
+   listeners that were already called <i>before</i> this listener was
+   invoked obviously aren't affected, as they can't be "un-called".)
+   If the event uses bubbling (dispatching the event to parent objects),
+   this also stops any parent object listeners from being called.
 </ul>
 
 
+</html>
+</body>
