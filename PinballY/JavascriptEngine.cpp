@@ -3,11 +3,11 @@
 //
 
 #include "stdafx.h"
-#include "JavascriptEngine.h"
-#include "LogFile.h"
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/ComUtil.h"
 #include "../Utilities/DateUtil.h"
+#include "JavascriptEngine.h"
+#include "LogFile.h"
 #include "DialogResource.h"
 
 #include <filesystem>
@@ -133,7 +133,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messa
 						SendMessage(hDlg, WM_COMMAND, IDOK, 0);
 				}
 
-				virtual BOOL Proc(UINT message, WPARAM wParam, LPARAM lParam) override
+				virtual INT_PTR Proc(UINT message, WPARAM wParam, LPARAM lParam) override
 				{
 					switch (message)
 					{
@@ -2073,8 +2073,10 @@ public:
 	}
 
 	// Parse one array dimension.  Advances p to the character after the ']'.
-	static bool ParseArrayDim(const WCHAR* &p, const WCHAR *endp, size_t &dim, bool &empty)
+	static bool ParseArrayDim(const WCHAR* &p, const WCHAR *endp, int &dim, bool &empty)
 	{
+		bool overflow = false;
+
 		// skip the opening '['
 		if (p < endp && *p == '[')
 			++p;
@@ -2089,11 +2091,19 @@ public:
 		}
 
 		// parse the dimension
-		size_t acc = 0;
+		int acc = 0;
 		for (; p < endp && *p >= '0' && *p <= '9'; ++p)
 		{
+			if (acc > INT_MAX / 10)
+				overflow = true;
+
 			acc *= 10;
-			acc += static_cast<size_t>(*p - '0');
+			int dig = static_cast<int>(*p - '0');
+
+			if (acc > INT_MAX - dig)
+				overflow = true;
+
+			acc += dig;
 		}
 
 		// ensure it ends with ']'
@@ -2106,13 +2116,13 @@ public:
 		// return the results
 		dim = acc;
 		empty = false;
-		return true;
+		return !overflow;
 	}
 
 	// Get the array dimension for an argument value.  This can be
 	// used to figure the actual size needed for an indeterminate array
 	// argument or struct element.
-	bool GetActualArrayDim(JsValueRef jsval, size_t &dim, size_t eleSize)
+	bool GetActualArrayDim(JsValueRef jsval, int &dim, size_t eleSize)
 	{
 		// check if we have a concrete argument to infer the size from
 		if (jsval != JS_INVALID_REFERENCE)
@@ -2140,7 +2150,7 @@ public:
 				if (int i = GetArrayLength(jsval); i < 0)
 					return false;
 				else
-					dim = static_cast<size_t>(i);
+					dim = i;
 				break;
 
 			case JsTypedArray:
@@ -2162,7 +2172,14 @@ public:
 						return false;
 					}
 
-					dim = static_cast<size_t>(arrayByteLength / eleSize);
+					unsigned int neles = static_cast<unsigned int>(arrayByteLength / eleSize);
+					if (neles > static_cast<unsigned int>(INT_MAX))
+					{
+						Error(_T("dllImport: typed array is too large"));
+						return false;
+					}
+
+					dim = static_cast<int>(neles);
 					break;
 				}
 				break;
@@ -2294,7 +2311,7 @@ public:
 	virtual void DoArray() override
 	{
 		// Figure the dimension
-		size_t dim;
+		int dim;
 		bool isEmpty;
 		if (!ParseArrayDim(p, sig->sigEnd(), dim, isEmpty))
 			return;
@@ -2718,7 +2735,12 @@ public:
 
 				case 't':
 					// ANSI string
-					cstrings.emplace_back(WideToAnsiCnt(strp, len));
+					if (len > static_cast<size_t>(INT_MAX))
+					{
+						Error(_T("dllImport: string is too long to convert to ANSI"));
+						return;
+					}
+					cstrings.emplace_back(WideToAnsiCnt(strp, static_cast<INT>(len)));
 					Store(cstrings.back().c_str());
 					break;
 
@@ -2785,8 +2807,11 @@ public:
 			|| (err = JsStringToPointer(jsstr, &p, &len)) != JsNoError)
 			return Error(err, _T("dllImport: converting argument to BSTR"));
 
+		if (len > static_cast<size_t>(UINT_MAX))
+			return Error(_T("dllImport: string argument is too long to convert to BSTR"));
+
 		// create a BSTR and store it in the native slot
-		BSTR bstr = SysAllocStringLen(p, len);
+		BSTR bstr = SysAllocStringLen(p, static_cast<UINT>(len));
 		Store(bstr);
 
 		// schedule the native BSTR for cleanup
@@ -3136,7 +3161,7 @@ public:
 	// Number of stack slots required for the native argument vector.  This
 	// counts the actual stack usage based on item size.  For example, a struct
 	// that requires 16 bytes will take up 4 slots in 32-bit mode.
-	int nSlots = 0;
+	size_t nSlots = 0;
 
 	// is there a hidden first argument for a return-by-value struct?
 	bool hiddenStructArg = false;
@@ -3450,7 +3475,7 @@ public:
 
 	// native array: pointer, element size, number of elements
 	BYTE *nativeArray;
-	int eleSize;
+	size_t eleSize;
 	int nEles;
 };
 
@@ -3678,7 +3703,7 @@ void JavascriptEngine::MarshallToNative::DoArrayCommon(JsValueRef jsval)
 	// Parse the array dimension.  Note that this only parses the first 
 	// dimension; if there are multiple dimensions, the others will fall
 	// out of the recursive measurement of the underlying type size.
-	size_t dim;
+	int dim;
 	bool isEmpty;
 	if (!ParseArrayDim(p, sig->sigEnd(), dim, isEmpty))
 		return;
@@ -3748,7 +3773,7 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			const wchar_t *p;
 			size_t len;
 			if ((err = JsStringToPointer(jsval, &p, &len)) != JsNoError)
-				return Error(err, _T("dllImport: getting argumnet string text"));
+				return Error(err, _T("dllImport: getting argument string text"));
 
 			// convert it to a buffer of the appropriate underlying type
 			void *pointer = nullptr;
@@ -3758,8 +3783,11 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			case 'C':
 				// Pointer to int8.  Marshall as a pointer to a null-terminated
 				// buffer of ANSI characters.
+				if (len > static_cast<size_t>(INT_MAX))
+					return Error(_T("dllImport: string is too long to convert to ANSI"));
+
 				pointer = inst->marshallerContext->Alloc(len + 1);
-				WideCharToMultiByte(CP_ACP, 0, p, len, static_cast<LPSTR>(pointer), len + 1, NULL, NULL);
+				WideCharToMultiByte(CP_ACP, 0, p, static_cast<int>(len), static_cast<LPSTR>(pointer), static_cast<int>(len + 1), NULL, NULL);
 				Store(pointer);
 				break;
 
@@ -4642,15 +4670,27 @@ extern "C" __m128 DllCallGlue64_XMM0(FARPROC func, const void *args, size_t nArg
 // DllImportSizeof is set up in the Javascript as dllImport._sizeof(), an 
 // internal method of the DllImport object.  This can be used to retrieve the
 // size of a native data structure defined via the Javascript-side C parser.
-size_t JavascriptEngine::DllImportSizeof(WSTRING typeInfo)
+//
+// Since the value is returned to Javascript, we return it as a double rather
+// than size_t.  Returning as size_t is problematic because size_t is 64 bits
+// on x64, which can exceed the integer precision of a double.  So explicitly
+// convert it after checking for overflow.
+double JavascriptEngine::DllImportSizeof(WSTRING typeInfo)
 {
 	// measure the size
 	SigParser sig(typeInfo);
 	MarshallBasicSizer sizer(&sig);
 	sizer.Marshall();
 
+	// check for overflow
+	if (sizer.size > (1ULL << DBL_MANT_DIG))
+	{
+		ThrowSimple("dllImport.sizeof: size overflows Javascript Number");
+		return 0.0;
+	}
+
 	// return the result
-	return sizer.size;
+	return static_cast<double>(sizer.size);
 }
 
 // DllImportCreate is set up in the Javascript as dllImport._create(), an 
@@ -4779,6 +4819,9 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 	// Get the calling convention.  This is the first letter of the first token:
 	// S[__stdcall], C[__cdecl], F[__fastcall], T[__thiscall], V[__vectorcall]
 	WCHAR callConv = sigStr[1];
+
+	// the return value type starts immediately after the calling convention
+	const WCHAR *retType = sigStr + 2;
 
 	// Set up a stack argument sizer to measure how much stack space we need
 	// for the native copies of the arguments.  The first type in the function 
@@ -4925,7 +4968,7 @@ JsValueRef JavascriptEngine::DllImportCall(JsValueRef callee, bool isConstructCa
 	// have to call a glue function with a return type that uses the
 	// same register.  We don't need functions for every type - just
 	// for two representative types that 
-	switch (*sig)
+	switch (*retType)
 	{
 	case 'f':
 	case 'd':
@@ -5234,10 +5277,17 @@ JsErrorCode JavascriptEngine::NativePointerData::Create(
 		new NativePointerData(ptr, size, sig, stringType))) != JsNoError)
 		return err;
 
+	// make sure the length fits
+	if (size > (1ULL << DBL_MANT_DIG))
+	{
+		ThrowSimple("NativePointer: object is too large (byte size exceeds Javascript Number capacity)");
+		return JsNoError;
+	}
+
 	// set the length property to the byte length
 	JsValueRef lengthVal;
 	const TCHAR *where = _T("JsIntToNumber(length)");
-	if ((err = JsIntToNumber(size, &lengthVal)) != JsNoError
+	if ((err = JsDoubleToNumber(static_cast<double>(size), &lengthVal)) != JsNoError
 		|| (err = inst->SetReadonlyProp(*jsval, "length", lengthVal, where)) != JsNoError)
 		return err;
 
@@ -5275,8 +5325,8 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.toString()")); self != nullptr)
 	{
 		// set default options
-		SSIZE_T maxLength = -1;
-		SSIZE_T length = -1;
+		int maxLength = -1;
+		int length = -1;
 		UINT codePage = CP_ACP;
 
 		// check for options
@@ -5304,10 +5354,10 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 					if (len == 4 && _wcsnicmp(p, L"utf8", 4) == 0)
 						codePage = CP_UTF8;
 					else
-						ThrowSimple("NativePointer.toStringZ(): invalid codePage option");
+						return ThrowSimple("NativePointer.toStringZ(): invalid codePage option");
 				}
 				else
-					ThrowSimple("NativePointer.toStringZ(): invalid codePage option");
+					return ThrowSimple("NativePointer.toStringZ(): invalid codePage option");
 			}
 
 			// options.maxLength = number
@@ -5315,14 +5365,24 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 				&& JsGetProperty(argv[1], propid, &propval) == JsNoError
 				&& JsConvertValueToNumber(propval, &numval) == JsNoError
 				&& JsNumberToDouble(propval, &d) == JsNoError)
-				maxLength = static_cast<SSIZE_T>(d);
+			{
+				if (d > static_cast<double>(INT_MAX))
+					return ThrowSimple("NativePointer.toStringZ(): maxLength is out of range");
+
+				maxLength = static_cast<int>(d);
+			}
 
 			// options.length = number
 			if (JsCreatePropertyId("length", 6, &propid) == JsNoError
 				&& JsGetProperty(argv[1], propid, &propval) == JsNoError
 				&& JsConvertValueToNumber(propval, &numval) == JsNoError
 				&& JsNumberToDouble(propval, &d) == JsNoError)
-				length = static_cast<SSIZE_T>(d);
+			{
+				if (d > static_cast<double>(INT_MAX))
+					return ThrowSimple("NativePointer.toStringZ(): length is out of range");
+
+				length = static_cast<int>(d);
+			}
 		}
 
 		// skip any const qualification
@@ -5347,7 +5407,13 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 					// If an exact length wasn't specified in the options, search for
 					// a null byte, up to the maximum length limit.
 					if (length < 0)
-						length = maxLength >= 0 ? strnlen_s(cstr, maxLength) : strlen(cstr);
+					{
+						size_t srcLength = maxLength >= 0 ? strnlen_s(cstr, maxLength) : strlen(cstr);
+						if (srcLength > static_cast<size_t>(INT_MAX))
+							return ThrowSimple("NativePointer.toStringZ(): length is out of range");
+
+						length = static_cast<int>(srcLength);
+					}
 
 					// apply the maximum length if specified, even if a length was specified
 					if (maxLength >= 0 && length > maxLength)
@@ -5383,7 +5449,13 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 				// If an exact length wasn't specified, search for a null byte, up to 
 				// the maximum length limit.
 				if (length < 0)
-					length = maxLength >= 0 ? wcsnlen_s(wstr, maxLength) : wcslen(wstr);
+				{
+					size_t srcLength = maxLength >= 0 ? wcsnlen_s(wstr, maxLength) : wcslen(wstr);
+					if (srcLength > static_cast<size_t>(INT_MAX))
+						return ThrowSimple("Native string is too long");
+
+					length = static_cast<int>(srcLength);
+				}
 
 				// apply the maximum length if specified, even if a length was specified
 				if (maxLength >= 0 && length > maxLength)
@@ -5394,13 +5466,13 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToStringZ(JsValueRef ca
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)
 			{
-				ThrowSimple("Memory at native pointer is unreadable, or string is unterminated");
+				return ThrowSimple("Memory at native pointer is unreadable, or string is unterminated");
 			}
 			break;
 
 		default:
 			// other types can't be interpreted as strings
-			ThrowSimple("Native pointer does not point to a string type");
+			return ThrowSimple("Native pointer does not point to a string type");
 			break;
 		}
 	}
@@ -5460,19 +5532,25 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToArrayBuffer(JsValueRe
 	JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	JsValueRef ret = JS_INVALID_REFERENCE;
+	auto js = JavascriptEngine::Get();
 	if (auto self = NativePointerData::Recover<NativePointerData>(argv[0], _T("NativePointer.toArrayBuffer()")); self != nullptr)
 	{
+		// make sure it fits - we only get an 'unsigned int' for the byte size from JS,
+		// which is smaller than size_t on x64
+		if (self->size > UINT_MAX)
+			return js->Throw(_T("NativePointer.toArrayBuffer(): native array is too large"));
+
 		// create the array buffer
-		JsErrorCode err = JsCreateExternalArrayBuffer(self->ptr, self->size, nullptr, nullptr, &ret);
+		JsErrorCode err = JsCreateExternalArrayBuffer(self->ptr, static_cast<unsigned int>(self->size), nullptr, nullptr, &ret);
 		if (err != JsNoError)
-			return inst->Throw(err, _T("NativePointer.toArrayBuffer(), creating ArrayBuffer object"));
+			return js->Throw(err, _T("NativePointer.toArrayBuffer(), creating ArrayBuffer object"));
 
 		// Add a cross-reference from the ArrayBuffer to the pointer.  This will 
 		// the pointer alive as long as the ArrayBuffer object is alive, which will
 		// in turn keep the underlying native storage alive, since the dead object
 		// scanner will see our pointer into the native storage.
 		if ((err = JsSetProperty(ret, inst->xrefPropertyId, argv[0], true)) != JsNoError)
-			return inst->Throw(err, _T("NativePointer.toArrayBuffer(), setting xref"));
+			return js->Throw(err, _T("NativePointer.toArrayBuffer(), setting xref"));
 	}
 	return ret;
 }
@@ -6409,7 +6487,8 @@ FARPROC JavascriptEngine::CodeGenManager::Generate(JavascriptCallbackWrapper *wr
 
 	// move the first four arguments from registers to the stack
 	int ofs = 10;
-	MarshallBasicSizer sizer(wrapper->js, wrapper->argSig);
+	SigParser sig(wrapper->sig);
+	MarshallBasicSizer sizer(&sig, JS_INVALID_REFERENCE);
 	static const char *intRegs[] = {
 		"\x48\x89\x4C\x24\x08",         // mov [rsp+8], rcx
 		"\x48\x89\x54\x24\x10",         // mov [rsp+16], rdx
@@ -6422,7 +6501,7 @@ FARPROC JavascriptEngine::CodeGenManager::Generate(JavascriptCallbackWrapper *wr
 		"\x66\x0F\xD6\x54\x24\x18",     // movq [rsp+24], xmm2
 		"\x66\x0F\xD6\x5C\x24\x20"      // movq [rsp+32], xmm3
 	};
-	for (int i = 0; i < 4 && sizer.p < sizer.sigEnd; ++i, sizer.NextArg())
+	for (int i = 0; i < 4 && sizer.p < sig.sigEnd(); ++i, sizer.NextArg())
 	{
 		if (*sizer.p == '%')
 			++sizer.p;
@@ -6558,7 +6637,7 @@ public:
 		// On x64, only structs/unions under 8 bytes can be passed by value.
 		// Anything over 8 bytes is actually passed in the stack/parameter register
 		// as a pointer, even if the struct is declared to be passed by value.
-		if (size > 8)
+		if (structSize > 8)
 		{
 			// the stack slot contains a pointer to the struct
 			structp = *reinterpret_cast<void**>(curArg);
@@ -7099,7 +7178,7 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigPar
 		// an .at(index) method that returns a view of the element at the index.
 		{
 			// get the first index value
-			size_t dim;
+			int dim;
 			bool empty;
 			if (!Marshaller::ParseArrayDim(p, endp, dim, empty))
 			{
@@ -7344,7 +7423,7 @@ bool JavascriptEngine::IsPointerConversionValid(SigParser *fromSig, SigParser *t
 	if (from < fromEnd && from[0] == '[' && to < toEnd && to[0] == '[')
 	{
 		// read the two array dimensions
-		size_t fromDim, toDim;
+		int fromDim, toDim;
 		bool fromEmpty, toEmpty;
 		const WCHAR *pfrom = from, *pto = to;
 		if (Marshaller::ParseArrayDim(pfrom, fromEnd, fromDim, fromEmpty)
@@ -7868,7 +7947,7 @@ JsValueRef CALLBACK JavascriptEngine::NativeTypeWrapper::AddressOf(JsValueRef ca
 						return inst->Throw(err, _T("NativeObject.addressOf(): getting array index"));
 
 					// get the array dimension
-					size_t dim;
+					int dim;
 					bool isEmpty;
 					if (!Marshaller::ParseArrayDim(sig, sigEnd, dim, isEmpty))
 						return inst->undefVal;
@@ -8064,7 +8143,7 @@ JavascriptEngine::NativeDataTracker::~NativeDataTracker()
 		else if (sig[0] == '[')
 		{
 			// array - visit each item
-			size_t dim;
+			int dim;
 			bool empty;
 			const WCHAR *sigEnd = sig + sigLen;
 			if (Marshaller::ParseArrayDim(sig, sigEnd, dim, empty) && !empty)
@@ -8210,7 +8289,8 @@ bool JavascriptEngine::COMImportData::CreatePrototype(JsValueRef proto, const WC
 	{
 		// look up the name
 		std::wstring_view r;
-		const WCHAR *name = ++p, nameLen = Marshaller::EndOfArg(p, sigEnd) - p;
+		const WCHAR *name = ++p;
+		size_t nameLen = Marshaller::EndOfArg(p, sigEnd) - p;
 		if (!inst->LookUpNativeType(name, nameLen, r))
 			return false;
 
@@ -8482,7 +8562,12 @@ void JavascriptEngine::VariantData::Set(VARIANT &v, JsValueRef val)
 			const wchar_t *p;
 			size_t len;
 			if ((err = JsStringToPointer(val, &p, &len)) == JsNoError)
-				v.bstrVal = SysAllocStringLen(p, len);
+			{
+				if (len < static_cast<size_t>(UINT_MAX))
+					v.bstrVal = SysAllocStringLen(p, static_cast<UINT>(len));
+				else
+					js->Throw(_T("String is too long to convert to VARIANT string"));
+			}
 		}
 		break;
 
@@ -9108,9 +9193,12 @@ JsValueRef CALLBACK JavascriptEngine::VariantData::SetBSTR(JsValueRef callee, bo
 			|| (err = JsStringToPointer(strVal, &p, &len)) != JsNoError)
 			return js->Throw(err, _T("Variant bstrVal [setter]"));
 
+		if (len > static_cast<size_t>(UINT_MAX))
+			return js->Throw(_T("Variant bstrVal [setter]: string is too long to convert to BSTR"));
+
 		VariantClear(&v->v);
 		v->v.vt = VT_BSTR;
-		v->v.bstrVal = SysAllocStringLen(p, len);
+		v->v.bstrVal = SysAllocStringLen(p, static_cast<UINT>(len));
 	}
 
 	return ret;
@@ -9631,7 +9719,10 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 				|| (err = JsStringToPointer(strval, &p, &len)) != JsNoError)
 				return Throw(err, _T("Passing string argument to automation function")), false;
 
-			v.bstrVal = SysAllocStringLen(p, len);
+			if (len > static_cast<size_t>(UINT_MAX))
+				return Throw(_T("String argument is too long to convert to BSTR for automation function")), false;
+
+			v.bstrVal = SysAllocStringLen(p, static_cast<UINT>(len));
 			return true;
 		}
 

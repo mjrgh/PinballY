@@ -6,12 +6,11 @@
 //
 
 #pragma once
+#include <map>
 #include "../ChakraCore/include/ChakraCore.h"
 #include "../ChakraCore/include/ChakraDebug.h"
 #include "../ChakraCore/include/ChakraDebugService.h"
 #include "../ChakraCore/include/ChakraDebugProtocolHandler.h"
-
-#include <map>
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
@@ -315,7 +314,12 @@ public:
 		size_t len;
 		if ((err = JsConvertValueToString(jsval, &strval)) == JsNoError
 			&& (err = JsStringToPointer(strval, &p, &len)) == JsNoError)
-			return WideToAnsiCnt(p, len);
+		{
+			if (len > static_cast<size_t>(INT_MAX))
+				throw CallException("JsToNative<CSTRING>: string too long");
+
+			return WideToAnsiCnt(p, static_cast<int>(len));
+		}
 
 		throw CallException("JsToNative<CSTRING> error", err);
 	}
@@ -956,6 +960,7 @@ public:
 			catch (CallException exc)
 			{
 				this->Check(exc.jsErrorCode, ok, name);
+				ok = false;
 				return Empty();
 			}
 		}
@@ -974,6 +979,7 @@ public:
 			catch (CallException exc)
 			{
 				this->Check(exc.jsErrorCode, ok, name);
+				ok = false;
 				return Empty();
 			}
 		}
@@ -1274,7 +1280,7 @@ public:
 		public:
 			GenericNativeMemberFunction(R(C::*func)(Ts...), C *self) : func(func), self(self) { }
 
-			R(C::*func)(Ts...);
+			R (C::*func)(Ts...);
 			C *self;
 
 			virtual R Impl(Ts... args) const override { return (self->*func)(args...); }
@@ -1740,7 +1746,7 @@ protected:
 	JsValueRef DllImportBind(TSTRING dllName, TSTRING funcName);
 	static JsValueRef CALLBACK DllImportCall(JsValueRef callee, bool isConstructCall,
 		JsValueRef *argv, unsigned short argc, void *ctx);
-	size_t DllImportSizeof(WSTRING typeInfo);
+	double DllImportSizeof(WSTRING typeInfo);
 	JsValueRef DllImportCreate(WSTRING typeInfo);
 	void DllImportDefineInternalType(WSTRING name, WSTRING typeInfo);
 
@@ -2965,8 +2971,14 @@ protected:
 					|| (err = JsStringToPointer(strval, &p, &len)) != JsNoError)
 					return err;
 
+				if (len > static_cast<size_t>(UINT_MAX))
+				{
+					ThrowSimple("String is too long to convert to BSTR");
+					return JsNoError;
+				}
+
 				// create a BSTR from the Javascript string
-				*pbstr = SysAllocStringLen(p, len);
+				*pbstr = SysAllocStringLen(p, static_cast<UINT>(len));
 				return JsNoError;
 			}
 			__except (EXCEPTION_EXECUTE_HANDLER)

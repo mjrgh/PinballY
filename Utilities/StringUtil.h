@@ -325,10 +325,10 @@ protected:
 class BStringArray
 {
 public:
-	BStringArray(size_t n) : n(n), bstrs(new BSTR[n]) { ZeroMemory(bstrs, n * sizeof(BSTR)); }
+	BStringArray(UINT n) : n(n), bstrs(new BSTR[n]) { ZeroMemory(bstrs, n * sizeof(BSTR)); }
 	~BStringArray()
 	{
-		for (size_t i = 0; i < n; ++i)
+		for (UINT i = 0; i < n; ++i)
 		{
 			if (bstrs[i] != nullptr)
 			{
@@ -339,7 +339,7 @@ public:
 		delete[] bstrs;
 	}
 
-	size_t n;
+	UINT n;
 	BSTR* operator&() { return bstrs; }
 
 	class Cover
@@ -356,7 +356,7 @@ public:
 
 		BSTR &bstr;
 	};
-	Cover operator[](size_t i) { return Cover(bstrs[i]); }
+	Cover operator[](UINT i) { return Cover(bstrs[i]); }
 
 	BSTR *bstrs;
 };

@@ -101,7 +101,7 @@
         <File Id="OptionsDialogDLL" Source="$(var.OptionsDialog.TargetPath)" />
         <File Id="WatchdogEXE" Source="$(var.PinballY Watchdog.TargetPath)" />
 				<File Id="ChakraCoreDLL" Source="$(var.PinballY.TargetDir)ChakraCore.dll" />
-        <File Id="MainReadme" Source="$(var.SolutionDir)README.txt" />
+        <File Id="MainReadme" Source="$(var.SolutionDir)README.md" />
         <File Id="MainDefaultSettings" Source="$(var.SolutionDir)DefaultSettings.txt" />
         <File Id="MainLicense" Source="$(var.SolutionDir)License.txt" />
         <File Id="MainThirdPartyLicenses" Source="$(var.SolutionDir)Third Party Licenses.txt" />

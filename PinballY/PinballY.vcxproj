@@ -79,11 +79,11 @@
     <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <IncludePath>..\ChakraCore\include;..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
     <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
+    <IncludePath>..\ChakraCore\include;..\DirectXTK\Inc;..\VLC\sdk\include;$(IncludePath);$(DXSDK_DIR)Include</IncludePath>
     <LibraryPath>$(OutDir);$(LibraryPath);..\ChakraCore\$(Platform)\$(Configuration);..\ChakraCore\$(PlatformTarget)\lib;..\ChakraCore\libboost;$(DXSDK_DIR)Lib\$(PlatformTarget)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -162,6 +162,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PreprocessorDefinitions>ZLIB_WINAPI;_WIN32_WINNT=0x0601;_UNICODE;UNICODE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -198,6 +199,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PreprocessorDefinitions>_WIN32_WINNT=0x0601;_UNICODE;UNICODE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <TreatWarningAsError>true</TreatWarningAsError>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
