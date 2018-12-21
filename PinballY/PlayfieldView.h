@@ -177,10 +177,10 @@ public:
 	// Capture Done report, for PFVMsgCaptureDone
 	struct CaptureDoneReport
 	{
-		CaptureDoneReport(const TSTRING &gameId, bool ok, bool cancel,
+		CaptureDoneReport(const LONG gameInternalID, bool ok, bool cancel,
 			int overallStatusMsgId, CapturingErrorHandler &statusList,
 			int nMediaItemsAttempted, int nMediaItemsOk) :
-			gameId(gameId), 
+			gameId(gameInternalID), 
 			ok(ok),
 			cancel(cancel),
 			overallStatusMsgId(overallStatusMsgId),
@@ -189,8 +189,8 @@ public:
 			nMediaItemsOk(nMediaItemsOk)
 		{ }
 
-		// game we're capturing
-		TSTRING gameId;
+		// internal ID of the game we're capturing
+		LONG gameId;
 
 		// overall capture success/failure status
 		bool ok;
@@ -371,10 +371,33 @@ protected:
 	// remove the instructions card from other windows
 	void RemoveInstructionsCard();
 
+	// has the high score system finished initializing yet?
+	bool hiScoreSysReady = false;
+
+	// High score request object.  This is an abstract interface that
+	// can be implemented to do extra work on receiving high score results.
+	class HighScoresReadyCallback
+	{
+	public:
+		HighScoresReadyCallback(LONG gameID) : gameID(gameID) { }
+		virtual ~HighScoresReadyCallback() { }
+
+		virtual void Ready(bool success) = 0;
+
+		// the game for the request
+		LONG gameID;
+	};
+
+	// queue of completion notification objects
+	std::list<std::unique_ptr<HighScoresReadyCallback>> highScoresReadyList;
+
+	// process the ready list for a given game
+	void OnHighScoresReady(LONG gameID, bool success);
+
 	// Initiate a high score request for the current game.  This sends
 	// the request to PINemHi.exe asynchronously; the result will be
 	// provided via a notification message when the program finishes.
-	void RequestHighScores();
+	void RequestHighScores(GameListItem *game);
 
 	// receive a high score data update from the HighScores object
 	void ReceiveHighScores(const HighScores::NotifyInfo *ni);
@@ -1057,8 +1080,8 @@ protected:
 	// up in front of everything else when we launch a game.
 	RefPtr<Sprite> runningGamePopup;
 
-	// ID of current running game
-	TSTRING runningGameID;
+	// Internal ID of current running game
+	LONG runningGameID;
 
 	// Running game mode.  
 	enum RunningGameMode
@@ -2102,6 +2125,9 @@ protected:
 	JsValueRef jsTopperWindow = JS_INVALID_REFERENCE;
 	JsValueRef jsInstCardWindow = JS_INVALID_REFERENCE;
 
+	// Javascript object representing the game list
+	JsValueRef jsGameList = JS_INVALID_REFERENCE;
+
 	// console object
 	JsValueRef jsConsole = JS_INVALID_REFERENCE;
 
@@ -2129,7 +2155,9 @@ protected:
 	JsValueRef jsAttractModeStartEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsAttractModeEndEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsConfigChangeEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2146,6 +2174,8 @@ protected:
 	bool FirePopupEvent(bool open, const WCHAR *id);
 	bool FireAttractModeEvent(bool starting);
 	void FireWheelModeEvent();
+	void FireGameSelectEvent(GameListItem *game);
+	void FireConfigChangeEvent();
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode
@@ -2156,6 +2186,9 @@ protected:
 		jsuiAttract,
 		jsuiRun
 	} jsuiMode = jsuiWheel;
+
+	// Last game selection reported to Javascript
+	LONG jsLastGameSelectReport = 0;
 
 	// Update the javascript UI mode.  We call this when showing or hiding
 	// popups and menus, and switching to and from run mode or attract mode.
@@ -2207,11 +2240,28 @@ protected:
 	bool JsDoCommand(int cmd);
 
 	// Show a menu
-	void JsShowMenu(std::vector<JsValueRef> items, WSTRING name, JavascriptEngine::JsObj options);
+	void JsShowMenu(WSTRING name, std::vector<JsValueRef> items, JavascriptEngine::JsObj options);
 
 	// Enter/exit attract mode via javascript
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
+
+	// Get game information
+	JsValueRef JsGetGameInfo(int id);
+
+	// get high score information
+	JsValueRef JsGetHighScores(int id);
+
+	// get the total number of games/nth game in the overall game list/array of games
+	int JsGetGameCount();
+	int JsGetGame(int n);
+	JsValueRef JsGetAllGames();
+
+	// get the number of games on the wheel/nth game on the wheel/array of wheel games
+	int JsGetWheelCount();
+	int JsGetWheelGame(int n);
+	JsValueRef JsGetAllWheelGames();
+
 
 	//
 	// Button command handlers

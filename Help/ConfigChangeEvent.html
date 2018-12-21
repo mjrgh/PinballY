@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>ConfigChangeEvent</h1>
+
+<p>
+   This event class is fired whenever the configuration file is reloaded.
+</p>
+<p>
+   This event has only one subtype:
+<ul>
+   <li><b>configchangeevent:</b> Fires after a configuration change is
+   processed.  This event fires after the fact, so it's not cancelable.
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+<h2>Triggers and effects</h2>
+
+<p>
+   The system automatically reloads the configuration file any time the
+   user makes changes in the Settings dialog.
+</p>
+<p>
+   Reloading the configuration also requires reloading the game databases
+   and game file lists, since changes to the settings can affect which
+   files are included in the scans and which databases are loaded.
+   All of the previous in-memory game descriptor objects are deleted
+   during this process, so any past <a href="GameList.html#gameID">game IDs</a>
+   that your script code might have obtained become invalid.  If you're
+   caching game IDs, you should clear your cache on this event.
+</p>
+   
+
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  It has no additional
+   properties beyond the standard set.
+</p>
+
+</body>
+</html>

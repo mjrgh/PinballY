@@ -27,20 +27,23 @@ var contents = [
             "++Event.html Event Class",
             "++EventTarget.html EventTarget Interface",
             "++EventTypes.html Event Types",
-                "+++AttractModeEvent.html AttractModeEvent",
-                "+++CommandEvent.html CommandEvent",
-                "+++CommandButtonEvent.html CommandButtonEvent",
-                "+++JoystickButtonEvent.html JoystickButtonEvent",
-                "+++KeyEvent.html KeyEvent",
-                "+++MenuEvent.html MenuEvent",
-                "+++PopupEvent.html PopupEvent",
-                "+++WheelModeEvent.html WheelModeEvent",
+                "+++AttractModeEvent.html AttractModeEvent [event:mainWindow]",
+                "+++CommandEvent.html CommandEvent [event:mainWindow]",
+                "+++CommandButtonEvent.html CommandButtonEvent [event:mainWindow]",
+                "+++ConfigChangeEvent.html ConfigChangeEvent [event:mainWindow]",
+                "+++GameSelectEvent.html GameSelectEvent [event:mainWindow]",
+                "+++JoystickButtonEvent.html JoystickButtonEvent [event:mainWindow]",
+                "+++KeyEvent.html KeyEvent [event:mainWindow]",
+                "+++MenuEvent.html MenuEvent [event:mainWindow]",
+                "+++PopupEvent.html PopupEvent [event:mainWindow]",
+                "+++WheelModeEvent.html WheelModeEvent [event:mainWindow]",
         "+JsDebug.html Debugging",
         "+DllImport.html Calling Native DLLs from Javascript",
         "+OLEAutomation.html OLE Automation",
         "+SystemFunctions.html System Functions",
         "+SystemObjects.html System Objects",
             "++ConsoleObject.html console",
+            "++GameList.html gameList",
             "++LogfileObject.html logfile",
             "++SystemInfoObject.html systemInfo",
             "++WindowObjects.html Window Objects",
@@ -87,7 +90,24 @@ $(function()
     var curItem = root;
     for (var i = 0; i < contents.length; ++i)
     {
-        /(\+*)([^\s]+)\s(.*)/.test(contents[i]);
+        var c = contents[i];
+        var attrs = undefined;
+        if (/(.*?)(\s+\[(.+)\])?$/.test(c))
+        {
+            attrs = RegExp.$3;
+            c = RegExp.$1;
+
+            var attrTab = { };
+            attrs = attrs.split(" ");
+            for (var j = 0; j < attrs.length; ++j)
+            {
+                var item = attrs[j].split(":");
+                attrTab[item[0]] = item[1];
+            }
+            attrs = attrTab;
+        }
+        
+        /(\+*)([^\s]+)\s(.*)/.test(c);
         var itemLevel = RegExp.$1.length;
         var file = RegExp.$2;
         var title = RegExp.$3;
@@ -117,6 +137,7 @@ $(function()
             href: href,
             hreff: hreff,
             title: title,
+            attrs: attrs,
             level: level,
             parent: parent,
             children: []
@@ -167,7 +188,7 @@ $(function()
             {
                 var item = list[i];
                 var target = (/\.txt$/.test(item.file)) ? " target=\"_blank\"" : "";
-                toc.push("<li>" + item.href + "</a>");
+                toc.push("<li>" + item.href);
 
                 if (item.children.length > 0)
                 {
@@ -181,6 +202,28 @@ $(function()
         toc.push("</ul>");
         tocEle.html(toc.join(""));
     }
+
+    $("#eventTargetTOC").each(function()
+    {
+        var self = $(this);
+        var target = self.data("eventtarget");
+        var toc = ["<ul class=\"toc\">"];
+        
+        var traverse = function(list)
+        {
+            for (var i = 0; i < list.length; ++i)
+            {
+                var item = list[i];
+                if (item.attrs && item.attrs["event"] == target)
+                    toc.push("<li>" + item.href);
+
+                traverse(item.children);
+            }
+        }
+        traverse(contents);
+        toc.push("</ul>");
+        self.html(toc.join(""));
+    });
 
     var leftBar = ["<div class=\"leftnav\">"];
 

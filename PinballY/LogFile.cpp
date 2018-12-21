@@ -5,8 +5,8 @@
 #include "stdafx.h"
 #include <io.h>
 #include <fcntl.h>
+#include "../Utilities/DateUtil.h"
 #include "LogFile.h"
-#include "DateUtil.h"
 #include "VersionInfo.h"
 
 // statics

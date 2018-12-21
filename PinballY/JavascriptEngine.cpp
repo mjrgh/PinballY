@@ -7,6 +7,7 @@
 #include "LogFile.h"
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/ComUtil.h"
+#include "../Utilities/DateUtil.h"
 #include "DialogResource.h"
 
 #include <filesystem>
@@ -574,6 +575,93 @@ JsErrorCode JavascriptEngine::ToInt(int &i, const JsValueRef &val)
 
 	// convert to native int
 	return JsNumberToInt(numval, &i);
+}
+
+JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
+{
+	// A Variant Date is a double that represents the number of days since
+	// 12/30/1899 00:00 UTC.  Any fractional part represents the time of day,
+	// as a fraction of 24 hours.
+	//
+	// Javascript also represents a date as a double, but in a wholly
+	// different way.  Javascript uses milliseconds since the Unix epoch,
+	// 1/1/1970 00:00 UTC.  Leap seconds are ignored per the ES spec.
+	// 
+	// Converting between the two is straightforward, particularly because
+	// Javascript doesn't consider leap seconds.  We treat each day as
+	// 24 hours.  Start by converting the days-and-fraction-of-a-day 
+	// value in the Variant Date to milliseconds since the Variant Date 
+	// epoch.
+	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
+	double msSinceVariantEpoch = date * msPerDay;
+
+	// Now re-base the millisecond count from the Variant epoch to the 
+	// Unix epoch
+	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
+	double msSinceUnixEpoch = msSinceVariantEpoch - variantEpochMinusUnixEpoch;
+
+	// finally, create a Javascript Date value representing this number
+	// of milliseconds since the Unix epoch
+	auto js = Get();
+	JsErrorCode err;
+	const TCHAR *where;
+	JsValueRef global, dateFunc, ms, argv[2];
+	if ((err = JsGetGlobalObject(&global)) != JsNoError
+		|| (err = js->GetProp(dateFunc, global, "Date", where)) != JsNoError
+		|| (err = JsDoubleToNumber(msSinceUnixEpoch, &ms)) != JsNoError
+		|| (argv[0] = global, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
+		return err;
+
+	// success
+	return JsNoError;
+}
+
+JsErrorCode JavascriptEngine::DateTimeToJsDate(const DateTime &date, JsValueRef &jsval)
+{
+	return VariantDateToJsDate(date.ToVariantDate(), jsval);
+}
+
+JsErrorCode JavascriptEngine::JsDateToVariantDate(JsValueRef jsval, DATE &date)
+{
+	// Date.prototype.valueOf returns the primitive date value, as a
+	// Javascript Number (== C++ double) representing the number of
+	// milliseconds since the Unix epoch.
+	auto js = inst;
+	JsErrorCode err;
+	JsValueRef valueOfFunc, value;
+	double d;
+	const TCHAR *where;
+	if ((err = js->GetProp(valueOfFunc, jsval, "valueOf", where)) != JsNoError
+		|| (err = JsCallFunction(valueOfFunc, &jsval, 1, &value)) != JsNoError
+		|| (err = JsNumberToDouble(value, &d)) != JsNoError)
+		return err;
+
+	// We have milliseconds since the Unix epoch (1/1/1970 00:00 UTC).  
+	// Re-base this to the Variant Date epoch (12/30/1899 00:00 UTC).
+	// (Microsoft NIH!)
+	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
+	double msSinceVariantEpoch = d + variantEpochMinusUnixEpoch;
+
+	// Javascript dates are in milliseconds since the epoch, whereas
+	// Variant dates are in days since the epooch.  Convert from seconds
+	// to days, treating one day as exactly 24 hours.  This will yield
+	// a whole part in days, and a fractional part as the fraction of
+	// a day past midnight UTC, equivalent to the time of day.
+	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
+	date = msSinceVariantEpoch / msPerDay;
+
+	// success
+	return JsNoError;
+}
+
+JsErrorCode JavascriptEngine::JsDateToDateTime(JsValueRef jsval, DateTime &date)
+{
+	DATE vardate;
+	if (auto err = JsDateToVariantDate(jsval, vardate); err != JsNoError)
+		return err;
+
+	date = DateTime(date);
+	return JsNoError;
 }
 
 JsValueRef JavascriptEngine::Throw(JsErrorCode err)
@@ -8543,71 +8631,25 @@ JsValueRef JavascriptEngine::VariantData::GetByRefArray(const VARIANT &v, const 
 
 DATE JavascriptEngine::VariantData::JsDateToVariantDate(JsValueRef val)
 {
-	// Date.prototype.valueOf returns the primitive date value
-	auto js = inst;
-	JsErrorCode err;
-	JsValueRef valueOfFunc, value;
-	double d;
-	const TCHAR *where;
-	if ((err = js->GetProp(valueOfFunc, val, "valueOf", where)) != JsNoError
-		|| (err = JsCallFunction(valueOfFunc, &val, 1, &value)) != JsNoError
-		|| (err = JsNumberToDouble(value, &d)) != JsNoError)
+	auto js = JavascriptEngine::Get();
+	DATE date;
+	if (JsErrorCode err = js->JsDateToVariantDate(val, date); err != JsNoError)
 	{
 		js->Throw(err, _T("converting Javascript Date to Variant Date"));
 		return 0;
 	}
-
-	// Date.prototype.valueOf returns a double representing the Date
-	// value as the number of milliseconds since the Unix epoch 
-	// (1/1/1970 00:00 UTC).  Re-base this to the Variant Date
-	// epoch (12/30/1899 00:00 UTC).
-	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
-	double msSinceVariantEpoch = d + variantEpochMinusUnixEpoch;
-
-	// Javascript dates are in milliseconds since the epoch, whereas
-	// Variant dates are in days since the epooch.  Convert from seconds
-	// to days, treating one day as exactly 24 hours.  This will yield
-	// a whole part in days, and a fractional part as the fraction of
-	// a day past midnight UTC, equivalent to the time of day.
-	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
-	return msSinceVariantEpoch / msPerDay;
+	return date;
 }
 
 JsValueRef JavascriptEngine::VariantData::VariantDateToJsDate(DATE date)
 {
-	// A Variant Date is a double that represents the number of days since
-	// 12/30/1899 00:00 UTC.  Any fractional part represents the time of day,
-	// as a fraction of 24 hours.
-	//
-	// Javascript also represents a date as a double, but in a wholly
-	// different way.  Javascript uses milliseconds since the Unix epoch,
-	// 1/1/1970 00:00 UTC.  Leap seconds are ignored per the ES spec.
-	// 
-	// Converting between the two is straightforward, particularly because
-	// Javascript doesn't consider leap seconds.  We treat each day as
-	// 24 hours.  Start by converting the days-and-fraction-of-a-day 
-	// value in the Variant Date to milliseconds since the Variant Date 
-	// epoch.
-	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
-	double msSinceVariantEpoch = date * msPerDay;
-
-	// Now re-base the millisecond count from the Variant epoch to the 
-	// Unix epoch
-	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
-	double msSinceUnixEpoch = msSinceVariantEpoch - variantEpochMinusUnixEpoch;
-
-	// finally, create a Javascript Date value representing this number
-	// of milliseconds since the Unix epoch
-	auto js = inst;
-	JsErrorCode err;
-	const TCHAR *where;
-	JsValueRef global, dateFunc, ms, argv[2], result = js->undefVal;
-	if ((err = JsGetGlobalObject(&global)) != JsNoError
-		|| (err = js->GetProp(dateFunc, global, "Date", where)) != JsNoError
-		|| (err = JsDoubleToNumber(msSinceUnixEpoch, &ms)) != JsNoError
-		|| (argv[0] = global, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
+	auto js = JavascriptEngine::Get();
+	JsValueRef result;
+	if (JsErrorCode err = js->VariantDateToJsDate(date, result); err != JsNoError)
+	{
 		js->Throw(err, _T("converting Variant Date to Javascript Date"));
-
+		return js->undefVal;
+	}
 	return result;
 }
 

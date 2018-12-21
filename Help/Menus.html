@@ -99,15 +99,37 @@ mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>);
 <h2>Custom commands</h2>
 
 <p>
-   If you're creating your own menus, you'll probably want to populate them with
-   your own custom commands, since the whole point is usually to add features
-   that aren't already built in to the system via existing commands.  To
-   facilitate this, the system reserves the range of command IDs from
+   When you create your own menu, you'll probably want to include some custom
+   commands:  that is, commands that aren't already provided by PinballY commands.
+   To facilitate this, the system reserves the range of command IDs from
    <a href="Commands.html#UserFirst">command.UserFirst</a> to
-   <a href="Commands.html#UserLast">command.UserFirst</a> specifically
+   <a href="Commands.html#UserLast">command.UserLast</a> specifically
    for your use in Javascript code.  You can assign commands in this range
    as you see fit.
 </p>
+<p>
+   Implementing a custom menu command generally requires two Javascript elements:
+</p>
+<ul>
+   <li>First, you have to make the command accessible to the user, by
+   adding it to some menu.  One way to do this is to
+   add it to one of the existing system menus, which you can do by setting
+   up a handler for the <a href="MenuEvent.html"><b>menushow</b></a> event that
+   intercepts the system menu of interest and customizes it with your
+   additional command(s).  Another way is to create your own entirely
+   custom menu, and display it in response to an appropriate event, such
+   as when the user presses a special key that you select as the custom
+   menu key.  You could also use a <a href="CommandEvent.html"><b>command</b></a>
+   event handler to display a custom menu whenever the user selects one of
+   the standard system commands.
+
+   <li>Second, create a <a href="CommandEvent.html"><b>command</b></a> event
+   handler that processes the command.  The event handler should check the
+   command ID in the event object, and when it matches the ID you selected
+   (from the command.UserFirst...command.UserLast range), carry out the
+   custom action for the command.
+</ul>
+   
 
 <h2>Flow of control</h2>
 

@@ -12,7 +12,7 @@
 #include "DMDWin.h"
 #include "TopperWin.h"
 #include "CaptureStatusWin.h"
-#include "DateUtil.h"
+#include "../Utilities/DateUtil.h"
 #include "JavascriptEngine.h"
 
 struct ConfigFileDesc;
@@ -601,7 +601,7 @@ protected:
 		TSTRING gameFileWithExt;
 
 		// game ID, for configuration purposes
-		TSTRING gameId;
+		LONG gameId;
 
 		// game system 
 		GameSysInfo gameSys;

@@ -26,30 +26,12 @@
    event methods (on(), off(), addEventListener(), etc) to add and remove
    event listeners.  See <a href="EventTarget.html">EventTarget</a>.
 </p>
-
-
-<h2>Events</h2>
-
 <p>
-   <b><a href="JoystickButtonEvent.html">Joystick Button Events</a></b>.  These events fire when
-      the user presses or releases a joystick button.  These events represent physical joystick
-      button presses, whether or not the buttons are mapped to PinballY commands.
+   mainWindow serves as the event target for the following event types:
 </p>
 
-<p>
-   <b><a href="KeyEvent.html">Key Events</a></b>.  These events fire when the user presses
-      or releases a keyboard key.  These events represent physical keyboard key presses,
-      whether or not the keys are mapped to PinballY commands.
-</p>
+<div id="eventTargetTOC" data-eventtarget="mainWindow"></div>
 
-<p>
-   <b><a href="CommandButtonEvent.html">Command Button Events</a></b>.  These events fire when
-      the user presses or releases a keyboard key or joystick button that's mapped to a
-      command function via the button option settings.  These represent button presses after
-      being mapped from the physical input device keys to PinballY commands.  These events
-      occur in addition to the physical device events.
-</p>
-   
 
 <h2>Methods and properties</h2>
 
@@ -91,6 +73,7 @@
 <div class="code">
 {
     mode: "wheel",         // see list
+    gameId: 17,            // ID of currently selected game
     menuID: "main",        // see list; present only in "menu" mode
     popupID: "about box",  // see list; present only in "popup" mode
     runMode: "running",    // or "starting", "exiting"; present only when a game is running
@@ -132,9 +115,18 @@
    <li>"attract": attract mode/screen saver mode (meaning that there hasn't
    been any user input for the period of time configured in the settings to
    activate attract mode)
-
 </ul>
-      
+<p>
+   The .gameId property identifies the game that's currently selected in
+   the wheel, if any.  This is present regardless of which UI mode is
+   in effect.  The game ID is an integer value that you can pass to
+   <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a> to retrieve
+   the game's details.  The .gameId property will be omitted (so it'll read
+   as undefined) if no game is selected, which can only happen when the wheel
+   is completely empty.  The wheel can be empty when the program can't find
+   any installed games, or when a filter is selected that doesn't match
+   any games.
+</p>
 
 <p>
    <a name="message"></a>

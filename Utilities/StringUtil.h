@@ -39,6 +39,7 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 #define TCHARToWCHAR(/*const TCHAR* */ tstr) (tstr)
 #define WCHARToTCHAR(/*const WCHAR* */ wstr) (wstr)
 #define TCHARToCCHAR(/*const TCHAR* */) tstr) (WideToAnsi(tstr).c_str())
+#define CHARToTCHAR(/*const CHAR* */ cstr) (AnsiToWide(cstr).c_str())
 #define TSTRINGToWSTRING(/*const TSTRING& */ tstr) (tstr)
 #define TSTRINGToCSTRING(/*const TSTRING& */ tstr) WideToAnsi((tstr).c_str())
 #define CSTRINGToTSTRING(/*const CSTRING& */ cstr) AnsiToWide((cstr).c_str())
@@ -53,6 +54,7 @@ WSTRING AnsiToWide(const CHAR *astr, UINT codePage = CP_ACP);
 #define AnsiToTSTRING(/*const CHAR* */ astr)  TSTRING(astr)
 #define TCHARToAnsi(/*const TCHAR* */ tstr)   TSTRING(tstr)
 #define WCHARToTCHAR(/*const WCHAR* */ wstr) (AnsiToWide(wstr).c_str())
+#define CHARToTCHAR(/*const CHAR* */ cstr) (cstr)
 #define TCHARToWCHAR(/*const TCHAR* */ tstr) (AnsiToWide(tstr).c_str())
 #define TCHARToCCHAR(/*const TCHAR* */) tstr) (tstr)
 #endif

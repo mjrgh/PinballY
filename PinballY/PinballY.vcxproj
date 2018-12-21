@@ -234,7 +234,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="D3D.cpp" />
     <ClCompile Include="D3DView.cpp" />
     <ClCompile Include="D3DWin.cpp" />
-    <ClCompile Include="DateUtil.cpp" />
     <ClCompile Include="DialogWithSavedPos.cpp" />
     <ClCompile Include="DMDFont.cpp" />
     <ClCompile Include="DMDShader.cpp" />
@@ -296,7 +295,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="D3D.h" />
     <ClInclude Include="D3DView.h" />
     <ClInclude Include="D3DWin.h" />
-    <ClInclude Include="DateUtil.h" />
     <ClInclude Include="DialogResource.h" />
     <ClInclude Include="DialogWithSavedPos.h" />
     <ClInclude Include="DiceCoefficient.h" />

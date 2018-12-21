@@ -15,6 +15,7 @@
 #include <Shlobj.h>
 #include "../Utilities/Config.h"
 #include "../Utilities/FileVersionInfo.h"
+#include "../Utilities/DateUtil.h"
 #include "PlayfieldView.h"
 #include "Resource.h"
 #include "DialogResource.h"
@@ -35,7 +36,6 @@
 #include "DOFClient.h"
 #include "AudioVideoPlayer.h"
 #include "VLCAudioVideoPlayer.h"
-#include "DateUtil.h"
 #include "HighScores.h"
 #include "RefTableList.h"
 #include "VPFileReader.h"
@@ -189,6 +189,11 @@ PlayfieldView::~PlayfieldView()
 {
 	// commit any coin balance to a credit balance
 	ResetCoins();
+
+	// Explicitly delete any outstanding high score requests.  These can
+	// contain Javascript objects, so we want to make sure these get deleted
+	// before we destroy the Javascript context they belong to.
+	highScoresReadyList.clear();
 }
 
 // Create our window
@@ -482,6 +487,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
 				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
 				|| !GetObj(jsLaunchEvent, "LaunchEvent")
+				|| !GetObj(jsGameSelectEvent, "GameSelectEvent")
 				|| !GetObj(jsCommandEvent, "CommandEvent")
 				|| !GetObj(jsMenuOpenEvent, "MenuOpenEvent")
 				|| !GetObj(jsMenuCloseEvent, "MenuCloseEvent")
@@ -490,8 +496,10 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsWheelModeEvent, "WheelModeEvent")
 				|| !GetObj(jsPopupOpenEvent, "PopupOpenEvent")
 				|| !GetObj(jsPopupCloseEvent, "PopupCloseEvent")
+				|| !GetObj(jsConfigChangeEvent, "ConfigChangeEvent")
 				|| !GetObj(jsConsole, "console")
-				|| !GetObj(jsLogfile, "logfile"))
+				|| !GetObj(jsLogfile, "logfile")
+				|| !GetObj(jsGameList, "gameList"))
 				return;
 
 			// Initialize generic properties for a js window object.  Note that this has
@@ -551,6 +559,25 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showMenu", &PlayfieldView::JsShowMenu, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "startAttractMode", &PlayfieldView::JsStartAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh))
+				return;
+
+			// Set up the game list methods.  These are nominally on the gameList Javascript
+			// object, but the actual implementations are still PlayfieldView:: methods.  We
+			// implement the methods here because the actual GameList instance can be deleted
+			// and re-created dynamically during a session.  The PlayfieldView instance has
+			// session lifetime, so implementing the methods on PlayfieldView makes it easier
+			// to manage the references.  It doesn't otherwise really matter where these
+			// methods are implemented, since everything's just a global anyway.  The only
+			// reason we bother with different locations for the Javascript methods is to
+			// create a more coherent organization from the scripting user's perspective.
+			if (!js->DefineObjPropFunc(jsGameList, "gameList", "getGameInfo", &PlayfieldView::JsGetGameInfo, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getGame", &PlayfieldView::JsGetGame, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllGames", &PlayfieldView::JsGetAllGames, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getGameCount", &PlayfieldView::JsGetGameCount, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getWheelGame", &PlayfieldView::JsGetWheelGame, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllWheelGames", &PlayfieldView::JsGetAllWheelGames, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getWheelCount", &PlayfieldView::JsGetWheelCount, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh))
 				return;
 
 			// set up command IDs in the Command object
@@ -885,6 +912,17 @@ void PlayfieldView::FireWheelModeEvent()
 		js->FireEvent(jsMainWindow, jsWheelModeEvent);
 }
 
+void PlayfieldView::FireGameSelectEvent(GameListItem *game)
+{
+	LONG id = IsGameValid(game) ? game->internalID : 0;
+	if (id != jsLastGameSelectReport)
+	{
+		jsLastGameSelectReport = id;
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
+			js->FireEvent(jsMainWindow, jsGameSelectEvent, id);
+	}
+}
+
 void PlayfieldView::JsAlert(TSTRING msg)
 {
 	MessageBox(GetParent(hWnd), msg.c_str(), _T("PinballY"), MB_OK | MB_ICONINFORMATION);
@@ -990,6 +1028,7 @@ JsValueRef PlayfieldView::JsGetUIMode()
 				mode = L"wheel";
 			}
 
+			// if a game is running, report the current running state
 			if (runningGameMode != None)
 			{
 				js->SetProp(obj, "runMode",
@@ -1001,6 +1040,10 @@ JsValueRef PlayfieldView::JsGetUIMode()
 				if (lastPlayGameCmd == ID_CAPTURE_GO)
 					js->SetProp(obj, "capture", batchCaptureMode.active ? L"batch" : L"single");
 			}
+
+			// if a game is selected, report the selection
+			if (auto game = GameList::Get()->GetNthGame(0); IsGameValid(game))
+				js->SetProp(obj, "gameId", game->internalID);
 		
 			// set the main mode string
 			js->SetProp(obj, "mode", mode);
@@ -1099,6 +1142,229 @@ void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
 			// update the menu name
 			SetMenuItemInfo(hMenu, i, TRUE, &mii);
 		}
+	}
+}
+
+JsValueRef PlayfieldView::JsGetGameInfo(int id)
+{
+	// Look up the object.  The ID we pass to Javascript code is the internal ID.
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	auto game = gl->GetByInternalID(id);
+
+	// if there's no such game, return null
+	if (game == nullptr)
+		return js->GetNullVal();
+
+	try
+	{
+		// create an object for the results
+		auto obj = JavascriptEngine::JsObj::CreateObject();
+		obj.Set("id", game->internalID);
+		obj.Set("configId", game->GetGameId());
+		obj.Set("displayName", game->GetDisplayName());
+		obj.Set("title", game->title);
+		if (game->rom.length() != 0)
+			obj.Set("rom", game->rom);
+		obj.Set("mediaName", game->mediaName);
+		if (game->year != 0)
+			obj.Set("year", game->year);
+		if (game->tableType.length() != 0)
+			obj.Set("tableType", game->tableType);
+
+		if (game->filename.length() != 0)
+			obj.Set("filename", game->filename);
+		if (game->tableFileSet != nullptr)
+			obj.Set("path", game->tableFileSet->tablePath);
+
+		auto gridPos = JavascriptEngine::JsObj::CreateObject();
+		gridPos.Set("row", game->gridPos.row);
+		gridPos.Set("col", game->gridPos.col);
+		obj.Set("gridPos", gridPos);
+
+		if (game->manufacturer != nullptr)
+			obj.Set("manufacturer", game->manufacturer->manufacturer);
+		if (game->system != nullptr)
+			obj.Set("system", game->system->displayName);
+		if (game->dbFile != nullptr)
+			obj.Set("dbFile", game->dbFile->filename);
+		obj.Set("isConfigured", game->isConfigured);
+		obj.Set("isHidden", game->IsHidden());
+		
+		if (game->statsDbRow >= 0)
+		{
+			if (auto lastPlayed = gl->GetLastPlayed(game); lastPlayed != nullptr)
+				obj.Set("lastPlayed", DateTime(lastPlayed));
+			if (auto dateAdded = gl->GetDateAdded(game); dateAdded != nullptr)
+				obj.Set("dateAdded", DateTime(dateAdded));
+			if (auto hs = gl->GetHighScoreStyle(game); hs != nullptr)
+				obj.Set("highScoreStyle", DateTime(hs));
+			obj.Set("playCount", gl->GetPlayCount(game));
+			obj.Set("playTime", gl->GetPlayTime(game));
+			obj.Set("isFavorite", gl->IsFavorite(game));
+			obj.Set("rating", gl->GetRating(game));
+			obj.Set("isMarkedForCapture", gl->IsMarkedForCapture(game));
+		}
+
+		auto catArr = JavascriptEngine::JsObj::CreateArray();
+		std::list<const GameCategory*> catList;
+		gl->GetCategoryList(game, catList);
+		for (auto cat : catList)
+			catArr.Push(cat->name);
+		obj.Set("categories", catArr);
+
+		// return the populated object
+		return obj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsGetHighScores(int id)
+{
+	// get the game
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	auto game = gl->GetByInternalID(id);
+
+	try
+	{
+		// set up the notifier callback
+		class Handler : public HighScoresReadyCallback
+		{
+		public:
+			Handler(LONG gameID, JavascriptEngine::Promise *promise) :
+				HighScoresReadyCallback(gameID),
+				promise(promise)
+			{ }
+
+			virtual void Ready(bool success) override
+			{
+				if (success)
+				{
+					// recover the game object
+					if (auto game = GameList::Get()->GetByInternalID(gameID); game != nullptr)
+					{
+						// create a Javascript array with the high score text, one element per line
+						auto arr = JavascriptEngine::JsObj::CreateArray();
+						for (auto &l : game->highScores)
+							arr.Push(l);
+
+						// resolve the promise
+						promise->Resolve(arr.jsobj);
+					}
+					else
+						promise->Reject(L"Game no longer exists");
+				}
+				else
+				{
+					// reject the promise
+					promise->Reject(L"High scores not available");
+				}
+			}
+
+			std::unique_ptr<JavascriptEngine::Promise> promise;
+		};
+
+		// create the Javascript Promise
+		std::unique_ptr<JavascriptEngine::Promise> promise(JavascriptEngine::Promise::Create());
+
+		// the return value will be the Javascript promise object, no matter what happens
+		JsValueRef jspromise = promise->GetPromise();
+
+		// if the game doesn't exist, reject the promise
+		if (game == nullptr)
+		{
+			promise->Reject(L"Game not found");
+		}
+		else
+		{
+			// create our handler object and add it to the ready list
+			highScoresReadyList.emplace_back(new Handler(id, promise.release()));
+
+			// If the high score system is ready, send the request.  If not,
+			// just leave the callback enqueued; we automatically process all
+			// backlogged requests when we get the first ready notification.
+			if (hiScoreSysReady)
+				RequestHighScores(game);
+		}
+
+		// return the Javascript Promise object
+		return jspromise;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+int PlayfieldView::JsGetGameCount()
+{
+	return GameList::Get()->GetAllGamesCount();
+}
+
+int PlayfieldView::JsGetGame(int n)
+{
+	if (auto game = GameList::Get()->GetAllGamesAt(n); game != nullptr)
+		return game->internalID;
+	else
+		return 0;
+}
+
+JsValueRef PlayfieldView::JsGetAllGames()
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// create an array
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// populate it with the game IDs from the master list
+		GameList::Get()->EnumGames([&arr](GameListItem *game) { arr.Push(static_cast<int>(game->internalID)); });
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+int PlayfieldView::JsGetWheelCount()
+{
+	return GameList::Get()->GetCurFilterCount();
+}
+
+int PlayfieldView::JsGetWheelGame(int n)
+{
+	if (auto game = GameList::Get()->GetNthGame(n); game != nullptr)
+		return static_cast<int>(game->internalID);
+	else
+		return 0;
+}
+
+JsValueRef PlayfieldView::JsGetAllWheelGames()
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// create an array
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// populate it with the game IDs from the wheel, starting at the current game
+		auto gl = GameList::Get();
+		for (int i = 0, n = gl->GetCurFilterCount(); i < n; ++i)
+			arr.Push(static_cast<int>(gl->GetNthGame(i)->internalID));
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
 }
 
@@ -2990,7 +3256,7 @@ void PlayfieldView::ShowGameInfo()
 	// Request high score information for this game.  This is an
 	// asynchronous operation; we'll rebuild the sprite with the
 	// high score data when we receive it.
-	RequestHighScores();
+	RequestHighScores(game);
 
 	// info box drawing function
 	int width = 972, height = 2000;
@@ -3246,7 +3512,7 @@ void PlayfieldView::ShowHighScores()
 	// Request high score information for this game.  This is an
 	// asynchronous operation; we'll rebuild the sprite with the
 	// high score data when we receive it.
-	RequestHighScores();
+	RequestHighScores(game);
 
 	// set up the default font
 	int textFontPts = 24;
@@ -3362,12 +3628,47 @@ void PlayfieldView::ShowHighScores()
 	QueueDOFPulse(L"PBYHighScores");
 }
 
-void PlayfieldView::RequestHighScores()
+void PlayfieldView::RequestHighScores(GameListItem *game)
 {
 	// If the current game is valid, and we don't already have the
 	// high scores for it, send the request.
-	if (GameListItem *game = GameList::Get()->GetNthGame(0); IsGameValid(game) && !game->highScoresSet)
-		Application::Get()->highScores->GetScores(game, hWnd);
+	if (IsGameValid(game))
+	{
+		switch (game->highScoreStatus)
+		{
+		case GameListItem::HighScoreStatus::Init:
+			// not yet requested - send the request
+			if (!hiScoreSysReady)
+			{
+				// don't send the request until the high score system is ready for it
+			}
+			else if (Application::Get()->highScores->GetScores(game, hWnd))
+			{
+				// note that the request has been sent in the game object
+				game->highScoreStatus = GameListItem::HighScoreStatus::Requested;
+			}
+			else
+			{
+				// request failed - reject any outstanding callbacks
+				OnHighScoresReady(game->internalID, false);
+			}
+			break;
+
+		case GameListItem::HighScoreStatus::Requested:
+			// request already sent - no need to repeat
+			break;
+
+		case GameListItem::HighScoreStatus::Received:
+			// request already completed - immediately fullfill any outstanding callbacks
+			OnHighScoresReady(game->internalID, true);
+			break;
+
+		case GameListItem::HighScoreStatus::Failed:
+			// request already completed with error - reject any outstanding callbacks
+			OnHighScoresReady(game->internalID, false);
+			break;
+		}
+	}
 }
 
 void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
@@ -3375,10 +3676,24 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 	switch (ni->queryType)
 	{
 	case HighScores::Initialized:
-		// the high scores system has finished initializing - make our
-		// initial high score request for the current game, since it would
-		// have bounced up until now
-		RequestHighScores();
+		// the high scores system has finished initializing - flag it
+		hiScoreSysReady = true;
+
+		// If there's anything in the high score request queue, send a request
+		// for each item now.  We need to do this with a separate list of the
+		// game IDs, since the original list can be modified in place by
+		// RequestHighScores().
+		{
+			std::vector<LONG> ids;
+			ids.reserve(highScoresReadyList.size());
+			for (auto &c : highScoresReadyList)
+				ids.push_back(c->gameID);
+			for (auto id : ids)
+				RequestHighScores(GameList::Get()->GetByInternalID(id));
+		}
+
+		// Request high scores for the current game, now that it's possible
+		RequestHighScores(GameList::Get()->GetNthGame(0));
 		break;
 
 	case HighScores::ProgramVersionQuery:
@@ -3394,22 +3709,28 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 		break;
 
 	case HighScores::HighScoreQuery:
-		// High score query results.  First, make sure that the game in the
-		// reply matches the currently selected game.  If it doesn't, ignore
-		// the reply.  This keeps things simple in terms of object lifetime
-		// for the GameListItem object: if the object matches the current
-		// game, we know the pointer is good.
-		if (ni->game == GameList::Get()->GetNthGame(0))
+		// High score query results.  Retrieve the game object from the ID.
+		// Proceed only if it's valid; game objects can be deleted, so the
+		// one from the original request might have been deleted since the
+		// time we sent the request.
+		if (auto game = GameList::Get()->GetByInternalID(ni->gameID); game != nullptr)
 		{
+			// update the game's high score status
+			game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Success ?
+				GameListItem::HighScoreStatus::Received : GameListItem::HighScoreStatus::Failed);
+
+			// note if this is the current game
+			bool isCurGame = (game == GameList::Get()->GetNthGame(0));
+
 			// If the reply was successful, update the game with the new
 			// high score data from the reply.
 			if (ni->status == HighScores::NotifyInfo::Success)
 			{
-				// note if this represents a change in the high score data
-				bool hadData = ni->game->highScores.size() != 0;
-
+				// note whether or not we had data previously
+				bool hadData = game->highScores.size() != 0;
+						
 				// clear any previous high score data
-				ni->game->highScores.clear();
+				game->highScores.clear();
 
 				// break the new text into lines and populate the list
 				const TCHAR *start = ni->results.c_str();
@@ -3420,7 +3741,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 					for (; *p != 0 && *p != '\n' && *p != '\r'; ++p);
 
 					// add this line to the list
-					ni->game->highScores.emplace_back(start, p - start);
+					game->highScores.emplace_back(start, p - start);
 
 					// if this is the last line, we're done
 					if (*p == 0)
@@ -3435,34 +3756,58 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 					start = p;
 				}
 
-				// If we didn't have high scores previously and we do now,
-				// and we're displaying the game info popup, update it to
-				// reflect that we now have high scores.
-				if (popupType == PopupGameInfo && !hadData && ni->results.length() != 0)
-					ShowGameInfo();
+				// if this is the current game, update some display items
+				if (isCurGame)
+				{
+					// If we didn't have high scores previously and we do now,
+					// and we're displaying the game info popup, update it to
+					// reflect that we now have high scores.
+					if (!hadData && game->highScores.size() != 0 && popupType == PopupGameInfo)
+						ShowGameInfo();
 
-				// If we're currently displaying the high scores popup, show 
-				// it again to update it with the new data.
-				if (popupType == PopupHighScores)
-					ShowHighScores();
+					// If we're currently displaying the high scores popup, show 
+					// it again to update it with the new data.
+					if (popupType == PopupHighScores)
+						ShowHighScores();
+
+					// notify the DMD window of the update
+					if (auto dv = Application::Get()->GetDMDView(); dv != nullptr)
+						dv->OnUpdateHighScores(game);
+
+					// notify the real DMD of the update
+					if (realDMD != nullptr)
+						realDMD->OnUpdateHighScores(game);
+				}
 			}
-
-			// Set the flag saying that we've queried this game's high
-			// scores.  Do this even if the request was unsuccessful: if
-			// the request failed this time, it'll probably fail again
-			// next time, so there's no point in repeating it.
-			ni->game->highScoresSet = true;
 		}
 
-		// notify the DMD window of the update
-		if (auto dv = Application::Get()->GetDMDView(); dv != nullptr)
-			dv->OnUpdateHighScores(ni->game);
-
-		// notify the real DMD of the update
-		if (realDMD != nullptr)
-			realDMD->OnUpdateHighScores(ni->game);
-
+		// update any notification callbacks
+		OnHighScoresReady(ni->gameID, ni->status == HighScores::NotifyInfo::Success);
 		break;
+	}
+}
+
+void PlayfieldView::OnHighScoresReady(LONG gameID, bool success)
+{
+	// notify any callbacks waiting for this game's data
+	for (auto it = highScoresReadyList.begin(); it != highScoresReadyList.end(); )
+	{
+		// get the next item, in case we delete this one
+		auto nxt = it;
+		nxt++;
+
+		// if this item matches the game, invoke its callback
+		if (it->get()->gameID == gameID)
+		{
+			// invoke the callback
+			it->get()->Ready(success);
+
+			// we're done with this item now
+			highScoresReadyList.erase(it);
+		}
+
+		// move on to the next item
+		it = nxt;
 	}
 }
 
@@ -3582,6 +3927,9 @@ void PlayfieldView::UpdateSelection()
 {
 	// Get the current selection
 	GameListItem *curGame = GameList::Get()->GetNthGame(0);
+
+	// fire the javascript game selection event
+	FireGameSelectEvent(curGame);
 
 	// get the playfield image into the incoming item
 	LoadIncomingPlayfieldMedia(curGame);
@@ -3736,7 +4084,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	UpdateAllStatusText();
 
 	// request high scores if we don't already have them
-	RequestHighScores();
+	RequestHighScores(game);
 }
 
 void PlayfieldView::MuteTableAudio(bool mute)
@@ -4087,6 +4435,9 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 
 	// enter wheel animation mode
 	StartWheelAnimation(fast);
+
+	// update javascript
+	FireGameSelectEvent(GameList::Get()->GetNthGame(0));
 }
 
 // Start a wheel animation
@@ -4133,7 +4484,7 @@ void PlayfieldView::OnNewFilesAdded()
 void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 {
 	// remember the running game's ID
-	runningGameID = game != nullptr ? game->GetGameId() : _T("");
+	runningGameID = game != nullptr ? game->internalID : 0;
 
 	// show the initial blank screen
 	runningGameMode = RunningGameMode::Starting;
@@ -4179,7 +4530,7 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 			// load the wheel image, if available
 			std::unique_ptr<Gdiplus::Bitmap> wheelImage;
 			SIZE wheelImageSize = { 0, 0 };
-			auto game = GameList::Get()->GetGameByID(runningGameID.c_str());
+			auto game = GameList::Get()->GetByInternalID(runningGameID);
 			TSTRING wheelFile;
 			if (IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
 				wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str()));
@@ -4375,7 +4726,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// so it's possible that the selection has changed in the UI.  If
 		// so, treat that as user cancellation of the original launch.
 		if (auto game = GameList::Get()->GetNthGame(0);
-			game == nullptr || game->GetGameId() != reinterpret_cast<const TCHAR*>(lParam))
+			game == nullptr || game->internalID != static_cast<LONG>(lParam))
 		{
 			// the game selection has changed in the UI - treat it as
 			// a cancellation of the launch, so skip the menu
@@ -4748,7 +5099,7 @@ void PlayfieldView::MenuPageUpDown(int dir)
 	ShowMenu(m->descs, m->id.c_str(), m->flags | SHOWMENU_NO_ANIMATION, menuPage + dir);
 }
 
-void PlayfieldView::JsShowMenu(std::vector<JsValueRef> items, WSTRING name, JavascriptEngine::JsObj options)
+void PlayfieldView::JsShowMenu(WSTRING name, std::vector<JsValueRef> items, JavascriptEngine::JsObj options)
 {
 	try
 	{
@@ -4776,12 +5127,16 @@ void PlayfieldView::JsShowMenu(std::vector<JsValueRef> items, WSTRING name, Java
 
 		// get the menu flags from the options object argument
 		DWORD menuFlags = SHOWMENU_USER;
-		if (options.Get<bool>("isExitMenu")) menuFlags |= SHOWMENU_IS_EXIT_MENU;
-		if (options.Get<bool>("noAnimation")) menuFlags |= SHOWMENU_NO_ANIMATION;
-		if (options.Get<bool>("dialogStyle")) menuFlags |= SHOWMENU_DIALOG_STYLE;
+		int pageno = 0;
+		if (!options.IsNull())
+		{
+			if (options.Get<bool>("isExitMenu")) menuFlags |= SHOWMENU_IS_EXIT_MENU;
+			if (options.Get<bool>("noAnimation")) menuFlags |= SHOWMENU_NO_ANIMATION;
+			if (options.Get<bool>("dialogStyle")) menuFlags |= SHOWMENU_DIALOG_STYLE;
 
-		// get the page number from the options argument
-		int pageno = options.Get<int>("pageNo");
+			// get the page number from the options argument
+			pageno = options.Get<int>("pageNo");
+		}
 
 		// remove any menu/popup currently showing
 		CloseMenusAndPopups();
@@ -5544,7 +5899,7 @@ void PlayfieldView::SyncInfoBox()
 		if (IsGameValid(game))
 		{
 			// request high score information if we don't already have it
-			RequestHighScores();
+			RequestHighScores(game);
 
 			// set our initial proposed width and height
 			int width = 712, height = 343;
@@ -6580,6 +6935,15 @@ void PlayfieldView::ReloadSettings()
 
 	// adjust application-level variables as well
 	Application::Get()->OnConfigChange();
+
+	// fire a config change event
+	FireConfigChangeEvent();
+}
+
+void PlayfieldView::FireConfigChangeEvent()
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->FireEvent(jsMainWindow, jsConfigChangeEvent);
 }
 
 void PlayfieldView::OnConfigChange()
@@ -8316,8 +8680,8 @@ void PlayfieldView::EditGameInfo()
 
 			// Reload high score data for the game, as we might have changed
 			// something that affected the NVRAM source
-			game->highScoresSet = false;
-			pfv->RequestHighScores();
+			game->highScoreStatus = GameListItem::HighScoreStatus::Init;
+			pfv->RequestHighScores(game);
 
 			// note that we saved changes
 			saved = true;
@@ -10187,7 +10551,7 @@ void PlayfieldView::OnCaptureDone(const CaptureDoneReport *report)
 	// from the game
 	if (report->ok)
 	{
-		if (auto game = GameList::Get()->GetGameByID(report->gameId.c_str()); game != nullptr)
+		if (auto game = GameList::Get()->GetByInternalID(report->gameId); game != nullptr)
 			GameList::Get()->MarkForCapture(game, false);
 	}
 

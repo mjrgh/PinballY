@@ -10,8 +10,8 @@
 #include "../Utilities/Config.h"
 #include "../Utilities/PBXUtil.h"
 #include "../Utilities/GlobalConstants.h"
+#include "../Utilities/DateUtil.h"
 #include "GameList.h"
-#include "DateUtil.h"
 #include "Application.h"
 #include "LogFile.h"
 #include "DialogResource.h"
@@ -473,6 +473,16 @@ GameListItem *GameList::GetGameByID(const TCHAR *id)
 	}
 
 	// not found
+	return nullptr;
+}
+
+GameListItem *GameList::GetByInternalID(LONG id)
+{
+	for (auto &game : byTitle)
+	{
+		if (game->internalID == id)
+			return game;
+	}
 	return nullptr;
 }
 
@@ -3089,12 +3099,14 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 		func(pair.second);
 }
 
+
 // -----------------------------------------------------------------------
 // 
 // Game list item.  This represents the entry for a single game.
 //
 
 std::list<const MediaType*> GameListItem::allMediaTypes;
+LONG GameListItem::nextInternalID = 1;
 
 void GameListItem::InitMediaTypeList()
 {
@@ -3203,7 +3215,7 @@ void GameListItem::CommonInit()
 	dbFile = nullptr;
 	gameXmlNode = nullptr;
 	pbxRating = 0;
-	highScoresSet = false;
+	highScoreStatus = Init;
 	tableFileSet = nullptr;
 	hidden = false;
 	isConfigured = false;
@@ -3211,6 +3223,9 @@ void GameListItem::CommonInit()
 	// we haven't attempted to look up the stats db row yet - use
 	// the magic number -2 to mean "unknown row number"
 	statsDbRow = -2;
+
+	// assign the next available internal ID
+	internalID = InterlockedIncrement(&nextInternalID);
 }
 
 GameListItem::~GameListItem()

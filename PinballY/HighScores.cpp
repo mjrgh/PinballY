@@ -185,7 +185,7 @@ bool HighScores::Init()
 		// notify the main window that initialization is finished
 		if (IsWindow(ctx->hwndPlayfieldView))
 		{
-			NotifyInfo ni(Initialized, nullptr);
+			NotifyInfo ni(Initialized, nullptr, nullptr);
 			ni.status = NotifyInfo::Success;
 			::SendMessage(ctx->hwndPlayfieldView, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
 		}
@@ -501,18 +501,18 @@ bool HighScores::GetAllNvramFiles(std::list<TSTRING> &nvList, const TCHAR *gameT
 	return false;
 }
 
-bool HighScores::GetVersion(HWND hwndNotify)
+bool HighScores::GetVersion(HWND hwndNotify, void *notifyContext)
 {
 	// enqueue a version request, with the "-v" option
 	TSTRING empty;
 	EnqueueThread(new Thread(_T(" -v"), ProgramVersionQuery,
-		nullptr, empty, empty, this, nullptr, hwndNotify));
+		nullptr, empty, empty, this, nullptr, hwndNotify, notifyContext));
 
 	// success
 	return true;
 }
 
-bool HighScores::GetScores(GameListItem *game, HWND hwndNotify)
+bool HighScores::GetScores(GameListItem *game, HWND hwndNotify, void *notifyContext)
 {
 	// We can't proceed if initialization hasn't finished yet
 	if (!IsInited())
@@ -546,7 +546,7 @@ bool HighScores::GetScores(GameListItem *game, HWND hwndNotify)
 	// to be constructed with a space before the first token.
 	EnqueueThread(new Thread(
 		MsgFmt(_T(" %s"), nvramFile.c_str()), HighScoreQuery,
-		game, nvramPath, nvramFile, this, pathEntry, hwndNotify));
+		game, nvramPath, nvramFile, this, pathEntry, hwndNotify, notifyContext));
 
 	// the request was successfully submitted
 	return true;
@@ -595,7 +595,7 @@ void HighScores::LaunchNextThread(Thread *exitingThread)
 		// carried out after all.  Send a notification reply
 		// to the caller to let them know that the request is
 		// finished (unsuccessfully).
-		NotifyInfo ni(thread->queryType, thread->game);
+		NotifyInfo ni(thread->queryType, thread->game, thread->notifyContext);
 		ni.status = NotifyInfo::ThreadLaunchFailed;
 		::SendMessage(thread->hwndNotify, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
 
@@ -607,14 +607,15 @@ void HighScores::LaunchNextThread(Thread *exitingThread)
 HighScores::Thread::Thread(
 	const TCHAR *cmdline, QueryType queryType,
 	GameListItem *game, const TSTRING &nvramPath, const TSTRING &nvramFile,
-	HighScores *hs, PathEntry *pathEntry, HWND hwndNotify) :
+	HighScores *hs, PathEntry *pathEntry, HWND hwndNotify, void *notifyContext) :
 	cmdline(cmdline),
 	queryType(queryType),
 	hwndNotify(hwndNotify),
 	game(game),
 	nvramPath(nvramPath),
 	nvramFile(nvramFile),
-	pathEntry(pathEntry)
+	pathEntry(pathEntry),
+	notifyContext(notifyContext)
 {
 	// explicitly assign the high score object so that we count the reference
 	this->hs = hs;
@@ -639,7 +640,7 @@ void HighScores::Thread::Main()
 {
 	// Set up the results object to send to the notifier window.
 	// We'll send a notification whether we succeed or fail.
-	NotifyInfo ni(queryType, game);
+	NotifyInfo ni(queryType, game, notifyContext);
 
 	// send the result message to the notification window
 	auto SendResult = [&ni, this](NotifyInfo::Status status)
@@ -796,3 +797,10 @@ void HighScores::Thread::Main()
 	CloseHandle(pinfo.hProcess);
 }
 
+HighScores::NotifyInfo::NotifyInfo(QueryType queryType, GameListItem *game, void *notifyContext) :
+	status(Success),
+	queryType(queryType),
+	gameID(game != nullptr ? game->internalID : 0),
+	context(context)
+{
+}

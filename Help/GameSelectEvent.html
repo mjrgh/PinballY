@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>GameSelectEvent</h1>
+
+<p>
+   This event class is fired whenever the game selection in the
+   wheel UI changes.  Selection changes can occur for a variety
+   of reasons, including simple navigation commands (Next, Previous),
+   selecting a new filter that doesn't match the previously selected
+   game, batch capture processing, and attract mode updates.
+   In addition to firing when switching from one game to another,
+   the event fires when switching to or from an empty selection
+   (that is, no game is selected because the wheel is empty).
+</p>
+<p>
+   This event has only one subtype:
+<ul>
+   <li><b>gameselect:</b> Fires when returning to the regular wheel UI.
+   This event fires after the fact, so it's not cancelable.
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  In addition, it
+   has the following:
+</p>
+
+<ul>
+   <li><b>id:</b>  The ID of the selected game, or undefined if no game
+   is selected.  If a game is selected, the ID is an integer identifying
+   the game, which you can pass to
+   <a href="GameList.html#getGameInfo">gameList.getGameInfo</a>
+   to retrieve the game's details.  It's possible for no game to be
+   selected; this happens when the wheel is empty due to a filter
+   that doesn't match any games or when the system simply doesn't
+   find any installed games at all.
+
+</ul>
+
+</body>
+</html>

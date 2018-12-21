@@ -807,6 +807,23 @@ this.PopupCloseEvent = class PopupCloseEvent extends PopupEvent
     constructor(id) { super("popupclose", { cancelable: false }, id); }
 };
 
+// Game selection change
+this.GameSelectEvent = class GameSelectEvent extends Event
+{
+    constructor(id)
+    {
+        super("gameselect", { cancelable: false });
+        this.id = id || null;
+    }
+};
+
+// Config change event
+this.ConfigChangeEvent = class ConfigChangeEvent extends Event
+{
+    constructor() { super("configchange", { cancelable: false }); }
+};
+
+
 // ------------------------------------------------------------------------
 //
 // Main window object
@@ -840,6 +857,14 @@ const SWP_NOMOVE = 0x0002;
 const SWP_NOOWNERZORDER = 0x0200;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOZORDER = 0x0004;
+
+
+// ------------------------------------------------------------------------
+//
+// Game list object.  This represents the list of games loaded, and keeps
+// track of the current game and filter settings.
+//
+this.gameList = new EventTarget();
 
 
 // ------------------------------------------------------------------------

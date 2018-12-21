@@ -20,7 +20,7 @@
 #include "../Utilities/ComUtil.h"
 #include "../Utilities/AutoRun.h"
 #include "../Utilities/ProcUtil.h"
-#include "DateUtil.h"
+#include "../Utilities/DateUtil.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
 #include "Resource.h"
@@ -453,13 +453,6 @@ int Application::EventLoop(int nCmdShow)
 	// save any updates to the config file or game databases
 	SaveFiles();
 
-	// Shut down Javascript.  Do this after saving files, because if we were
-	// launched by a debugger (e.g., VS Code), the debugger might kill the
-	// debugee child process (that would be us) as soon as we disconnect the
-	// debugger socket.  We don't want to be in the middle of any file writes
-	// if we get asynchronously terminated like that.
-	JavascriptEngine::Terminate();
-
 	// if there's an admin host thread, terminate it
 	adminHost.Shutdown();
 
@@ -483,6 +476,13 @@ int Application::EventLoop(int nCmdShow)
 
 	// wait for the audio/video player deletion queue to empty
 	AudioVideoPlayer::WaitForDeletionQueue(5000);
+
+	// Shut down Javascript.  Do this after saving files, because if we were
+	// launched by a debugger (e.g., VS Code), the debugger might kill the
+	// debugee child process (that would be us) as soon as we disconnect the
+	// debugger socket.  We don't want to be in the middle of any file writes
+	// if we get asynchronously terminated like that.
+	JavascriptEngine::Terminate();
 
 	// check for a RunAfter program
 	CheckRunAtExit();
@@ -1249,7 +1249,7 @@ GameListItem *Application::GetNextQueuedGame() const
 	auto &q = queuedLaunches.front();
 
 	// look up the game from the stored ID
-	return GameList::Get()->GetGameByID(q->gameId.c_str());
+	return GameList::Get()->GetByInternalID(q->gameId);
 }
 
 void Application::KillGame()
@@ -1323,10 +1323,11 @@ void Application::CleanGameMonitor()
 			// figure the total run time in seconds
 			int seconds = (int)((gameMonitor->exitTime - gameMonitor->launchTime) / 1000);
 
-			// add the time to the game's row in the stats database
+			// find the game
 			GameList *gl = GameList::Get();
-			int row = gl->GetStatsDbRow(gameMonitor->gameId.c_str(), true);
-			gl->playTimeCol->Set(row, gl->playTimeCol->GetInt(row, 0) + seconds);
+			GameListItem *game = gl->GetByInternalID(gameMonitor->gameId);
+			if (game != nullptr)
+				gl->SetPlayTime(game, gl->GetPlayTime(game) + seconds);
 		}
 
 		// forget the game monitor thread
@@ -1683,7 +1684,7 @@ void Application::GameMonitorThread::Prepare(
 	// save the game information
 	this->cmd = cmd;
 	this->game = *game;
-	this->gameId = game->GetGameId();
+	this->gameId = game->internalID;
 	this->gameSys = *system;
 	this->elevationApproved = system->elevationApproved;
 
@@ -1827,12 +1828,12 @@ bool Application::GameMonitorThread::Launch(ErrorHandler &eh)
 		return false;
 	}
 
-	// Look up the game object by its ID.  (We do it this way
-	// rather than storing a pointer to the game to ensure that
-	// the pointer doesn't go stale between the time the monitor
-	// object was prepared and the time it was launched.)
+	// Look up the game object by its internal ID.  (We do it this way
+	// rather than by storing a pointer to the game to ensure that the
+	// pointer doesn't go stale between the time the monitor object
+	// was prepared and the time it was launched.)
 	GameList *gl = GameList::Get();
-	GameListItem *pgame = gl->GetGameByID(this->gameId.c_str());
+	GameListItem *pgame = gl->GetByInternalID(this->gameId);
 	if (pgame != nullptr)
 	{
 		// If we're in "play" mode, update the game's last launch time
@@ -2660,13 +2661,13 @@ DWORD Application::GameMonitorThread::Main()
 					// elevation is required - offer options
 					playfieldView->SendMessage(PFVMsgPlayElevReqd,
 						reinterpret_cast<WPARAM>(gameSys.displayName.c_str()),
-						reinterpret_cast<LPARAM>(gameId.c_str()));
+						static_cast<LPARAM>(gameId));
 					break;
 
 				default:
 					// use the generic error message for anything else
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 
-						reinterpret_cast<WPARAM>(gameId.c_str()),
+						static_cast<WPARAM>(gameId),
 						reinterpret_cast<LPARAM>(sysErr.Get()));
 					break;
 				}

@@ -15,6 +15,8 @@
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
+class DateTime;
+
 // Javascript engine interface
 class JavascriptEngine : public RefCounted
 {
@@ -115,6 +117,16 @@ public:
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
 	static JsErrorCode ToInt(int &i, const JsValueRef &val);
+
+	// Convert various date representations to Javascript representation.  If
+	// you have a string to be converted, use DateTime to parse the string, first,
+	// as it has methods to parse in various formats.
+	static JsErrorCode VariantDateToJsDate(DATE date, JsValueRef &jsval);
+	static JsErrorCode DateTimeToJsDate(const DateTime &date, JsValueRef &jsval);
+
+	// convert Javascript dates to other representations
+	static JsErrorCode JsDateToVariantDate(JsValueRef jsval, DATE &date);
+	static JsErrorCode JsDateToDateTime(JsValueRef jsval, DateTime &date);
 
 	// get a property value
 	JsErrorCode GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
@@ -269,6 +281,7 @@ public:
 		throw CallException("JsToNativeNumType error", err);
 	}
 	template<> static int JsToNative<int>(JsValueRef jsval) { return JsToNativeNumType<int>(jsval); }
+	template<> static long JsToNative<long>(JsValueRef jsval) { return JsToNativeNumType<long>(jsval); }
 	template<> static float JsToNative<float>(JsValueRef jsval) { return JsToNativeNumType<float>(jsval); }
 	template<> static double JsToNative<double>(JsValueRef jsval) { return JsToNativeNumType<double>(jsval); }
 	template<> static bool JsToNative<bool>(JsValueRef jsval)
@@ -449,6 +462,16 @@ public:
 			return JsObj(v);
 		}
 
+		// is the value null/undefined?
+		bool IsNull() const
+		{
+			JsValueRef boolval;
+			bool b;
+			return JsConvertValueToBoolean(jsobj, &boolval) != JsNoError
+				|| JsBooleanToBool(boolval, &b) != JsNoError
+				|| !b;
+		}
+
 		// get a native value
 		template<typename T> T Get(const CHAR *name)
 		{
@@ -490,6 +513,69 @@ public:
 		}
 	};
 
+	// A Javascript Promise object
+	class Promise
+	{
+	public:
+		static Promise *Create()
+		{
+			// create the Javascript Promise object and the completion functions
+			JsValueRef promise, resolve, reject;
+			if (JsErrorCode err = JsCreatePromise(&promise, &resolve, &reject); err != JsNoError)
+				throw CallException("Promise::Create()", err);
+
+			// create and return the wrapper object
+			return new Promise(promise, resolve, reject);
+		}
+
+		~Promise()
+		{
+			// release our native references
+			JsRelease(promise, nullptr);
+			JsRelease(resolve, nullptr);
+			JsRelease(reject, nullptr);
+		}
+
+		// get the javascript Promise object
+		JsValueRef GetPromise() const { return promise; }
+
+		// resolve/reject the Promise
+		void Resolve(JsValueRef arg) { Invoke(resolve, arg); }
+		void Reject(JsValueRef arg) { Invoke(reject, arg); }
+
+		// reject with 'new Error(msg)'
+		void Reject(const WCHAR *msg)
+		{
+			JsValueRef strObj, errObj;
+			if (JsPointerToString(msg, wcslen(msg), &strObj) == JsNoError
+				&& JsCreateError(strObj, &errObj) == JsNoError)
+				Reject(errObj);
+		}
+
+	protected:
+		Promise(JsValueRef promise, JsValueRef resolve, JsValueRef reject) :
+			promise(promise), resolve(resolve), reject(reject)
+		{
+			// keep references on the objects as long as the wrapper is around
+			JsAddRef(promise, nullptr);
+			JsAddRef(resolve, nullptr);
+			JsAddRef(reject, nullptr);
+		}
+
+		void Invoke(JsValueRef func, JsValueRef arg)
+		{
+			JsValueRef argv[2] = { promise, arg }, result;
+			JsCallFunction(func, argv, static_cast<unsigned short>(countof(argv)), &result);
+		}
+
+		// Promise object
+		JsValueRef promise;
+
+		// resolve and reject functions
+		JsValueRef resolve;
+		JsValueRef reject;
+	};
+
 	template<> static JsObj JsToNative<JsObj>(JsValueRef jsval) { return JsObj(jsval); }
 
 	// Native-to-javascript type converters
@@ -513,6 +599,24 @@ public:
 			return jsval;
 
 		throw CallException("NativeToJs<int> Error", err);
+	}
+	template<> static JsValueRef NativeToJs(long l)
+	{
+		JsErrorCode err;
+		JsValueRef jsval;
+		if ((err = JsDoubleToNumber(static_cast<double>(l), &jsval)) == JsNoError)
+			return jsval;
+
+		throw CallException("NativeToJs<int> Error", err);
+	}
+	template<> static JsValueRef NativeToJs(float f)
+	{
+		JsErrorCode err;
+		JsValueRef jsval;
+		if ((err = JsDoubleToNumber(static_cast<double>(f), &jsval)) == JsNoError)
+			return jsval;
+
+		throw CallException("NativeToJs<float> Error", err);
 	}
 	template<> static JsValueRef NativeToJs(double d)
 	{
@@ -563,6 +667,18 @@ public:
 		throw CallException("NativeToJs<WSTRING&> error", err);
 	}
 	template<> static JsValueRef NativeToJs(WSTRING s) { return NativeToJs<const WSTRING&>(s); }
+
+	template<> static JsValueRef NativeToJs(const DateTime &d)
+	{
+		JsErrorCode err;
+		JsValueRef jsval;
+		if ((err = DateTimeToJsDate(d, jsval)) == JsNoError)
+			return jsval;
+
+		throw CallException("NativeToJs<DateTime&>", err);
+	}
+	template<> static JsValueRef NativeToJs(DateTime &d) { return NativeToJs<const DateTime&>(d); }
+	template<> static JsValueRef NativeToJs(DateTime d) { return NativeToJs<const DateTime&>(d); }
 
 	// Call a Javascript function.  Converts arguments from native types
 	// to Javascript, and converts results back to the given native type.
@@ -866,7 +982,7 @@ public:
 	template<> class ToNativeConverter<JsObj> : public ToNativeConverterBase
 	{
 	public:
-		JsObj Empty() const { return JsObj(JS_INVALID_REFERENCE); }
+		JsObj Empty() const { return JsObj(JavascriptEngine::Get()->undefVal); }
 		JsObj Conv(JsValueRef val, bool &ok, const CSTRING &name) const { return JsObj(val); }
 	};
 

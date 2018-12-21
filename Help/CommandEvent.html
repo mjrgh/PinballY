@@ -13,7 +13,16 @@
 <h1>CommandEvent</h1>
 
 <p>
-   This event class represents a user-initiated <a href="Commands.html">command</a>.
+   This event type is fired when the program is about to carry out a
+   "command" - a specific program function.  The user can initiate
+   commands by selecting items from menus, pressing buttons mapped
+   to commands, or by mouse selections (e.g., selecting from a
+   right-click context menu).  See <a href="Commands.html">Commands</a>
+   for a list of the command functions.
+</p>
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
 </p>
 <p>
    The CommandEvent class has only one subtype:

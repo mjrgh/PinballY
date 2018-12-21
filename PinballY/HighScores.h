@@ -107,7 +107,7 @@ public:
 	// asynchronously, but it does mean that an HSMsgHighScores message
 	// will eventually be sent to the notification window with some
 	// kind of results.
-	bool GetScores(GameListItem *game, HWND hwndNotify);
+	bool GetScores(GameListItem *game, HWND hwndNotify, void *notifyContext = nullptr);
 
 	// Get the PINemHi version information.  This runs PINemHi in the
 	// background with the -v option (to retrieve the program version
@@ -115,7 +115,7 @@ public:
 	// window when done.  As with GetScores(), a true return means that
 	// the asynchronous request was successfully started, but doesn't
 	// guarantee that it will actually succeed.
-	bool GetVersion(HWND hwndNotify);
+	bool GetVersion(HWND hwndNotify, void *notifyContext = nullptr);
 
 	// type of query
 	enum QueryType
@@ -130,17 +130,16 @@ public:
 	// this as constant data.
 	struct NotifyInfo
 	{
-		NotifyInfo(QueryType queryType, GameListItem *game) :
-			status(Success),
-			queryType(queryType),
-			game(game)
-		{ }
+		NotifyInfo(QueryType queryType, GameListItem *game, void *notifyContext);
 
 		// query type
 		QueryType queryType;
 
 		// game we're fetching high scores for
-		GameListItem *game;
+		LONG gameID;
+
+		// caller's notification context
+		void *context;
 
 		// status
 		enum Status
@@ -255,7 +254,7 @@ protected:
 		Thread(const TCHAR *cmdline, QueryType queryType,
 			GameListItem *game,	const TSTRING &nvramPath, const TSTRING &nvramFile,
 			HighScores *hs, PathEntry *pathEntry,
-			HWND hwndNotify);
+			HWND hwndNotify, void *notifyContext);
 
 		// main entrypoint
 		static DWORD WINAPI SMain(LPVOID param);
@@ -273,6 +272,9 @@ protected:
 		// notification window - we send this window a message
 		// when finished to give it the new high score information
 		HWND hwndNotify;
+
+		// context object for notification message
+		void *notifyContext;
 
 		// Game we're retrieving information on.  This can be null
 		// if we're doing a general query, such as a PINemHi program

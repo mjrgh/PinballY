@@ -126,9 +126,6 @@
     <ClCompile Include="CSVFile.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DateUtil.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="AudioVideoPlayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -324,9 +321,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CSVFile.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DateUtil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="AudioVideoPlayer.h">

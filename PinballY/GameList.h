@@ -6,9 +6,9 @@
 #include <list>
 #include <unordered_map>
 #include "../rapidxml/rapidxml.hpp"
+#include "../Utilities/DateUtil.h"
 #include "Resource.h"
 #include "CSVFile.h"
-#include "DateUtil.h"
 
 class ErrorHandler;
 class GameManufacturer;
@@ -81,7 +81,7 @@ public:
 class GameBaseInfo
 {
 public:
-	GameBaseInfo() : year(0) { }
+	GameBaseInfo() { }
 
 	// Title.  This is the title portion of the full name.
 	TSTRING title;
@@ -103,7 +103,7 @@ public:
 
 	// Year (release date of original arcade game).  We use zero
 	// if the date is unknown or doesn't apply.
-	int year;
+	int year = 0;
 
 	// IPDB table type: SS (solid state), EM (electromechanical),
 	// ME (pure mechanical).
@@ -120,10 +120,10 @@ public:
 	// to the game to navigate to the desired game.
 	struct GridPos
 	{
-		GridPos() : row(0), col(0) { }
+		GridPos() { }
 
-		int row;
-		int col;
+		int row = 0;
+		int col = 0;
 	} gridPos;
 };
 
@@ -245,6 +245,17 @@ public:
 	// Clean up a media name string.  This removes invalid filename
 	// characters to make the name suitable as a filename.
 	static TSTRING CleanMediaName(const TCHAR *name);
+
+	// Internal ID for the game.  This is only good for the duration
+	// of this program session, so it can't be used in saved files.
+	// This is *almost* like a pointer to the GameListItem object,
+	// but we use a non-recycled serial number instead of an actual
+	// memory pointer, to ensure uniqueness across object deletions
+	// and full reloads.
+	LONG internalID = 0;
+
+	// next available internal ID
+	static LONG nextInternalID;
 
 	// ID string for the saved configuration.  This is intended to be
 	// a unique identifier, so we need more than just the title, since
@@ -425,12 +436,15 @@ public:
 	// we've tried and failed.
 	std::list<TSTRING> highScores;
 
-	// Flag: high scores have been retrieved for this game.  We set
-	// this to true when we get the results from PINemHi.exe, whether
-	// successful or not, so that we can avoid repeated retries.  If
-	// highScores is empty and this is true, it means that no high
-	// scores are available for the game.
-	bool highScoresSet;
+	// High score status for the game
+	enum HighScoreStatus
+	{
+		Init,        // initial state: high scores not yet requested
+		Requested,   // request initiated, results not received yet
+		Received,    // request completed successfully
+		Failed       // request completed with error
+	};
+	HighScoreStatus highScoreStatus = Init;
 
 	// Clear any cached high scores.  This forgets any local copy of
 	// the high scores, so that we'll know to get a fresh copy from
@@ -440,7 +454,7 @@ public:
 	void ClearCachedHighScores()
 	{
 		highScores.clear();
-		highScoresSet = false;
+		highScoreStatus = Init;
 	}
 
 	// Divvy up the game's high score list into groups, invoking the
@@ -1042,6 +1056,9 @@ public:
 	// Find a game by ID
 	GameListItem *GetGameByID(const TCHAR *id);
 
+	// find a game by internal ID
+	GameListItem *GetByInternalID(LONG id);
+
 	// Find the next letter group.  This returns the offset from the
 	// current game to the first game whose title starts with a different
 	// letter.
@@ -1092,7 +1109,7 @@ public:
 	const GameListFilter *GetUnconfiguredGamesFilter() const { return &unconfiguredGamesFilter; }
 
 	// Get the number of games matching the current filter
-	int GetCurFilterCount() const { return (int)byTitleFiltered.size(); }
+	int GetCurFilterCount() const { return static_cast<int>(byTitleFiltered.size()); }
 
 	// Test to see if a game is selected by a filter.  Note that this
 	// should be used instead of calling filter->Include() directly, 
@@ -1255,6 +1272,15 @@ public:
 
 	// enumerate the table files sets
 	void EnumTableFileSets(std::function<void(const TableFileSet&)> func);
+
+	// Get the number of games in the overall list
+	int GetAllGamesCount() const { return static_cast<int>(games.size()); }
+
+	// Get the nth game in the overall list
+	GameListItem *GetAllGamesAt(int n) const 
+	{
+		return n < 0 || static_cast<size_t>(n) >= games.size() ? nullptr : byTitle[n];
+	}
 
 	// enumerate all games
 	void EnumGames(std::function<void(GameListItem *)> func);
