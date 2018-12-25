@@ -312,11 +312,18 @@ void KeyInput::Shutdown()
 
 KeyInput::KeyInput()
 {
-	// populate the key name lookup table
-	for (int i = 0; i < countof(keyName); ++i)
+	// populate the internal key name lookup table
+	for (int i = 0; static_cast<size_t>(i) < countof(keyName); ++i)
 	{
-		if (keyName[i].keyID != 0)
+		if (keyName[i].keyID != nullptr)
 			keyIdMap.emplace(keyName[i].keyID, i);
+	}
+
+	// populate the javascript key name lookup table
+	for (int i = 0; static_cast<size_t>(i) < countof(keyName); ++i)
+	{
+		if (keyName[i].jsEventCode != nullptr)
+			jsCodeMap.emplace(keyName[i].jsEventCode, i);
 	}
 }
 
@@ -332,6 +339,11 @@ int KeyInput::KeyByID(const TCHAR *name)
 	return it == keyIdMap.end() ? -1 : it->second;
 }
 
+int KeyInput::KeyByJsKeyCode(const TCHAR *name)
+{
+	auto it = jsCodeMap.find(name);
+	return it == jsCodeMap.end() ? -1 : it->second;
+}
 
 int KeyInput::TranslateExtKeys(UINT msg, WPARAM wParam, LPARAM lParam)
 {

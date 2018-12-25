@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>GameInfo</h1>
+
+<p>
+   A GameInfo object contains a Javascript snapshot of the system's
+   internal information records on a game.  This type of object is
+   returned from <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>.
+</p>
+<p>
+   A GameInfo object is just a copy of the
+   system's internal records for the game, so changing the properties won't
+   change anything in the on-screen display or the database files.
+</p>
+
+
+<h2>Creation</h2>
+
+<p>
+   You don't create GameInfo objects directly.  You get them by
+   calling <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>.
+   That function returns a GameInfo object populated with details
+   about the game you specified.
+</p>
+
+
+<a name="gameID"></a>
+<h2>Game IDs</h2>
+<p>
+   Whenever the system needs to refer to a game in a Javascript event
+   or in information returned to Javascript from a system function, it
+   uses a game ID value as the reference.  A game ID is an integer
+   value that uniquely identifies the in-memory object describing
+   the game.
+</p>
+<p>
+   A game ID value isn't permanent; it's only valid as long as the
+   in-memory object for the game exists.  The in-memory object for a
+   game is initially created when PinballY starts up and scans for game
+   files and database entries, and only exists until (a) the end of
+   the current program session, or (b) the game lists are re-loaded,
+   whichever comes first.  So you obviously shouldn't store these IDs
+   in external files that might persist across sessions, as they'd
+   be meaningless in a future session.
+</p>
+<p>
+   You also have to be careful about caching these IDs for later re-use
+   during the same session, since they become invalid any time the
+   game list is re-loaded.  The program has to re-load the game lists
+   any time the user updates anything in the Settings dialog, since
+   settings changes can affect what's included in the game lists.
+   If you're maintaining a cache of IDs, you should create a listener
+   for the <a href="ConfigChangeEvent.html"><b>configchange</b></a> event,
+   and clear your cache any time it occurs.  (Using an old ID that has
+   become invalid will have the same result as using one that was never
+   assigned in the first place.  For example, if you use an old ID in
+   a call to gameList.getGameInfo(), it'll return null, since no matching
+   game will be found.)
+</p>
+   
+
+<a name="configID"></a>
+<h2>Config IDs</h2>
+<p>
+   The program has a second identifier for each game, known as the
+   "config ID", that's more stable across sessions.  It's called the
+   config ID because PinballY uses it to store game references in
+   its own configuration files.  You can use it for similar purposes.
+</p>
+<p>
+   The config ID is based on the game's title and system name.
+   This makes it stable across sessions, but it's not necessarily
+   permanent for a given in-memory record.  Since it's based on the game's
+   title and player system, the config ID for an in-memory record changes
+   whenever you change the game's title, assign it to a different system, or
+   change the display name of the player system. 
+</p>
+<p>
+   The way to think about the config ID is as a permanent identifier for
+   a game in the abstract, as opposed to a concrete file that
+   implements that abstract game: "Medieval Madness for Visual Pinball 9"
+   is the abstraction, and "C:\VisualPinball\Tables\mm_1234.vpt" might
+   be one concrete file that implements it.
+</p>
+
+<h2>Properties and methods</h2>
+
+<p>
+   <b>categories:</b>  An array containing the game's category tags, as
+   strings.  The user can tag a game with any number of categories through
+   the Game Setup menu in the wheel UI.
+</p>
+
+<p>
+   <b>configID:</b>  A string giving the configuration ID of the game.
+   See <a href="#configID">Config IDs</a> above.
+</p>
+
+<p>
+   <b>dbFile:</b>  The full name (including folder path) of the XML database
+   file containing this game's entry.  If the game isn't configured, this
+   is undefined.  Every configured game has an entry in exactly one XML file.
+   The XML file is always associated with the game's designated player system,
+   but any given system can have multiple XML files, because HyperPin and
+   PinballX used the file location as a simple category system.
+</p>
+
+<p>
+   <b>dateAdded:</b>  A Date value representing the time and date when the
+   database entry for the game was added to PinballY.  Undefined if the game hasn't
+   been configured.
+</p>
+
+<p>
+   <b>displayName:</b>  The display name for the game.  This is the name that the
+   program displays on-screen for the game, such as in the wheel UI and the game information
+   popup box.  The standard format for this is "Title (Manufacturer Year)", when all of
+   those items are available.  If no title has been manually entered, the playable game
+   file (if any) is used in its place.  The manufacturer and/or year are omitted if
+   they're not set in the game's XML database entry or if it has no entry.
+</p>
+
+<p>
+   <b>filename:</b>  The filename of the game <i>as it appears in the XML
+   database file</i>.  The database entry might have made manually by the user or by
+   a HyperPin or PinballX table manager tool, so the format varies.  PinballY's
+   convention, which it tries to apply uniformly when editing the files, is to
+   store the root filename only.  But if you've manually edited the files or
+   migrated data from another system, the path and/or extension might be present.
+</p>
+<p>
+   Note that the filename here is the manually entered filename from the
+   database, so it might or might not refer to an actual, existing file.
+   It also doesn't typically include any path information, since files are
+   usually assumed to be in the table file folder for the associated system.
+   You can get the actual file system information on the file, including its
+   full path, extension, and whether or not the file exists, via 
+   <a href="#resolveGameFile">resolveGameFile()</a>.
+</p>
+
+<p>
+   <a name="getHighScores"></a>
+   <b>getHighScores():</b>  Get the high scores for this game.
+   This function operates asynchronously, since high scores are retrieved
+   by a separate program.  Instead of directly returning the score information,
+   the function returns a Javascript Promise object, which is resolved when
+   the high score information is retrieved successfully.  The promise can also
+   be rejected, which can happen if the game has no high score information
+   or the PinEMHi launch attempt fails.  On success, the "resolve" callback
+   is invoked with an array of strings, containing the high score text
+   returned from PinEMHi, one line of text per array element.  See
+   <a href="#highScores">Retrieving high scores</a> below for a usage example.
+</p>
+
+<p>
+   <b>highScoreStyle:</b>  A string with the high score style for the game,
+   for the purposes of generating the automatic high score display in the video DMD
+   window.  This should be one of "Auto", "DMD", "Alpha", "TT", or "None".  It can
+   also be undefined if no high score style has been set (in which case the system
+   uses the "Auto" default).
+</p>
+
+<p>
+   <b>id:</b>  The integer ID of the game (the same value passed to getGameInfo()
+   to identify the game).  See <a href="#gameID">Game IDs</a> above.
+</p>
+
+<p>
+   <b>isConfigured:</b>  A boolean value indicating if the game has been
+   configured.  A configured game has an XML database entry; an unconfigured game
+   represents a playable game file that PinballY found in a system's table folder,
+   but which doesn't have a corresponding XML database entry.
+</p>
+
+<p>
+   <b>isFavorite:</b>  A boolean indicating if the game is marked as a favorite.
+   The user can designate a game as a favorite through the main menu in the wheel UI.
+</p>
+
+<p>
+   <b>isHidden:</b>  A boolean value indicating if the game has been hidden.
+   The user can hide a game via the Game Setup menu in the wheel UI.  A hidden
+   game isn't shown in the wheel UI <i>except</i> when the "Hidden Games"
+   filter is selected.  The system still keeps track of hidden games
+   internally, though, specifically so that it can remember not to display
+   them in the normal wheel UI when it discovers their game files during the
+   table folder scan at startup.
+</p>
+
+<p>
+   <b>isMarkedForCapture:</b>  A boolean value indicating if the game has
+   been marked for capture.  The user can mark games for capture through the
+   Game Setup menu in the wheel UI.
+</p>
+
+<p>
+   <b>lastPlayed:</b>  A Date value representing the time and date when the
+   game was last launched from PinballY.  Undefined if the game has never been played.
+</p>
+
+<p>
+   <b>manufacturer:</b>  A string with the name of the manufacturer, if set.
+</p>
+
+<p>
+   <b>mediaName:</b>  The "media name" for the game.  This is the root filename
+   (without path or extension) used for all of the game's media files.  To form
+   the full file system name of a particular media file (e.g., the playfield video),
+   the system combines the directory path for the file type, the media name, and a
+   filename extension for the type.
+</p>
+
+<p>
+   <b>path:</b>  The full file system path of the directory containing the
+   file, if known.
+</p>
+
+<p>
+   <b>playCount:</b>  An integer giving the number of times the game has
+   been launched from PinballY.
+</p>
+
+<p>
+   <b>playTime:</b>  An integer giving the total amount of time the game has
+   been played when started from PinballY, in seconds.
+</p>
+
+<p>
+   <b>rating:</b>  A number giving the user's "star" rating entry for the
+   game (0 to 5, in increments of 0.5: 2.5 represents 2&frac12; stars).  The
+   special value -1 means the game has no rating.
+</p>
+
+<p>
+   <a name="resolveGameFile"></a>
+   <b>resolveGameFile():</b>  Resolves the playable game file for this game.
+   This finds the folder location and filename of the game file, by combining
+   information from the game database entry and the system configuration,
+   using the same algorithm that PinballY uses internally to find the
+   file when launching the game.  The return value is an object with
+   the following properties:
+</p>
+<ul>
+   <li><b>exists:</b> true if the file exists, false if not.
+   
+   <li><b>filename:</b> the base filename, with no folder path.  This
+   includes the filename extension for the player system, if any (e.g.,
+   ".vpx" for Visual Pinball 10 files).  Note that this might not
+   match the .filename property in the object returned from getGameInfo(),
+   The getGameInfo() filename is exactly what's specified in the XML
+   database entry for the game, which usually omits the extension.
+   The resolveGameFile() filename, in contrast, does include the extension,
+   <i>if</i> it's necessary to add the extension to find an existing file.
+   No extension is added to the name from the XML file when that name
+   by itself (with no added extension) refers to an extant file.
+   
+   <li><b>folder:</b> the full path of the folder containing the file,
+   which is usually the same as the table folder for the player system.
+   
+   <li><b>path:</b> the full path of the final file, which combines the
+   .folder and .filename values to form the absolute path.  This is in
+   a format suitable to be used with file system operations on the file,
+   since it's the full name of the file and doesn't depend on any
+   assumptions about working folders or default extensions.
+</ul>
+
+<p>
+   <a name="resolveMedia"></a>
+   <b>resolveMedia(<i>type</i>, <i>mustExist</i>):</b>  Resolves the
+   game's media file(s) of the given type.  <i>type</i> is a media type
+   name, which must match one of the following exactly:
+</p>
+<ul class="compact">
+   <li>"bg image"
+   <li>"bg video"
+   <li>"dmd image"
+   <li>"dmd video"
+   <li>"flyer image"
+   <li>"inst card image"
+   <li>"launch audio"
+   <li>"real dmd color image"
+   <li>"real dmd color video"
+   <li>"real dmd image"
+   <li>"real dmd video"
+   <li>"table audio"
+   <li>"table image"
+   <li>"table video"
+   <li>"topper image"
+   <li>"topper video"
+   <li>"wheel image"
+</ul>
+
+<p>
+   <i>mustExist</i> is a boolean indicating whether the function
+   should return only files that actually exist, or the names of all
+   possible files of the type, even if they don't exist.
+</p>
+<p>
+   The return value is an array of strings giving the names of the
+   matched files.  Each filename includes its full absolute directory
+   path.  An array is returned even if no files are matched; in
+   this case the array is simply empty.
+</p>
+<p>
+   There are two reasons that the function can return multiple files
+   for a single media type.  The first is that most media types support
+   multiple formats, and some of the formats might have multiple
+   extensions; for example, most of the image types will match .png, .jpg,
+   and .jpeg files.  When <i>mustExist</i> is false, the function returns
+   all of the <i>possible</i> matching files, with all of the supported
+   formats for the type and all recognized extensions for each format.
+   The order of the names returned in this case reflects PinballY's
+   order of preference for choosing files when more than one matching
+   file exists: the program picks pick the first item in the list that
+   corresponds to an existing file.  If you want to determine which file
+   that PinballY will actually display for this type when the game is
+   selected in the wheel UI, call the function with <i>mustExist</i>
+   set to true, and then simply use the first array element.  
+</p>
+<p>
+   The second reason that the function can return multiple files is
+   that some of the media types can actually have multiple associated
+   items.  In particular, flyer images can use multiple files to
+   represent the separate pages of a multi-page flyer, or the
+   front and back sides of a single page; instruction cards can
+   contain collections of cards with different rule variations
+   or different language versions.  For these types, the program
+   lets the user cycle through the multiple items when displayed
+   by using the Next/Previous buttons.  
+</p>
+
+<p>
+   <a name="resolveROM"></a>
+   <b>resolveROM():</b>  Resolves the ROM file for this game.  This
+   tries to determine which ROM file for the game is installed for use
+   with VPinMAME, if any, and which ROM name is associated with the
+   game in the current DOF configuration.  The return value is an
+   object with the following properties:
+</p>
+<ul>
+   <li><b>dofRom:</b>  The name of the game's ROM for DOF configuration
+   purposes, if any.  DOF determines which effects to use when a game is
+   running under Visual Pinball and other systems by matching the game's
+   ROM name (as VP sees it) to the ROM names listed in the DOF .ini files.
+   PinballY uses this scheme to trigger game-specific DOF effects
+   for the game currently selected in the wheel UI, so PinballY needs to
+   be able to determine the ROM associated with each game.  The .dofRom
+   property reflects PinballY's determination of the DOF ROM name, which
+   comes from either an explicit "rom" node in the game's XML database
+   entry, or a search of the DOF ROM list by table title.  The .dofRom
+   property is undefined if DOF isn't being used during this PinballY
+   session (e.g., if DOF isn't installed, or DOF is disabled in the
+   PinballY settings), or if PinballY can't find a matching DOF ROM name.
+   
+   <li><b>vpmRom:</b>  The name of the ROM that VPinMAME uses
+   for this game.  If the game has a ROM setting in the XML database
+   file, that value is used.  Otherwise, the system tries to match the
+   game by title to an internal database of title-to-ROM associations,
+   and then tries to determine which version is in use by checking
+   VPinMAME's registry data (since VPM stores information in the
+   Windows registry about each ROM it's loaded in the past).
+   This is undefined if the VPM ROM can't be determined.
+   
+   <li><b>vpmRomFile:</b>  The full filename, including path and
+   extension, of the VPM ROM file for the game, if available.  This
+   is the file path for the ROM contained in the .vpmRom property.
+   This is undefined if the VPM ROM can't be determined, or if no
+   file exists for the ROM in the .vpmRom property.
+   
+   <li><b>nvramPath:</b>  The full filename, including path and
+   extension, of the non-volatile RAM file for the game, if available.
+   The format of the file varies by player system, but if present, it's
+   the file that the player system uses to store high scores and menu
+   settings for the game.  VPinMAME uses the file to emulate the
+   non-volatile RAM hardware in the original games, for example.
+   PinballY uses this file to read high scores through PinEMHi.
+   This property is undefined if no NVRAM file can be found.
+</ul>
+
+<p>
+   The DOF and VPinMAME ROM names often differ in the version number
+   suffix.  Most machines that use ROM software have several versions
+   of the ROM available; for example, for <i>Medieval Madness</i>,
+   you'll find ROM versions mm_05, mm_10, mm_109, mm_109b, and mm_109c.
+   DOF typically drops the version suffix so that its .ini file entry
+   can match any version of the same game, so the DOF .ini entry for
+   <i>Med Mad</i> is just "mm".  That's what you'll see in the
+   .dofRom result.  VPM, on the other hand, uses an exact version,
+   so the .vpmRom result will include the version suffix.
+</p>
+<p>
+   Note that ROM associations may be found even for games written for
+   systems that don't use VPinMAME, such as Future Pinball, so you
+   shouldn't assume that a valid VPM ROM in the result means that the
+   game actually uses the ROM.  The ROM lookup includes a search by title,
+   so if there's a ROM for any version of a title, it will likely be found
+   even for non-VPM versions of the same game.  For example, if you ask
+   for the ROM for a Future Pinball version of <i>Medieval Madness</i>,
+   the system will find the <i>MM</i> ROM even though Future Pinball
+   doesn't use it.  This is actually useful for PinballY
+   internally, since the program's main use for the ROM association is
+   to select the DOF effects for the same game.  But it might be
+   confusing if you're trying to do something specifically tied to
+   VPM's use of the ROM.  It's difficult to determine in general if
+   a particular game implementation uses a particular ROM version,
+   since that depends on both the player system and internal details
+   of the game implementation that aren't exposed in a usable way.
+</p>
+
+<p>
+   <b>gridPos:</b>  An object with properties .row and .column, both integers,
+   giving the "grid position" of the game as stored in the game database.  This is
+   mostly provided as a special case for Farsight's <i>The Pinball Arcade</i>, which
+   doesn't provide a way for an external program to launch a specific game, but
+   instead always presents its own game selection UI at startup.  The grid position
+   is a (poor) attempt to work around that by enabling PinballY to send a series
+   of simulated keystrokes to TPA to navigate the selection UI automatically.
+   The selection UI arranges all of the games into a rectangular grid, so in
+   principle you can send a series of keystrokes to launch a particular game
+   if you know its position in the grid.  In practice this has proven to be
+   unreliable, since TPA's startup UI is too unpredictable: it frequently pops
+   up extra startup alert messages that throw the key macros out of sync, for example,
+   and of course the grid layout changes every time they add a game.  Plus they
+   change the overall UI from time to time.  Even so, PinballY provides this
+   information for users who want to try to make it work.
+</p>
+
+<p>
+   <b>rom:</b>  The name of the ROM for the game, if a ROM has been entered
+   manually in the database.  The ROM name can usually be inferred from the title,
+   so this is usually undefined.  You can use <a href="#resolveROM()">resolveROM()</a>
+   to get more information about PinballY's determination of the game's ROM.
+   That function gives you access to the machinery inside PinballY that does the
+   title lookups, and it returns details about the ROM for different uses.
+</p>
+
+<p>
+   <b>system:</b>  A string with the name of the designated player system
+   for the game, if set.  This is the display name of the system.
+</p>
+
+<p>
+   <b>title:</b>  The title of the game.  If the game has been configured, this
+   is the title manually entered by the user; it's generally the title that the game
+   is officially known by, such as "The Addams Family" or "Funhouse".  If the game
+   hasn't been configured, this is simply the filename.
+</p>
+
+<p>
+   <b>year:</b>  An integer giving the game's original release year (e.g., 1995),
+   if set in the game database.
+</p>
+
+<a name="highScores"></a>
+<h2>Retrieving high scores</h2>
+
+<p>
+   The game information object method <a href="#getHighScores">getHighScores()</a>
+   lets you get the high score information for a game, if it's available.  This function
+   works asynchronously: it doesn't directly return the high score information, but rather
+   returns a Javascript Promise object, which invokes a callback you provide when
+   the background operation completes.  Promises are a newer Javascript feature
+   that are now supported in all major browsers, so you can find plenty of
+   information about them on the Web if you're not familiar with the concept.
+</p>
+<p>
+   The reason that we have to use the asynchronous Promise scheme is that high
+   scores are obtained via a separate program, PinEMHi.  We launch that as
+   a child process, which can take
+   a couple of seconds, so we don't want to hold up the UI waiting for it to finish.
+   Instead, we launch the program in the background, and let it run separately
+   while we carry on with our regular UI activity.  When PinEMHi finishes, we 
+   go back to processing the results.  The Javascript Promise was designed for
+   exactly this type of scenario, and it makes the asynchronous handling easy
+   to code.
+</p>
+<p>
+   Here's the process for retrieving high scores:
+</p>
+<ul>
+   <li>Retrieve the game information object for the desired game via
+   gameList.getGameInfo(<i>id</i>), passing the ID of the game of interest
+   
+   <li>Call <i>info</i>.getHighScores(), where <i>info</i> is the object
+   you got back from getGameInfo()
+
+   <li>The return value from getHighScores() is a Promise object, so you call
+   .then(<i>completionFunction</i>) on the result of getHighScores() to set up
+   the completion function
+
+   <li>In the completion function, you write your script code to handle the
+   results
+
+   <li>If you want to include special handling for errors, you can include
+   a .catch(<i>errorFunction</i>) 
+</ul>
+
+<p>
+   The completion function that you provide to .then() takes a single argument,
+   which is an array of strings containing the results from PinEMHi.  This
+   is simply the PinEMHi text output, broken up into one string per line of
+   text.
+</p>
+<p>
+   Here's an example that gets the high scores for each new game that's
+   selected in the wheel UI, and displays the results on the debugger
+   console.
+</p>
+<div class="code">
+gameList.on("gameselect", ev =&gt; {
+    // if a game is selected, request its high scores
+    if (ev.id)
+    {
+        let info = gameList.getGameInfo(ev.id);
+        info.getHighScores(ev.id).then(scores =&gt;
+            console.log(info.title + " - High Scores:\n" + scores.join("\n")));
+    }
+});
+</div>
+
+<p>
+   There's no error handler in this example, so any errors
+   will simply be ignored.   If you wanted to add a message in case
+   of error, you'd just add a second function that gets called on
+   error to the .then() call:
+</p>
+<div class="code">
+info.getHighScores(ev.id).then(
+    scores =&gt; { /* success handler, 'scores' is an array of strings from PinEMHi */ },
+    error =&gt; { /* error handler, 'error' is a Javascript Error object */ });
+</div>
+<p>
+   This is all standard Javascript Promise coding, so if you need
+   more help with Promises in general, you can find lots of tutorial
+   material on the Web.
+</p>
+
+</body>
+</html>

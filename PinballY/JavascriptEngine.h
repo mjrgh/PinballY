@@ -456,6 +456,19 @@ public:
 			return JsObj(v);
 		}
 
+		// create an object with a prototype
+		static JsObj CreateObjectWithPrototype(JsValueRef prototype)
+		{
+			// create the base object
+			JsObj obj = CreateObject();
+
+			// set the prototype
+			if (JsErrorCode err = JsSetPrototype(obj.jsobj, prototype); err != JsNoError)
+				throw CallException("JsObj::CreateObjectWithPrototype(), set prototype failed", err);
+
+			return obj;
+		}
+
 		// create an array
 		static JsObj CreateArray()
 		{
@@ -474,6 +487,17 @@ public:
 			return JsConvertValueToBoolean(jsobj, &boolval) != JsNoError
 				|| JsBooleanToBool(boolval, &b) != JsNoError
 				|| !b;
+		}
+
+		// is a property present?
+		bool Has(const WCHAR *name)
+		{
+			JsErrorCode err;
+			JsValueRef propkey;
+			bool hasProp;
+			return ((err = JsPointerToString(name, wcslen(name), &propkey)) == JsNoError
+				&& (err = JsObjectHasProperty(jsobj, propkey, &hasProp)) == JsNoError
+				&& hasProp);
 		}
 
 		// get a native value
@@ -661,6 +685,7 @@ public:
 
 		throw CallException("NativeToJs<WCHAR*> error", err);
 	}
+	template<> static JsValueRef NativeToJs(WCHAR *p) { return NativeToJs<const WCHAR*>(p); }
 	template<> static JsValueRef NativeToJs(const WSTRING &s)
 	{
 		JsErrorCode err;
@@ -1321,10 +1346,28 @@ public:
 			ContextType context;
 
 			virtual R DImpl(struct CallDesc &desc, Ts... args) const override { return (*func)(context, desc.this_, args...); }
-			virtual R Impl(Ts...) const { return static_cast<R>(0); /* unused due to DImpl override */ }
+			virtual R Impl(Ts...) const override { return static_cast<R>(0); /* unused due to DImpl override */ }
 		};
 
 		return new GenericNativeMethod(func, context);
+	};
+
+	template<class C, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeMethod(R (C::*func)(JsValueRef, Ts...), C *self)
+	{
+		class GenericNativeMethod : public NativeFunction<R(Ts...)>
+		{
+		public:
+			GenericNativeMethod(R (C::*func)(JsValueRef, Ts...), C *self) : func(func), self(self) { }
+
+			R (C::*func)(JsValueRef, Ts...);
+			C *self;
+
+			virtual R DImpl(struct CallDesc &desc, Ts... args) const override { return (self->*func)(desc.this_, args...); }
+			virtual R Impl(Ts...) const override { return static_cast<R>(0); } /* unused to to DImpl override */
+		};
+
+		return new GenericNativeMethod(func, self);
 	};
 
 	// Create a global native callback function.  This creates a property
@@ -1360,6 +1403,10 @@ public:
 	NativeFunctionBinderBase *CreateAndSaveMethodWrapper(R (*func)(ContextType*, JsValueRef, Ts...), ContextType *context)
 		{ return this->nativeWrappers.emplace_back(WrapNativeMethod(func, context)).get(); }
 
+	template <class C, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveMethodWrapper(R (C::*func)(JsValueRef, Ts...), C *self)
+		{ return this->nativeWrappers.emplace_back(WrapNativeMethod(func, self)).get(); }
+
 	// Define a global function, creating a native wrapper for it.  The wrapper
 	// is added to an internal list to ensure that it's deleted with the engine.
 	template <typename ContextType, typename R, typename... Ts>
@@ -1385,6 +1432,11 @@ public:
 	bool DefineObjMethod(JsValueRef obj, const CHAR *objName, const CHAR *propName,
 		R (*func)(ContextType*, JsValueRef, Ts...), ContextType *ctx, ErrorHandler &eh)
 		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveMethodWrapper(func, ctx), eh); }
+
+	template <class C, typename R, typename... Ts>
+	bool DefineObjMethod(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		R (C::*func)(JsValueRef, Ts...), C *self, ErrorHandler &eh)
+		{ return this->DefineObjPropFunc(obj, objName, propName, CreateAndSaveMethodWrapper(func, self), eh); }
 
 	template <class C, typename R>
 	bool DefineGetterSetter(JsValueRef obj, const CHAR *objName, const CHAR *propName,

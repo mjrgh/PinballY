@@ -190,3 +190,29 @@ void VPinMAMEIfc::GetInstalledRomVersions(
 		return true;
 	});
 }
+
+bool VPinMAMEIfc::GetRomDir(TSTRING &dir)
+{
+	// Look up the global VPinMAME NVRAM path in the registry.  This
+	// is the path that usually applies to all Visual Pinball ROM-based
+	// games, regardless of which VP version they're using, since VPM's
+	// design as a COM object forces all VP versions to share a common
+	// VPM installation.
+	const TCHAR *keyPath = _T("Software\\Freeware\\Visual PinMame\\globals");
+	HKEYHolder hkey;
+	if (RegOpenKey(HKEY_CURRENT_USER, keyPath, &hkey) == ERROR_SUCCESS
+		|| RegOpenKey(HKEY_LOCAL_MACHINE, keyPath, &hkey) == ERROR_SUCCESS)
+	{
+		// read the nvram_directory value
+		DWORD typ;
+		TCHAR val[MAX_PATH];
+		DWORD len = sizeof(val);
+		if (RegQueryValueEx(hkey, _T("rompath"), 0, &typ, (BYTE*)val, &len) == ERROR_SUCCESS && typ == REG_SZ)
+		{
+			dir = val;
+			return true;
+		}
+	}
+
+	return false;
+}

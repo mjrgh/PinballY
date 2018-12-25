@@ -18,6 +18,19 @@
    list of loaded games and their details.
 </p>
 
+<h2>Event target</h2>
+
+<p>
+   gameList is an event target object, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.
+</p>
+<p>
+   gameList serves as the event target for the following event types:
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="gameList"></div>
+
 <h2>Properties and methods</h2>
 
 <p>
@@ -25,9 +38,17 @@
 </p>
 
 <p>
+   <a name="getAllFilters"></a>
+   <b>gameList.getAllFilters():</b>  Returns an array of filter IDs
+   for all available filters.  Each element is a filter ID string,
+   which can be passed to <a href="#getFilterInfo">gameList.getFilterInfo()</a>
+   to get details on the filter.
+</p>
+
+<p>
    <a name="getAllGames"></a>
    <b>gameList.getAllGames():</b>  Returns an array consisting of the
-   <a href="#gameID">Game ID</a> for each of the loaded games.  The
+   <a href="GameInfo.html#gameID">Game ID</a> for each of the loaded games.  The
    array is sorted in wheel display order, which is alphabetical by
    the display name of each game.  If you
    need to iterate over all games, this is more efficient than calling
@@ -43,13 +64,28 @@
 <p>
    <a name="getAllWheelGames"></a>
    <b>gameList.getAllWheelGames():</b>  Returns an array consisting of the
-   <a href="#gameID">Game ID</a> for each game on the wheel - that is,
+   <a href="GameInfo.html#gameID">Game ID</a> for each game on the wheel - that is,
    each game selected by the currently active filter.  The 0th element
    of the array is the currently selected game, and each subsequent
    element is the ID of the next game to the right on the wheel.  Since
    the wheel is conceptually circular, the last element of the array
    is the game displayed in the wheel one position left from the
    current game.
+</p>
+
+<p>
+   <a name="getCurFilter"></a>
+   <b>gameList.getCurFilter():</b>  Returns the ID of the currently active
+   filter.  This can be passed to gameList.getFilterInfo() to get the
+   filter's details.
+</p>
+
+<p>
+   <a name="getFilterInfo"></a>
+   <b>gameList.getFilterInfo(<i>id</i>):</b>  Returns a <a href="FilterInfo.html">FilterInfo</a>
+   object describing the filter identified by <i>id</i>.  The <i>id</i> value is a string
+   with the filter ID, as provided in <a href="FilterSelectEvent.html"><b>filterselect</b></a>
+   events.  See <a href="FilterInfo.html">FilterInfo</a> for details.
 </p>
 
 <p>
@@ -60,30 +96,14 @@
    is loaded.  This is the same ID value that appears in
    <a href="GameSelectEvent.html"><b>gameselect</b></a> events to identify
    a newly selected game.  The returned object contains most of PinballY's
-   information on the game; see <a href="#gameInfo">Game Info</a> below for
-   details.  If the game ID is invalid, the function returns
-   null.
-</p>
-
-<p>
-   <a name="getHighScores"></a>
-   <b>gameList.getHighScores(<i>id</i>):</b>  Get the high scores for the
-   given game, identified by its <a href="#gameID">Game ID</a>.  High scores
-   are handled by an external program (PinEMHi), so this function operates
-   asynchronously.  Instead of just returning the score information, it
-   returns a Javascript Promise object, which is resolved when the high
-   score information is retrieved successfully.  The promise can also be
-   rejected, which can happen if the game has no high score information
-   or the PinEMHi launch attempt fails.  On success, the "resolve" callback
-   is invoked with an array of strings, containing the high score text
-   returned from PinEMHi, one line of text per array element.  See
-   <a href="#highScores">Retrieving high scores</a>
-   below for a usage example.
+   information on the game; see <a href="#gameInfo">Retrieving information
+   on a game</a> below for details.  If the game ID is invalid, the function
+   returns null.
 </p>
 
 <p>
    <a name="getGame"></a>
-   <b>gameList.getGame(<i>n</i>):</b>  Returns the <a href="#gameID">Game ID</a>
+   <b>gameList.getGame(<i>n</i>):</b>  Returns the <a href="GameInfo.html#gameID">Game ID</a>
    of the <i>n</i>th game.  <i>n</i> is an index into the list of all loaded
    games, ranging from 0 to the number of games in the list minus 1.  You can
    get the total number of games from getGameCount().
@@ -98,7 +118,7 @@
 
 <p>
    <a name="getWheelGame"></a>
-   <b>gameList.getWheelGame(<i>n</i>):</b>  Returns the <a href="#gameID">Game ID</a>
+   <b>gameList.getWheelGame(<i>n</i>):</b>  Returns the <a href="GameInfo.html#gameID">Game ID</a>
    of the game at offset <i>n</i> from the selected game in the wheel.  The
    currently selected game is at offset 0, so gameList.getWheelGame(0) returns
    the ID of the selected game.  Offset 1 is the next game to the right of the
@@ -117,63 +137,19 @@
    filter.
 </p>
 
-
-
-<a name="gameID"></a>
-<h2>Game IDs</h2>
 <p>
-   Whenever the system needs to refer to a game in a Javascript event
-   or in information returned to Javascript from a system function, it
-   uses a game ID value as the reference.  A game ID is an integer
-   value that uniquely identifies the in-memory object describing
-   the game.
-</p>
-<p>
-   A game ID value isn't permanent; it's only valid as long as the
-   in-memory object for the game exists.  The in-memory object for a
-   game is initially created when PinballY starts up and scans for game
-   files and database entries, and only exists until (a) the end of
-   the current program session, or (b) the game lists are re-loaded,
-   whichever comes first.  So you obviously shouldn't store these IDs
-   in external files that might persist across sessions, as they'd
-   be meaningless in a future session.
-</p>
-<p>
-   You also have to be careful about caching these IDs for later re-use
-   during the same session, since they become invalid any time the
-   game list is re-loaded.  The program has to re-load the game lists
-   any time the user updates anything in the Settings dialog, since
-   settings changes can affect what's included in the game lists.
-   If you're maintaining a cache of IDs, you should create a listener
-   for the <a href="ConfigChangeEvent.html"><b>configchange</b></a> event,
-   and clear your cache any time it occurs.
+   <a name="setCurFilter"></a>
+   <b>gameList.setCurFilter(<i>id</i>):</b>  Changes the active filter
+   for the wheel UI.  <i>id</i> can a string with the ID of the desired
+   filter, or a number in the range command.FilterFirst to command.FilterLast
+   (see <a href="Commands.html">Commands</a>), identifying the filter by
+   its associated menu command.  The <a href="FilterSelectEvent.html"><b>filterselect</b></a>
+   event is <b>not</b> fired when you change the filter with this function.
 </p>
    
 
-<a name="configID"></a>
-<h2>Config IDs</h2>
-<p>
-   The program has a second identifier for each game, known as the
-   "config ID", that's more stable across sessions.  It's called the
-   config ID because PinballY uses it to store game references in
-   its own configuration files.  You can use it for similar purposes.
-</p>
-<p>
-   The config ID is based on the game's title and system name.
-   This makes it stable across sessions, but it's not necessarily
-   permanent for a given in-memory record.  Since it's based on the game's
-   title and player system, the config ID for an in-memory record changes
-   whenever you change the game's title, assign it to a different system, or
-   change the display name of the player system. 
-</p>
-<p>
-   The way to think about the config ID is as a permanent identifier for
-   a game in the abstract, as opposed to a concrete file that
-   implements that abstract game: "Medieval Madness for Visual Pinball 9"
-   is the abstraction, and "C:\VisualPinball\Tables\mm_1234.vpt" might
-   be one concrete file that implements it.
-</p>
 
+<a name="gameInfo"></a>
 <h2>Retrieving information on a game</h2>
 
 <p>
@@ -181,204 +157,23 @@
    that the system keeps internally by calling
    <a href="#getGameInfo">gameList.getGameInfo(<i>id</i>)</a>.
    For example, here's how you could retrieve the title of the
-   newly selected game each time the wheel selection changes:
+   newly selected game each time the wheel selection changes, and
+   store it in a global variable:
 </p>
 <div class="code">
 let curTitle;
-mainWindow.on("gameselect", ev =&gt; {
+gameList.on("gameselect", ev =&gt; {
     if (ev.id)
        curTitle = gameList.getGameInfo(ev.id).title;
 });
 </div>
 
 <p>
-   The return value from gameList.getGameInfo() is an object containing
-   the game's details in its properties.  This object is just a copy of the
-   system's internal records for the game, so changing the properties won't
-   change anything in the on-screen display or the database files.  The
-   properties are:
+   The return value from gameList.getGameInfo() is a <a href="GameInfo.html">GameInfo</a>
+   object containing the game's details.  See <a href="GameInfo.html">GameInfo</a>
+   for more information.
 </p>
-<ul>
-   <li><b>categories:</b>  An array containing the game's category tags, as
-   strings.  The user can tag a game with any number of categories through
-   the Game Setup menu in the wheel UI.
-   
-   <li><b>configID:</b>  A string giving the configuration ID of the game.
-   See <a href="#configID">Config IDs</a> above.
 
-   <li><b>dbFile:</b>  The full name (including folder path) of the XML database
-   file containing this game's entry.  If the game isn't configured, this
-   is undefined.  Every configured game has an entry in exactly one XML file.
-   The XML file is always associated with the game's designated player system,
-   but any given system can have multiple XML files, because HyperPin and
-   PinballX used the file location as a simple category system.
-
-   <li><b>dateAdded:</b>  A Date value representing the time and date when the
-   database entry for the game was added to PinballY.  Undefined if the game hasn't
-   been configured.
-
-   <li><b>displayName:</b>  The display name for the game.  This is the name that the
-   program displays on-screen for the game, such as in the wheel UI and the game information
-   popup box.  It's formed from the title, manufacturer, and year, or whatever subset
-   of those is available.
-
-   <li><b>filename:</b>  The filename of the game <i>as it appears in the XML
-   database file</i>.  The database entry might have made manually by the user or by
-   a HyperPin or PinballX table manager tool, so the format varies.  PinballY's
-   convention, which it tries to apply uniformly when editing the files, is to
-   store the root filename only.  But if you've manually edited the files or
-   migrated data from another system, the path and/or extension might be present.
-
-   <li><b>gridPos:</b>  An object with properties .row and .column, both integers,
-   giving the "grid position" of the game as stored in the game database.  This is
-   mostly provided as a special case for Farsight's <i>The Pinball Arcade</i>, which
-   doesn't provide a way for an external program to launch a specific game, but
-   instead always presents its own game selection UI at startup.  The grid position
-   is a (poor) attempt to work around that by enabling PinballY to send a series
-   of simulated keystrokes to TPA to navigate the selection UI automatically.
-   The selection UI arranges all of the games into a rectangular grid, so in
-   principle you can send a series of keystrokes to launch a particular game
-   if you know its position in the grid.  In practice this has proven to be
-   unreliable, since TPA's startup UI is too unpredictable: it frequently pops
-   up extra startup alert messages that throw the key macros out of sync, for example,
-   and of course the grid layout changes every time they add a game.  Plus they
-   change the overall UI from time to time.  Even so, PinballY provides this
-   information for users who want to try to make it work.
-
-   <li><b>highScoreStyle:</b>  A string with the high score style for the game,
-   for the purposes of generating the automatic high score display in the video DMD
-   window.  This should be one of "Auto", "DMD", "Alpha", "TT", or "None".  It can
-   also be undefined if no high score style has been set (in which case the system
-   uses the "Auto" default).
-
-   <li><b>id:</b>  The integer ID of the game (the same value passed to getGameInfo()
-   to identify the game).  See <a href="#gameID">Game IDs</a> above.
-
-   <li><b>isConfigured:</b>  A boolean value indicating if the game has been
-   configured.  A configured game has an XML database entry; an unconfigured game
-   represents a playable game file that PinballY found in a system's table folder,
-   but which doesn't have a corresponding XML database entry.
-
-   <li><b>isFavorite:</b>  A boolean indicating if the game is marked as a favorite.
-   The user can designate a game as a favorite through the main menu in the wheel UI.
-
-   <li><b>isHidden:</b>  A boolean value indicating if the game has been hidden.
-   The user can hide a game via the Game Setup menu in the wheel UI.  A hidden
-   game isn't shown in the wheel UI <i>except</i> when the "Hidden Games"
-   filter is selected.  The system still keeps track of hidden games
-   internally, though, specifically so that it can remember not to display
-   them in the normal wheel UI when it discovers their game files during the
-   table folder scan at startup.
-
-   <li><b>isMarkedForCapture:</b>  A boolean value indicating if the game has
-   been marked for capture.  The user can mark games for capture through the
-   Game Setup menu in the wheel UI.
-
-   <li><b>lastPlayed:</b>  A Date value representing the time and date when the
-   game was last launched from PinballY.  Undefined if the game has never been played.
-
-   <li><b>manufacturer:</b>  A string with the name of the manufacturer, if set.
-
-   <li><b>mediaName:</b>  The "media name" for the game.  This is the root filename
-   (without path or extension) used for all of the game's media files.  To form
-   the full file system name of a particular media file (e.g., the playfield video),
-   the system combines the directory path for the file type, the media name, and a
-   filename extension for the type.
-
-   <li><b>path:</b>  The full file system path of the directory containing the
-   file, if known.
-
-   <li><b>playCount:</b>  An integer giving the number of times the game has
-   been launched from PinballY.
-
-   <li><b>playTime:</b>  An integer giving the total amount of time the game has
-   been played when started from PinballY, in seconds.
-
-   <li><b>rating:</b>  A number giving the user's "star" rating entry for the
-   game (0 to 5, in increments of 0.5: 2.5 represents 2&frac12; stars).  The
-   special value -1 means the game has no rating.
-
-   <li><b>rom:</b>  The name of the ROM for the game, if a ROM has been entered
-   manually in the database.  The ROM name can usually be inferred from the title,
-   so this is usually undefined.
-
-   <li><b>system:</b>  A string with the name of the designated player system
-   for the game, if set.  This is the display name of the system.
-
-   <li><b>title:</b>  The title of the game.  If the game has been configured, this
-   is the title manually entered by the user; it's generally the title that the game
-   is officially known by, such as "The Addams Family" or "Funhouse".  If the game
-   hasn't been configured, this is simply the filename.
-
-   <li><b>year:</b>  An integer giving the game's original release year (e.g., 1995),
-   if set in the game database.
-
-</ul>
-
-<a name="highScores"></a>
-<h2>Retrieving high scores</h2>
-
-<p>
-   The function <a href="#getHighScores">gameList.getHighScores(<i>id</i>)</a> lets you
-   get the high score information for a game, if it's available.  This function works
-   asynchronously: it doesn't directly return the high score information, but rather
-   returns a Javascript Promise object, which invokes a callback you provide when
-   the background operation completes.  "Promise" is a standard Javascript
-   ES6 feature, so you can find more information about Promises in general on the Web.
-</p>
-<p>
-   The reason that we have to use the asynchronous Promise scheme is that high
-   scores are obtained via a separate program, PinEMHi.  We launch that as
-   a child process, which can take
-   a couple of seconds, so we don't want to hold up the UI waiting for it to finish.
-   Instead, we launch the program in the background, and let it run separately
-   while we carry on with our regular UI activity.  When PinEMHi finishes, we 
-   go back to processing the results.  The Javascript Promise was designed for
-   exactly this type of scenario, and it makes the asynchronous handling easy
-   to code.
-</p>
-<p>
-   Here's the process for retrieving high scores:
-</p>
-<ul>
-   <li>Call gameList.getHighScores(<i>id</i>), passing the ID of the game whose
-   scores you want to retrieve
-
-   <li>The return value from getHighScores() is a Promise object, so you call
-   .then(<i>completionFunction</i>) on the result of getHighScores() to set up
-   the completion function
-
-   <li>In the completion function, you write your script code to handle the
-   results
-
-   <li>If you want to do anything if the request fails, you can also write
-   a .catch(<i>errorFunction</i>) handler that carries out that work
-</ul>
-
-<p>
-   The completion function that you provide to .then() takes a single argument,
-   which is an array of strings containing the results from PinEMHi.  This
-   is simply the PinEMHi text output, broken up into one string per line of
-   text.
-</p>
-<p>
-   Here's an example that gets the high scores for each new game that's
-   selected in the wheel UI, and displays the results on the debugger
-   console.  It ignores errors, so there won't be any messages for games
-   that don't have high scores available, or if anything goes wrong
-   trying to launch PinEMHi.
-</p>
-<div class="code">
-mainWindow.on("gameselect", ev =&gt; {
-    // if a game is selected, request its high scores
-    if (ev.id)
-    {
-        let info = gameList.getGameInfo(ev.id);
-        gameList.getHighScores(ev.id).then(scores =>
-            console.log(info.title + " - High Scores:\n" + scores.join("\n")));
-    }
-});
-</div>   
 
 </body>
 </html>

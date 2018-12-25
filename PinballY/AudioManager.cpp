@@ -35,27 +35,25 @@ AudioManager::AudioManager()
 
 AudioManager::~AudioManager()
 {
-	// Make a first pass through the sound table.  For each
-	// sound, delete it if it's not in use, and add it to a
-	// pending-deletion list if it is.
-	std::list<DirectX::SoundEffect*> pending;
-	for (auto const &s : sounds)
+	// Go through the cached sounds to check for items that are
+	// still playing.  Move each item that's actively playing to
+	// a separate pending list.
+	std::list<std::unique_ptr<DirectX::SoundEffect>> pending;
+	for (auto &s : cache)
 	{
-		// check if it's been deleted yet
+		// if it hasn't been updated, transfer it to the pending list
 		if (s.second->IsInUse())
-		{
-			// it's still being played, so we can't delete it yet; 
-			// just add it to the pending list
-			pending.push_back(s.second);
-		}
-		else
-		{
-			// it's ready for deletion 
-			delete s.second;
-		}
+			pending.emplace_back(s.second.release());
 	}
 
-	// Now wait for the remaining ones to finish, within reason
+	// Anything left in the cache can now be deleted, as we 
+	// transfered all active items over to 'pending'.  We don't
+	// actually have to clear the cache manually, as the map
+	// destructor would do that anyway, but we might as well
+	// do that work while we're waiting for sounds to finish.
+	cache.clear();
+
+	// Now wait for the remaining sounds to finish, within reason
 	DWORD t0 = GetTickCount();
 	while (pending.size() != 0 && GetTickCount() - t0 < 30000)
 	{
@@ -65,62 +63,64 @@ AudioManager::~AudioManager()
 		// do engine housekeeping
 		engine->Update();
 
-		// visit the pending list again
-		for (auto it = pending.begin(); it != pending.end(); )
-		{
-			// get the next item now, in case we remove this item
-			auto nxt = it;
-			nxt++;
-
-			// if this one is finished playing, we can delete it
-			if (!(*it)->IsInUse())
-			{
-				delete *it;
-				pending.erase(it);
-			}
-
-			// move on
-			it = nxt;
-		}
+		// clean the pending list
+		CleanSoundList(pending);
 	}
 
 	// delete the DXTK audio engine object
 	delete engine;
 }
 
-void AudioManager::PlaySoundEffect(const TCHAR *name)
+void AudioManager::PlayAsset(const TCHAR *name)
 {
-	// look up the sound effect in our effect table
-	if (auto it = sounds.find(name); it != sounds.end())
+	// build the full filename
+	MsgFmt base(_T("assets\\%s.wav"), name);
+	TCHAR path[MAX_PATH];
+	GetDeployedFilePath(path, base, _T(""));
+
+	// play the file
+	PlayFile(path);
+}
+
+void AudioManager::PlayFile(const TCHAR *path)
+{
+	// look for an existing instance in our cache
+	if (auto it = cache.find(path); it != cache.end())
 	{
 		// got it - simply reuse the existing effect
 		it->second->Play();
 	}
 	else
 	{
-		// build the full filename
-		MsgFmt base(_T("assets\\%s.wav"), name);
-		TCHAR path[MAX_PATH];
-		GetDeployedFilePath(path, base, _T(""));
-
 		// load the effect and start it playing
-		auto sound = new DirectX::SoundEffect(engine, path);
+		auto sound = std::make_unique<DirectX::SoundEffect>(engine, path);
 		sound->Play();
 
-		// add it to our cache
-		sounds[name] = sound;
+		// add it to the cache
+		cache.emplace(path, sound.release());
 	}
-}
-
-void AudioManager::PlaySoundFile(const TCHAR *filename)
-{
-	auto sound = new DirectX::SoundEffect(engine, filename);
-	sound->Play();
 }
 
 void AudioManager::Update()
 {
+	// update the engine
 	if (!engine->Update() && engine->IsCriticalError())
 		criticalError = true;
 }
 
+void AudioManager::CleanSoundList(std::list<std::unique_ptr<DirectX::SoundEffect>> &list)
+{
+	for (auto it = list.begin(); it != list.end(); )
+	{
+		// remember the next item in case we unlink this one
+		auto nxt = it;
+		nxt++;
+
+		// if this one is done, remove it
+		if (!(*it)->IsInUse())
+			list.erase(it);
+
+		// move on to the next item
+		it = nxt;
+	}
+}

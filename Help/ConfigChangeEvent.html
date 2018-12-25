@@ -18,7 +18,7 @@
 <p>
    This event has only one subtype:
 <ul>
-   <li><b>configchangeevent:</b> Fires after a configuration change is
+   <li><b>configchange:</b> Fires after a configuration change is
    processed.  This event fires after the fact, so it's not cancelable.
 </ul>
 
@@ -41,6 +41,10 @@
    during this process, so any past <a href="GameList.html#gameID">game IDs</a>
    that your script code might have obtained become invalid.  If you're
    caching game IDs, you should clear your cache on this event.
+</p>
+<p>
+   Any table media files (playfield videos or images, etc) currently being
+   displayed are also reloaded.
 </p>
    
 

@@ -119,8 +119,11 @@ public:
 
 	// Look up a key by ID (keyID from the keyName table).  This 
 	// returns the virtual key code (VK_xxx or VKE_xxx) for one of 
-	// our  key names.  Returns -1 if the name isn't found.
+	// our key names.  Returns -1 if the name isn't found.
 	int KeyByID(const TCHAR *name);
+
+	// Look up a key by Javascript key code
+	int KeyByJsKeyCode(const TCHAR *code);
 
 protected:
 	KeyInput();
@@ -133,4 +136,7 @@ protected:
 	// allows fast lookup of the key names, for parsing config
 	// files.
 	std::unordered_map<TSTRING, int> keyIdMap;
+
+	// Map of jsEventCode names to vkey values
+	std::unordered_map<TSTRING, int> jsCodeMap;
 };

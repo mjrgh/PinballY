@@ -64,6 +64,19 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messa
 	if ((err = JsCreateRuntime(static_cast<JsRuntimeAttributes>(attrs), nullptr, &runtime)) != JsNoError)
 		return Error(_T("JsCreateRuntime"));
 
+	// Create the execution context - this represents the "global" object
+	// at the root of the javascript namespace.
+	if ((err = JsCreateContext(runtime, &ctx)) != JsNoError)
+		return Error(_T("JsCreateContext"));
+
+	// make the context current
+	if ((err = JsSetCurrentContext(ctx)) != JsNoError)
+		return Error(_T("JsSetCurrentContext"));
+
+	// set the Promise continuation callback
+	if ((err = JsSetPromiseContinuationCallback(&PromiseContinuationCallback, this)) != JsNoError)
+		return Error(_T("JsSetPromiseContinuationCallback"));
+
 	// Enable debugging if desired
 	if (debug != nullptr && debug->enable)
 	{
@@ -229,19 +242,6 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messa
 			break;
 		}
 	}
-
-	// Create the execution context - this represents the "global" object
-	// at the root of the javascript namespace.
-	if ((err = JsCreateContext(runtime, &ctx)) != JsNoError)
-		return Error(_T("JsCreateContext"));
-
-	// make the context current
-	if ((err = JsSetCurrentContext(ctx)) != JsNoError)
-		return Error(_T("JsSetCurrentContext"));
-
-	// set the Promise continuation callback
-	if ((err = JsSetPromiseContinuationCallback(&PromiseContinuationCallback, this)) != JsNoError)
-		return Error(_T("JsSetPromiseContinuationCallback"));
 
 	// Set up the module import host callbacks.  Note the catch-22
 	// mentioned in the ChakraCore documentation: we have to do this
@@ -7206,7 +7206,8 @@ void JavascriptEngine::InitNativeObjectProto(NativeTypeCacheEntry *entry, SigPar
 
 			// Add getter/setter properties for [0], [1], [2], etc.  This will at
 			// least make it look superficially like an array.
-			for (size_t i = 0, eleOffset = 0; i < dim; ++i, eleOffset += sizer.size)
+			size_t eleOffset = 0;
+			for (int i = 0 ; i < dim; ++i, eleOffset += sizer.size)
 			{
 				TCHAR iAsStr[32];
 				IF_32_64(_itow_s(i, iAsStr, 10), _ui64tow_s(i, iAsStr, countof(iAsStr), 10));
@@ -8152,7 +8153,7 @@ JavascriptEngine::NativeDataTracker::~NativeDataTracker()
 				MarshallBasicSizer sizer(&subsig, JS_INVALID_REFERENCE);
 				sizer.Marshall();
 
-				for (size_t i = 0; i < dim; ++i, data += sizer.size)
+				for (int i = 0; i < dim; ++i, data += sizer.size)
 					Visit(sig, sigEnd - sig, data);
 			}
 		}

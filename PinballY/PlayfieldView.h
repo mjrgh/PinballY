@@ -1935,20 +1935,21 @@ protected:
 	// key event queue
 	struct QueuedKey
 	{
-		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand) { }
+		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand), scripted(false) { }
 
-		QueuedKey(HWND hWndSrc, KeyPressType mode, bool bg, const KeyCommand *cmd)
-			: hWndSrc(hWndSrc), mode(mode), bg(bg), cmd(cmd) { }
+		QueuedKey(HWND hWndSrc, KeyPressType mode, bool bg, bool scripted, const KeyCommand *cmd)
+			: hWndSrc(hWndSrc), mode(mode), bg(bg), cmd(cmd), scripted(scripted) { }
 
 		HWND hWndSrc;           // source window
 		KeyPressType mode;      // key press mode
 		bool bg;                // background mode
+		bool scripted;          // originated from a script
 		const KeyCommand *cmd;  // command
 	};
 	std::list<QueuedKey> keyQueue;
 
 	// Add a key press to the queue and process it
-	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, std::list<const KeyCommand*> cmds);
+	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, bool scripted, std::list<const KeyCommand*> cmds);
 
 	// Process the key queue.  On a keyboard event, we add the key
 	// to the queue and call this routine; we also call it whenever
@@ -2134,6 +2135,12 @@ protected:
 	// logfile object
 	JsValueRef jsLogfile = JS_INVALID_REFERENCE;
 
+	// GameInfo class (prototype for getGameInfo() result objects)
+	JsValueRef jsGameInfo = JS_INVALID_REFERENCE;
+
+	// FilterInfo class (prototype for getFilterInfo() result objects)
+	JsValueRef jsFilterInfo = JS_INVALID_REFERENCE;
+
 	// event objects
 	JsValueRef jsCommandButtonDownEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsCommandButtonUpEvent = JS_INVALID_REFERENCE;
@@ -2158,6 +2165,7 @@ protected:
 	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsConfigChangeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsFilterSelectEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2175,6 +2183,7 @@ protected:
 	bool FireAttractModeEvent(bool starting);
 	void FireWheelModeEvent();
 	void FireGameSelectEvent(GameListItem *game);
+	bool FireFilterSelectEvent(GameListFilter *filter);
 	void FireConfigChangeEvent();
 
 	// Current UI mode, for Javascript purposes
@@ -2236,9 +2245,12 @@ protected:
 	// Get the active UI window
 	JsValueRef JsGetActiveWindow();
 
-	// Carry out a command
+	// Carry out a menu command
 	bool JsDoCommand(int cmd);
 
+	// Carry out a button command
+	void JsDoButtonCommand(WSTRING cmd, bool down, bool repeat);
+	
 	// Show a menu
 	void JsShowMenu(WSTRING name, std::vector<JsValueRef> items, JavascriptEngine::JsObj options);
 
@@ -2249,8 +2261,11 @@ protected:
 	// Get game information
 	JsValueRef JsGetGameInfo(int id);
 
-	// get high score information
-	JsValueRef JsGetHighScores(int id);
+	// GameInfo methods
+	JsValueRef JsGetHighScores(JsValueRef self);
+	JsValueRef JsResolveGameFile(JsValueRef self);
+	JsValueRef JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist);
+	JsValueRef JsResolveROM(JsValueRef self);
 
 	// get the total number of games/nth game in the overall game list/array of games
 	int JsGetGameCount();
@@ -2262,6 +2277,26 @@ protected:
 	int JsGetWheelGame(int n);
 	JsValueRef JsGetAllWheelGames();
 
+	// get/set the current game list filter
+	WSTRING JsGetCurFilter();
+	void JsSetCurFilter(WSTRING id);
+
+	// get all filters
+	JsValueRef JsGetAllFilters();
+
+	// get information on a filter
+	JsValueRef JsGetFilterInfo(WSTRING id);
+
+	// FilterInfo methods
+	JsValueRef JsFilterInfoGetGames(JsValueRef self);
+	bool JsFilterInfoTestGame(JsValueRef self, int gameId);
+
+	// play a button sound
+	void JsPlayButtonSound(WSTRING name);
+
+	// get the command assigned to a key or joystick button
+	JsValueRef JsGetKeyCommand(JavascriptEngine::JsObj desc);
+	
 
 	//
 	// Button command handlers

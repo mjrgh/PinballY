@@ -344,14 +344,8 @@ void GameList::RestoreConfig()
 	if (const TCHAR *filterId = cfg->Get(ConfigVars::CurFilter); filterId != 0)
 	{
 		// search for the filter
-		for (auto it : filters)
-		{
-			if (it->GetFilterId() == filterId)
-			{
-				SetFilter(it);
-				break;
-			}
-		}
+		if (auto f = GetFilterById(filterId); f != nullptr)
+			SetFilter(f);
 	}
 
 	// look up the current game, if any
@@ -550,6 +544,19 @@ void GameList::SetGame(int n)
 
 	// switch to the new game, wrapping at the ends of the list
 	curGame = Wrap(curGame + n, cnt);
+}
+
+GameListFilter *GameList::GetFilterById(const TCHAR *id)
+{
+	// search for a filter matching the ID
+	for (auto it : filters)
+	{
+		if (it->GetFilterId() == id)
+			return it;
+	}
+
+	// not found
+	return nullptr;
 }
 
 GameListFilter *GameList::GetFilterByCommand(int cmdID)
@@ -1358,6 +1365,61 @@ bool GameList::Load(ErrorHandler &eh)
 	// Build the title index
 	BuildTitleIndex();
 
+	// Create the star rating filters
+	for (int stars = -1; stars <= 5; ++stars)
+	{
+		// add the filter
+		auto it = ratingFilters.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(stars),
+			std::forward_as_tuple(stars));
+	}
+
+	// Create the recency filters.  These sort games by how recently
+	// they've been played.
+	auto CreateRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
+	{
+		// create the filter
+		recencyFilters.emplace_back(
+			LoadStringT(titleStringId).c_str(), 
+			LoadStringT(menuStringId).c_str(),
+			days, exclude);
+	};
+	CreateRecencyFilter(IDS_FILTER_THISWEEK, IDS_SFILTER_THISWEEK, 7, false);
+	CreateRecencyFilter(IDS_FILTER_THISMONTH, IDS_SFILTER_THISMONTH, 30, false);
+	CreateRecencyFilter(IDS_FILTER_THISYEAR, IDS_SFILTER_THISYEAR, 365, false);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISWEEK, IDS_SFILTER_NOTTHISWEEK, 7, true);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISMONTH, IDS_SFILTER_NOTTHISMONTH, 30, true);
+	CreateRecencyFilter(IDS_FILTER_NOTTHISYEAR, IDS_SFILTER_NOTTHISYEAR, 365, true);
+
+	// For the "Never Played" filter, use an absurdly long interval
+	// of a million years, and of course the "exclude" flag.  This
+	// effectively filters out anything with a valid Last Played time,
+	// thus selecting only games that have never been played.  It's
+	// certainly possible to construct a valid date before a million
+	// years ago and put it in the database by hand, but we'd never 
+	// create that sort of timestamp organically, so the only way this 
+	// filter would get confused is if someone was intentionally trying
+	// to confuse it.  In which case it's their problem!
+	CreateRecencyFilter(IDS_FILTER_NEVERPLAYED, IDS_SFILTER_NEVERPLAYED, 365242200, true);
+
+	// Create the installation recency filters.  These sort games by
+	// how recently they were added to the database.
+	auto CreateInstRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
+	{
+		// create the filter
+		instRecencyFilters.emplace_back(
+			LoadStringT(titleStringId).c_str(),
+			LoadStringT(menuStringId).c_str(),
+			days, exclude);
+	};
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISWEEK, IDS_SFILTER_THISWEEK, 7, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISMONTH, IDS_SFILTER_THISMONTH, 30, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISYEAR, IDS_SFILTER_THISYEAR, 365, false);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERWEEK, IDS_SFILTER_WEEKAGO, 7, true);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERMONTH, IDS_SFILTER_MONTHAGO, 30, true);
+	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERYEAR, IDS_SFILTER_YEARAGO, 365, true);
+
 	// Create the master filter list.  The UI uses this to construct
 	// menus to select filters, by selecting subsets of the filters
 	// of desired types, usually by C++ class (using dynamic_cast<>).
@@ -1372,7 +1434,26 @@ bool GameList::Load(ErrorHandler &eh)
 	// important within subclass groups, because the UI never
 	// presents all of the filters in a single flat list (such a
 	// list would be too long for usability's sake).
-	
+	BuildMasterFilterList();
+
+	// set the "all games" filter to populate the initial filter list
+	SetFilter(&allGamesFilter);
+
+	// success
+	return true;
+}
+
+void GameList::CheckMasterFilterList()
+{
+	if (isFilterListDirty)
+		BuildMasterFilterList();
+}
+
+void GameList::BuildMasterFilterList()
+{
+	// clear any existing list
+	filters.clear();
+
 	// Start with the "All Games" filter
 	AddFilter(&allGamesFilter);
 
@@ -1381,7 +1462,7 @@ bool GameList::Load(ErrorHandler &eh)
 
 	// Add the Unconfigured Games filter
 	AddFilter(&unconfiguredGamesFilter);
-	
+
 	// Add the Favorites filter
 	AddFilter(&favoritesFilter);
 
@@ -1436,75 +1517,20 @@ bool GameList::Load(ErrorHandler &eh)
 	// Add the "Uncategorized" filter at the end
 	AddFilter(&noCategoryFilter);
 
-	// Create the rating filters
-	for (int stars = -1; stars <= 5; ++stars)
-	{
-		// add the filter
-		auto it = ratingFilters.emplace(
-			std::piecewise_construct,
-			std::forward_as_tuple(stars),
-			std::forward_as_tuple(stars));
+	// Add the star rating filters
+	for (auto &r : ratingFilters)
+		AddFilter(&r.second);
 
-		// add it to the master list
-		AddFilter(&it.first->second);
-	}
+	// Add the recently-played filters
+	for (auto &r : recencyFilters)
+		AddFilter(&r);
 
-	// Create the recency filters.  These sort games by how recently
-	// they've been played.
-	auto CreateRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
-	{
-		// create the filter
-		recencyFilters.emplace_back(
-			LoadStringT(titleStringId).c_str(), 
-			LoadStringT(menuStringId).c_str(),
-			days, exclude);
+	// Add the when-added filters
+	for (auto &r : instRecencyFilters)
+		AddFilter(&r);
 
-		// add it to the master list
-		AddFilter(&recencyFilters.back());
-	};
-	CreateRecencyFilter(IDS_FILTER_THISWEEK, IDS_SFILTER_THISWEEK, 7, false);
-	CreateRecencyFilter(IDS_FILTER_THISMONTH, IDS_SFILTER_THISMONTH, 30, false);
-	CreateRecencyFilter(IDS_FILTER_THISYEAR, IDS_SFILTER_THISYEAR, 365, false);
-	CreateRecencyFilter(IDS_FILTER_NOTTHISWEEK, IDS_SFILTER_NOTTHISWEEK, 7, true);
-	CreateRecencyFilter(IDS_FILTER_NOTTHISMONTH, IDS_SFILTER_NOTTHISMONTH, 30, true);
-	CreateRecencyFilter(IDS_FILTER_NOTTHISYEAR, IDS_SFILTER_NOTTHISYEAR, 365, true);
-
-	// For the "Never Played" filter, use an absurdly long interval
-	// of a million years, and of course the "exclude" flag.  This
-	// effectively filters out anything with a valid Last Played time,
-	// thus selecting only games that have never been played.  It's
-	// certainly possible to construct a valid date before a million
-	// years ago and put it in the database by hand, but we'd never 
-	// create that sort of timestamp organically, so the only way this 
-	// filter would get confused is if someone was intentionally trying
-	// to confuse it.  In which case it's their problem!
-	CreateRecencyFilter(IDS_FILTER_NEVERPLAYED, IDS_SFILTER_NEVERPLAYED, 365242200, true);
-
-	// Create the installation recency filters.  These sort games by
-	// how recently they were added to the database.
-	auto CreateInstRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
-	{
-		// create the filter
-		instRecencyFilters.emplace_back(
-			LoadStringT(titleStringId).c_str(),
-			LoadStringT(menuStringId).c_str(),
-			days, exclude);
-
-		// add it to the master list
-		AddFilter(&instRecencyFilters.back());
-	};
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISWEEK, IDS_SFILTER_THISWEEK, 7, false);
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISMONTH, IDS_SFILTER_THISMONTH, 30, false);
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISYEAR, IDS_SFILTER_THISYEAR, 365, false);
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERWEEK, IDS_SFILTER_WEEKAGO, 7, true);
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERMONTH, IDS_SFILTER_MONTHAGO, 30, true);
-	CreateInstRecencyFilter(IDS_FILTER_ADDEDOVERYEAR, IDS_SFILTER_YEARAGO, 365, true);
-
-	// set the "all games" filter to populate the initial filter list
-	SetFilter(&allGamesFilter);
-
-	// success
-	return true;
+	// the list is now up-to-date
+	isFilterListDirty = false;
 }
 
 void GameList::BuildTitleIndex() 
@@ -1842,80 +1868,56 @@ bool GameList::LoadGameDatabaseFile(
 				// did it, so we're stuck with it if we want to parse their files.  It
 				// does have the advantage that we can use the description elements as
 				// fallbacks in case the separate fields weren't specified.  
-				CSTRING title;
-				std::regex pat("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s+(\\d{4})\\s*\\)\\s*$");
+				//
+				// This can also be just "Title (Manufacturer)" or "Title (Year)" when
+				// only one of the items is known, so check for the three formats.
+				static const std::regex patManYear("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s+(\\d{4})\\s*\\)\\s*$");
+				static const std::regex patYear("^\\s*(.*?)\\s*\\(\\s*(\\d{4})\\s*\\)\\s*$");
+				static const std::regex patMan("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s*\\)\\s*$");
 				std::match_results<const char *> m;
-				if (std::regex_match(desc, m, pat))
+				CSTRING title;
+				if (std::regex_match(desc, m, patManYear))
 				{
-					// matched the pattern - pull out the title
+					// We matched the "Title (Manufacturer Year)" pattern.  Pull out the
+					// base title stripped of the suffix, and use the manufacturer and
+					// year in the suffix to infer the corresponding metadata items if
+					// they weren't explicitly specified.
 					title = m[1].str().c_str();
-
-					// pull out the manufacturer and year, if they weren't provided
-					// in the separate database fields
 					if (manufName.length() == 0)
 						manufName = AnsiToTSTRING(m[2].str().c_str());
 					if (year == 0)
 						year = atoi(m[3].str().c_str());
 				}
+				else if (std::regex_match(desc, m, patYear))
+				{
+					// Matched the "Title (Year)" pattern.  There's an off chance that
+					// the YYYY pattern is actually the manufacturer name, since that
+					// would end up looking just the same in the combined string.  We
+					// obviously can't tell from the string itself (since it looks the
+					// same either way), but we can at least check it against the
+					// explicit metadata: if it matches, it must not be the year.
+					title = m[1].str().c_str();
+					if (year == 0 && (manufName.length() == 0 || AnsiToTSTRING(m[2].str().c_str()) != manufName))
+						year = atoi(m[2].str().c_str());
+				}
+				else if (std::regex_match(desc, m, patMan))
+				{
+					// matched the "Title (Manufacturer)" pattern
+					title = m[1].str().c_str();
+					if (manufName.length() == 0)
+						manufName = AnsiToTSTRING(m[2].str().c_str());
+				}
 				else
 				{
-					// it's not in the standard format, so use the whole string
-					// as the title
+					// no match - use the desc as the title, exactly as specified
 					title = desc;
 				}
 
 				// look up or create the manufacturer object
 				GameManufacturer *manuf = FindOrAddManufacturer(manufName.c_str());
 
-				// If a release year is specified, figure out which "era"
-				// filter the year fits in.  For years before 2000, we create
-				// an era filter by decade (1970s, 1980s, etc).  For 2000 and
-				// beyond, we use a single "2000s" filter.  We *could* filter
-				// by decade even in the 2000s, but I think it works better
-				// to lump them all into one bucket for now, since the 2000s
-				// haven't seen the kind of evolution in the machine designs
-				// that made the decades of the 1900s into recognizably 
-				// separate eras.  For whatever reason, you can look at games
-				// from the 1990s and see a distinct style from the 1980s;
-				// those were in turn different from the 1970s machines, and
-				// so on.  That kind of stopped around 1995; games from 2018
-				// don't look all that different from the late 90s games.
-				// Maybe at some point there will be enough incremental change
-				// that we'll want a new era filter, but for now I think 
-				// "2000+" is a pretty good bin.  Plus, the rate of production
-				// of new machines slowed down so much after the 90s that 
-				// "2000+" is a small bin compared with whole decades before.
-				if (year != 0)
-				{
-					// figure the date range: for pre-2000 games, use the decade;
-					// lump everything after 2000 into a single category
-					int decade = (year / 10) * 10;
-					int yearFrom, yearTo;
-					TSTRING dateFilterTitle;
-					if (decade < 2000)
-					{
-						yearFrom = decade;
-						yearTo = decade + 9;
-						dateFilterTitle = MsgFmt(IDS_FILTER_DECADE, yearFrom % 100);
-					}
-					else
-					{
-						yearFrom = 2000;
-						decade = 2000;
-						yearTo = 9999;
-						dateFilterTitle = LoadStringT(IDS_FILTER_2000S);
-					}
-
-					// if there's no such filter, add one
-					if (dateFilters.find(yearFrom) == dateFilters.end())
-					{
-						// there's no such decade filter yet - add one
-						dateFilters.emplace(
-							std::piecewise_construct,
-							std::forward_as_tuple(decade),
-							std::forward_as_tuple(dateFilterTitle.c_str(), yearFrom, yearTo));
-					}
-				}
+				// make sure there's an appropriate era filter
+				FindOrAddDateFilter(year);
 
 				// form the media name based on the description string
 				TSTRING mediaName = GameListItem::CleanMediaName(AnsiToTSTRING(desc).c_str());
@@ -2188,6 +2190,9 @@ GameCategory *GameList::FindOrCreateCategory(const TCHAR *name)
 		std::forward_as_tuple(name),
 		std::forward_as_tuple(newcat));
 
+	// we'll need to update the filter list to include the new category
+	isFilterListDirty = true;
+
 	// return the new category object
 	return newcat;
 }
@@ -2201,37 +2206,8 @@ void GameList::NewCategory(const TCHAR *name)
 	// create the category
 	GameCategory *category = FindOrCreateCategory(name);
 
-	// insert a filter list entry, maintaining the sorting order
-	AddCategoryToFilterList(category);
-
 	// assign it a command ID for the menu system 
 	category->cmd = nextFilterCmdID++;
-}
-
-void GameList::AddCategoryToFilterList(GameCategory *category)
-{
-	// To maintain the sort order, insert the new category before the first
-	// existing category filter that we sort before.
-	for (auto it = filters.begin(); it != filters.end(); ++it)
-	{
-		// if it's a category filter, and we sort before it, this is
-		// the insertion point
-		if (category->SortsBefore(*it))
-		{
-			// this is the place - insert before this item, and we're done
-			filters.insert(it, category);
-			return;
-		}
-	}
-
-	// We ran through the whole list and didn't find an existing category
-	// filter that we sort before.  So either there are no existing category
-	// filters, or we sort after the last existing one.  In either case, just
-	// add the new item at the end of the filter list.  It's not important to
-	// keep the category filters contiguous in the list, so it's okay to 
-	// insert at the very end of the entire list rather than immediately 
-	// after the last existing category filter.
-	filters.push_back(category);
 }
 
 void GameList::RenameCategory(GameCategory *category, const TCHAR *newName)
@@ -2261,13 +2237,9 @@ void GameList::RenameCategory(GameCategory *category, const TCHAR *newName)
 			std::forward_as_tuple(category));
 	}
 
-	// The category also appears in the filter list.  That's not
-	// keyed to the name directly, but it is keyed indirectly, in
-	// that its position in the list is determined by alphabetical
-	// ordering.  We thus need to delete the old entry, then add it
-	// back at the new sorting position.
-	filters.remove(category);
-	AddCategoryToFilterList(category);
+	// This might change the ordering of the master filter list,
+	// so mark it as dirty.
+	isFilterListDirty = true;
 
 	// The category name might also be the file name of one or
 	// more system database files.  Go through all database files
@@ -2781,13 +2753,73 @@ void GameList::ParseCategoryList(int row)
 	}
 }
 
+DateFilter *GameList::FindOrAddDateFilter(int year)
+{
+	// year 0 represents missing metadata, so there's no filter
+	if (year == 0)
+		return nullptr;
+
+	// For years before 2000, we create an era filter by decade 
+	// (1970s, 1980s, etc).  For 2000 and beyond, we use a single 
+	// "2000s" filter.  We *could* filter by decade even in the 
+	// 2000s, but I think it works better to lump them all into 
+	// one bucket for now, for two reasons.  Reason 1: the rate
+	// of new machines released after 1998 is so slow that we
+	// don't need multiple buckets for organizational purposes.
+	// Reason 2: the evolution of design and technology hasn't
+	// reached the point where you'd say today's machines are
+	// recognizably different from 1998's machines; there's no
+	// distinct new "era" in terms of design or tech yet.  For
+	// the time being, "2000+" is good enough.
+
+	// figure the date range: for pre-2000 games, use the decade;
+	// lump dates after 2000 into a single category
+	int decade = (year / 10) * 10;
+	int yearFrom, yearTo;
+	TSTRING dateFilterTitle;
+	if (decade < 2000)
+	{
+		yearFrom = decade;
+		yearTo = decade + 9;
+		dateFilterTitle = MsgFmt(IDS_FILTER_DECADE, yearFrom % 100);
+	}
+	else
+	{
+		yearFrom = 2000;
+		decade = 2000;
+		yearTo = 9999;
+		dateFilterTitle = LoadStringT(IDS_FILTER_2000S);
+	}
+
+	// find an existing filter
+	if (auto it = dateFilters.find(yearFrom); it != dateFilters.end())
+		return &it->second;
+
+	// there's no such decade filter yet - add one
+	auto it = dateFilters.emplace(
+		std::piecewise_construct,
+		std::forward_as_tuple(decade),
+		std::forward_as_tuple(dateFilterTitle.c_str(), yearFrom, yearTo));
+
+	// mark the master filter list as dirty
+	isFilterListDirty = true;
+
+	// return the new filter
+	return &it.first->second;
+}
+
 GameManufacturer *GameList::FindOrAddManufacturer(const TCHAR *name)
 {
+	// if the name is empty, use a null manufacturer
+	if (name == nullptr || name[0] == 0 || std::regex_match(name, std::basic_regex<TCHAR>(_T("^\\s*$"))))
+		return nullptr;
+
 	// look up an existing manufacturer
 	if (auto itMan = manufacturers.find(name); itMan != manufacturers.end())
 		return &itMan->second;
 
-	// no entry yet - create a new entry and return it
+	// No entry yet.  Mark the master filter list as dirty, and create a new entry.
+	isFilterListDirty = true;
 	return &manufacturers.emplace(
 		std::piecewise_construct,
 		std::forward_as_tuple(name),
@@ -2927,7 +2959,6 @@ void GameList::DeleteXml(GameListItem *game)
 		game->dbFile->isDirty = true;
 
 		// clear the XML-derived fields from the game record
-		game->title = game->filename;
 		game->system = nullptr;
 		game->manufacturer = nullptr;
 		game->isConfigured = false;
@@ -2935,6 +2966,9 @@ void GameList::DeleteXml(GameListItem *game)
 		game->rom = _T("");
 		game->year = 0;
 		game->gridPos.col = game->gridPos.row = 0;
+
+		// reset to a filename-based title and media file base name
+		game->SetTitleFromFilename();
 		game->UpdateMediaName(nullptr);
 		
 		// commit the change to the game ID
@@ -3106,10 +3140,12 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 //
 
 std::list<const MediaType*> GameListItem::allMediaTypes;
+std::unordered_map<WSTRING, const MediaType*> GameListItem::jsMediaTypes;
 LONG GameListItem::nextInternalID = 1;
 
 void GameListItem::InitMediaTypeList()
 {
+	// add all of the types to the master type list
 	allMediaTypes.clear();
 	allMediaTypes.push_back(&playfieldImageType);
 	allMediaTypes.push_back(&playfieldVideoType);
@@ -3128,6 +3164,10 @@ void GameListItem::InitMediaTypeList()
 	allMediaTypes.push_back(&realDMDColorImageType);
 	allMediaTypes.push_back(&realDMDVideoType);
 	allMediaTypes.push_back(&realDMDColorVideoType);
+
+	// build the Javascript type map
+	for (auto mt : allMediaTypes)
+		jsMediaTypes.emplace(mt->javascriptId, mt);
 }
 
 GameListItem::GameListItem(
@@ -3182,22 +3222,6 @@ GameListItem::GameListItem(const TCHAR *filename, TableFileSet *tableFileSet)
 	// do the common initialization
 	CommonInit();
 
-	// remember the filename
-	this->filename = filename;
-
-	// strip the default extension from the filename for use as the
-	// media name and title
-	size_t lenSansExt = _tcslen(filename);
-	if (tstriEndsWith(filename, tableFileSet->defExt.c_str()))
-		lenSansExt -= tableFileSet->defExt.length();
-
-	this->mediaName.assign(filename, lenSansExt);
-	this->title.assign(filename, lenSansExt);
-
-	// unconfigured games don't have manufacturer or system settings
-	this->manufacturer = nullptr;
-	this->system = nullptr;
-
 	// Remember the table file set that the file came from.  This lets
 	// us infer which system(s) the game belongs to.  It's possible for
 	// the implied system to be ambiguous, since multiple systems can
@@ -3207,6 +3231,28 @@ GameListItem::GameListItem(const TCHAR *filename, TableFileSet *tableFileSet)
 	// with it when we actually need to know (e.g., when the user tries
 	// to run this file).
 	this->tableFileSet = tableFileSet;
+
+	// remember the filename
+	this->filename = filename;
+
+	// set the default unconfigured title
+	SetTitleFromFilename();
+
+	// unconfigured games don't have manufacturer or system settings
+	this->manufacturer = nullptr;
+	this->system = nullptr;
+}
+
+void GameListItem::SetTitleFromFilename()
+{
+	// strip the default extension from the filename for use as the
+	// media name and title
+	size_t lenSansExt = filename.length();
+	if (tableFileSet != nullptr && tstriEndsWith(filename.c_str(), tableFileSet->defExt.c_str()))
+		lenSansExt -= tableFileSet->defExt.length();
+
+	this->mediaName.assign(filename.c_str(), lenSansExt);
+	this->title.assign(filename.c_str(), lenSansExt);
 }
 
 void GameListItem::CommonInit()
@@ -3305,71 +3351,71 @@ static const TCHAR *flyerPages[] = {
 // are explicitly not localized, since they're internal names defined by
 // the HyperPin/PinballX media database structure.
 const MediaType GameListItem::wheelImageType = {
-	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, 
+	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, L"wheel image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::instructionCardImageType = {
-	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, 
+	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, L"inst card image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, true };
 const MediaType GameListItem::flyerImageType = {
-	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, 
+	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, L"flyer image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, false, flyerPages };
 const MediaType GameListItem::launchAudioType = {
-	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, 
+	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, L"launch audio",
 	nullptr, nullptr, nullptr,
 	MediaType::Audio, 0 };
 const MediaType GameListItem::playfieldImageType = {
-	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, 
+	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, L"table image",
 	ConfigVars::CapturePFImageStart, nullptr, nullptr,
 	MediaType::Image, 270 };
 const MediaType GameListItem::playfieldVideoType = {
-	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, 
+	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, L"table video",
 	ConfigVars::CapturePFVideoStart, ConfigVars::CapturePFVideoStop, ConfigVars::CapturePFVideoTime,
 	MediaType::VideoWithAudio, 270 };
 const MediaType GameListItem::playfieldAudioType = {
-	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, 
+	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, L"table audio",
 	ConfigVars::CapturePFAudioStart, ConfigVars::CapturePFAudioStop, ConfigVars::CapturePFAudioTime,
 	MediaType::Audio, 270 };
 const MediaType GameListItem::backglassImageType = {
-	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, 
+	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, L"bg image",
 	ConfigVars::CaptureBGImageStart, nullptr, nullptr, 
 	MediaType::Image, 0 };
 const MediaType GameListItem::backglassVideoType = {
-	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID,
+	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, L"bg video",
 	ConfigVars::CaptureBGVideoStart, ConfigVars::CaptureBGVideoStop, ConfigVars::CaptureBGVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::dmdImageType = {
-	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, 
+	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, L"dmd image",
 	ConfigVars::CaptureDMImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::dmdVideoType = {
-	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, 
+	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, L"dmd video",
 	ConfigVars::CaptureDMVideoStart, ConfigVars::CaptureDMVideoStop, ConfigVars::CaptureDMVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::topperImageType = {
-	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC,
+	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, L"topper image",
 	ConfigVars::CaptureTPImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::topperVideoType = {
-	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, 
+	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, L"topper video",
 	ConfigVars::CaptureTPVideoStart, ConfigVars::CaptureTPVideoStop, ConfigVars::CaptureTPVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::realDMDImageType = {
-	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC,
+	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, L"real dmd image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorImageType = {
-	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, 
+	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, L"real dmd color image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDVideoType = {
-	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID,
+	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, L"real dmd video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorVideoType = {
-	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, 
+	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, L"real dmd color video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 
@@ -3408,6 +3454,77 @@ TSTRING GameListItem::GetDisplayName() const
 
 	// return the result
 	return s;
+}
+
+void GameListItem::ResolveFile(ResolvedFile &rf)
+{
+	// The treatment depends on where the file entry came from
+	TCHAR fullPath[MAX_PATH];
+	if (system != nullptr)
+	{
+		// We have a system, so this game came from an XML database entry.
+		// The filename is the "name" attribute from the <game> node in 
+		// the XML record, which might or might not include the path and 
+		// extension.  So first, check if it has an absolute path.
+		if (PathIsRelative(filename.c_str()))
+		{
+			// Relative path.  The filename is relative to the system
+			// table file folder.
+			PathCombine(fullPath, system->tablePath.c_str(), filename.c_str());
+		}
+		else
+		{
+			// Absolute path.  Use the exact path given.
+			_tcscpy_s(fullPath, filename.c_str());
+		}
+
+		// The <game name="xxx"> attribute might or might not include an
+		// extension.  If the filename as currently constituted exists, 
+		// take this as the exact file; otherwise, if adding the system's
+		// default extension gives us an extant file, add the extension.
+		if (!FileExists(fullPath) && system != nullptr && system->defExt.length() != 0)
+		{
+			// doesn't exist - try with the default extension
+			TSTRING plusExt = fullPath + system->defExt;
+			if (FileExists(plusExt.c_str()))
+				_tcscpy_s(fullPath, plusExt.c_str());
+		}
+
+		// save the full path
+		rf.path = fullPath;
+
+		// separate the path and filename
+		LPTSTR n = PathFindFileName(fullPath);
+		if (n != nullptr)
+		{
+			rf.file = n;
+			rf.folder.assign(fullPath, n - fullPath - 1);
+		}
+		else
+		{
+			rf.file = fullPath;
+		}
+	}
+	else if (tableFileSet != nullptr)
+	{
+		// This is an unconfigured game: it came from a table file set scan.
+		// The folder is the table file set folder, and the filename definitely
+		// includes its extension.
+		rf.folder = tableFileSet->tablePath;
+		rf.file = filename;
+		PathCombine(fullPath, rf.folder.c_str(), rf.file.c_str());
+		rf.path = fullPath;
+	}
+	else
+	{
+		// We have neither a system nor table file set.  This should be
+		// impossible, as game list entries should always come from one of
+		// those sources.
+		assert(FALSE);
+	}
+
+	// determine if the file exists
+	rf.exists = FileExists(rf.path.c_str());
 }
 
 bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList)
@@ -4283,7 +4400,8 @@ TableFileSet::TableFile *TableFileSet::FindFile(
 
 	// We didn't find the exact filename as given.  Try again with
 	// the default extension added.  The PinballX database convention
-	// is to list the filename without the extension.
+	// is to list the filename without the extension, but we can't
+	// count on that since the file could be hand-edited by a user.
 	TSTRING fnameWithExt(filename);
 	if (defExt != nullptr && !tstriEndsWith(key.c_str(), defExt))
 	{

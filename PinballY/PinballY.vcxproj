@@ -263,7 +263,9 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="PinscapeDevice.cpp" />
     <ClCompile Include="PlayfieldWin.cpp" />
     <ClCompile Include="PerfMon.cpp" />
-    <ClCompile Include="PlayfieldView.cpp" />
+    <ClCompile Include="PlayfieldView.cpp">
+      <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="RealDMD.cpp" />
     <ClCompile Include="RefTableList.cpp" />
     <ClCompile Include="SecondaryView.cpp" />

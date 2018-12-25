@@ -114,7 +114,7 @@ void DMDView::GenerateHighScoreImages()
 		// get this game's high score style setting; if it's not set,
 		// use "auto" as the default
 		const TCHAR *style = GameList::Get()->GetHighScoreStyle(game);
-		if (style == nullptr)
+		if (style == nullptr || style[0] == 0)
 			style = _T("auto");
 		
 		// if the style is "none", skip high score display for this game

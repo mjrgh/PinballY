@@ -748,11 +748,13 @@ this.command =
             name[this[o]] = o;
 
         this._name = name;
+
+        this._nextFree = this.UserLast;
     },
 
     name: function(id)
     {
-        let n = nameAndOffset(id);
+        let n = nameAndIndex(id);
         return n.index ? n.name + "+" + n.index : n.name;
     },
 
@@ -765,6 +767,24 @@ this.command =
             || ranged("PickSysFirst", "PickSysLast")
             || { name: this._name[id] || ("" + id) };
     },
+
+    allocate: function(name)
+    {
+        if (!this._nextFree)
+            throw Error("command object not initialized");
+        else if (this._nextFree < this.UserFirst)
+            throw Error("all user commands have been assigned");
+        else
+        {
+            let id = this._nextFree--;
+            if (name)
+            {
+                this[name] = id;
+                this._name[id] = name;
+            }
+            return id;
+        }
+    }
 };
 
 // Menu events
@@ -817,10 +837,39 @@ this.GameSelectEvent = class GameSelectEvent extends Event
     }
 };
 
+// Filter change event
+this.FilterSelectEvent = class FilterSelectEvent extends Event
+{
+    constructor(id)
+    {
+        super("filterselect", { cancelable: true });
+        this.id = id;
+    }
+};
+
 // Config change event
 this.ConfigChangeEvent = class ConfigChangeEvent extends Event
 {
     constructor() { super("configchange", { cancelable: false }); }
+};
+
+
+// ------------------------------------------------------------------------
+//
+// Class for getGameInfo() objects.  This has some system-defined methods
+// for operations on the game data.
+//
+this.GameInfo = class GameInfo
+{
+};
+
+// ------------------------------------------------------------------------
+//
+// Class for getFilterInfo() objects.  This has some system-defined
+// methods for operations on the filter.
+//
+this.FilterInfo = class FilterInfo
+{
 };
 
 

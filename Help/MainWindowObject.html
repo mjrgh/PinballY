@@ -30,7 +30,7 @@
    mainWindow serves as the event target for the following event types:
 </p>
 
-<div id="eventTargetTOC" data-eventtarget="mainWindow"></div>
+<div class="eventTargetTOC" data-eventtarget="mainWindow"></div>
 
 
 <h2>Methods and properties</h2>
@@ -45,7 +45,26 @@
    <a name="doCommand"></a>
    <b>mainWindow.doCommand(<i>id</i>):</b>  Executes the command specified by
    <i>id</i>, which is one of the integer command codes in the
-   <a href="Commands.html">Commands</a> set.
+   <a href="Commands.html">Commands</a> set.  This function carries out a
+   menu-level command, as opposed to a button-level command; for the latter,
+   use doButtonCommand().
+</p>
+
+<p>
+   <a name="doButtonCommand"></a>
+   <b>mainWindow.doButtonCommand(<i>command</i>, <i>down</i>, <i>repeat</i>):</b>
+   Simulates a key press, or more precisely, simulates a processed key event
+   that corresponds to <a href="CommandButtonEvent.html">CommandButtonEvent</a>.
+   This carries out the effect of a named button command, specified by the
+   string <i>command</i>.  The valid command names are the values listed for the
+   .command property of the <a href="CommandButtonEvent.html">CommandButtonEvent</a>
+   object.  <i>down</i> is a boolean indicating if this simulates a key press
+   (true) or a key-up event (false) representing the user releasing the key.
+   <i>repeat</i> is a boolean indicating if this should represent an auto-repeat
+   event.  <i>repeat</i> is only meaningful when <i>down</i> is true, for obvious
+   reasons.  Because the simulated key press is coming from Javascript already,
+   it doesn't generate any of the usual Javascript events for actual key presses;
+   it just carries out the effect of the key command.
 </p>
 
 <p>
@@ -63,6 +82,32 @@
    operating system level, which means that it's in the foreground and has
    keyboard focus.  If the application is currently in the background, none
    of the windows are active, so this returns null.
+</p>
+
+<p>
+   <a name="getKeyCommand"></a>
+   <b>mainWindow.getKeyCommand(<i>descriptor</i>):</b>  Returns an array of
+   the button commands assigned to the given key or joystick button.  <i>descriptor</i>
+   is an object describing the key or button to look up.  This can be in one of the
+   following formats:
+</p>
+<div class="code">
+{ type: "key", vkey: <i>integer</i> };  // look up by virtual key (vkey) from key event
+{ type: "key", code: <i>string</i> };   // look up by key code from key event
+{ type: "joystick", unit: <i>integer</i>, button: <i>integer</i> };  // joystick button
+</div>
+<p>
+   This is the same information provided to your event listener in a
+   <a href="KeyEvent.html">KeyEvent</a> or <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+   object, so it's easy to look up the command information in one of those
+   handlers.
+</p>
+<p>
+   The command names in the returned array are the same names used in the
+   .command property of the <a href="CommandButtonEvent.html">CommandButtonEvent</a>
+   object.  An array is returned because it's possible for a user to assign multiple
+   commands to the same keyboard key or joystick button.  Pressing a key with multiple
+   commands assigned carries out each of the commands in sequence.
 </p>
    
 <p>
@@ -130,18 +175,34 @@
 
 <p>
    <a name="message"></a>
-   <b>mainWindow.message(<i>message</i>, <i>style</i>):</b>  Shows a message using a
-   graphical popup box in the main window.  Unlike the global alert() function,
-   this doesn't pause the script until the user acknowledges the message;
-   it simply shows or queues the message and returns immediately.  This
-   is a good option for showing error messages or status updates, since it
-   doesn't interrupt the flow of the user interface with a modal dialog.
+   <b>mainWindow.message(<i>message</i>, <i>style</i>):</b>  Shows a message
+   using a graphical popup box in the main window.  Unlike the global alert()
+   function, this doesn't pause the script until the user acknowledges the
+   message; it simply shows or queues the message and returns immediately.
+   This is a good option for showing error messages or status updates, since
+   it doesn't interrupt the flow of the user interface with a modal dialog.
    If <i>style</i> is provided, it's a string value specifying the
    visual style of the popup message.  This can be "info", "warning", or
    "error", to show the message with green, orange, or red trim
    (respectively), to visually signal the nature of the message.  The
    regular "info" style is used if <i>style</i> is omitted.
 </p>
+
+<p>
+   <a name="playButtonSound"></a>
+   <b>mainWindow.playButtonSound(<i>name</i>):</b>  Plays a button sound effect.
+   These are the same system sound effects played when the user presses various
+   buttons.  Does nothing if button sounds are muted in the user's option settings.
+   The available effect names are:
+</p>
+<ul>
+   <li><b>AddCredit:</b> played when a coin is inserted and a full credit is added
+   <li><b>CoinIn:</b> played when a coin is inserted and a fractional credit is added
+   <li><b>Deselect:</b> played when closing a menu or popup
+   <li><b>Next:</b> played when switching to the next game, menu item, or popup page
+   <li><b>Prev:</b> played when switching to the previous game, menu item, or popup page
+   <li><b>Select:</b> played when showing a menu or selecting a menu item
+</ul>
 
 <p>
    <a name="showMenu"></a>

@@ -2,8 +2,9 @@ PinballY Update History
 
 ? (1.0.0 Beta 2)
 
-* You can now customize the program via Javascript code.  See
-"Javascript Scripting" in the help for details.
+* The system now has a built-in Javascript engine, offering extensive
+new customization capabilities.  See "Javascript Scripting" in the
+help for details.
 
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.
@@ -11,22 +12,24 @@ arguments to the child PinballY.exe process.
 * The default "Window Mode" setting for game systems (the window
 display style used for the first window opened when launching a game)
 is now "Show Minimized" instead of "Show".  Before this option was
-added (in Alpha 21), the effect was always "Show Minimized", because
-that works best for the most common systems (VP, FP).  But it's not
-ideal for some of the commercial games, which is why the option was
-added.  The default should have been Show Minimized all along, both
-for the sake of compatibility with existing settings files and because
-it's usually the right setting anyway; now it is.
+added (in Alpha 21), the effect was always "Show Minimized", so that
+should have been maintained as the default when the option was added
+in the first place.  This version fixes that and restores "Show
+Minimized" as the default.  That's the proper default because it's the
+right setting for the most common systems, VP and FP.  The reason the
+option was added at all is that some of the commercial games work
+better with other "show" modes, so it's best if this setting can be
+customized per system.
+
+* The Filter by System and Filter by Manufacturer menus are now
+paginated if necessary (that is, if there are too many items to fit
+the available display space).
 
 * On some systems, menu graphic arrows weren't drawing properly.  This
 is because the font "Wingdings 3" was being used for the arrows, and
 this font isn't available on all Windows systems.  The more universal
 Webdings is now used as a fallback, since that font contains similar
 looking arrows, so the arrows should draw properly everywhere now.
-
-* The Filter by System and Filter by Manufacturer menus are now
-paginated if necessary (that is, if there are too many items to fit
-the available display space).
 
 
 10-13-2018 (1.0.0 Beta 1)

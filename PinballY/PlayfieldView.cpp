@@ -488,6 +488,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
 				|| !GetObj(jsLaunchEvent, "LaunchEvent")
 				|| !GetObj(jsGameSelectEvent, "GameSelectEvent")
+				|| !GetObj(jsFilterSelectEvent, "FilterSelectEvent")
 				|| !GetObj(jsCommandEvent, "CommandEvent")
 				|| !GetObj(jsMenuOpenEvent, "MenuOpenEvent")
 				|| !GetObj(jsMenuCloseEvent, "MenuCloseEvent")
@@ -499,7 +500,9 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsConfigChangeEvent, "ConfigChangeEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
-				|| !GetObj(jsGameList, "gameList"))
+				|| !GetObj(jsGameList, "gameList")
+				|| !GetObj(jsGameInfo, "GameInfo")
+				|| !GetObj(jsFilterInfo, "FilterInfo"))
 				return;
 
 			// Initialize generic properties for a js window object.  Note that this has
@@ -556,9 +559,12 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getUIMode", &PlayfieldView::JsGetUIMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getActiveWindow", &PlayfieldView::JsGetActiveWindow, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "doCommand", &PlayfieldView::JsDoCommand, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "doButtonCommand", &PlayfieldView::JsDoButtonCommand, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showMenu", &PlayfieldView::JsShowMenu, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "startAttractMode", &PlayfieldView::JsStartAttractMode, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playButtonSound", &PlayfieldView::JsPlayButtonSound, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh))
 				return;
 
 			// Set up the game list methods.  These are nominally on the gameList Javascript
@@ -577,7 +583,22 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getWheelGame", &PlayfieldView::JsGetWheelGame, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllWheelGames", &PlayfieldView::JsGetAllWheelGames, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getWheelCount", &PlayfieldView::JsGetWheelCount, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getCurFilter", &PlayfieldView::JsGetCurFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setCurFilter", &PlayfieldView::JsSetCurFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getFilterInfo", &PlayfieldView::JsGetFilterInfo, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gamelist", "getAllFilters", &PlayfieldView::JsGetAllFilters, this, eh))
+				return;
+
+			// Set up the GameInfo methods
+			if (!js->DefineObjMethod(jsGameInfo, "GameInfo", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveGameFile", &PlayfieldView::JsResolveGameFile, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveMedia, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh))
+				return;
+
+			// Set up the FilterInfo methods
+			if (!js->DefineObjMethod(jsFilterInfo, "FilterInfo", "getGames", &PlayfieldView::JsFilterInfoGetGames, this, eh)
+				|| !js->DefineObjMethod(jsFilterInfo, "FilterInfo", "testGame", &PlayfieldView::JsFilterInfoTestGame, this, eh))
 				return;
 
 			// set up command IDs in the Command object
@@ -919,7 +940,7 @@ void PlayfieldView::FireGameSelectEvent(GameListItem *game)
 	{
 		jsLastGameSelectReport = id;
 		if (auto js = JavascriptEngine::Get(); js != nullptr)
-			js->FireEvent(jsMainWindow, jsGameSelectEvent, id);
+			js->FireEvent(jsGameList, jsGameSelectEvent, id);
 	}
 }
 
@@ -1080,6 +1101,69 @@ JsValueRef PlayfieldView::JsGetActiveWindow()
 	return jsobj;
 }
 
+void PlayfieldView::JsPlayButtonSound(WSTRING name)
+{
+	PlayButtonSound(name.c_str());
+}
+
+JsValueRef PlayfieldView::JsGetKeyCommand(JavascriptEngine::JsObj desc)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the key type
+		WSTRING type = desc.Get<WSTRING>("type");
+		std::list<const KeyCommand*> *list = nullptr;
+		if (type == L"key")
+		{
+			// keyboard key - look it up by virtual key code or 
+			int vkey = 0;
+			if (desc.Has(L"vkey"))
+			{
+				// .vkey was specified
+				vkey = desc.Get<int>("vkey");
+			}
+			else if (desc.Has(L"code"))
+			{
+				// .key was specified - get the key name
+				WSTRING key = desc.Get<WSTRING>("code");
+
+				// look up the vkey for the key name
+				vkey = KeyInput::GetInstance()->KeyByJsKeyCode(key.c_str());
+			}
+
+			// look up the command list by vkey
+			if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
+				list = &it->second;
+		}
+		else if (type == L"joystick")
+		{
+			// joystick button - get the joystick unit and button
+			int unit = desc.Get<int>("unit");
+			int button = desc.Get<int>("button");
+			if (auto it = jsCommands.find(JsCommandKey(unit, button)); it != jsCommands.end())
+				list = &it->second;
+		}
+
+		// If we found a list, return it as an array of command name strings.
+		// If not, simply return an empty array.
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+		if (list != nullptr)
+		{
+			// build the array of command name strings
+			for (auto cmd : *list)
+				arr.Push(cmd->name);
+		}
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
 void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
 {
 	// make a table of the key assignments, keyed by command ID
@@ -1158,8 +1242,10 @@ JsValueRef PlayfieldView::JsGetGameInfo(int id)
 
 	try
 	{
-		// create an object for the results
-		auto obj = JavascriptEngine::JsObj::CreateObject();
+		// create a GameInfo object for the results
+		auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsGameInfo);
+
+		// populate the properties
 		obj.Set("id", game->internalID);
 		obj.Set("configId", game->GetGameId());
 		obj.Set("displayName", game->GetDisplayName());
@@ -1222,15 +1308,20 @@ JsValueRef PlayfieldView::JsGetGameInfo(int id)
 	}
 }
 
-JsValueRef PlayfieldView::JsGetHighScores(int id)
+JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 {
-	// get the game
 	auto js = JavascriptEngine::Get();
 	auto gl = GameList::Get();
-	auto game = gl->GetByInternalID(id);
 
 	try
 	{
+		// get the game from the id in 'self'
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
 		// set up the notifier callback
 		class Handler : public HighScoresReadyCallback
 		{
@@ -1274,22 +1365,14 @@ JsValueRef PlayfieldView::JsGetHighScores(int id)
 		// the return value will be the Javascript promise object, no matter what happens
 		JsValueRef jspromise = promise->GetPromise();
 
-		// if the game doesn't exist, reject the promise
-		if (game == nullptr)
-		{
-			promise->Reject(L"Game not found");
-		}
-		else
-		{
-			// create our handler object and add it to the ready list
-			highScoresReadyList.emplace_back(new Handler(id, promise.release()));
+		// create our handler object and add it to the ready list
+		highScoresReadyList.emplace_back(new Handler(id, promise.release()));
 
-			// If the high score system is ready, send the request.  If not,
-			// just leave the callback enqueued; we automatically process all
-			// backlogged requests when we get the first ready notification.
-			if (hiScoreSysReady)
-				RequestHighScores(game);
-		}
+		// If the high score system is ready, send the request.  If not,
+		// just leave the callback enqueued; we automatically process all
+		// backlogged requests when we get the first ready notification.
+		if (hiScoreSysReady)
+			RequestHighScores(game);
 
 		// return the Javascript Promise object
 		return jspromise;
@@ -1361,6 +1444,301 @@ JsValueRef PlayfieldView::JsGetAllWheelGames()
 
 		// return the array
 		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsResolveGameFile(JsValueRef self)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+
+	try
+	{
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
+		// resolve the game file
+		GameListItem::ResolvedFile rf;
+		game->ResolveFile(rf);
+
+		// create an object for the result
+		auto obj = JavascriptEngine::JsObj::CreateObject();
+
+		// populate it
+		obj.Set("exists", rf.exists);
+		obj.Set("path", rf.path);
+		obj.Set("folder", rf.folder);
+		obj.Set("filename", rf.file);
+
+		// return the object
+		return obj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+
+	try
+	{
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
+		// find the type
+		const MediaType *mediaType = nullptr;
+		if (auto mtit = GameListItem::jsMediaTypes.find(type); mtit != GameListItem::jsMediaTypes.end())
+			mediaType = mtit->second;
+		else
+			return js->Throw(_T("Invalid media type"));
+
+		// set up the option flags
+		DWORD flags = 0;
+		if (mustExist) flags |= GameListItem::GMI_EXISTS;
+
+		// resolve the media
+		std::list<TSTRING> filenames;
+		game->GetMediaItems(filenames, *mediaType, flags);
+
+		// create an array for the results
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// populate the array
+		for (auto &f : filenames)
+			arr.Push(f);
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+
+	try
+	{
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
+		// get the VPM ROM
+		TSTRING vpmRom;
+		bool hasVpmRom = VPinMAMEIfc::FindRom(vpmRom, game);
+
+		// if DOF is active, get the DOF ROM
+		const WCHAR *dofRom = nullptr;
+		if (auto dofClient = DOFClient::Get(); dofClient != nullptr)
+			dofRom = dofClient->GetRomForTable(game);
+
+		// try getting the NVRAM file
+		TSTRING nvramFile, nvramPath;
+		bool hasNv = false;
+		if (auto &hs = Application::Get()->highScores; hs != nullptr)
+			hasNv = hs->GetNvramFile(nvramPath, nvramFile, game);
+
+		// create an object for the result
+		auto obj = JavascriptEngine::JsObj::CreateObject();
+
+		// set VPM ROM name, if available
+		if (hasVpmRom)
+		{
+			// set the ROM name
+			obj.Set("vpmRom", vpmRom);
+
+			// build the full folder path
+			TSTRING vpmRomDir;
+			if (VPinMAMEIfc::GetRomDir(vpmRomDir))
+			{
+				// build the full name: path\rom.zip
+				TCHAR romfile[MAX_PATH];
+				PathCombine(romfile, vpmRomDir.c_str(), vpmRom.c_str());
+				_tcscat_s(romfile, _T(".zip"));
+
+				// if the file exists, add it to the results
+				if (FileExists(romfile))
+					obj.Set("vpmRomPath", romfile);
+			}
+		}
+
+		// set the DOF ROM name, if availalbe
+		if (dofRom != nullptr && dofRom[0] != 0)
+			obj.Set("dofRom", dofRom);
+
+		// set the NVRAM file, if available
+		if (hasNv)
+		{
+			TCHAR nv[MAX_PATH];
+			PathCombine(nv, nvramPath.c_str(), nvramFile.c_str());
+			obj.Set("nvramPath", nv);
+		}
+
+		// return the object
+		return obj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+WSTRING PlayfieldView::JsGetCurFilter()
+{
+	return GameList::Get()->GetCurFilter()->GetFilterId();
+}
+
+JsValueRef PlayfieldView::JsGetAllFilters()
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// create the result array
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// populate it with all of the filter IDs
+		for (auto f : gl->GetFilters())
+			arr.Push(f->GetFilterId());
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsGetFilterInfo(WSTRING id)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		if (auto filter = GameList::Get()->GetFilterById(id.c_str()); filter != nullptr)
+		{
+			// create a FilterInfo object
+			auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsFilterInfo);
+
+			// populate the filter-specific properties
+			obj.Set("id", filter->GetFilterId());
+			obj.Set("title", filter->GetFilterTitle());
+			obj.Set("command", filter->cmd);
+
+			// return the filter descriptor
+			return obj.jsobj;
+		}
+		else
+		{
+			// No filter - return null.  There should always be a filter, so
+			// this really should be impossible, but just in case.
+			return js->GetNullVal();
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsSetCurFilter(WSTRING id)
+{
+	// Try looking up the filter.  Try first by name; if that fails,
+	// and the ID can be parsed as a number in the filter command range, 
+	// look it up by command ID.
+	auto gl = GameList::Get();
+	GameListFilter *filter;
+	int cmd;
+	if ((filter = gl->GetFilterById(id.c_str())) != nullptr
+		|| ((cmd = _ttoi(id.c_str())) >= ID_FILTER_FIRST && cmd <= ID_FILTER_LAST && (filter = gl->GetFilterByCommand(cmd)) != nullptr))
+	{
+		// set the filter
+		GameList::Get()->SetFilter(filter);
+
+		// update the selection, in case the current game is filtered out
+		// by the new filter
+		UpdateSelection();
+
+		// update the status text, since it might mention the filter name
+		UpdateAllStatusText();
+	}
+}
+
+JsValueRef PlayfieldView::JsFilterInfoGetGames(JsValueRef self)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// get the filter ID from self
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<WSTRING>("id");
+
+		// look up the filter
+		auto filter = gl->GetFilterById(id.c_str());
+		if (filter == nullptr)
+			return js->GetNullVal();
+
+		// create an array for the results
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// populate it with games passing the filter
+		gl->EnumGames([&arr](GameListItem *game) { arr.Push(game->internalID); }, filter);
+
+		// return the array
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+bool PlayfieldView::JsFilterInfoTestGame(JsValueRef self, int gameId)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// get the filter ID from self
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<WSTRING>("id");
+
+		// look up the filter
+		auto filter = gl->GetFilterById(id.c_str());
+		if (filter == nullptr)
+			return js->GetNullVal();
+
+		// get the game
+		auto game = gl->GetByInternalID(gameId);
+		if (game == nullptr)
+			return js->GetNullVal();
+
+		// test the game
+		return gl->FilterIncludes(filter, game) ? js->GetTrueVal() : js->GetFalseVal();
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
@@ -1692,6 +2070,28 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 bool PlayfieldView::JsDoCommand(int cmd)
 {
 	return OnCommandImpl(cmd, 0, NULL);
+}
+
+void PlayfieldView::JsDoButtonCommand(WSTRING cmd, bool down, bool repeat)
+{
+	// look up the command
+	if (auto it = commandsByName.find(cmd); it != commandsByName.end())
+	{
+		// get the foreground/background status
+		bool bg = !Application::Get()->IsInForeground();
+
+		// figure the key mode
+		KeyPressType mode = (bg ?
+			(down ? repeat ? KeyBgRepeat : KeyBgDown : KeyUp) :
+			(down ? repeat ? KeyRepeat : KeyDown : KeyUp));
+
+		// make a single-element list with the command
+		std::list<const KeyCommand*> commands;
+		commands.emplace_back(&it->second);
+
+		// queue the key
+		ProcessKeyPress(hWnd, mode, bg, true, commands);
+	}
 }
 
 bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
@@ -2047,11 +2447,11 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		// check for game filters
 		if (cmd >= ID_FILTER_FIRST && cmd <= ID_FILTER_LAST)
 		{
-			// If a game category selection menu is active, category filters
-			// command toggles categories in the game's edit list; we can tell
-			// if this is the case by checking to see if there's an edit list.
-			// Otherwise, a filter menu item makes that filter current for the
-			// wheel UI.
+			// If a game category selection menu is active, a category filter
+			// command toggles the checkmark status for the category in the 
+			// game's edit list.  We can tell if this is the case by checking 
+			// to see if there's an edit list.  Otherwise, a filter menu item 
+			// makes that filter current for the wheel UI.
 			if (categoryEditList != nullptr)
 			{
 				// game category editing in progress - toggle the selected
@@ -2060,14 +2460,19 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 			}
 			else
 			{
-				// set the new filter
-				GameList::Get()->SetFilter(cmd);
+				// fire the filter change event
+				auto gl = GameList::Get();
+				if (FireFilterSelectEvent(gl->GetFilterByCommand(cmd)))
+				{
+					// set the new filter
+					GameList::Get()->SetFilter(cmd);
 
-				// refresh the current game selection and wheel images
-				UpdateSelection();
+					// refresh the current game selection and wheel images
+					UpdateSelection();
 
-				// update status line text
-				UpdateAllStatusText();
+					// update status line text
+					UpdateAllStatusText();
+				}
 			}
 
 			// handled
@@ -2216,7 +2621,7 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 	{
 		// We found a handler for the key.  Process the key press.
-		ProcessKeyPress(win->GetHWnd(), mode, false, it->second);
+		ProcessKeyPress(win->GetHWnd(), mode, false, false, it->second);
 
 		// the key event was handled
 		return true;
@@ -2227,13 +2632,13 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 }
 
 // Add a key press to the queue and process it
-void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, std::list<const KeyCommand*> cmds)
+void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, bool scripted, std::list<const KeyCommand*> cmds)
 {
 	// add each command to the key queue
 	for (auto c : cmds)
 	{
 		// queue the command
-		keyQueue.emplace_back(hwndSrc, mode, bg, c);
+		keyQueue.emplace_back(hwndSrc, mode, bg, scripted, c);
 
 		// Immediately process any DOF effects associated with the key
 		if (c->func == &PlayfieldView::CmdNext)
@@ -3898,8 +4303,9 @@ void PlayfieldView::ProcessKeyQueue()
 		QueuedKey key = keyQueue.front();
 		keyQueue.pop_front();
 
-		// run it through the Javascript handler
-		if (FireCommandButtonEvent(key))
+		// Run it through the Javascript handler.  Skip this if it came from
+		// a script in the first place.
+		if (key.scripted || FireCommandButtonEvent(key))
 		{
 			// process the command
 			(this->*key.cmd->func)(key);
@@ -6737,7 +7143,7 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 				if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 				{
 					// process the key press
-					ProcessKeyPress(hWnd, keyType, true, it->second);
+					ProcessKeyPress(hWnd, keyType, true, false, it->second);
 				}
 			}
 		}
@@ -6772,7 +7178,7 @@ bool PlayfieldView::OnJoystickButtonChange(
 	if (auto it = jsCommands.find(JsCommandKey(js->logjs->index, button)); it != jsCommands.end())
 	{
 		// process the key press
-		ProcessKeyPress(hWnd, mode, !foreground, it->second);
+		ProcessKeyPress(hWnd, mode, !foreground, false, it->second);
 
 		// if it's a key-press event, start auto-repeat; otherwise cancel
 		// any existing auto-repeat
@@ -6829,7 +7235,7 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 			{
 				// look up the button in the command table
 				if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
-					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatMode == KeyBgRepeat, it->second);
+					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
 			}
 		}
 
@@ -6886,7 +7292,7 @@ void PlayfieldView::OnJsAutoRepeatTimer()
 			{
 				// look up the button in the command table
 				if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
-					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatMode == KeyBgRepeat, it->second);
+					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
 			}
 		}
 
@@ -6944,6 +7350,17 @@ void PlayfieldView::FireConfigChangeEvent()
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 		js->FireEvent(jsMainWindow, jsConfigChangeEvent);
+}
+
+bool PlayfieldView::FireFilterSelectEvent(GameListFilter *filter)
+{
+	bool ret = true;
+	if (filter != nullptr)
+	{
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
+			ret = js->FireEvent(jsGameList, jsFilterSelectEvent, filter->GetFilterId());
+	}
+	return ret;
 }
 
 void PlayfieldView::OnConfigChange()
@@ -7645,7 +8062,7 @@ void PlayfieldView::ShowExitMenu()
 void PlayfieldView::PlayButtonSound(const TCHAR *effectName)
 {
 	if (!muteButtons)
-		AudioManager::Get()->PlaySoundEffect(effectName);
+		AudioManager::Get()->PlayAsset(effectName);
 }
 
 void PlayfieldView::CloseMenusAndPopups()
@@ -7672,7 +8089,7 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 		DoCmdNext(key.mode == KeyRepeat);
 	}
 
-	// check for a Manual Go gesture
+	// check for a media capture "Manual Go" gesture (next + prev keys down)
 	CheckManualGo(nextButtonDown, key);
 }
 
@@ -7758,7 +8175,7 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 		DoCmdPrev(key.mode == KeyRepeat);
 	}
 
-	// check for a Manual Go gesture
+	// check for a media capture "Manual Go" gesture (next + prev keys down)
 	CheckManualGo(prevButtonDown, key);
 }
 
@@ -8249,6 +8666,7 @@ void PlayfieldView::CmdService4(const QueuedKey &key)
 		else
 		{
 			// no menu or popup is showing - show the Operator menu
+			PlayButtonSound(_T("Select"));
 			ShowOperatorMenu();
 		}
 	}
@@ -8256,7 +8674,6 @@ void PlayfieldView::CmdService4(const QueuedKey &key)
 
 void PlayfieldView::ShowOperatorMenu()
 {
-
 	// get the current game
 	auto gl = GameList::Get();
 	auto game = gl->GetNthGame(0);
@@ -8354,7 +8771,6 @@ void PlayfieldView::ShowOperatorMenu()
 	ShowMenu(md, L"operator", 0);
 
 	// trigger the normal Menu Open effects
-	PlayButtonSound(_T("Select"));
 	QueueDOFPulse(L"PBYMenuOpen");
 }
 
@@ -8532,9 +8948,13 @@ void PlayfieldView::EditGameInfo()
 			GetText(IDC_CB_TITLE, game->title);
 			GetText(IDC_CB_ROM, game->rom);
 
+			// update the year
 			TSTRING year;
 			GetText(IDC_TXT_YEAR, year);
 			game->year = _ttoi(year.c_str());
+
+			// make sure there's an era filter that includes this year
+			gl->FindOrAddDateFilter(game->year);
 
 			// Set the table type.  Note that we only keep the first token;
 			// for readability, the combo box list items show the internal
@@ -8677,6 +9097,10 @@ void PlayfieldView::EditGameInfo()
 
 			// re-sort the title list
 			gl->SortTitleIndex();
+
+			// rebuild the filter list if necessary (if we added year or
+			// manufacturer filters, for example)
+			gl->CheckMasterFilterList();
 
 			// Reload high score data for the game, as we might have changed
 			// something that affected the NVRAM source

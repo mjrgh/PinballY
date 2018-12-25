@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>FilterSelectEvent</h1>
+
+<p>
+   This event class is fired when a new filter is selected for
+   the wheel UI.
+</p>
+<p>
+   This event has only one subtype:
+<ul>
+   <li><b>filterselect:</b> Fires when a new filter is selected.  This
+   event fires before the filter is put into effect, so you can cancel
+   the event to prevent the filter change.
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="GameList.html">gameList</a> object.
+</p>
+
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  In addition, it
+   has the following:
+</p>
+
+<ul>
+   <li><b>id:</b>  A string containing the ID of the new filter.  You can
+   pass this to <a href="GameList.html#getFilterInfo">gameList.getFilterInfo</a>
+   to retrieve more information on the filter.
+
+</ul>
+
+</body>
+</html>

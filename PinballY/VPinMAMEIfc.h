@@ -54,4 +54,7 @@ public:
 	static void GetInstalledRomVersions(
 		std::list<TSTRING> &installedRoms,
 		const TCHAR *searchName);
+
+	// Get the VPM ROM file system path
+	static bool GetRomDir(TSTRING &dir);
 };

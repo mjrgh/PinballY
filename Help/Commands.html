@@ -59,8 +59,48 @@
    ID, you can find its name - the name of the property for that ID in the
    <b>command</b> object - via <b>command.name(<i>id</i>)</b>.  That will give you a
    string with the corresponding <b>command</b> property name.
+</p>
+
+<h2>User command IDs</h2>
+
 <p>
-   The available command names are listed below.
+   The system reserves a range of identifiers for user-defined commands:
+   command.UserFirst to command.UserLast.  The system doesn't use any of
+   these internally, so you can safely use any value in this range to
+   identify your own commands, such as when creating custom menus.
+</p>
+<p>
+   The best way to define your own command IDs is to use the
+   <a href="#allocate">command.allocate()</a> function to dynamically
+   allocate an ID for each command.  This assigns a new ID, and records
+   it as in use within the command object, to guarantee that each call
+   to command.allocate() yields a different ID.  IDs are assigned
+   starting with command.UserLast and with each new ID one less than
+   the previous one.
+</p>
+<p>
+   The number of available user-defined IDs is finite, so you should
+   allocate an ID for each unique command you need during startup, and
+   then use those assigned numbers throughout the session.
+</p>
+<p>
+   The advantage of using command.allocate() to
+   assign IDs, rather than defining IDs on an ad hoc basis in your
+   code, is that it helps ensure that different modules written by
+   different people can be safely mixed together on one system.  As
+   long as each module assigns any commands it needs via this function,
+   each module will get its own separate commands, so there will be
+   no conflict about the meaning of a given user command ID.
+</p>
+<p>
+   Don't save command IDs in external files or settings, since
+   there's no guarantee that the ID numbers will be the same from
+   one session to the next.  
+</p>
+
+<h2>System command IDs</h2>
+<p>
+   The pre-defined system command names are listed below.
 </p>
 
 <p>
@@ -659,6 +699,17 @@
 <h2>Methods</h2>
 
 <p>
+   <a name="allocate"></a>
+   <b>command.allocate(<i>name</i>):</b>  Allocates a new command from the
+   UserFirst...UserLast range for use as a custom command code.  Returns the
+   new command code.  If <i>name</i> is given, it will be assigned as the
+   name for the new code within the command object: for example, if you
+   call command.allocate("MyNewFilter"), command.MyNewFilter will be set
+   to the newly assigned command ID.
+</p>
+
+<p>
+   <a name="name"></a>
    <b>command.name(<i>id</i>):</b>  Returns a string with the name for the
    given command ID (an integer value, one of the command.<i>Name</i> properties).
    For the "ranged" commands (FilterFirst to FilterLast, CaptureFirst to CaptureLast, etc),
@@ -667,6 +718,7 @@
 </p>
 
 <p>
+   <a name="nameAndIndex"></a>
    <b>command.nameAndIndex(<i>id</i>):</b>  Returns an object with properties
    { name: string, index: integer } giving the command's name and, if applicable,
    the index of the command within its range.  For most commands, the name is

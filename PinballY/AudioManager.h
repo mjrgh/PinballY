@@ -20,12 +20,13 @@ public:
 	// get the global singleton
 	static AudioManager *Get() { return inst; }
 
-	// Play a sound effect.  The name is the base file name, with
-	// no path or ".wav" suffix.
-	void PlaySoundEffect(const TCHAR *name);
+	// Play a sound asset, which is a .wav file in our Assets folder.  The name 
+	// is the base file name, with no path or ".wav" suffix.  Assets are always
+	// cacheable.
+	void PlayAsset(const TCHAR *name);
 
-	// Play a sound file
-	void PlaySoundFile(const TCHAR *filename);
+	// Play a sound file.  The file is given as a full path.
+	void PlayFile(const TCHAR *filename);
 
 	// Update.  This takes care of timed housekeeping work in the DXTK
 	// engine.  This must be called regularly, typically at the same
@@ -46,13 +47,16 @@ protected:
 	// Critical audio engine error detected
 	bool criticalError;
 
-	// Sound table.  This is a table of loaded sound effects
-	// indexed by base file name.  
-	std::unordered_map<TSTRING, DirectX::SoundEffect*> sounds;
+	// Sound cache.  This is a table of reusable sound effects,
+	// indexed by filename.  
+	std::unordered_map<TSTRING, std::unique_ptr<DirectX::SoundEffect>> cache;
+
+	// Clean up a play list.  This takes a list of SoundEffect objects, scans
+	// it for finished items, and erases each item that's no longer playing.
+	void CleanSoundList(std::list<std::unique_ptr<DirectX::SoundEffect>> &list);
 
 	// construction and destruction are handled through our own static methods,
 	// so they're protected
 	AudioManager();
 	~AudioManager();
 };
-

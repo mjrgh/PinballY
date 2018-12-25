@@ -1917,29 +1917,13 @@ void Application::GameMonitorThread::ManualCaptureGo()
 DWORD Application::GameMonitorThread::Main()
 {
 	// Get the game filename from the database, and build the full path
+	// (unless the filename already has an absolute path).
 	TCHAR gameFileWithPath[MAX_PATH];
-	PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
+	if (PathIsRelative(gameFileWithExt.c_str()))
+		PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
+	else
+		_tcscpy_s(gameFileWithPath, gameFileWithExt.c_str());
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ launch: full table path %s\n"), gameFileWithPath);
-
-	// If PinVol is running, send it a message on its mailslot with the
-	// game file and title.  This lets it show the title in its on-screen
-	// display text rather than the filename.  PinVol infers which game
-	// is running from the window title of the foreground app, and the
-	// apps usually only include the filename there.
-	if (HandleHolder mailslot(CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
-		GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
-		mailslot != NULL && mailslot != INVALID_HANDLE_VALUE)
-	{
-		// Prepare the message: "game <filename>|<title>", in WCHAR
-		// (16-bit unicode) characters.
-		WSTRINGEx msg;
-		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFileWithExt).c_str(), TSTRINGToWSTRING(game.title).c_str());
-
-		// Write the message to the mailslot.  Ignore errors, as the only
-		// harm if we fail is that PinVol won't have the title to display.
-		DWORD actual;
-		WriteFile(mailslot, msg.c_str(), (DWORD)(msg.length() * sizeof(WCHAR)), &actual, NULL);
-	}
 
 	// Get the centerpoint of the various windows.  If we need to
 	// send a synthesized mouse click targeted to a specific window, 
@@ -2447,6 +2431,27 @@ DWORD Application::GameMonitorThread::Main()
 	// actually existed until after those commands finished.  So do
 	// a second check here, in case the file has come into existence.
 	AddGameFileExt();
+
+	// If PinVol is running, send it a message on its mailslot with the
+	// game file and title.  This lets it show the game's real title in
+	// its on-screen display text, rather than just the game's filename.
+	// PinVol infers which game is running from the window title of the 
+	// foreground app, and the apps usually only include the filename
+	// there.
+	if (HandleHolder mailslot(CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
+		GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+		mailslot != NULL && mailslot != INVALID_HANDLE_VALUE)
+	{
+		// Prepare the message: "game <filename>|<title>", in WCHAR
+		// (16-bit unicode) characters.
+		WSTRINGEx msg;
+		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFileWithExt).c_str(), TSTRINGToWSTRING(game.title).c_str());
+
+		// Write the message to the mailslot.  Ignore errors, as the only
+		// harm if we fail is that PinVol won't have the title to display.
+		DWORD actual;
+		WriteFile(mailslot, msg.c_str(), (DWORD)(msg.length() * sizeof(WCHAR)), &actual, NULL);
+	}
 
 	// Note the starting time.  We use this to figure the total time the
 	// game was running, for the total play time statistics.  We'll update

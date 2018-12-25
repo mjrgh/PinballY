@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>FilterInfo</h1>
+
+<p>
+   A FilterInfo object contains information on a game filter, which
+   is essentially a selection rule that selects a subset of games to
+   show in the wheel UI.  The system provides a number of predefined
+   filters, such as the era filters ("1970s games"), manufacturer
+   filters ("Gottlieb games"), and system filters ("Visual Pinball X
+   games").
+</p>
+<p>
+   The main wheel UI lets the user select the filter to use at any
+   given time via the menu system.  Whenever the selected filter changes,
+   a <a href="FilterSelectEvent.html"><b>filterselect</b></a>
+   is fired.  You can use this to do additional work as needed when the
+   filter selection changes.
+</p>
+
+
+<h2>Creation</h2>
+
+<p>
+   You don't create FilterInfo objects directly.  You get them by
+   calling <a href="GameList.html#getFilterInfo">gameList.getFilterInfo()</a>.
+   That function returns a FilterInfo object populated with details about
+   the filter you specified.
+</p>
+
+<h2>Filter IDs</h2>
+
+<p>
+   Each filter defined by the system has a unique ID string.  This ID
+   string is designed to be permanent across sessions, so it can be
+   stored in external files and saved settings.
+</p>
+<p>
+   Each class of predefined system filters uses an ID that follows a
+   particular format.  You can test filter IDs against these formats
+   if you want to recognize specific filters or specific classes of
+   filters.  Here are the ID formats for the system's filters:
+</p>
+
+<ul>
+   <li><b>AddedBefore.<i>N</i>:</b> selects games added to the database
+   via PinballY's "Edit Game Details" dialog earlier than <i>N</i> days ago;
+   the system creates filters for 7, 30, and 365 days
+
+   <li><b>AddedWithin.<i>N</i>:</b> selects games added to the database
+   via PinballY's "Edit Game Details" dialog within the past <i>N</i> days;
+   the system creates filters for 7, 30, and 365 days
+   
+   <li><b>All:</b> the All Games filter, which selects all non-hidden games
+
+   <li><b>Category.<i>name</i>:</b>  selects games tagged with category <i>name</i>
+
+   <li><b>Favorites:</b> the Favorites filter, which selects games with
+   the user-set "favorite" flag
+
+   <li><b>Hidden:</b> the Hidden Games filter, which selects only games
+   with the user-set "hidden" flag; these games are excluded by all
+   other built-in filters
+
+   <li><b>Manuf.<i>name</i>:</b> selects games whose manufacturer names
+   in the XML database match <i>name</i>
+
+   <li><b>NotPlayedWithin.<i>N</i>:</b> selects games not played within
+   the past <i>N</i> days; the system creates filters for 7, 30, 365, and
+   365242200 days (the last being the number of days in one million years,
+   which lets us use the same filter class to effectively represent "never
+   played")
+
+   <li><b>PlayedWithin.<i>N</i>:</b> selects games played within the past
+   <i>N</i> days; the system creates filters for 7, 30, and 365 days
+
+   <li><b>Rating.<i>N</i></b>: <i>N</i> is from 0 to 5; the star rating
+   filters, each of which selects games with <i>N</i>- or <i>N</i>&frac12;-star
+   ratings
+
+   <li><b>Rating.-1</b>: the Unrated Games filter, which selects games
+   that don't have star ratings
+
+   <li><b>Uncategorized:</b> selects games with no category tags
+
+   <li><b>Unconfigured:</b> the Unconfigured Games filter, which selects
+   only games with no XML database entries
+
+   <li><b>YearRange.<i>from</i>.<i>to</i>:</b>  selects games with
+   release years between <i>from</i> and <i>to</i>, inclusive; the
+   system creates one such filter for each 20th century decade that
+   includes at least one database entry (e.g., YearRange.1970.1979
+   is the 1970s filter), and one filter for all years from 2000 onward
+   (this uses 9999 as the ending year, to essentially mean "the end
+   of time", so the actual ID is YearRange.2000.9999)
+</ul>
+   
+   
+
+<h2>Properties and methods</h2>
+
+<p>
+   <b>cmd:</b>  An integer command ID value.  This will always be
+   in the range from command.FilterFirst to command.FilterLast (see
+   <a href="Commands.html">Commands</a>).  The command assigned to a
+   filter isn't permanent; it can change any time the configuration is
+   reloaded.
+</p>
+
+<p>
+   <b>getGames():</b>  Returns an array of <a href="GameInfo.html#gameID">Game ID</a>
+   values, listing the games that the filter selects.
+</p>
+
+<p>
+   <b>id:</b>  The ID of the filter, which is the same ID string passed
+   in the <i>id</i> parameter.  This is a permanent ID for the filter, so
+   it can be stored in external files or settings.
+</p>
+
+<p>
+   <b>testGame(<i>id</i>)</b>:  Determines whether the filter includes
+   or excludes the given game.  <i>id</i> is the <a href="GameInfo.html#gameID">Game ID</a>
+   of the game to test.  Returns true if the filter includes the game in
+   its selection list, false if the filter excludes the game.
+</p>
+
+<p>
+   <b>title:</b>  A string giving the display title of the filter as
+   it appears in menus.  Note that this might be localized, and might change
+   across versions, so you shouldn't use it to recognize a particular
+   filter; use the <b>id</b> value for that.
+</p>
+
+
+</body>
+</html>

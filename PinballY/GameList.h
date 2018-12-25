@@ -87,9 +87,17 @@ public:
 	TSTRING title;
 
 	// Game filename.  This is the name of the playable simulator
-	// file (.vpt, .vpx, .fpt, etc).  It's normally specified with
-	// no path, as each system's games are by convention stored in
-	// a single folder for the sytem.
+	// file (.vpt, .vpx, .fpt, etc).  
+	//
+	// If this entry came from an XML database, this is the "name"
+	// attribute of the <game> node defining the game.  The exact
+	// filename format specified there can vary, since the data
+	// can come from a HyperPin or PBX migration or from manual 
+	// user input.  This is usually the root filename without a
+	// path, but it might or might not have an extension.
+	// 
+	// If this is an unconfigured game entry created from a table
+	// file set scan, this is the root filename with extension.
 	TSTRING filename;
 
 	// ROM name
@@ -170,6 +178,9 @@ struct MediaType
 	// Name string resource ID (IDS_MEDIATYPE_xxx)
 	int nameStrId;
 
+	// Javascript ID
+	const WCHAR *javascriptId;
+
 	// Config variable names for capture parameters for this type.
 	//
 	// The Start parameter specifies the start mode, MANUAL or AUTO.
@@ -237,6 +248,9 @@ public:
 	// information we have in this case is the filename.
 	GameListItem(const TCHAR *filename, TableFileSet *tableFileSet);
 
+	// set the default title and media name from the filename
+	void SetTitleFromFilename();
+
 	// common initialization
 	void CommonInit();
 
@@ -268,6 +282,26 @@ public:
 	// use the title plus system name.  That should be both unique and
 	// permanent for a given game.
 	TSTRING GetGameId() const;
+
+	// Resolve the game file.  This looks in the system's table folder
+	// for a file matching the filename in the metadata.  If the file
+	// as named doesn't exist, we'll try adding the default extension
+	// for the system (if it has one).
+	struct ResolvedFile
+	{
+		// does the file exist?
+		bool exists;
+
+		// full filename with path
+		TSTRING path;
+
+		// folder containing the file
+		TSTRING folder;
+
+		// file spec (no path, includes extension)
+		TSTRING file;
+	};
+	void ResolveFile(ResolvedFile &rf);
 
 	// Get the formatted display name, "Title (Manufacturer Year)".
 	TSTRING GetDisplayName() const;
@@ -302,8 +336,9 @@ public:
 	static const MediaType realDMDVideoType;
 	static const MediaType realDMDColorVideoType;
 
-	// Master list of media types
+	// Master list of media types, and table of types indexed by Javascript ID
 	static std::list<const MediaType*> allMediaTypes;
+	static std::unordered_map<WSTRING, const MediaType*> jsMediaTypes;
 	static void InitMediaTypeList();
 
 	// Get media item filenames.
@@ -1073,7 +1108,11 @@ public:
 	void SetGame(int n);
 
 	// Get the filter list
-	const std::list<GameListFilter*> &GetFilters() const { return filters; }
+	const std::list<GameListFilter*> &GetFilters()
+	{ 
+		CheckMasterFilterList();
+		return filters; 
+	}
 
 	// Set the current filter.  If the currently selected game passes
 	// the new filter, the current game selection isn't affected; if
@@ -1090,7 +1129,8 @@ public:
 	// filter selects.
 	void RefreshFilter();
 
-	// get a filter by command ID
+	// get a filter by config ID/command code
+	GameListFilter *GetFilterById(const TCHAR *id);
 	GameListFilter *GetFilterByCommand(int cmdID);
 
 	// Get the current filter
@@ -1242,6 +1282,12 @@ public:
 	// Find or add a manufacturer
 	GameManufacturer *FindOrAddManufacturer(const TCHAR *name);
 
+	// Find or add the era filter for the given year
+	DateFilter *FindOrAddDateFilter(int year);
+
+	// Rebuild the master filter list if necessary
+	void CheckMasterFilterList();
+
 	// Enumerate manufacturers
 	void EnumManufacturers(std::function<void(const GameManufacturer *)> func);
 
@@ -1381,10 +1427,17 @@ protected:
 	// Current filter
 	const GameListFilter *curFilter;
 
+	// Build the master filter list
+	void BuildMasterFilterList();
+
 	// add a filter
 	void AddFilter(GameListFilter *f)
 	{
-		f->cmd = nextFilterCmdID++;
+		// if it doesn't have an ID yet, assign one
+		if (f->cmd == 0)
+			f->cmd = nextFilterCmdID++;
+
+		// add it to the filter list
 		filters.push_back(f);
 	}
 
@@ -1408,15 +1461,17 @@ protected:
 
 	// all filters
 	std::list<GameListFilter*> filters;
+
+	// Is the filter list dirty?  If we have to create a new filter on
+	// the fly for a newly added manufacturer, decade, or category, we'll
+	// set this flat so that we know we have to rebuild the master list.
+	bool isFilterListDirty = false;
 	
 	// Find a category or create a new one.  If a category already exists 
 	// with this name, this simply returns the existing category object;
 	// if not, we create a new object and return it.  This doesn't add the
 	// category to the filter list.
 	GameCategory *FindOrCreateCategory(const TCHAR *name);
-
-	// Add a category to the filter list, maintaining the sorting order
-	void AddCategoryToFilterList(GameCategory *category);
 
 	// all categories
 	std::unordered_map<TSTRING, std::unique_ptr<GameCategory>> categories;

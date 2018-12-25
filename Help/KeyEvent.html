@@ -56,13 +56,19 @@
    <li><b>code:</b> A string representing the key pressed, using the same
        naming as in standard Web browser keydown messages.  See, for
        example, <a href="https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values">Key Values (MDN)</a>.
+       Key codes are <b>not</b> affected by any modifier key status
+       (Shift, Ctrl, CapsLock, etc), so this tells you the actual key pressed,
+       independently of what modifier keys might also be pressed.  For
+       example, pressing the "2" key (on the main keyboard) always yields
+       a <b>code</b> value of "Digit2", even when the Shift key is pressed.
    <li><b>key:</b> A string representing the key pressed, using the same
        format used in Web browser keydown messages.  For printable characters,
-       this is the character itself, with shift key status applied (e.g.,
-       holding down shift and pressing the "2" key produces a keydown event
-       with key set to "@").  For special characters (cursor keys, F-keys, etc),
-       this uses the standard browser name for the key, usually the same
-       name as in <b>code</b>.
+       this is the character itself, with the modifier key state (Shift, CapsLock,
+       NumLock) applied.  For example, holding down the Shift key and pressing
+       the "2" key (on the main keyboard) produces a keydown event with <b>key</b>
+       set to "@".  For special characters (cursor keys,
+       F-keys, etc), this uses the standard browser name for the key, usually
+       the same name as in <b>code</b>.
    <li><b>location:</b>  A keyboard location code for the key:
    <ul>
       <li>KEY_LOCATION_STANDARD (0), standard location used by most keys
@@ -80,9 +86,9 @@
    defined.  I didn't want to add to that mess with yet another ad hoc
    variation.  All modern browsers have  moved to the better-defined "code" and
    "key" system, which provides more complete and consistent information.
-   The PinballY-specific "vkey" value is provided in case you really want
-   the low-level Windows event information, but you'd really be better off
-   in nearly all cases using the code and/or key values.
+   The PinballY-specific "vkey" value is provided in case you need
+   the low-level Windows event information for some reason, such as for
+   directly calling a Windows API function.
 </p>
 
 

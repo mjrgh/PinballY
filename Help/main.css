@@ -112,7 +112,12 @@ li {
     margin-bottom: 1em;
 }
 
-.singleSpace li {
+ul.singleSpace, ul.compact {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+.singleSpace li, .compact li {
     margin-top: .25ex;
     margin-bottom: .25ex;
 }
