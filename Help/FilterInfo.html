@@ -30,7 +30,6 @@
 
 
 <h2>Creation</h2>
-
 <p>
    You don't create FilterInfo objects directly.  You get them by
    calling <a href="GameList.html#getFilterInfo">gameList.getFilterInfo()</a>.
@@ -38,8 +37,102 @@
    the filter you specified.
 </p>
 
-<h2>Filter IDs</h2>
+<a name="custom"></a>
+<h2>Custom filters</h2>
+<p>
+   You can define your own custom filters via
+   <a href="GameList.html#createFilter">gameList.createFilter(<i>desc</i>)</a>.
+   This function creates a new filter with a selection rule you define
+   via a Javascript function, which can express just about any kind of
+   selection criteria you can think of.
+</p>
+<p>
+   The <i>desc</i> argument to createFilter() is an object describing
+   the new filter.  It contains the following properties:
+</p>
+<ul>
+   <li><b>id:</b>  Required.  A string giving the ID of the new filter.
+   This is an arbitrary string you provide to identify the filter in
+   the settings file.  You can use letters, numbers, underscores, and
+   periods in the ID.  The ID must be unique across all filters in
+   the system, so it's a good idea to include some kind of author
+   name or organization name prefix ("mjr.TitleLength.Short").
 
+   <li><b>title:</b>  Required.  A title for the filter.  This will be
+   used in the status line messages when this filter is active, if any
+   status line messages include the filter name.  It's also used by
+   default as the menu title for the filter, but you can override
+   that with menuTitle.
+
+   <li><b>select:</b>  Required.  The selection function.  This is
+   a function that takes two arguments, function(<i>game</i>, <i>midnight</i>),
+   where <i>game</i> is a <a href="GameInfo.html">GameInfo</a> object
+   for a game to test for inclusion, and <i>midnight</i> is a Date object
+   representing the most recent past midnight in local time, for use in
+   filters that select by number of days since some event in the past.
+   (The most recent midnight means 12:00 AM at the start of the
+   current day.  This reference point is useful for counting in
+   terms of dates without regard to time of day.)  The function
+   returns true if the game is included in the filter's selection,
+   false if not.  This function is called for each game in the
+   system when the filter is activated to build the set of games
+   on the wheel.
+
+   <li><b>group:</b>  Optional.  The group name for the filter.
+   If provided, the system's main menu will include a menu item
+   with this name, which shows a submenu with all filters in this
+   group.  Use a name that makes a good title for this menu item,
+   such as "Filter by Title Length".  If omitted, the filter isn't
+   automatically included in any system menus, but you can still
+   select it via your own custom menus or via <a href="#setCurFilter">gameList.setCurFilter()</a>.
+
+   <li><b>sortKey:</b>  Optional.  A string giving a menu sorting key
+   for this filter relative to other filters in its group.  When
+   the group menu is displayed, the menu items are sorted according
+   to this key, in alphabetical order.  The <b>title</b> string is
+   used by default, so that the menu items appear in alphabetical
+   order of title.  That's not always the most desirable order
+   for some groups, though.  For example, if you had a group that
+   filters by game title, with entries for "Short Titles", "Medium-Length
+   Titles", and "Long Title", it would make more sense to display the
+   menu in that order (short, medium, long) rather than alphabetically.
+   You could accomplish that by using sort keys "A", "B", and "C"
+   for the short, medium, and long items, respectively.  The
+   sort key is never displayed anywhere, so you can use whatever's
+   convenient to get the desired sorting order.
+
+   <li><b>includeHidden:</b>  Optional.  If true, games marked as
+   hidden by the user are included in the set of games tested
+   with the <b>select</b> function; if omitted or false, hidden
+   games are assumed to be omitted, so they're not even tested
+   with the <b>select</b> function, saving a little bit of time
+   by skipping unnecessary tests.  This is called out as a separate
+   test because all of the system filters exclude hidden games,
+   except for the "Hidden Games" filter, which <i>only</i> includes
+   hidden games.  Setting this to true won't necessarily cause
+   hidden games to appear on the wheel; rather, it allows hidden
+   games to be tested by your <b>select</b> function for inclusion.
+   You should only set this to true when your filter is explicitly
+   some kind of hidden games filter, because it might be confusing
+   for the user to see games they intentionally marked as hidden
+   show up in a filter that isn't specifically about hidden games.
+
+   <li><b>includeUnconfig:</b>  Optional.  If true, games that
+   aren't configured (meaning they have no XML data entries) are
+   included in the set of games tested with your <b>select</b>
+   function.  If false or undefined, <i>and</i> the user has selected
+   the "hide unconfigured games" option in the settings, unconfigured
+   games are assumed to be omitted, so they aren't even tested with
+   the <b>select</b> function to save some time.  Note that setting
+   this to true might cause unwanted behavior, since it goes against
+   the user's instructions to "hide unconfigured games" from most
+   filters.  You should only set this if your filter is explicitly
+   some kind of unconfigured selection filter, so that it doesn't
+   confuse the user when unconfigured games appear there.
+</ul>
+
+<a name="filterID"></a>
+<h2>Filter IDs</h2>
 <p>
    Each filter defined by the system has a unique ID string.  This ID
    string is designed to be permanent across sessions, so it can be
@@ -75,14 +168,14 @@
    <li><b>Manuf.<i>name</i>:</b> selects games whose manufacturer names
    in the XML database match <i>name</i>
 
+   <li><b>NeverPlayed:</b> selects games that have never been played
+   under PinballY
+
    <li><b>NotPlayedWithin.<i>N</i>:</b> selects games not played within
-   the past <i>N</i> days; the system creates filters for 7, 30, 365, and
-   365242200 days (the last being the number of days in one million years,
-   which lets us use the same filter class to effectively represent "never
-   played")
+   the past <i>N</i> days using PinballY
 
    <li><b>PlayedWithin.<i>N</i>:</b> selects games played within the past
-   <i>N</i> days; the system creates filters for 7, 30, and 365 days
+   <i>N</i> days using PinballY; the system creates filters for 7, 30, and 365 days
 
    <li><b>Rating.<i>N</i></b>: <i>N</i> is from 0 to 5; the star rating
    filters, each of which selects games with <i>N</i>- or <i>N</i>&frac12;-star
@@ -95,6 +188,12 @@
 
    <li><b>Unconfigured:</b> the Unconfigured Games filter, which selects
    only games with no XML database entries
+
+   <li><b>User.<i>id</i></b>: a user-defined filter created via
+   <a href="GameList.html#createFilter">gameList.createFilter()</a>;
+   the <i>id</i> portion is the <b>id</b> property specified in the
+   filter descriptor when creating the new filter.  See <a href="#custom">Custom filters</a>
+   above.
 
    <li><b>YearRange.<i>from</i>.<i>to</i>:</b>  selects games with
    release years between <i>from</i> and <i>to</i>, inclusive; the
@@ -112,20 +211,20 @@
 <p>
    <b>cmd:</b>  An integer command ID value.  This will always be
    in the range from command.FilterFirst to command.FilterLast (see
-   <a href="Commands.html">Commands</a>).  The command assigned to a
-   filter isn't permanent; it can change any time the configuration is
-   reloaded.
+   <a href="Commands.html">Commands</a>).  (The command ID is assigned
+   for the current session only, so it shouldn't be saved externally.)
 </p>
 
 <p>
    <b>getGames():</b>  Returns an array of <a href="GameInfo.html#gameID">Game ID</a>
-   values, listing the games that the filter selects.
+   values.  This is the list of all games that the filter selects from the currently
+   loaded game list.
 </p>
 
 <p>
-   <b>id:</b>  The ID of the filter, which is the same ID string passed
-   in the <i>id</i> parameter.  This is a permanent ID for the filter, so
-   it can be stored in external files or settings.
+   <b>id:</b>  The ID of the filter (see <a href="#filterID">Filter IDs</a>).
+   This is a permanent ID for the filter, so it can be stored in external
+   files or settings.
 </p>
 
 <p>

@@ -583,26 +583,55 @@
 #define ID_FILTER_LAST                  41999
 
 
+// Command range for user-defined filter groups.  Each user-defined
+// filter has a group name to specify where it appears in the system
+// menu tree.  These extend the system's predefined filter groups
+// (IDS_FILTER_BY_ERA, IDS_FILTER_BY_SYS, etc).  The number required
+// is unpredictable, but realistically it should be limited to a
+// small handful by usability considerations.
+#define ID_USER_FILTER_GROUP_FIRST      42000
+#define ID_USER_FILTER_GROUP_LAST       42099
+
+
 // Command range for "Select a system" menu.  We need one entry for
 // each system in a table's associated system list, so the range
 // needs to be big enough for all potential systems.  In practice,
 // there will typically be at most around 5 to 10 systems on a
 // machine (a few VP versions, FP, The Pinball Arcade, FX2, FX3).
 // A range of 100 should be plenty.
-#define ID_PICKSYS_FIRST                42000
-#define ID_PICKSYS_LAST                 42099
+#define ID_PICKSYS_FIRST                42100
+#define ID_PICKSYS_LAST                 42199
 
 
 // Command range for media capture items.  We only need as many
-// of these as there are media types.
-#define ID_CAPTURE_FIRST                42100
-#define ID_CAPTURE_LAST                 42149
+// of these as there are media types, and there's a fixed set of
+// those that won't expand dynamically.  (Although we might add
+// more media types in future versions, so we allocate a larger
+// range here than we actually use at present, just so we don't
+// have to keep coming back and changing the limits.)
+#define ID_CAPTURE_FIRST                42200
+#define ID_CAPTURE_LAST                 42249
 
 // Command range for media drop selections.  As with capture items,
-// we only need one for each media types.
-#define ID_MEDIADROP_FIRST              42150
-#define ID_MEDIADROP_LAST               42199
+// we only need one per media type.
+#define ID_MEDIADROP_FIRST              42250
+#define ID_MEDIADROP_LAST               42299
 
 // Command range reserved for user-written Javascript commands.
-#define ID_USER_FIRST                   42200
-#define ID_USER_LAST                    44199
+// The number needed here is obviously completely unpredictable,
+// so we need to allocate a big enough range that it won't be
+// like to be exhausted in practice.  As with filters (see above),
+// usability will probably impose a practical limit on the number
+// of custom commands anyone would ever really want to add, and
+// as with filters, I'm going to say the practical scaling limit
+// is somewhere on the order of the number of games in a well-
+// populated system.  E.g., I could imagine coming up with some
+// kind of mechanically generated menu structure that requires
+// a small number of commands per installed game, and *maybe*
+// being able to make that usable with a carefully balanced
+// menu tree.  But that seems about as crazy as anyone would
+// want to get with this.  So let's allocate a range with space
+// for a reasonably small N times a reasonably large number of
+// games.
+#define ID_USER_FIRST                   42300
+#define ID_USER_LAST                    44299

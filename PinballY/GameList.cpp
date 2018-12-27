@@ -28,6 +28,13 @@ using namespace rapidxml;
 // global singleton
 GameList *GameList::inst = 0;
 
+// statics
+int GameList::nextFilterCmdID = ID_FILTER_FIRST;
+std::unordered_map<TSTRING, int> GameList::filterCmdMap;
+int GameList::nextFilterGroupCmdID = ID_USER_FILTER_GROUP_FIRST;
+std::unordered_map<TSTRING, int> GameList::filterGroupCmdMap;
+
+
 // config variables for the game list
 namespace ConfigVars
 {
@@ -60,9 +67,6 @@ GameList::GameList()
 
 	// start with the All Games filter
 	curFilter = &allGamesFilter;
-
-	// assign filter command IDs starting from ID_FILTER_FIRST
-	nextFilterCmdID = ID_FILTER_FIRST;
 
 	// Set up our stats columns
 	gameCol = statsDb.DefineColumn(_T("Game"));
@@ -717,6 +721,46 @@ DATE GameList::GetLocalMidnightUTC()
 
 	// return the Variant DATE result
 	return dMidnight;
+}
+
+const std::vector<GameListFilter*> &GameList::GetFilters()
+{
+	// make sure the list is up to date
+	CheckMasterFilterList();
+
+	// return a reference to our internal list
+	return filters;
+}
+
+void GameList::EnumUserDefinedFilterGroups(std::function<void(const TSTRING &name, int command)> func)
+{
+	// make sure the filter list is up to date
+	CheckMasterFilterList();
+
+	// populate a set of user-defined group names
+	std::unordered_set<TSTRING> groups;
+	for (auto f : filters)
+	{
+		// system group names are enclosed in [square brackets], so anything
+		// without square brackets is a user-defined group
+		if (f->menuGroup.length() != 0 && f->menuGroup[0] != '[' && groups.find(f->menuGroup) == groups.end())
+			groups.emplace(f->menuGroup);
+	}
+
+	// enumerate the groups for the caller
+	for (auto const &g : groups)
+		func(g, filterGroupCmdMap[g]);
+}
+
+const TCHAR *GameList::GetUserDefinedFilterGroup(int cmd)
+{
+	for (auto const &g : filterGroupCmdMap)
+	{
+		if (g.second == cmd)
+			return g.first.c_str();
+	}
+
+	return nullptr;
 }
 
 void GameList::SetFilter(int cmdID)
@@ -1380,10 +1424,10 @@ bool GameList::Load(ErrorHandler &eh)
 	auto CreateRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
 	{
 		// create the filter
-		recencyFilters.emplace_back(
+		recencyFilters.emplace_back(new RecentlyPlayedFilter(
 			LoadStringT(titleStringId).c_str(), 
 			LoadStringT(menuStringId).c_str(),
-			days, exclude);
+			days, exclude));
 	};
 	CreateRecencyFilter(IDS_FILTER_THISWEEK, IDS_SFILTER_THISWEEK, 7, false);
 	CreateRecencyFilter(IDS_FILTER_THISMONTH, IDS_SFILTER_THISMONTH, 30, false);
@@ -1392,26 +1436,20 @@ bool GameList::Load(ErrorHandler &eh)
 	CreateRecencyFilter(IDS_FILTER_NOTTHISMONTH, IDS_SFILTER_NOTTHISMONTH, 30, true);
 	CreateRecencyFilter(IDS_FILTER_NOTTHISYEAR, IDS_SFILTER_NOTTHISYEAR, 365, true);
 
-	// For the "Never Played" filter, use an absurdly long interval
-	// of a million years, and of course the "exclude" flag.  This
-	// effectively filters out anything with a valid Last Played time,
-	// thus selecting only games that have never been played.  It's
-	// certainly possible to construct a valid date before a million
-	// years ago and put it in the database by hand, but we'd never 
-	// create that sort of timestamp organically, so the only way this 
-	// filter would get confused is if someone was intentionally trying
-	// to confuse it.  In which case it's their problem!
-	CreateRecencyFilter(IDS_FILTER_NEVERPLAYED, IDS_SFILTER_NEVERPLAYED, 365242200, true);
+	// create the "Never Played" filter
+	recencyFilters.emplace_back(new NeverPlayedFilter(
+		LoadStringT(IDS_FILTER_NEVERPLAYED).c_str(),
+		LoadStringT(IDS_SFILTER_NEVERPLAYED).c_str()));
 
 	// Create the installation recency filters.  These sort games by
 	// how recently they were added to the database.
 	auto CreateInstRecencyFilter = [this](int titleStringId, int menuStringId, int days, bool exclude)
 	{
 		// create the filter
-		instRecencyFilters.emplace_back(
+		recencyFilters.emplace_back(new RecentlyAddedFilter(
 			LoadStringT(titleStringId).c_str(),
 			LoadStringT(menuStringId).c_str(),
-			days, exclude);
+			days, exclude));
 	};
 	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISWEEK, IDS_SFILTER_THISWEEK, 7, false);
 	CreateInstRecencyFilter(IDS_FILTER_ADDEDTHISMONTH, IDS_SFILTER_THISMONTH, 30, false);
@@ -1443,6 +1481,42 @@ bool GameList::Load(ErrorHandler &eh)
 	return true;
 }
 
+void GameList::AddUserDefinedFilter(UserDefinedFilter *filter)
+{
+	// delete it if it already exists
+	DeleteUserDefinedFilter(filter);
+
+	// add it
+	userDefinedFilters.emplace(filter->GetFilterId(), filter);
+
+	// assign it a command ID
+	AssignFilterCommand(filter);
+
+	// If it defines a new user-defined filter group, assign that a command ID.
+	// System filter group names are enclosed in [square brackets].
+	if (filter->menuGroup.length() != 0 && filter->menuGroup[0] != '[')
+	{
+		if (auto it = filterGroupCmdMap.find(filter->menuGroup); it == filterGroupCmdMap.end())
+			filterGroupCmdMap.emplace(filter->menuGroup, nextFilterGroupCmdID++);
+	}
+
+	// the filter list needs to be rebuilt
+	isFilterListDirty = true;
+}
+
+void GameList::DeleteUserDefinedFilter(UserDefinedFilter *filter)
+{
+	// look up the filter
+	if (auto it = userDefinedFilters.find(filter->GetFilterId()); it != userDefinedFilters.end())
+	{
+		// found it - remove it from the map
+		userDefinedFilters.erase(it);
+
+		// the filter list needs to be rebuilt
+		isFilterListDirty = true;
+	}
+}
+
 void GameList::CheckMasterFilterList()
 {
 	if (isFilterListDirty)
@@ -1466,53 +1540,21 @@ void GameList::BuildMasterFilterList()
 	// Add the Favorites filter
 	AddFilter(&favoritesFilter);
 
-	// Build an index on the date filters, sorted chronologically
-	std::vector<DateFilter*> dfIndex;
+	// Add the Date filters
 	for (auto &df : dateFilters)
-		dfIndex.push_back(&df.second);
-	std::sort(dfIndex.begin(), dfIndex.end(), [](DateFilter* const &a, DateFilter* const &b) {
-		return a->yearFrom < b->yearFrom;
-	});
+		AddFilter(&df.second);
 
-	// add the date filters to the master list
-	for (auto df : dfIndex)
-		AddFilter(df);
-
-	// Build an index on the manufacturer filters, sorted alphabetically
-	std::vector<GameManufacturer*> mfIndex;
+	// Add the Manufacturer filters
 	for (auto &mf : manufacturers)
-		mfIndex.push_back(&mf.second);
-	std::sort(mfIndex.begin(), mfIndex.end(), [](GameManufacturer* const &a, GameManufacturer* const &b) {
-		return lstrcmpi(a->manufacturer.c_str(), b->manufacturer.c_str()) < 0;
-	});
+		AddFilter(&mf.second);
 
-	// add the manufacturers to the master list
-	for (auto mf : mfIndex)
-		AddFilter(mf);
-
-	// Build an index on the system filters, sorted alphabetically
-	std::vector<GameSystem*> sysIndex;
+	// Add the System filters
 	for (auto &sys : systems)
-		sysIndex.push_back(&sys.second);
-	std::sort(sysIndex.begin(), sysIndex.end(), [](GameSystem* const &a, GameSystem* const &b) {
-		return lstrcmpi(a->displayName.c_str(), b->displayName.c_str()) < 0;
-	});
+		AddFilter(&sys.second);
 
-	// add the system filters to the master list
-	for (auto sys : sysIndex)
-		AddFilter(sys);
-
-	// Build an index on the category filters, sorted alphabetically
-	std::vector<GameCategory*> catIndex;
+	// Add the Category filters
 	for (auto &cat : categories)
-		catIndex.push_back(cat.second.get());
-	std::sort(catIndex.begin(), catIndex.end(), [](GameCategory* const &a, GameCategory* const &b) {
-		return a->SortsBefore(b);
-	});
-
-	// Add the category filters in alphabetical order
-	for (auto cat : catIndex)
-		AddFilter(cat);
+		AddFilter(cat.second.get());
 
 	// Add the "Uncategorized" filter at the end
 	AddFilter(&noCategoryFilter);
@@ -1521,16 +1563,51 @@ void GameList::BuildMasterFilterList()
 	for (auto &r : ratingFilters)
 		AddFilter(&r.second);
 
-	// Add the recently-played filters
+	// Add the recently-played and recently-added filters
 	for (auto &r : recencyFilters)
-		AddFilter(&r);
+		AddFilter(r.get());
+	
+	// Add the user-defined filters
+	for (auto &f : userDefinedFilters)
+		AddFilter(f.second);
 
-	// Add the when-added filters
-	for (auto &r : instRecencyFilters)
-		AddFilter(&r);
+	// Sort the list in menu display order
+	std::sort(filters.begin(), filters.end(), [](GameListFilter* const &a, GameListFilter* const &b) {
+		return lstrcmpi(a->menuSortKey.c_str(), b->menuSortKey.c_str()) < 0;
+	});
 
 	// the list is now up-to-date
 	isFilterListDirty = false;
+}
+
+void GameList::AddFilter(GameListFilter *f)
+{
+	// if it doesn't have an ID yet, assign one
+	AssignFilterCommand(f);
+}
+
+void GameList::AssignFilterCommand(GameListFilter *f)
+{
+	if (f->cmd == 0)
+	{
+		// If there's already an assigned ID for this filter, reuse it.
+		// Otherwise assign a new ID.
+		auto id = f->GetFilterId();
+		if (auto it = filterCmdMap.find(id); it != filterCmdMap.end())
+		{
+			// reuse the same ID assigned to this filter previously
+			f->cmd = it->second;
+		}
+		else
+		{
+			// assign a new ID, and remember it in case we have to rebuild the list
+			f->cmd = nextFilterCmdID++;
+			filterCmdMap.emplace(id, f->cmd);
+		}
+	}
+
+	// add it to the filter list
+	filters.push_back(f);
 }
 
 void GameList::BuildTitleIndex() 
@@ -2380,7 +2457,8 @@ void GameList::DeleteCategory(GameCategory *category)
 		RemoveCategory(&g, category);
 
 	// remove the category from the filter list
-	filters.remove(category);
+	if (auto it = std::find(filters.begin(), filters.end(), category); it != filters.end())
+		filters.erase(it);
 
 	// For debugging purposes and protection against self-inflicted errors,
 	// we're not going to actually delete the GameCategory object.  We hand
@@ -3283,6 +3361,11 @@ TSTRING GameListItem::GetGameId() const
 	return title + _T(".") + (system != nullptr ? system->displayName : _T("Unconfigured"));
 }
 
+TSTRING *GameListItem::GetTablePath() const
+{
+	return tableFileSet != nullptr ? &tableFileSet->tablePath : nullptr;
+}
+
 TSTRING GameListItem::CleanMediaName(const TCHAR *src)
 {
 	// process each character of the source string
@@ -4108,6 +4191,19 @@ bool RecentlyPlayedFilter::Include(GameListItem *game, DATE midnight) const
 
 // -----------------------------------------------------------------------
 //
+// Never-played filter
+//
+bool NeverPlayedFilter::Include(GameListItem *game, DATE midnight) const
+{
+	// Get the game's last played time, as a DateTime value.  If there's
+	// no valid stored value, the game has never been played, so it
+	// passes the filter.
+	DateTime lastPlayed(GameList::Get()->GetLastPlayed(game));
+	return !lastPlayed.IsValid();
+}
+
+// -----------------------------------------------------------------------
+//
 // Recently added filter
 //
 
@@ -4182,37 +4278,9 @@ bool GameCategory::Include(GameListItem *game, DATE /*midnight*/) const
 	return GameList::Get()->IsInCategory(game, this);
 }
 
-bool GameCategory::SortsBefore(const GameListFilter *other) const
-{
-	// check if the comparison item is a category filter
-	if (auto otherCat = dynamic_cast<const GameCategory*>(other); otherCat != nullptr)
-	{
-		// all regular category filters sort ahead of "Uncategorized"
-		if (dynamic_cast<const NoCategory*>(other) != nullptr)
-			return true;
-
-		// sort based on the name, ignoring case
-		return lstrcmpi(name.c_str(), otherCat->name.c_str()) < 0;
-	}
-	else
-	{
-		// we sort after non-category filters
-		return false;
-	}
-
-}
-
 bool NoCategory::Include(GameListItem *game, DATE /*midnight*/) const
 {
 	return GameList::Get()->IsUncategorized(game);
-}
-
-bool NoCategory::SortsBefore(const GameListFilter *other) const
-{
-	// we sort after all regular category filters, and after all
-	// non-category filters, so this is simple - we're never ahead
-	// of anything!
-	return false;
 }
 
 // -----------------------------------------------------------------------

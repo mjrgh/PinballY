@@ -190,10 +190,14 @@ PlayfieldView::~PlayfieldView()
 	// commit any coin balance to a credit balance
 	ResetCoins();
 
-	// Explicitly delete any outstanding high score requests.  These can
+	// Explicitly clear any outstanding high score requests.  These can
 	// contain Javascript objects, so we want to make sure these get deleted
 	// before we destroy the Javascript context they belong to.
 	highScoresReadyList.clear();
+
+	// The user-defined filter list also contains Javscript object references,
+	// so clear it explicitly.
+	javascriptFilters.clear();
 }
 
 // Create our window
@@ -586,15 +590,77 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getCurFilter", &PlayfieldView::JsGetCurFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setCurFilter", &PlayfieldView::JsSetCurFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getFilterInfo", &PlayfieldView::JsGetFilterInfo, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gamelist", "getAllFilters", &PlayfieldView::JsGetAllFilters, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllFilters", &PlayfieldView::JsGetAllFilters, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createFilter", &PlayfieldView::JsCreateFilter, this, eh))
 				return;
-
+			
 			// Set up the GameInfo methods
 			if (!js->DefineObjMethod(jsGameInfo, "GameInfo", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveGameFile", &PlayfieldView::JsResolveGameFile, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveMedia, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh))
 				return;
+
+			// Some convenience definitions for the GameInfo getters
+			using JE = JavascriptEngine;
+			using JsObj = JE::JsObj;
+#define JsUndef (JavascriptEngine::Get()->GetUndefVal())
+
+			// GameInfo "categories" getter (it's a bit large to define inline)
+			static auto GetCategories = [](GameListItem *game)
+			{
+				// get the category list
+				std::list<const GameCategory*> catList;
+				GameList::Get()->GetCategoryList(game, catList);
+
+				// translate it to a javascript array
+				auto arr = JsObj::CreateArray();
+				for (auto cat : catList)
+					arr.Push(cat->name);
+
+				return arr.jsobj;
+			};
+
+			// Set up the GameInfo getters
+			if (!AddGameInfoGetter<TSTRING>("configId", [](GameListItem *game) { return game->GetGameId(); }, eh)
+				|| !AddGameInfoGetter<TSTRING>("displayName", [](GameListItem *game) { return game->GetDisplayName(); }, eh)
+				|| !AddGameInfoGetter<TSTRING>("title", [](GameListItem *game) { return game->title; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("rom",
+					[](GameListItem *game) { return game->rom.length() != 0 ? JE::NativeToJs(game->rom) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<TSTRING>("mediaName", [](GameListItem *game) { return game->mediaName; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("year", [](GameListItem *game) { return game->year != 0 ? JE::NativeToJs(game->year) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("tableType",
+					[](GameListItem *game) { return game->tableType.length() != 0 ? JE::NativeToJs(game->tableType) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("filename", 
+					[](GameListItem *game) { return game->filename.length() != 0 ? JE::NativeToJs(game->filename) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("path",
+					[](GameListItem *game) { return game->tableFileSet != nullptr ? JE::NativeToJs(game->tableFileSet->tablePath) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("gridPos",
+					[](GameListItem *game) { auto gp = JsObj::CreateObject(); gp.Set("row", game->gridPos.row); gp.Set("col", game->gridPos.col); return gp.jsobj; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("manufacturer",
+					[](GameListItem *game) { return game->manufacturer != nullptr ? JE::NativeToJs(game->manufacturer->manufacturer) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("system",
+					[](GameListItem *game) { return game->system != nullptr ? JE::NativeToJs(game->system->displayName) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<JsValueRef>("dbFile",
+					[](GameListItem *game) { return game->dbFile != nullptr ? JE::NativeToJs(game->dbFile->filename) : JsUndef; }, eh)
+				|| !AddGameInfoGetter<bool>("isConfigured", [](GameListItem *game) { return game->isConfigured; }, eh)
+				|| !AddGameInfoGetter<bool>("isHidden", [](GameListItem *game) { return game->IsHidden(); }, eh)
+				|| !AddGameInfoStatsGetter<JsValueRef>("lastPlayed", 
+					[](GameListItem *game) { auto d = GameList::Get()->GetLastPlayed(game); return d != nullptr ? JE::NativeToJs(DateTime(d)) : JsUndef; }, eh)
+				|| !AddGameInfoStatsGetter<JsValueRef>("dateAdded",
+					[](GameListItem *game) { auto d = GameList::Get()->GetDateAdded(game); return d != nullptr ? JE::NativeToJs(DateTime(d)) : JsUndef; }, eh)
+				|| !AddGameInfoStatsGetter<JsValueRef>("highScoreStyle",
+					[](GameListItem *game) { auto hs = GameList::Get()->GetHighScoreStyle(game); return hs != nullptr ? JE::NativeToJs(hs) : JsUndef; }, eh)
+				|| !AddGameInfoStatsGetter<double>("playCount", [](GameListItem *game) { return static_cast<double>(GameList::Get()->GetPlayCount(game)); }, eh)
+				|| !AddGameInfoStatsGetter<double>("playTime", [](GameListItem *game) { return static_cast<double>(GameList::Get()->GetPlayTime(game)); }, eh)
+				|| !AddGameInfoStatsGetter<bool>("isFavorite", [](GameListItem *game) { return GameList::Get()->IsFavorite(game); }, eh)
+				|| !AddGameInfoStatsGetter<double>("rating", [](GameListItem *game) { return static_cast<double>(GameList::Get()->GetRating(game)); }, eh)
+				|| !AddGameInfoStatsGetter<bool>("isMarkedForCapture", [](GameListItem *game) { return GameList::Get()->IsMarkedForCapture(game); }, eh)
+				|| !AddGameInfoStatsGetter<JsValueRef>("categories", GetCategories, eh))
+				return;
+
+#undef JsUndef
+
 
 			// Set up the FilterInfo methods
 			if (!js->DefineObjMethod(jsFilterInfo, "FilterInfo", "getGames", &PlayfieldView::JsFilterInfoGetGames, this, eh)
@@ -1011,7 +1077,7 @@ void PlayfieldView::JsClearInterval(double id)
 
 void PlayfieldView::JsConsoleLog(TSTRING level, TSTRING message)
 {
-	OutputDebugString(MsgFmt(_T("console.log(%s, %s)\n"), level.c_str(), message.c_str()));
+	OutputDebugString(MsgFmt(_T("console.log(%s): %s\n"), level.c_str(), message.c_str()));
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 		js->DebugConsoleLog(level.c_str(), message.c_str());
 }
@@ -1242,70 +1308,148 @@ JsValueRef PlayfieldView::JsGetGameInfo(int id)
 
 	try
 	{
-		// create a GameInfo object for the results
-		auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsGameInfo);
-
-		// populate the properties
-		obj.Set("id", game->internalID);
-		obj.Set("configId", game->GetGameId());
-		obj.Set("displayName", game->GetDisplayName());
-		obj.Set("title", game->title);
-		if (game->rom.length() != 0)
-			obj.Set("rom", game->rom);
-		obj.Set("mediaName", game->mediaName);
-		if (game->year != 0)
-			obj.Set("year", game->year);
-		if (game->tableType.length() != 0)
-			obj.Set("tableType", game->tableType);
-
-		if (game->filename.length() != 0)
-			obj.Set("filename", game->filename);
-		if (game->tableFileSet != nullptr)
-			obj.Set("path", game->tableFileSet->tablePath);
-
-		auto gridPos = JavascriptEngine::JsObj::CreateObject();
-		gridPos.Set("row", game->gridPos.row);
-		gridPos.Set("col", game->gridPos.col);
-		obj.Set("gridPos", gridPos);
-
-		if (game->manufacturer != nullptr)
-			obj.Set("manufacturer", game->manufacturer->manufacturer);
-		if (game->system != nullptr)
-			obj.Set("system", game->system->displayName);
-		if (game->dbFile != nullptr)
-			obj.Set("dbFile", game->dbFile->filename);
-		obj.Set("isConfigured", game->isConfigured);
-		obj.Set("isHidden", game->IsHidden());
-		
-		if (game->statsDbRow >= 0)
-		{
-			if (auto lastPlayed = gl->GetLastPlayed(game); lastPlayed != nullptr)
-				obj.Set("lastPlayed", DateTime(lastPlayed));
-			if (auto dateAdded = gl->GetDateAdded(game); dateAdded != nullptr)
-				obj.Set("dateAdded", DateTime(dateAdded));
-			if (auto hs = gl->GetHighScoreStyle(game); hs != nullptr)
-				obj.Set("highScoreStyle", DateTime(hs));
-			obj.Set("playCount", gl->GetPlayCount(game));
-			obj.Set("playTime", gl->GetPlayTime(game));
-			obj.Set("isFavorite", gl->IsFavorite(game));
-			obj.Set("rating", gl->GetRating(game));
-			obj.Set("isMarkedForCapture", gl->IsMarkedForCapture(game));
-		}
-
-		auto catArr = JavascriptEngine::JsObj::CreateArray();
-		std::list<const GameCategory*> catList;
-		gl->GetCategoryList(game, catList);
-		for (auto cat : catList)
-			catArr.Push(cat->name);
-		obj.Set("categories", catArr);
-
-		// return the populated object
-		return obj.jsobj;
+		// build and return the game info object
+		return BuildJsGameInfo(game);
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
+}
+
+template<typename T> 
+T PlayfieldView::JsGameInfoGetter(T (*func)(GameListItem*), JsValueRef self)
+{
+	// Look up the game object by self.id
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the object from self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto game = GameList::Get()->GetByInternalID(selfobj.Get<int>("id"));
+		if (game == nullptr)
+		{
+			js->Throw(_T("GameInfo object is no longer valid"));
+			return JavascriptEngine::DefaultVal<T>();
+		}
+
+		// retrieve and return the result
+		return func(game);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return JavascriptEngine::DefaultVal<T>();
+	}
+}
+
+template<typename T>
+bool PlayfieldView::AddGameInfoGetter(const CHAR *propName, T (*func)(GameListItem*), ErrorHandler &eh)
+{
+	typedef T funcType(GameListItem*);
+	return JavascriptEngine::Get()->DefineGetterSetter(jsGameInfo, "GameInfo", propName,
+		JavascriptEngine::Get()->CreateAndSaveMethodWrapper<funcType, T>(&PlayfieldView::JsGameInfoGetter, func), nullptr, eh);
+}
+
+template<typename T>
+JsValueRef PlayfieldView::JsGameInfoStatsGetter(T(*func)(GameListItem*), JsValueRef self)
+{
+	// Look up the game object by self.id
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the object from self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto gl = GameList::Get();
+		auto game = gl->GetByInternalID(selfobj.Get<int>("id"));
+		if (game == nullptr)
+			return js->Throw(_T("GameInfo object is no longer valid"));
+
+		if (gl->GetStatsDbRow(game, false) < 0)
+			return js->GetUndefVal();
+
+		// retrieve and return the result
+		return JavascriptEngine::NativeToJs(func(game));
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+template<typename T>
+bool PlayfieldView::AddGameInfoStatsGetter(const CHAR *propName, T (*func)(GameListItem*), ErrorHandler &eh)
+{
+	typedef T funcType(GameListItem *);
+	return JavascriptEngine::Get()->DefineGetterSetter(jsGameInfo, "GameInfo", propName,
+		JavascriptEngine::Get()->CreateAndSaveMethodWrapper<funcType, JsValueRef>(&PlayfieldView::JsGameInfoStatsGetter, func), nullptr, eh);
+}
+
+JsValueRef PlayfieldView::BuildJsGameInfo(GameListItem *game)
+{
+	// create a GameInfo object for the results
+	auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsGameInfo);
+
+	// populate the properties
+	auto gl = GameList::Get();
+	obj.Set("id", game->internalID);
+
+	//$$$ obj.Set("configId", game->GetGameId());
+	//$$$ obj.Set("displayName", game->GetDisplayName());
+	//$$$ obj.Set("title", game->title);
+	//$$$ if (game->rom.length() != 0)
+	//$$$	obj.Set("rom", game->rom);
+	//$$$ obj.Set("mediaName", game->mediaName);
+	//$$$ if (game->year != 0)
+	//$$$ 	obj.Set("year", game->year);
+	//$$$ if (game->tableType.length() != 0)
+	//$$$ 	obj.Set("tableType", game->tableType);
+
+	//$$$ if (game->filename.length() != 0)
+	//$$$ 	obj.Set("filename", game->filename);
+	//$$$ if (game->tableFileSet != nullptr)
+	//$$$	obj.Set("path", game->tableFileSet->tablePath);
+
+	//$$$ auto gridPos = JavascriptEngine::JsObj::CreateObject();
+	//$$$ gridPos.Set("row", game->gridPos.row);
+	//$$$ gridPos.Set("col", game->gridPos.col);
+	//$$$ obj.Set("gridPos", gridPos);
+
+	//$$$ if (game->manufacturer != nullptr)
+	//$$$ 	obj.Set("manufacturer", game->manufacturer->manufacturer);
+	//$$$ if (game->system != nullptr)
+	//$$$ 	obj.Set("system", game->system->displayName);
+	//$$$ if (game->dbFile != nullptr)
+	//$$$	obj.Set("dbFile", game->dbFile->filename);
+	//$$$ obj.Set("isConfigured", game->isConfigured);
+	//$$$ obj.Set("isHidden", game->IsHidden());
+
+#if 0//$$$
+	if (game->statsDbRow >= 0)
+	{
+		if (auto lastPlayed = gl->GetLastPlayed(game); lastPlayed != nullptr)
+			obj.Set("lastPlayed", DateTime(lastPlayed));
+		if (auto dateAdded = gl->GetDateAdded(game); dateAdded != nullptr)
+			obj.Set("dateAdded", DateTime(dateAdded));
+		if (auto hs = gl->GetHighScoreStyle(game); hs != nullptr)
+			obj.Set("highScoreStyle", DateTime(hs));
+		obj.Set("playCount", gl->GetPlayCount(game));
+		obj.Set("playTime", gl->GetPlayTime(game));
+		obj.Set("isFavorite", gl->IsFavorite(game));
+		obj.Set("rating", gl->GetRating(game));
+		obj.Set("isMarkedForCapture", gl->IsMarkedForCapture(game));
+	}
+
+	auto catArr = JavascriptEngine::JsObj::CreateArray();
+	std::list<const GameCategory*> catList;
+	gl->GetCategoryList(game, catList);
+	for (auto cat : catList)
+		catArr.Push(cat->name);
+	obj.Set("categories", catArr);
+#endif//$$$
+
+	// return the populated object
+	return obj.jsobj;
 }
 
 JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
@@ -1684,6 +1828,93 @@ void PlayfieldView::JsSetCurFilter(WSTRING id)
 
 		// update the status text, since it might mention the filter name
 		UpdateAllStatusText();
+	}
+}
+
+int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// get the filter properties from the descriptor
+		auto id = desc.Get<WSTRING>("id");
+		auto title = desc.Get<WSTRING>("title");
+		auto group = desc.Get<WSTRING>("group");
+		auto select = desc.Get<JsValueRef>("select");
+		bool includeHidden = desc.Get<bool>("includeHidden");
+		bool includeUnconfig = desc.Get<bool>("includeUnconfig");
+		auto sortKey = desc.Get<WSTRING>("sortKey");
+		
+		// if there's no sort key, use the title
+		if (sortKey.length() == 0)
+			sortKey = title;
+
+		// if there's an existing filter with the same ID, delete it
+		if (auto it = javascriptFilters.find(id); it != javascriptFilters.end())
+		{
+			// it already exists - delete the live filter in the game list
+			gl->DeleteUserDefinedFilter(&it->second);
+
+			// delete it from our map
+			javascriptFilters.erase(it);
+		}
+
+		// add it to our map 
+		JavascriptFilter *filter = &javascriptFilters.emplace(
+			std::piecewise_construct,
+			std::forward_as_tuple(id),
+			std::forward_as_tuple(select, id, title, group, sortKey, includeHidden, includeUnconfig)).first->second;
+
+		// create the live filter
+		gl->AddUserDefinedFilter(filter);
+
+		// If this is the current filter as defined in the saved configuration,
+		// we weren't able to select the filter until now, so post a command to
+		// restore this filter on the next message processing cycle.  Don't do
+		// this inline, to let the Javascript caller finish any other initialzation
+		// before we activate the filter.
+		if (filter->GetFilterId() == ConfigManager::GetInstance()->Get(_T("GameList.CurrentFilter")))
+			PostMessage(WM_COMMAND, filter->cmd);
+
+		// return the new filter's command ID
+		return filter->cmd;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return 0;
+	}
+}
+
+bool PlayfieldView::JavascriptFilter::Include(GameListItem *game, DATE midnight) const
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the javascript version of the game info object
+		auto pfv = Application::Get()->GetPlayfieldView();
+		JsValueRef jsgame = pfv->BuildJsGameInfo(game);
+
+		// get the javascript version of the midnight timestamp
+		JsValueRef jsmidnight;
+		if (JavascriptEngine::VariantDateToJsDate(midnight, jsmidnight) != JsNoError)
+			return false;
+
+		// call the callback function
+		JsValueRef argv[] = { js->GetGlobalObject(), jsgame, jsmidnight }, result, boolval;
+		bool b;
+		if (JsCallFunction(func, argv, static_cast<unsigned short>(countof(argv)), &result) == JsNoError
+			&& JsConvertValueToBoolean(result, &boolval) == JsNoError
+			&& JsBooleanToBool(boolval, &b) == JsNoError)
+			return b;
+
+		return false;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		// on error, simply filter out the game
+		return false;
 	}
 }
 
@@ -2302,19 +2533,31 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_FILTER_BY_ERA:
+		ShowFilterSubMenu(cmd, _T("[Era]"), L"filter by era");
+		return true;
+
 	case ID_FILTER_BY_MANUF:
+		ShowFilterSubMenu(cmd, _T("[Manuf]"), L"filter by manuf");
+		return true;
+
 	case ID_FILTER_BY_SYS:
+		ShowFilterSubMenu(cmd, _T("[Sys]"), L"filter by system");
+		return true;
+
 	case ID_FILTER_BY_RATING:
+		ShowFilterSubMenu(cmd, _T("[Rating]"), L"filter by rating");
+		return true;
+
 	case ID_FILTER_BY_CATEGORY:
-		ShowFilterSubMenu(cmd);
+		ShowFilterSubMenu(cmd, _T("[Cat]"), L"filter by category");
 		return true;
 
 	case ID_FILTER_BY_RECENCY:
-		ShowRecencyFilterMenu<RecentlyPlayedFilter>(L"filter by when played", IDS_PLAYED_WITHIN, IDS_NOT_PLAYED_WITHIN);
+		ShowRecencyFilterMenu(_T("[Played]"), _T("[!Played]"), _T("[!!Played]"), L"filter by when played", IDS_PLAYED_WITHIN, IDS_NOT_PLAYED_WITHIN);
 		return true;
 
 	case ID_FILTER_BY_ADDED:
-		ShowRecencyFilterMenu<RecentlyAddedFilter>(L"filter by when added", IDS_ADDED_WITHIN, IDS_NOT_ADDED_WITHIN);
+		ShowRecencyFilterMenu(_T("[Added]"), _T("[!Added]"), nullptr, L"filter by when added", IDS_ADDED_WITHIN, IDS_NOT_ADDED_WITHIN);
 		return true;
 
 	case ID_CLEAR_CREDITS:
@@ -2474,6 +2717,17 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 					UpdateAllStatusText();
 				}
 			}
+
+			// handled
+			return true;
+		}
+
+		// check for user-defined filter groups
+		if (cmd >= ID_USER_FILTER_GROUP_FIRST && cmd < ID_USER_FILTER_GROUP_LAST)
+		{
+			// Get the group title.  This also serves as the group ID.
+			if (auto title = GameList::Get()->GetUserDefinedFilterGroup(cmd); title != nullptr)
+				ShowFilterSubMenu(cmd, title, TCHARToWCHAR(title));
 
 			// handled
 			return true;
@@ -7767,6 +8021,21 @@ void PlayfieldView::ShowMainMenu()
 	md.emplace_back(LoadStringT(IDS_FILTER_BY_RECENCY), ID_FILTER_BY_RECENCY, MenuHasSubmenu);
 	md.emplace_back(LoadStringT(IDS_FILTER_BY_ADDED), ID_FILTER_BY_ADDED, MenuHasSubmenu);
 
+	// Get an alphabetically sorted list of user-defined filter groups
+	struct udfg
+	{
+		udfg(const TSTRING &name, int command) : name(name), command(command) { }
+		TSTRING name;
+		int command;
+	};
+	std::vector<udfg> udfgs;
+	gl->EnumUserDefinedFilterGroups([&udfgs](const TSTRING &name, int command) { udfgs.emplace_back(name, command); });
+	std::sort(udfgs.begin(), udfgs.end(), [](const udfg &a, const udfg &b) { return lstrcmpi(a.name.c_str(), b.name.c_str()) < 0; });
+
+	// add the user-defined filter groups
+	for (auto &u : udfgs)
+		md.emplace_back(u.name.c_str(), u.command, MenuHasSubmenu);
+
 	// add the "Return" item to exit the menu
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(IDS_MENU_MAINRETURN), ID_MENU_RETURN);
@@ -7815,84 +8084,29 @@ void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 	ShowMenu(md, L"pause game", usingExitKey ? SHOWMENU_IS_EXIT_MENU : 0);
 }
 
-void PlayfieldView::ShowFilterSubMenu(int cmd)
+void PlayfieldView::ShowFilterSubMenu(int cmd, const TCHAR *group, const WCHAR *menuID)
 {
 	// set up to add filters to the menu
 	std::list<MenuItemDesc> md;
 	GameList *gl = GameList::Get();
 	const GameListFilter *curFilter = gl->GetCurFilter();
 	auto AddFilter = [gl, &md, curFilter](const GameListFilter *f) {
-		md.emplace_back(f->GetFilterTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
+		md.emplace_back(f->GetMenuTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
 	};
 
-	// create the "filter filter", to select which filters to include
-	bool paginate = false;
-	const WCHAR *menuID = L"filter by";
-	std::function<bool(const GameListFilter*)> includeFilter = [](const GameListFilter *) { return false; };
-	switch (cmd)
-	{
-	case ID_FILTER_BY_ERA:
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const DateFilter*>(f) != nullptr; };
-		menuID = L"filter by era";
-		break;
-
-	case ID_FILTER_BY_MANUF:
-		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameManufacturer*>(f) != nullptr; };
-		menuID = L"filter by manuf";
-		break;
-
-	case ID_FILTER_BY_SYS:
-		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameSystem*>(f) != nullptr; };
-		menuID = L"filter by system";
-		break;
-
-	case ID_FILTER_BY_RATING:
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RatingFilter*>(f) != nullptr; };
-		menuID = L"filter by rating";
-		break;
-
-	case ID_FILTER_BY_CATEGORY:
-		paginate = true;  // paginate if necessary, as it can have arbitrarily many entries
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const GameCategory*>(f) != nullptr; };
-		menuID = L"filter by category";
-		break;
-
-	case ID_FILTER_BY_RECENCY:
-		// Note - the recency filter menu is built specially by
-		// ShowRecencyFilterMenu(), so this case isn't normally used.  But
-		// include it for the sake of generality, in case someone wants to
-		// build it as a regular menu for some reason.  The reason we use
-		// a specialized menu builder for these normally is that we want
-		// to group the recency filters into sections for a little nicer
-		// look - just enumerating them in a single flat list gets a bit
-		// unwieldy because the full names are so long and similar.
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyPlayedFilter*>(f) != nullptr; };
-		menuID = L"filter by when played";
-		break;
-
-	case ID_FILTER_BY_ADDED:
-		includeFilter = [](const GameListFilter *f) { return dynamic_cast<const RecentlyAddedFilter*>(f) != nullptr; };
-		menuID = L"filter by when added";
-		break;
-	}
-
-	// if paginating, add a Page Up item at the start of the filter list
-	if (paginate)
-		md.emplace_back(_T(""), ID_MENU_PAGE_UP);
+	// add a Page Up item at the start of the filter list, in case pagination is needed
+	md.emplace_back(_T(""), ID_MENU_PAGE_UP);
 
 	// traverse the master filter list, adding each filter that matches the
-	// command type
+	// filter group
 	for (auto f : gl->GetFilters())
 	{
-		if (includeFilter(f))
+		if (f->menuGroup == group)
 			AddFilter(f);
 	}
 
-	// if paginating, add a Page Down item at the end of the filter list
-	if (paginate)
-		md.emplace_back(_T(""), ID_MENU_PAGE_DOWN);
+	// add a Page Down item to end the pagination area
+	md.emplace_back(_T(""), ID_MENU_PAGE_DOWN);
 
 	// add a Cancel item at the end
 	md.emplace_back(_T(""), -1);
@@ -7906,46 +8120,39 @@ void PlayfieldView::ShowFilterSubMenu(int cmd)
 }
 
 void PlayfieldView::ShowRecencyFilterMenu(
-	std::function<bool(const GameListFilter*)> testFilterType, 
+	const TCHAR *incGroup, const TCHAR *excGroup, const TCHAR *neverGroup, 
 	const WCHAR *menuID, int idStrWithin, int idStrNotWithin)
 {
 	// set up to add filters to the menu
 	std::list<MenuItemDesc> md;
 	GameList *gl = GameList::Get();
 	const GameListFilter *curFilter = gl->GetCurFilter();
-	auto AddFilters = [gl, &md, curFilter, &testFilterType](
-		std::function<bool(const RecencyFilter *f)> include, bool startGroup = false)
+	auto AddFilters = [gl, &md, curFilter](const TCHAR *group)
 	{
 		for (auto f : gl->GetFilters())
 		{
-			if (auto rf = dynamic_cast<RecencyFilter*>(f); rf != nullptr && testFilterType(rf) && include(rf))
-			{
-				// add a separator, if this is the first in the group
-				if (startGroup)
-				{
-					md.emplace_back(_T(""), -1);
-					startGroup = false;
-				}
-
-				// add the item
-				md.emplace_back(rf->menuTitle.c_str(), rf->cmd, rf == curFilter ? MenuRadio : 0);
-			}
+			if (f->menuGroup == group)
+				md.emplace_back(f->GetMenuTitle(), f->cmd, f == curFilter ? MenuRadio : 0);
 		}
 	};
 
 	// Add the group header for the "Played/added within:" section, then add
 	// the inclusion filters
 	md.emplace_back(LoadStringT(idStrWithin), -1);
-	AddFilters([](const RecencyFilter *f) { return !f->exclude; });
+	AddFilters(incGroup);
 
 	// Add the group header for the "Not played within/added before:" section, then
 	// add the exclusion filters
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(idStrNotWithin), -1);
-	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days < 3000000; });
+	AddFilters(excGroup);
 
-	// Add the "Never Played" filter in its own group
-	AddFilters([](const RecencyFilter *f) { return f->exclude && f->days > 3000000; }, true);
+	// If there's a "Never" item, add it after a separator
+	if (neverGroup != nullptr)
+	{
+		md.emplace_back(_T(""), -1);
+		AddFilters(neverGroup);
+	}
 
 	// add a Cancel item at the end
 	md.emplace_back(_T(""), -1);
@@ -11834,7 +12041,7 @@ void PlayfieldView::EnumBatchCaptureGames(std::function<void(GameListItem*)> fun
 	class MarkedFilter : public GameListFilter
 	{
 	public:
-		MarkedFilter() { }
+		MarkedFilter() : GameListFilter(_T("[Top]"), _T("Marked")) { }
 		virtual TSTRING GetFilterId() const override { return _T("MarkedForCapture"); }
 		virtual const TCHAR *GetFilterTitle() const override { return _T("Marked For Capture"); }
 		virtual bool Include(GameListItem *game, DATE midnight) const override

@@ -424,19 +424,13 @@ protected:
 	void AdjustRating(float delta);
 
 	// show a filter submenu
-	void ShowFilterSubMenu(int cmd);
+	void ShowFilterSubMenu(int cmd, const TCHAR *group, const WCHAR *menuID);
 	
-	// show a recency filter menu for a particular filter subclass
-	template<class FilterClass> void ShowRecencyFilterMenu(const WCHAR *menuID, int idStrWithin, int idStrNotWithin)
-	{
-		ShowRecencyFilterMenu(
-			[](const GameListFilter *f) { return dynamic_cast<const FilterClass*>(f) != nullptr; },
-			menuID, idStrWithin, idStrNotWithin);
-	}
-	void ShowRecencyFilterMenu(
-		std::function<bool(const GameListFilter*)> testFilter, 
+	// Show a recency filter menu.  We use this separate function to build
+	// these menus, since they have some additional internal structure beyond
+	// the normal flat list of filters in a regular filter submenu.
+	void ShowRecencyFilterMenu(const TCHAR *incGroup, const TCHAR *excGroup, const TCHAR *neverGroup,
 		const WCHAR *menuID, int idStrWithin, int idStrNotWithin);
-
 
 	// update the animation
 	void UpdateAnimation();
@@ -2261,6 +2255,21 @@ protected:
 	// Get game information
 	JsValueRef JsGetGameInfo(int id);
 
+	// GameInfo prototype getter methods
+	template<typename T> static T JsGameInfoGetter(T(*func)(GameListItem*), JsValueRef self);
+	template<typename T> static JsValueRef JsGameInfoStatsGetter(T (*func)(GameListItem*), JsValueRef self);
+
+	// Populate a GameInfo getter
+	template<typename T> 
+	bool AddGameInfoGetter(const CHAR *propName, T (*func)(GameListItem*), ErrorHandler &eh);
+
+	// Populate a GameInfo getter that accesses the game stats database
+	template<typename T>
+	bool AddGameInfoStatsGetter(const CHAR *propName, T (*func)(GameListItem*), ErrorHandler &eh);
+
+	// internal game info object builder
+	JsValueRef BuildJsGameInfo(GameListItem *game);
+
 	// GameInfo methods
 	JsValueRef JsGetHighScores(JsValueRef self);
 	JsValueRef JsResolveGameFile(JsValueRef self);
@@ -2284,6 +2293,9 @@ protected:
 	// get all filters
 	JsValueRef JsGetAllFilters();
 
+	// create a user filter
+	int JsCreateFilter(JavascriptEngine::JsObj desc);
+
 	// get information on a filter
 	JsValueRef JsGetFilterInfo(WSTRING id);
 
@@ -2296,7 +2308,61 @@ protected:
 
 	// get the command assigned to a key or joystick button
 	JsValueRef JsGetKeyCommand(JavascriptEngine::JsObj desc);
-	
+
+	// User-defined Javascript game filters.  We keep the master list of
+	// these here, rather than in the GameList object with the other
+	// filters, because the GameList instance reflects the loaded game
+	// database and thus has to be re-created on each reload, which
+	// happens whenever any settings change.  So we have to re-create
+	// the live filter list from this master list on each reload.  The
+	// list here has session duration.
+	class JavascriptFilter : public UserDefinedFilter
+	{
+	public:
+		JavascriptFilter(JsValueRef func, const TSTRING &id, const TSTRING &title, 
+			const TSTRING &group, const TSTRING &sortKey,
+			bool includeHidden, bool includeUnconfigured) :
+			UserDefinedFilter(group.c_str(), sortKey.c_str()),
+			func(func), 
+			id(_T("User.") + id), 
+			title(title), 
+			group(group), 
+			includeHidden(includeHidden), 
+			includeUnconfigured(includeUnconfigured)
+		{
+			// maintain an external reference on the function
+			JsAddRef(func, nullptr);
+		}
+
+		~JavascriptFilter() { JsRelease(func, nullptr); }
+
+		virtual TSTRING GetFilterId() const override { return id; }
+		virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
+
+		virtual bool Include(GameListItem *game, DATE midnight) const override;
+
+		virtual bool IncludeHidden() const override { return includeHidden; }
+		virtual bool IncludeUnconfigured() const override { return includeUnconfigured; }
+
+		// the Javascript function implementing the filter
+		JsValueRef func;
+
+		// filter ID
+		TSTRING id;
+
+		// filter title, for menus
+		TSTRING title;
+
+		// filter group; determines which menu the filter is shown in
+		TSTRING group;
+
+		// include hidden/unconfigured games in the raw filter set
+		bool includeHidden;
+		bool includeUnconfigured;
+	};
+
+	// all user-defined filters, by ID
+	std::unordered_map<TSTRING, JavascriptFilter> javascriptFilters;
 
 	//
 	// Button command handlers

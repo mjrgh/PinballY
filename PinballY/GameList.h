@@ -413,6 +413,9 @@ public:
 	// This is null if the game doesn't have an associated table file.
 	TableFileSet *tableFileSet;
 
+	// get items from the table file set
+	TSTRING *GetTablePath() const;
+
 	// Rating from the database file.  PinballX stores a <rating>
 	// element in its XML database files, which it displays but (as
 	// far as I know) doesn't have any UI to change.  We store our
@@ -532,7 +535,12 @@ protected:
 class GameListFilter
 {
 public:
-	GameListFilter() : cmd(0) { }
+	GameListFilter(const TCHAR *menuGroup, const TCHAR *menuSortKey) :
+		menuGroup(menuGroup), 
+		menuSortKey(TSTRING(menuGroup) + _T(".") + menuSortKey),
+		cmd(0) 
+	{ }
+
 	virtual ~GameListFilter() { }
 
 	// filter ID, for saving in the configuration
@@ -541,12 +549,16 @@ public:
 	// get the display title of the filter
 	virtual const TCHAR *GetFilterTitle() const = 0;
 
+	// Get the menu title of the filter; this is usually the same as 
+	// the filter title, but can be overridden separately
+	virtual const TCHAR *GetMenuTitle() const { return GetFilterTitle(); }
+
 	// Is this game included in this filter group?  
 	//
 	// 'midnight' is the Variant Date value for the most recent
 	// past midnight local time, expressed in UTC.  This can be
-	// used by recency filters to figure windows expressed in
-	// days before the present day.  "Midnight local time in UTC"
+	// used by recency filters to figure time periods expressed as
+	// days before the current day.  "Midnight local time in UTC"
 	// is a bit tricky to parse: it's the UTC timestamp of 00:00
 	// hours today in the local time zone.  For example, consider 
 	// a machine that's in the Pacific (US) time zone, and let's
@@ -574,6 +586,13 @@ public:
 	// they're otherwise excluded by that option setting.
 	virtual bool IncludeUnconfigured() const { return false; }
 
+	// Menu group name
+	TSTRING menuGroup;
+
+	// Manu sort key.  This is always qualified by a "Group." prefix,
+	// so the filters of a given group sort together.
+	TSTRING menuSortKey;
+
 	// Command ID.  This is used to identify filters in menus in 
 	// the UI.  We dynamically assign each filter an ID in the range
 	// ID_FILTER_FIRST..ID_FILTER_LAST.  Note that the command ID
@@ -583,11 +602,20 @@ public:
 	int cmd;
 };
 
+// User-defined filter
+class UserDefinedFilter : public GameListFilter
+{
+public:
+	using GameListFilter::GameListFilter;
+};
+
+
+
 // "All Games" filter
 class AllGamesFilter : public GameListFilter
 {
 public:
-	AllGamesFilter() { title.Load(IDS_FILTER_ALL); }
+	AllGamesFilter() : GameListFilter(_T("[Top]"), _T("All")) { title.Load(IDS_FILTER_ALL); }
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual bool Include(GameListItem *, DATE) const override { return true; }
 	virtual TSTRING GetFilterId() const override { return _T("All"); }
@@ -599,7 +627,7 @@ public:
 class FavoritesFilter : public GameListFilter
 {
 public:
-	FavoritesFilter() { title.Load(IDS_FILTER_FAVORITES); }
+	FavoritesFilter() : GameListFilter(_T("[Top]"), _T("Favs")) { title.Load(IDS_FILTER_FAVORITES); }
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return _T("Favorites"); }
@@ -613,7 +641,7 @@ public:
 class HiddenGamesFilter : public GameListFilter
 {
 public:
-	HiddenGamesFilter() { title.Load(IDS_FILTER_HIDDEN); }
+	HiddenGamesFilter() : GameListFilter(_T("[Top]"), _T("Hidden")) { title.Load(IDS_FILTER_HIDDEN); }
 	
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual TSTRING GetFilterId() const override { return _T("Hidden"); }
@@ -635,7 +663,8 @@ public:
 class UnconfiguredGamesFilter : public GameListFilter
 {
 public:
-	UnconfiguredGamesFilter() { title.Load(IDS_FILTER_UNCONFIGURED); }
+	UnconfiguredGamesFilter() : GameListFilter(_T("[Top]"), _T("[Unconfig]") )
+		{ title.Load(IDS_FILTER_UNCONFIGURED); }
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual TSTRING GetFilterId() const override { return _T("Unconfigured"); }
@@ -649,7 +678,12 @@ public:
 class RatingFilter : public GameListFilter
 {
 public:
-	RatingFilter(int stars) : stars(stars)
+	// the sort key for the star filters is "0", "1", "2", etc, except
+	// for "Unrated" (stars == -1), which we want at the end of the list;
+	// so give the special end-of-list sort key of "\xe000"
+	RatingFilter(int stars) : 
+		GameListFilter(_T("[Rating]"), stars >= 0 ? MsgFmt(_T("%d"), stars) : _T("\xE000")), 
+		stars(stars)
 	{
 		if (stars < 0)
 			title.Load(IDS_FILTER_NORATING);
@@ -674,15 +708,15 @@ public:
 class GameCategory : public GameListFilter
 {
 public:
-	GameCategory(const TCHAR *name) : name(name) { }
+	GameCategory(const TCHAR *name) : 
+		GameListFilter(_T("[Cat]"), name),
+		name(name)
+	{ }
 
 	// use the category name as the filter name
 	virtual const TCHAR *GetFilterTitle() const override { return name.c_str(); }
 	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return TSTRING(_T("Category.")) + name; }
-
-	// Figure the category sorting order
-	virtual bool SortsBefore(const GameListFilter *f) const;
 
 	// category name
 	TSTRING name;
@@ -692,22 +726,29 @@ public:
 class NoCategory : public GameCategory
 {
 public:
-	NoCategory() : GameCategory(LoadStringT(IDS_UNCATEGORIZED).c_str()) { }
+	NoCategory() : 
+		GameCategory(LoadStringT(IDS_UNCATEGORIZED).c_str()) 
+	{
+		// Make sure we sort at the end of the list of category filters.
+		// U+E000 is the start of the private use area at the top of the
+		// Unicode Basic Multilingual Plane, so it should reliably sort
+		// after any printable characters our other category names.
+		menuSortKey = _T("[Category].\xE000");
+	}
 
 	virtual const TCHAR *GetFilterTitle() const override { return name.c_str(); }
 	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override { return _T("Uncategorized"); }
-
-	// Figure the category sorting order
-	virtual bool SortsBefore(const GameListFilter *f) const override;
 };
 
 // Date filter: selects games from a date range
 class DateFilter : public GameListFilter
 {
 public:
-	DateFilter(const TCHAR *title, int yearFrom, int yearTo)
-		: title(title), yearFrom(yearFrom), yearTo(yearTo) { }
+	DateFilter(const TCHAR *title, int yearFrom, int yearTo) :
+		GameListFilter(_T("[Era]"), MsgFmt(_T("%05d"), yearFrom)),
+		title(title), yearFrom(yearFrom), yearTo(yearTo) 
+	{ }
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
 	virtual bool Include(GameListItem *game, DATE midnight) const override
@@ -728,10 +769,13 @@ public:
 class RecencyFilter : public GameListFilter
 {
 public:
-	RecencyFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude)
-		: title(title), menuTitle(menuTitle), days(days), exclude(exclude) { }
+	RecencyFilter(const TCHAR *title, const TCHAR *menuTitle, const TCHAR *group, int days, bool exclude) :
+		GameListFilter(group, MsgFmt(_T("%05d"), days)),
+		title(title), menuTitle(menuTitle), days(days), exclude(exclude) 
+	{ }
 
 	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
+	virtual const TCHAR *GetMenuTitle() const override { return menuTitle.c_str(); }
 
 	// filter title ("Played This Month", "Not Played in a Month")
 	TSTRING title;
@@ -760,12 +804,32 @@ public:
 class RecentlyPlayedFilter : public RecencyFilter
 {
 public:
-	RecentlyPlayedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude)
-		: RecencyFilter(title, menuTitle, days, exclude) { }
+	RecentlyPlayedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude) :
+		RecencyFilter(title, menuTitle, exclude ? _T("[!Played]") : _T("[Played]"), days, exclude) { }
 
 	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override 
 		{ return MsgFmt(_T("%s.%d"), exclude ? _T("PlayedWithin") : _T("NotPlayedWithin"), days).Get(); }
+
+};
+
+// Never played filter: selects games that have never been played
+class NeverPlayedFilter : public GameListFilter
+{
+public:
+	NeverPlayedFilter(const TCHAR *title, const TCHAR *menuTitle) :
+		GameListFilter(_T("[!!Played]"), _T("*")),
+		title(title), menuTitle(menuTitle)
+	{ }
+
+	virtual bool Include(GameListItem *game, DATE midnight) const override;
+	virtual TSTRING GetFilterId() const override { return _T("NeverPlayed"); }
+
+	virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
+	virtual const TCHAR *GetMenuTitle() const override { return menuTitle.c_str(); }
+
+	TSTRING title;
+	TSTRING menuTitle;
 
 };
 
@@ -774,8 +838,9 @@ public:
 class RecentlyAddedFilter : public RecencyFilter
 {
 public:
-	RecentlyAddedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude)
-		: RecencyFilter(title, menuTitle, days, exclude) { }
+	RecentlyAddedFilter(const TCHAR *title, const TCHAR *menuTitle, int days, bool exclude) :
+		RecencyFilter(title, menuTitle, exclude ? _T("[!Added]") : _T("[Added]"), days, exclude)
+	{ }
 
 	virtual bool Include(GameListItem *game, DATE midnight) const override;
 	virtual TSTRING GetFilterId() const override
@@ -787,8 +852,9 @@ class GameManufacturer : public GameListFilter
 {
 public:
 	GameManufacturer(const TCHAR *manufacturer) : 
+		GameListFilter(_T("[Manuf]"), manufacturer),
 		manufacturer(manufacturer), filterTitle(MsgFmt(IDS_FILTER_MANUF, manufacturer))
-	    { }
+    { }
 
 	virtual const TCHAR *GetFilterTitle() const override { return filterTitle.c_str(); }
 	virtual bool Include(GameListItem *game, DATE midnight) const override
@@ -930,6 +996,7 @@ class GameSystem: public GameSysInfo, public GameListFilter
 public:
 	GameSystem(const TCHAR *displayName) :
 		GameSysInfo(displayName),
+		GameListFilter(_T("[Sys]"), displayName),
 		tableFileSet(nullptr),
 		filterTitle(MsgFmt(IDS_FILTER_SYSTEM, displayName)),
 		elevationApproved(false)
@@ -1108,11 +1175,7 @@ public:
 	void SetGame(int n);
 
 	// Get the filter list
-	const std::list<GameListFilter*> &GetFilters()
-	{ 
-		CheckMasterFilterList();
-		return filters; 
-	}
+	const std::vector<GameListFilter*> &GetFilters();
 
 	// Set the current filter.  If the currently selected game passes
 	// the new filter, the current game selection isn't affected; if
@@ -1351,6 +1414,16 @@ public:
 	// 2018-01-01 12:00 PST, which is 2018-01-01 08:00 UTC.
 	static DATE GetLocalMidnightUTC();
 
+	// Add/remove a user-defined filter
+	void AddUserDefinedFilter(UserDefinedFilter *filter);
+	void DeleteUserDefinedFilter(UserDefinedFilter *filter);
+
+	// Enumerate user-defined filter groups
+	void EnumUserDefinedFilterGroups(std::function<void(const TSTRING &name, int command)> func);
+
+	// Find the user-defined filter group for a given command
+	const TCHAR *GetUserDefinedFilterGroup(int cmd);
+
 protected:
 	GameList();
 	~GameList();
@@ -1431,18 +1504,35 @@ protected:
 	void BuildMasterFilterList();
 
 	// add a filter
-	void AddFilter(GameListFilter *f)
-	{
-		// if it doesn't have an ID yet, assign one
-		if (f->cmd == 0)
-			f->cmd = nextFilterCmdID++;
+	void AddFilter(GameListFilter *f);
 
-		// add it to the filter list
-		filters.push_back(f);
-	}
+	// assign a command ID to a filter
+	void AssignFilterCommand(GameListFilter *f);
 
-	// next available filter command ID
-	int nextFilterCmdID;
+	// Filter-to-command mapping.  This is permanent throughout the
+	// session for the sake of Javascript, so that each filter has a
+	// stable command ID that survives game list reloads.
+	static std::unordered_map<TSTRING, int> filterCmdMap;
+
+	// Next available filter command ID.  This has session lifetime
+	// because we only need to assign a new command ID when we add a 
+	// filter that hasn't been added during this session before.  We 
+	// reuse the same command ID for a given filter ID throughout the
+	// session via the map above.
+	static int nextFilterCmdID;
+
+	// User-defined filter group command mapping.  This is the same
+	// idea as the filter/command map, but for user-defined groups.
+	// A filter group corresponds to a command in the top-level menu
+	// to choose a filter from the group.  For example, if the user
+	// creates a group of Javascript filters that select by table
+	// author, the group might be "Filter by Author"; this would
+	// appear as a menu in the main menu alongside "Filter by Era",
+	// "Filter by System", etc, and would open a submenu populated
+	// by the filters of this group.  The parent menu that appears
+	// in the main menu needs its own command, hence this map.
+	static std::unordered_map<TSTRING, int> filterGroupCmdMap;
+	static int nextFilterGroupCmdID;
 
 	// "all games" filter
 	AllGamesFilter allGamesFilter;
@@ -1460,7 +1550,7 @@ protected:
 	NoCategory noCategoryFilter;
 
 	// all filters
-	std::list<GameListFilter*> filters;
+	std::vector<GameListFilter*> filters;
 
 	// Is the filter list dirty?  If we have to create a new filter on
 	// the fly for a newly added manufacturer, decade, or category, we'll
@@ -1517,11 +1607,11 @@ protected:
 	// star rating filters, by stars
 	std::unordered_map<int, RatingFilter> ratingFilters;
 
-	// recency (played) filters
-	std::list<RecentlyPlayedFilter> recencyFilters;
+	// recency filters
+	std::list<std::unique_ptr<GameListFilter>> recencyFilters;
 
-	// recencey (added) filters
-	std::list<RecentlyAddedFilter> instRecencyFilters;
+	// User-defined filters, keyed by ID
+	std::unordered_map<TSTRING, GameListFilter*> userDefinedFilters;
 
 	// game list
 	std::list<GameListItem> games;

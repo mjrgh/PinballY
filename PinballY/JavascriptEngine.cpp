@@ -264,6 +264,7 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messa
 	JsIntToNumber(0, &zeroVal);
 	JsGetFalseValue(&falseVal);
 	JsGetTrueValue(&trueVal);
+	JsGetGlobalObject(&globalObj);
 
 	// Look up properties we reference
 	JsCreatePropertyId("dispatchEvent", 13, &dispatchEventProp);
@@ -282,16 +283,14 @@ bool JavascriptEngine::InitInstance(ErrorHandler &eh, const MessageWindow &messa
 	JsGetPropertyIdFromSymbol(symbol, &xrefPropertyId);
 
 	// define system functions
-	JsValueRef global;
-	JsGetGlobalObject(&global);
-	if (!DefineObjPropFunc(global, "global", "_defineInternalType", &JavascriptEngine::DllImportDefineInternalType, this, eh)
-		|| !DefineObjPropFunc(global, "global", "createAutomationObject", &JavascriptEngine::CreateAutomationObject, this, eh)
-		|| !DefineObjPropFunc(global, "Variant", "Variant", &VariantData::Create, this, eh))
+	if (!DefineObjPropFunc(globalObj, "global", "_defineInternalType", &JavascriptEngine::DllImportDefineInternalType, this, eh)
+		|| !DefineObjPropFunc(globalObj, "global", "createAutomationObject", &JavascriptEngine::CreateAutomationObject, this, eh)
+		|| !DefineObjPropFunc(globalObj, "Variant", "Variant", &VariantData::Create, this, eh))
 		return false;
 
 	// add Variant prototype methods
 	const TCHAR *where;
-	if ((err = GetProp(Variant_class, global, "Variant", where)) != JsNoError
+	if ((err = GetProp(Variant_class, globalObj, "Variant", where)) != JsNoError
 		|| (err = GetProp(Variant_proto, Variant_class, "prototype", where)) != JsNoError
 		|| (err = AddGetterSetter(Variant_proto, "vt", &VariantData::GetVt, this, &VariantData::SetVt, this, where)) != JsNoError
 		|| (err = AddGetterSetter(Variant_proto, "value", &VariantData::GetValue, this, &VariantData::SetValue, this, where)) != JsNoError
@@ -605,11 +604,10 @@ JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 	auto js = Get();
 	JsErrorCode err;
 	const TCHAR *where;
-	JsValueRef global, dateFunc, ms, argv[2];
-	if ((err = JsGetGlobalObject(&global)) != JsNoError
-		|| (err = js->GetProp(dateFunc, global, "Date", where)) != JsNoError
+	JsValueRef dateFunc, ms, argv[2];
+	if ((err = js->GetProp(dateFunc, js->globalObj, "Date", where)) != JsNoError
 		|| (err = JsDoubleToNumber(msSinceUnixEpoch, &ms)) != JsNoError
-		|| (argv[0] = global, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
+		|| (argv[0] = js->globalObj, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
 		return err;
 
 	// success
@@ -1023,13 +1021,8 @@ bool JavascriptEngine::DefineGlobalFunc(const CHAR *name, NativeFunctionBinderBa
 		return false;
 	};
 
-	// get the global object
-	JsValueRef global;
-	if ((err = JsGetGlobalObject(&global)) != JsNoError)
-		return Error(_T("JsGetGlobalObject"));
-
 	// define the object property
-	return DefineObjPropFunc(global, "global", name, func, eh);
+	return DefineObjPropFunc(globalObj, "global", name, func, eh);
 }
 
 bool JavascriptEngine::DefineObjPropFunc(JsValueRef obj, const CHAR *objName, const CHAR *propName, NativeFunctionBinderBase *func, ErrorHandler &eh)
@@ -4432,14 +4425,9 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 		return false;
 	};
 
-	// get the global object
-	JsValueRef global;
-	if ((err = JsGetGlobalObject(&global)) != JsNoError)
-		return Error(_T("JsGetGlobalObject"));
-
 	// look up dllImport object, which should be defined by the system
 	// scripts as a property of the global object
-	if ((err = GetProp(dllImportObject, global, "dllImport", subwhere)) != JsNoError)
+	if ((err = GetProp(dllImportObject, globalObj, "dllImport", subwhere)) != JsNoError)
 		return Error(subwhere);
 
 	// set up the bindings for prototype methods and class methods
@@ -4451,7 +4439,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 		return false;
 
 	// find the COMPoinpter class and prototype
-	if ((err = GetProp(COMPointer_class, global, "COMPointer", subwhere)) != JsNoError
+	if ((err = GetProp(COMPointer_class, globalObj, "COMPointer", subwhere)) != JsNoError
 		|| (err = GetProp(COMPointer_proto, COMPointer_class, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 	
@@ -4466,7 +4454,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 
 	// find the HANDLE object's prototype
 	JsValueRef classObj;
-	if ((err = GetProp(classObj, global, "HANDLE", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "HANDLE", subwhere)) != JsNoError
 		|| (err = GetProp(HANDLE_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 
@@ -4481,7 +4469,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 	JsAddRef(HANDLE_proto, nullptr);
 
 	// find the HWND object's prototype
-	if ((err = GetProp(classObj, global, "HWND", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "HWND", subwhere)) != JsNoError
 		|| (err = GetProp(HWND_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 
@@ -4508,7 +4496,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 	JsAddRef(HWND_proto, nullptr);
 
 	// find the NativeObject object's prototype
-	if ((err = GetProp(classObj, global, "NativeObject", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "NativeObject", subwhere)) != JsNoError
 		|| (err = GetProp(NativeObject_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 
@@ -4517,7 +4505,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 		return false;
 
 	// find the NativePointer object's prototype
-	if ((err = GetProp(classObj, global, "NativePointer", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "NativePointer", subwhere)) != JsNoError
 		|| (err = GetProp(NativePointer_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 
@@ -4552,7 +4540,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 	JsAddRef(NativePointer_proto, nullptr);
 
 	// set up the INT64 native type
-	if ((err = GetProp(classObj, global, "Int64", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "Int64", subwhere)) != JsNoError
 		|| (err = GetProp(Int64_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 
@@ -4578,7 +4566,7 @@ bool JavascriptEngine::BindDllImportCallbacks(ErrorHandler &eh)
 	JsAddRef(Int64_proto, nullptr);
 
 	// set up the UINT64 native type
-	if ((err = GetProp(classObj, global, "Uint64", subwhere)) != JsNoError
+	if ((err = GetProp(classObj, globalObj, "Uint64", subwhere)) != JsNoError
 		|| (err = GetProp(UInt64_proto, classObj, "prototype", subwhere)) != JsNoError)
 		return Error(subwhere);
 

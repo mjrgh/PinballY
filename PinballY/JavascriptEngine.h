@@ -112,6 +112,7 @@ public:
 	JsValueRef GetZeroVal() const { return zeroVal; }
 	JsValueRef GetFalseVal() const { return falseVal; }
 	JsValueRef GetTrueVal() const { return trueVal; }
+	JsValueRef GetGlobalObject() const { return globalObj; }
 
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
@@ -331,6 +332,7 @@ public:
 	template<> static double DefaultVal<double>() { return 0.0; }
 	template<> static CSTRING DefaultVal<CSTRING>() { return ""; }
 	template<> static WSTRING DefaultVal<WSTRING>() { return L""; }
+	template<> static JsValueRef DefaultVal<JsValueRef>() { return JavascriptEngine::Get()->undefVal; }
 
 	// Native representation of a Javascript object, as a map of JsValueRef
 	// values keyed by WSTRING property names.
@@ -1370,6 +1372,16 @@ public:
 		return new GenericNativeMethod(func, self);
 	};
 
+	// Uggh:  wrap a ((C::*)() const) method as though it were ((C::*)()), removing
+	// the constness of the method.  This is really ugly but I think it's safe: the
+	// constness is an assertion about what the method does, that says it's *safe 
+	// to call* from const, not that you have to call it from const.  It doesn't
+	// restrict what you can do with the pointer, so it should be perfectly safe to
+	// remove the constness and bind it like the same method sans const.
+	template<class C, typename R, typename... Ts>
+	static NativeFunction<R(Ts...)>* WrapNativeMethod(R (C::*func)(JsValueRef, Ts...) const, C *self)
+		{ return WrapNativeMethod((R(C::*)(JsValueRef, Ts...))func, self); }
+		
 	// Create a global native callback function.  This creates a property
 	// of the 'global' object of the given name, and assigns it to a native
 	// callback to the given function object.
@@ -1396,7 +1408,7 @@ public:
 		{ return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get(); }
 
 	template <class C, typename R, typename... Ts>
-	NativeFunctionBinderBase *CreateAndSaveWrapper(R(C::*func)(Ts...) const, C *self)
+	NativeFunctionBinderBase *CreateAndSaveWrapper(R (C::*func)(Ts...) const, C *self)
 		{ return this->nativeWrappers.emplace_back(WrapNativeMemberFunction(func, self)).get(); }
 
 	template <typename ContextType, typename R, typename... Ts>
@@ -1405,6 +1417,10 @@ public:
 
 	template <class C, typename R, typename... Ts>
 	NativeFunctionBinderBase *CreateAndSaveMethodWrapper(R (C::*func)(JsValueRef, Ts...), C *self)
+		{ return this->nativeWrappers.emplace_back(WrapNativeMethod(func, self)).get(); }
+
+	template <class C, typename R, typename... Ts>
+	NativeFunctionBinderBase *CreateAndSaveMethodWrapper(R (C::*func)(JsValueRef, Ts...) const, C *self)
 		{ return this->nativeWrappers.emplace_back(WrapNativeMethod(func, self)).get(); }
 
 	// Define a global function, creating a native wrapper for it.  The wrapper
@@ -1445,6 +1461,14 @@ public:
 		NativeFunctionBinderBase *getterWrapper = getter != nullptr ? CreateAndSaveWrapper(getter, self) : nullptr;
 		NativeFunctionBinderBase *setterWrapper = setter != nullptr ? CreateAndSaveWrapper(setter, self) : nullptr;
 		return this->DefineGetterSetter(obj, objName, propName, getterWrapper, setterWrapper, eh);
+	}
+
+	template <class C, typename R>
+	bool DefineGetterMethod(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		R (C::*getter)(JsValueRef) const, C *self, ErrorHandler &eh)
+	{
+		return this->DefineGetterSetter(obj, objName, propName,
+			CreateAndSaveMethodWrapper(getter, self), nullptr, eh);
 	}
 
 	// Exported value.  This allows the caller to store a javascript value
@@ -1709,6 +1733,7 @@ protected:
 	JsValueRef zeroVal;
 	JsValueRef falseVal;
 	JsValueRef trueVal;
+	JsValueRef globalObj;
 
 	// Module import callbacks
 	static JsErrorCode CHAKRA_CALLBACK FetchImportedModule(

@@ -25,12 +25,37 @@
 
 
 <h2>Creation</h2>
-
 <p>
    You don't create GameInfo objects directly.  You get them by
    calling <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>.
    That function returns a GameInfo object populated with details
    about the game you specified.
+</p>
+
+<h2>Lifetime</h2>
+<p>
+   A GameInfo object is just a Javascript object containing a snapshot
+   of the system's internal records for a game, so it has the usual
+   Javascript object lifetime: that is, it stays valid as long as you
+   have a reference to it somewhere in your program.  This means that
+   a GameInfo object can outlive the system's internal game
+   record that it was based on, because the system deletes and
+   re-creates all of its internal game records any time the settings
+   are re-loaded.  The settings are re-loaded any time the user
+   changes anything in the Settings dialog.
+</p>
+<p>
+   If you try to call any of the methods on a GameInfo object that
+   retrieve live data from the system's internal record for the
+   game, and the internal record has been deleted, the 
+   methods will all throw errors telling you that the referenced
+   game is no longer valid.  This should never be an issue as long
+   as you're creating new GameInfo objects on the fly whenever
+   you need them, but it could happen if you cache the objects
+   or otherwise hold onto them across events.  You can use the
+   <a href="<a href="ConfigChangeEvent.html"><b>configchange</b></a> event
+   to clear out old references if you're explicitly caching or
+   saving the objects somewhere.
 </p>
 
 
