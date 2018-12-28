@@ -13,84 +13,129 @@
 <h1>GameInfo</h1>
 
 <p>
-   A GameInfo object contains a Javascript snapshot of the system's
+   A GameInfo object contains a Javascript reference to the system's
    internal information records on a game.  This type of object is
-   returned from <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>.
+   returned from <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>,
+   it's used to indicate which game is selected in
+   <a href="GameSelectEvent.html">gameselect</a> events, and
+   is used in most other contexts where the system refers to a
+   particular game in its database.
 </p>
 <p>
-   A GameInfo object is just a copy of the
-   system's internal records for the game, so changing the properties won't
-   change anything in the on-screen display or the database files.
+   The properties of a GameInfo object are actually "getters" that
+   access the program's live database of loaded games.  The properties
+   are getters only, so you can't change the database entries by
+   assigning new values to them.  (Javascript enforces this by
+   throwing an error if you attempt to assign a new value to
+   any "getter".)
 </p>
 
 
 <h2>Creation</h2>
 <p>
-   You don't create GameInfo objects directly.  You get them by
+   You don't create GameInfo objects directly.  You get them from
+   the system, such as from the <b>game</b> property of the
+   <a href="GameSelectEvent.html">gameselect</a> event, or by
    calling <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a>.
-   That function returns a GameInfo object populated with details
-   about the game you specified.
 </p>
 
 <h2>Lifetime</h2>
 <p>
-   A GameInfo object is just a Javascript object containing a snapshot
-   of the system's internal records for a game, so it has the usual
-   Javascript object lifetime: that is, it stays valid as long as you
-   have a reference to it somewhere in your program.  This means that
-   a GameInfo object can outlive the system's internal game
-   record that it was based on, because the system deletes and
-   re-creates all of its internal game records any time the settings
-   are re-loaded.  The settings are re-loaded any time the user
-   changes anything in the Settings dialog.
+   A GameInfo object is a Javascript object, so it has the usual
+   rules for Javascript object lifetime, which is to say that it
+   stays valid as long as you have a reference to it somewhere in
+   your program.
 </p>
 <p>
-   If you try to call any of the methods on a GameInfo object that
-   retrieve live data from the system's internal record for the
-   game, and the internal record has been deleted, the 
-   methods will all throw errors telling you that the referenced
-   game is no longer valid.  This should never be an issue as long
-   as you're creating new GameInfo objects on the fly whenever
-   you need them, but it could happen if you cache the objects
-   or otherwise hold onto them across events.  You can use the
-   <a href="<a href="ConfigChangeEvent.html"><b>configchange</b></a> event
-   to clear out old references if you're explicitly caching or
-   saving the objects somewhere.
+   The system's internal game record for a given game, however,
+   can cease to exist if the game database is reloaded.  The game
+   database is reloaded any time the user changes settings (for
+   example, via the interactive Settings dialog), since changes
+   to the settings can affect which folders are scanned for games
+   and XML game list files.
+</p>
+<p>
+   If the system's internal game record for a game is deleted due
+   to a settings change, and you're still holding on to a GameInfo
+   object that references that now-deleted game, the GameInfo object
+   itself is perfectly valid, per the normal Javascript rules.
+   However, the methods that it uses to access the live game
+   database will all throw errors if you try to use them, because
+   they'll see that the underlying system game record no longer
+   exists.
+</p>
+<p>
+   In most cases, the easiest way to avoid any hassles with
+   deleted game records is to avoid caching or storing GameInfo
+   references in global variables or object properties.  Rely
+   instead on system calls or events that give you up-to-date
+   information on whatever game you're interested in.  For
+   example, if you want to access information on the current
+   game shown in the wheel UI, call gameList.getWheelGame(0)
+   to get the actual current game, rather than keeping a
+   separate global variable with the GameInfo object from
+   some past event.
+</p>
+<p>
+   If for some reason you do need to hang on to GameInfo objects
+   for longer than it takes to process the current event, you
+   can use <a href="<a href="ConfigChangeEvent.html"><b>configchange</b></a>
+   events to clear out old references.  That event tells you whenever
+   the system has reloaded the settings, which implies reloading
+   the game list.
 </p>
 
 
 <a name="gameID"></a>
 <h2>Game IDs</h2>
 <p>
-   Whenever the system needs to refer to a game in a Javascript event
-   or in information returned to Javascript from a system function, it
-   uses a game ID value as the reference.  A game ID is an integer
-   value that uniquely identifies the in-memory object describing
-   the game.
+   The <b>id</b> property of the GameInfo object is a special
+   internal identifier that the system uses to find the
+   in-memory data structure for the game.  This has a unique
+   value for each loaded game, and it remains the same for
+   each game as long as it's included in the loaded game list.
 </p>
+<p>
+   One important use for the <b>id</b> value is to compare two
+   GameInfo objects to see if they refer to the same game.  If they
+   do, their <b>id</b> properties will be equal.
+</p>
+<div class="code">
+let a = gameList.getWheelGame(0);  // current game on wheel
+let b = gameList.getWheelGame(1);  // next game on wheel
+
+// DON'T do this!:  if (a == b)
+// That doesn't work, because a and b could be different GameInfo
+// objects that both refer to the same internal game record.
+//
+// Instead, to this:
+if (a.id == b.id) { /* a and b refer to the same game */ }
+</div>
+   
 <p>
    A game ID value isn't permanent; it's only valid as long as the
    in-memory object for the game exists.  The in-memory object for a
    game is initially created when PinballY starts up and scans for game
    files and database entries, and only exists until (a) the end of
-   the current program session, or (b) the game lists are re-loaded,
-   whichever comes first.  So you obviously shouldn't store these IDs
-   in external files that might persist across sessions, as they'd
-   be meaningless in a future session.
+   the current program session, or (b) the game is removed from the
+   loaded game list due to a settings change, whichever comes first.
+   Don't store these IDs in external files that might persist across
+   sessions, as they'd be meaningless in a future session.
 </p>
 <p>
-   You also have to be careful about caching these IDs for later re-use
-   during the same session, since they become invalid any time the
+   You also have to be careful about saving these IDs in global
+   variables, since they can become invalid any time the
    game list is re-loaded.  The program has to re-load the game lists
    any time the user updates anything in the Settings dialog, since
    settings changes can affect what's included in the game lists.
-   If you're maintaining a cache of IDs, you should create a listener
-   for the <a href="ConfigChangeEvent.html"><b>configchange</b></a> event,
-   and clear your cache any time it occurs.  (Using an old ID that has
-   become invalid will have the same result as using one that was never
-   assigned in the first place.  For example, if you use an old ID in
-   a call to gameList.getGameInfo(), it'll return null, since no matching
-   game will be found.)
+   If a game is deleted from memory after a re-load, because that
+   game is no longer included in the new settings, the ID value that
+   referred to the game becomes invalid.
+</p>
+<p>
+   If you're storing ID values in global variables, you can listen for
+   the <a href="ConfigChangeEvent.html"><b>configchange</b></a> event,
+   and use it to clear out old ID values.
 </p>
    
 
@@ -544,11 +589,10 @@
 <div class="code">
 gameList.on("gameselect", ev =&gt; {
     // if a game is selected, request its high scores
-    if (ev.id)
+    if (ev.game)
     {
-        let info = gameList.getGameInfo(ev.id);
-        info.getHighScores(ev.id).then(scores =&gt;
-            console.log(info.title + " - High Scores:\n" + scores.join("\n")));
+        ev.game.getHighScores().then(scores =&gt;
+            console.log(ev.game.title + " - High Scores:\n" + scores.join("\n")));
     }
 });
 </div>

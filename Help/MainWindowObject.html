@@ -118,7 +118,7 @@
 <div class="code">
 {
     mode: "wheel",         // see list
-    gameId: 17,            // ID of currently selected game
+    game: (object),        // GameInfo object for currently selected game in wheel
     menuID: "main",        // see list; present only in "menu" mode
     popupID: "about box",  // see list; present only in "popup" mode
     runMode: "running",    // or "starting", "exiting"; present only when a game is running
@@ -162,14 +162,14 @@
    activate attract mode)
 </ul>
 <p>
-   The .gameId property identifies the game that's currently selected in
+   The .game property identifies the game that's currently selected in
    the wheel, if any.  This is present regardless of which UI mode is
-   in effect.  The game ID is an integer value that you can pass to
-   <a href="GameList.html#getGameInfo">gameList.getGameInfo()</a> to retrieve
-   the game's details.  The .gameId property will be omitted (so it'll read
-   as undefined) if no game is selected, which can only happen when the wheel
-   is completely empty.  The wheel can be empty when the program can't find
-   any installed games, or when a filter is selected that doesn't match
+   in effect.  This is a <a href="GameInfo.html">GameInfo</a> object,
+   which has properties that access the game's details.
+   The .game property will be omitted (so it'll read as undefined) if no
+   game is selected, which can only happen when the wheel is completely
+   empty.  The wheel can be empty when the program can't find any
+   installed games, or when a filter is selected that doesn't match
    any games.
 </p>
 

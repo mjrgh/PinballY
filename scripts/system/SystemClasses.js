@@ -830,10 +830,10 @@ this.PopupCloseEvent = class PopupCloseEvent extends PopupEvent
 // Game selection change
 this.GameSelectEvent = class GameSelectEvent extends Event
 {
-    constructor(id)
+    constructor(game)
     {
         super("gameselect", { cancelable: false });
-        this.id = id || null;
+        this.game = game;
     }
 };
 

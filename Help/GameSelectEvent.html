@@ -45,14 +45,11 @@
 </p>
 
 <ul>
-   <li><b>id:</b>  The ID of the selected game, or undefined if no game
-   is selected.  If a game is selected, the ID is an integer identifying
-   the game, which you can pass to
-   <a href="GameList.html#getGameInfo">gameList.getGameInfo</a>
-   to retrieve the game's details.  It's possible for no game to be
-   selected; this happens when the wheel is empty due to a filter
-   that doesn't match any games or when the system simply doesn't
-   find any installed games at all.
+   <li><b>game:</b>  A <a href="GameInfo.html">GameInfo</a> object
+   identifying the newly selected game, or null if no game is selected.
+   A null selection occurs when the wheel is completely empty, which
+   can happen when the system can't find any games to load, or when
+   a filter is activated that doesn't have any matching games.
 
 </ul>
 

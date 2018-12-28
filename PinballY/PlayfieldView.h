@@ -2253,7 +2253,7 @@ protected:
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
 
 	// Get game information
-	JsValueRef JsGetGameInfo(int id);
+	JsValueRef JsGetGameInfo(WSTRING id);
 
 	// GameInfo prototype getter methods
 	template<typename T> static T JsGameInfoGetter(T(*func)(GameListItem*), JsValueRef self);
@@ -2278,16 +2278,16 @@ protected:
 
 	// get the total number of games/nth game in the overall game list/array of games
 	int JsGetGameCount();
-	int JsGetGame(int n);
+	JsValueRef JsGetGame(int n);
 	JsValueRef JsGetAllGames();
 
 	// get the number of games on the wheel/nth game on the wheel/array of wheel games
 	int JsGetWheelCount();
-	int JsGetWheelGame(int n);
+	JsValueRef JsGetWheelGame(int n);
 	JsValueRef JsGetAllWheelGames();
 
 	// get/set the current game list filter
-	WSTRING JsGetCurFilter();
+	JsValueRef JsGetCurFilter();
 	void JsSetCurFilter(WSTRING id);
 
 	// get all filters
@@ -2299,9 +2299,12 @@ protected:
 	// get information on a filter
 	JsValueRef JsGetFilterInfo(WSTRING id);
 
+	// build a FilterInfo object
+	JsValueRef BuildFilterInfo(const WSTRING &id);
+
 	// FilterInfo methods
 	JsValueRef JsFilterInfoGetGames(JsValueRef self);
-	bool JsFilterInfoTestGame(JsValueRef self, int gameId);
+	bool JsFilterInfoTestGame(JsValueRef self, JsValueRef game);
 
 	// play a button sound
 	void JsPlayButtonSound(WSTRING name);
@@ -2316,19 +2319,24 @@ protected:
 	// happens whenever any settings change.  So we have to re-create
 	// the live filter list from this master list on each reload.  The
 	// list here has session duration.
-	class JavascriptFilter : public UserDefinedFilter
+	class JavascriptFilter : public GameListFilter
 	{
 	public:
-		JavascriptFilter(JsValueRef func, const TSTRING &id, const TSTRING &title, 
+		JavascriptFilter(JsValueRef func, const TSTRING &id, 
+			const TSTRING &title, const TSTRING &menuTitle,
 			const TSTRING &group, const TSTRING &sortKey,
-			bool includeHidden, bool includeUnconfigured) :
-			UserDefinedFilter(group.c_str(), sortKey.c_str()),
+			bool includeHidden, bool includeUnconfigured,
+			JsValueRef before, JsValueRef after) :
+			GameListFilter(group.c_str(), sortKey.c_str()),
 			func(func), 
 			id(_T("User.") + id), 
 			title(title), 
+			menuTitle(menuTitle),
 			group(group), 
 			includeHidden(includeHidden), 
-			includeUnconfigured(includeUnconfigured)
+			includeUnconfigured(includeUnconfigured),
+			beforeScanFunc(before), 
+			afterScanFunc(after)
 		{
 			// maintain an external reference on the function
 			JsAddRef(func, nullptr);
@@ -2338,20 +2346,27 @@ protected:
 
 		virtual TSTRING GetFilterId() const override { return id; }
 		virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
+		virtual const TCHAR *GetMenuTitle() const override { return menuTitle.c_str(); }
 
-		virtual bool Include(GameListItem *game, DATE midnight) const override;
+		virtual void BeforeScan() override;
+		virtual void AfterScan() override;
+		virtual bool Include(GameListItem *game) override;
 
 		virtual bool IncludeHidden() const override { return includeHidden; }
 		virtual bool IncludeUnconfigured() const override { return includeUnconfigured; }
 
-		// the Javascript function implementing the filter
+		// the Javascript function implementing the filter, BeforeScan, and
+		// AfterScan methods
 		JsValueRef func;
+		JsValueRef beforeScanFunc;
+		JsValueRef afterScanFunc;
 
 		// filter ID
 		TSTRING id;
 
-		// filter title, for menus
+		// filter title, menu title
 		TSTRING title;
+		TSTRING menuTitle;
 
 		// filter group; determines which menu the filter is shown in
 		TSTRING group;

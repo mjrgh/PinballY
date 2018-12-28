@@ -40,6 +40,10 @@ public:
 	// get the value in YYYYMMDDHHMMSS format
 	TSTRING ToString() const;
 
+	// Get the FILETIME value as an INT64.  This represents the number of
+	// 100ns intervals since the FILETIME epoch, Jaunary 1, 1601 00:00:00 UTC.
+	FILETIME GetFileTime() const { return ft; }
+
 	// get the value as a Variant DATE value
 	DATE ToVariantDate() const
 	{

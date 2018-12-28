@@ -37,10 +37,12 @@
    Reloading the configuration also requires reloading the game databases
    and game file lists, since changes to the settings can affect which
    files are included in the scans and which databases are loaded.
-   All of the previous in-memory game descriptor objects are deleted
-   during this process, so any past <a href="GameList.html#gameID">game IDs</a>
-   that your script code might have obtained become invalid.  If you're
-   caching game IDs, you should clear your cache on this event.
+   Games that were previously loaded into the in-memory game list
+   might be removed from memory as a result.  Any <a href="GameInfo.html">GameInfo</a>
+   objects or <a href="GameInfo.html#gameID">game ID</a> values that referred
+   to such games will become invalid, so you could use this event
+   to clear any global variables or other cached information you might
+   be keeping on loaded games.
 </p>
 <p>
    Any table media files (playfield videos or images, etc) currently being

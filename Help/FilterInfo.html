@@ -18,12 +18,13 @@
    show in the wheel UI.  The system provides a number of predefined
    filters, such as the era filters ("1970s games"), manufacturer
    filters ("Gottlieb games"), and system filters ("Visual Pinball X
-   games").
+   games").  You can also create your own <a href="#custom">custom
+   filters</a>, which we'll explain below.
 </p>
 <p>
-   The main wheel UI lets the user select the filter to use at any
+   The main wheel UI lets the user select which filter to use at any
    given time via the menu system.  Whenever the selected filter changes,
-   a <a href="FilterSelectEvent.html"><b>filterselect</b></a>
+   a <a href="FilterSelectEvent.html"><b>filterselect</b></a> event
    is fired.  You can use this to do additional work as needed when the
    filter selection changes.
 </p>
@@ -37,99 +38,60 @@
    the filter you specified.
 </p>
 
-<a name="custom"></a>
-<h2>Custom filters</h2>
+<h2>Properties and methods</h2>
+
 <p>
-   You can define your own custom filters via
-   <a href="GameList.html#createFilter">gameList.createFilter(<i>desc</i>)</a>.
-   This function creates a new filter with a selection rule you define
-   via a Javascript function, which can express just about any kind of
-   selection criteria you can think of.
+   <b>cmd:</b>  An integer command ID value.  This will always be
+   in the range from command.FilterFirst to command.FilterLast (see
+   <a href="Commands.html">Commands</a>).  (The command ID is assigned
+   for the current session only, so it shouldn't be saved externally.)
+</p>
+
+<p>
+   <b>getGames():</b>  Returns an array of <a href="GameInfo.html">GameInfo</a>
+   objects listing all games that the filter currently selects.
+</p>
+
+<p>
+   <b>group:</b>  A string giving the menu group for the filter.  System
+   filters all have groups with names enclosed in [square brackets].  These
+   are never displayed to the user; the system uses localized menu
+   titles for the groups instead.  User-defined filters have optional group
+   names defined when the filter was created; these can refer to system
+   groups, or can be given as the actual menu title to show in the main
+   menu.  This is omitted if the filter isn't part of a menu group.
 </p>
 <p>
-   The <i>desc</i> argument to createFilter() is an object describing
-   the new filter.  It contains the following properties:
+   <b>groupCmd:</b>  An integer giving the <a href="Commands.html">command ID</a>
+   associated with the group.  This is the command used for the menu item shown
+   in the main menu, if any, that opens the group submenu.   This is undefined if
+   the filter isn't part of a group, or it's part of one of the top-level groups
+   that doesn't have an associated command ([Top], [Op]).
 </p>
-<ul>
-   <li><b>id:</b>  Required.  A string giving the ID of the new filter.
-   This is an arbitrary string you provide to identify the filter in
-   the settings file.  You can use letters, numbers, underscores, and
-   periods in the ID.  The ID must be unique across all filters in
-   the system, so it's a good idea to include some kind of author
-   name or organization name prefix ("mjr.TitleLength.Short").
 
-   <li><b>title:</b>  Required.  A title for the filter.  This will be
-   used in the status line messages when this filter is active, if any
-   status line messages include the filter name.  It's also used by
-   default as the menu title for the filter, but you can override
-   that with menuTitle.
+<p>
+   <b>id:</b>  The ID of the filter (see <a href="#filterID">Filter IDs</a>).
+   This is a permanent ID for the filter, so it can be stored in external
+   files or settings.
+</p>
 
-   <li><b>select:</b>  Required.  The selection function.  This is
-   a function that takes two arguments, function(<i>game</i>, <i>midnight</i>),
-   where <i>game</i> is a <a href="GameInfo.html">GameInfo</a> object
-   for a game to test for inclusion, and <i>midnight</i> is a Date object
-   representing the most recent past midnight in local time, for use in
-   filters that select by number of days since some event in the past.
-   (The most recent midnight means 12:00 AM at the start of the
-   current day.  This reference point is useful for counting in
-   terms of dates without regard to time of day.)  The function
-   returns true if the game is included in the filter's selection,
-   false if not.  This function is called for each game in the
-   system when the filter is activated to build the set of games
-   on the wheel.
+<p>
+   <b>testGame(<i>game</i>)</b>:  Determines whether the filter includes
+   or excludes the given game.  <i>game</i> is a <a href="GameInfo.html">GameInfo</a>
+   object specifying the game to test.  Returns true if the filter includes the game in
+   its selection list, false if the filter excludes the game.  (If <i>game</i>
+   doesn't refer to a valid game, the return value is null, which for conditional
+   purposes is equivalent to false, but can be distinguished with the Javascript
+   === operator if the distinction is important to your code for some reason.)
+</p>
 
-   <li><b>group:</b>  Optional.  The group name for the filter.
-   If provided, the system's main menu will include a menu item
-   with this name, which shows a submenu with all filters in this
-   group.  Use a name that makes a good title for this menu item,
-   such as "Filter by Title Length".  If omitted, the filter isn't
-   automatically included in any system menus, but you can still
-   select it via your own custom menus or via <a href="#setCurFilter">gameList.setCurFilter()</a>.
+<p>
+   <b>title:</b>  A string giving the display title of the filter as
+   it appears in menus.  Note that this might be localized, and might change
+   across versions, so you shouldn't use it to recognize a particular
+   filter; use the <b>id</b> value for that.
+</p>
 
-   <li><b>sortKey:</b>  Optional.  A string giving a menu sorting key
-   for this filter relative to other filters in its group.  When
-   the group menu is displayed, the menu items are sorted according
-   to this key, in alphabetical order.  The <b>title</b> string is
-   used by default, so that the menu items appear in alphabetical
-   order of title.  That's not always the most desirable order
-   for some groups, though.  For example, if you had a group that
-   filters by game title, with entries for "Short Titles", "Medium-Length
-   Titles", and "Long Title", it would make more sense to display the
-   menu in that order (short, medium, long) rather than alphabetically.
-   You could accomplish that by using sort keys "A", "B", and "C"
-   for the short, medium, and long items, respectively.  The
-   sort key is never displayed anywhere, so you can use whatever's
-   convenient to get the desired sorting order.
-
-   <li><b>includeHidden:</b>  Optional.  If true, games marked as
-   hidden by the user are included in the set of games tested
-   with the <b>select</b> function; if omitted or false, hidden
-   games are assumed to be omitted, so they're not even tested
-   with the <b>select</b> function, saving a little bit of time
-   by skipping unnecessary tests.  This is called out as a separate
-   test because all of the system filters exclude hidden games,
-   except for the "Hidden Games" filter, which <i>only</i> includes
-   hidden games.  Setting this to true won't necessarily cause
-   hidden games to appear on the wheel; rather, it allows hidden
-   games to be tested by your <b>select</b> function for inclusion.
-   You should only set this to true when your filter is explicitly
-   some kind of hidden games filter, because it might be confusing
-   for the user to see games they intentionally marked as hidden
-   show up in a filter that isn't specifically about hidden games.
-
-   <li><b>includeUnconfig:</b>  Optional.  If true, games that
-   aren't configured (meaning they have no XML data entries) are
-   included in the set of games tested with your <b>select</b>
-   function.  If false or undefined, <i>and</i> the user has selected
-   the "hide unconfigured games" option in the settings, unconfigured
-   games are assumed to be omitted, so they aren't even tested with
-   the <b>select</b> function to save some time.  Note that setting
-   this to true might cause unwanted behavior, since it goes against
-   the user's instructions to "hide unconfigured games" from most
-   filters.  You should only set this if your filter is explicitly
-   some kind of unconfigured selection filter, so that it doesn't
-   confuse the user when unconfigured games appear there.
-</ul>
 
 <a name="filterID"></a>
 <h2>Filter IDs</h2>
@@ -206,41 +168,367 @@
    
    
 
-<h2>Properties and methods</h2>
+<a name="custom"></a>
+<h2>Custom filters</h2>
+<p>
+   You can define your own custom filters via
+   <a href="GameList.html#createFilter">gameList.createFilter(<i>desc</i>)</a>.
+   This function creates a new filter with a selection rule you define
+   via a Javascript function, which can express just about any kind of
+   selection criteria you can think of.
+</p>
+<p>
+   The return value from gameList.createFilter() is a <a href="Commands.html">command ID</a>
+   that the system assigns for use by the filter.  This is used if the
+   filter is automatically added to system menus (see <a href="#menuPlacement">Automatic
+   menu placement</a> below).  You can also use this command ID if
+   you want to create an item for this filter in any custom menus.
+   The command will always be in the range from command.FilterFirst to
+   command.FilterLast, which is shared with the built-in system filters.
+   The newly assigned command will always be chosen to be unique,
+   so it won't conflict with any system filters.
+<p>
+   The <i>desc</i> argument to createFilter() is an object describing
+   the new filter.  It contains the following properties:
+</p>
+<ul>
+   <li><b>id:</b>  Required.  A string giving the ID of the new filter.
+   This is an arbitrary string you provide to identify the filter in
+   the settings file.  You can use letters, numbers, underscores, and
+   periods in the ID.  The ID must be unique across all filters in
+   the system, so it's a good idea to include some kind of author
+   name or organization name prefix ("mjr.TitleLength.Short").
+   The ID must be permanent (always the same across sessions), so that
+   it can match the saved filter ID in the settings file when restoring
+   settings in a future session.
+
+   <li><b>title:</b>  Required.  A title for the filter.  This will be
+   used in the status line messages when this filter is active, if any
+   status line messages include the filter name.  It's also used by
+   default as the menu title for the filter, but you can override
+   that with menuTitle.
+
+   <li><b>menuTitle:</b>  Optional.  The title for the filter as it
+   appears in menus.  The <b>title</b> string is used if this isn't
+   specified.  The separate menu title is sometimes useful when the
+   filter is part of a group, where it's nicer to avoid repeating
+   the same verbiage for every menu in the group.  The system
+   "Played Within" menus use this capability, listing just the
+   time frame in the menu, 
+
+   <li><b>select:</b>  Required.  The selection function.  When
+   the filter is activated (that is, when the user selects this as
+   the current filter in the wheel UI), this function is called
+   once for each game in the game database, to determine which
+   games are selected by the filter and which are excluded.
+   The function that takes one argument, a <a href="GameInfo.html">GameInfo</a>
+   object describing a game to test for inclusion.  The function
+   returns true if the game is included in the filter's selection,
+   false if not.
+
+   <li><b>before:</b>  Optional.  This is a function, which is
+   called once each time the filter is activated, just before
+   scanning the list of games through the <b>select</b> function.
+   The function is called with no arguments, and any return value
+   is ignored.  This function gives the filter a chance to initialize
+   in preparation for the game list scan; it can, for example, cache
+   any information that will be needed on each <b>select</b> call,
+   or initialize internal counters.
+
+   <li><b>after:</b>  Optional.  A function that's called just
+   after the game list scan has been completed.  The filter can
+   do any necessary cleanup, store final counter values, etc.
+
+   <li><b>group:</b>  Optional.  The group name for the filter.
+   If provided, the system's main menu will include a menu item
+   with this name, which shows a submenu with all filters in this
+   group.  Use a name that makes a good title for this menu item,
+   such as "Filter by Title Length".  If omitted, the filter isn't
+   automatically included in any system menus, but you can still
+   select it via your own custom menus or via <a href="#setCurFilter">gameList.setCurFilter()</a>.
+
+   <li><b>sortKey:</b>  Optional.  A string giving a menu sorting key
+   for this filter relative to other filters in its group.  When
+   the group menu is displayed, the menu items are sorted according
+   to this key, in alphabetical order.  The <b>title</b> string is
+   used by default, so that the menu items appear in alphabetical
+   order of title.  That's not always the most desirable order
+   for some groups, though.  For example, if you had a group that
+   filters by game title, with entries for "Short Titles", "Medium-Length
+   Titles", and "Long Title", it would make more sense to display the
+   menu in that order (short, medium, long) rather than alphabetically.
+   You could accomplish that by using sort keys "A", "B", and "C"
+   for the short, medium, and long items, respectively.  The
+   sort key is never displayed anywhere, so you can use whatever's
+   convenient to get the desired sorting order.
+
+   <li><b>includeHidden:</b>  Optional.  If true, games marked as
+   hidden by the user are included in the set of games tested
+   with the <b>select</b> function; if omitted or false, hidden
+   games are assumed to be omitted, so they're not even tested
+   with the <b>select</b> function, saving a little bit of time
+   by skipping unnecessary tests.  This is called out as a separate
+   test because all of the system filters exclude hidden games,
+   except for the "Hidden Games" filter, which <i>only</i> includes
+   hidden games.  Setting this to true won't necessarily cause
+   hidden games to appear on the wheel; rather, it allows hidden
+   games to be tested by your <b>select</b> function for inclusion.
+   You should only set this to true when your filter is explicitly
+   some kind of hidden games filter, because it might be confusing
+   for the user to see games they intentionally marked as hidden
+   show up in a filter that isn't specifically about hidden games.
+
+   <li><b>includeUnconfig:</b>  Optional.  If true, games that
+   aren't configured (meaning they have no XML data entries) are
+   included in the set of games tested with your <b>select</b>
+   function.  If false or undefined, <i>and</i> the user has selected
+   the "hide unconfigured games" option in the settings, unconfigured
+   games are assumed to be omitted, so they aren't even tested with
+   the <b>select</b> function to save some time.  Note that setting
+   this to true might cause unwanted behavior, since it goes against
+   the user's instructions to "hide unconfigured games" from most
+   filters.  You should only set this if your filter is explicitly
+   some kind of unconfigured selection filter, so that it doesn't
+   confuse the user when unconfigured games appear there.
+</ul>
+
+<a name="menuPlacement"></a>
+<h2>Automatic menu placement</h2>
 
 <p>
-   <b>cmd:</b>  An integer command ID value.  This will always be
-   in the range from command.FilterFirst to command.FilterLast (see
-   <a href="Commands.html">Commands</a>).  (The command ID is assigned
-   for the current session only, so it shouldn't be saved externally.)
+   <b>Custom filter group menus:</b>
+   If you give the filter a <b>group</b> property, the system
+   automatically creates a new menu item for the group in the
+   top-level menu.  Selecting this menu opens a sub-menu showing
+   all of the filters with the same <b>group</b> property.  The
+   group menu is added after the standard filter group items
+   in the standard menu (Filter by Era, Filter by Manufacturer,
+   and so on), so this lets you create your own custom filter
+   groups of the same style.  The <b>group</b> property string
+   is displayed as the menu title, so you'll probably want to use
+   similar wording ("Filter by <i>something</i>") so that the
+   menu meshes well with the existing items.
 </p>
+<p>
+   <b>Adding the filter to an existing group:</b>
+   Instead of creating a custom filter group, you can add
+   a custom filter to one of the existing groups.  This would
+   be appropriate if the filter augments one of those groups.
+   For example, you could add your own "recently played"
+   filter that selects a time period that's not covered
+   in the standard set, or a "manufacturer" filter that
+   selects games from all of the WMS brands.  For the
+   predefined system filter groups, though, you don't
+   use the name that appears in the menu.  Instead, you
+   have to refer to a special internal name.  We use the
+   internal name instead of the name in the menu because
+   the menu name can be localized for different languages;
+   the internal name doesn't have to be translated, since
+   it's never displayed to the user, so you can always
+   count on it being the same.  The system filter groups
+   are shown below.
+</p>
+<a name="systemFilterGroups"></a>
+<ul>
+   <li><b>[Era]</b> - the decade and era filters (70s Tables, etc).
+   The menu sorting keys for these filters are the four-digit <i>starting</i>
+   year of the decade, so "1970" for 70s Tables.  If you want to slot
+   in your own filter at a specific place in the menu, set the <b>sort</b>
+   property to a string that sorts where you want it relative to those
+   four-digit year strings.  Note that the numeric value isn't
+   important; the order is based on the lexical ordering of the string,
+   not the numeric value.
+
+   <li><b>[Manuf]</b> - the manufacturer filters (Williams Tables,
+   etc).  The sort keys are the manufacturer names.
+
+   <li><b>[Sys]</b> - the player system filters (Visual Pinball 9
+   Tables, etc).  The sort keys are the system  names.
+
+   <li><b>[Rating]</b> - the star rating filters.  The sort keys
+   are the digits for the star values, "1", "2", etc.  The "unrated"
+   filter has sort key "Z" to force it to the end of the list.
+
+   <li><b>[Cat]</b> - the individual category filters.  The sort
+   keys are the category names.  The "uncategorized" filter has
+   sort key "\uE800": that's Unicode code point E800, a special
+   Unicode "private use" character that sorts after all alphabetic
+   characters from all languages in the Unicode set, so that the
+   uncategorized filter sorts after all actual categories.  Note
+   that the Unicode private use area is from \uE000 to \uF8FF,
+   and we intentionally used a character from the middle of this
+   region to let you slot in custom filters after all of the
+   named categories but before "Uncategorized", by using
+   sort keys starting with characters from \uE000 to \uE7FF.
+
+   <li><b>[Played]</b> - the "played within" time filters.
+   The sort keys are the number of days expressed as five
+   digits with leading zeroes, so "played within a week" has
+   sort key 00007.  The "Recently Played" menu has an internal
+   structure with separate groups for the "played within",
+   "not played within", and "never played" filters, so "played within"
+   sort keys are only compared to other "played within" keys.
+
+   <li><b>[!Played]</b> - the "not played within" time filters.
+   These likewise have sort keys with the number of days
+   expressed as five digits.
+
+   <li><b>[!!Played]</b> - the "never played filter.  This
+   has sort key "Z" (which isn't normally used at all, since
+   this item normally appears in a group by itself within
+   the "Recently Played" submenu; but the sort key is there
+   just in case you want to add another item to the group).
+
+   <li><b>[Added]</b> - the "added within" time filters.
+   The sort keys are the number of days expressed as five
+   digits, as with the "played within" filters.
+
+   <li><b>[!Added]</b> - the "added before" time filters.
+   The sort keys are the number of days expressed as five digits.
+</ul>
 
 <p>
-   <b>getGames():</b>  Returns an array of <a href="GameInfo.html#gameID">Game ID</a>
-   values.  This is the list of all games that the filter selects from the currently
-   loaded game list.
+   <b>Adding to a top-level menu:</b>
+   There are two special filter groups that go in top-level
+   menus rather than in group submenus, "[Top]" (the main
+   menu), and "[Op]" (the operator menu).  If you use one of
+   these strings for the <b>group</b> property, your filter
+   will appear in the corresponding menu.  Use this
+   capability sparingly, since the menus will quickly
+   become unusable if you add too many top-level items.
+   If you're creating more than one or two filters that
+   don't belong in obvious groups, you'll probably want
+   to create a "Custom Filters" or "Filter by Misc"
+   group as a catch-all, to avoid too much clutter in the
+   top level menus.
 </p>
+<ul>
+   <li><b>[Top]</b> - filters that appear directly in the
+   main menu.  The system filters in this group are "All Games",
+   (sort key "3000"), "Favorites" (sort key "7000").  The
+   sort keys are chosen so that the built-in menu items appear
+   in this order, and to make it easy for you to slot in
+   any number of your custom filters before, between, or after
+   the built-in items, should you want to add any custom
+   filters to the top-level menu.
+
+   <li><b>[Op]</b> - filters that appear directly in the
+   Operator menu.  the system filters in this group are
+   "Hidden Games" (sort key "3000"), "Unconfigured Games"
+   (sort key "7000").  The sort keys are chosen to make it
+   easy for you to slot in your own custom filters before,
+   between, or after the predefined system items, should
+   you want to add any filters of your own to the Operator
+   menu.
+</ul>
 
 <p>
-   <b>id:</b>  The ID of the filter (see <a href="#filterID">Filter IDs</a>).
-   This is a permanent ID for the filter, so it can be stored in external
-   files or settings.
+   <b>If you want to skip the automatic menu inclusion:</b>
+   Just leave <b>group</b> undefined if you don't want the system
+   to automatically show the filter in any of the standard menus.
+   You can control the menu placement more precisely using
+   the menu customization mechanisms described in <a href="Menus.html">Menus</a>.  
+   You can also activate the filter entirely under script control via
+   <a href="GameList.html#setCurFilter">gameList.setCurFilter()</a>.
 </p>
+
+<h2>Examples</h2>
 
 <p>
-   <b>testGame(<i>id</i>)</b>:  Determines whether the filter includes
-   or excludes the given game.  <i>id</i> is the <a href="GameInfo.html#gameID">Game ID</a>
-   of the game to test.  Returns true if the filter includes the game in
-   its selection list, false if the filter excludes the game.
+   <b>"Played within two weeks" filter:</b>  Suppose you wanted to
+   supplement the standard "played within" filters with some more
+   time periods than offered in the standard menus.  Here's a filter
+   that selects games played within the last two weeks.  The filter
+   is automatically included in the "Filter by Last Played" group
+   because it uses the special system group "[Played]".
 </p>
+<div class="code">
+let filterReferenceDate;
+gameList.createFilter({
+    id: "PlayedWithin.14",
+    title: "Played Within 2 Weeks",
+    group: "[Played]",  // add to the standard Recently Played menu
+    sortKey: "00014",   // number of days as a five-digit string
+    before: function()
+    {
+        // Figure the reference date: 12:00AM at the start of the
+        // day 14 days ago.  Javascript's Date constructor conveniently
+        // accepts day-of-the-month values outside of the 1..31 range,
+        // which it interprets by projecting forwards or backwards into
+        // ajacent months until finding a valid date.  So if the current
+        // day is Jan 1, 2019, then new Date(2019, 0, -13) will work
+        // backwards to December 18, 2018.  And since that works in
+        // terms of dates in the local time zone, it even properly
+        // takes into account special situtions, such as the usually
+        // nettlesome transitions between daylight time and standard
+        // time.
+        //
+        // Note that we *could* compute this value on every select()
+        // call rather than caching it, but it makes things go a little
+        // faster if we do this computation once ahead of time.  The
+        // system will call this before() function every time it's
+        // about to do a scan of the table list, so we'll always have
+        // a fresh reference point for each new scan.
+
+        // start with today's date
+        let d = new Date();
+
+        // now construct a date 14 days before today, at 12:00 AM
+        filterReferenceDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 14, 0, 0, 0, 0);
+    },
+    select: function(game) { return game.lastPlayed >= filterReferenceDate; }
+});
+</div>
 
 <p>
-   <b>title:</b>  A string giving the display title of the filter as
-   it appears in menus.  Note that this might be localized, and might change
-   across versions, so you shouldn't use it to recognize a particular
-   filter; use the <b>id</b> value for that.
+   <b>Short, medium, and long titles:</b>  This is a pretty contrived
+   example, but it shows how to create a custom filter group and present
+   it in the main menu.  For
+   this example, we'll create filters that select according to the
+   length of a game's title.  We'll create three filters, one for
+   short titles (6 character or fewer), one for medium-length titles
+   (7-15 characters), and one for long titles.  These three filters
+   will appear on a custom submenu, which will in turn be reachable
+   from a new top-level menu item that the system automatically
+   inserts, "Filter by Title Length".
 </p>
-
+<p>
+   Note how we give each filter a sort key to arrange the submenu in
+   the natural order (Short, Medium, Long).  The natural order isn't
+   the same as the alphabetic order of those titles, which is why we
+   have to add explicit sort keys.  The sort keys aren't visible to the user
+   anywhere, so we can use any arbitrary strings that are
+   convenient for putting things into the right order, in this
+   case simply "A", "B", and "C".  If you wanted to leave gaps for
+   inserting more items in the future, you could have made those
+   "A", "M", and "Z", or something more flexible like "1000", "2000",
+   and "3000".  But for our fixed list of three items, the simplistic
+   "A", "B", "C" will do just fine.
+</p>
+<div class="code">
+gameList.createFilter({
+    id: "Names.Short",
+    title: "Short Titles",
+    group: "Filter by Title Length",
+    select: function(game) { return game.title.length <= 6; },
+    sortKey: "A"
+});
+gameList.createFilter({
+    id: "Names.Medium",
+    title: "Medium-length Titles",
+    group: "Filter by Title Length",
+    select: function(game) { return game.title.length > 6 && game.title.length <= 15; },
+    sortKey: "B"
+});
+gameList.createFilter({
+    id: "Names.Long",
+    title: "Long Titles",
+    group: "Filter by Title Length",
+    select: function(game) { return game.title.length > 15; },
+    sortKey: "C"
+});
+</div>
+   
 
 </body>
 </html>

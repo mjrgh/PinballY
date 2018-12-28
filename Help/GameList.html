@@ -41,81 +41,79 @@
    <a name="createFilter"></a>
    <b>gameList.createFilter(<i>desc</i>):</b>  Defines a custom filter,
    which selects games for the wheel UI according to a selection rule
-   you define.  <i>desc</i> is an object describing the filter. 
-   See <a href="FilterInfo.html#custom">Custom Filters</a> for 
-   details and examples.
+   you define.  <i>desc</i> is an object describing the filter.
+   Returns a <a href="Commands.html">command ID</a>, automatically
+   assigned as a unique menu command for the filter.  You can use
+   the command ID to place the filter on custom menus.   See
+   <a href="FilterInfo.html#custom">Custom Filters</a> for details
+   and examples.
 </p>
 
 <p>
    <a name="getAllFilters"></a>
    <b>gameList.getAllFilters():</b>  Returns an array of filter IDs
-   for all available filters.  Each element is a filter ID string,
-   which can be passed to <a href="#getFilterInfo">gameList.getFilterInfo()</a>
-   to get details on the filter.
+   for all available filters.  Each element is a <a href="FilterInfo.html">FilterInfo</a>
+   object describing the filter.
 </p>
 
 <p>
    <a name="getAllGames"></a>
-   <b>gameList.getAllGames():</b>  Returns an array consisting of the
-   <a href="GameInfo.html#gameID">Game ID</a> for each of the loaded games.  The
-   array is sorted in wheel display order, which is alphabetical by
-   the display name of each game.  If you
-   need to iterate over all games, this is more efficient than calling
-   getGame() for each game.  In addition, the returned array is a
-   snapshot of the game list at the time you call this function, so it
-   isn't be affected by subsequent insertions, deletions, or reorderings
-   of the live game list, as getGame() is.  This makes it suitable for
-   making edits to the live game list in the course of the iteration,
-   since edits to the live list won't affect the snapshot and thus
-   won't affect the iteration.
+   <b>gameList.getAllGames():</b>  Returns an array consisting of a
+   <a href="GameInfo.html">GameInfo</a> object for each loaded games.  The
+   array is arranged in wheel display order, which is alphabetical by
+   the display name of each game.  If you need to iterate over all games,
+   this is more efficient than calling getGame() for each game.  In
+   addition, the returned array is a snapshot of the complete game list at
+   the time you call this function, so it isn't be affected by subsequent
+   insertions, deletions, or reorderings of the live game list, as
+   getGame() is.  This makes it suitable for making edits to the live
+   game list in the course of the iteration, since edits to the live list
+   won't affect the snapshot and thus won't affect the iteration.
 </p>
 
 <p>
    <a name="getAllWheelGames"></a>
-   <b>gameList.getAllWheelGames():</b>  Returns an array consisting of the
-   <a href="GameInfo.html#gameID">Game ID</a> for each game on the wheel - that is,
-   each game selected by the currently active filter.  The 0th element
-   of the array is the currently selected game, and each subsequent
-   element is the ID of the next game to the right on the wheel.  Since
-   the wheel is conceptually circular, the last element of the array
-   is the game displayed in the wheel one position left from the
-   current game.
+   <b>gameList.getAllWheelGames():</b>  Returns an array consisting of a
+   <a href="GameInfo.html">GameInfo</a> object for each game on the wheel.
+   That is, each game selected by the currently active filter.
+   The first (0th) element of the array represents the currently selected game.
+   Each subsequent element represents the next game to the right on the wheel.
+   Since the wheel is conceptually circular, the last element is the game
+   displayed in the wheel one position left from the current game.
 </p>
 
 <p>
    <a name="getCurFilter"></a>
-   <b>gameList.getCurFilter():</b>  Returns the ID of the currently active
-   filter.  This can be passed to gameList.getFilterInfo() to get the
-   filter's details.
+   <b>gameList.getCurFilter():</b>  Returns a <href="FilterInfo.html">FilterInfo</a>
+   object describing the filter currently selected in the wheel UI.
 </p>
 
 <p>
    <a name="getFilterInfo"></a>
    <b>gameList.getFilterInfo(<i>id</i>):</b>  Returns a <a href="FilterInfo.html">FilterInfo</a>
    object describing the filter identified by <i>id</i>.  The <i>id</i> value is a string
-   with the filter ID, as provided in <a href="FilterSelectEvent.html"><b>filterselect</b></a>
-   events.  See <a href="FilterInfo.html">FilterInfo</a> for details.
+   with the filter ID.  See <a href="FilterInfo.html#filterID">FilterInfo</a> for details.
 </p>
 
 <p>
    <a name="getGameInfo"></a>
-   <b>gameList.getGameInfo(<i>id</i>):</b>  Returns an object containing
-   information on the specified game.  <i>id</i> is the program's internal ID
-   for the game, which is an arbitrary integer assigned when the game database
-   is loaded.  This is the same ID value that appears in
-   <a href="GameSelectEvent.html"><b>gameselect</b></a> events to identify
-   a newly selected game.  The returned object contains most of PinballY's
-   information on the game; see <a href="#gameInfo">Retrieving information
-   on a game</a> below for details.  If the game ID is invalid, the function
+   <b>gameList.getGameInfo(<i>id</i>):</b>  Returns a <a href="GameInfo.html">GameInfo</a>
+   object, which has properties to access most of the details of the specified game.
+   <i>id</i> can be either a <a href="GameInfo.html#configID">config ID</a> string
+   (the permanent identifier for a game, suitable for storing in an external location
+   such as a config file) or a numeric <a href="GameInfo.html#gameID">game ID</a>
+   (the internal ID that refers to the in-memory record for a loaded game).
+   If the ID is invalid or refers to a game that's no longer loaded, the function
    returns null.
 </p>
 
 <p>
    <a name="getGame"></a>
-   <b>gameList.getGame(<i>n</i>):</b>  Returns the <a href="GameInfo.html#gameID">Game ID</a>
-   of the <i>n</i>th game.  <i>n</i> is an index into the list of all loaded
-   games, ranging from 0 to the number of games in the list minus 1.  You can
-   get the total number of games from getGameCount().
+   <b>gameList.getGame(<i>n</i>):</b>  Returns a <a href="GameInfo.html">GameInfo</a>
+   object representing the <i>n</i>th game in the loaded game list.  <i>n</i> is an
+   index into the list of all loaded games, ranging from 0 to the number of games
+   in the list minus 1.  Returns null if <i>n</i> is out of range.  You can get the
+   total number of games currently in the list from getGameCount().
 </p>
 
 <p>
@@ -127,10 +125,10 @@
 
 <p>
    <a name="getWheelGame"></a>
-   <b>gameList.getWheelGame(<i>n</i>):</b>  Returns the <a href="GameInfo.html#gameID">Game ID</a>
-   of the game at offset <i>n</i> from the selected game in the wheel.  The
-   currently selected game is at offset 0, so gameList.getWheelGame(0) returns
-   the ID of the selected game.  Offset 1 is the next game to the right of the
+   <b>gameList.getWheelGame(<i>n</i>):</b>  Returns a <a href="GameInfo.html">GameInfo</a>
+   object representing the game at offset <i>n</i> from the selected game in the wheel.  The
+   currently selected game is at offset 0, so gameList.getWheelGame(0) refers
+   to the current game.  Offset 1 is the next game to the right of the
    current game, 2 is the next game to the right of that, and so on; -1 is
    the game to the left of the current game, -2 is the game to the left of
    that, and so on.  Since the wheel is conceptually a circle, offset <i>N</i>
@@ -156,33 +154,6 @@
    event is <b>not</b> fired when you change the filter with this function.
 </p>
    
-
-
-<a name="gameInfo"></a>
-<h2>Retrieving information on a game</h2>
-
-<p>
-   Given a game ID, you can obtain the detailed game information
-   that the system keeps internally by calling
-   <a href="#getGameInfo">gameList.getGameInfo(<i>id</i>)</a>.
-   For example, here's how you could retrieve the title of the
-   newly selected game each time the wheel selection changes, and
-   store it in a global variable:
-</p>
-<div class="code">
-let curTitle;
-gameList.on("gameselect", ev =&gt; {
-    if (ev.id)
-       curTitle = gameList.getGameInfo(ev.id).title;
-});
-</div>
-
-<p>
-   The return value from gameList.getGameInfo() is a <a href="GameInfo.html">GameInfo</a>
-   object containing the game's details.  See <a href="GameInfo.html">GameInfo</a>
-   for more information.
-</p>
-
 
 </body>
 </html>

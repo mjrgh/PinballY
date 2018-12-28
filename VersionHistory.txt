@@ -3,8 +3,13 @@ PinballY Update History
 ? (1.0.0 Beta 2)
 
 * The system now has a built-in Javascript engine, offering extensive
-new customization capabilities.  See "Javascript Scripting" in the
-help for details.
+new customization capabilities.  Scripts can intercept many UI events
+to change or augment the normal handling of buttons and commands;
+create custom menus; create custom filters; send HTML requests to
+integrate with Web applications; and more.  This is a new feature, but
+the eventual goal is to make the program into not just a virtual
+pinball front end, but also a construction set for virtual pinball
+front ends.  See "Javascript Scripting" in the help for details.
 
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.

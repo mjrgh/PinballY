@@ -542,6 +542,15 @@ JsErrorCode JavascriptEngine::LogAndClearException(ErrorHandler *eh, int msgid)
 	return JsNoError;
 }
 
+bool JavascriptEngine::IsFalsy(JsValueRef val) const
+{
+	JsValueRef boolval;
+	bool b;
+	return (JsConvertValueToBoolean(val, &boolval) != JsNoError
+		|| JsBooleanToBool(boolval, &b) != JsNoError
+		|| !b);
+}
+
 JsErrorCode JavascriptEngine::ToString(TSTRING &s, const JsValueRef &val)
 {
 	// convert the value to string
@@ -578,48 +587,97 @@ JsErrorCode JavascriptEngine::ToInt(int &i, const JsValueRef &val)
 
 JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 {
-	// A Variant Date is a double that represents the number of days since
-	// 12/30/1899 00:00 UTC.  Any fractional part represents the time of day,
-	// as a fraction of 24 hours.
+	// Variant Dates are evil (see rant below in JsDateToVariantDate).
+	// Don't try to engage with that evil ourselves.  Instead, let the
+	// system convert to the saner FILETIME format for us first.  That
+	// will represent it as a nice linear offset from a UTC epoch.
+	SYSTEMTIME st;
+	FILETIME ft;
+	VariantTimeToSystemTime(date, &st);
+	SystemTimeToFileTime(&st, &ft);
+
+	// Now convert the FILETIME to Javascript
+	return FileTimeToJsDate(ft, result);
+}
+
+JsErrorCode JavascriptEngine::DateTimeToJsDate(const DateTime &date, JsValueRef &jsval)
+{
+	// convert from the internal FILETIME representation
+	return FileTimeToJsDate(date.GetFileTime(), jsval);
+}
+
+JsErrorCode JavascriptEngine::FileTimeToJsDate(const FILETIME &ft, JsValueRef &jsval)
+{
+	// DateTime represents a date as a Windows FILETIME, which is the number
+	// of 100-nanosecond intervals since January 1, 1601 00:00:00 UTC, as a
+	// 64-bit int.  Javascript dates are the number of milliseconds since
+	// January 1, 1970 00:00:00 UTC.  If we ignore leap seconds, it's fairly
+	// easy to convert between these, since they're both linear time since
+	// an epoch:
 	//
-	// Javascript also represents a date as a double, but in a wholly
-	// different way.  Javascript uses milliseconds since the Unix epoch,
-	// 1/1/1970 00:00 UTC.  Leap seconds are ignored per the ES spec.
-	// 
-	// Converting between the two is straightforward, particularly because
-	// Javascript doesn't consider leap seconds.  We treat each day as
-	// 24 hours.  Start by converting the days-and-fraction-of-a-day 
-	// value in the Variant Date to milliseconds since the Variant Date 
-	// epoch.
-	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
-	double msSinceVariantEpoch = date * msPerDay;
+	// Step 1: Make the units match.  Convert from nanoseconds since the 
+	// FILETIME epoch to milliseconds.  1ms = 1000000ns = 10000*100ns = 10000hns
+	// ("hns" for "hundreds of nanoseconds").
+	INT64 hnsSinceFtEpoch = static_cast<INT64>((static_cast<UINT64>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime);
+	INT64 msSinceFtEpoch = hnsSinceFtEpoch / 10000;
 
-	// Now re-base the millisecond count from the Variant epoch to the 
-	// Unix epoch
-	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
-	double msSinceUnixEpoch = msSinceVariantEpoch - variantEpochMinusUnixEpoch;
+	// Step 2: Rebase from the FILETIME epoch to the Unix epoch.  The
+	// FILETIME epoch is 11644473600000 milliseconds before the Unix epoch.
+	const INT64 unixEpochMinusFiletimeEpoch = 11644473600000;
+	INT64 msSinceUnixEpoch = msSinceFtEpoch - unixEpochMinusFiletimeEpoch;
 
-	// finally, create a Javascript Date value representing this number
-	// of milliseconds since the Unix epoch
+	// Now create a Javascript Date value representing this number of 
+	// milliseconds since the Unix epoch.  This is straightforward, as the
+	// js Date constructor accepts exactly this format as an argument.
 	auto js = Get();
 	JsErrorCode err;
 	const TCHAR *where;
 	JsValueRef dateFunc, ms, argv[2];
 	if ((err = js->GetProp(dateFunc, js->globalObj, "Date", where)) != JsNoError
-		|| (err = JsDoubleToNumber(msSinceUnixEpoch, &ms)) != JsNoError
-		|| (argv[0] = js->globalObj, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &result)) != JsNoError))
+		|| (err = JsDoubleToNumber(static_cast<double>(msSinceUnixEpoch), &ms)) != JsNoError
+		|| (argv[0] = js->globalObj, argv[1] = ms, (err = JsConstructObject(dateFunc, argv, 2, &jsval)) != JsNoError))
 		return err;
 
 	// success
 	return JsNoError;
 }
 
-JsErrorCode JavascriptEngine::DateTimeToJsDate(const DateTime &date, JsValueRef &jsval)
+JsErrorCode JavascriptEngine::JsDateToVariantDate(JsValueRef jsval, DATE &date)
 {
-	return VariantDateToJsDate(date.ToVariantDate(), jsval);
+	// Our goal is to convert to Variant Date format, which is another
+	// units-since-an-epoch format.  But we won't go there directly,
+	// because Variant Dates are an evil Lovecraftian demon from a
+	// transdimensional Hell.  What makes them so evil?  They're
+	// expressed in local time, with an *epoch* expressed in local
+	// time.  That makes them really, really difficult to handle 
+	// correctly.  The effects of time zone changes is ridiculously
+	// difficult when you express things in local time.  There are
+	// also some bizarre discontinuities in the format around the
+	// epoch, which you can read more about on the Microsoft system
+	// blogs on the Web if you don't mind risking your sanity.
+	// Fortunately, some poor Microsoft interns did due penance for 
+	// the poor choices of their ancestors, by writing system API
+	// code that converts between Variant Dates and the perfectly
+	// sane FILETIME format.  So rather than trying to convert to
+	// Variant Date ourselves, let's convert first to FILETIME, and 
+	// then let the Microsoft interns takes it from there.
+
+	// Start by converting to a FILETIME
+	FILETIME ft;
+	JsErrorCode err;
+	if ((err = JsDateToFileTime(jsval, ft)) != JsNoError)
+		return err;
+
+	// now let the system APIs do the nasty local time conversions
+	SYSTEMTIME st;
+	FileTimeToSystemTime(&ft, &st);
+	SystemTimeToVariantTime(&st, &date);
+
+	// success
+	return JsNoError;
 }
 
-JsErrorCode JavascriptEngine::JsDateToVariantDate(JsValueRef jsval, DATE &date)
+JsErrorCode JavascriptEngine::JsDateToFileTime(JsValueRef jsval, FILETIME &ft)
 {
 	// Date.prototype.valueOf returns the primitive date value, as a
 	// Javascript Number (== C++ double) representing the number of
@@ -627,26 +685,28 @@ JsErrorCode JavascriptEngine::JsDateToVariantDate(JsValueRef jsval, DATE &date)
 	auto js = inst;
 	JsErrorCode err;
 	JsValueRef valueOfFunc, value;
-	double d;
+	double msSinceUnixEpoch;
 	const TCHAR *where;
 	if ((err = js->GetProp(valueOfFunc, jsval, "valueOf", where)) != JsNoError
 		|| (err = JsCallFunction(valueOfFunc, &jsval, 1, &value)) != JsNoError
-		|| (err = JsNumberToDouble(value, &d)) != JsNoError)
+		|| (err = JsNumberToDouble(value, &msSinceUnixEpoch)) != JsNoError)
 		return err;
 
-	// We have milliseconds since the Unix epoch (1/1/1970 00:00 UTC).  
-	// Re-base this to the Variant Date epoch (12/30/1899 00:00 UTC).
-	// (Microsoft NIH!)
-	static const double variantEpochMinusUnixEpoch = 2209132800000.0;
-	double msSinceVariantEpoch = d + variantEpochMinusUnixEpoch;
+	// We won't lose our sanity converting to FILETIME, but it does
+	// take a couple of steps.  FILETIME has its own unique epoch,
+	// OF COURSE (this is Microsoft, after all, and they practically
+	// invented Not Invented Here).  But at least FILETIME's epoch
+	// is in universal time, and the time is expressed as a linear
+	// offset from the epoch.  So we just have to do the obvious
+	// linear conversion.  ("hns" = "hundreds of nanoseconds".)
+	const INT64 unixEpochMinusFiletimeEpoch = 11644473600000;
+	INT64 msSinceFiletimeEpoch = static_cast<INT64>(msSinceUnixEpoch) + unixEpochMinusFiletimeEpoch;
+	INT64 hnsSinceFiletimeEpoch = msSinceFiletimeEpoch * 10000;
 
-	// Javascript dates are in milliseconds since the epoch, whereas
-	// Variant dates are in days since the epooch.  Convert from seconds
-	// to days, treating one day as exactly 24 hours.  This will yield
-	// a whole part in days, and a fractional part as the fraction of
-	// a day past midnight UTC, equivalent to the time of day.
-	static const double msPerDay = 24.0 * 60.0 * 60.0 * 1000.0;
-	date = msSinceVariantEpoch / msPerDay;
+	// Now we just have to decompose this 64-bit value into the
+	// high and low DWORDs for the FILETIME struct.
+	ft.dwHighDateTime = static_cast<DWORD>(hnsSinceFiletimeEpoch >> 32);
+	ft.dwLowDateTime = static_cast<DWORD>(hnsSinceFiletimeEpoch & 0xFFFFFFFF);
 
 	// success
 	return JsNoError;

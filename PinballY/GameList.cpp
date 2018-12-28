@@ -585,22 +585,17 @@ void GameList::RefreshFilter()
 	byTitleFiltered.clear();
 	curGame = -1;
 
+	// initialize the filter
+	curFilter->BeforeScan();
+
 	// note if the "Hide Unconfigured Games" option is set
 	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
-
-	// Get the most recent local midnight, in UTC time, for use by
-	// recency filters.  This must be passed to all filters for the
-	// sake of a uniform interface, and it has to be pre-computed
-	// for the sake of efficiency, as it's a relatively complex
-	// calculation that would be inefficient to have to repeat on
-	// every iteration.
-	DATE dMidnight = GetLocalMidnightUTC();
 
 	// Construct the new list of games that pass the filter
 	for (auto g : byTitle)
 	{
 		// If this game is included, add it to the list
-		if (FilterIncludes(curFilter, g, dMidnight, hideUnconfigured))
+		if (FilterIncludes(curFilter, g, hideUnconfigured))
 		{
 			// note its new index, and add it to the list
 			int idx = (int)byTitleFiltered.size();
@@ -660,14 +655,17 @@ void GameList::RefreshFilter()
 				curGame = idx;
 		}
 	}
+
+	// end the scan
+	curFilter->AfterScan();
 }
 
-bool GameList::FilterIncludes(const GameListFilter *filter, GameListItem *game)
+bool GameList::FilterIncludes(GameListFilter *filter, GameListItem *game)
 {
-	return FilterIncludes(filter, game, GetLocalMidnightUTC(), Application::Get()->IsHideUnconfiguredGames());
+	return FilterIncludes(filter, game, Application::Get()->IsHideUnconfiguredGames());
 }
 
-bool GameList::FilterIncludes(const GameListFilter *filter, GameListItem *game, DATE dMidnight, bool hideUnconfigured)
+bool GameList::FilterIncludes(GameListFilter *filter, GameListItem *game, bool hideUnconfigured)
 {
 	// If this game is hidden or disabled, check to see if the filter passes
 	// hidden games.  If not, skip it.
@@ -680,9 +678,8 @@ bool GameList::FilterIncludes(const GameListFilter *filter, GameListItem *game, 
 	if (!game->isConfigured && hideUnconfigured && !filter->IncludeUnconfigured())
 		return false;
 
-	// We're not filtering it out for other reasons, so test it via the
-	// filter.
-	return filter->Include(game, dMidnight);
+	// This game passes the generic tests, so test it via the filter
+	return filter->Include(game);
 }
 
 DATE GameList::GetLocalMidnightUTC()
@@ -732,6 +729,12 @@ const std::vector<GameListFilter*> &GameList::GetFilters()
 	return filters;
 }
 
+void GameList::EnumUserDefinedFilters(std::function<void(GameListFilter*)> func)
+{
+	for (auto &f : userDefinedFilters)
+		func(f.second);
+}
+
 void GameList::EnumUserDefinedFilterGroups(std::function<void(const TSTRING &name, int command)> func)
 {
 	// make sure the filter list is up to date
@@ -752,15 +755,67 @@ void GameList::EnumUserDefinedFilterGroups(std::function<void(const TSTRING &nam
 		func(g, filterGroupCmdMap[g]);
 }
 
+// System filter groups
+static const struct
+{
+	const TCHAR *name;
+	int cmd;
+}
+sysFilterGroups[] = {
+	_T("[Era]"), ID_FILTER_BY_ERA,
+	_T("[Manuf]"), ID_FILTER_BY_MANUF,
+	_T("[Sys]"), ID_FILTER_BY_SYS,
+	_T("[Rating]"), ID_FILTER_BY_RATING,
+	_T("[Cat]"), ID_FILTER_BY_CATEGORY,
+	_T("[Played]"), ID_FILTER_BY_RECENCY,
+	_T("[!Played]"), ID_FILTER_BY_RECENCY,
+	_T("[!!Played]"), ID_FILTER_BY_RECENCY,
+	_T("[Added]"), ID_FILTER_BY_ADDED,
+	_T("[!Added]"), ID_FILTER_BY_ADDED
+};
+
 const TCHAR *GameList::GetUserDefinedFilterGroup(int cmd)
 {
+	// search for a user-defined group
 	for (auto const &g : filterGroupCmdMap)
 	{
 		if (g.second == cmd)
 			return g.first.c_str();
 	}
 
+	// search for a system group
+	for (size_t i = 0; i < countof(sysFilterGroups); ++i)
+	{
+		if (sysFilterGroups[i].cmd == cmd)
+			return sysFilterGroups[i].name;
+	}
+
+	// not found
 	return nullptr;
+}
+
+int GameList::GetFilterGroupCommand(const TCHAR *group)
+{
+	// there's no command for a null or empty group name
+	if (group == nullptr || group[0] == 0)
+		return 0;
+
+	// try a user-defined name
+	if (auto it = filterGroupCmdMap.find(group); it != filterGroupCmdMap.end())
+		return it->second;
+
+	// test against the built-in group names
+	if (group[0] == '[')
+	{
+		for (size_t i = 0; i < countof(sysFilterGroups); ++i)
+		{
+			if (_tcscmp(group, sysFilterGroups[i].name) == 0)
+				return sysFilterGroups[i].cmd;
+		}
+	}
+
+	// not found 
+	return 0;
 }
 
 void GameList::SetFilter(int cmdID)
@@ -769,7 +824,7 @@ void GameList::SetFilter(int cmdID)
 		SetFilter(f);
 }
 
-void GameList::SetFilter(const GameListFilter *filter)
+void GameList::SetFilter(GameListFilter *filter)
 {
 	// set the new filter
 	curFilter = filter;
@@ -1481,7 +1536,7 @@ bool GameList::Load(ErrorHandler &eh)
 	return true;
 }
 
-void GameList::AddUserDefinedFilter(UserDefinedFilter *filter)
+void GameList::AddUserDefinedFilter(GameListFilter *filter)
 {
 	// delete it if it already exists
 	DeleteUserDefinedFilter(filter);
@@ -1504,7 +1559,7 @@ void GameList::AddUserDefinedFilter(UserDefinedFilter *filter)
 	isFilterListDirty = true;
 }
 
-void GameList::DeleteUserDefinedFilter(UserDefinedFilter *filter)
+void GameList::DeleteUserDefinedFilter(GameListFilter *filter)
 {
 	// look up the filter
 	if (auto it = userDefinedFilters.find(filter->GetFilterId()); it != userDefinedFilters.end())
@@ -1637,20 +1692,23 @@ void GameList::EnumGames(std::function<void(GameListItem*)> func)
 		func(game);
 }
 
-void GameList::EnumGames(std::function<void(GameListItem*)> func, const GameListFilter *filter)
+void GameList::EnumGames(std::function<void(GameListItem*)> func, GameListFilter *filter)
 {
 	// note if the "Hide Unconfigured Games" option is set
 	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
 
-	// get the recent local midnight (in UTC time) for use by recency filters
-	DATE dMidnight = GetLocalMidnightUTC();
+	// initialize the filter
+	filter->BeforeScan();
 
 	// enumerate games that match the filter
 	for (auto &game : byTitle)
 	{
-		if (FilterIncludes(filter, game))
+		if (FilterIncludes(filter, game, hideUnconfigured))
 			func(game);
 	}
+
+	// end the scan
+	filter->AfterScan();
 }
 
 void GameList::AddUnconfiguredGames()
@@ -4114,7 +4172,7 @@ void GameListItem::DispHighScoreGroups(std::function<void(const std::list<const 
 // Favorites filter
 //
 
-bool FavoritesFilter::Include(GameListItem *game, DATE /*midnight*/) const
+bool FavoritesFilter::Include(GameListItem *game)
 {
 	return GameList::Get()->IsFavorite(game);
 }
@@ -4124,7 +4182,7 @@ bool FavoritesFilter::Include(GameListItem *game, DATE /*midnight*/) const
 // Hidden game filter
 //
 
-bool HiddenGamesFilter::Include(GameListItem *game, DATE /*midnight*/) const
+bool HiddenGamesFilter::Include(GameListItem *game) 
 {
 	return game->IsHidden();
 }
@@ -4134,7 +4192,7 @@ bool HiddenGamesFilter::Include(GameListItem *game, DATE /*midnight*/) const
 // Unconfigured games filter
 //
 
-bool UnconfiguredGamesFilter::Include(GameListItem *game, DATE /*midnight*/) const
+bool UnconfiguredGamesFilter::Include(GameListItem *game)
 {
 	return !game->isConfigured;
 }
@@ -4144,11 +4202,26 @@ bool UnconfiguredGamesFilter::Include(GameListItem *game, DATE /*midnight*/) con
 // Rating filter
 //
 
-bool RatingFilter::Include(GameListItem *game, DATE /*midnight*/) const
+bool RatingFilter::Include(GameListItem *game)
 {
 	float gameRating = GameList::Get()->GetRating(game);
 	float minRating = (float)stars, maxRating = minRating + 1.0f;
 	return gameRating >= minRating && gameRating < maxRating;
+}
+
+// -----------------------------------------------------------------------
+//
+// Recency filters
+//
+
+void RecencyFilter::BeforeScan()
+{
+	// cache 12:00AM today, local time, as the reference point for
+	// the recency filter
+	midnight = GameList::GetLocalMidnightUTC(); 
+
+	// do any base class work
+	__super::BeforeScan();
 }
 
 
@@ -4157,7 +4230,7 @@ bool RatingFilter::Include(GameListItem *game, DATE /*midnight*/) const
 // Recently played filter
 //
 
-bool RecentlyPlayedFilter::Include(GameListItem *game, DATE midnight) const
+bool RecentlyPlayedFilter::Include(GameListItem *game)
 {
 	// Get the game's last played time, as a DateTime value.
 	// Note that this is in UTC.
@@ -4193,7 +4266,7 @@ bool RecentlyPlayedFilter::Include(GameListItem *game, DATE midnight) const
 //
 // Never-played filter
 //
-bool NeverPlayedFilter::Include(GameListItem *game, DATE midnight) const
+bool NeverPlayedFilter::Include(GameListItem *game)
 {
 	// Get the game's last played time, as a DateTime value.  If there's
 	// no valid stored value, the game has never been played, so it
@@ -4207,7 +4280,7 @@ bool NeverPlayedFilter::Include(GameListItem *game, DATE midnight) const
 // Recently added filter
 //
 
-bool RecentlyAddedFilter::Include(GameListItem *game, DATE midnight) const
+bool RecentlyAddedFilter::Include(GameListItem *game)
 {
 	// if the game isn't configured, it doesn't pass any Added Date test
 	if (!game->isConfigured)
@@ -4273,12 +4346,12 @@ NoGame::NoGame() :
 // Category filters
 //
 
-bool GameCategory::Include(GameListItem *game, DATE /*midnight*/) const
+bool GameCategory::Include(GameListItem *game)
 {
 	return GameList::Get()->IsInCategory(game, this);
 }
 
-bool NoCategory::Include(GameListItem *game, DATE /*midnight*/) const
+bool NoCategory::Include(GameListItem *game)
 {
 	return GameList::Get()->IsUncategorized(game);
 }

@@ -2,6 +2,10 @@ ChakraCore is Microsoft's open-source (MIT License) Javascript engine.
 It's incorporated into PinballY as a scripting engine for user
 customizations.
 
+
+Build Instructions
+==================
+
 Embedding ChakraCore into a third-party C++/Win32 application is
 straightforward.  You just need the DLL, the import .lib for the DLL,
 and a few header files.  The ChakraCore developers even provide a
@@ -62,9 +66,8 @@ that isn't so terrible, as the build process for ChakraCore is really
 simple, as you can see from the steps above.
 
 
-======================================================================
-
 Extra steps needed for the official ChakraCore-Debugger fork
+============================================================
 
 Ignore the following if you're using my forked ChakraCore-Debugger
 version, which is what I strongly recommend.
@@ -157,3 +160,42 @@ work to change.  In the meantime, this is why I've been trying to
 flesh out the implementation to cover common situations more
 thoroughly, so that ordinary debug events are less likely to trigger
 internal CC-D layer errors in the first place.
+
+
+
+"T" string vs Unicode string types
+==================================
+
+I play a little fast and loose with Unicode vs the "T" string types.
+Most of PinballY uses Microsoft's "T" types (TCHAR, LPTSTR, etc),
+which are basically macros that can turn into 8-bit OR Unicode
+strings, depending on whether you're building in ANSI or Unicode mode.
+But ChakraCore never uses these types; it's explicit in every API
+about using either UCS-2 or UTF-8, and has no build-time conditional
+character types.
+
+I really only use the "T" types in PinballY out of habit.
+Realistically, PinballY is a Unicode app and I'm never going to build
+it as an ANSI app.  The "T" types are an old habit that I really
+should drop; Windows has fully embraced Unicode and isn't looking
+back, and neither should we app developers.  As a result, I haven't
+been completely thorough about type run-time string conversions
+between "T" and "W" strings at the Chakra Core interfaces.  I'm pretty
+much treating the two as equivalent.  If you try to compile PinballY
+in 8-bit mode, you're going to run into some (probably lots of)
+mismatches.  Easy solution: don't do that; just build it in Unicode.
+
+If you really need to built in 8-bit mode for some unfathomable
+reason, you'll have to fix all of those mismatches.  Check out
+Utilities/StringUtil.h for a fairly complete and easy to use set of
+cover macros to do the conversions where necessary.  The nice thing
+about the cover macros is that they'll have zero cost when compiling
+in Unicode mode, if you pick the right macros, because the Unicode
+versions all compile down to nothing.  (If the macros you're using
+AREN'T zero cost in Unicode mode, you're using the wrong ones: keep
+looking.)  If you do this work and get it built and working in 8-bit
+mode, and you don't break anything or add any runtime cost in Unicode
+mode (because you picked the right macros!), send a pull request on
+github and I'll be happy to merge your changes so that it keeps
+working in 8-bit mode going forward.
+

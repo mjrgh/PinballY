@@ -114,6 +114,9 @@ public:
 	JsValueRef GetTrueVal() const { return trueVal; }
 	JsValueRef GetGlobalObject() const { return globalObj; }
 
+	// get for Falsy values
+	bool IsFalsy(JsValueRef) const;
+
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
 	static JsErrorCode ToInt(int &i, const JsValueRef &val);
@@ -123,10 +126,12 @@ public:
 	// as it has methods to parse in various formats.
 	static JsErrorCode VariantDateToJsDate(DATE date, JsValueRef &jsval);
 	static JsErrorCode DateTimeToJsDate(const DateTime &date, JsValueRef &jsval);
+	static JsErrorCode FileTimeToJsDate(const FILETIME &ft, JsValueRef &jsval);
 
 	// convert Javascript dates to other representations
 	static JsErrorCode JsDateToVariantDate(JsValueRef jsval, DATE &date);
 	static JsErrorCode JsDateToDateTime(JsValueRef jsval, DateTime &date);
+	static JsErrorCode JsDateToFileTime(JsValueRef jsval, FILETIME &ft);
 
 	// get a property value
 	JsErrorCode GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
