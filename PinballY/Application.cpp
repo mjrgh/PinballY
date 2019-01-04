@@ -759,8 +759,8 @@ bool Application::ReloadConfig()
 	// clear media in all windows
 	ClearMedia();
 
-	// delete the game list
-	GameList::Shutdown();
+	// re-create the game list
+	GameList::ReCreate();
 
 	// load the settings file
 	if (!LoadConfig(MainConfigFileDesc))
@@ -1250,6 +1250,21 @@ GameListItem *Application::GetNextQueuedGame() const
 
 	// look up the game from the stored ID
 	return GameList::Get()->GetByInternalID(q->gameId);
+}
+
+TSTRING Application::ExpandGameSysVars(TSTRING &str, GameSystem *system, GameListItem *game)
+{
+	// set up a dummy monitor object
+	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
+	mon->Prepare(ID_PLAY_GAME, game, system, nullptr, 0);
+
+	// resolve the game file
+	TCHAR gameFileWithPath[MAX_PATH];
+	mon->GetGameFileWithPath(gameFileWithPath);
+	mon->ResolveGameFile(gameFileWithPath, false);
+
+	// apply the substitutions
+	return mon->SubstituteVars(str);
 }
 
 void Application::KillGame()
@@ -1913,16 +1928,59 @@ void Application::GameMonitorThread::ManualCaptureGo()
 	SetEvent(startStopEvent);
 }
 
+void Application::GameMonitorThread::ResolveGameFile(TCHAR gameFileWithPath[MAX_PATH], bool logging)
+{
+	// Check if the file exists.  If not, try adding the default extension.
+	if (!FileExists(gameFileWithPath) && gameSys.defExt.length() != 0)
+	{
+		// The file doesn't exist.  Try adding the default extension.
+		TCHAR gameFileWithPathExt[MAX_PATH];
+		_stprintf_s(gameFileWithPathExt, _T("%s%s"), gameFileWithPath, gameSys.defExt.c_str());
+
+		// log the attempt
+		if (logging)
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch: table file %s doesn't exist; try adding extension -> %s\n"),
+				gameFileWithPath, gameFileWithPathExt);
+
+		// if the file + extension exists, use that instead of the original
+		if (FileExists(gameFileWithPathExt))
+		{
+			// log it
+			if (logging)
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: file + extension (%s) exists, using it\n"), gameFileWithPathExt);
+
+			// use the path + extension version, and also add the extension
+			// to the base game file name
+			_tcscpy_s(gameFileWithPath, MAX_PATH, gameFileWithPathExt);
+			gameFileWithExt.append(gameSys.defExt);
+		}
+		else
+		{
+			// log that neither file exists
+			if (logging)
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("+ table launch: file + extension (%s) doesn't exist either; sticking with original name (%s)\n"),
+					gameFileWithPathExt, gameFileWithPath);
+		}
+	}
+}
+
+void Application::GameMonitorThread::GetGameFileWithPath(TCHAR gameFileWithPath[MAX_PATH])
+{
+	if (PathIsRelative(gameFileWithExt.c_str()))
+		PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
+	else
+		_tcscpy_s(gameFileWithPath, MAX_PATH, gameFileWithExt.c_str());
+}
 
 DWORD Application::GameMonitorThread::Main()
 {
 	// Get the game filename from the database, and build the full path
 	// (unless the filename already has an absolute path).
 	TCHAR gameFileWithPath[MAX_PATH];
-	if (PathIsRelative(gameFileWithExt.c_str()))
-		PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
-	else
-		_tcscpy_s(gameFileWithPath, gameFileWithExt.c_str());
+	GetGameFileWithPath(gameFileWithPath);
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ launch: full table path %s\n"), gameFileWithPath);
 
 	// Get the centerpoint of the various windows.  If we need to
@@ -2303,47 +2361,11 @@ DWORD Application::GameMonitorThread::Main()
 		std::list<TSTRING> rotate;
 	};
 
-	// Check if the file exists.  If not, add the default extension.
-	auto AddGameFileExt = [this, &gameFileWithPath]()
-	{
-		if (!FileExists(gameFileWithPath) && gameSys.defExt.length() != 0)
-		{
-			// The file doesn't exist.  Try adding the default extension.
-			TCHAR gameFileWithPathExt[MAX_PATH];
-			_stprintf_s(gameFileWithPathExt, _T("%s%s"), gameFileWithPath, gameSys.defExt.c_str());
-
-			// log the attempt
-			LogFile::Get()->Write(LogFile::TableLaunchLogging,
-				_T("+ table launch: table file %s doesn't exist; try adding extension -> %s\n"),
-				gameFileWithPath, gameFileWithPathExt);
-
-			// if the file + extension exists, use that instead of the original
-			if (FileExists(gameFileWithPathExt))
-			{
-				// log it
-				LogFile::Get()->Write(LogFile::TableLaunchLogging,
-					_T("+ table launch: file + extension (%s) exists, using it\n"), gameFileWithPathExt);
-
-				// use the path + extension version, and also add the extension
-				// to the base game file name
-				_tcscpy_s(gameFileWithPath, gameFileWithPathExt);
-				gameFileWithExt.append(gameSys.defExt);
-			}
-			else
-			{
-				// log that neither file exists
-				LogFile::Get()->Write(LogFile::TableLaunchLogging,
-					_T("+ table launch: file + extension (%s) doesn't exist either; sticking with original name (%s)\n"),
-					gameFileWithPathExt, gameFileWithPath);
-			}
-		}
-	};
-
 	// Do an initial check to see if we need to add the default extension
 	// to the game file.  We try this first before the Run Before commands,
 	// so that the Run Before commands get the benefit of the adjusted
 	// filename if available.
-	AddGameFileExt();
+	ResolveGameFile(gameFileWithPath);
 
 	// If desired, hide the taskbar while the game is running
 	class TaskbarHider
@@ -2430,7 +2452,7 @@ DWORD Application::GameMonitorThread::Main()
 	// place in preparation for the game, so the file might not have
 	// actually existed until after those commands finished.  So do
 	// a second check here, in case the file has come into existence.
-	AddGameFileExt();
+	ResolveGameFile(gameFileWithPath);
 
 	// If PinVol is running, send it a message on its mailslot with the
 	// game file and title.  This lets it show the game's real title in

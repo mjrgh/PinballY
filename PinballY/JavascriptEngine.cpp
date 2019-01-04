@@ -587,16 +587,25 @@ JsErrorCode JavascriptEngine::ToInt(int &i, const JsValueRef &val)
 
 JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 {
-	// Variant Dates are evil (see rant below in JsDateToVariantDate).
-	// Don't try to engage with that evil ourselves.  Instead, let the
-	// system convert to the saner FILETIME format for us first.  That
-	// will represent it as a nice linear offset from a UTC epoch.
+	// Variant Dates are extremely tricky to work with because of poor
+	// design choices Microsoft made when defining the type.  (That's
+	// not an opinion; see the Microsoft system blogs if you want an
+	// accounting of the design flaws.)  Fortunately, Windows provides
+	// an API that encpasulates all of the tricky handling and converts
+	// to SYSTEMTIME, which is a perfectly sane date representation.
 	SYSTEMTIME st;
-	FILETIME ft;
 	VariantTimeToSystemTime(date, &st);
+
+	// SYSTEMTIME has a calendar date structure, whereas Javascript's
+	// Date representation is a linear offset from an epoch.  So the
+	// next step is to convert the SYSTEMTIME to a similar linear time
+	// format.  The Windows format fitting that description is FILETIME.
+	// (There's no loss of fidelity in this conversion.)
+	FILETIME ft;
 	SystemTimeToFileTime(&st, &ft);
 
-	// Now convert the FILETIME to Javascript
+	// And finally, convert the FILETIME to a Javascript Date, which is
+	// a straightforward conversion between linear offset formulas.
 	return FileTimeToJsDate(ft, result);
 }
 
@@ -645,32 +654,33 @@ JsErrorCode JavascriptEngine::FileTimeToJsDate(const FILETIME &ft, JsValueRef &j
 JsErrorCode JavascriptEngine::JsDateToVariantDate(JsValueRef jsval, DATE &date)
 {
 	// Our goal is to convert to Variant Date format, which is another
-	// units-since-an-epoch format.  But we won't go there directly,
-	// because Variant Dates are an evil Lovecraftian demon from a
-	// transdimensional Hell.  What makes them so evil?  They're
-	// expressed in local time, with an *epoch* expressed in local
-	// time.  That makes them really, really difficult to handle 
-	// correctly.  The effects of time zone changes is ridiculously
-	// difficult when you express things in local time.  There are
-	// also some bizarre discontinuities in the format around the
-	// epoch, which you can read more about on the Microsoft system
-	// blogs on the Web if you don't mind risking your sanity.
-	// Fortunately, some poor Microsoft interns did due penance for 
-	// the poor choices of their ancestors, by writing system API
-	// code that converts between Variant Dates and the perfectly
-	// sane FILETIME format.  So rather than trying to convert to
-	// Variant Date ourselves, let's convert first to FILETIME, and 
-	// then let the Microsoft interns takes it from there.
+	// units-since-an-epoch format.  But we won't attempt the conversion
+	// with our own arithmetic, because Variant Dates are notoriously
+	// difficult to handle correctly.  (The format is poorly defined
+	// in several ways that makes its arithmetic non-linear.  Not least
+	// of which is that Variant Dates are expressed in "local time", 
+	// whatever that happens to be on the local system, which adds
+	// complexity due to daylight time.)  Fortunately, there's a system
+	// API, SystemTimeToVariantTime(), that encapsulates all of the
+	// special handling required and produces a Variant Date given a 
+	// UTC value in the perfectly sane SYSTEMTIME format.  So we do
+	// this conversion in three easy steps: convert Javascript Date to
+	// Windows FILETIME, which is a straightforward linear conversion
+	// from one offset-from-epoch representation to another; convert
+	// the FILETIME to a SYSTEMTIME, which is another system API that
+	// just works; and then convert that to the evil target format.
 
-	// Start by converting to a FILETIME
+	// Start by converting the Javascript Date to a FILETIME
 	FILETIME ft;
 	JsErrorCode err;
 	if ((err = JsDateToFileTime(jsval, ft)) != JsNoError)
 		return err;
 
-	// now let the system APIs do the nasty local time conversions
+	// Now convert the FILETIME to SYSTEMTIME
 	SYSTEMTIME st;
 	FileTimeToSystemTime(&ft, &st);
+
+	// And finally, convert the SYSTEMTIME to Variant Date
 	SystemTimeToVariantTime(&st, &date);
 
 	// success
@@ -692,19 +702,33 @@ JsErrorCode JavascriptEngine::JsDateToFileTime(JsValueRef jsval, FILETIME &ft)
 		|| (err = JsNumberToDouble(value, &msSinceUnixEpoch)) != JsNoError)
 		return err;
 
-	// We won't lose our sanity converting to FILETIME, but it does
-	// take a couple of steps.  FILETIME has its own unique epoch,
-	// OF COURSE (this is Microsoft, after all, and they practically
-	// invented Not Invented Here).  But at least FILETIME's epoch
-	// is in universal time, and the time is expressed as a linear
-	// offset from the epoch.  So we just have to do the obvious
-	// linear conversion.  ("hns" = "hundreds of nanoseconds".)
+	// Javascript Date and FILETIME are both offset-from-epoch formats,
+	// but they have different epochs and are in different units.  So
+	// the first step is to convert from "milliseconds since the Unix
+	// epoch" (January 1, 1970, 00:00:00 GMT), as Javascript Dates would
+	// have it, to "milliseconds since the FILETIME epoch" (January 1,
+	// 1601, 00:00:00 UTC).  Note that the two epochs are fixed points
+	// in universal time, so converting between the two reference points
+	// is just a matter of adding/subtracting the interval between them,
+	// which is 11644473600000 milliseconds.  (Not counting leap seconds,
+	// which Javascript Dates by policy ignore.  The situation appears
+	// to be more complicated on Windows, where leap seconds will be
+	// incorporated into conversions between FILETIME and SYSTEMTIME
+	// in post-10/2018 Windows 10 updates.  So we might start seeing
+	// some disagreement between human-readable local time values in
+	// the two systems, by single-digit seconds, at some point.)
 	const INT64 unixEpochMinusFiletimeEpoch = 11644473600000;
 	INT64 msSinceFiletimeEpoch = static_cast<INT64>(msSinceUnixEpoch) + unixEpochMinusFiletimeEpoch;
+
+	// The one other difference with FILETIMEs is that they're in units
+	// of 100ns, vs Javascript Date's milliseconds.  There are 10000
+	// 100ns intervals in 1ms.  ("hns" = "hundreds of nanoseconds".)
 	INT64 hnsSinceFiletimeEpoch = msSinceFiletimeEpoch * 10000;
 
-	// Now we just have to decompose this 64-bit value into the
-	// high and low DWORDs for the FILETIME struct.
+	// We conceptually have a FILETIME value now: the number of 100ns
+	// intervals since the FILETIME epoch, as a 64-bit integer.  All
+	// that's left is to decompose our flat 64-bit integer into the
+	// high and low 32-bit halves that go in the FILETIME struct.
 	ft.dwHighDateTime = static_cast<DWORD>(hnsSinceFiletimeEpoch >> 32);
 	ft.dwLowDateTime = static_cast<DWORD>(hnsSinceFiletimeEpoch & 0xFFFFFFFF);
 

@@ -429,7 +429,6 @@ BOOL MainOptionsDialog::OnInitDialog()
 void MainOptionsDialog::OnRenameSystem(SystemDialog *sysDlg)
 {
 	// find the page in my list
-	auto cfg = ConfigManager::GetInstance();
 	auto tabCtrl = GetTabControl();
 	auto treeCtrl = GetPageTreeControl();
 	int nPages = tabCtrl->GetItemCount();
@@ -451,7 +450,7 @@ void MainOptionsDialog::OnRenameSystem(SystemDialog *sysDlg)
 			ti.pszText = oldTabName;
 			tabCtrl->GetItem(i, &ti);
 
-			// get out the prefix, which won't change: "System::"
+			// pull out the prefix, which won't change: "System::"
 			if (TCHAR *colon = _tcschr(oldTabName, ':'); colon != nullptr)
 				*colon = 0;
 
@@ -472,6 +471,47 @@ void MainOptionsDialog::OnRenameSystem(SystemDialog *sysDlg)
 			break;
 		}
 	}
+}
+
+bool MainOptionsDialog::IsSystemNameUnique(SystemDialog *sysDlg)
+{
+	// get the name of the system of interest
+	CString sysName;
+	sysDlg->GetDlgItemText(IDC_EDIT_SYS_NAME, sysName);
+
+	// check the other system pages for conflicting names
+	auto tabCtrl = GetTabControl();
+	int nPages = tabCtrl->GetItemCount();
+	for (int i = 0; i < nPages; ++i)
+	{
+		// if this is another system dialog (but not the one we're testing), check it
+		if (auto page = dynamic_cast<SystemDialog*>(GetPage(i)); page != sysDlg && page != nullptr)
+		{
+			// Get this other system's name.  If the dialog window has been created,
+			// get the name from the edit control.  Otherwise use the name from the
+			// config, since we obviously haven't edited anything if its window
+			// hasn't been created yet.
+			CString otherSysName;
+			if (page->GetSafeHwnd() != NULL)
+			{
+				// the window has been created - use the live edit control data
+				page->GetDlgItemText(IDC_EDIT_SYS_NAME, otherSysName);
+			}
+			else
+			{
+				// not loaded yet - get the name from the configuration
+				MsgFmt sysvar(_T("System%d"), page->GetSysNum());
+				otherSysName = ConfigManager::GetInstance()->Get(sysvar, _T(""));
+			}
+
+			// if it matches our new name, it's not unique
+			if (otherSysName == sysName)
+				return false;
+		}
+	}
+
+	// we didn't find any matching names, so it's unique
+	return true;
 }
 
 void MainOptionsDialog::AddNewSystem()

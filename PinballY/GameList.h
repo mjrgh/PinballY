@@ -518,13 +518,24 @@ public:
 	void SetHidden(bool f, bool updateDatabases = true);
 
 protected:
-	GameListItem() :
+	GameListItem() = delete;
+
+	struct SpecialListItem { };
+	static const SpecialListItem isSpecialListItem;
+	GameListItem(const SpecialListItem&) :
 		system(nullptr),
 		manufacturer(nullptr),
 		tableFileSet(nullptr)
 	{ 
 		CommonInit();
 	}
+
+	// Assign an internal ID.  This must be called after the title
+	// and system are set up so that GetGameID() can compute the
+	// game's actual config ID value.  If the config ID matches a
+	// record in the game list's reload map, we'll reuse the
+	// internal from the map; otherwise we'll assign a new ID.
+	void AssignInternalID();
 
 	// Is the game hidden? 
 	bool hidden;
@@ -878,8 +889,12 @@ class GameSysInfo
 {
 public:
 	GameSysInfo() { }
-	GameSysInfo(const TCHAR *displayName) : displayName(displayName) { }
+	GameSysInfo(const TCHAR *displayName, int configIndex) :
+		displayName(displayName),
+		configIndex(configIndex)
+	{ }
 
+	int configIndex = -1;       // configuration variable index ("System<N>" variable)
 	TSTRING displayName;        // display name for the UI
 	TSTRING systemClass;		// system class ("VP", "VPX", "FP", empty for others)
 	TSTRING mediaDir;           // Media subfolder name (usually the same as the display name)
@@ -1002,8 +1017,8 @@ public:
 class GameSystem: public GameSysInfo, public GameListFilter
 {
 public:
-	GameSystem(const TCHAR *displayName) :
-		GameSysInfo(displayName),
+	GameSystem(const TCHAR *displayName, int configIndex) :
+		GameSysInfo(displayName, configIndex),
 		GameListFilter(_T("[Sys]"), displayName),
 		tableFileSet(nullptr),
 		filterTitle(MsgFmt(IDS_FILTER_SYSTEM, displayName)),
@@ -1120,9 +1135,20 @@ public:
 class GameList
 {
 public:
-	// create/destroy the global singleton
+	// Create/destroy the global singleton
 	static void Create();
 	static void Shutdown();
+
+	// Re-create.  This deletes the global singleton and creates a new one,
+	// saving the current mapping between config IDs and internal IDs.  The
+	// saved mapping lets us restore the internal IDs for games that survive
+	// the reload, which lets Javascript GameInfo objects survive the reload,
+	// if Javascript is in use.xs
+	static void ReCreate();
+
+	// Get the reload internal ID for a game, if available; returns 0 if
+	// there's no reload map or the game isn't in the map.
+	int GetReloadID(GameListItem *game);
 
 	// Initialize.  Loads the game stats database.
 	void Init(ErrorHandler &eh);
@@ -1149,8 +1175,11 @@ public:
 
 	// Create a system
 	GameSystem *CreateSystem(
-		const TCHAR *name, const TCHAR *sysDatabaseDir, 
-		const TCHAR *tablePath, const TCHAR *defExt);
+		const TCHAR *name, int configIndex,
+		const TCHAR *sysDatabaseDir, const TCHAR *tablePath, const TCHAR *defExt);
+
+	// Look up a system by config index
+	GameSystem *GetSystem(int configIndex);
 
 	// Load a game database XML file
 	bool LoadGameDatabaseFile(
@@ -1247,6 +1276,8 @@ public:
 	    { return lastPlayedCol->Get(GetStatsDbRow(game)); }
 	void SetLastPlayed(GameListItem *game, const TCHAR *val) 
 	    { lastPlayedCol->Set(GetStatsDbRow(game, true), val); }
+	void SetLastPlayed(GameListItem *game, DateTime val)
+		{ lastPlayedCol->Set(GetStatsDbRow(game, true), val.ToString().c_str()); }
 
 	// set the last played time to "now"
 	void SetLastPlayedNow(GameListItem *game);
@@ -1304,6 +1335,12 @@ public:
 	bool IsHidden(GameListItem *game) { return hiddenCol->GetBool(GetStatsDbRow(game)); }
 	void SetHidden(GameListItem *game, bool f) { hiddenCol->SetBool(GetStatsDbRow(game, true), f); }
 
+	// Find a category or create a new one.  If a category already exists 
+	// with this name, this simply returns the existing category object;
+	// if not, we create a new object and return it.  This doesn't add the
+	// category to the filter list.
+	GameCategory *FindOrCreateCategory(const TCHAR *name);
+
 	// Add a category to a game's category list
 	void AddCategory(GameListItem *game, const GameCategory *category);
 
@@ -1324,6 +1361,9 @@ public:
 
 	// Is the given game uncategorized (i.e., a member of no categories)?
 	bool IsUncategorized(GameListItem *game);
+
+	// Get the list of all categories
+	std::list<const GameCategory*> GetAllCategories() const;
 
 	// Does a category exist?/Get by name
 	bool CategoryExists(const TCHAR *name) const;
@@ -1419,8 +1459,12 @@ public:
 	// 2018-01-01 12:00 PST, which is 2018-01-01 08:00 UTC.
 	static DATE GetLocalMidnightUTC();
 
-	// Add/remove a user-defined filter
-	void AddUserDefinedFilter(GameListFilter *filter);
+	// Add a user-defined filter.  Returns true if this filter should be
+	// immediately activated, which is the case when this is the active
+	// filter in a recently restored configuration.
+	bool AddUserDefinedFilter(GameListFilter *filter);
+
+	// Remove a user-defined filter.
 	void DeleteUserDefinedFilter(GameListFilter *filter);
 
 	// Enumerate user-defined filters/filter groups
@@ -1440,6 +1484,14 @@ protected:
 
 	// Global singleton
 	static GameList *inst;
+
+	// Game ID map.  When we're reloading the configuration during a
+	// session (due to a settings change), we'll create a map of config
+	// IDs to internal IDs for all loaded games in the outgoing list,
+	// and then store the map in the new game list.  This lets us reuse
+	// the same internal IDs for games that survive the reload, so that
+	// Javascript GmaeInfo objects continue to point to the same games.
+	std::unique_ptr<std::unordered_map<TSTRING, int>> reloadIDMap;
 
 	// Game stats database
 	CSVFile statsDb;
@@ -1567,12 +1619,6 @@ protected:
 	// set this flat so that we know we have to rebuild the master list.
 	bool isFilterListDirty = false;
 	
-	// Find a category or create a new one.  If a category already exists 
-	// with this name, this simply returns the existing category object;
-	// if not, we create a new object and return it.  This doesn't add the
-	// category to the filter list.
-	GameCategory *FindOrCreateCategory(const TCHAR *name);
-
 	// all categories
 	std::unordered_map<TSTRING, std::unique_ptr<GameCategory>> categories;
 
@@ -1606,8 +1652,8 @@ protected:
 	// manufacturers, by manufacturer name
 	std::unordered_map<TSTRING, GameManufacturer> manufacturers;
 
-	// systems, by system name
-	std::unordered_map<TSTRING, GameSystem> systems;
+	// systems, by config index
+	std::unordered_map<int, GameSystem> systems;
 
 	// Table file sets, keyed by filename pattern: "<table path>\*.<defExt>".
 	// The path is canonicalized ('.' and '..' are expanded), and the whole
@@ -1621,7 +1667,18 @@ protected:
 	std::list<std::unique_ptr<GameListFilter>> recencyFilters;
 
 	// User-defined filters, keyed by ID
-	std::unordered_map<TSTRING, GameListFilter*> userDefinedFilters;
+	std::unique_ptr<std::unordered_map<TSTRING, GameListFilter*>> userDefinedFilters;
+
+	// Pending user-defined filter to restore from the configuration.
+	// The game list configuration is loaded before Javascript is 
+	// initialized, so if the active filter in the last session was
+	// user-defined, it won't have been created yet when we restore
+	// the game list configuration.  When we encounter an undefined
+	// user filter during a restore, we save it here.  If and when
+	// that filter is created, we make it active.  We clear this if
+	// a different filter is explicitly activated before the saved
+	// filter is created.
+	TSTRING pendingRestoredFilter;
 
 	// game list
 	std::list<GameListItem> games;

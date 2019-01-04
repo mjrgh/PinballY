@@ -375,9 +375,15 @@ bool ConfigManager::GetBool(const TCHAR *name, bool defval) const
 	if (it == vars.end() || it->second->erased)
 		return defval;
 
+	// do the conversion
+	return ToBool(it->second->value.c_str());
+}
+
+bool ConfigManager::ToBool(const TCHAR *val)
+{
 	// treat "1", "true", "t", "yes", and "y" as true, others as false
 	std::basic_regex<TCHAR> pat(_T("^\\s*(true|t|yes|y|1)"), std::regex_constants::icase);
-	return std::regex_match(it->second->value.c_str(), pat);
+	return std::regex_match(val, pat);
 }
 
 void ConfigManager::SetBool(const TCHAR *name, bool val)
@@ -391,7 +397,12 @@ void ConfigManager::SetBool(const TCHAR *name, bool val)
 int ConfigManager::GetInt(const TCHAR *name, int defval) const
 {
 	auto it = vars.find(name);
-	return it == vars.end() || it->second->erased ? defval : _ttoi(it->second->value.c_str());
+	return it == vars.end() || it->second->erased ? defval : ToInt(it->second->value.c_str());
+}
+
+int ConfigManager::ToInt(const TCHAR *val)
+{
+	return _ttoi(val);
 }
 
 // set a value as an int
@@ -406,7 +417,12 @@ void ConfigManager::Set(const TCHAR *name, int val)
 float ConfigManager::GetFloat(const TCHAR *name, float defval) const
 {
 	auto it = vars.find(name);
-	return it == vars.end() || it->second->erased ? defval : (float)_ttof(it->second->value.c_str());
+	return it == vars.end() || it->second->erased ? defval : ToFloat(it->second->value.c_str());
+}
+
+float ConfigManager::ToFloat(const TCHAR *val)
+{
+	return static_cast<float>(_ttof(val));
 }
 
 // set a value as a float
@@ -429,13 +445,16 @@ void ConfigManager::SetArrayEle(const TCHAR *name, const TCHAR *index, int val)
 RECT ConfigManager::GetRect(const TCHAR *name, RECT defval) const
 {
 	auto it = vars.find(name);
-	if (it != vars.end() && !it->second->erased)
-	{
-		RECT rc;
-		if (_stscanf_s(it->second->value.c_str(), _T("%ld,%ld,%ld,%ld"), &rc.left, &rc.top, &rc.right, &rc.bottom) == 4)
-			return rc;
-	}
-	return defval;
+	return it == vars.end() || it->second->erased ? defval : ToRect(it->second->value.c_str());
+}
+
+RECT ConfigManager::ToRect(const TCHAR *val)
+{
+	RECT rc;
+	if (_stscanf_s(val, _T("%ld,%ld,%ld,%ld"), &rc.left, &rc.top, &rc.right, &rc.bottom) == 4)
+		return rc;
+	else
+		return { 0, 0, 0, 0 };
 }
 
 // set a value as a RECT

@@ -219,6 +219,9 @@ public:
 		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 		const BatchCaptureInfo *bci = nullptr);
 
+	// apply substitution variables to a game system command line
+	TSTRING ExpandGameSysVars(TSTRING &str, GameSystem *system, GameListItem *game);
+
 	// clear the launch queue
 	void ClearLaunchQueue() { queuedLaunches.clear(); }
 
@@ -599,6 +602,12 @@ protected:
 
 		// game file with extension
 		TSTRING gameFileWithExt;
+
+		// Get the game file with full path
+		void GetGameFileWithPath(TCHAR gameFileWithPath[MAX_PATH]);
+
+		// Resolve the game file.  Adds the extension if necessary.
+		void ResolveGameFile(TCHAR gameFileWithPath[MAX_PATH], bool logging = true);
 
 		// game ID, for configuration purposes
 		LONG gameId;

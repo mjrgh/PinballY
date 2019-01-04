@@ -127,6 +127,13 @@ li.toc {
     margin-bottom: 0.5ex;
 }
 
+#toc a, .toc a {
+    text-decoration: none;
+}
+#toc a:hover, .toc a:hover {
+    text-decoration: underline;
+}
+
 table {
     margin: 2em auto;
 }

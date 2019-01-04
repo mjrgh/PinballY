@@ -847,17 +847,25 @@ this.FilterSelectEvent = class FilterSelectEvent extends Event
     }
 };
 
-// Config change event
-this.ConfigChangeEvent = class ConfigChangeEvent extends Event
+// Settings change event
+this.SettingsChangeEvent = class SettingsChangeEvent extends Event
 {
-    constructor() { super("configchange", { cancelable: false }); }
+    constructor() { super("settingschange", { cancelable: false }); }
 };
 
 
 // ------------------------------------------------------------------------
 //
-// Class for getGameInfo() objects.  This has some system-defined methods
-// for operations on the game data.
+// This object represents the current program settings.  Properties and
+// methods are populated by the system.
+//
+this.optionSettings = { };
+
+
+// ------------------------------------------------------------------------
+//
+// GameInfo - base class for game descriptors.  The properties and methods
+// of this object are populated by the system.
 //
 this.GameInfo = class GameInfo
 {
@@ -865,8 +873,17 @@ this.GameInfo = class GameInfo
 
 // ------------------------------------------------------------------------
 //
-// Class for getFilterInfo() objects.  This has some system-defined
-// methods for operations on the filter.
+// GameSysInfo - base class for game system descriptors.  The properties
+// and methods of this object are populated by the system.
+//
+this.GameSysInfo = class GameSysInfo
+{
+};
+
+// ------------------------------------------------------------------------
+//
+// FilterInfo - base class for filter descriptors.  The properties and
+// methods of this object are populated by the system.
 //
 this.FilterInfo = class FilterInfo
 {
@@ -900,7 +917,8 @@ this.topperWindow = { name: "topper" };
 this.instCardWindow = { name: "instCard" };
 
 
-// SetWindowPosition flags
+// SetWindowPosition flags.  These are just a few of the most frequently
+// used flags; see the Windows SDK documentation for the full set.
 const SWP_NOACTIVATE = 0x0010;
 const SWP_NOMOVE = 0x0002;
 const SWP_NOOWNERZORDER = 0x0200;

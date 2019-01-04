@@ -270,6 +270,7 @@ public:
 	template<> static double DefaultReturnValue<double>() { return 0.0; }
 	template<> static CSTRING DefaultReturnValue<CSTRING>() { return ""; }
 	template<> static WSTRING DefaultReturnValue<WSTRING>() { return L""; }
+	template<> static DateTime DefaultReturnValue<DateTime>() { return DateTime(FILETIME{ 0, 0 }); }
 
 	// Type converters from Javascript to native
 	template<typename T> static T JsToNative(JsValueRef jsval);
@@ -330,6 +331,16 @@ public:
 		throw CallException("JsToNative<CSTRING> error", err);
 	}
 
+	template<> static DateTime JsToNative<DateTime>(JsValueRef jsval)
+	{
+		JsErrorCode err;
+		FILETIME ft;
+		if ((err = JsDateToFileTime(jsval, ft)) == JsNoError)
+			return DateTime(ft);
+
+		throw CallException("JsToNative<DateTime> error", err);
+	};
+
 	// default values for common native types, used for 'undefined' in property gets
 	template<typename T> static T DefaultVal();
 	template<> static bool DefaultVal<bool>() { return false; }
@@ -338,6 +349,8 @@ public:
 	template<> static CSTRING DefaultVal<CSTRING>() { return ""; }
 	template<> static WSTRING DefaultVal<WSTRING>() { return L""; }
 	template<> static JsValueRef DefaultVal<JsValueRef>() { return JavascriptEngine::Get()->undefVal; }
+	template<> static DateTime DefaultVal<DateTime>() { return DateTime(FILETIME{ 0, 0 }); }
+	template<> static std::vector<JsValueRef> DefaultVal<std::vector<JsValueRef>>() { return std::vector<JsValueRef>(); }
 
 	// Native representation of a Javascript object, as a map of JsValueRef
 	// values keyed by WSTRING property names.
@@ -528,6 +541,25 @@ public:
 			return JsToNative<T>(propval);
 		}
 
+		// get a native value at an indexed element
+		template<typename T> T GetAtIndex(int index)
+		{
+			JsValueRef indexval, eleval;
+			JsValueType type;
+			JsErrorCode err;
+			if ((err = JsIntToNumber(index, &indexval)) != JsNoError
+				|| (err = JsGetIndexedProperty(jsobj, indexval, &eleval)) != JsNoError
+				|| (err = JsGetValueType(eleval, &type)) != JsNoError)
+				throw CallException("JsObj::Get()", err);
+
+			// if it's undefined or null, use the default value for the type
+			if (type == JsUndefined || type == JsNull)
+				return DefaultVal<T>();
+
+			// convert to the native type
+			return JsToNative<T>(eleval);
+		}
+
 		// set a value
 		template<typename T> void Set(const CHAR *name, T val)
 		{
@@ -547,6 +579,9 @@ public:
 				throw CallException("JsObj::Push()", err);
 		}
 	};
+
+	template<> static JsObj JsToNative<JsObj>(JsValueRef jsval) { return JsObj(jsval); }
+	template<> static JsObj DefaultVal<JsObj>() { return JsObj(JavascriptEngine::Get()->undefVal); }
 
 	// A Javascript Promise object
 	class Promise
@@ -610,8 +645,6 @@ public:
 		JsValueRef resolve;
 		JsValueRef reject;
 	};
-
-	template<> static JsObj JsToNative<JsObj>(JsValueRef jsval) { return JsObj(jsval); }
 
 	// Native-to-javascript type converters
 	template<typename T> static JsValueRef NativeToJs(T t);
@@ -716,6 +749,18 @@ public:
 	template<> static JsValueRef NativeToJs(DateTime &d) { return NativeToJs<const DateTime&>(d); }
 	template<> static JsValueRef NativeToJs(DateTime d) { return NativeToJs<const DateTime&>(d); }
 
+	template<> static JsValueRef NativeToJs(const RECT &r)
+	{
+		auto obj = JsObj::CreateObject();
+		obj.Set("left", r.left);
+		obj.Set("top", r.top);
+		obj.Set("right", r.right);
+		obj.Set("bottom", r.bottom);
+		return obj.jsobj;
+	}
+	template<> static JsValueRef NativeToJs(RECT &r) { return NativeToJs<const RECT&>(r); }
+	template<> static JsValueRef NativeToJs(RECT r) { return NativeToJs<const RECT&>(r); }
+
 	// Call a Javascript function.  Converts arguments from native types
 	// to Javascript, and converts results back to the given native type.
 	// This is for a plain function call, with the 'this' argument set to
@@ -801,14 +846,19 @@ public:
 	static int CallJsTSTRING(JsValueRef func, ArgTypes... args) 
 		{ return CallJs<TSTRING, ArgTypes...>(func, args...); }
 
-	// Fire an event.  This calls <target>.dispatchEvent(new <eventType>(args)).
+	// Fire an event, returning the event object to the caller.  This allows
+	// information to be returned in properties of the event object.  eventObj
+	// receives a reference to the newly created event object.
 	template<typename... ArgTypes>
-	bool FireEvent(JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
+	bool FireAndReturnEvent(JsValueRef &eventObj, JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
 	{
 		try
 		{
-			// call the method and return the result
-			return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, CallNew(eventType, args...));
+			// create the object, providing the reference to the caller
+			eventObj = CallNew(eventType, args...);
+
+			// call the event dispatch method and return the result
+			return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, eventObj);
 		}
 		catch (...)
 		{
@@ -822,6 +872,16 @@ public:
 		}
 	}
 
+	// Fire an event.  This calls <target>.dispatchEvent(new <eventType>(args)).
+	template<typename... ArgTypes>
+	bool FireEvent(JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
+	{
+		// call the event dispatch method, discarding the event object
+		JsValueRef eventObj;
+		return FireAndReturnEvent(eventObj, eventTarget, eventType, args...);
+	}
+		
+		
 	// Type converters for the native functions
 	template<typename T> class ToNativeConverter { };
 	class ToNativeConverterBase

@@ -357,7 +357,25 @@ BOOL SystemDialog::OnApply()
 	CString s;
 	GetDlgItemText(IDC_EDIT_SYS_NAME, s);
 	if (std::regex_match(s.GetString(), std::basic_regex<TCHAR>(_T("\\s*"))))
-		SetDlgItemText(IDC_EDIT_SYS_NAME, MsgFmt(_T("New System %d"), sysNum));
+	{
+		s = MsgFmt(_T("New System %d"), sysNum);
+		SetDlgItemText(IDC_EDIT_SYS_NAME, s);
+	}
+
+	// Make sure the system name is unique.  Only do this validation if
+	// our new setting has been changed from the configuration.
+	MsgFmt sysvar(_T("System%d"), sysNum);
+	if (s != ConfigManager::GetInstance()->Get(sysvar, _T("")))
+	{
+		if (auto ps = dynamic_cast<MainOptionsDialog*>(GetParent()); ps != nullptr)
+		{
+			if (!ps->IsSystemNameUnique(this))
+			{
+				MessageBox(LoadStringT(IDS_ERR_SYS_NAME_NOT_UNIQUE), LoadStringT(IDS_CAPTION_ERROR));
+				return OnApplyFail(GetDlgItem(IDC_EDIT_SYS_NAME));
+			}
+		}
+	}
 
 	// Check the subfolders to make sure they look like valid folder names
 	if (!ValidateSubfolder(IDC_EDIT_MEDIA_FOLDER, IDS_PATHTYPE_MEDIA))

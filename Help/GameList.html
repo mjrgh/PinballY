@@ -38,6 +38,12 @@
 </p>
 
 <p>
+   <a name="createCategory"></a>
+   <b>gameList.createCategory(<i>name</i>):</b>  Creates a new category with
+   the given name.
+</p>
+
+<p>
    <a name="createFilter"></a>
    <b>gameList.createFilter(<i>desc</i>):</b>  Defines a custom filter,
    which selects games for the wheel UI according to a selection rule
@@ -47,6 +53,26 @@
    the command ID to place the filter on custom menus.   See
    <a href="FilterInfo.html#custom">Custom Filters</a> for details
    and examples.
+</p>
+
+<p>
+   <a name="deleteCategory"></a>
+   <b>gameList.deleteCategory(<i>name</i>):</b>  Deletes the given
+   category.  The category tag is removed from any games tagged with
+   the given category, and the category is removed from the master
+   list of categories returned by gameList.getAllCategories().
+</p>
+
+<p>
+   <a name="getAllCategories"></a>
+   <b>gameList.getAllCategories():</b>  Returns an array with the names
+   of all of the categories currently defined.  Categories are arbitrary
+   tags, defined by the user, that can be assigned to games for filtering
+   purposes.  Each category implicitly defines a "category filter" that
+   the user can select through the menu system to show only games with
+   the corresponding category tag.  This lets the user select subsets of
+   games based on personal criteria beyond the built-in filter options
+   that the system provides.
 </p>
 
 <p>
@@ -142,6 +168,15 @@
    <b>gameList.getWheelCount():</b>  Returns the number of games currently
    shown in the "wheel" UI.  This includes all games selected by the current
    filter.
+</p>
+
+<p>
+   <a name="renameCategory"></a>
+   <b>gameList.renameCategory(<i>oldName</i>, <i>newName</i>):</b>  Renames
+   the given category.  An error occurs if the category referenced by <i>oldName</i>
+   doesn't exist, or if there's already an existing category with the new name.
+   The category tag is renamed globally, so any games tagged with the old category
+   name are updated to the new name.
 </p>
 
 <p>

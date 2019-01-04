@@ -36,6 +36,13 @@ this font isn't available on all Windows systems.  The more universal
 Webdings is now used as a fallback, since that font contains similar
 looking arrows, so the arrows should draw properly everywhere now.
 
+* The options dialog now checks for uniqueness when changing the
+display name of a player system via the dialog.  The display name is
+used internally to identify the system in some cases, so it's best for
+each system to have a unique name to avoid any ambiguity.  It's also
+just confusing at the UI level for multiple systems to have exactly
+the same name.
+
 
 10-13-2018 (1.0.0 Beta 1)
 

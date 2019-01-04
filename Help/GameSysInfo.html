@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>GameSysInfo</h1>
+
+<p>
+   A GameSysInfo object provides information on the PinballY
+   configuration settings for a game player system, such as
+   Visual Pinball or Future Pinball. 
+</p>
+<p>
+   PinballY has very little built-in knowledge about the
+   different player systems.  PinballY tries to treat each system
+   the same way, as a generic external program, with all of the
+   information about playing a game with a given system captured
+   in the configuration settings.  As a result, almost everything
+   that PinballY knows about a system is accessible to Javascript
+   code via the GameSysInfo object.
+</p>
+<p>
+   The properties of the GameSysInfo object are actually "getter"
+   methods that return live information from PinballY's internal
+   configuration data for the various systems.  You can't change
+   these values by assigning to the properties.
+</p>
+
+<h2>Creation</h2>
+<p>
+   You don't create GameSysInfo objects directly.  You get these
+   objects from PinballY whenever it references player systems.
+   The main source is the <b>system</b> property of the
+   <a href="GameInfo.html">GameInfo</a> object, which indicates
+   which system a particular game is associated with.
+</p>
+
+<h2>Lifetime</h2>
+<p>
+   A GameSysInfo object is a Javascript object, so it stays valid
+   as long as you keep a reference to it from somewhere in your
+   Javascript code.  The underlying system object that serves as
+   the data source for the properties, however, can be affected
+   by changes to the settings.  For this reason, it's best to
+   avoid storing references to these objects in global variables
+   or object properties.
+</p>
+
+<h2>Properties and methods</h2>
+
+<p>
+   <b>databaseDir:</b> A string giving the name of the folder
+   containing the XML database files that list this system's configured
+   games.  This is the name of the folder only, with no path; the
+   full path is based on the system-wide database folder setting.
+   See <a href="DirectoryInfo.html#tableDatabases">Table Databases</a>
+   for details on how these folders are laid out.
+</p>
+
+<p>
+   <b>dbFiles:</b> An array of objects describing the table database
+   files found for this system.  The table database files are the XML
+   files that list the games associated with this system and store most
+   of the metadata for each game (title, manufacturer, year, etc).
+   Each system can have one or more of these XML files.  There's always
+   a primary "generic" file, whose full path is given by the <b>genericDbFile</b>
+   property, and which also appears in this list.  Any additional files
+   are "category" files.  These have exactly the same layout as the
+   primary file, but the games in any of these additional files are
+   implicitly given category tags matching the filename of the
+   containing XML file.  For example, if there's a file called
+   "Fantasy.xml" in the database folder, the games listed in this file
+   are given the category tag "Fantasy".  This multi-file layout is
+   for compatibility with HyperPin and PinballX, which use it as a
+   simple category scheme that can assign each game to one
+   category.  PinballY has a more generalized category scheme that
+   lets you assign any number of category tags to a game, which it
+   handles through the separate GameStats.csv database file, but 
+   PinballY also recognizes the legacy file structure, so that
+   existing database files can be used directly.
+</p>
+<p>
+   Each object in the dbFiles array corresponds to one such file,
+   and has the following properties:
+</p>
+<ul>
+   <li><b>category:</b>  If this file defines a category, the category
+   name as a string.  This is omitted for the primary "generic" XML
+   file for the system, which doesn't imply any category tags.
+
+   <li><b>categoryFilter:</b>  A <a href="FilterInfo.html">FilterInfo</a>
+   object describing the category filter.  This is omitted for the
+   primary "generic" XML file for the system.
+   
+   <li><b>filename:</b> The full filename (with absolute path) of
+   the database file.
+</ul>
+
+<p>
+   <b>defExt:</b> The default filename extension for the system's game
+   files, including the initial period: ".vpt" for Visual Pinball 9,
+   for example.  An empty string if the system has no default extension.
+</p>
+
+<p>
+   <b>displayName:</b> The display name of the system.  This is the
+   name used to refer to the system in the UI, such as in the settings
+   dialog, game information popups, etc.
+</p>
+
+<p>
+   <b>dofTitlePrefix:</b> The prefix string used to form DOF ROM names
+   for games of this system.  For example, Future Pinball uses "FP:" as
+   a prefix for its DOF entries, to distinguish games from the
+   Visual Pinball equivalents.
+</p>
+
+<p>
+   <b>envVars:</b>  A string giving any environment variables added to
+   the system environment variable block when launching the system's
+   executable to play a game.  The standard format for Windows environment
+   variables is used, "VAR=VALUE".  Multiple variables are separated by
+   semicolons.
+</p>
+
+<p>
+   <b>exe:</b>  A string giving the filename (with full absolute path)
+   of the program executable (.EXE file) for the game system.  This
+   is just the filename, with no command-line parameters; parameters are
+   stored separately in <b>params</b>.
+</p>
+
+<p>
+   <b>expand(<i>str</i>, <i>game</i>):</b>  Expand command-line substitution
+   variables in the string <i>str</i>, using the game details from <i>game</i>,
+   a <a href="GameInfo.html">GameInfo</a> object specifying a game to use.
+   Subsitution variables can be specified using [square brackets] in the
+   <b>params</b> and <b>runXxx</b> variables.  This method carries out the
+   same variable substitutions that PinballY would normally apply when
+   launching the given game with this system.  <i>game</i> should be a game
+   associated with this system; the results aren't meaningful for games
+   associated with other systems.
+</p>
+   
+
+<p>
+   <b>genericDbFile:</b>  The filename (with full absolute path) of the
+   primary "generic" XML database file for the system.  This is the main
+   file, which doesn't imply any category tags for its games.  This file
+   also appears in the <b>dbFiles</b> array.
+</p>
+
+<p>
+   <b>mediaDir:</b> A string giving the name of the parent folder
+   for media files (table images, table videos, etc) for games based on
+   this system.  This is the parent folder name only, with no path; the
+   full path is based on the system-wide root media folder path.  This
+   is the "parent" folder in that all of the individual media files are
+   in type-specific subdirectories within this folder.  See
+   <a href="DirectoryInfo.html#mediaFiles">Media Files</a> for more
+   details on the media folder structure.
+</p>
+
+<p>
+   <b>nvramPath:</b>  The path to the NVRAM (non-volatile RAM) files
+   for the system, as specified in the configuration.  This is for
+   the sake of the PinEMHi high-scores program, which uses the NVRAM
+   files to read high score information.  This is usually an empty
+   string, which means that the standard NVRAM path location for
+   each system is used.  PinEMHi currently only works with Future
+   Pinball games and VPinMAME ROM-based games, so this isn't meaningful
+   for other systems.
+</p>
+
+<p>
+   <b>params:</b>  The command-line parameters to use when launching
+   the system's executable to play a game.  This is the "raw" version
+   of the parameters, which can contain substitution variables
+   enclosed in [square brackets].  See <a href="SystemOptions.html#parameters">Parameters</a>
+   in the System Options dialog for a list of the substitution variables.
+</p>
+
+<p>
+   <b>processName:</b>  A string giving the process name to monitor
+   when the game is running, to determine when the game has terminated.
+   This is used for systems where the program specified in the <b>exe</b>
+   parameter is actually just a launcher that starts the real game
+   program, such as Steam.  This is an empty string for most systems,
+   where the process to be monitored is the same as the program
+   specified in <b>exe</b>.
+</p>
+
+<p>
+   <b>runAfter:</b>  A string giving the "Run After" command, which is
+   invoked immediately after a game launched using this system terminates.
+   This is a full Windows command line string, specifying a program to be run and
+   its parameters.
+</p>
+
+<p>
+   <b>runAfterPost:</b>  A string giving the "Run After Post" command, which is
+   invoked after the Run After command finishes and the PinballY main window has
+   been brought back to the foreground.  This is a full Windows command line string,
+   specifying a program to be run and its parameters.
+</p>
+
+<p>
+   <b>runBefore:</b>  A string giving the "Run Before" command, which is
+   invoked immediately before a game for this system is launched, after the
+   PinballY UI window has been blanked.   This is a full Windows command line
+   string, specifying a program to be run and its parameters.
+</p>
+<p>
+   <b>runBeforePre:</b>  A string giving the "Run Before Pre" command, which is
+   invoked as the first step in launching a game with the system, before the
+   PinballY UI window has been blanked.  This is a full Windows command line
+   string, specifying a program to be run and its parameters.
+</p>
+
+<p>
+   <b>startupKeys:</b>  A string giving a sequence of keystrokes to
+   send to the program after it launches.
+</p>
+
+<p>
+   <b>swShow:</b>  An integer giving the Windows "Show Window" code to use
+   when launching the system's executable.  This can be any valid Show Window
+   code (see the Windows SDK documentation for the full list), but it's
+   usually one of the following:
+</p>
+<ul>
+   <li>0 (SW_HIDE) - hide the window
+   <li>2 (SW_SHOWMINIMIZED) - minimize the window and make it active (that is, give it keyboard focus)
+   <li>5 (SW_SHOW) - show the window normally and make it active
+</ul>
+
+<p>
+   <b>systemClass:</b>  A string with the "system class". This is one
+   of the following:
+</p>
+<ul class="compact">
+   <li><b>"FP"</b> - Future Pinball (any version)
+   <li><b>"STEAM"</b> - any Steam-based game
+   <li><b>"VP"</b> - Visual Pinball 9 or earlier
+   <li><b>"VPX"</b> - Visual Pinball 10
+   <li><b>""</b> - any other system
+</ul>
+<p>
+   Note that PinballY tries to treat each system as an equal "black box",
+   with all of the information about a system captured in the settings.
+   There's almost nothing in PinballY that depends on knowing if a system
+   is a Visual Pinball variant or whatever else.  The black box approach
+   is important because it makes the program adaptable to new systems
+   and future versions of existing systems.  The only places that PinballY
+   uses the system class internally are (1) to streamline the settings
+   dialogs, by filling in suitable defaults when possible, (2) to provide
+   intelligent defaults for missing information when loading the config files,
+   and (3) when invoking PinEMHi to get high scores, since that program has
+   hard-coded dependencies on VP and FP.
+</p>
+
+<p>
+   <b>tablePath:</b>  The full absolute directory path for the playable
+   game files for this system.  For Visual Pinball, for example, this is
+   usually the Tables folder within the VP program folder.
+</p>
+<p>
+   <b>terminateBy:</b>  A string giving the termination mode for the
+   program, which determines how PinballY tries to terminate a running
+   game when the user presses the "Exit Game" button.  This can one
+   of the following:
+</p>
+<ul>
+   <li>"CloseWindow" - PinballY closes the program's main window and waits
+   for the process to exit on its own
+   <li>"KillProcess" - PinballY asks Windows to terminate the process
+   (without going through the program's user interface)
+   <li>"" - use the default (same as CloseWindow)
+</ul>
+
+<p>
+   <b>workingPath:</b>  The working directory path to use when launching
+   the system's executable, as a full absolute path.  This sets the current
+   working directory for the child process, which determines its default
+   folder location if it accesses files without absolute path specifiers.
+   This is usually the same as the folder containing the program exectuable.
+</p>
+   
+   
+
+</body>
+</html>

@@ -184,6 +184,7 @@ RefTableList::Table::Table(RefTableList *rtl, int row, float score) :
 	themes = rtl->themeCol->Get(row, _T(""));
 	sortKey = rtl->sortKeyCol->Get(row, _T(""));
 	machineType = rtl->typeCol->Get(row, _T(""));
+	ipdbId = rtl->ipdbIdCol->Get(row, _T(""));
 }
 
 void RefTableList::Init()
@@ -215,6 +216,7 @@ void RefTableList::Init()
 		self->playersCol = self->csvFile.DefineColumn(_T("Players"));
 		self->typeCol = self->csvFile.DefineColumn(_T("Type"));
 		self->themeCol = self->csvFile.DefineColumn(_T("Theme"));
+		self->ipdbIdCol = self->csvFile.DefineColumn(_T("IPDBID"));
 
 		// add our synthesized column accessors
 		self->sortKeyCol = self->csvFile.DefineColumn(_T("SortKey"));

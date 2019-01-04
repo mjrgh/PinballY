@@ -46,6 +46,7 @@ public:
 		int year;			  // year; 0 if unknown
 		int players;		  // number of players; 0 if unknown
 		TSTRING themes;		  // themes, with " - " delimiters
+		TSTRING ipdbId;       // IPDB table ID
 		TSTRING sortKey;      // sort key
 		TSTRING machineType;  // IPDB machine type code (SS, EM, ME)
 		float score;		  // Dice coefficient score for the fuzzy match
@@ -87,6 +88,7 @@ protected:
 	CSVFile::Column *playersCol;
 	CSVFile::Column *typeCol;
 	CSVFile::Column *themeCol;
+	CSVFile::Column *ipdbIdCol;
 
 	// Sorting key.  This isn't in the CSV file; it's a column we
 	// add to the in-memory set, synthesized from the file data.

@@ -501,12 +501,14 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsWheelModeEvent, "WheelModeEvent")
 				|| !GetObj(jsPopupOpenEvent, "PopupOpenEvent")
 				|| !GetObj(jsPopupCloseEvent, "PopupCloseEvent")
-				|| !GetObj(jsConfigChangeEvent, "ConfigChangeEvent")
+				|| !GetObj(jsSettingsChangeEvent, "SettingsChangeEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
 				|| !GetObj(jsGameInfo, "GameInfo")
-				|| !GetObj(jsFilterInfo, "FilterInfo"))
+				|| !GetObj(jsGameSysInfo, "GameSysInfo")
+				|| !GetObj(jsFilterInfo, "FilterInfo")
+				|| !GetObj(jsOptionSettings, "optionSettings"))
 				return;
 
 			// Initialize generic properties for a js window object.  Note that this has
@@ -532,7 +534,7 @@ void PlayfieldView::InitJavascript()
 				{
 					LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
 					return false;
-				} 
+				}
 				if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
 					|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
 					|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
@@ -556,6 +558,18 @@ void PlayfieldView::InitJavascript()
 
 			// set up logfile methods
 			if (!js->DefineObjPropFunc(jsLogfile, "logfile", "_log", &PlayfieldView::JsLog, this, eh))
+				return;
+
+			// set up the optionSettings methods
+			if (!js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "get", &PlayfieldView::JsSettingsGet<const TCHAR*, &ConfigManager::ToStr>, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "getBool", &PlayfieldView::JsSettingsGet<bool, &ConfigManager::ToBool>, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "getInt", &PlayfieldView::JsSettingsGet<int, &ConfigManager::ToInt>, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "getFloat", &PlayfieldView::JsSettingsGet<float, &ConfigManager::ToFloat>, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "getRect", &PlayfieldView::JsSettingsGet<RECT, &ConfigManager::ToRect>, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "set", &PlayfieldView::JsSettingsSet, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "isDirty", &PlayfieldView::JsSettingsIsDirty, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "save", &PlayfieldView::JsSettingsSave, this, eh)
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "reload", &PlayfieldView::JsSettingsReload, this, eh))
 				return;
 
 			// set up mainWindow methods
@@ -591,14 +605,21 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setCurFilter", &PlayfieldView::JsSetCurFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getFilterInfo", &PlayfieldView::JsGetFilterInfo, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllFilters", &PlayfieldView::JsGetAllFilters, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createFilter", &PlayfieldView::JsCreateFilter, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createFilter", &PlayfieldView::JsCreateFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllCategories", &PlayfieldView::JsGetAllCategories, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createCategory", &PlayfieldView::JsCreateCategory, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "renameCategory", &PlayfieldView::JsRenameCategory, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "deleteCategory", &PlayfieldView::JsDeleteCategory, this, eh))
 				return;
-			
+
 			// Set up the GameInfo methods
 			if (!js->DefineObjMethod(jsGameInfo, "GameInfo", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveGameFile", &PlayfieldView::JsResolveGameFile, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveMedia, this, eh)
-				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh))
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "update", &PlayfieldView::JsGameInfoUpdate, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "renameMediaFiles", &PlayfieldView::JsGameInfoRenameMediaFiles, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "erase", &PlayfieldView::JsGameInfoErase, this, eh))
 				return;
 
 			// Some convenience definitions for the GameInfo getters
@@ -631,21 +652,21 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameInfoGetter<JsValueRef>("year", [](GameListItem *game) { return game->year != 0 ? JE::NativeToJs(game->year) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("tableType",
 					[](GameListItem *game) { return game->tableType.length() != 0 ? JE::NativeToJs(game->tableType) : JsUndef; }, eh)
-				|| !AddGameInfoGetter<JsValueRef>("filename", 
+				|| !AddGameInfoGetter<JsValueRef>("filename",
 					[](GameListItem *game) { return game->filename.length() != 0 ? JE::NativeToJs(game->filename) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("path",
 					[](GameListItem *game) { return game->tableFileSet != nullptr ? JE::NativeToJs(game->tableFileSet->tablePath) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("gridPos",
-					[](GameListItem *game) { auto gp = JsObj::CreateObject(); gp.Set("row", game->gridPos.row); gp.Set("col", game->gridPos.col); return gp.jsobj; }, eh)
+					[](GameListItem *game) { auto gp = JsObj::CreateObject(); gp.Set("row", game->gridPos.row); gp.Set("column", game->gridPos.col); return gp.jsobj; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("manufacturer",
 					[](GameListItem *game) { return game->manufacturer != nullptr ? JE::NativeToJs(game->manufacturer->manufacturer) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("system",
-					[](GameListItem *game) { return game->system != nullptr ? JE::NativeToJs(game->system->displayName) : JsUndef; }, eh)
+					[](GameListItem *game) { return Application::Get()->GetPlayfieldView()->BuildGameSysInfo(game->system); }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("dbFile",
 					[](GameListItem *game) { return game->dbFile != nullptr ? JE::NativeToJs(game->dbFile->filename) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<bool>("isConfigured", [](GameListItem *game) { return game->isConfigured; }, eh)
 				|| !AddGameInfoGetter<bool>("isHidden", [](GameListItem *game) { return game->IsHidden(); }, eh)
-				|| !AddGameInfoStatsGetter<JsValueRef>("lastPlayed", 
+				|| !AddGameInfoStatsGetter<JsValueRef>("lastPlayed",
 					[](GameListItem *game) { auto d = GameList::Get()->GetLastPlayed(game); return d != nullptr && d[0] != 0 ? JE::NativeToJs(DateTime(d)) : JsUndef; }, eh)
 				|| !AddGameInfoStatsGetter<JsValueRef>("dateAdded",
 					[](GameListItem *game) { auto d = GameList::Get()->GetDateAdded(game); return d != nullptr && d[0] != 0 ? JE::NativeToJs(DateTime(d)) : JsUndef; }, eh)
@@ -661,6 +682,56 @@ void PlayfieldView::InitJavascript()
 
 #undef JsUndef
 
+			// GameSysInfo.dbFiles
+			auto dbFilesGetter = [](GameSystem *sys)
+			{
+				// build an array of descriptor objects
+				auto arr = JavascriptEngine::JsObj::CreateArray();
+				for (auto &f : sys->dbFiles)
+				{
+					// build the database file descriptor object
+					auto obj = JavascriptEngine::JsObj::CreateObject();
+					obj.Set("filename", f->filename);
+					if (f->category != nullptr)
+					{
+						obj.Set("category", f->category->name);
+						obj.Set("categoryFilter", Application::Get()->GetPlayfieldView()->BuildFilterInfo(f->category));
+					}
+
+					// add the object to the array
+					arr.Push(obj);
+				}
+				return arr.jsobj;
+			};
+
+			// Set up the GameSysInfo getters
+			if (!AddGameSysInfoGetter<WSTRING>("displayName", [](GameSystem *sys) { return sys->displayName; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("systemClass", [](GameSystem *sys) { return sys->systemClass; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("mediaDir", [](GameSystem *sys) { return sys->mediaDir; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("databaseDir", [](GameSystem *sys) { return sys->databaseDir; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("exe", [](GameSystem *sys) { return sys->exe; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("tablePath", [](GameSystem *sys) { return sys->tablePath; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("nvramPath", [](GameSystem *sys) { return sys->nvramPath; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("defExt", [](GameSystem *sys) { return sys->defExt; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("params", [](GameSystem *sys) { return sys->params; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("workingPath", [](GameSystem *sys) { return sys->workingPath; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("processName", [](GameSystem *sys) { return sys->process; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("startupKeys", [](GameSystem *sys) { return sys->startupKeys; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("envVars", [](GameSystem *sys) { return sys->envVars; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("terminateBy", [](GameSystem *sys) { return sys->terminateBy; }, eh)
+				|| !AddGameSysInfoGetter<int>("swShow", [](GameSystem *sys) { return static_cast<int>(sys->swShow); }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("dofTitlePrefix", [](GameSystem *sys) { return sys->dofTitlePrefix; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("runBeforePre", [](GameSystem *sys) { return sys->runBeforePre; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("runBefore", [](GameSystem *sys) { return sys->runBefore; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("runAfter", [](GameSystem *sys) { return sys->runAfter; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("runAfterPost", [](GameSystem *sys) { return sys->runAfterPost; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("genericDbFile", [](GameSystem *sys) { return sys->genericDbFilename; }, eh)
+				|| !AddGameSysInfoGetter<JsValueRef>("dbFiles", dbFilesGetter, eh))
+				return;
+
+			// set up GameSysInfo methods
+			if (!js->DefineObjMethod(jsGameSysInfo, "GameSysInfo", "expand", &PlayfieldView::JsExpandSysVar, this, eh))
+				return;
 
 			// Set up the FilterInfo methods
 			if (!js->DefineObjMethod(jsFilterInfo, "FilterInfo", "getGames", &PlayfieldView::JsFilterInfoGetGames, this, eh)
@@ -788,7 +859,7 @@ bool PlayfieldView::FireCommandEvent(int cmd)
 	return ret;
 }
 
-bool PlayfieldView::FireMenuEvent(bool open, Menu *menu)
+bool PlayfieldView::FireMenuEvent(bool open, Menu *menu, int pageno)
 {
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
@@ -822,9 +893,27 @@ bool PlayfieldView::FireMenuEvent(bool open, Menu *menu)
 				if ((menu->flags & SHOWMENU_IS_EXIT_MENU) != 0) options.Set("isExitMenu", true);
 				if ((menu->flags & SHOWMENU_NO_ANIMATION) != 0) options.Set("noAmination", true);
 				if ((menu->flags & SHOWMENU_DIALOG_STYLE) != 0) options.Set("dialogStyle", true);
+				options.Set("pageNo", pageno);
 
-				// fire the event
-				ret = js->FireEvent(jsMainWindow, jsMenuOpenEvent, menu->id.c_str(), arr, options);
+				// Fire the event, retrieving the 
+				JsValueRef eventObjVal;
+				ret = js->FireAndReturnEvent(eventObjVal, jsMainWindow, jsMenuOpenEvent, menu->id.c_str(), arr, options);
+
+				// If the "menuUpdated" property is set in the event object, the caller
+				// modified the menu array.  Show the modified menu instead of the original.
+				JavascriptEngine::JsObj eventObj(eventObjVal);
+				if (eventObj.Get<bool>("menuUpdated"))
+				{
+					// show the menu as though via Javascript mainWindow.showMenu()
+					JsShowMenu(
+						eventObj.Get<WSTRING>("id"),
+						eventObj.Get<std::vector<JsValueRef>>("items"),
+						eventObj.Get<JavascriptEngine::JsObj>("options"));
+
+					// Tell the caller not to proceed with the native menu, since
+					// we're showing this one instead.
+					return false;
+				}
 			}
 			catch (...)
 			{
@@ -1403,11 +1492,92 @@ JsValueRef PlayfieldView::BuildJsGameInfo(GameListItem *game)
 	auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsGameInfo);
 
 	// populate the properties
-	auto gl = GameList::Get();
 	obj.Set("id", game->internalID);
 
 	// return the populated object
 	return obj.jsobj;
+}
+
+template<typename T>
+T PlayfieldView::JsGameSysInfoGetter(T (*func)(GameSystem*), JsValueRef self)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the object from self.index
+		JavascriptEngine::JsObj selfobj(self);
+		auto sys = GameList::Get()->GetSystem(selfobj.Get<int>("index"));
+		if (sys == nullptr)
+		{
+			js->Throw(_T("GameSysInfo object is no longer valid"));
+			return JavascriptEngine::DefaultVal<T>();
+		}
+
+		// retrieve and return the result
+		return func(sys);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return JavascriptEngine::DefaultVal<T>();
+	}
+}
+
+template<typename T>
+bool PlayfieldView::AddGameSysInfoGetter(const CHAR *propName, T (*func)(GameSystem*), ErrorHandler &eh)
+{
+	typedef T funcType(GameSystem*);
+	return JavascriptEngine::Get()->DefineGetterSetter(jsGameSysInfo, "GameSysInfo", propName,
+		JavascriptEngine::Get()->CreateAndSaveMethodWrapper<funcType, T>(&PlayfieldView::JsGameSysInfoGetter, func), nullptr, eh);
+}
+
+JsValueRef PlayfieldView::BuildGameSysInfo(GameSystem *system)
+{
+	// if the game is null or invalid, reutrn a null javascript object
+	if (system == nullptr)
+		return JavascriptEngine::Get()->GetNullVal();
+
+	// create a GameSysInfo object for the results
+	auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsGameSysInfo);
+
+	// populate the properties
+	obj.Set("index", system->configIndex);
+
+	// return the populated object
+	return obj.jsobj;
+}
+
+WSTRING PlayfieldView::JsExpandSysVar(JsValueRef self, WSTRING str, JsValueRef game)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the object from self.index
+		JavascriptEngine::JsObj selfobj(self);
+		auto sys = GameList::Get()->GetSystem(selfobj.Get<int>("index"));
+		if (sys == nullptr)
+		{
+			js->Throw(_T("GameSysInfo object is no longer valid"));
+			return L"";
+		}
+
+		// get the game object
+		JavascriptEngine::JsObj gameobj(game);
+		auto game = GameList::Get()->GetByInternalID(gameobj.Get<int>("id"));
+		if (game == nullptr)
+		{
+			js->Throw(_T("GameInfo object is no longer valid"));
+			return L"";
+		}
+
+		// expand the string and return the result
+		return Application::Get()->ExpandGameSysVars(str, sys, game);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return L"";
+	}
 }
 
 JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
@@ -1724,6 +1894,474 @@ JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
 	}
 }
 
+// Descriptor value encapsulation for JsGameInfoUpdate.  This
+// captures a property value and whether or not it's present at
+// all in the descriptor.
+template<typename T> struct GameInfoDescItem
+{
+	GameInfoDescItem() : isDefined(false) { }
+	GameInfoDescItem(JavascriptEngine::JsObj &desc, const WCHAR *lprop, const CHAR *prop) { From(desc, lprop, prop); }
+
+	void From(JavascriptEngine::JsObj &desc, const WCHAR *lprop, const CHAR *prop)
+	{
+		if ((this->isDefined = desc.Has(lprop)) == true)
+			this->value = desc.Get<T>(prop);
+	}
+
+	void From(T value)
+	{
+		this->isDefined = true;
+		this->value = value;
+	}
+
+	bool isDefined;
+	T value;
+};
+
+JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, JsValueRef optsval)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+
+	try
+	{
+		// create an object for the return value
+		auto retobj = JavascriptEngine::JsObj::CreateObject();
+
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
+		// get the descriptor object
+		JavascriptEngine::JsObj desc(descval);
+
+		// Retrieve all of the values before changing anything.  This
+		// will avoid leaving the game in an inconsistent state if any
+		// of the Javascript data operations throw errors.
+#define __L(x) L ## x
+#define Prop(T, name) GameInfoDescItem<T> name(desc, __L(#name), #name)
+
+		Prop(JsValueRef, categories);
+		Prop(TSTRING, title);
+		Prop(TSTRING, rom);
+		Prop(int, year);
+		Prop(TSTRING, tableType);
+		Prop(TSTRING, highScoreStyle);
+		Prop(TSTRING, manufacturer);
+		Prop(JsValueRef, gridPos);
+		Prop(JsValueRef, system);
+		Prop(double, rating);
+		Prop(bool, isFavorite);
+		Prop(bool, isHidden);
+		Prop(bool, isMarkedForCapture);
+		Prop(DateTime, lastPlayed);
+		Prop(DateTime, dateAdded);
+		Prop(int, playTime);
+		Prop(int, playCount);
+
+		// if gridPos is specified, get its components {row, column}
+		GameInfoDescItem<int> gridPosRow, gridPosColumn;
+		if (gridPos.isDefined)
+		{
+			JavascriptEngine::JsObj gridPosObj(desc.Get<JsValueRef>("gridPos"));
+			if (!gridPosObj.IsNull())
+			{
+				gridPosRow.From(gridPosObj, L"row", "row");
+				gridPosColumn.From(gridPosObj, L"column", "column");
+			}
+		}
+
+		// if a category array is present, convert it to C++ string list
+		std::list<const GameCategory*> catList;
+		if (categories.isDefined)
+		{
+			JavascriptEngine::JsObj catArr(categories.value);
+			int length = catArr.Get<int>("length");
+			for (int i = 0; i < length; ++i)
+				catList.emplace_back(gl->FindOrCreateCategory(catArr.GetAtIndex<TSTRING>(i).c_str()));
+		}
+
+		// if system is specified, get the GameSystem object, and validate
+		// the change
+		GameInfoDescItem<GameSystem*> psystem;
+		if (system.isDefined)
+		{
+			JavascriptEngine::JsObj sysobj(system.value);
+			if (sysobj.IsNull())
+			{
+				// it's explicitly undefined/null - set to the null system
+				psystem.From(nullptr);
+			}
+			else
+			{
+				// it's a GameSysInfo object - look it up by config index
+				psystem.From(gl->GetSystem(sysobj.Get<int>("index")));
+
+				// validate that we found a system
+				if (psystem.value == nullptr)
+					return js->Throw(_T("GameSysInfo is invalid"));
+
+				// We can only move it to another system associated with the same table
+				// file set containing the game.  We assume in many places that all of
+				// a system's table files are in the table folder, and we make this
+				// assumption largely because practically everything else in the pin cab
+				// ecosystem makes that assumption, particularly the two main freeware
+				// systems, VP and FP.  I would have preferred to design PinballY with
+				// no such assumption, since I'd much rather organize my own game files
+				// in a saner way than dumping everything into one giant flat directory,
+				// but that would have been folly because the one system/one table folder
+				// assumption is so deeply baked into all of the other programs.  Better
+				// to live with the crappy status quo on this one.  But anyway, it means
+				// that it would be a bad idea to allow moving a game to a system that's
+				// not associated with the game file's folder.
+				//
+				// If the game didn't come from a table file, it's an XML entry with no
+				// installed game backing it up.  Allow moving these between systems,
+				// since that just moves the XML entry to a new file.
+				if (game->tableFileSet != nullptr)
+				{
+					// We have a table file set, so this game entry is associated with
+					// an extant file.  The new system must share the same table folder
+					// to be valid, which means it has to be in the system list for the
+					// table file set.
+					auto &systems = game->tableFileSet->systems;
+					if (std::find(systems.begin(), systems.end(), psystem.value) == systems.end())
+						return js->Throw(_T("Game's system cannot be changed to one with a different table folder"));
+				}
+				else
+				{
+					// The game has no table file set, so this is an abstract entry that
+					// came from an XML file, with no extant game file to back it up.
+					// Don't allow moving these records.
+					return js->Throw(_T("A game with no associated file cannot be moved to a different system"));
+				}
+			}
+		}
+
+#undef Prop
+#undef __L
+
+		// Get the options
+		bool renameMediaOption = true;
+		JavascriptEngine::JsObj opts(optsval);
+		if (!opts.IsNull())
+		{
+			if (opts.Has(L"renameMedia"))
+				renameMediaOption = opts.Get<bool>("renameMedia");
+		}
+
+		// do we need to rebuild the XML data?
+		bool rebuildDb = false;
+
+		// update the rating
+		if (rating.isDefined)
+			gl->SetRating(game, static_cast<float>(rating.value));
+
+		// update the favorites flag
+		if (isFavorite.isDefined)
+			gl->SetIsFavorite(game, isFavorite.value);
+
+		// update the hidden status
+		if (isHidden.isDefined)
+			gl->SetHidden(game, isHidden.value);
+
+		// update the capture flag
+		if (isMarkedForCapture.isDefined)
+			gl->MarkForCapture(game, isMarkedForCapture.value);
+
+		// update the added date
+		if (dateAdded.isDefined)
+			gl->SetDateAdded(game, dateAdded.value);
+
+		// update the last-played date
+		if (lastPlayed.isDefined)
+			gl->SetLastPlayed(game, lastPlayed.value);
+
+		// update the play count
+		if (playCount.isDefined)
+			gl->SetPlayCount(game, playCount.value);
+
+		// update the play time
+		if (playTime.isDefined)
+			gl->SetPlayTime(game, playTime.value);
+
+		// update the title, if present
+		if (title.isDefined)
+		{
+			game->title = title.value;
+			rebuildDb = true;
+		}
+		
+		// update the ROM, if present
+		if (rom.isDefined)
+		{
+			game->rom = rom.value;
+			rebuildDb = true;
+		}
+		
+		// update the year, if present; if necessary, create an era filter covering the year
+		if (year.isDefined)
+		{
+			gl->FindOrAddDateFilter(game->year = year.value);
+			rebuildDb = true;
+		}
+
+		// update the table type
+		if (tableType.isDefined)
+		{
+			game->tableType = tableType.value;
+			rebuildDb = true;
+		}
+
+		// update the high score style
+		if (highScoreStyle.isDefined)
+			gl->SetHighScoreStyle(game, highScoreStyle.value.c_str());
+
+		// update the manufacturer
+		if (manufacturer.isDefined)
+		{
+			game->manufacturer = gl->FindOrAddManufacturer(manufacturer.value.c_str());
+			rebuildDb = true;
+		}
+
+		// update the grid position
+		if (gridPosRow.isDefined)
+		{
+			game->gridPos.row = gridPosRow.value;
+			rebuildDb = true;
+		}
+		if (gridPosColumn.isDefined)
+		{
+			game->gridPos.col = gridPosColumn.value;
+			rebuildDb = true;
+		}
+
+		// Update the system.  This is the last step for the regular metadata items,
+		// because it might require moving the XML database entry between files.
+		if (psystem.isDefined)
+		{
+			gl->ChangeSystem(game, psystem.value);
+			rebuildDb = true;
+		}
+
+		// Update categories.  This can also require moving between database files,
+		// so (like the system) save it for the end.
+		if (categories.isDefined)
+			gl->SetCategories(game, catList);
+
+		// Apply the changes to the game database if necessary
+		if (rebuildDb)
+		{
+			// determine if any rename media files need to be renamed
+			std::list<std::pair<TSTRING, TSTRING>> mediaRenameList;
+			if (game->UpdateMediaName(&mediaRenameList) && mediaRenameList.size() != 0)
+			{
+				// Media renaming is needed.  Whether or not we're going to rename
+				// them here, return the rename list in the results object.
+				try
+				{
+					auto renameArr = JavascriptEngine::JsObj::CreateArray();
+					for (auto &m : mediaRenameList)
+					{
+						auto ele = JavascriptEngine::JsObj::CreateObject();
+						ele.Set("oldName", m.first);
+						ele.Set("newName", m.second);
+						renameArr.Push(ele.jsobj);
+					}
+					retobj.Set("renamedMediaFiles", renameArr.jsobj);
+				}
+				catch (JavascriptEngine::CallException)
+				{
+					// ignore javascript errors and continue with the db updates
+				}
+
+				// if desired, rename the files 
+				if (renameMediaOption)
+				{
+					try
+					{
+						JsRenameMediaHelper(mediaRenameList, retobj);
+					}
+					catch (JavascriptEngine::CallException)
+					{
+						// ignore javascript errors and continue with the db updates
+					}
+				}
+			}
+				
+			// apply the XML changes
+			ApplyGameChangesToDatabase(game);
+		}
+
+		// Refresh the filter and update everything in the UI that could be affected.
+		// Do this on a zero-delay timer, so that we only do the refresh once even if
+		// multiple games get updated in this script.
+		SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
+
+		// return the results object
+		return retobj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsGameInfoErase(JsValueRef self)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+
+	try
+	{
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID")), (void)0;
+
+		// delete the game's XML entry
+		gl->DeleteXml(game);
+	
+		// do a full UI refresh, in case this affects the current game display
+		// or filter selection
+		SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsGameInfoRenameMediaFiles(JsValueRef /*self*/, JsValueRef renameArrayVal)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// get the renamed items array
+		JavascriptEngine::JsObj renameArray(renameArrayVal);
+
+		// convert it to a list of TSTRING,TSTRING pairs
+		std::list<std::pair<TSTRING, TSTRING>> renameList;
+		for (int i = 0, length = renameArray.Get<int>("length"); i < length; ++i)
+		{
+			auto ele = renameArray.GetAtIndex<JavascriptEngine::JsObj>(i);
+			renameList.emplace_back(ele.Get<TSTRING>("oldName"), ele.Get<TSTRING>("newName"));
+		}
+
+		// create an object for the results
+		auto retobj = JavascriptEngine::JsObj::CreateObject();
+
+		// do the renaming
+		JsRenameMediaHelper(renameList, retobj);
+
+		// return the results object
+		return retobj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsRenameMediaHelper(const std::list<std::pair<TSTRING, TSTRING>> &renameList, JavascriptEngine::JsObj &retobj)
+{
+	CapturingErrorHandler ceh;
+	if (!ApplyGameChangesRenameMediaFiles(renameList, ceh))
+	{
+		// renaming errors occurred - report them in the results object
+		auto errorArr = JavascriptEngine::JsObj::CreateArray();
+		ceh.EnumErrors([&errorArr](const ErrorList::Item &err)
+		{
+			auto ele = JavascriptEngine::JsObj::CreateObject();
+			ele.Set("message", err.message);
+			if (err.details.length() != 0)
+				ele.Set("details", err.details);
+			errorArr.Push(ele.jsobj);
+		});
+
+		// set it in the results object
+		retobj.Set("mediaRenameErrors", errorArr.jsobj);
+	}
+}
+
+JsValueRef PlayfieldView::JsGetAllCategories()
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// create a Javascript array for the category list
+		auto arr = JavascriptEngine::JsObj::CreateArray();
+
+		// get the category list
+		for (auto cat : gl->GetAllCategories())
+			arr.Push(cat->name);
+
+		// return the array object
+		return arr.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsCreateCategory(WSTRING name)
+{
+	GameList::Get()->NewCategory(name.c_str());
+}
+
+void PlayfieldView::JsRenameCategory(WSTRING oldName, WSTRING newName)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// make sure the new name isn't already in use
+		if (gl->CategoryExists(newName.c_str()))
+			return js->Throw(_T("New category name already exists")), (void)0;
+
+		// get the existing category under its old name
+		auto cat = gl->GetCategoryByName(oldName.c_str());
+		if (cat == nullptr)
+			return js->Throw(_T("Category doesn't exist")), (void)0;
+
+		// rename it
+		gl->RenameCategory(cat, newName.c_str());
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsDeleteCategory(WSTRING name)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// find the category to be deleted
+		auto cat = gl->GetCategoryByName(name.c_str());
+		if (cat == nullptr)
+			return js->Throw(_T("Category doesn't exist")), (void)0;
+
+		// delete it
+		gl->DeleteCategory(cat);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+
 JsValueRef PlayfieldView::JsGetCurFilter()
 {
 	auto js = JavascriptEngine::Get();
@@ -1774,8 +2412,13 @@ JsValueRef PlayfieldView::JsGetFilterInfo(WSTRING id)
 
 JsValueRef PlayfieldView::BuildFilterInfo(const WSTRING &id)
 {
+	return BuildFilterInfo(GameList::Get()->GetFilterById(id.c_str()));
+}
+
+JsValueRef PlayfieldView::BuildFilterInfo(GameListFilter *filter)
+{
 	auto gl = GameList::Get();
-	if (auto filter = gl->GetFilterById(id.c_str()); filter != nullptr)
+	if (filter != nullptr)
 	{
 		// create a FilterInfo object
 		auto obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsFilterInfo);
@@ -1873,15 +2516,12 @@ int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
 			std::forward_as_tuple(select, id, title, menuTitle, group, sortKey, includeHidden, includeUnconfig, before, after)).first->second;
 
 		// create the live filter
-		gl->AddUserDefinedFilter(filter);
-
-		// If this is the current filter as defined in the saved configuration,
-		// we weren't able to select the filter until now, so post a command to
-		// restore this filter on the next message processing cycle.  Don't do
-		// this inline, to let the Javascript caller finish any other initialzation
-		// before we activate the filter.
-		if (filter->GetFilterId() == ConfigManager::GetInstance()->Get(_T("GameList.CurrentFilter")))
+		if (gl->AddUserDefinedFilter(filter))
+		{
+			// This is the filter that was saved in the configuration that we
+			// recently loaded.  Make it current.
 			PostMessage(WM_COMMAND, filter->cmd);
+		}
 
 		// return the new filter's command ID
 		return filter->cmd;
@@ -2236,6 +2876,18 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		if (auto js = JavascriptEngine::Get(); js != nullptr)
 			js->RunTasks();
 		return true;
+
+	case fullRefreshTimerID:
+		// Do a full UI update:  redo the filter, update the wheel selection,
+		// update the status text, and update the info box.
+		GameList::Get()->RefreshFilter();
+		UpdateSelection();
+		UpdateAllStatusText();
+		infoBox.game = nullptr;
+
+		// this is a one-shot timer
+		KillTimer(hWnd, timer);
+		break;
 	}
 
 	// use the default handling
@@ -2637,7 +3289,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_DEL_GAME_INFO:
-		DelGameInfo();
+		DelGameInfo(false);
 		return true;
 
 	case ID_CONFIRM_DEL_GAME_INFO:
@@ -5855,7 +6507,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	{
 		// fire the event; if that prevents the system default handling, cancel
 		// the new menu display
-		if (!FireMenuEvent(true, m))
+		if (!FireMenuEvent(true, m, pageno))
 			return;
 	}
 
@@ -6304,7 +6956,7 @@ void PlayfieldView::OnCloseMenu(const std::list<MenuItemDesc> *incomingMenu)
 	// Fire the Javascript Menu Close event.  This isn't cancelable, so
 	// ignore the result.
 	if (curMenu != nullptr)
-		FireMenuEvent(false, nullptr);
+		FireMenuEvent(false, nullptr, 0);
 
 	// If we're editing a game's category list, remove the 
 	// category list unless we're switching to another menu.
@@ -7635,7 +8287,7 @@ void PlayfieldView::ReloadSettings()
 void PlayfieldView::FireConfigChangeEvent()
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
-		js->FireEvent(jsMainWindow, jsConfigChangeEvent);
+		js->FireEvent(jsMainWindow, jsSettingsChangeEvent);
 }
 
 bool PlayfieldView::FireFilterSelectEvent(GameListFilter *filter)
@@ -7888,6 +8540,139 @@ void PlayfieldView::OnJoystickAdded(JoystickManager::PhysicalJoystick *js, bool 
 	}
 }
 
+template<typename T, T (*conv)(const TCHAR*)>
+JsValueRef PlayfieldView::JsSettingsGet(WSTRING varname, JsValueRef defval)
+{
+	auto js = JavascriptEngine::Get();
+	auto cfg = ConfigManager::GetInstance();
+
+	try
+	{
+		// retrieve the raw string version of the variable
+		auto val = cfg->Get(varname.c_str(), nullptr);
+
+		// if it's undefined, return the caller's default value
+		if (val == nullptr)
+			return defval;
+
+		// convert to the desired native type, then to the corresponding javascript type
+		return js->NativeToJs<T>(conv(val));
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsSettingsSet(WSTRING varname, JsValueRef val)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the type of the value to set
+		JsValueType type;
+		JsErrorCode err;
+		if ((err = JsGetValueType(val, &type)) != JsNoError)
+			return js->Throw(err), static_cast<void>(0);
+
+		// interpret the value according to the config type
+		auto cfg = ConfigManager::GetInstance();
+		switch (type)
+		{
+		case JsNull:
+			// null = delete the variable
+			cfg->Delete(varname.c_str());
+			break;
+
+		case JsBoolean:
+			// boolean
+			{
+				bool b;
+				if ((err = JsBooleanToBool(val, &b)) != JsNoError)
+					return js->Throw(err), static_cast<void>(0);
+
+				cfg->Set(varname.c_str(), b);
+			}
+			break;
+
+		case JsNumber:
+			// number - this could be an int or float, depending on the value
+			{
+				double d = js->JsToNative<double>(val);
+				double intpart, fracpart = modf(d, &intpart);
+				if (fracpart == 0.0 && intpart >= static_cast<double>(INT_MIN) && intpart <= static_cast<double>(INT_MAX))
+					cfg->Set(varname.c_str(), static_cast<int>(intpart));
+				else
+					cfg->SetFloat(varname.c_str(), static_cast<float>(d));
+			}
+			break;
+
+		case JsString:
+			// string
+			{
+				// get the javascript string
+				const wchar_t *p;
+				size_t len;
+				if ((err = JsStringToPointer(val, &p, &len)) != JsNoError)
+					return js->Throw(err), static_cast<void>(0);
+
+				// store it as a WSTRING to make sure it's null-terminated
+				WSTRING str(p, len);
+
+				// set the value
+				cfg->Set(varname.c_str(), str.c_str());
+			}
+			break;
+
+		case JsObject:
+			// object
+			{
+				// try as a RECT
+				auto obj = JavascriptEngine::JsObj(val);
+				if (obj.Has(L"left") && obj.Has(L"right") && obj.Has(L"top") && obj.Has(L"bottom"))
+				{
+					RECT rc;
+					rc.left = obj.Get<int>("left");
+					rc.top = obj.Get<int>("top");
+					rc.right = obj.Get<int>("right");
+					rc.bottom = obj.Get<int>("bottom");
+					cfg->Set(varname.c_str(), rc);
+				}
+				else
+				{
+					// other types are invalid
+					js->Throw(_T("Invalid object type for settings variable value"));
+				}
+			}
+			break;
+
+		default:
+			// other types are invalid
+			js->Throw(_T("Invalid type for settings variable value"));
+			break;
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+bool PlayfieldView::JsSettingsIsDirty()
+{
+	return ConfigManager::GetInstance()->IsDirty();
+}
+
+bool PlayfieldView::JsSettingsSave()
+{
+	return ConfigManager::GetInstance()->Save(true);
+}
+
+void PlayfieldView::JsSettingsReload()
+{
+	Application::Get()->ReloadConfig();
+}
+
 void PlayfieldView::CmdSelect(const QueuedKey &key)
 {
 	if (key.mode == KeyDown)
@@ -7934,17 +8719,13 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 			// use the "select" sound effect to indicate success
 			sound = _T("Select");
 
-			// make sure we redraw the info box
+			// make sure we redraw the info box to reflect the new rating
 			infoBox.game = nullptr;
 
 			// If a rating filter is in effect, this could filter out
-			// the current game.
+			// the current game, so refresh the selection.
 			if (dynamic_cast<const RatingFilter*>(gl->GetCurFilter()) != nullptr)
-			{
-				gl->RefreshFilter();
-				UpdateSelection();
-				UpdateAllStatusText();
-			}
+				SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
 		}
 		else if (popupType == PopupCaptureDelay)
 		{
@@ -9285,98 +10066,27 @@ void PlayfieldView::EditGameInfo()
 			// or creating a whole new entry.
 			gl->ChangeSystem(game, reinterpret_cast<GameSystem*>(ComboBox_GetItemData(cbSys, sysIdx)));
 
-			// Update the media file base name
-			TSTRING oldMediaName = game->mediaName;
+			// Check for media item renaming
 			std::list<std::pair<TSTRING, TSTRING>> mediaRenameList;
 			if (game->UpdateMediaName(&mediaRenameList) && mediaRenameList.size() != 0)
 			{
+				// ask the user what to do
 				if (MessageBox(hDlg, LoadStringT(IDS_RENAME_MEDIA_PROMPT).c_str(),
 					LoadStringT(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION) == IDYES)
 				{
-					// clear table media from all windows, to minimize the chances
-					// of a sharing conflict that would prevent renaming
-					Application::Get()->ClearMedia();
-
-					// Rename files.  Do a few retries for any files with sharing
-					// conflicts, in case the conflict is coming from our own video
-					// or Flash player background threads: we might be able to clear
-					// up any such conflicts by waiting a couple of seconds for the
-					// background locks to clear.
-					CapturingErrorHandler eh;
-					const int maxTries = 3;
-					for (int tries = 0; ; ++tries)
+					// yes - do the renaming
+					CapturingErrorHandler ceh;
+					if (!pfv->ApplyGameChangesRenameMediaFiles(mediaRenameList, ceh))
 					{
-						// build a list of items to retry for any sharing conflicts
-						std::list<std::pair<TSTRING, TSTRING>> retryList;
-
-						// run through the file list
-						for (auto &f : mediaRenameList)
-						{
-							// try the rename
-							if (!MoveFile(f.first.c_str(), f.second.c_str()))
-							{
-								// failed - get the error
-								WindowsErrorMessage winErr;
-
-								// If it's a sharing violation, and we haven't retried
-								// too many times already, throw it in the retry list
-								// to try again on the next round.  Otherwise just record
-								// the error and move on.
-								if (tries < maxTries && winErr.GetCode() == ERROR_SHARING_VIOLATION)
-									retryList.push_back(f);
-								else
-									eh.Error(MsgFmt(IDS_ERR_MOVEFILE, f.first.c_str(), f.second.c_str(), winErr.Get()));
-							}
-						}
-						
-						// If the retry list is empty, we're done.  Note that we don't
-						// check tries against maxTries here, since it's not necessary:
-						// the retry list won't get populated if we're on the last try.
-						// It's safer (in terms of code correctness) not to do the
-						// redundant check, since that's a good way to cause off-by-one
-						// errors and the like.
-						if (retryList.size() == 0)
-							break;
-
-						// Pause briefly before the retry, to give whoever's holding
-						// the file lock a chance to finish what they're doing.  The
-						// whole point of the retry is that we might be conflicting
-						// with our own threads, so we shouldn't need to wait long:
-						// we've already removed all of media objects explicitly via
-						// the earlier call to Application::ClearMedia(), so the only
-						// self-locking should be against background threads that
-						// didn't exit instantly.  And we don't want to pause long
-						// enough to freeze the UI noticeably.
-						Sleep(250);
-
-						// replace the work list with the retry list
-						mediaRenameList = retryList;
-					}
-
-					// if any errors occurred, show an error
-					if (eh.CountErrors() != 0)
-					{
+						// one or more renaming errors occurred - report them as a group
 						InteractiveErrorHandler ieh;
-						ieh.GroupError(EIT_Error, LoadStringT(IDS_ERR_RENAME_MEDIA).c_str(), eh);
+						ieh.GroupError(EIT_Error, LoadStringT(IDS_ERR_RENAME_MEDIA).c_str(), ceh);
 					}
 				}
 			}
 
-			// Update the XML and stats DB entries
-			gl->FlushToXml(game);
-			gl->FlushGameIdChange(game);
-
-			// re-sort the title list
-			gl->SortTitleIndex();
-
-			// rebuild the filter list if necessary (if we added year or
-			// manufacturer filters, for example)
-			gl->CheckMasterFilterList();
-
-			// Reload high score data for the game, as we might have changed
-			// something that affected the NVRAM source
-			game->highScoreStatus = GameListItem::HighScoreStatus::Init;
-			pfv->RequestHighScores(game);
+			// apply changes to the XML database file
+			pfv->ApplyGameChangesToDatabase(game);
 
 			// note that we saved changes
 			saved = true;
@@ -9840,19 +10550,117 @@ void PlayfieldView::EditGameInfo()
 		// if the user saved changes, reload the wheel to reflect
 		// any changes in the title
 		if (dlg->saved)
-		{
-			// Refresh the game filter, since the game could now be excluded
-			// due to a change in manufacturer, year, or system)
-			GameList::Get()->RefreshFilter();
-
-			// Reload the wheel, status text, and info box, since any of these
-			// could be affected by updates we made even if the game's filter
-			// selection status didn't change.
-			UpdateSelection();
-			UpdateAllStatusText();
-			infoBox.game = nullptr;
-		}
+			SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
 	}
+}
+
+bool PlayfieldView::ApplyGameChangesRenameMediaFiles(
+	const std::list<std::pair<TSTRING, TSTRING>> &mediaRenameList, ErrorHandler &eh)
+{
+	// presume success
+	bool ok = true;
+
+	// clear table media from all windows, to minimize the chances
+	// of a sharing conflict that would prevent renaming
+	Application::Get()->ClearMedia();
+
+	// Set up a unique pointer to the caller's rename list.  Since
+	// the caller owns this memory, our deleter for this pointer does
+	// nothing.  The reason we need the unique_ptr at all is that we
+	// switch curList to a locally allocated retry list if we find
+	// retry items, so we'll need to delete that when it goes out of
+	// scope.
+	using ListType = std::list<std::pair<TSTRING, TSTRING>>;
+	using ListPtr = std::unique_ptr<const ListType, void(*)(const ListType*)>;
+	ListPtr curList(&mediaRenameList, [](auto p) {});
+
+	// Rename files.  Do a few retries for any files with sharing
+	// conflicts, in case the conflict is coming from our own video
+	// or Flash player background threads: we might be able to clear
+	// up any such conflicts by waiting a couple of seconds for the
+	// background locks to clear.
+	const int maxTries = 3;
+	for (int tries = 0; ; ++tries)
+	{
+		// Create a new list to hold items requiring retries.  This is
+		// a locally allocated object, so its deleter actually deletes it.
+		auto retryList = new ListType();
+		ListPtr retryListPtr(retryList, [](auto p) { delete p; });
+
+		// run through the file list
+		for (auto &f : *curList.get())
+		{
+			// try the rename
+			if (!MoveFile(f.first.c_str(), f.second.c_str()))
+			{
+				// failed - get the error
+				WindowsErrorMessage winErr;
+
+				// If it's a sharing violation, and we haven't retried
+				// too many times already, throw it in the retry list
+				// to try again on the next round.  Otherwise just record
+				// the error and move on.
+				if (tries < maxTries && winErr.GetCode() == ERROR_SHARING_VIOLATION)
+				{
+					// sharing violation - just add it to the retry list in case
+					// it's our own lock for audio/video playback
+					retryList->push_back(f);
+				}
+				else
+				{
+					// other error - log it 
+					eh.Error(MsgFmt(IDS_ERR_MOVEFILE, f.first.c_str(), f.second.c_str(), winErr.Get()));
+					ok = false;
+				}
+			}
+		}
+
+		// If the retry list is empty, we're done.  Note that we don't
+		// check tries against maxTries here, since it's not necessary:
+		// the retry list won't get populated if we're on the last try.
+		// It's safer (in terms of code correctness) not to do the
+		// redundant check, since that's a good way to cause off-by-one
+		// errors and the like.
+		if (retryList->size() == 0)
+			break;
+
+		// Pause briefly before the retry, to give whoever's holding
+		// the file lock a chance to finish what they're doing.  The
+		// whole point of the retry is that we might be conflicting
+		// with our own threads, so we shouldn't need to wait long:
+		// we've already removed all of media objects explicitly via
+		// the earlier call to Application::ClearMedia(), so the only
+		// self-locking should be against background threads that
+		// didn't exit instantly.  And we don't want to pause long
+		// enough to freeze the UI noticeably.
+		Sleep(250);
+
+		// replace the work list with the retry list
+		curList.swap(retryListPtr);
+	}
+
+	// return the status
+	return ok;
+}
+
+void PlayfieldView::ApplyGameChangesToDatabase(GameListItem *game)
+{
+	// Update the XML and stats DB entries
+	auto gl = GameList::Get();
+	gl->FlushToXml(game);
+	gl->FlushGameIdChange(game);
+
+	// re-sort the title list
+	gl->SortTitleIndex();
+
+	// rebuild the filter list if necessary (if we added year or
+	// manufacturer filters, for example)
+	gl->CheckMasterFilterList();
+
+	// Reload high score data for the game, as we might have changed
+	// something that affected the NVRAM source
+	game->highScoreStatus = GameListItem::HighScoreStatus::Init;
+	RequestHighScores(game);
 }
 
 void PlayfieldView::DelGameInfo(bool confirmed)
@@ -9869,16 +10677,8 @@ void PlayfieldView::DelGameInfo(bool confirmed)
 		// confirmed - actually delete the game record from the XML
 		gl->DeleteXml(game);
 
-		// Refresh the game filter, since the game could now be excluded
-		// due to a change in manufacturer, year, or system)
-		GameList::Get()->RefreshFilter();
-
-		// Reload the wheel, status text, and info box, since any of these
-		// could be affected by updates we made even if the game's filter
-		// selection status didn't change.
-		UpdateSelection();
-		UpdateAllStatusText();
-		infoBox.game = nullptr;
+		// do a full UI refresh
+		SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
 	}
 	else
 	{

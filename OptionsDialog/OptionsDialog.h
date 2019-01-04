@@ -148,6 +148,9 @@ public:
 	// the page and rebuilds the tree control.
 	void OnRenameSystem(SystemDialog *sysDlg);
 
+	// Validate that a system name is unique
+	bool IsSystemNameUnique(SystemDialog *sysDlg);
+
 	// Delete a system.  This removes the page from the property
 	// sheet and marks the system for deletion in the configuration.
 	// This doesn't actually commit the deletion, since that has to

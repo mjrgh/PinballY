@@ -20,9 +20,19 @@
    <li><b>menuopen:</b> Fires when a system menu is about to be displayed.
    No event is fired when a user menu is opened via
    <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>.
-   The menu display can be stopped by calling
-   <a href="Event.html#preventDefault">preventDefault()</a> on the
-   event object (passed as a parameter to your event handler).
+   <p>
+      The menu display can be stopped entirely by calling
+      <a href="Event.html#preventDefault">preventDefault()</a> on the
+      event object (passed as a parameter to your event handler).
+   </p>
+   <p>
+      Alternatively, you can modify the menu that's about to be displayed
+      by event object's property <b>menuUpdated</b> to <b>true</b>,
+      and changing the <b>id</b>, <b>items</b>, and <b>options</b> properties
+      to reflect the menu you want to display instead of the standard system
+      menu.  See <a href="#overrideSysMenu">Overriding a system menu</a> below
+      for more details.
+   </p>
 
    <li><b>menuclose:</b>  Fires when any menu (including both system menus
    and user menus) has just been closed.  This event is fired after the
@@ -60,40 +70,41 @@ mainWindow.on("menuopen", (ev) => {
 </div>
 
 <p>
-   <b>To modify a system menu:</b>  You can modify any system menu
-   by taking advantage of the .items property of the <b>menuopen</b>
+   <b>To modify a system menu:</b>  You can modify any system menu,
+   by taking advantage of the <b>items</b> property of the <b>menuopen</b>
    event object, which gives you the complete contents of the menu
-   that the system is about to display.  The list in the same format that
+   that the system is about to display.  The <b>items</b> array uses
+   exactly the same format that
    <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>
-   uses to describe to be displayed, so it has all of the information
-   you'd need to build an identical custom menu of your own.
+   uses to describe a custom menu, so it has all of the information
+   you'd need to build an identical custom menu of your own.  You
+   can use the <b>items</b> array as a starting point to do things like
+   inserting custom menu items, removing items that the system menu would
+   normally show, or changing the displayed names on the system's menu
+   items.
 </p>
 <p>
-   Now, you can't just change the .items list in the event object
-   and expect the displayed menu to change.  This list is provided
-   for your information only.  The system keeps its own private copy,
-   and it uses that private copy when it's time to actually display
-   the menu on-screen.  However,
-   remember that you can entirely prevent the proposed menu from
-   being displayed at all, by calling preventDefault() on the event
-   object, and that you can display an entirely custom menu of your
-   own at any time via mainWindow.showMenu().  So the trick to
-   modifying a system menu is to put those two features together:
-   you first cancel the <b>menuopen</b> event to prevent the system
-   menu from being shown, then you call showMenu() with your modified
-   version of the .items list from the event.  Since the .items list
-   is already in the same format that showMenu() expects for its
-   <i>items</i> argument, you don't have to build a completely new
-   menu list for showMenu().  You can just pass the .items list from
-   the event after making any insertions, deletions, or edits that
-   you wish to make.
+   You can also change the <b>id</b> and <b>options</b> properties
+   in the event object to reflect any changes you want to make to
+   those.
 </p>
+<p>
+   After making any changes to the menu items, ID, or options, you must set
+   the <b>menuUpdated</b> property of the event object to <b>true</b>.
+   This property is undefined by default.
+   When the event processing is complete, the system checks this
+   property of the event object, and if it hasn't been changed,
+   the system assumes that you haven't made any changes to the menu
+   setup and goes ahead with the standard menu layout.  So if you
+   want to apply changes, you must set <b>menuUpdated</b> to <b>true</b>.
+</p>
+   
 <p>
    For example, if you want to change the name of the "Play" command
    on the main menu to "Run Game", you could do something like this:
 </p>
 <div class="code">
-mainWindow.on("menuopen", (ev) => {
+mainWindow.on("menuopen", (ev) =&gt; {
     if (ev.id = "main") {
         // edit the menu items
         ev.items.foreach(i => {
@@ -101,14 +112,23 @@ mainWindow.on("menuopen", (ev) => {
                 i.title = "Run Game";
         });
 
-        // cancel the original menu display
-        ev.preventDefault();
-
-        // show our modified version of the menu
-        mainWindow.showMenu(ev.id, ev.items, ev.options);
+        // tell the system to apply our updates
+        ev.menuUpdated = true;
     }
 });
 </div>
+
+<p>
+   This approach is designed so that multiple event handlers can make
+   their own edits to the same system menus, without having to know about
+   one another.  This is useful for combining your own scripts with
+   add-in modules written by other people.  Remember that the event
+   system allows you to create any number of listeners for each event,
+   and calls each listener in sequence when the event occurs.  So if
+   you have multiple <b>menuopen</b> listeners, each one gets a chance
+   to inspect and edit the <b>items</b> array before the final menu
+   is displayed.
+</p>
 
 <p>
    <b>To replace a system menu with an entirely custom menu:</b>  This is 
@@ -182,6 +202,13 @@ mainWindow.on("menuopen", (ev) => {
    system handling, but you can cancel the event to prevent this menu
    from showing, and call showMenu() with your own item list instead.
    This property isn't present for <b>menuclose</b> events.
+
+   <li><b>menuUpdated:</b> undefined by default; set this to
+   <b>true</b> to signal that you've changed the <b>id</b>, <b>items</b>,
+   and/or <b>options</b> properties to reflect a modified version of
+   the menu that want to display instead of the original.  See
+   <a href="#overrideSysMenu">Overriding a system menu</a> above
+   for more details.
 
    <li><b>options:</b>  for the <b>menuopen</b> event, an object with
    properties describing the menu options, in the same format as the

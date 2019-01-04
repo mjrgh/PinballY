@@ -298,6 +298,7 @@ protected:
 	static const int autoDismissMsgTimerID = 119;  // auto dismiss a message dialog
 	static const int batchCaptureCancelTimerID = 120;  // batch capture cancel button pushed
 	static const int javascriptTimerID = 121;     // javascript scheduled tasks
+	static const int fullRefreshTimerID = 122;    // full UI refresh (filters, selection, status text)
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -455,6 +456,18 @@ protected:
 
 	// show the game setup dialog
 	void EditGameInfo();
+
+	// Rename media files for a change to a game's metadata.  To get the list of
+	// files that need to be renamed, use GameList::UpdateMediaName(), which
+	// figures the new media name and locates any affected files.  Returns true
+	// if all renames succeed, false on error.  Any errors are logged to the 
+	// provided error handler.
+	bool ApplyGameChangesRenameMediaFiles(
+		const std::list<std::pair<TSTRING, TSTRING>> &mediaRenameList,
+		ErrorHandler &eh);
+
+	// Apply changes made to a game's in-memory records to the database.
+	void ApplyGameChangesToDatabase(GameListItem *game);
 
 	// delete the game details
 	void DelGameInfo(bool confirmed = false);
@@ -2129,11 +2142,17 @@ protected:
 	// logfile object
 	JsValueRef jsLogfile = JS_INVALID_REFERENCE;
 
-	// GameInfo class (prototype for getGameInfo() result objects)
+	// GameInfo class (prototype for game descriptors)
 	JsValueRef jsGameInfo = JS_INVALID_REFERENCE;
 
-	// FilterInfo class (prototype for getFilterInfo() result objects)
+	// GameSysInfo class (prototype for system descriptors)
+	JsValueRef jsGameSysInfo = JS_INVALID_REFERENCE;
+
+	// FilterInfo class (prototype for filter descriptors)
 	JsValueRef jsFilterInfo = JS_INVALID_REFERENCE;
+
+	// optionSettings object - represents the config manager
+	JsValueRef jsOptionSettings = JS_INVALID_REFERENCE;
 
 	// event objects
 	JsValueRef jsCommandButtonDownEvent = JS_INVALID_REFERENCE;
@@ -2158,7 +2177,7 @@ protected:
 	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
-	JsValueRef jsConfigChangeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsSettingsChangeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsFilterSelectEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
@@ -2172,7 +2191,7 @@ protected:
 	bool FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg);
 	bool FireCommandButtonEvent(const QueuedKey &key);
 	bool FireCommandEvent(int cmd);
-	bool FireMenuEvent(bool open, Menu *menu);
+	bool FireMenuEvent(bool open, Menu *menu, int pageno);
 	bool FirePopupEvent(bool open, const WCHAR *id);
 	bool FireAttractModeEvent(bool starting);
 	void FireWheelModeEvent();
@@ -2255,8 +2274,20 @@ protected:
 	// Get game information
 	JsValueRef JsGetGameInfo(WSTRING id);
 
+	// Update game information
+	JsValueRef JsGameInfoUpdate(JsValueRef self, JsValueRef desc, JsValueRef opts);
+
+	// Rename media files, using the renamedMediaFiles list from a GameInfo.update() call
+	JsValueRef JsGameInfoRenameMediaFiles(JsValueRef self, JsValueRef renameArray);
+
+	// GameInfo.update() and GameInfo.renameMediaFiles() helper
+	void JsRenameMediaHelper(const std::list<std::pair<TSTRING, TSTRING>> &renameList, JavascriptEngine::JsObj &retobj);
+
+	// delete a game's metadata
+	void JsGameInfoErase(JsValueRef);
+
 	// GameInfo prototype getter methods
-	template<typename T> static T JsGameInfoGetter(T(*func)(GameListItem*), JsValueRef self);
+	template<typename T> static T JsGameInfoGetter(T (*func)(GameListItem*), JsValueRef self);
 	template<typename T> static JsValueRef JsGameInfoStatsGetter(T (*func)(GameListItem*), JsValueRef self);
 
 	// Populate a GameInfo getter
@@ -2267,6 +2298,16 @@ protected:
 	template<typename T>
 	bool AddGameInfoStatsGetter(const CHAR *propName, T (*func)(GameListItem*), ErrorHandler &eh);
 
+	// expand a game system variable
+	WSTRING JsExpandSysVar(JsValueRef self, WSTRING str, JsValueRef game);
+	
+	// build a GameSysInfo object
+	JsValueRef BuildGameSysInfo(GameSystem *system);
+
+	// GameSysInfo prototype getters
+	template<typename T> static T JsGameSysInfoGetter(T (*func)(GameSystem*), JsValueRef self);
+	template<typename T> bool AddGameSysInfoGetter(const CHAR *propName, T (*func)(GameSystem*), ErrorHandler &eh);
+
 	// internal game info object builder
 	JsValueRef BuildJsGameInfo(GameListItem *game);
 
@@ -2275,6 +2316,12 @@ protected:
 	JsValueRef JsResolveGameFile(JsValueRef self);
 	JsValueRef JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist);
 	JsValueRef JsResolveROM(JsValueRef self);
+
+	// Javascript GameCategory access
+	JsValueRef JsGetAllCategories();
+	void JsCreateCategory(WSTRING name);
+	void JsRenameCategory(WSTRING oldName, WSTRING newName);
+	void JsDeleteCategory(WSTRING name);
 
 	// get the total number of games/nth game in the overall game list/array of games
 	int JsGetGameCount();
@@ -2301,6 +2348,7 @@ protected:
 
 	// build a FilterInfo object
 	JsValueRef BuildFilterInfo(const WSTRING &id);
+	JsValueRef BuildFilterInfo(GameListFilter *filter);
 
 	// FilterInfo methods
 	JsValueRef JsFilterInfoGetGames(JsValueRef self);
@@ -2311,6 +2359,15 @@ protected:
 
 	// get the command assigned to a key or joystick button
 	JsValueRef JsGetKeyCommand(JavascriptEngine::JsObj desc);
+
+	// Javacript configuration access
+	template<typename T, T (*conv)(const TCHAR*)>
+	JsValueRef JsSettingsGet(WSTRING varname, JsValueRef jsdefval);
+
+	void JsSettingsSet(WSTRING varname, JsValueRef val);
+	bool JsSettingsIsDirty();
+	bool JsSettingsSave();
+	void JsSettingsReload();
 
 	// User-defined Javascript game filters.  We keep the master list of
 	// these here, rather than in the GameList object with the other

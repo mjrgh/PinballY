@@ -34,7 +34,6 @@ std::unordered_map<TSTRING, int> GameList::filterCmdMap;
 int GameList::nextFilterGroupCmdID = ID_USER_FILTER_GROUP_FIRST;
 std::unordered_map<TSTRING, int> GameList::filterGroupCmdMap;
 
-
 // config variables for the game list
 namespace ConfigVars
 {
@@ -57,6 +56,44 @@ void GameList::Shutdown()
 	inst = 0;
 }
 
+void GameList::ReCreate()
+{
+	// create a mapping between config IDs and internal IDs for the currently
+	// loaded games
+	auto idMap = std::make_unique<std::unordered_map<TSTRING, int>>();
+	for (auto &g : inst->games)
+		idMap->emplace(g.GetGameId(), g.internalID);
+
+	// save the user-defined filter list
+	decltype(inst->userDefinedFilters) udf(inst->userDefinedFilters.release());
+
+	// delete the existing instance
+	Shutdown();
+
+	// create a new instance
+	Create();
+
+	// store the ID map in the new instance
+	inst->reloadIDMap.reset(idMap.release());
+	
+	// pass the user-defined filter list to the new game list
+	inst->userDefinedFilters.reset(udf.release());
+}
+
+int GameList::GetReloadID(GameListItem *game)
+{
+	// if there's a reload map, look up the game
+	if (reloadIDMap != nullptr)
+	{
+		// look up the game by config ID
+		if (auto it = reloadIDMap->find(game->GetGameId()); it != reloadIDMap->end())
+			return it->second;
+	}
+
+	// no map or game not found
+	return 0;
+}
+
 GameList::GameList()
 {
 	// clear variables
@@ -64,6 +101,9 @@ GameList::GameList()
 
 	// create the dummy "no game" game
 	noGame.reset(new NoGame());
+
+	// create the user-defined filters list
+	userDefinedFilters.reset(new decltype(userDefinedFilters)::element_type);
 
 	// start with the All Games filter
 	curFilter = &allGamesFilter;
@@ -348,8 +388,17 @@ void GameList::RestoreConfig()
 	if (const TCHAR *filterId = cfg->Get(ConfigVars::CurFilter); filterId != 0)
 	{
 		// search for the filter
+		bool found = false;
 		if (auto f = GetFilterById(filterId); f != nullptr)
+		{
+			found = true;
 			SetFilter(f);
+		}
+
+		// If we didn't find the filter, and it's user-defined, it might just
+		// not have been created yet.  Set it as the pending filter.
+		if (!found && tstrStartsWith(filterId, _T("User.")))
+			pendingRestoredFilter = filterId;
 	}
 
 	// look up the current game, if any
@@ -731,7 +780,7 @@ const std::vector<GameListFilter*> &GameList::GetFilters()
 
 void GameList::EnumUserDefinedFilters(std::function<void(GameListFilter*)> func)
 {
-	for (auto &f : userDefinedFilters)
+	for (auto &f : *userDefinedFilters)
 		func(f.second);
 }
 
@@ -829,6 +878,10 @@ void GameList::SetFilter(GameListFilter *filter)
 	// set the new filter
 	curFilter = filter;
 
+	// if there's a pending restore filter, clear it when explicitly
+	// setting a different filter
+	pendingRestoredFilter.clear();
+
 	// Refresh the filter selection
 	RefreshFilter();
 }
@@ -886,7 +939,8 @@ bool GameList::InitFromPinballX(ErrorHandler &eh)
 	vars;
 
 	// close a section
-	auto closeSect = [this, &eh, &sect, &vars, pbxPath]() -> bool
+	int systemIndex = 0;
+	auto closeSect = [this, &eh, &sect, &vars, pbxPath, &systemIndex]() -> bool
 	{
 		// if the section is disabled, skip it - simply return success
 		if (!vars.GetBool(L"enabled"))
@@ -941,7 +995,7 @@ bool GameList::InitFromPinballX(ErrorHandler &eh)
 			const TCHAR *tablePath = vars.Get(L"tablepath", _T(""));
 
 			// create the system object
-			GameSystem *system = CreateSystem(sys.c_str(), path, tablePath, defExt.c_str());
+			GameSystem *system = CreateSystem(sys.c_str(), systemIndex++, path, tablePath, defExt.c_str());
 
 			// load the system configuration
 			system->mediaDir = system->displayName;			// PBX always uses the display name as the media folder name
@@ -1383,7 +1437,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			Log(_T("+ full table path (folder containing this system's table files) is %s\n"), tablePath.c_str());
 
 			// create the system object
-			GameSystem *system = CreateSystem(systemName, sysDbDir, tablePath.c_str(), defExt);
+			GameSystem *system = CreateSystem(systemName, n, sysDbDir, tablePath.c_str(), defExt);
 
 			// Load the config variables for the system
 			const TCHAR *mediaDirVar = cfg->Get(MsgFmt(_T("%s.MediaDir"), sysvar.Get()), _T(""));
@@ -1532,17 +1586,23 @@ bool GameList::Load(ErrorHandler &eh)
 	// set the "all games" filter to populate the initial filter list
 	SetFilter(&allGamesFilter);
 
+	// Delete any reload map.  This is only needed during the load
+	// phase; any games that are added after this point (e.g., by
+	// file system scans when switch foreground apps) count as new
+	// games that should have new internal IDs assigned.
+	reloadIDMap.reset();
+
 	// success
 	return true;
 }
 
-void GameList::AddUserDefinedFilter(GameListFilter *filter)
+bool GameList::AddUserDefinedFilter(GameListFilter *filter)
 {
 	// delete it if it already exists
 	DeleteUserDefinedFilter(filter);
 
 	// add it
-	userDefinedFilters.emplace(filter->GetFilterId(), filter);
+	userDefinedFilters->emplace(filter->GetFilterId(), filter);
 
 	// assign it a command ID
 	AssignFilterCommand(filter);
@@ -1557,15 +1617,21 @@ void GameList::AddUserDefinedFilter(GameListFilter *filter)
 
 	// the filter list needs to be rebuilt
 	isFilterListDirty = true;
+
+	// If this is the pending filter from a recent config restore, tell the 
+	// caller to activate it.  We don't activate it ourselves, because filter
+	// change operations need to be initiated from the UI to make sure the
+	// UI is properly updated to reflect the change.
+	return pendingRestoredFilter.length() != 0 && pendingRestoredFilter == filter->GetFilterId();
 }
 
 void GameList::DeleteUserDefinedFilter(GameListFilter *filter)
 {
 	// look up the filter
-	if (auto it = userDefinedFilters.find(filter->GetFilterId()); it != userDefinedFilters.end())
+	if (auto it = userDefinedFilters->find(filter->GetFilterId()); it != userDefinedFilters->end())
 	{
 		// found it - remove it from the map
-		userDefinedFilters.erase(it);
+		userDefinedFilters->erase(it);
 
 		// the filter list needs to be rebuilt
 		isFilterListDirty = true;
@@ -1623,7 +1689,7 @@ void GameList::BuildMasterFilterList()
 		AddFilter(r.get());
 	
 	// Add the user-defined filters
-	for (auto &f : userDefinedFilters)
+	for (auto &f : *userDefinedFilters)
 		AddFilter(f.second);
 
 	// Sort the list in menu display order
@@ -1776,18 +1842,18 @@ int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext,
 }
 
 GameSystem *GameList::CreateSystem(
-	const TCHAR *systemName, const TCHAR *sysDatabaseDir, 
-	const TCHAR *tablePath, const TCHAR *defExt)
+	const TCHAR *systemName, int configIndex,
+	const TCHAR *sysDatabaseDir, const TCHAR *tablePath, const TCHAR *defExt)
 {
 	// Look up the system by name
-	auto it = systems.find(systemName);
+	auto it = systems.find(configIndex);
 	if (it == systems.end())
 	{
 		// it doesn't exist yet - add it
 		it = systems.emplace(
 			std::piecewise_construct,
-			std::forward_as_tuple(systemName),
-			std::forward_as_tuple(systemName)).first;
+			std::forward_as_tuple(configIndex),
+			std::forward_as_tuple(systemName, configIndex)).first;
 
 		// Figure the system's generic file name.  The generic file
 		// is of the form <database path>\<system dir>\<system dir>.xml.
@@ -1831,6 +1897,13 @@ GameSystem *GameList::CreateSystem(
 
 	// return the system we found or created
 	return system;
+}
+
+GameSystem *GameList::GetSystem(int configIndex)
+{
+	if (auto it = systems.find(configIndex); it != systems.end())
+		return &it->second;
+	return nullptr;
 }
 
 bool GameList::LoadGameDatabaseFile(
@@ -2086,7 +2159,7 @@ bool GameList::LoadGameDatabaseFile(
 	// Hand over the XML file to the system.  The system object
 	// will own the file object from now on.  This allows the
 	// system to rewrite the XML file if we make any changes,
-	// such as adding new games or moving a game to a different
+	// such as adding tem or moving a game to a different
 	// category file.
 	system->dbFiles.emplace_back(xml.release());
 
@@ -2294,6 +2367,17 @@ int GameList::GetStatsDbRow(GameListItem *game, bool createIfNotFound)
 
 	// return the row number
 	return row;
+}
+
+std::list<const GameCategory*> GameList::GetAllCategories() const
+{
+	// build a list of the categories
+	std::list<const GameCategory*> list;
+	for (auto &it : categories)
+		list.emplace_back(it.second.get());
+
+	// return the list
+	return list;
 }
 
 GameCategory *GameList::GetCategoryByName(const TCHAR *name) const
@@ -3278,6 +3362,7 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 std::list<const MediaType*> GameListItem::allMediaTypes;
 std::unordered_map<WSTRING, const MediaType*> GameListItem::jsMediaTypes;
 LONG GameListItem::nextInternalID = 1;
+const GameListItem::SpecialListItem GameListItem::isSpecialListItem;
 
 void GameListItem::InitMediaTypeList()
 {
@@ -3351,6 +3436,9 @@ GameListItem::GameListItem(
 
 	// this game is configured
 	this->isConfigured = true;
+
+	// assign an internal ID
+	AssignInternalID();
 }
 
 GameListItem::GameListItem(const TCHAR *filename, TableFileSet *tableFileSet)
@@ -3377,6 +3465,9 @@ GameListItem::GameListItem(const TCHAR *filename, TableFileSet *tableFileSet)
 	// unconfigured games don't have manufacturer or system settings
 	this->manufacturer = nullptr;
 	this->system = nullptr;
+
+	// assign the internal ID
+	AssignInternalID();
 }
 
 void GameListItem::SetTitleFromFilename()
@@ -3405,6 +3496,20 @@ void GameListItem::CommonInit()
 	// we haven't attempted to look up the stats db row yet - use
 	// the magic number -2 to mean "unknown row number"
 	statsDbRow = -2;
+
+}
+
+void GameListItem::AssignInternalID()
+{
+	// try assigning a reload ID
+	if (auto gl = GameList::Get(); gl != nullptr)
+	{
+		if (auto id = gl->GetReloadID(this); id != 0)
+		{
+			internalID = id;
+			return;
+		}
+	}
 
 	// assign the next available internal ID
 	internalID = InterlockedIncrement(&nextInternalID);
@@ -4329,8 +4434,9 @@ bool RecentlyAddedFilter::Include(GameListItem *game)
 // games will select an empty list into the "wheel".
 //
 
-NoGame::NoGame() :
-	dummySystem(LoadStringT(IDS_NO_SYSTEM)),
+NoGame::NoGame() : 
+	GameListItem(isSpecialListItem),
+	dummySystem(LoadStringT(IDS_NO_SYSTEM), -1),
 	dummyManufacturer(LoadStringT(IDS_NO_MANUFACTURER))
 {
 	// set the empty game title

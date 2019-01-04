@@ -145,6 +145,9 @@ public:
 		return dirty ? Save() : true;
 	}
 
+	// Do we have unsaved changes?
+	bool IsDirty() const { return dirty; }
+
 	// Update subscriber.  This registers an object to notify on certain
 	// config change events.
 	class Subscriber
@@ -179,6 +182,13 @@ public:
 	int GetInt(const TCHAR *name, int defval = 0) const;
 	float GetFloat(const TCHAR *name, float defval = 0.0f) const;
 	RECT GetRect(const TCHAR *name, RECT defval = { 0, 0, 0, 0 }) const;
+
+	// Convert from string to the various datatypes
+	static const TCHAR *ToStr(const TCHAR *val) { return val; }
+	static bool ToBool(const TCHAR *val);
+	static int ToInt(const TCHAR *val);
+	static float ToFloat(const TCHAR *val);
+	static RECT ToRect(const TCHAR *val);
 
 	// set a variable in various formats
 	void Set(const TCHAR *name, const TCHAR *value);

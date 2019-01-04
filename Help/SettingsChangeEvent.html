@@ -10,15 +10,15 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>ConfigChangeEvent</h1>
+<h1>SettingsChangeEvent</h1>
 
 <p>
-   This event class is fired whenever the configuration file is reloaded.
+   This event class is fired whenever the option settings file is reloaded.
 </p>
 <p>
    This event has only one subtype:
 <ul>
-   <li><b>configchange:</b> Fires after a configuration change is
+   <li><b>settingschange:</b> Fires after a change to the settings is
    processed.  This event fires after the fact, so it's not cancelable.
 </ul>
 
@@ -30,11 +30,11 @@
 <h2>Triggers and effects</h2>
 
 <p>
-   The system automatically reloads the configuration file any time the
+   The system automatically reloads the option settings file any time the
    user makes changes in the Settings dialog.
 </p>
 <p>
-   Reloading the configuration also requires reloading the game databases
+   Reloading the settings file also requires reloading the game databases
    and game file lists, since changes to the settings can affect which
    files are included in the scans and which databases are loaded.
    Games that were previously loaded into the in-memory game list

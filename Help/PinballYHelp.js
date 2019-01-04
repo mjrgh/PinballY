@@ -30,13 +30,13 @@ var contents = [
                 "+++AttractModeEvent.html AttractModeEvent [event:mainWindow]",
                 "+++CommandEvent.html CommandEvent [event:mainWindow]",
                 "+++CommandButtonEvent.html CommandButtonEvent [event:mainWindow]",
-                "+++ConfigChangeEvent.html ConfigChangeEvent [event:mainWindow]",
                 "+++FilterSelectEvent.html FilterSelectEvent [event:gameList]",
                 "+++GameSelectEvent.html GameSelectEvent [event:gameList]",
                 "+++JoystickButtonEvent.html JoystickButtonEvent [event:mainWindow]",
                 "+++KeyEvent.html KeyEvent [event:mainWindow]",
                 "+++MenuEvent.html MenuEvent [event:mainWindow]",
                 "+++PopupEvent.html PopupEvent [event:mainWindow]",
+                "+++SettingsChangeEvent.html SettingsChangeEvent [event:mainWindow]",
                 "+++WheelModeEvent.html WheelModeEvent [event:mainWindow]",
         "+JsDebug.html Debugging",
         "+DllImport.html Calling Native DLLs from Javascript",
@@ -59,6 +59,7 @@ var contents = [
             "++COMPointer.html COMPointer",
             "++FilterInfo.html FilterInfo",
             "++GameInfo.html GameInfo",
+            "++GameSysInfo.html GameSysInfo",
             "++HandleObject.html HANDLE",
             "++HttpRequest.html HttpRequest",
             "++HWNDObject.html HWND",
@@ -184,7 +185,7 @@ $(function()
     var tocEle = $("#TOC");
     if (tocEle.length > 0)
     {
-        var toc = ["<ul class=\"toc\">"];
+        var toc = ["<ul class=\"toc compact\">"];
         var traverse = function(list)
         {
             for (var i = 0; i < list.length; ++i)
