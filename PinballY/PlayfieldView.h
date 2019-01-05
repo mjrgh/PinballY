@@ -70,11 +70,6 @@ public:
 	// if it includes Player commands in its own menu bar.
 	virtual void UpdateMenu(HMENU hMenu, BaseWin *fromWin) override;
 
-	// Reload the settings file.  The parent window can call this if
-	// the configuration file is ever changed externally and it wants
-	// to trigger a reload.
-	void ReloadSettings();
-
 	// Player menu update notification message.  The view window sends this
 	// to the parent, with the menu handle in the WPARAM, to update a menu
 	// that it's about to show with the current status of commands controlled
@@ -214,6 +209,8 @@ protected:
 	~PlayfieldView();
 
 	// ConfigManager::Subscriber implementation
+	virtual void OnConfigPreSave() override;
+	virtual void OnConfigPostSave(bool succeeded) override;
 	virtual void OnConfigReload() override { OnConfigChange(); }
 
 	// InputManager::RawInputReceiver implementation
@@ -2177,7 +2174,9 @@ protected:
 	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
-	JsValueRef jsSettingsChangeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsSettingsReloadEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsSettingsPreSaveEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsSettingsPostSaveEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsFilterSelectEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
@@ -2197,7 +2196,7 @@ protected:
 	void FireWheelModeEvent();
 	void FireGameSelectEvent(GameListItem *game);
 	bool FireFilterSelectEvent(GameListFilter *filter);
-	void FireConfigChangeEvent();
+	void FireConfigEvent(JsValueRef type, ...);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode

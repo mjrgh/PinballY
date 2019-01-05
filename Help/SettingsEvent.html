@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>SettingsEvent</h1>
+
+<p>
+   Events of this class are fired when the option settings file is
+   saved or reloaded.
+</p>
+<p>
+   This event has the following subtypes:
+<ul>
+   <li><b>settingspresave:</b>  Fires immediately before the program
+   saves its in-memory configuration to the settings file.  This gives
+   you a chance to save any in-memory settings to the configuration
+   so that it'll be included in the saved file.  This event can't
+   be canceled.
+
+   <li><b>settingspostsave:</b>  Fires immediately after the settings
+   file has been saved.  This event can't be canceled.
+
+   <li><b>settingsreload:</b> Fires immediately after the settings file is
+   reloaded.  The file is reloaded whenever the user makes any changes
+   in the settings dialog, to ensure that all of the new settings are
+   applied throughout the program.  The event occurs after the fact,
+   so it can't be canceled.
+
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="OptionSettingsObject.html">optionSettings</a> object.
+</p>
+
+<h2>Save events</h2>
+
+<p>
+   PinballY keeps a copy of the settings in memory for quick access.
+   When something changes - say, the user activates a new filter in
+   the wheel API - the change is recorded in the in-memory copy of
+   the settings, but isn't immediately saved to the file.  This avoids
+   the need to constantly re-write the file every time the user presses
+   a button, which would slow things down slightly in the UI.
+</p>
+<p>
+   Whenever a change is made to the in-memory copy of the settings, the
+   program sets an internal flag saying that the in-memory
+   copy is "dirty" (that is, modified relative to the file copy).
+   From time to time, the program checks the flag and automatically
+   saves any pending changes.
+</p>
+<p>
+   The user never has to enter an explicit "Save" command to save changes.
+   The program saves changes any pending automatically, at various times:
+</p>
+<ul>
+   <li>Just before quitting
+
+   <li>Just before launching a game
+
+   <li>Just before showing the Options dialog
+
+   <li>Any time the UI has been idle for about 15 seconds
+</ul>
+
+
+
+<h2>Reload events</h2>
+
+<p>
+   The program automatically reloads the option settings file any time the
+   user makes changes in the Settings dialog.
+</p>
+<p>
+   Reloading the settings file also requires reloading the game databases
+   and game file lists, since changes to the settings can affect which
+   files are included in the scans and which databases are loaded.
+   Games that were previously loaded into the in-memory game list
+   might be removed from memory as a result.  Any <a href="GameInfo.html">GameInfo</a>
+   objects or <a href="GameInfo.html#gameID">game ID</a> values that referred
+   to such games will become invalid, so you could use this event
+   to clear any global variables or other cached information you might
+   be keeping on loaded games.
+</p>
+<p>
+   Any table media files (playfield videos or images, etc) currently being
+   displayed are also reloaded.
+</p>
+   
+
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the following:
+</p>
+
+<ul>
+   <li><b>succeeded:</b>  For <b>settingspostchange</b> events only,
+   this is a boolean value indicating whether or not the settings 
+   file was successfully saved.  <b>true</b> means that the save was
+   successful, <b>false</b> means that an error occurred writing the
+   file.
+
+</ul>
+
+</body>
+</html>

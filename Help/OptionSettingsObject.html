@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>optionSettings</h1>
+
+<p>
+   The optionSettings object provides access to PinballY's option
+   settings system, which the program uses to save and restore the
+   user's option selections and the program's current state (e.g.,
+   which game is selected in the UI and which filter is active).
+</p>
+<p>
+   Options are stored in a file called Settings.txt, stored in the
+   program's main install folder.  This file uses a simple name/value
+   pair syntax to store arbitrary variables with arbitrary string
+   values.  The optionSettings object accesses the in-memory copy
+   of this collection of name/value pairs, which constitutes the
+   basic database of settings data that PinballY uses throughout
+   the program.  
+</p>
+<p>
+   optionSettings provides direct access to the raw settings file
+   data.  Be aware that some of this information might be available
+   in more processed forms from other system objects, and the
+   processed versions might be easier to use for most purposes.
+   For example, for information on what's currently showing
+   in the wheel UI, you'll probably want to use the
+   <a href="GameList.html">gameList</a> object instead of the
+   raw settings data; for information on player systems, 
+   <a href="GameSysInfo.html">GameSysInfo</a> objects are
+   usually easier to use than the raw system setting variables.
+</p>
+<p>
+   The settings system's name/value pair scheme is arbitrarily extensible.
+   There's no pre-defined set of names that you're limited to, so you can
+   define new variables of your own if you want to store additional
+   settings beyond what the system stores.  Just be sure to use
+   suitably unique names for any new custom variables you add,
+   to avoid any conflicts with future system variables.  It's a
+   good idea to use long names with some kind of prefix that
+   signifies that the variables are custom - use your name as a
+   prefix, perhaps.
+</p>
+
+<h2>Event target</h2>
+
+<p>
+   optionSettings is an event target object, so you can use the standard
+   event methods (on(), off(), etc) to add and remove event listeners.
+   See <a href="EventTarget.html">EventTarget</a>.
+</p>
+<p>
+   This object serves as the event target for the following event
+   types, which represent events related to saving and reloading
+   the settings file:
+</p>
+<div class="eventTargetTOC" data-eventtarget="optionSettings"></div>
+
+
+<h2>Variable names</h2>
+<p>
+   Every option setting is represented by a name/value pair, which
+   we refer to as a "variable", in the same sense as a program variable
+   in a language like Javascript or C++.  Variable names are arbitrary
+   strings of alphanumeric characters and a limited set of punctuation
+   characters, including "." and "_".
+</p>
+<p>All variable names are "global": all of the names share a single
+   namespace with no nesting or hierarchy structure, so every variable's
+   name has to be unique.  The system uses a convention of "dotted"
+   prefixes for related variables (e.g., all of the capture-related
+   settings start with "Capture."), but be aware that there's no actual
+   formal structure to this.  The "." characters in the dotted names are
+   just parts of the names, the same as any alphabetic characters would
+   be, and aren't some kind of namespace qualifier syntax.
+</p>
+<p>
+   If you add new custom variables of your own, it's a good idea to
+   use some kind of prefix to ensure uniqueness, since all variables
+   have to share a common namespace.  A prefix based on your name or
+   the name of the package/feature you're developing can be helpful
+   to keep track of which variable goes with which code.
+</p>
+
+<h2>Variable types</h2>
+<p>
+   All settings variables are stored as string values in the file.
+   There are no other "datatypes" besides strings, as far as the file
+   storage is concerned.
+</p>
+<p>
+   However, it's convenient to be able to interpret some variables
+   as numbers, some as boolean values, etc, depending on how they're
+   used.  To help with that, the settings system can automatically
+   perform conversions to and from several native types when reading
+   and writing variable values:
+</p>
+<ul class="compact">
+   <li>string (the actual storage format)
+   <li>boolean
+   <li>integer
+   <li>floating point number
+   <li>RECT (the Windows API rectangle structure)
+</ul>
+<p>
+   When reading values, you can use the "get" methods for the
+   various datatypes to read values with specific types.  When
+   writing values, you always use the same "set" method, and the
+   system figures out how to format the value as a string for
+   storage in the file.
+</p>
+<p>
+   Be aware the actual value stored in the file is <i>always</i> a
+   string value.  When you use the get/set methods to convert to and
+   from native types other than strings, the system performs the
+   conversion with reference to the string stored in the file.  Also
+   be aware that the proper type interpretation of a particular variable
+   is up to you when you read or write the variable, since the system
+   doesn't store the original type in the file.  If you store a value
+   as a "float" and read it back as an "int", the system will happily
+   comply, but you'll naturally lose any fractional part of the
+   original floating point value.
+</p>
+
+<h2>Effects of changing a variable</h2>
+
+<p>
+   In some cases, changing the value of a system-defined setting variable
+   will cause an immediate effect in the UI, because the system refers
+   directly to the in-memory settings variables for some purposes.
+</p>
+<p>
+   In most cases, though, changing a variable won't have any effect
+   until the settings file is saved and reloaded.  This is because
+   the system creates a number of objects <i>based on</i> the settings
+   information when it loads the settings, and then uses those separate
+   objects for ongoing operations.  For example, the system creates an
+   internal object to represent each player system at startup, and
+   uses these objects for operations related to the systems, such
+   as launching a game or finding its media files.  Changing the
+   settings variables for a player system thus has no immediate effect
+   on things like game launching or media file loading.
+</p>
+<p>
+   The way to force settings changes to take effect in the UI is
+   to save and reload the file.  Saving the file writes out all of
+   the in-memory changes to the file on disk, and reloading it
+   forces the system to re-create all of the internal objects that
+   it builds based on the settings data.  See the
+   <a href="#save"><b>save()</b></a> and <a href="#reload"><b>reload</b></a>
+   methods below for details.  Note that reloading has a number of
+   visible side effects, such as interrupting video playback, so
+   it's best to do this only in response to an explicit user action,
+   preferably one that's significant enough from a user's
+   perspective to justify a UI refresh.  For example, the
+   system reloads settings when the user clicks the Apply or OK
+   button in the settings dialog.
+</p>
+
+   
+
+<h2>Properties and methods</h2>
+
+<p>
+   <a name="filename"></a>
+   <b>optionSettings.filename:</b>  The name of the settings file,
+   with full directory path.
+</p>
+
+<p>
+   <a name="get"></a>
+   <b>optionSettings.get(<i>name</i>, <i>defaultValue</i>):</b>  Get the
+   value of the settings variable named by the string <i>name</i>.  Returns
+   the value as a string; this is the way it's actually stored in the
+   settings file, so this is the most direct, unprocessed way to access the
+   original value.  If the variable isn't defined in the settings,
+   <i>defaultValue</i> is returned instead.  (If you omit the <i>defaultValue</i>
+   argument, <b>undefined</b> is used instead per the normal Javascript rules.)
+</p>
+
+<p>
+   <a name="getBool"></a>
+   <b>optionSettings.getBool(<i>name</i>, <i>defaultValue</i>):</b>  Get the
+   value of the settings variable named by the string <i>name</i>, interpreting
+   it as a boolean (true/false) value and returning the result as a Javascript
+   boolean.  If the variable isn't defined in the settings,
+   <i>defaultValue</i> is returned instead.  (If you omit the <i>defaultValue</i>
+   argument, <b>undefined</b> is used instead per the normal Javascript rules.)
+</p>
+
+<p>
+   <a name="getFloat"></a>
+   <b>optionSettings.getFloat(<i>name</i>, <i>defaultValue</i>):</b>  Get the
+   value of the settings variable named by the string <i>name</i>, interpreting
+   it as a floating point value and returning the result as a Javascript number.
+   If the variable isn't defined in the settings, <i>defaultValue</i> is
+   returned instead.  (If you omit the <i>defaultValue</i> argument,
+   <b>undefined</b> is used instead per the normal Javascript rules.)
+</p>
+
+<p>
+   <a name="getInt"></a>
+   <b>optionSettings.getInt(<i>name</i>, <i>defaultValue</i>):</b>  Get the
+   value of the settings variable named by the string <i>name</i>, interpreting
+   it as an integer value and returning the result as a Javascript number.
+   If the variable isn't defined in the settings, <i>defaultValue</i> is
+   returned instead.  (If you omit the <i>defaultValue</i> argument,
+   <b>undefined</b> is used instead per the normal Javascript rules.)
+</p>
+
+<p>
+   <a name="getFloat"></a>
+   <b>optionSettings.getRect(<i>name</i>, <i>defaultValue</i>):</b>  Get the
+   value of the settings variable named by the string <i>name</i>, interpreting
+   it as a Windows RECT (rectangle) structure, and returning the result as
+   a Javascript object, with properties {<b>left:</b> <i>integer</i>,
+   <b>top:</b> <i>integer</i>, <b>right:</b> <i>integer</i>, <b>bottom:</b> <i>integer</i>}.
+   These properties give the of the top/left and bottom/right
+   corners of the rectangle, as integer pixel offsets (the origin of
+   the coordinate system depends on context, since the RECT structure
+   can be used to represent screen coordinates in pixels, window coordinates, etc).
+   If the variable isn't defined in the settings, <i>defaultValue</i> is
+   returned instead.  (If you omit the <i>defaultValue</i> argument,
+   <b>undefined</b> is used instead per the normal Javascript rules.)
+</p>
+
+<p>
+   <a name="isDirty"></a>
+   <b>optionSettings.isDirty():</b>  Returns true if the in-memory settings
+   have any unsaved changes, false if not.  Any change made through <b>set()</b>
+   updates the in-memory copy, but doesn't immediately write the changes to
+   the disk file.  The same applies to changes made by the system itself
+   that haven't been saved yet.  In either case, the internal "dirty"
+   flag is set to indicate that the in-memory copy has unsaved changes.
+   This method lets you test that flag to determine if any changes
+   have been made (from Javascript code or by the system) since the last
+   time the file was saved or loaded.
+</p>
+
+<p>
+   <a name="set"></a>
+   <b>optionSettings.reload():</b>  Reloads the settings file.  Any unsaved
+   changes to the in-memory copy are discarded, and replaced with the values
+   from the file on disk.  Note that the system automatically reloads the
+   settings file when the user makes changes through the options dialog.
+   Reloading the settings file has the side effect of reloading the XML
+   game database files and rescanning all system table folders, since
+   changes to the settings can affect which systems are active, which
+   folders are scanned for games, where the database files are located,
+   and where the media files are located.  Any media currently being
+   displayed are reloaded, so any playing video will be reloaded and
+   restarted.
+</p>
+<p>
+   If you want to force settings changes that you've made via <b>set()</b>
+   to take effect in the UI, save the updates calling <b>save()</b>, then
+   load the updated file via <b>reload()</b>.
+</p>
+
+<p>
+   <a name="set"></a>
+   <b>optionSettings.save():</b>  Saves the current in-memory settings
+   variables to the disk file, and clears the "dirty" flag.  Returns true
+   if the file write operation was successful, false if an error occurred.
+   (The system itself doesn't show any messages if an error occurs; it
+   just returns that information to you via the result value.)
+</p>
+
+<p>
+   <a name="set"></a>
+   <b>optionSettings.set(<i>name</i>, <i>value</i>):</b>  Set the value
+   of the settings variable named by the string <i>name</i> to the
+   value given by <i>value</i>.  <i>value</i> can be one of the following
+   types:
+</p>
+<ul>
+   <li>undefined: the variable is erased from the settings
+   <li>null: the variable is erased from the settings
+   <li>string: the value is stored exactly as given
+   <li>number: the value is stored as a string representation of its
+   numeric value, as a decimal integer or decimal floating point value
+   <li>boolean: the value is stored as the string "0" or "1"
+   <li>object: if the value looks like a RECT struct (with properties
+   left, top, right, and bottom), it's stored as "left,top,right,bottom",
+   with the decimal integer values of each coordinate; otherwise, an error
+   is thrown
+</ul>
+
+</body>
+</html>

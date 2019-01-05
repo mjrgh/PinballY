@@ -847,10 +847,31 @@ this.FilterSelectEvent = class FilterSelectEvent extends Event
     }
 };
 
-// Settings change event
-this.SettingsChangeEvent = class SettingsChangeEvent extends Event
+// Option settings events
+this.SettingsEvent = class SettingsEvent extends Event
 {
-    constructor() { super("settingschange", { cancelable: false }); }
+    constructor(type) { super(type, { cancelable: false }); }
+};
+
+// Settings reload event - fired after settings are reloaded
+this.SettingsReloadEvent = class SettingsReloadEvent extends SettingsEvent
+{
+    constructor() { super("settingsreload"); }
+};
+
+// Settings Pre-Save - fired just before the settings file is saved
+this.SettingsPreSaveEvent = class SettingsPreSaveEvent extends SettingsEvent
+{
+    constructor() { super("settingspresave"); }
+};
+
+// Settings Post-Save - fired after the settings have been saved
+this.SettingsPostSaveEvent = class SettingsPostSaveEvent extends SettingsEvent
+{
+    constructor(succeeded) {
+        super("settingspostsave");
+        this.succeeded = succeeded;
+    }
 };
 
 
@@ -859,7 +880,7 @@ this.SettingsChangeEvent = class SettingsChangeEvent extends Event
 // This object represents the current program settings.  Properties and
 // methods are populated by the system.
 //
-this.optionSettings = { };
+this.optionSettings = new EventTarget();
 
 
 // ------------------------------------------------------------------------

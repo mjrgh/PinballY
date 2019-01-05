@@ -273,6 +273,10 @@ bool ConfigManager::LoadFrom(const TCHAR *filename)
 
 bool ConfigManager::Save(bool silent)
 {
+	// notify subscribers
+	for (auto s : subscribers)
+		s->OnConfigPreSave();
+
 	// set the update timestamp in the file
 	TCHAR date[20], time[20];;
 	GetDateFormatEx(LOCALE_NAME_INVARIANT, 0, 0, _T("ddd dd MMM yyyy"), date, _countof(date), 0);
@@ -317,6 +321,10 @@ bool ConfigManager::Save(bool silent)
 		err = errno;
 	}
 
+	// notify subscribers
+	for (auto s : subscribers)
+		s->OnConfigPostSave(err == 0);
+
 	// check for error
 	if (err != 0)
 	{
@@ -335,10 +343,6 @@ bool ConfigManager::Save(bool silent)
 	{
 		// success - clear the dirty flag
 		dirty = false;
-
-		// notify subscribers
-		for (auto s : subscribers)
-			s->OnConfigSave();
 
 		// declare victory
 		return true;

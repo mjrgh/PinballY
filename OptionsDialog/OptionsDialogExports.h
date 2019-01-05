@@ -47,7 +47,7 @@ extern "C" DWORD WINAPI GetOptionsDialogVersion();
 // the dialog just before it was closed.  The host can use this to
 // save the position of the dialog to restore later.
 //
-typedef std::function<void()> ConfigSaveCallback;
+typedef std::function<void(bool succeeded)> ConfigSaveCallback;
 typedef std::function<void(HWND hwnd)> InitializeDialogPositionCallback;
 typedef std::function<bool()> SetUpAdminAutoRunCallback;
 extern "C" void WINAPI ShowOptionsDialog(

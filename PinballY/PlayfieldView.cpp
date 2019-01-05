@@ -501,7 +501,9 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsWheelModeEvent, "WheelModeEvent")
 				|| !GetObj(jsPopupOpenEvent, "PopupOpenEvent")
 				|| !GetObj(jsPopupCloseEvent, "PopupCloseEvent")
-				|| !GetObj(jsSettingsChangeEvent, "SettingsChangeEvent")
+				|| !GetObj(jsSettingsReloadEvent, "SettingsReloadEvent")
+				|| !GetObj(jsSettingsPreSaveEvent, "SettingsPreSaveEvent")
+				|| !GetObj(jsSettingsPostSaveEvent, "SettingsPostSaveEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -569,7 +571,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "set", &PlayfieldView::JsSettingsSet, this, eh)
 				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "isDirty", &PlayfieldView::JsSettingsIsDirty, this, eh)
 				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "save", &PlayfieldView::JsSettingsSave, this, eh)
-				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "reload", &PlayfieldView::JsSettingsReload, this, eh))
+				|| !js->DefineObjPropFunc(jsOptionSettings, "optionSettings", "reload", &PlayfieldView::JsSettingsReload, this, eh)
+				|| !js->SetProp(jsOptionSettings, "filename", ConfigManager::GetInstance()->GetFilename()))
 				return;
 
 			// set up mainWindow methods
@@ -8269,25 +8272,30 @@ void PlayfieldView::StopAutoRepeat()
 	}
 }
 
-void PlayfieldView::ReloadSettings()
-{
-	// reload the config file 
-	ConfigManager::GetInstance()->Reload();
-
-	// adjust internal variables for the config change
-	OnConfigChange();
-
-	// adjust application-level variables as well
-	Application::Get()->OnConfigChange();
-
-	// fire a config change event
-	FireConfigChangeEvent();
-}
-
-void PlayfieldView::FireConfigChangeEvent()
+void PlayfieldView::FireConfigEvent(JsValueRef type, ...)
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
-		js->FireEvent(jsMainWindow, jsSettingsChangeEvent);
+	{
+		// set up to read varargs
+		va_list va;
+		va_start(va, type);
+
+		// read extra args for certain events
+		if (type == jsSettingsPostSaveEvent)
+		{
+			// postSaveEvent(bool succeeded)
+			auto succeeded = va_arg(va, bool);
+			js->FireEvent(jsOptionSettings, type, succeeded);
+		}
+		else
+		{
+			// others have no extra arguments
+			js->FireEvent(jsOptionSettings, type);
+		}
+
+		// done with varargs
+		va_end(va);
+	}
 }
 
 bool PlayfieldView::FireFilterSelectEvent(GameListFilter *filter)
@@ -8299,6 +8307,16 @@ bool PlayfieldView::FireFilterSelectEvent(GameListFilter *filter)
 			ret = js->FireEvent(jsGameList, jsFilterSelectEvent, filter->GetFilterId());
 	}
 	return ret;
+}
+
+void PlayfieldView::OnConfigPreSave()
+{
+	FireConfigEvent(jsSettingsPreSaveEvent);
+}
+
+void PlayfieldView::OnConfigPostSave(bool succeeded)
+{
+	FireConfigEvent(jsSettingsPostSaveEvent, succeeded);
 }
 
 void PlayfieldView::OnConfigChange()
@@ -8486,6 +8504,9 @@ void PlayfieldView::OnConfigChange()
 	infoBoxOpts.tableTypeAbbr = cfg->GetBool(ConfigVars::InfoBoxTableTypeAbbr, false);
 	infoBoxOpts.rating = cfg->GetBool(ConfigVars::InfoBoxRating, true);
 	infoBoxOpts.tableFile = cfg->GetBool(ConfigVars::InfoBoxTableFile, false);
+
+	// notify Javascript
+	FireConfigEvent(jsSettingsReloadEvent);
 }
 
 void PlayfieldView::AddJsCommand(int unit, int button, const KeyCommand &cmd)
@@ -13491,7 +13512,8 @@ void PlayfieldView::ShowSettingsDialog()
 		// that it uses the byte-for-byte identical memory layout.  Using the
 		// file to mediate the exchange insulates us from such dependencies.
 		// It's less efficient than passing the config object in memory, but
-		// in practice the time needed to read and write the file is trivial
+		// in practice the time needed to read and write the file is trivial,
+		// so there's no reason not to go through the file.
 		Application::SaveFiles();
 
 		// disable windows
@@ -13535,7 +13557,7 @@ void PlayfieldView::ShowSettingsDialog()
 			// Run the dialog.   Provide a callback that reloads the config if the
 			// dialog saves changes.
 			showOptionsDialog(
-				[this]() { Application::Get()->ReloadConfig(); },
+				[this](bool succeeded) { if (succeeded) Application::Get()->ReloadConfig(); },
 				[this](HWND hWnd) { Application::Get()->InitDialogPos(hWnd, ConfigVars::OptsDialogPos); },
 				Application::Get()->IsAdminHostAvailable(),
 				setUpAdminAutoRun,

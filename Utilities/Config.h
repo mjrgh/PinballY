@@ -128,6 +128,9 @@ public:
 	// though we had an empty file.
 	bool Load(const ConfigFileDesc &fileDesc);
 
+	// Get the filename
+	const TCHAR *GetFilename() const { return filename.c_str(); }
+
 	// Reload the current configuration file.  Returns true if the config
 	// file exists, false if not.  A false return isn't an error; it simply
 	// means that we're using defaults for all settings.
@@ -156,8 +159,9 @@ public:
 		// Configuration file has been reloaded
 		virtual void OnConfigReload() { }
 
-		// Configuration file has been saved
-		virtual void OnConfigSave() { }
+		// Configuration file pre/post save events
+		virtual void OnConfigPreSave() { }
+		virtual void OnConfigPostSave(bool succeeded) { }
 
 		virtual ~Subscriber()
 		{
