@@ -490,7 +490,14 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
 				|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
 				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
-				|| !GetObj(jsLaunchEvent, "LaunchEvent")
+				|| !GetObj(jsPreLaunchEvent, "PreLaunchEvent")
+				|| !GetObj(jsLaunchErrorEvent, "LaunchErrorEvent")
+				|| !GetObj(jsGameStartedEvent, "GameStartedEvent")
+				|| !GetObj(jsGameOverEvent, "GameOverEvent")
+				|| !GetObj(jsRunBeforePreEvent, "RunBeforePreEvent")
+				|| !GetObj(jsRunBeforeEvent, "RunBeforeEvent")
+				|| !GetObj(jsRunAfterEvent, "RunAfterEvent")
+				|| !GetObj(jsRunAfterPostEvent, "RunAfterPostEvent")
 				|| !GetObj(jsGameSelectEvent, "GameSelectEvent")
 				|| !GetObj(jsFilterSelectEvent, "FilterSelectEvent")
 				|| !GetObj(jsCommandEvent, "CommandEvent")
@@ -3921,8 +3928,34 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 
 void PlayfieldView::LaunchQueuedGame()
 {
-	// get the next queued game, if available
-	auto game = Application::Get()->GetNextQueuedGame();
+	// Find the next launchable game in the queue.  Keep going until we
+	// find a game we can launch, or we exhaust the queue.
+	GameListItem *game = nullptr;
+	for (;;)
+	{
+		// Get the next queued game.  If the queue is empty, we're done.
+		Application::QueuedGameInfo info;
+		if (!Application::Get()->GetNextQueuedGame(info))
+			return;
+
+		// Fire a Javascript pre-launch event, to give user scripts
+		// a chance to reject the launch.  If the event isn't canceled
+		// (that is, FireLaunchEvent returns true), we can proceed with
+		// the launch.
+		game = GameList::Get()->GetByInternalID(info.gameId);
+		if (game != nullptr && FireLaunchEvent(jsPreLaunchEvent, game, info.cmd))
+		{
+			// cleared for launch - stop searching and go launch the 
+			// current head of the queue
+			break;
+		}
+		else
+		{
+			// Javascript canceled the launch.  Discard this queued
+			// launch request and continue with the next queued item.
+			Application::Get()->RemoveNextQueuedGame();
+		}
+	}
 
 	// Before launching, shut down our DOF interface, so that the game
 	// can take it over while running.
@@ -3974,6 +4007,27 @@ void PlayfieldView::LaunchQueuedGame()
 		// launch failed - reinstate the DOF client
 		SetTimer(hWnd, restoreDOFAndDMDTimerID, 100, NULL);
 	}
+}
+
+bool PlayfieldView::FireLaunchEvent(JsValueRef type, LONG gameId, int cmd, const TCHAR *errorMessage)
+{
+	bool ret = true;
+	if (auto game = GameList::Get()->GetByInternalID(gameId); game != nullptr)
+		ret = FireLaunchEvent(type, game, cmd, errorMessage);
+
+	return ret;
+}
+
+bool PlayfieldView::FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		JsValueRef errorVal = errorMessage != nullptr ? js->NativeToJs(errorMessage) : js->GetUndefVal();
+		ret = js->FireEvent(jsMainWindow, type, BuildJsGameInfo(game), cmd, errorVal);
+	}
+
+	return ret;
 }
 
 void PlayfieldView::ResetGameTimeout()
@@ -5977,17 +6031,50 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	switch (msg)
 	{
 	case PFVMsgGameRunBefore:
-		// The RunBeforePre command has finished, and we're about to run
-		// the RunBefore command.  Show the "Launching Game" message while
-		// this runs and the game loads.
+		// The RunBeforePre external command has finished.  Fire the Javascript
+		// "runbeforepre" event, show the "Loading" message, and fire the 
+		// Javascript "runbefore" event.
+
+		// presume that we'll return TRUE in the LRESULT to continue the launch
+		curMsg->lResult = TRUE;
+	
+		// fire Javascript "runbeforepre"; abort the launch if the event is canceled
+		if (!FireLaunchEvent(jsRunBeforePreEvent, static_cast<LONG>(lParam), static_cast<int>(wParam)))
+		{
+			curMsg->lResult = FALSE;
+			return true;
+		}
+		
+		// Show the "Launching Game" message while the game is loading, and
+		// while we're running the RunBefore javascript and external commands.
 		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_LOADING : IDS_GAME_LOADING), 48);
+
+		// fire Javascript "runbefore"
+		if (!FireLaunchEvent(jsRunBeforeEvent, static_cast<LONG>(lParam), static_cast<int>(wParam)))
+		{
+			curMsg->lResult = FALSE;
+			return true;
+		}
+
+		// done
 		return true;
 
 	case PFVMsgGameRunAfter:
-		// We're finished the RunAfter command, and we're about to run the
-		// RunAfterPost command.  Switch to a blank screen for the remainder
-		// of running game mode.
+		// We're finished the RunAfter external command.  Fire the Javascript
+		// "runafter" event, clear the "Exiting Game" message, and fire the
+		// Javascript "runafterpost" event.  These Javascript events aren't 
+		// cancelable.
+
+		// Fire "runafter"
+		FireLaunchEvent(jsRunAfterEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+
+		// clear the screen
 		ShowRunningGameMessage(nullptr, 0);
+
+		// fire "runafter post"
+		FireLaunchEvent(jsRunAfterPostEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+
+		// done
 		return true;
 
 	case PFVMsgGameLoaded:
@@ -6006,6 +6093,9 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// set running game mode in the other windows
 		Application::Get()->BeginRunningGameMode();
 
+		// Fire the Javascript "gamestarted" event
+		FireLaunchEvent(jsGameStartedEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+
 		// We're presumably running in the background at this point, since
 		// the game player app should be in front now, so we're not doing
 		// the usual D3D redraw-on-idle that we do in the foreground.  We
@@ -6023,9 +6113,14 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// clean up the thread monitor in the application
 		Application::Get()->CleanGameMonitor();
 
+		// Fire the Javascript "gamestarted" event
+		FireLaunchEvent(jsGameOverEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+
 		// launch the next queued game, if in batch capture mode
 		if (batchCaptureMode.active)
 			PostMessage(WM_COMMAND, ID_BATCH_CAPTURE_NEXT_GAME);
+
+		// handled
 		return true;
 
 	case PFVMsgCaptureDone:
@@ -6034,9 +6129,23 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		return true;
 
 	case PFVMsgGameLaunchError:
-		// game launch failed - show an error and exit running game mode
-		ShowSysError(LoadStringT(IDS_ERR_LAUNCHGAME), (const TCHAR *)lParam);
-		EndRunningGameMode();
+		// game launch failed
+		{
+			// get the error descriptor
+			auto report = reinterpret_cast<const LaunchErrorReport*>(lParam);
+
+			// Notify javascript.  If Javascript cancels the event, it means that we should
+			// skip showing the error message.
+			if (FireLaunchEvent(jsLaunchErrorEvent, report->gameInternalID, report->launchCmd, report->errorMessage))
+			{
+				// show the error
+				ShowSysError(LoadStringT(IDS_ERR_LAUNCHGAME), report->errorMessage);
+			}
+
+			// exit running game mode
+			EndRunningGameMode();
+
+		}
 		return true;
 
 	case PFVMsgShowError:

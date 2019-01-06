@@ -169,10 +169,24 @@ public:
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
 
+	// Game launch error report, for PFVMsgGameLaunchError
+	struct LaunchErrorReport
+	{
+		LaunchErrorReport(int launchCmd, LONG gameInternalID, const TCHAR *errorMessage) :
+			launchCmd(launchCmd),
+			gameInternalID(gameInternalID),
+			errorMessage(errorMessage)
+		{}
+
+		int launchCmd;
+		LONG gameInternalID;
+		const TCHAR *errorMessage;
+	};
+
 	// Capture Done report, for PFVMsgCaptureDone
 	struct CaptureDoneReport
 	{
-		CaptureDoneReport(const LONG gameInternalID, bool ok, bool cancel,
+		CaptureDoneReport(LONG gameInternalID, bool ok, bool cancel,
 			int overallStatusMsgId, CapturingErrorHandler &statusList,
 			int nMediaItemsAttempted, int nMediaItemsOk) :
 			gameId(gameInternalID), 
@@ -2173,7 +2187,14 @@ protected:
 	JsValueRef jsAttractModeEndEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
-	JsValueRef jsLaunchEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsPreLaunchEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsLaunchErrorEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsRunBeforePreEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsRunBeforeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsRunAfterEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsRunAfterPostEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsGameStartedEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsGameOverEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsSettingsReloadEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsSettingsPreSaveEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsSettingsPostSaveEvent = JS_INVALID_REFERENCE;
@@ -2197,6 +2218,8 @@ protected:
 	void FireGameSelectEvent(GameListItem *game);
 	bool FireFilterSelectEvent(GameListFilter *filter);
 	void FireConfigEvent(JsValueRef type, ...);
+	bool FireLaunchEvent(JsValueRef type, LONG gameId, int cmd, const TCHAR *errorMessage = nullptr);
+	bool FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode

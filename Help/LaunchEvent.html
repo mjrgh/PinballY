@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>LaunchEvent</h1>
+
+<p>
+   Events of this class are fired to track the progress of a game session
+   when the user launches a table.  This event has the following subtypes:
+</p>
+<ul>
+   <li><b>prelaunch:</b>  Fired just before a game is about to be launched.
+   This event occurs before any part of the launch process begins, so
+   you can cancel the event (via <a href="Event.html#preventDefault">preventDefault()</a>)
+   to prevent the launch.
+
+   <li><b>gamestarted:</b>  Fired when PinballY detects that the launched
+   game has successfully started and opened a window.  The exact timing of
+   the event isn't predictable, since the game program runs as a separate
+   Windows process.  You can count on the event firing some time after
+   the game has opened a window, but you shouldn't assume that the event
+   fires before any particular point in the game's startup.  This event
+   can't be canceled, since it's fired after the fact.
+
+   <li><b>gameover:</b>  Fired when PinballY detects that the launched
+   game has exited, meaning that its Windows process has exited.  Since
+   the game runs as a separate process, the exact timing of the event isn't
+   perfectly predictable; it's only safe to assume that it happens some
+   time after the other process has exited.  This event can't be canceled,
+   since it's fired after the fact.  (If you want to prevent the "Kill
+   Game" command from stopping the game, you can intervene in the
+   processing for that command via the <a href="CommandEvent.html">command</a>
+   event.  For obvious reasons, Javascript code can't intervene in
+   other, external ways that the game might exit, such as
+   the user closing the game's window with the mouse.)
+
+   <li><b>launcherror:</b>  Fired if a game launch fails.  This event
+   is mutually exclusive with <b>gamestarted</b> and <b>gameover</b>,
+   since those events will only be fired if the game successfully
+   starts running; a <b>launcherror</b> event means that the launch
+   attempt was unsuccessful, so no further action on the launch will
+   occur.  You can cancel this event to prevent the error message
+   from being displayed (canceling it has no other effect, though,
+   as the event fires after the launch attempt has already failed).
+
+   <li><b>runafter:</b>  Fired after the game has exited, with the
+   "Game Exiting" message displayed in the main PinballY window.
+   This runs just after the external "Run After" command defined for
+   the system runs.  This event can't be canceled.
+
+   <li><b>runafterpost:</b>  Fired after the <b>runafter</b> event
+   completes and the main PinballY window is blanked.  This event
+   cannot be canceled.
+
+   <li><b>runbefore:</b>  Fired just before the game program is
+   launched, with the main PinballY window displaying the "Loading
+   Game" message.  Canceling this event aborts the launch.
+
+   <li><b>runbeforepre:</b>  Fired before the <b>runbefore</b>
+   event, with the main PinballY window showing a blank, black
+   background.  Canceling this event aborts the launch.
+</ul>
+
+<p>
+   The <b>runbeforepre</b>, <b>runbefore</b>, <b>runafter</b>, and
+   <b>runafterpost</b> events run in that order, and correspond to the
+   similarly named external commands that can be set up for each system
+   in the options.  The separate "pre" and "post" events are provided
+   for finer control over the display appearance during each step.
+   During the <b>runbeforepre</b> and <b>runafterpost</b> commands, the
+   main PinballY window is blank, showing just a uniform black
+   background.  This makes it a good time to perform any changes
+   to the physical monitor layout, such as rotating the monitors or
+   changing the screen resolutions, since the blank window won't
+   show any obvious visual effect and thus will help achieve
+   a visually seamless transition to the new layout.
+</p>
+<p>
+   The full order of the events, including the external commands, is
+   as follows:
+</p>
+<ul class="compact">
+   <li><b>prelaunch</b> fires
+   <li>The main PinballY window is blanked
+   <li>The game system's external "Run Before Pre" command runs
+   <li><b>runbeforepre</b> fires
+   <li>The "Loading Game" message is displayed in the main window
+   <li><b>runbefore</b> fires
+   <li>The game system's external "Run Before" command runs
+   <li>The game launches
+   <li><b>gamestarted</b> fires
+   <li>The game runs until the user quits
+   <li>The "Game Exiting" message is displayed in the main window
+   <li>The game system's external "Run After" command runs
+   <li><b>runafter</b> fires
+   <li>The main window is blanked
+   <li><b>runafterpost</b> fires
+   <li>The game system's external "Run After Post" command runs
+   <li><b>gameover</b> fires
+</ul>
+
+<h2>Properties</h2>
+
+<p>
+   This event has the standard event properties and methods (see the
+   <a href="Event.html">Event</a> class), plus the following:
+</p>
+
+<ul>
+
+   <li><b>command:</b>  The <a href="Commands.html">command ID</a> of the
+   command used to launch the game, typically command.PlayGame or
+   command.CaptureGo.
+
+   <li><b>error:</b>  For a <b>launcherror</b> event only, this is a string
+   describing the error.  This message is normally displayed to the user
+   via a popup message, but you can prevent that by canceling the event.
+
+   <li><b>game:</b>  A <a href="GameInfo.html">GameInfo</a> object describing
+   the game being launched.
+
+</ul>
+
+</body>
+</html>

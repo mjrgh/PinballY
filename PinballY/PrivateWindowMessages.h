@@ -37,14 +37,14 @@ const UINT BWMsgUpdateMenu = WM_USER + 100;			// update menu commands; wparam=HM
 const UINT BWMsgCallLambda = WM_USER + 101;         // call a lamdba on the window thread (see CallOnMainThread() in BaseWin.h)
 
 // PlayfieldView messages
-const UINT PFVMsgGameLoaded = WM_USER + 200;        // WPARAM = ID_xxx launch command
-const UINT PFVMsgGameOver = WM_USER + 201;          // WPARAM = launch command
-const UINT PFVMsgGameLaunchError = WM_USER + 202;   // WPARAM = launch command error
+const UINT PFVMsgGameLoaded = WM_USER + 200;        // WPARAM = launch command, LPARAM = game internal ID
+const UINT PFVMsgGameOver = WM_USER + 201;          // WPARAM = launch command, LPARAM = game internal ID
+const UINT PFVMsgGameLaunchError = WM_USER + 202;   // LPARAM = LONG_PTR(&PlayfieldView::LaunchErrorReport)
 const UINT PFVMsgShowError = WM_USER + 203;			// LPARAM = const PFVMsgShowErrorParams *params
 const UINT PFVMsgShowSysError = WM_USER + 204;		// WPARAM = TCHAR *friendly, LPARAM = const TCHAR *details
 const UINT PFVMsgPlayElevReqd = WM_USER + 205;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
-const UINT PFVMsgGameRunBefore = WM_USER + 206;     // WPARAM = launch command
-const UINT PFVMsgGameRunAfter = WM_USER + 207;      // WPARAM = launch command
+const UINT PFVMsgGameRunBefore = WM_USER + 206;     // WPARAM = launch command, LPARAM = game internal ID
+const UINT PFVMsgGameRunAfter = WM_USER + 207;      // WPARAM = launch command, LPARAM = game internal ID
 const UINT PFVMsgCaptureDone = WM_USER + 208;       // WPARAM = LONG_PTR(&PlayfieldView::CaptureDoneReport)
 const UINT PFVMsgManualGo = WM_USER + 209;          // manual start/stop event from Admin Host
 const UINT PFVMsgJsDebugMessage = WM_USER + 210;    // Javascript debug request received from debugger UI

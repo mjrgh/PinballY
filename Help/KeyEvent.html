@@ -13,8 +13,17 @@
 <h1>KeyEvent</h1>
 
 <p>
-   This is the Event subclass that represents keyboard events.  There
-   are four key event subtypes:
+   This Event subclass represents keyboard events.  These events
+   let you know when the user presses and releases keys on the keyboard,
+   and when keys auto-repeat when being held down.  These are
+   essentially the unfiltered keyboard events directly from Windows,
+   and they're passed to the Javascript event listeners before PinballY
+   itself processes the keystrokes, so you can use these events to
+   change the way PinballY sees and responds to key presses.
+</p>
+
+<p>
+   The basic keyboard event type comes in the following subtypes:
 </p>
 <ul>
    <a name="keydown"></a>
@@ -39,6 +48,15 @@
 <p>
    Keyboard events are always fired on the <a href="MainWindowObject.html">mainWindow</a>
    object.
+</p>
+
+<p>
+   Note that key events are specifically for keyboard keys.  Joystick
+   button presses generate a similar but separate set of events, since
+   joystick buttons are described by somewhat different metadata from
+   that used for keyboard keys.
+   See <a href="JoystickButtonEvent.html">JoystickButtonEvent</a> for
+   details on the joystick events.
 </p>
 
 <h2>Properties</h2>

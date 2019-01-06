@@ -708,15 +708,55 @@ this.WheelModeEvent = class WheelModeEvent extends Event
     constructor() { super("wheelmode", { cancelable: false }); }
 };
 
-// Game launch event.  This is fired on the main application object
-// when a game is about to be launched.
+// Game launch events
 this.LaunchEvent = class LaunchEvent extends Event
 {
-    constructor()
+    constructor(type, cancelable, game, command)
     {
-        super("launch", { cancelable: true });
+        super(type, { cancelable: cancelable });
+        this.game = game;
+        this.command = command;
     }
-}
+};
+
+this.PreLaunchEvent = class PreLaunchEvent extends LaunchEvent
+{
+    constructor(game, command) { super("prelaunch", true, game, command); }
+};
+
+this.RunBeforePreEvent = class RunBeforePreEvent extends LaunchEvent
+{
+    constructor(game, command) { super("runbeforepre", true, game, command); }
+};
+this.RunBeforeEvent = class RunBeforeEvent extends LaunchEvent
+{
+    constructor(game, command) { super("runbefore", true, game, command); }
+};
+this.RunAfterEvent = class RunAfterEvent extends LaunchEvent
+{
+    constructor(game, command) { super("runafter", false, game, command); }
+};
+this.RunAfterPostEvent = class RunAfterPostEvent extends LaunchEvent
+{
+    constructor(game, command) { super("runafterpost", false, game, command); }
+};
+this.GameStartedEvent = class GameStartedEvent extends LaunchEvent
+{
+    constructor(game, command) { super("gamestarted", false, game, command); }
+};
+this.GameOverEvent = class GameOverEvent extends LaunchEvent
+{
+    constructor(game, command) { super("gameover", false, game, command); }
+};
+this.LaunchErrorEvent = class LaunchErrorEvent extends LaunchEvent
+{
+    constructor(game, command, error)
+    {
+        super("launcherror", true, game, command);
+        this.error = error;
+    }
+};
+
 
 // Command event.  This represents a specific command action to be
 // performed in response to a user button or menu input, such as "play
@@ -754,7 +794,7 @@ this.command =
 
     name: function(id)
     {
-        let n = nameAndIndex(id);
+        let n = this.nameAndIndex(id);
         return n.index ? n.name + "+" + n.index : n.name;
     },
 

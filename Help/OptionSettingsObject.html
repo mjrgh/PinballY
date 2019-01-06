@@ -80,8 +80,8 @@
    prefixes for related variables (e.g., all of the capture-related
    settings start with "Capture."), but be aware that there's no actual
    formal structure to this.  The "." characters in the dotted names are
-   just parts of the names, the same as any alphabetic characters would
-   be, and aren't some kind of namespace qualifier syntax.
+   just parts of the names, not some kind of special namespace
+   qualifiers.
 </p>
 <p>
    If you add new custom variables of your own, it's a good idea to
@@ -135,15 +135,24 @@
 
 <p>
    In some cases, changing the value of a system-defined setting variable
-   will cause an immediate effect in the UI, because the system refers
+   will have an immediate effect in the UI, because the system refers
    directly to the in-memory settings variables for some purposes.
 </p>
 <p>
    In most cases, though, changing a variable won't have any effect
    until the settings file is saved and reloaded.  This is because
-   the system creates a number of objects <i>based on</i> the settings
+   the system creates a number of objects <i>derived from</i> the settings
    information when it loads the settings, and then uses those separate
-   objects for ongoing operations.  For example, the system creates an
+   objects for ongoing operations.  It doesn't refer back to the
+   original settings variables, but rather uses those separate
+   objects, which only have snapshots of the settings data from
+   the time they were created.  This separate, derived layer of
+   settings data is needed for efficiency in many cases, because
+   significant processing of the raw settings data is needed before
+   it can be used.
+</p>
+<p>
+   For example, the program creates an
    internal object to represent each player system at startup, and
    uses these objects for operations related to the systems, such
    as launching a game or finding its media files.  Changing the
@@ -151,19 +160,28 @@
    on things like game launching or media file loading.
 </p>
 <p>
-   The way to force settings changes to take effect in the UI is
-   to save and reload the file.  Saving the file writes out all of
-   the in-memory changes to the file on disk, and reloading it
-   forces the system to re-create all of the internal objects that
-   it builds based on the settings data.  See the
-   <a href="#save"><b>save()</b></a> and <a href="#reload"><b>reload</b></a>
-   methods below for details.  Note that reloading has a number of
-   visible side effects, such as interrupting video playback, so
-   it's best to do this only in response to an explicit user action,
-   preferably one that's significant enough from a user's
-   perspective to justify a UI refresh.  For example, the
-   system reloads settings when the user clicks the Apply or OK
-   button in the settings dialog.
+   Fortunately, the program doesn't require a full "reboot" to
+   get settings changes to take effect.  It's not necessary to exit and
+   restart the program.  Instead, you can dynamically reload the
+   settings at any time.  This deletes and re-creates all of the
+   derived objects, updating their snapshots of the settings data
+   to something more modern.
+</p>
+<p>
+   The procedure to do this is simple: call
+   <a href="#save"><b>save()</b></a> to write out the current
+   in-memory settings, and then call <a href="#reload"><b>reload()</b></a>
+   to load the file and re-create all derived objects.
+</p>
+<p>
+   Saving and reloading is usually quite fast (it only takes a few
+   milliseconds), but it has a number of visible side effects in the UI,
+   such as interrupting video playback.  So it shouldn't be undertaken
+   lightly.  It's best to do this only in response to a suitable,
+   explicit user action, preferably one that's significant enough
+   from a user's perspective to justify a UI refresh.  For reference,
+   the only time the program itself reloads the settings is when the
+   user clicks the Apply or OK button in the settings dialog.
 </p>
 
    
@@ -284,16 +302,34 @@
 </p>
 <ul>
    <li>undefined: the variable is erased from the settings
+
    <li>null: the variable is erased from the settings
+
    <li>string: the value is stored exactly as given
+
    <li>number: the value is stored as a string representation of its
-   numeric value, as a decimal integer or decimal floating point value
+   numeric value, either as a decimal integer (if it has no fractional
+   part and it's in range for a 32-bit signed integer) or a decimal floating
+   point value (if it doesn't qualify for the integer treatment)
+
    <li>boolean: the value is stored as the string "0" or "1"
+
    <li>object: if the value looks like a RECT struct (with properties
    left, top, right, and bottom), it's stored as "left,top,right,bottom",
    with the decimal integer values of each coordinate; otherwise, an error
    is thrown
 </ul>
+<p>
+   Note that if you want to precisely control the representation stored
+   in the file for a non-string type, you can simply convert the value
+   to a string yourself in Javascript code using whatever formatting rules
+   you want to apply, and pass the resulting string to set() to save in
+   the file.  Everything ends up a string anyway, so you don't give up
+   anything by handling the conversion to string yourself; the system's
+   type converters are just there as a convenience so that you don't
+   have to do the conversion yourself in cases where the standard
+   conversion is satisfactory.
+</p>
 
 </body>
 </html>

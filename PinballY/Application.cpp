@@ -1239,17 +1239,23 @@ void Application::QueueLaunch(int cmd, GameListItem *game, GameSystem *system,
 	queuedLaunches.emplace_back(mon.Detach());
 }
 
-GameListItem *Application::GetNextQueuedGame() const
+bool Application::GetNextQueuedGame(QueuedGameInfo &info) const
 {
 	// if the queue is empty, there's no game
 	if (queuedLaunches.size() == 0)
-		return nullptr;
+		return false;
 
 	// get the next item
 	auto &q = queuedLaunches.front();
 
-	// look up the game from the stored ID
-	return GameList::Get()->GetByInternalID(q->gameId);
+	// return the info struct
+	info = { q->cmd, q->gameId };
+	return true;
+}
+
+void Application::RemoveNextQueuedGame()
+{
+	queuedLaunches.pop_front();
 }
 
 TSTRING Application::ExpandGameSysVars(TSTRING &str, GameSystem *system, GameListItem *game)
@@ -1875,7 +1881,7 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// Regardless of how we exited, tell the main window that the game
 	// monitor thread is exiting.
 	if (self->playfieldView != 0)
-		self->playfieldView->SendMessage(PFVMsgGameOver);
+		self->playfieldView->SendMessage(PFVMsgGameOver, static_cast<WPARAM>(self->cmd), static_cast<WPARAM>(self->gameId));
 
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
@@ -2403,7 +2409,7 @@ DWORD Application::GameMonitorThread::Main()
 		taskbarHider.reset(new TaskbarHider());
 
 	// Once RunBeforePre runs, we wish to guarantee that RunAfterPost runs,
-	// so that it can undo the RunBeforePre operation.  Instantate the 
+	// so that it can undo the RunBeforePre operation.  Instantiate the 
 	// RunAfterPost command, which will guarantee execution if we exit
 	// prematurely due to another error in the course of the game launch.
 	//
@@ -2427,9 +2433,11 @@ DWORD Application::GameMonitorThread::Main()
 	if (!runBeforePreCmd.Run())
 		return 0;
 
-	// Display the "Launching Game" message in the main window
-	if (playfieldView != nullptr)
-		playfieldView->SendMessage(PFVMsgGameRunBefore, (WPARAM)cmd);
+	// Display the "Launching Game" message in the main window, and run
+	// Javascript scripts.  Stop if the Javascript handlers cancel the launch.
+	if (playfieldView != nullptr
+		&& !playfieldView->SendMessage(PFVMsgGameRunBefore, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId)))
+		return 0;
 
 	// Set up guaranteed execution for the RunAfter command, now that
 	// we're about to fire RunBefore.
@@ -2662,7 +2670,10 @@ DWORD Application::GameMonitorThread::Main()
 
 				// send the error to the playfield view for display
 				if (playfieldView != nullptr)
-					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(errDetails.c_str()));
+				{
+					PlayfieldView::LaunchErrorReport report(cmd, gameId, errDetails.c_str());
+					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
+				}
 
 				// return failure
 				return 0;
@@ -2693,9 +2704,10 @@ DWORD Application::GameMonitorThread::Main()
 
 				default:
 					// use the generic error message for anything else
-					playfieldView->SendMessage(PFVMsgGameLaunchError, 
-						static_cast<WPARAM>(gameId),
-						reinterpret_cast<LPARAM>(sysErr.Get()));
+					{
+						PlayfieldView::LaunchErrorReport report(cmd, gameId, sysErr.Get());
+						playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
+					}
 					break;
 				}
 			}
@@ -2758,8 +2770,11 @@ DWORD Application::GameMonitorThread::Main()
 
 				// display it in the playfield view if possible
 				if (playfieldView != nullptr)
-					playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
-					(LPARAM)MsgFmt(_T("Error getting process snapshot: %s"), sysErr.Get()).Get());
+				{
+					MsgFmt msg(_T("Error getting process snapshot: %s"), sysErr.Get());
+					PlayfieldView::LaunchErrorReport report(cmd, gameId, msg.Get());
+					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
+				}
 
 				// abort the launch
 				return 0;
@@ -2853,8 +2868,11 @@ DWORD Application::GameMonitorThread::Main()
 				// It's been too long; we can probably assume the new process
 				// isn't going to start.
 				if (playfieldView != nullptr)
-					playfieldView->SendMessage(PFVMsgGameLaunchError, 0,
-					(LPARAM)MsgFmt(_T("Launcher process exited, target process %s hasn't started"), gameSys.process.c_str()).Get());
+				{
+					MsgFmt msg(_T("Launcher process exited, target process %s hasn't started"), gameSys.process.c_str());
+					PlayfieldView::LaunchErrorReport report(cmd, gameId, msg.Get());
+					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
+				}
 
 				// abort the launch
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
@@ -2889,7 +2907,7 @@ DWORD Application::GameMonitorThread::Main()
 
 	// switch the playfield view to Running mode
 	if (playfieldView != nullptr)
-		playfieldView->PostMessage(PFVMsgGameLoaded, (WPARAM)cmd);
+		playfieldView->PostMessage(PFVMsgGameLoaded, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId));
 
 	// If the game system has a startup key sequence, send it
 	if (gameSys.startupKeys.length() != 0)
@@ -4117,15 +4135,15 @@ DWORD Application::GameMonitorThread::Main()
 	// note the exit time
 	exitTime = GetTickCount64();
 
-	// Run the RunAfter command, if any.
+	// run the RunAfter command, if any
 	if (!runAfterCmd.Run())
 		return 0;
 
 	// remove the "game exiting" message
 	if (playfieldView != nullptr)
-		playfieldView->SendMessage(PFVMsgGameRunAfter, (WPARAM)cmd);
+		playfieldView->SendMessage(PFVMsgGameRunAfter, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId));
 
-	// Run the RunAfterPost command, if any
+	// run the RunAfterPost command, if any
 	if (!runAfterPostCmd.Run())
 		return 0;
 

@@ -34,6 +34,7 @@ var contents = [
                 "+++GameSelectEvent.html GameSelectEvent [event:gameList]",
                 "+++JoystickButtonEvent.html JoystickButtonEvent [event:mainWindow]",
                 "+++KeyEvent.html KeyEvent [event:mainWindow]",
+                "+++LaunchEvent.html LaunchEvent [event:mainWindow]",
                 "+++MenuEvent.html MenuEvent [event:mainWindow]",
                 "+++PopupEvent.html PopupEvent [event:mainWindow]",
                 "+++SettingsEvent.html SettingsEvent [event:optionSettings]",

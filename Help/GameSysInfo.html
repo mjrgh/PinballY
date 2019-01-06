@@ -199,29 +199,33 @@
 
 <p>
    <b>runAfter:</b>  A string giving the "Run After" command, which is
-   invoked immediately after a game launched using this system terminates.
-   This is a full Windows command line string, specifying a program to be run and
-   its parameters.
+   invoked after a game launched using this system terminates.  The main
+   PinballY window displays a "Game Exiting" message while this command
+   is running.  This is given as a full Windows command line string,
+   specifying a program to be run and its parameters.
 </p>
 
 <p>
-   <b>runAfterPost:</b>  A string giving the "Run After Post" command, which is
-   invoked after the Run After command finishes and the PinballY main window has
-   been brought back to the foreground.  This is a full Windows command line string,
+   <b>runAfterPost:</b>  A string giving the "Run After Post" command.  This
+   is a second "after" command that runs after the <b>runAfter</b> command.
+   The main PinballY window is cleared to show only a blank, black background
+   while this command is running.  This is a full Windows command line string,
    specifying a program to be run and its parameters.
 </p>
 
 <p>
    <b>runBefore:</b>  A string giving the "Run Before" command, which is
    invoked immediately before a game for this system is launched, after the
-   PinballY UI window has been blanked.   This is a full Windows command line
-   string, specifying a program to be run and its parameters.
+   "Launching" message has been displayed in the PinballY main window.
+   This is a full Windows command line string, specifying a program to be
+   run and its parameters.
 </p>
 <p>
    <b>runBeforePre:</b>  A string giving the "Run Before Pre" command, which is
-   invoked as the first step in launching a game with the system, before the
-   PinballY UI window has been blanked.  This is a full Windows command line
-   string, specifying a program to be run and its parameters.
+   invoked as the first step in launching a game with the system, with the
+   main PinballY window showing nothing but a blank, black background.  This is
+   a full Windows command line string, specifying a program to be run and its
+   parameters.
 </p>
 
 <p>

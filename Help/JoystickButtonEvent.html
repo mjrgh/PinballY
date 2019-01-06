@@ -56,8 +56,19 @@
    "Exit Game" and "Pause Game" commands while a game is running.
 
    <li><b>button:</b> A number representing which button on the joystick
-   was pressed.  Joystick buttons are numbered consecutively from 1 to
-   the number of buttons on the unit.
+   was pressed.  Joystick buttons are usually numbered consecutively from
+   1 to the number of buttons on the unit, although that may be more of
+   a convention than a rule.  The exact button numbering is determined
+   by the joystick's manufacturer, so it's arbitrary and peculiar to
+   each specific joystick make and model.  The easiest way to figure
+   out which physical button on a device maps to which number in
+   the software events is to use a joystick viewer
+   (such as the Windows "Set up USB game controller" control panel),
+   pressing each physical button in turn to see which button number
+   lights up in the viewer.  The button numbering is generally
+   fixed in the hardware for a given device, so the numbers that light
+   up in the control panel should match the numbers you see reported
+   in PinballY joystick events.
 
    <li><b>repeat:</b>  true if this is an auto-repeat button event from
    a button being held down, false if not.  (Windows joystick devices

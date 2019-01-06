@@ -225,11 +225,21 @@ public:
 	// clear the launch queue
 	void ClearLaunchQueue() { queuedLaunches.clear(); }
 
-	// get the next queued game
-	GameListItem *GetNextQueuedGame() const;
+	// Get the next queued game.  Fills in the info struct and returns
+	// true if a game is queued; returns false if the queue is empty.
+	// The contents of the queue aren't affected.
+	struct QueuedGameInfo
+	{
+		int cmd;          // launch command (ID_PLAY_GAME, ID_CAPTURE_GO)
+		LONG gameId;      // internal ID of the game
+	};
+	bool GetNextQueuedGame(QueuedGameInfo &info) const;
 
 	// Launch the next game in the queue
 	bool LaunchNextQueuedGame(ErrorHandler &eh);
+
+	// Remove the next game in the queue without launching it
+	void RemoveNextQueuedGame();
 
 	// are any games queued?
 	bool IsGameQueuedForLaunch() const { return queuedLaunches.size() != 0; }
