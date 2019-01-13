@@ -721,9 +721,16 @@ this.LaunchEvent = class LaunchEvent extends Event
 
 this.PreLaunchEvent = class PreLaunchEvent extends LaunchEvent
 {
-    constructor(game, command) { super("prelaunch", true, game, command); }
+    constructor(game, command)
+    {
+        super("prelaunch", true, game, command);
+        this.overrides = { };
+    }
 };
-
+this.PostLaunchEvent = class PostLaunchEvent extends LaunchEvent
+{
+    constructor(game, command) { super("postlaunch", true, game, command); }
+};
 this.RunBeforePreEvent = class RunBeforePreEvent extends LaunchEvent
 {
     constructor(game, command) { super("runbeforepre", true, game, command); }
@@ -985,6 +992,14 @@ const SWP_NOMOVE = 0x0002;
 const SWP_NOOWNERZORDER = 0x0200;
 const SWP_NOSIZE = 0x0001;
 const SWP_NOZORDER = 0x0004;
+
+// Frequently used swShow flags, for the Windows ShowWindow() API.  These
+// are used for the initial window mode options for game player systems,
+// in GameSysInfo.swShow.  The values below are the ones normally used
+// for game system initial window modes.
+const SW_HIDE = 0;
+const SW_SHOWMINIMIZED = 2;
+const SW_SHOW = 5;
 
 
 // ------------------------------------------------------------------------

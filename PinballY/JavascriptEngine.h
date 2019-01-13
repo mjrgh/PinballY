@@ -120,6 +120,8 @@ public:
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
 	static JsErrorCode ToInt(int &i, const JsValueRef &val);
+	static JsErrorCode ToFloat(float &f, const JsValueRef &val);
+	static JsErrorCode ToDouble(double &d, const JsValueRef &val);
 
 	// Convert various date representations to Javascript representation.  If
 	// you have a string to be converted, use DateTime to parse the string, first,
@@ -272,8 +274,16 @@ public:
 	template<> static WSTRING DefaultReturnValue<WSTRING>() { return L""; }
 	template<> static DateTime DefaultReturnValue<DateTime>() { return DateTime(FILETIME{ 0, 0 }); }
 
+	// is a value undefined or null?
+	static bool IsUndefinedOrNull(JsValueRef jsval) 
+	{
+		JsValueType type;
+		return JsGetValueType(jsval, &type) == JsNoError && (type == JsUndefined || type == JsNull);
+	}
+
 	// Type converters from Javascript to native
 	template<typename T> static T JsToNative(JsValueRef jsval);
+	template<typename T> static T JsToNative(JsValueRef jsval, T defval);
 	template<> static void JsToNative<void>(JsValueRef) { }
 	template<> static JsValueRef JsToNative<JsValueRef>(JsValueRef jsval) { return jsval; }
 	template<typename NumType> static NumType JsToNativeNumType(JsValueRef jsval)
@@ -286,12 +296,33 @@ public:
 			return static_cast<NumType>(d);
 		throw CallException("JsToNativeNumType error", err);
 	}
-	template<> static int JsToNative<int>(JsValueRef jsval) { return JsToNativeNumType<int>(jsval); }
-	template<> static long JsToNative<long>(JsValueRef jsval) { return JsToNativeNumType<long>(jsval); }
-	template<> static float JsToNative<float>(JsValueRef jsval) { return JsToNativeNumType<float>(jsval); }
-	template<> static double JsToNative<double>(JsValueRef jsval) { return JsToNativeNumType<double>(jsval); }
-	template<> static bool JsToNative<bool>(JsValueRef jsval)
+	template<typename NumType> static NumType JsToNativeNumType(JsValueRef jsval, NumType defval)
 	{
+		if (IsUndefinedOrNull(jsval))
+			return defval;
+
+		JsErrorCode err;
+		JsValueRef num;
+		double d;
+		if ((err = JsConvertValueToNumber(jsval, &num)) == JsNoError
+			&& (err = JsNumberToDouble(num, &d)) == JsNoError)
+			return static_cast<NumType>(d);
+
+		throw CallException("JsToNativeNumType error", err);
+	}
+	template<> static int JsToNative<int>(JsValueRef jsval) { return JsToNativeNumType<int>(jsval); }
+	template<> static int JsToNative<int>(JsValueRef jsval, int defval) { return JsToNativeNumType<int>(jsval, defval); }
+	template<> static long JsToNative<long>(JsValueRef jsval) { return JsToNativeNumType<long>(jsval); }
+	template<> static long JsToNative<long>(JsValueRef jsval, long defval) { return JsToNativeNumType<long>(jsval, defval); }
+	template<> static float JsToNative<float>(JsValueRef jsval) { return JsToNativeNumType<float>(jsval); }
+	template<> static float JsToNative<float>(JsValueRef jsval, float defval) { return JsToNativeNumType<float>(jsval, defval); }
+	template<> static double JsToNative<double>(JsValueRef jsval) { return JsToNativeNumType<double>(jsval); }
+	template<> static double JsToNative<double>(JsValueRef jsval, double defval) { return JsToNativeNumType<double>(jsval, defval); }
+	template<> static bool JsToNative<bool>(JsValueRef jsval, bool defval)
+	{
+		if (IsUndefinedOrNull(jsval))
+			return defval;
+
 		JsErrorCode err;
 		JsValueRef boolval;
 		bool b;
@@ -301,8 +332,12 @@ public:
 
 		throw CallException("JsToNative<bool> error", err);
 	}
-	template<> static WSTRING JsToNative<WSTRING>(JsValueRef jsval)
+	template<> static bool JsToNative<bool>(JsValueRef jsval) { return JsToNative<bool>(jsval, false); }
+	template<> static WSTRING JsToNative<WSTRING>(JsValueRef jsval, WSTRING defval)
 	{
+		if (IsUndefinedOrNull(jsval))
+			return defval;
+
 		JsErrorCode err;
 		JsValueRef strval;
 		const wchar_t *p;
@@ -313,8 +348,13 @@ public:
 
 		throw CallException("JsToNative<WSTRING> error", err);
 	}
-	template<> static CSTRING JsToNative<CSTRING>(JsValueRef jsval)
+	template<> static WSTRING JsToNative<WSTRING>(JsValueRef jsval) { return JsToNative<WSTRING>(jsval, L""); }
+		
+	template<> static CSTRING JsToNative<CSTRING>(JsValueRef jsval, CSTRING defval)
 	{
+		if (IsUndefinedOrNull(jsval))
+			return defval;
+
 		JsErrorCode err;
 		JsValueRef strval;
 		const wchar_t *p;
@@ -330,9 +370,13 @@ public:
 
 		throw CallException("JsToNative<CSTRING> error", err);
 	}
+	template<> static CSTRING JsToNative<CSTRING>(JsValueRef jsval) { return JsToNative<CSTRING>(jsval, ""); }
 
-	template<> static DateTime JsToNative<DateTime>(JsValueRef jsval)
+	template<> static DateTime JsToNative<DateTime>(JsValueRef jsval, DateTime defval)
 	{
+		if (IsUndefinedOrNull(jsval))
+			return defval;
+
 		JsErrorCode err;
 		FILETIME ft;
 		if ((err = JsDateToFileTime(jsval, ft)) == JsNoError)
@@ -340,12 +384,15 @@ public:
 
 		throw CallException("JsToNative<DateTime> error", err);
 	};
+	template<> static DateTime JsToNative<DateTime>(JsValueRef jsval) 
+		{ return JsToNative<DateTime>(jsval, DateTime(FILETIME { 0, 0 })); }
 
 	// default values for common native types, used for 'undefined' in property gets
 	template<typename T> static T DefaultVal();
 	template<> static bool DefaultVal<bool>() { return false; }
 	template<> static int DefaultVal<int>() { return 0; }
 	template<> static double DefaultVal<double>() { return 0.0; }
+	template<> static float DefaultVal<float>() { return 0.0f; }
 	template<> static CSTRING DefaultVal<CSTRING>() { return ""; }
 	template<> static WSTRING DefaultVal<WSTRING>() { return L""; }
 	template<> static JsValueRef DefaultVal<JsValueRef>() { return JavascriptEngine::Get()->undefVal; }
@@ -517,6 +564,16 @@ public:
 			bool hasProp;
 			return ((err = JsPointerToString(name, wcslen(name), &propkey)) == JsNoError
 				&& (err = JsObjectHasProperty(jsobj, propkey, &hasProp)) == JsNoError
+				&& hasProp);
+		}
+
+		bool Has(const CHAR *name)
+		{
+			JsErrorCode err;
+			JsPropertyIdRef propkey;
+			bool hasProp;
+			return ((err = JsCreatePropertyId(name, strlen(name), &propkey)) == JsNoError
+				&& (err = JsHasProperty(jsobj, propkey, &hasProp)) == JsNoError
 				&& hasProp);
 		}
 

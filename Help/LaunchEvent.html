@@ -30,17 +30,19 @@
    fires before any particular point in the game's startup.  This event
    can't be canceled, since it's fired after the fact.
 
-   <li><b>gameover:</b>  Fired when PinballY detects that the launched
-   game has exited, meaning that its Windows process has exited.  Since
-   the game runs as a separate process, the exact timing of the event isn't
-   perfectly predictable; it's only safe to assume that it happens some
-   time after the other process has exited.  This event can't be canceled,
-   since it's fired after the fact.  (If you want to prevent the "Kill
-   Game" command from stopping the game, you can intervene in the
-   processing for that command via the <a href="CommandEvent.html">command</a>
-   event.  For obvious reasons, Javascript code can't intervene in
-   other, external ways that the game might exit, such as
-   the user closing the game's window with the mouse.)
+   <li><b>gameover:</b>  Fired after PinballY detects that the child
+   game process has terminated, and before any of the post-launch tasks
+   (such as the game system's "Run After" commands) have been executed.
+   This event can't be canceled, since it's fired after the game process
+   has already exited.  (You can prevent PinballY from trying to stop
+   the game in the first place, by blocking the "Kill Game" command via
+   the <a href="CommandEvent.html">command</a> event.  That obviously
+   doesn't prevent the game process from exiting on its own, or from
+   the user taking an external action outside of PinballY that ends the
+   game process, such as closing its window with the mouse or killing
+   the process via Task Manager.  The <b>gameover</b> event fires
+   regardless of what caused the process to terminate; it's just a
+   notification that PinballY detected that the process exited.)
 
    <li><b>launcherror:</b>  Fired if a game launch fails.  This event
    is mutually exclusive with <b>gamestarted</b> and <b>gameover</b>,
@@ -50,6 +52,10 @@
    occur.  You can cancel this event to prevent the error message
    from being displayed (canceling it has no other effect, though,
    as the event fires after the launch attempt has already failed).
+
+   <li><b>postlaunch:</b>  The counterpart of <b>prelaunch</b> that
+   fires at the very end of the launch procedure, after the game
+   has exited and all of the "after game" tasks have been completed.
 
    <li><b>runafter:</b>  Fired after the game has exited, with the
    "Game Exiting" message displayed in the main PinballY window.
@@ -99,13 +105,27 @@
    <li><b>gamestarted</b> fires
    <li>The game runs until the user quits
    <li>The "Game Exiting" message is displayed in the main window
+   <li><b>gameover</b> fires
    <li>The game system's external "Run After" command runs
    <li><b>runafter</b> fires
    <li>The main window is blanked
    <li><b>runafterpost</b> fires
    <li>The game system's external "Run After Post" command runs
-   <li><b>gameover</b> fires
+   <li><b>postlaunch</b> fires
 </ul>
+<p>
+   The sequence above is for successful launches.  It will vary
+   slightly if anything goes wrong.  If the game system launch itself
+   fails (for example, if the game program can't be started, or if it
+   terminates or crashes before opening a UI window), a <b>launcherror</b>
+   event will be fired instead of <b>gamestarted</b> and <b>gameover</b>.
+   The sequence can also be cut short if the "Run Before" commands fail.
+   Errors in those steps will prevent the game from being launched,
+   although the system does try to run the paired "Run After" routines
+   in all cases to ensure that any global changes made in the "Run Before"
+   steps are undone by the matching "Run After" steps.
+</p>
+
 
 <h2>Properties</h2>
 
@@ -126,6 +146,54 @@
 
    <li><b>game:</b>  A <a href="GameInfo.html">GameInfo</a> object describing
    the game being launched.
+
+   <li><b>overrides:</b>  For <b>prelaunch</b> only, this is initially set to
+   an empty object.  Event listeners can set properties of this object to
+   override the normal launch parameters taken from the game system's
+   settings in the options.  The following properties can be set:
+
+   <ul>
+      <li><b>envVars:</b>  Windows environment variables to pass to the
+      game process.  This is a string with one or more variables, separated
+      by semicolons (";"), with each variable using the format NAME=VALUE.
+      If specified, this completely replaces the environment variables
+      defined in the system settings, so if you want to keep those
+      as well, you must explicitly include them in this property.
+      
+      <li><b>exe:</b>  A string giving the full filename with absolute path
+      of the program executable (.EXE) to launch.
+      
+      <li><b>params:</b>  A string giving the command-line parameters to
+      pass to the program executable.  This can contain the usual expansion
+      variables in [square brackets]; see <a href="SystemOptions.html#parameters">Parameters</a>
+      in the System Options dialog for the list of variables.
+
+      <li><b>processName:</b>  A string giving the name of the process to
+      monitor to determine when the game has terminated.
+
+      <li><b>runAfter:</b>  A string giving the full command line to use as
+      a replacement for the Run After command in the system's settings.
+
+      <li><b>runAfterPost:</b>  A string giving the full command line to use as
+      a replacement for the Run After Post command in the system's settings.
+
+      <li><b>runBefore:</b>  A string giving the full command line to use as
+      a replacement for the Run Before command in the system's settings.
+
+      <li><b>runBeforePre:</b>   A string giving the full command line to use as
+      a replacement for the Before Pre command in the system's settings.
+
+      <li><b>swShow:</b>  An integer value giving the initial window mode;
+      typically SW_SHOW, SW_SHOWMINIMIZED, or SW_HIDE.
+
+      <li><b>terminateBy:</b>  A string giving the termination mode for the
+      program; see <a href="GameSysInfo.html#terminateBy">terminateBy</a>
+      in the GameSysInfo object.
+
+      <li><b>workingPath:</b>  A string giving the full absolute path to use
+      as the working directory for the game process.
+      
+   </ul>
 
 </ul>
 

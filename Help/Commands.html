@@ -372,6 +372,16 @@
 </p>
 
 <p>
+   <a name="HideWindow"></a>
+   <b>command.HideWindow:</b>  Hides the current foreground window.
+   The window's Javascript object still exists, but the on-screen
+   window is hidden and can't receive any keyboard or other input
+   events.  From the user's perspective, the window is effectively
+   closed.  This command has no effect on the playfield window,
+   since that window holds the main UI.
+</p>
+
+<p>
    <a name="HighScores"></a>
    <b>command.HighScores:</b>  Displays an overlay showing the
    high score information for the current game, if available.
@@ -470,6 +480,31 @@
    button also triggers this command when a menu is showing, unless
    the menu is designated as an Exit Menu and the option to treat
    the Exit button as the Select button in an Exit menu is set.
+</p>
+
+<p>
+   <a name="MirrorWindowHorz"></a>
+   <b>command.MirrorWindowHorz:</b>  Mirrors the current foreground
+   window's graphics contents left-to-right.  This produces a display
+   as though you were viewing the window in a mirror held up to one
+   side of the window.  The window's caption bar and frame controls aren't
+   affected by this, since the Windows desktop UI isn't capable of
+   applying these sorts of transformations to window frames.  Mirroring
+   can be useful if you have physical display setup where you're viewing
+   one of your monitors as a reflection in a mirror, which is sometimes
+   the case in video game cabinets.
+</p>
+<p>
+   <a name="MirrorWindowVert"></a>
+   <b>command.MirrorWindowVert:</b>  Mirrors the current foreground
+   window's graphics contents to-to-bottom.  This produces a display
+   as though you were viewing the window in a mirror held up to the
+   top or bottom edge of the window.  The window's caption bar and frame
+   controls aren't affected by this, since the Windows desktop UI isn't
+   capable of applying these sorts of transformations to window frames.
+   Mirroring can be useful if you have a physical display setup where
+   you're viewing one of your monitors as a reflection in a mirror,
+   which is sometimes the case in video game cabinets.
 </p>
 
 <p>
@@ -631,6 +666,21 @@
 </p>
 
 <p>
+   <a name="RotateWindowCCW"></a>
+   <b>command.RotateWindowCCW:</b>  Rotates the current foreground window's
+   graphics contents counter-clockwise (CCW) by 90 degrees.  This only rotates the
+   contents of the window, since the Windows desktop UI isn't capable of rotating
+   window frames, so the on-screen boundaries of the window aren't affected.
+</p>
+<p>
+   <a name="RotateWindowCW"></a>
+   <b>command.RotateWindowCW:</b>  Rotates the current foreground window's
+   graphics contents clockwise (CW) by 90 degrees.  This only rotates the
+   contents of the window, since the Windows desktop UI isn't capable of rotating
+   window frames, so the on-screen boundaries of the window aren't affected.
+</p>
+
+<p>
    <a name="SaveCategories"></a>
    <b>command.SaveCategories:</b>  This commits changes made in the
    Set Categories menu.
@@ -685,6 +735,25 @@
 </p>
 
 <p>
+   <a name="ToggleFrameCounter"></a>
+   <b>command.ToggleFrameCounter:</b>  Toggles the performance statistics
+   display (which includes a video frame update rate counter and CPU usage
+   stats) on or off in the current foreground window.
+</p>
+<p>
+   <a name="ToggleFullScreen"></a>
+   <b>command.ToggleFullScreen:</b>  Toggles the current foreground window
+   between full screen mode and regular windowed mode.
+</p>
+<p>
+   <a name="ToggleWindowBorders"></a>
+   <b>command.ToggleWindowBorders:</b>  Toggles visibility of the window
+   border decorations (the caption bar and sizing borders) for the current
+   foreground window.
+</p>
+
+
+<p>
    <a name="UserFirst"></a>
    <a name="UserLast"></a>
    <b>command.UserFirst ... command.UserLast: </b>  This is a range of
@@ -694,6 +763,32 @@
    is to simply ignore them.  This lets you assign these commands to
    your own custom menu items and write your own handlers to carry
    them out.
+</p>
+
+<p>
+   <a name="ViewBackglass"></a>
+   <b>command.ViewBackglass:</b>  Show the backglass window if it's
+   currently hidden, and bring it to the foreground.
+</p>
+<p>
+   <a name="ViewDMD"></a>
+   <b>command.ViewDMD:</b>  Show the DMD score area window if it's
+   currently hidden, and bring it to the foreground.
+</p>
+<p>
+   <a name="ViewInstCard"></a>
+   <b>command.ViewInstCard:</b>  Show the instruction card window if it's
+   currently hidden, and bring it to the foreground.
+</p>
+<p>
+   <a name="ViewPlayfield"></a>
+   <b>command.ViewPlayfield:</b>  Bring the playfield window (the main
+   UI window) to the foreground.
+</p>
+<p>
+   <a name="ViewTopper"></a>
+   <b>command.ViewTopper:</b>  Show the topper window if it's
+   currently hidden, and bring it to the foreground.
 </p>
 
 <h2>Methods</h2>

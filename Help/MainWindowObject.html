@@ -205,11 +205,55 @@
 </ul>
 
 <p>
+   <a name="playGame"></a>
+   <b>mainWindow.playGame(<i>game</i>, <i>options</i>):</b>  Launches a game.
+   <i>game</i> is a <a href="GameInfo.html">GameInfo</a> object for the game to
+   be launched.  <i>options</i> is an object with properties specifying option
+   settings; this whole argument can be omitted, in which case defaults are
+   used for all options.  If you do include the object argument, you only
+   have to specify the properties for options you want to override; any
+   missing properties will use the corresponding defaults.  Here are the
+   possible <i>options</i> properties:
+</p>
+<ul>
+   <li><b>command:</b>  An integer giving the command code that the game is
+   nominally launched under.  The default is
+   <a href="commands.html#PlayGame">command.PlayGame</a>, which is also
+   the command that the system itself uses to launch games for normal
+   play (as opposed to media capture).  The command you specify here has
+   no effect on how PinballY itself handles the launch process, but it's
+   reported to your event handlers as the command code in all of the
+   <a href="LaunchEvent.html">LaunchEvent</a> events reported that fire
+   during the launch, so you can use it as the basis of any custom
+   handling you want to perform during the launch.
+
+   <li><b>system:</b>  A <a href="GameSysInfo.html">GameSysInfo</a> object
+   specifying which system to use to launch the game.  The default
+   is the system associated with the game in the game database, or the
+   system associated with the table directory where the game file is located.
+   If it's not possible for PinballY to uniquely determine the system from
+   one of those sources, you <b>must</b> specify this option to tell the
+   program which system to use.  Note that PinballY doesn't try to second-guess
+   your choice of system here; it'll let you run any game file with any system.
+   But for obvious reasons, the launched program will probably show an error,
+   crash, or otherwise fail to work properly if you try to launch it with
+   a game file designed for a different system.
+</ul>
+
+<p>
    <a name="showMenu"></a>
    <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Display a custom
    menu in the main window, in the same style as the main menu, exit menu, etc.
    See <a href="Menus.html">Menus</a> for more details.  The <a href="MenuEvent.html"><b>menuopen</b></a>
    event isn't fired when you use this method.
+</p>
+
+<p>
+   <a name="showPopup"></a>
+   <b>mainWindow.showPopup(<i>desc</i>):</b>  Display a custom popup dialog
+   in the main window, in the style of the standard system popups (e.g., game
+   information, high scores, ratings entry).   See
+   <a href="Popups.html#custom">Custom Popups</a> for more details.
 </p>
 
 <p>

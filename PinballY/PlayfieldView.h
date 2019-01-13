@@ -169,17 +169,28 @@ public:
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
 
-	// Game launch error report, for PFVMsgGameLaunchError
-	struct LaunchErrorReport
+	// Game launch report, for the PFVMsgXxx messages for game launch steps
+	struct LaunchReport
 	{
-		LaunchErrorReport(int launchCmd, LONG gameInternalID, const TCHAR *errorMessage) :
+		LaunchReport(int launchCmd, DWORD launchFlags, LONG gameInternalID) :
 			launchCmd(launchCmd),
-			gameInternalID(gameInternalID),
+			launchFlags(launchFlags),
+			gameInternalID(gameInternalID)
+		{ }
+
+		int launchCmd;
+		DWORD launchFlags;
+		LONG gameInternalID;
+	};
+
+	// Game launch error report, for PFVMsgGameLaunchError
+	struct LaunchErrorReport : LaunchReport
+	{
+		LaunchErrorReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, const TCHAR *errorMessage) :
+			LaunchReport(launchCmd, launchFlags, gameInternalID),
 			errorMessage(errorMessage)
 		{}
 
-		int launchCmd;
-		LONG gameInternalID;
 		const TCHAR *errorMessage;
 	};
 
@@ -226,6 +237,53 @@ protected:
 	virtual void OnConfigPreSave() override;
 	virtual void OnConfigPostSave(bool succeeded) override;
 	virtual void OnConfigReload() override { OnConfigChange(); }
+
+	// font options
+	struct FontPref
+	{
+		FontPref(int defaultPtSize, const TCHAR *defaultName = _T("Tahoma"), int defaultWeight = 400) :
+			defaultPtSize(defaultPtSize), defaultName(defaultName), defaultWeight(defaultWeight) { }
+
+		TSTRING name;
+		int ptSize = 0;
+		int weight = 0;
+
+		const TCHAR *defaultName;
+		int defaultPtSize;
+		int defaultWeight;
+
+		// Parse a font option string.  If the string doesn't match the
+		// standard format, we'll apply defaults if useDefault is true,
+		// otherwise we'll leave the font settings unchanged.
+		void Parse(const TCHAR *text, bool useDefaults = true);
+
+		// parse the config setting; applies defaults automatically if
+		// the config variable is missing or isn't formatted correctly
+		void ParseConfig(const TCHAR *varname);
+
+		// get the font from this descriptor, creating the cached font if needed
+		Gdiplus::Font *Get();
+
+		operator Gdiplus::Font*() { return Get(); }
+		Gdiplus::Font* operator->() { return Get(); }
+
+		// cached font
+		std::unique_ptr<Gdiplus::Font> font;
+	};
+	FontPref popupTitleFont{ 48 };      // title font for popups
+	FontPref popupFont{ 24 };           // base text font for popup dialogs
+	FontPref popupSmallerFont{ 20 };    // small font for popups
+	FontPref popupDetailFont{ 18 };     // detail font for popups
+	FontPref mediaDetailFont{ 12 };     // line items in media file listings
+	FontPref wheelFont{ 80 };           // wheel titles (in lieu of icons)
+	FontPref menuFont{ 42 };            // base font for menus
+	FontPref menuHeaderFont{ 36 };      // font for menu header text
+	FontPref statusFont{ 36 };          // status line font
+	FontPref highScoreFont{ 24 };       // synthesized high score display font
+	FontPref infoBoxFont{ 28 };         // info box main text
+	FontPref infoBoxTitleFont{ 38 };    // info box title font
+	FontPref infoBoxDetailFont{ 16 };   // info box fine print
+	FontPref creditsFont{ 42 };         // credits message font
 
 	// InputManager::RawInputReceiver implementation
 	virtual bool OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize) override;
@@ -348,12 +406,15 @@ protected:
 	void ShellExec(const TCHAR *file, const TCHAR *params = _T(""));
 
 	// commands on the current game
-	void PlayGame(int cmd, int systemIndex = -1);
+	void PlayGame(int cmd, DWORD launchFlags, int systemIndex = -1);
 	void ShowFlyer(int pageNumber = 0);
 	void ShowGameInfo();
 	void ShowInstructionCard(int cardNumber = 0);
 	void RateGame();
 	void ShowHighScores();
+
+	// play a specific game with a specific system
+	void PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system);
 
 	// Launch the next queued game
 	void LaunchQueuedGame();
@@ -377,8 +438,9 @@ protected:
 	// game, for the purposes of the game timeout timer.
 	DWORD lastInputEventTime;
 
-	// Last PlayGame() command.  
+	// Last PlayGame() command and launch flags
 	int lastPlayGameCmd;
+	DWORD lastPlayGameLaunchFlags;
 
 	// remove the instructions card from other windows
 	void RemoveInstructionsCard();
@@ -1092,7 +1154,7 @@ protected:
 	GameMedia<Sprite> infoBox;
 
 	// show a message on the running game overlay
-	void ShowRunningGameMessage(const TCHAR *msg, int ptSize);
+	void ShowRunningGameMessage(const TCHAR *msg);
 
 	// Running game overlay.  This is a separate layer that we bring
 	// up in front of everything else when we launch a game.
@@ -1128,7 +1190,8 @@ protected:
 		PopupHighScores,           // high scores list
 		PopupCaptureDelay,         // capture delay dialog
 		PopupMediaList,            // game media list dialog
-		PopupBatchCapturePreview   // batch capture preview
+		PopupBatchCapturePreview,  // batch capture preview
+		PopupUserDefined           // user-defined popup via Javascript
 	} 
 	popupType;
 
@@ -1138,8 +1201,14 @@ protected:
 	// Start a popup animation.  If replaceTypes is not null, it's an array of
 	// popup types that the new type can replace without any animation effects.
 	// The array must be terminated with a final PopupNone entry.  If the array
-	// pointer is null (or omitted), it defaults to the popup's own type.  
-	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupType *replaceTypes = nullptr);
+	// pointer is null (or omitted), it defaults to the popup's own type.  The
+	// name is only used for PopupUserDefined types.
+	struct PopupDesc
+	{
+		PopupType type;
+		const TCHAR *name = nullptr;
+	};
+	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupDesc *replaceTypes = nullptr);
 
 	// close the current popup
 	void ClosePopup();
@@ -1432,6 +1501,10 @@ protected:
 
 	// end the current animation sequence
 	void EndAnimation();
+	
+	// info box common drawing
+	void DrawInfoBoxCommon(const GameListItem *game, Gdiplus::Graphics &g,
+		int width, int height, float margin, GPDrawString &gds);
 
 	// Update the game info box.  This just sets a timer to do a
 	// deferred update in a few moments, so that the info box reappears
@@ -2188,6 +2261,7 @@ protected:
 	JsValueRef jsWheelModeEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsGameSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsPreLaunchEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsPostLaunchEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchErrorEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsRunBeforePreEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsRunBeforeEvent = JS_INVALID_REFERENCE;
@@ -2220,6 +2294,8 @@ protected:
 	void FireConfigEvent(JsValueRef type, ...);
 	bool FireLaunchEvent(JsValueRef type, LONG gameId, int cmd, const TCHAR *errorMessage = nullptr);
 	bool FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
+	bool FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type,
+		GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode
@@ -2289,9 +2365,87 @@ protected:
 	// Show a menu
 	void JsShowMenu(WSTRING name, std::vector<JsValueRef> items, JavascriptEngine::JsObj options);
 
+	// Show a popup
+	void JsShowPopup(JavascriptEngine::JsObj contents);
+
+	// Javascript drawing callback functions.  These are exposed on a "drawing
+	// context" object, which is just for the sake of the js prototype to
+	// collect the methods into a coherent namespace.
+	JsValueRef jsDrawingContextProto = JS_INVALID_REFERENCE;
+	void JsDrawDrawText(TSTRING text);
+	void JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight);
+	void JsDrawSetTextColor(int rgb);
+	void JsDrawSetTextAlign(JsValueRef horz, JsValueRef vert);
+	void JsDrawDrawImage(TSTRING filename, float x, float y, JsValueRef width, JsValueRef height);
+	JsValueRef JsDrawGetImageSize(TSTRING filename);
+	void JsDrawSetTextArea(float x, float y, float width, float height);
+	void JsDrawSetTextOrigin(float x, float y);
+	JsValueRef JsDrawGetTextOrigin();
+	JsValueRef JsDrawMeasureText(TSTRING text);
+	void JsDrawFillRect(float x, float y, float width, float height, int rgb);
+	void JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int rgb);
+	JsValueRef JsDrawGetSize();
+
+	// Internal drawing context object.  This is a static object that's
+	// only valid for the duration of the js drawing callback.
+	struct JsDrawingContext
+	{
+		JsDrawingContext(Gdiplus::Graphics &g, float width, float height, float borderWidth) :
+			g(g), 
+			width(width), 
+			height(height),
+			borderWidth(static_cast<float>(borderWidth)),
+			textOrigin(borderWidth, borderWidth),
+			textBounds(borderWidth, borderWidth, width - borderWidth*2.0f, height - borderWidth*2.0f)
+		{
+		}
+
+		// graphics context
+		Gdiplus::Graphics &g;
+
+		// drawing area dimensions, including the border space
+		float width;
+		float height;
+
+		// Border width.  All of the coordinates that Javascript sees are
+		// relative to the interior content area, whereas our own drawing
+		// surface includes the border, so we need to adjust the js coords
+		// by the border size.
+		float borderWidth;
+
+		// text color
+		Gdiplus::Color textColor{ 0xff, 0xff, 0xff };
+
+		// Current font specs
+		TSTRING fontName = _T("Tahoma");
+		int fontPtSize = 24;
+		int fontWeight = 400;
+
+		// Create a font from the current specs if we don't already have one
+		void InitFont();
+
+		// currently selected drawing objects
+		std::unique_ptr<Gdiplus::Font> font;
+		std::unique_ptr<Gdiplus::Brush> textBrush;
+
+		// text wrapping boundaries
+		Gdiplus::RectF textBounds;
+
+		// current text output position
+		Gdiplus::PointF textOrigin;
+
+		// current text alignment
+		Gdiplus::StringAlignment textAlignHorz = Gdiplus::StringAlignmentNear;
+		Gdiplus::StringAlignment textAlignVert = Gdiplus::StringAlignmentNear;
+	};
+	std::unique_ptr<JsDrawingContext> jsDC;
+
 	// Enter/exit attract mode via javascript
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
+
+	// Launch a game
+	void JsPlayGame(JsValueRef val, JsValueRef options);
 
 	// Get game information
 	JsValueRef JsGetGameInfo(WSTRING id);

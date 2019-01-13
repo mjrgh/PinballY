@@ -722,6 +722,7 @@ bool FrameWin::DoCommand(int cmd)
 
 	case ID_FPS:
 	case ID_ROTATE_CW:
+	case ID_ROTATE_CCW:
 		// forward these to our child view
 		if (view != nullptr)
             view->SendMessage(WM_COMMAND, cmd);

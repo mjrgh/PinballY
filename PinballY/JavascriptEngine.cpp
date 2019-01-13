@@ -585,6 +585,29 @@ JsErrorCode JavascriptEngine::ToInt(int &i, const JsValueRef &val)
 	return JsNumberToInt(numval, &i);
 }
 
+JsErrorCode JavascriptEngine::ToDouble(double &d, const JsValueRef &val)
+{
+	// convert to numeric
+	JsErrorCode err;
+	JsValueRef numval;
+	if ((err = JsConvertValueToNumber(val, &numval)) != JsNoError)
+		return err;
+
+	// convert to native int
+	return JsNumberToDouble(numval, &d);
+}
+
+JsErrorCode JavascriptEngine::ToFloat(float &f, const JsValueRef &val)
+{
+	double d;
+	JsErrorCode err;
+	if ((err = ToDouble(d, val)) != JsNoError)
+		return err;
+
+	f = static_cast<float>(d);
+	return JsNoError;
+}
+
 JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 {
 	// Variant Dates are extremely tricky to work with because of poor

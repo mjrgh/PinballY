@@ -85,6 +85,21 @@ namespace ConfigVars
 	static const TCHAR *InfoBoxTableTypeAbbr = _T("InfoBox.TableTypeAbbr");
 	static const TCHAR *InfoBoxRating = _T("InfoBox.Rating");
 	static const TCHAR *InfoBoxTableFile = _T("InfoBox.TableFile");
+
+	static const TCHAR *MenuFont = _T("MenuFont");
+	static const TCHAR *MenuHeaderFont = _T("MenuHeaderFont");
+	static const TCHAR *PopupFont = _T("PopupFont");
+	static const TCHAR *PopupTitleFont = _T("PopupTitleFont");
+	static const TCHAR *PopupSmallerFont = _T("PopupSmallerFont");
+	static const TCHAR *PopupDetailFont = _T("PopupDetailFont");
+	static const TCHAR *MediaDetailFont = _T("MediaDetailFont");
+	static const TCHAR *WheelFont = _T("WheelFont");
+	static const TCHAR *HighScoreFont = _T("HighScoreFont");
+	static const TCHAR *InfoBoxTitleFont = _T("InfoBoxtitleFont");
+	static const TCHAR *InfoBoxFont = _T("InfoBoxFont");
+	static const TCHAR *InfoBoxDetailFont = _T("InfoBoxDetailFont");
+	static const TCHAR *StatusFont = _T("StatusFont");
+	static const TCHAR *CreditsFont = _T("CreditsFont");
 };
 
 // include the capture-related variables
@@ -491,6 +506,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
 				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
 				|| !GetObj(jsPreLaunchEvent, "PreLaunchEvent")
+				|| !GetObj(jsPostLaunchEvent, "PostLaunchEvent")
 				|| !GetObj(jsLaunchErrorEvent, "LaunchErrorEvent")
 				|| !GetObj(jsGameStartedEvent, "GameStartedEvent")
 				|| !GetObj(jsGameOverEvent, "GameOverEvent")
@@ -589,10 +605,30 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "doCommand", &PlayfieldView::JsDoCommand, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "doButtonCommand", &PlayfieldView::JsDoButtonCommand, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showMenu", &PlayfieldView::JsShowMenu, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showPopup", &PlayfieldView::JsShowPopup, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playGame", &PlayfieldView::JsPlayGame, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "startAttractMode", &PlayfieldView::JsStartAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playButtonSound", &PlayfieldView::JsPlayButtonSound, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh))
+				return;
+
+			// create the DrawingContext prototype and populate its methods
+			if (!js->CreateObj(jsDrawingContextProto)
+				|| JsAddRef(jsDrawingContextProto, nullptr) != JsNoError
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "drawText", &PlayfieldView::JsDrawDrawText, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setFont", &PlayfieldView::JsDrawSetFont, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextColor", &PlayfieldView::JsDrawSetTextColor, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextAlign", &PlayfieldView::JsDrawSetTextAlign, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "drawImage", &PlayfieldView::JsDrawDrawImage, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "getImageSize", &PlayfieldView::JsDrawGetImageSize, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextArea", &PlayfieldView::JsDrawSetTextArea, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextOrigin", &PlayfieldView::JsDrawSetTextOrigin, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "getTextOrigin", &PlayfieldView::JsDrawGetTextOrigin, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "measureText", &PlayfieldView::JsDrawMeasureText, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "fillRect", &PlayfieldView::JsDrawFillRect, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "frameRect", &PlayfieldView::JsDrawFrameRect, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "getSize", &PlayfieldView::JsDrawGetSize, this, eh))
 				return;
 
 			// Set up the game list methods.  These are nominally on the gameList Javascript
@@ -833,6 +869,19 @@ void PlayfieldView::InitJavascript()
 				C(ShowExitMenu, ID_SHOW_EXIT_MENU);
 				C(UserFirst, ID_USER_FIRST);
 				C(UserLast, ID_USER_LAST);
+				C(ViewBackglass, ID_VIEW_BACKGLASS);
+				C(ViewDMD, ID_VIEW_DMD);
+				C(ViewPlayfield, ID_VIEW_PLAYFIELD);
+				C(ViewTopper, ID_VIEW_TOPPER);
+				C(ViewInstCard, ID_VIEW_INSTCARD);
+				C(ToggleFrameCounter, ID_FPS);
+				C(ToggleFullScreenMode, ID_FULL_SCREEN);
+				C(HideWindow, ID_HIDE);
+				C(ToggleWindowBorders, ID_WINDOW_BORDERS);
+				C(RotateWindowCW, ID_ROTATE_CW);
+				C(RotateWindowCCW, ID_ROTATE_CCW);
+				C(MirrorWindowHorz, ID_MIRROR_HORZ);
+				C(MirrorWindowVert, ID_MIRROR_VERT);
 #undef C
 
 				// initialize the ID-to-name table
@@ -1223,7 +1272,7 @@ JsValueRef PlayfieldView::JsGetUIMode()
 					runningGameMode == Exiting ? L"exiting" :
 					L"other");
 
-				if (lastPlayGameCmd == ID_CAPTURE_GO)
+				if ((lastPlayGameLaunchFlags & Application::LaunchFlags::Capturing) != 0)
 					js->SetProp(obj, "capture", batchCaptureMode.active ? L"batch" : L"single");
 			}
 
@@ -1421,6 +1470,74 @@ JsValueRef PlayfieldView::JsGetGameInfo(WSTRING id)
 	catch (JavascriptEngine::CallException exc)
 	{
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
+{
+	// Look up the game object by self.id
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the game object from val.id
+		JavascriptEngine::JsObj gameobj(gameval);
+		auto game = GameList::Get()->GetByInternalID(gameobj.Get<int>("id"));
+		if (!IsGameValid(game))
+			return js->Throw(_T("GameInfo object is no longer valid")), static_cast<void>(0);
+
+		// make sure conditions allow launching a game
+		if (Application::Get()->IsGameQueuedForLaunch()
+			|| Application::Get()->IsGameRunning()
+			|| batchCaptureMode.active)
+			return js->Throw(_T("Can't launch now because a game is already running")), static_cast<void>(0);
+
+		// set default options
+		int cmd = ID_PLAY_GAME;
+		DWORD launchFlags = Application::LaunchFlags::StdPlayFlags;
+
+		// Figure the default system to use for the launch.  If the game has
+		// an assigned system, use that; if it's associated with a table file
+		// set that has a unique system association, use that; otherwise we
+		// can't infer the system automatically, and it must be specified as
+		// an option.
+		GameSystem *system = nullptr;
+		if (game->system != nullptr)
+			system = game->system;
+		else if (game->tableFileSet != nullptr && game->tableFileSet->systems.size() == 1)
+			system = game->tableFileSet->systems.front();
+
+		// get the options
+		JavascriptEngine::JsObj options(optsval);
+		if (!options.IsNull())
+		{
+			// get the launch command code
+			if (options.Has(L"command"))
+				cmd = options.Get<int>("command");
+
+			// if a system is specified, use it
+			if (options.Has(L"system"))
+			{
+				// get the system
+				system = GameList::Get()->GetSystem(options.Get<JavascriptEngine::JsObj>("system").Get<int>("index"));
+				if (system == nullptr)
+					return js->Throw(_T("GameSysInfo object is no longer valid")), static_cast<void>(0);
+			}
+		}
+
+		// make sure a system was either inferred or specified explicitly
+		if (system == nullptr)
+			return js->Throw(_T("This game doesn't have a unique system associated with it, so a system must be specified")), static_cast<void>(0);
+
+		// make sure we're in the base UI mode
+		attractMode.Reset(this);
+		CloseMenusAndPopups();
+
+		// launch the game in play mode
+		PlayGame(cmd, launchFlags, game, system);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
 }
 
@@ -1910,11 +2027,11 @@ JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
 template<typename T> struct GameInfoDescItem
 {
 	GameInfoDescItem() : isDefined(false) { }
-	GameInfoDescItem(JavascriptEngine::JsObj &desc, const WCHAR *lprop, const CHAR *prop) { From(desc, lprop, prop); }
+	GameInfoDescItem(JavascriptEngine::JsObj &desc, const CHAR *prop) { From(desc, prop); }
 
-	void From(JavascriptEngine::JsObj &desc, const WCHAR *lprop, const CHAR *prop)
+	void From(JavascriptEngine::JsObj &desc, const CHAR *prop)
 	{
-		if ((this->isDefined = desc.Has(lprop)) == true)
+		if ((this->isDefined = desc.Has(prop)) == true)
 			this->value = desc.Get<T>(prop);
 	}
 
@@ -1951,8 +2068,7 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		// Retrieve all of the values before changing anything.  This
 		// will avoid leaving the game in an inconsistent state if any
 		// of the Javascript data operations throw errors.
-#define __L(x) L ## x
-#define Prop(T, name) GameInfoDescItem<T> name(desc, __L(#name), #name)
+#define Prop(T, name) GameInfoDescItem<T> name(desc, #name)
 
 		Prop(JsValueRef, categories);
 		Prop(TSTRING, title);
@@ -1979,8 +2095,8 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 			JavascriptEngine::JsObj gridPosObj(desc.Get<JsValueRef>("gridPos"));
 			if (!gridPosObj.IsNull())
 			{
-				gridPosRow.From(gridPosObj, L"row", "row");
-				gridPosColumn.From(gridPosObj, L"column", "column");
+				gridPosRow.From(gridPosObj, "row");
+				gridPosColumn.From(gridPosObj, "column");
 			}
 		}
 
@@ -2052,7 +2168,6 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		}
 
 #undef Prop
-#undef __L
 
 		// Get the options
 		bool renameMediaOption = true;
@@ -2977,7 +3092,7 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 				// same system index as the original launch attempt (the most
 				// recent launch attempt), since elevation approval is always
 				// a follow-on step to a launch command.
-				PlayGame(lastPlayGameCmd, game->recentSystemIndex);
+				PlayGame(lastPlayGameCmd, lastPlayGameLaunchFlags, game->recentSystemIndex);
 			}
 		}
 		return true;
@@ -3032,7 +3147,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		return true;
 		
 	case ID_PLAY_GAME:
-		PlayGame(cmd);
+		PlayGame(cmd, Application::LaunchFlags::StdPlayFlags);
 		return true;
 
 	case ID_BATCH_CAPTURE_NEXT_GAME:
@@ -3131,7 +3246,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 
 			// switch to the "exiting game" message
 			runningGameMode = RunningGameMode::Exiting;
-			ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING), 48);
+			ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING));
 
 			// switch to "cancelling" mode
 			Application::Get()->ShowCaptureCancel();
@@ -3435,7 +3550,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 			// makes the selection, it just retries the same command as
 			// last time using the additional information provided by the
 			// system selection.
-			PlayGame(lastPlayGameCmd, cmd - ID_PICKSYS_FIRST);
+			PlayGame(lastPlayGameCmd, lastPlayGameLaunchFlags, cmd - ID_PICKSYS_FIRST);
 			return true;
 		}
 
@@ -3718,7 +3833,7 @@ void PlayfieldView::ShowAboutBox()
 	UpdateDrawingList();
 }
 
-void PlayfieldView::PlayGame(int cmd, int systemIndex)
+void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, int systemIndex)
 {
 	// Remember the command that triggered the launch.  We might have
 	// to ask the user for additional information (such as selecting
@@ -3731,6 +3846,7 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 	// we're storing here: the command that triggered this launch
 	// attempt in case it has to be repeated.
 	lastPlayGameCmd = cmd;
+	lastPlayGameLaunchFlags = launchFlags;
 
 	// get the current game
 	if (GameListItem *game = GameList::Get()->GetNthGame(0); IsGameValid(game))
@@ -3827,103 +3943,107 @@ void PlayfieldView::PlayGame(int cmd, int systemIndex)
 			return;
 		}
 
-		// For regular PLAY GAME commands, collect a credit on each
-		// launch.  Don't do this for media capture, as that's an
-		// operator setup operation rather than normal play.
-		if (cmd == ID_PLAY_GAME)
-		{
-			// reset the coin balance (converting to credits)
-			ResetCoins();
-
-			// Deduct a credit, if there's at least one credit available. 
-			// Note that this only provides a novelty implementation; if we
-			// wanted to implement some kind of real coin/credit management,
-			// we wouldn't charge a credit here; instead, we'd charge as
-			// usual in the games themselves, but we'd transfer the credit
-			// balance back and forth between the games and the menu system.
-			// Charging here is kind of pointless because it lets the player 
-			// play as many rounds on the launched table as they want for
-			// one credit here, assuming that the tables are set on free
-			// play.  (And if the tables aren't set on free play, it makes
-			// even less sense to collect a toll here, as we're going to
-			// charge the player again in the game.)  But transfering the
-			// credits to and from the games is difficult, because most
-			// tables are VPinMAME ROM-based games; we'd have to patch the
-			// VPM NVRAM files with our credit balance on launch, and then
-			// read the updated value back out on return.  That would take
-			// another program along the lines of PINemHi (the high-score
-			// NVRAM parser), which I don't think anyone has built.  So
-			// anyway, our whole coin credit system is just here for the
-			// entertainment value, and the only reason to charge a credit
-			// here is to make sure we charge credits *somewhere*, so that
-			// the balance doesn't just keep rising on coin insertions.
-			if (bankedCredits >= 1.0f)
-				SetCredits(bankedCredits - 1.0f);
-		}
-
-		// Save any in-memory changes to config/stats files.  Launching an
-		// external program always runs the risk of crashing the system, so
-		// this would be a good time to make sure we've committed changes.
-		// Program launchs also tend to be fairly slow, so this is also a
-		// good reason to do a save now - the few milliseconds needed to
-		// write our files won't be noticeable against the backdrop of a
-		// whole process launch.
-		Application::SaveFiles();
-
-		// Clear any cached high score information, in case the user
-		// sets a new high score on this run.  That will ensure that
-		// we fetch fresh data from the NVRAM file the next time we
-		// want to display the high scores.
-		game->ClearCachedHighScores();
-
 		// Record the selected system index from this launch.  This will
 		// be used to select the default item the next time we have to
 		// display the system selection menu, and for re-launching if we
 		// have to go through an Admin approval menu.
 		game->recentSystemIndex = systemIndex;
 
-		// If we're launching for media capture, set up the capture list
-		std::list<Application::LaunchCaptureItem> launchCaptureList;
-		if (cmd == ID_CAPTURE_GO)
+		// launch the game with the selected system
+		PlayGame(cmd, launchFlags, game, system);
+	}
+}
+
+void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system)
+{
+	// If desired, collect a credit on launch
+	if ((launchFlags & Application::LaunchFlags::ConsumeCredit) != 0)
+	{
+		// reset the coin balance (converting to credits)
+		ResetCoins();
+
+		// Deduct a credit, if there's at least one credit available. 
+		// Note that this only provides a novelty implementation; if we
+		// wanted to implement some kind of real coin/credit management,
+		// we wouldn't charge a credit here; instead, we'd charge as
+		// usual in the games themselves, but we'd transfer the credit
+		// balance back and forth between the games and the menu system.
+		// Charging here is kind of pointless because it lets the player 
+		// play as many rounds on the launched table as they want for
+		// one credit here, assuming that the tables are set on free
+		// play.  (And if the tables aren't set on free play, it makes
+		// even less sense to collect a toll here, as we're going to
+		// charge the player again in the game.)  But transfering the
+		// credits to and from the games is difficult, because most
+		// tables are VPinMAME ROM-based games; we'd have to patch the
+		// VPM NVRAM files with our credit balance on launch, and then
+		// read the updated value back out on return.  That would take
+		// another program along the lines of PINemHi (the high-score
+		// NVRAM parser), which I don't think anyone has built.  So
+		// anyway, our whole coin credit system is just here for the
+		// entertainment value, and the only reason to charge a credit
+		// here is to make sure we charge credits *somewhere*, so that
+		// the balance doesn't just keep rising on coin insertions.
+		if (bankedCredits >= 1.0f)
+			SetCredits(bankedCredits - 1.0f);
+	}
+
+	// Save any in-memory changes to config/stats files.  Launching an
+	// external program always runs the risk of crashing the system, so
+	// this would be a good time to make sure we've committed changes.
+	// Program launchs also tend to be fairly slow, so this is also a
+	// good reason to do a save now - the few milliseconds needed to
+	// write our files won't be noticeable against the backdrop of a
+	// whole process launch.
+	Application::SaveFiles();
+
+	// Clear any cached high score information, in case the user
+	// sets a new high score on this run.  That will ensure that
+	// we fetch fresh data from the NVRAM file the next time we
+	// want to display the high scores.
+	game->ClearCachedHighScores();
+
+	// If we're launching for media capture, set up the capture list
+	std::list<Application::LaunchCaptureItem> launchCaptureList;
+	if ((launchFlags & Application::LaunchFlags::Capturing) != 0)
+	{
+		// include each item with capture enabled
+		for (auto &s : captureList)
 		{
-			// include each item with capture enabled
-			for (auto &s : captureList)
+			switch (s.mode)
 			{
-				switch (s.mode)
-				{
-				case IDS_CAPTURE_CAPTURE:
-				case IDS_CAPTURE_SILENT:
-					// capturing in default mode, no audio
-					launchCaptureList.emplace_back(s.win, s.mediaType, false);
-					break;
+			case IDS_CAPTURE_CAPTURE:
+			case IDS_CAPTURE_SILENT:
+				// capturing in default mode, no audio
+				launchCaptureList.emplace_back(s.win, s.mediaType, false);
+				break;
 
-				case IDS_CAPTURE_WITH_AUDIO:
-					// capturing video with audio
-					launchCaptureList.emplace_back(s.win, s.mediaType, true);
-					break;
+			case IDS_CAPTURE_WITH_AUDIO:
+				// capturing video with audio
+				launchCaptureList.emplace_back(s.win, s.mediaType, true);
+				break;
 
-				case IDS_CAPTURE_KEEP:
-				case IDS_CAPTURE_SKIP:
-					// not capturing this item
-					break;
-				}
-			}
-
-			// if nothing was selected for capture, say so and skip the launch
-			if (launchCaptureList.size() == 0)
-			{
-				ShowError(EIT_Information, LoadStringT(IDS_CAPSTAT_NONE_SELECTED));
-				return;
+			case IDS_CAPTURE_KEEP:
+			case IDS_CAPTURE_SKIP:
+				// not capturing this item
+				break;
 			}
 		}
 
-		// queue the game for launch, replacing any prior launch queue
-		Application::Get()->ClearLaunchQueue();
-		Application::Get()->QueueLaunch(cmd, game, system, &launchCaptureList, captureStartupDelay);
-
-		// launch it
-		LaunchQueuedGame();
+		// if nothing was selected for capture, say so and skip the launch
+		if (launchCaptureList.size() == 0)
+		{
+			ShowError(EIT_Information, LoadStringT(IDS_CAPSTAT_NONE_SELECTED));
+			return;
+		}
 	}
+
+	// queue the game for launch, replacing any prior launch queue
+	Application::Get()->ClearLaunchQueue();
+	Application::Get()->QueueLaunch(cmd, launchFlags, game, system, &launchCaptureList, captureStartupDelay);
+
+	// launch it
+	LaunchQueuedGame();
 }
 
 void PlayfieldView::LaunchQueuedGame()
@@ -3943,10 +4063,40 @@ void PlayfieldView::LaunchQueuedGame()
 		// (that is, FireLaunchEvent returns true), we can proceed with
 		// the launch.
 		game = GameList::Get()->GetByInternalID(info.gameId);
-		if (game != nullptr && FireLaunchEvent(jsPreLaunchEvent, game, info.cmd))
+		JavascriptEngine::JsObj overrides(JS_INVALID_REFERENCE);
+		if (game != nullptr && FireLaunchEvent(&overrides, jsPreLaunchEvent, game, info.cmd))
 		{
-			// cleared for launch - stop searching and go launch the 
-			// current head of the queue
+			// Cleared for launch.  Check for overrides.
+			if (!overrides.IsNull())
+			{
+				try
+				{
+					static const CHAR *const props[] = {
+						"envVars",
+						"exe",
+						"params",
+						"processName",
+						"runAfter",
+						"runAfterPost",
+						"runBefore",
+						"runBeforePre",
+						"terminateBy",
+						"workingPath",
+						"swShow"
+					};
+					for (auto p : props)
+					{
+						if (overrides.Has(p))
+							Application::Get()->SetNextQueuedGameOverride(p, overrides.Get<TSTRING>(p));
+					}
+				}
+				catch (JavascriptEngine::CallException)
+				{
+					// ignore errors
+				}
+			}
+			
+			// proceed with this game
 			break;
 		}
 		else
@@ -4020,11 +4170,34 @@ bool PlayfieldView::FireLaunchEvent(JsValueRef type, LONG gameId, int cmd, const
 
 bool PlayfieldView::FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage)
 {
+	return FireLaunchEvent(nullptr, type, game, cmd, errorMessage);
+}
+
+bool PlayfieldView::FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage)
+{
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
+		// pass the error message as a js string if provided, otherwise use 'undefined'
 		JsValueRef errorVal = errorMessage != nullptr ? js->NativeToJs(errorMessage) : js->GetUndefVal();
-		ret = js->FireEvent(jsMainWindow, type, BuildJsGameInfo(game), cmd, errorVal);
+
+		// fire the event
+		JsValueRef eventObj;
+		ret = js->FireAndReturnEvent(eventObj, jsMainWindow, type, BuildJsGameInfo(game), cmd, errorVal);
+
+		// if the caller wants the 'overrides' object, retrieve it
+		if (overrides != nullptr)
+		{
+			try
+			{
+				JavascriptEngine::JsObj event(eventObj);
+				overrides->jsobj = event.Get<JsValueRef>("overrides");
+			}
+			catch (JavascriptEngine::CallException)
+			{
+				// ignore errors
+			}
+		}
 	}
 
 	return ret;
@@ -4327,9 +4500,8 @@ void PlayfieldView::UpdateRateGameDialog()
 		else
 		{
 			// no wheel icon - just draw the title
-			std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 48, 400));
 			Gdiplus::RectF rcTitle(0.0f, 0.0f, (float)width, (float)height / 3.0f);
-			g.DrawString(game->title.c_str(), -1, titleFont.get(), rcTitle, &centerFmt, &textBr);
+			g.DrawString(game->title.c_str(), -1, popupTitleFont, rcTitle, &centerFmt, &textBr);
 		}
 
 		// draw the stars
@@ -4346,13 +4518,13 @@ void PlayfieldView::UpdateRateGameDialog()
 
 		// show the current rating as text
 		Gdiplus::RectF rcStars(0.f, (float)height / 2.0f + (float)cyStar, (float)width, (float)cyStar);
-		std::unique_ptr<Gdiplus::Font> starsFont(CreateGPFont(_T("Tahoma"), 18, 400));
-		g.DrawString(StarsAsText(workingRating).c_str(), -1, starsFont.get(), rcStars, &centerFmt, &textBr);
+		FontPref &starsFont = popupDetailFont;
+		g.DrawString(StarsAsText(workingRating).c_str(), -1, starsFont, rcStars, &centerFmt, &textBr);
 
 		// draw the prompt text
-		std::unique_ptr<Gdiplus::Font> promptFont(CreateGPFont(_T("Tahoma"), 24, 400));
+		FontPref &promptFont = popupFont;
 		Gdiplus::RectF rcPrompt(0.0f, (float)height*2.0f/3.0f, (float)width, (float)height/3.0f);
-		g.DrawString(LoadStringT(IDS_RATE_GAME_PROMPT), -1, promptFont.get(), rcPrompt, &centerFmt, &textBr);
+		g.DrawString(LoadStringT(IDS_RATE_GAME_PROMPT), -1, promptFont, rcPrompt, &centerFmt, &textBr);
 
 		// flush GDI+ drawing to the bitmap
 		g.Flush();
@@ -4433,7 +4605,593 @@ void PlayfieldView::AdjustRating(float delta)
 	UpdateRateGameDialog();
 }
 
-void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupType *replaceTypes)
+void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// If a drawing context is already set up, this must be a recursive
+		// call (that is, they're trying to show a popup from within their
+		// popup drawing callback).  That's not allowed.
+		if (jsDC != nullptr)
+			return js->Throw(_T("Recursive call to showPopup isn't allowed")), static_cast<void>(0);
+
+		// set defaults
+		float opacity = 0.9f;
+		DWORD bkColor = 0x202020;
+		DWORD txtColor = 0xffffff;
+		DWORD borderColor = 0xffffff;
+		int borderWidth = 2;
+		float width = -1.0f, height = -1.0f;
+		float xOfs = -1.0f, yOfs = -1.0f;
+		TSTRING bkImage;
+		TSTRING id = _T("UserDefined");
+		JsValueRef drawFunc = JS_INVALID_REFERENCE;
+
+		// get the actual values specified in the 'contents' object
+		if (contents.Has("opacity")) opacity = contents.Get<float>("opacity");
+		if (contents.Has("backgroundColor")) bkColor = contents.Get<int>("backgroundColor");
+		if (contents.Has("textColor")) txtColor = contents.Get<int>("textColor");
+		if (contents.Has("borderColor")) borderColor = contents.Get<int>("borderColor");
+		if (contents.Has("borderWidth")) borderWidth = contents.Get<int>("borderWidth");
+		if (contents.Has("width")) width = contents.Get<float>("width");
+		if (contents.Has("height")) height = contents.Get<float>("height");
+		if (contents.Has("x")) xOfs = contents.Get<float>("x");
+		if (contents.Has("y")) yOfs = contents.Get<float>("y");
+		if (contents.Has("backgroundImage")) bkImage = contents.Get<TSTRING>("backgroundImage");
+		if (contents.Has("id")) id = contents.Get<TSTRING>("id");
+		if (contents.Has("draw")) drawFunc = contents.Get<JsValueRef>("draw");
+
+		// If a background image was specified, and the path is relative, get
+		// the full path relative to the program folder.
+		const TCHAR *bkImagePath = bkImage.c_str();
+		TCHAR bkImagePathBuf[MAX_PATH];
+		if (bkImagePath[0] != 0 && PathIsRelative(bkImagePath))
+		{
+			GetDeployedFilePath(bkImagePathBuf, bkImagePath, _T(""));
+			bkImagePath = bkImagePathBuf;
+		}
+
+		// figure the pixel dimensions from the percentage-based dimensions
+		int pixWidth = static_cast<int>(roundf(width*1920.0f)) + borderWidth*2;
+		int pixHeight = static_cast<int>(roundf(height*1920.0f)) + borderWidth*2;
+
+		// If the size isn't specified, and there's a background image, use the
+		// image size, normalized to 1920H x 1080W.
+		if (width < 0.0f && height < 0.0f && bkImagePath[0] != 0)
+		{
+			ImageFileDesc desc;
+			if (GetImageFileInfo(bkImagePath, desc, true))
+			{
+				// figure the image size relative to the normalized layout height
+				pixWidth = desc.dispSize.cx + borderWidth*2;
+				pixHeight = desc.dispSize.cy + borderWidth*2;
+
+				// refigure the percentage dimensions from the pixel sizes
+				width = static_cast<float>(pixWidth) / 1920.0f;
+				height = static_cast<float>(pixHeight) / 1920.0f;
+			}
+		}
+
+		// If we still don't have a width, apply a default of 80% of the 
+		// normalized window width.  We're using units of window height,
+		// and the normalized size is 1080W x 1920H, so 80% of 1080px ==
+		// 864px == 45% of 1920, so .45 in height units.
+		if (width < 0.0f)
+		{
+			width = 0.45f;
+			pixWidth = 864;
+		}
+
+		// set up the draw function
+		int contentHeight = -1;
+		auto Draw = [&](Gdiplus::Graphics &g)
+		{
+			// RGB as packed int value from javascript to Gdiplus color
+			static auto GdiColor = [](int color) {
+				return Gdiplus::Color(
+					static_cast<BYTE>((color >> 16) & 0xff),
+					static_cast<BYTE>((color >> 8) & 0xff),
+					static_cast<BYTE>((color) & 0xff));
+			};
+
+			// draw the background image, if applicable
+			if (bkImagePath[0] != 0)
+			{
+				// draw the image
+				Gdiplus::Image image(bkImagePath);
+				g.DrawImage(&image, borderWidth, borderWidth);
+			}
+			else
+			{
+				// fill the background with the background color
+				Gdiplus::SolidBrush br(Gdiplus::Color(
+					static_cast<BYTE>(opacity*255.0f),
+					static_cast<BYTE>((bkColor >> 16) & 0xff),
+					static_cast<BYTE>((bkColor >> 8) & 0xff),
+					static_cast<BYTE>(bkColor & 0xff)));
+
+				g.FillRectangle(&br, 0.0f, 0.0f, static_cast<float>(pixWidth), static_cast<float>(pixHeight));
+			}
+
+			// if the javascript caller provided a draw callback function, call it
+			if (drawFunc != JS_INVALID_REFERENCE)
+			{
+				// set up a drawing context for the callback
+				jsDC.reset(new JsDrawingContext(g,
+					static_cast<float>(pixWidth), static_cast<float>(pixHeight),
+					static_cast<float>(borderWidth)));
+
+				// Create the Javascript drawing context.  This is just an object with
+				// prototype <jsDrawingContext>, which encapsulates the drawing methods.
+				// The context object doesn't *actually* capture any host state, even
+				// though it represents the host drawing state conceptually.  The real 
+				// host state is managed by the jsPopupDC static, which is fine for our
+				// purposes here since it only has to exist for the duration of the
+				// callback.  If in the future we wanted to create multiple host drawing
+				// contexts for javascript use that could exist simultaneously with
+				// overlapping lifetimes, we'd make the concept match the reality by
+				// putting a reference to the true host state object in the js object;
+				// but for now we don't have any practical need for that, so keep it
+				// simple by using the static.
+				auto jsdc = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsDrawingContextProto);
+
+				// call the callback:  func(drawingContext)
+				JsValueRef argv[] = { js->GetGlobalObject(), jsdc.jsobj }, result;
+				if (JsErrorCode err = JsCallFunction(drawFunc, argv, static_cast<unsigned short>(countof(argv)), &result); err != JsNoError)
+					js->Throw(err, _T("mainWindow.showPopup draw callback"));
+
+				// if the callback returned a value, it's the height
+				if (result != js->GetUndefVal())
+					js->ToInt(contentHeight, result);
+
+				// the drawing context is valid only for the duration of the callback
+				jsDC.reset();
+			}
+
+			// draw the border
+			Gdiplus::SolidBrush borderBrush(GdiColor(borderColor));
+			Gdiplus::Pen borderPen(&borderBrush, static_cast<float>(borderWidth));
+			g.DrawRectangle(&borderPen, borderWidth/2, borderWidth/2, pixWidth - borderWidth, pixHeight - borderWidth);
+		};
+
+		// If the height is still to be determined, do an off-screen drawing pass
+		// to determine the content height.
+		if (height < 0.0f)
+		{
+			// draw into a dummy off-screen bitmap to figure the content height
+			DrawOffScreen(pixWidth, 1, [&](HDC hdc, HBITMAP, const void *dibits, const BITMAPINFO &bi)
+			{ 
+				Gdiplus::Graphics g(hdc);
+				Draw(g);
+			});
+
+			// if the content height wasn't set, it's an error
+			if (contentHeight < 0)
+				return js->Throw(_T("Popup height must be returned from drawing function")), static_cast<void>(0);
+
+			// use the content height
+			height = static_cast<float>(contentHeight) / 1920.0f;
+			pixHeight = static_cast<int>(height*1920.0f) + borderWidth*2;
+		}
+
+		// create the sprite
+		popupSprite.Attach(new Sprite());
+		popupSprite->Load(pixWidth, pixHeight, Draw, SilentErrorHandler(), _T("jsShowPopup"));
+
+		// set the canonical popup position
+		AdjustSpritePosition(popupSprite);
+
+		// if an explicit position was specified, apply it
+		if (xOfs >= 0)
+			popupSprite->offset.x = xOfs;
+		if (yOfs >= 0)
+			popupSprite->offset.y = yOfs;
+
+		// show the popup
+		StartPopupAnimation(PopupUserDefined, id.c_str(), true);
+
+		// put the new sprite in the drawing list
+		UpdateDrawingList();
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsDrawingContext::InitFont()
+{
+	// create a font object if we don't already have one
+	if (font == nullptr)
+		font.reset(CreateGPFont(fontName.c_str(), fontPtSize, fontWeight));
+
+	// If there's still no font, create a default font. 
+	if (font == nullptr)
+	{
+		// range-check the point size and weight, substituting reasonable defaults if
+		// the user-specified ones look crazy
+		int ptSize = fontPtSize >= 4 && fontPtSize < 400 ? fontPtSize : 24;
+		int weight = fontWeight >= 100 && fontWeight <= 900 ? fontWeight : 400;
+
+		// create the font
+		font.reset(CreateGPFont(_T("Tahoma"), ptSize, weight));
+	}
+
+	// create a brush if we don't already have one
+	if (textBrush == nullptr)
+		textBrush.reset(new Gdiplus::SolidBrush(textColor));
+}
+
+void PlayfieldView::JsDrawDrawText(TSTRING text)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// initialize drawing resources
+	jsDC->InitFont();
+
+	// set up a text formatter with the current alignment
+	Gdiplus::StringFormat f = Gdiplus::StringFormat::GenericTypographic();
+	f.SetAlignment(jsDC->textAlignHorz);
+	f.SetLineAlignment(jsDC->textAlignVert);
+	f.SetFormatFlags(
+		(f.GetFormatFlags() | Gdiplus::StringFormatFlags::StringFormatFlagsMeasureTrailingSpaces)
+		& ~Gdiplus::StringFormatFlagsLineLimit);
+
+	// Figure the layout area
+	Gdiplus::RectF rcLayout(
+		jsDC->textOrigin.X,
+		jsDC->textOrigin.Y,
+		jsDC->textBounds.GetRight() - jsDC->textOrigin.X,
+		jsDC->textBounds.GetBottom() - jsDC->textOrigin.Y);
+
+	// if the text ends in a newline, note it, but don't include it in the text
+	// we send to DrawString
+	INT len = static_cast<INT>(text.length());
+	bool newline;
+	if ((newline = (len > 0 && text[len-1] == '\n')) != false)
+		--len;
+
+	// draw the text
+	jsDC->g.DrawString(text.c_str(), len, jsDC->font.get(), rcLayout, &f, jsDC->textBrush.get());
+
+	// Advance the text origin.  If the text ended in a newline, advance the
+	// vertical offset by the line height and move the horizontal offset to
+	// the left of the text layout box.  Otherwise, advance the horizontal
+	// offset by the text width.
+	Gdiplus::RectF bbox;
+	jsDC->g.MeasureString(text.c_str(), len, jsDC->font.get(), rcLayout, &bbox);
+	if (newline)
+	{
+		jsDC->textOrigin.X = jsDC->textBounds.X;
+		jsDC->textOrigin.Y += bbox.Height;
+	}
+	else
+	{
+		jsDC->textOrigin.X += bbox.Width;
+	}
+}
+
+void PlayfieldView::JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// set each value that's specified; leave undefined values unchanged
+	JsErrorCode err;
+	if (name != js->GetUndefVal() && (err = js->ToString(jsDC->fontName, name)) != JsNoError)
+		return js->Throw(err), static_cast<void>(0);
+	if (pointSize != js->GetUndefVal() && (err = js->ToInt(jsDC->fontPtSize, pointSize)) != JsNoError)
+		return js->Throw(err), static_cast<void>(0);
+	if (weight != js->GetUndefVal() && (err = js->ToInt(jsDC->fontWeight, weight)) != JsNoError)
+		return js->Throw(err), static_cast<void>(0);
+
+	// clear the previous font
+	jsDC->font.reset();
+}
+
+void PlayfieldView::JsDrawSetTextColor(int rgb)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// set the new color
+	jsDC->textColor = Gdiplus::Color(
+		static_cast<BYTE>((rgb >> 16) & 0xff),
+		static_cast<BYTE>((rgb >> 8) & 0xff),
+		static_cast<BYTE>(rgb & 0xff));
+
+	// clear the previous text brush
+	jsDC->textBrush.reset();
+}
+
+void PlayfieldView::JsDrawSetTextAlign(JsValueRef horz, JsValueRef vert)
+{
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// set the values; leave undefined values unchanged
+	auto Xlat = [js](JsValueRef val, Gdiplus::StringAlignment &align)
+	{
+		JsErrorCode err;
+		int i;
+		if (val != js->GetUndefVal() && (err = js->ToInt(i, val)) != JsNoError)
+		{
+			js->Throw(err);
+			return false;
+		}
+		align = i < 0 ? Gdiplus::StringAlignmentNear :
+			i > 0 ? Gdiplus::StringAlignmentFar :
+			Gdiplus::StringAlignmentCenter;
+		return true;
+	};
+	Xlat(horz, jsDC->textAlignHorz) || Xlat(vert, jsDC->textAlignVert);
+}
+
+void PlayfieldView::JsDrawDrawImage(TSTRING filename, float x, float y, JsValueRef widthVal, JsValueRef heightVal)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// if the path is relative, make it relative to the program folder
+	const TCHAR *path = filename.c_str();
+	TCHAR pathBuf[MAX_PATH];
+	if (PathIsRelative(path))
+	{
+		GetDeployedFilePath(pathBuf, path, _T(""));
+		path = pathBuf;
+	}
+
+	// adjust to from js interior coordinates to global coordinates
+	x += jsDC->borderWidth;
+	y += jsDC->borderWidth;
+
+	// load the file
+	std::unique_ptr<Gdiplus::Image> image(new Gdiplus::Image(path));
+	if (image == nullptr)
+		return js->Throw(_T("Unable to load image file")), static_cast<void>(0);
+
+	// Figure the drawing width and height.  If both dimensions are unspecified,
+	// use the native image size.  If one dimension is unspecified, figure the
+	// unspecified dimension such that it preserves the image's native aspect
+	// ratio given the specified dimension.  If both are specified, use the 
+	// exact dimensions given.
+	UINT imageWidth = image->GetWidth();
+	UINT imageHeight = image->GetHeight();
+	float drawWidth = static_cast<float>(imageWidth);
+	float drawHeight = static_cast<float>(imageHeight);
+	JsErrorCode err;
+	if (widthVal != js->GetUndefVal() && heightVal != js->GetUndefVal())
+	{
+		// use the exact dimensions specified
+		if ((err = js->ToFloat(drawWidth, widthVal)) != JsNoError || (err = js->ToFloat(drawHeight, heightVal)) != JsNoError)
+			return js->Throw(err), static_cast<void>(0);
+	}
+	else if (widthVal != js->GetUndefVal())
+	{
+		// width was specified, height was not - use the width, and figure the
+		// height that preserves the original image's aspect ratio at that width
+		if ((err = js->ToFloat(drawWidth, widthVal)) != JsNoError)
+			return js->Throw(err), static_cast<void>(0);
+
+		if (imageWidth != 0)
+			drawHeight *= drawWidth / static_cast<float>(imageWidth);
+	}
+	else if (heightVal != js->GetUndefVal())
+	{
+		// height was specified, width was not
+		if ((err = js->ToFloat(drawHeight, heightVal)) != JsNoError)
+			return js->Throw(err), static_cast<void>(0);
+
+		if (imageHeight != 0)
+			drawWidth *= drawHeight / static_cast<float>(imageHeight);
+	}
+
+	// draw the image
+	jsDC->g.DrawImage(image.get(), Gdiplus::RectF(x, y, drawWidth, drawHeight), 
+		0.0f, 0.0f, static_cast<float>(imageWidth), static_cast<float>(imageHeight),
+		Gdiplus::Unit::UnitPixel);
+}
+
+JsValueRef PlayfieldView::JsDrawGetImageSize(TSTRING filename)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now"));
+
+	// if the path is relative, make it relative to the program folder
+	const TCHAR *path = filename.c_str();
+	TCHAR pathBuf[MAX_PATH];
+	if (PathIsRelative(path))
+	{
+		GetDeployedFilePath(pathBuf, path, _T(""));
+		path = pathBuf;
+	}
+
+	// get the image size
+	ImageFileDesc desc;
+	if (!GetImageFileInfo(path, desc))
+		return js->Throw(_T("Image file can't be loaded"));
+
+	// return an object with the width and height
+	try
+	{
+		auto ret = JavascriptEngine::JsObj::CreateObject();
+		ret.Set("width", desc.size.cx);
+		ret.Set("height", desc.size.cy);
+		return ret.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsDrawSetTextArea(float x, float y, float width, float height)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// The Javascript caller works in terms of the area inside the borders,
+	// whereas we work with the raw drawing surface including the borders,
+	// so adjust the top left by the border width;
+	x += jsDC->borderWidth;
+	y += jsDC->borderWidth;
+
+	// set the new text clip area
+	jsDC->textBounds = Gdiplus::RectF(x, y, width, height);
+}
+
+void PlayfieldView::JsDrawSetTextOrigin(float x, float y)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// The Javascript caller works in terms of the area inside the borders,
+	// whereas we work with the raw drawing surface including the borders,
+	// so adjust the top left by the border width;
+	x += jsDC->borderWidth;
+	y += jsDC->borderWidth;
+
+	// set the new origin
+	jsDC->textOrigin = Gdiplus::PointF(x, y);
+}
+
+JsValueRef PlayfieldView::JsDrawGetTextOrigin()
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now"));
+
+	// return the current text origin as an object with x,y properties
+	try
+	{
+		auto ret = JavascriptEngine::JsObj::CreateObject();
+		ret.Set("x", jsDC->textOrigin.X - jsDC->borderWidth);
+		ret.Set("y", jsDC->textOrigin.Y - jsDC->borderWidth);
+		return ret.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+	
+JsValueRef PlayfieldView::JsDrawMeasureText(TSTRING text)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now"));
+
+	// initialize drawing resources
+	jsDC->InitFont();
+
+	// measure the text
+	Gdiplus::StringFormat f = Gdiplus::StringFormat::GenericTypographic();
+	f.SetFormatFlags(f.GetFormatFlags() | Gdiplus::StringFormatFlags::StringFormatFlagsMeasureTrailingSpaces);
+	Gdiplus::RectF bbox;
+	jsDC->g.MeasureString(text.c_str(), static_cast<INT>(text.length()), jsDC->font.get(), jsDC->textOrigin, &f, &bbox);
+
+	// return the bounding rectangle, adjusting from our global coordinates
+	// to the interior of the border area
+	try
+	{
+		auto ret = JavascriptEngine::JsObj::CreateObject();
+		ret.Set("left", bbox.GetLeft() - jsDC->borderWidth);
+		ret.Set("top", bbox.GetTop() - jsDC->borderWidth);
+		ret.Set("right", bbox.GetRight() - jsDC->borderWidth);
+		ret.Set("bottom", bbox.GetBottom() - jsDC->borderWidth);
+		ret.Set("width", bbox.Width);
+		ret.Set("height", bbox.Height);
+		return ret.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, int rgb)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// adjust from border-relative to surface-relative coordinates
+	x += jsDC->borderWidth;
+	y += jsDC->borderWidth;
+
+	// create a brush
+	Gdiplus::SolidBrush br(Gdiplus::Color(
+		static_cast<BYTE>((rgb >> 16) & 0xff),
+		static_cast<BYTE>((rgb >> 8) & 0xff),
+		static_cast<BYTE>(rgb & 0xff)));
+
+	// fill the rectangle
+	jsDC->g.FillRectangle(&br, x, y, width, height);
+}
+
+void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int rgb)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	// adjust to from js interior coordinates to global coordinates
+	x += jsDC->borderWidth;
+	y += jsDC->borderWidth;
+
+	// create a pen
+	Gdiplus::Pen pen(Gdiplus::Color(
+		static_cast<BYTE>((rgb >> 16) & 0xff),
+		static_cast<BYTE>((rgb >> 8) & 0xff),
+		static_cast<BYTE>(rgb & 0xff)), frameWidth);
+
+	// draw the frame
+	jsDC->g.DrawRectangle(&pen, x, y, width, height);
+}
+
+JsValueRef PlayfieldView::JsDrawGetSize()
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now"));
+
+	// return an object with the width and height
+	try
+	{
+		auto ret = JavascriptEngine::JsObj::CreateObject();
+		ret.Set("width", jsDC->width - 2.0f*jsDC->borderWidth);
+		ret.Set("height", jsDC->height - 2.0f*jsDC->borderWidth);
+		return ret.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupDesc *replaceTypes)
 {
 	// If we're opening a new popup, and there's an existing popup in the
 	// 'replace types' list, skip the animation.
@@ -4451,9 +5209,10 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 		else
 		{
 			// search the provided list of replaceable types
-			for (const PopupType *p = replaceTypes; *p != PopupNone; ++p)
+			for (const PopupDesc *p = replaceTypes; p->type != PopupNone; ++p)
 			{
-				if (*p == popupType)
+				if (p->type == popupType
+					&& (p->name == nullptr || popupName == nullptr || _wcsicmp(p->name, popupName) == 0))
 				{
 					replacing = true;
 					break;
@@ -4542,7 +5301,7 @@ void PlayfieldView::RemoveInstructionsCard()
 // the background, outline, title string, and wheel image.  On return, 'gds'
 // is filled in with the bounding box and starting position for additional
 // text.
-static void DrawInfoBoxCommon(const GameListItem *game,
+void PlayfieldView::DrawInfoBoxCommon(const GameListItem *game,
 	Gdiplus::Graphics &g, int width, int height, float margin, GPDrawString &gds)
 {
 	// draw the background
@@ -4579,14 +5338,13 @@ static void DrawInfoBoxCommon(const GameListItem *game,
 	}
 
 	// draw the title
-	std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 48, 400));
 	Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
 	Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
-	g.DrawString(game->title.c_str(), -1, titleFont.get(), titleBox, &fmt, &textBr);
+	g.DrawString(game->title.c_str(), -1, popupTitleFont, titleBox, &fmt, &textBr);
 
 	// measure the fit
 	Gdiplus::RectF bbox;
-	g.MeasureString(game->title.c_str(), -1, titleFont.get(), titleBox, &fmt, &bbox);
+	g.MeasureString(game->title.c_str(), -1, popupTitleFont, titleBox, &fmt, &bbox);
 	if (bbox.GetBottom() > pt.Y)
 		pt.Y = bbox.GetBottom();
 
@@ -4675,10 +5433,10 @@ void PlayfieldView::ShowGameInfo()
 
 		// set up fonts and colors
 		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-		std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400));
-		std::unique_ptr<Gdiplus::Font> smallerTextFont(CreateGPFont(_T("Tahoma"), 20, 400));
-		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(_T("Tahoma"), 18, 400));
-		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), 18, 400));
+		FontPref &textFont = popupFont;
+		FontPref &smallerTextFont = popupSmallerFont;
+		FontPref &detailsFont = popupDetailFont;
+		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), detailsFont.ptSize, 400));
 		ArrowFont arrowFont(18);
 		
 		//
@@ -4691,21 +5449,20 @@ void PlayfieldView::ShowGameInfo()
 		auto origWidth = gds.bbox.Width;
 		gds.bbox.Width = gds.bbox.Width*2/3 - 16;
 		if (game->manufacturer != nullptr)
-			gds.DrawString(MsgFmt(_T("%s, %d"), game->manufacturer->manufacturer.c_str(), game->year),
-				textFont.get(), &textBr);
+			gds.DrawString(MsgFmt(_T("%s, %d"), game->manufacturer->manufacturer.c_str(), game->year), textFont, &textBr);
 		else if (game->year != 0)
-			gds.DrawString(MsgFmt(_T("%d"), game->year), textFont.get(), &textBr);
+			gds.DrawString(MsgFmt(_T("%d"), game->year), textFont, &textBr);
 
 		// restore the bounding box
 		gds.bbox.Width = origWidth;
 
 		// table type
 		if (auto tt = tableTypeNameMap.find(game->tableType); tt != tableTypeNameMap.end())
-			gds.DrawString(tt->second.c_str(), smallerTextFont.get(), &textBr);
+			gds.DrawString(tt->second.c_str(), smallerTextFont, &textBr);
 
 		// system
 		if (game->system != nullptr)
-			gds.DrawString(game->system->displayName.c_str(), smallerTextFont.get(), &textBr);
+			gds.DrawString(game->system->displayName.c_str(), smallerTextFont, &textBr);
 
 		// show the personal rating
 		float rating = gl->GetRating(game);
@@ -4734,7 +5491,7 @@ void PlayfieldView::ShowGameInfo()
 			// taller than the font, advance by the difference, so that the text
 			// baseline matches the star graphics baseline.
 			gds.curOrigin.Y += fmaxf(0.0f, -dh);
-			gds.DrawString(StarsAsText(rating).c_str(), detailsFont.get(), &textBr, true);
+			gds.DrawString(StarsAsText(rating).c_str(), detailsFont, &textBr, true);
 
 			// make sure we moved past the stars vertically
 			gds.curOrigin.Y = fmaxf(y0 + starHt, gds.curOrigin.Y);
@@ -4754,13 +5511,13 @@ void PlayfieldView::ShowGameInfo()
 			if (d.IsValid())
 			{
 				gds.DrawString(MsgFmt(IDS_LAST_PLAYED_DATE, d.FormatLocalDateTime(DATE_LONGDATE, TIME_NOSECONDS).c_str()),
-					detailsFont.get(), &textBr);
+					detailsFont, &textBr);
 			}
 			else
-				gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont.get(), &textBr);
+				gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &textBr);
 
 			// add the number of times played
-			gds.DrawString(MsgFmt(IDS_TIMES_PLAYED, playCount), detailsFont.get(), &textBr);
+			gds.DrawString(MsgFmt(IDS_TIMES_PLAYED, playCount), detailsFont, &textBr);
 
 			// add the total play time
 			int seconds = gl->GetPlayTime(game);
@@ -4780,17 +5537,17 @@ void PlayfieldView::ShowGameInfo()
 				time = LoadStringT(IDS_1_MINUTE);
 			else
 				time = MsgFmt(IDS_N_MINUTES, 0);
-			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, time.c_str()), detailsFont.get(), &textBr);
+			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, time.c_str()), detailsFont, &textBr);
 		}
 		else
 		{
 			// never played - just say so, without all of the zeroed statistics
-			gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont.get(), &textBr);
+			gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &textBr);
 		}
 
 		// mention if it's in the favorites
 		if (gl->IsFavorite(game))
-			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont.get(), &textBr);
+			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont, &textBr);
 
 		//
 		// Technical details section
@@ -4800,27 +5557,27 @@ void PlayfieldView::ShowGameInfo()
 
 		// date added
 		if (DateTime dateAdded = gl->GetDateAdded(game); dateAdded.IsValid())
-			gds.DrawString(MsgFmt(IDS_DATE_ADDED, dateAdded.FormatLocalDate().c_str()), detailsFont.get(), &detailsBr);
+			gds.DrawString(MsgFmt(IDS_DATE_ADDED, dateAdded.FormatLocalDate().c_str()), detailsFont, &detailsBr);
 
 		// add the game file, if present
 		if (game->filename.length() != 0)
-			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, game->filename.c_str()), detailsFont.get(), &detailsBr);
+			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, game->filename.c_str()), detailsFont, &detailsBr);
 
 		// add the media file name
 		if (game->mediaName.length() != 0)
-			gds.DrawString(MsgFmt(IDS_GAMEINFO_MEDIANAME, game->mediaName.c_str()), detailsFont.get(), &detailsBr);
+			gds.DrawString(MsgFmt(IDS_GAMEINFO_MEDIANAME, game->mediaName.c_str()), detailsFont, &detailsBr);
 
 		// add the DOF ROM, if present
 		if (auto dofClient = DOFClient::Get(); dofClient != nullptr)
 		{
 			if (const WCHAR *rom = dofClient->GetRomForTable(game); rom != 0 && rom[0] != 0)
-				gds.DrawString(MsgFmt(IDS_GAMEINFO_DOF_ROM, rom), detailsFont.get(), &detailsBr);
+				gds.DrawString(MsgFmt(IDS_GAMEINFO_DOF_ROM, rom), detailsFont, &detailsBr);
 		}
 
 		// add the NVRAM file, if present
 		TSTRING nvramPath, nvramFile;
 		if (Application::Get()->highScores->GetNvramFile(nvramPath, nvramFile, game))
-			gds.DrawString(MsgFmt(IDS_GAMEINFO_NVRAM, nvramFile.c_str()), detailsFont.get(), &detailsBr);
+			gds.DrawString(MsgFmt(IDS_GAMEINFO_NVRAM, nvramFile.c_str()), detailsFont, &detailsBr);
 
 		// if we have high scores, add a navigation hint at the bottom right
 		if (game->highScores.size() != 0)
@@ -4831,7 +5588,7 @@ void PlayfieldView::ShowGameInfo()
 			// measure the strings, so we can align them at the right
 			TSTRING hs = LoadStringT(IDS_MENU_HIGH_SCORES);
 			Gdiplus::RectF bbox1, bbox2;
-			g.MeasureString(hs.c_str(), -1, detailsFont.get(), Gdiplus::PointF(0, 0), &bbox1);
+			g.MeasureString(hs.c_str(), -1, detailsFont, Gdiplus::PointF(0, 0), &bbox1);
 			g.MeasureString(arrowFont.menuArrowRight, -1, arrowFont.font.get(), Gdiplus::PointF(0, 0), &bbox2);
 
 			// if this is the second pass, bottom-justify the nav hints (don't do this
@@ -4842,7 +5599,7 @@ void PlayfieldView::ShowGameInfo()
 
 			// draw them
 			gds.curOrigin.X = width - margin - bbox1.Width - bbox2.Width;
-			gds.DrawString(hs.c_str(), detailsFont.get(), &textBr, false);
+			gds.DrawString(hs.c_str(), detailsFont, &textBr, false);
 			gds.curOrigin.Y += (bbox1.Height - bbox2.Height) / 2.0f;
 			gds.DrawString(arrowFont.menuArrowRight, arrowFont.get(), &textBr);
 		}
@@ -4886,7 +5643,11 @@ void PlayfieldView::ShowGameInfo()
 
 	// Start the animation.  We can do a direct switch between Game Info
 	// and High Scores without animation.
-	static const PopupType replaceTypes[] = { PopupGameInfo, PopupHighScores, PopupNone };
+	static const PopupDesc replaceTypes[] = { 
+		{ PopupGameInfo },
+		{ PopupHighScores },
+		{ PopupNone }
+	};
 	StartPopupAnimation(PopupGameInfo, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
@@ -4915,8 +5676,8 @@ void PlayfieldView::ShowHighScores()
 	RequestHighScores(game);
 
 	// set up the default font
-	int textFontPts = 24;
-	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), textFontPts, 400));
+	int textFontPts = highScoreFont.ptSize;
+	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(highScoreFont.name.c_str(), textFontPts, highScoreFont.weight));
 
 	// drawing function
 	int width = 972, height = 2000;
@@ -4942,13 +5703,13 @@ void PlayfieldView::ShowHighScores()
 		gds.curOrigin.Y += margin * 2;
 
 		// measure the "back to info box" navigation hint text
-		std::unique_ptr<Gdiplus::Font> linkFont(CreateGPFont(_T("Tahoma"), 18, 400));
-		ArrowFont arrowFont(18);
+		FontPref &linkFont = popupDetailFont;
+		ArrowFont arrowFont(linkFont.ptSize);
 		TSTRING info = LoadStringT(IDS_MENU_INFO);
 		const TCHAR *arrow = arrowFont.menuArrowLeft;
 		Gdiplus::RectF bbox1, bbox2;
 		g.MeasureString(arrow, -1, arrowFont.get(), Gdiplus::PointF(0, 0), &bbox1);
-		g.MeasureString(info.c_str(), -1, linkFont.get(), Gdiplus::PointF(0, 0), &bbox2);
+		g.MeasureString(info.c_str(), -1, linkFont, Gdiplus::PointF(0, 0), &bbox2);
 
 		// if this is the second pass, bottom-justify the nav hints (don't do this
 		// on the first pass, since we're just measuring the space we need; we can't
@@ -4959,7 +5720,7 @@ void PlayfieldView::ShowHighScores()
 		// draw them
 		gds.DrawString(arrow, arrowFont.get(), &textBr, false);
 		gds.curOrigin.Y += (bbox1.Height - bbox2.Height) / 2.0f;
-		gds.DrawString(info.c_str(), linkFont.get(), &textBr);
+		gds.DrawString(info.c_str(), linkFont, &textBr);
 
 		// set the final height and count the drawing pass
 		height = (int)(gds.curOrigin.Y + margin);
@@ -4985,7 +5746,7 @@ void PlayfieldView::ShowHighScores()
 
 		// reduce the font size slightly and try again
 		textFontPts -= 4;
-		textFont.reset(CreateGPFont(_T("Tahoma"), textFontPts, 400));
+		textFont.reset(CreateGPFont(highScoreFont.name.c_str(), textFontPts, highScoreFont.weight));
 	}
 
 	// set a minimum height, so that the box doesn't look too squat for
@@ -5018,7 +5779,11 @@ void PlayfieldView::ShowHighScores()
 
 	// Start the animation.  We can do a direct switch between high scores
 	// and Game Info with no animation.
-	static const PopupType replaceTypes[] = { PopupHighScores, PopupGameInfo, PopupNone };
+	static const PopupDesc replaceTypes[] = { 
+		{ PopupHighScores },
+		{ PopupGameInfo },
+		{ PopupNone }
+	};
 	StartPopupAnimation(PopupHighScores, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
@@ -5586,7 +6351,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 	{
 		// synthesize a default image based on the table title
 		int width = 844, height = 240;
-		sprite->Load(width, height, [game, width, height](HDC hdc, HBITMAP)
+		sprite->Load(width, height, [this, game, width, height](HDC hdc, HBITMAP)
 		{
 			// get the title string
 			TSTRINGEx title;
@@ -5602,10 +6367,10 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			std::unique_ptr<Gdiplus::Font> font;
 			Gdiplus::RectF rcLayout(0, 0, float(width), 0);
 			Gdiplus::RectF bbox;
-			for (int ptsize = 80; ptsize >= 40; ptsize -= 8)
+			for (int ptsize = wheelFont.ptSize; ptsize >= 40; ptsize -= 8)
 			{
 				// create the font at this size
-				font.reset(CreateGPFont(_T("Tahoma"), ptsize, 500));
+				font.reset(CreateGPFont(wheelFont.name.c_str(), ptsize, wheelFont.weight));
 
 				// measure it
 				g.MeasureString(title, -1, font.get(), rcLayout, &bbox);
@@ -5889,7 +6654,7 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 
 	// show the initial blank screen
 	runningGameMode = RunningGameMode::Starting;
-	ShowRunningGameMessage(nullptr, 0);
+	ShowRunningGameMessage(nullptr);
 
 	// animate the popup opening
 	runningGamePopup->alpha = 0;
@@ -5912,13 +6677,13 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 	UpdateJsUIMode();
 }
 
-void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
+void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg)
 {
 	// create the sprite
 	runningGamePopup.Attach(new Sprite());
-	const int width = 1200, height = 1920;
+	const int width = 1080, height = 1920;
 	Application::InUiErrorHandler eh;
-	runningGamePopup->Load(width, height, [width, height, msg, ptSize, this](Gdiplus::Graphics &g)
+	runningGamePopup->Load(width, height, [width, height, msg, this](Gdiplus::Graphics &g)
 	{
 		// fill the background
 		Gdiplus::SolidBrush bkg(Gdiplus::Color(255, 30, 30, 30));
@@ -5946,11 +6711,10 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg, int ptSize)
 			}
 
 			// draw the text, centered above the wheel image
-			std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), ptSize, 400));
 			Gdiplus::SolidBrush fg(Gdiplus::Color(255, 255, 255, 255));
 			Gdiplus::RectF bbox;
-			g.MeasureString(msg, -1, font.get(), Gdiplus::PointF(0, 0), &bbox);
-			g.DrawString(msg, -1, font.get(), Gdiplus::PointF(
+			g.MeasureString(msg, -1, popupTitleFont, Gdiplus::PointF(0, 0), &bbox);
+			g.DrawString(msg, -1, popupTitleFont, Gdiplus::PointF(
 				(float)(width - bbox.Width) / 2.0f,
 				(float)(height - wheelImageSize.cy) / 2.0f - bbox.Height - 60),
 				&fg);
@@ -6034,26 +6798,31 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// The RunBeforePre external command has finished.  Fire the Javascript
 		// "runbeforepre" event, show the "Loading" message, and fire the 
 		// Javascript "runbefore" event.
-
-		// presume that we'll return TRUE in the LRESULT to continue the launch
-		curMsg->lResult = TRUE;
-	
-		// fire Javascript "runbeforepre"; abort the launch if the event is canceled
-		if (!FireLaunchEvent(jsRunBeforePreEvent, static_cast<LONG>(lParam), static_cast<int>(wParam)))
 		{
-			curMsg->lResult = FALSE;
-			return true;
-		}
-		
-		// Show the "Launching Game" message while the game is loading, and
-		// while we're running the RunBefore javascript and external commands.
-		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_LOADING : IDS_GAME_LOADING), 48);
+			// get the launch report
+			auto report = reinterpret_cast<LaunchReport*>(lParam);
 
-		// fire Javascript "runbefore"
-		if (!FireLaunchEvent(jsRunBeforeEvent, static_cast<LONG>(lParam), static_cast<int>(wParam)))
-		{
-			curMsg->lResult = FALSE;
-			return true;
+			// presume that we'll return TRUE in the LRESULT to continue the launch
+			curMsg->lResult = TRUE;
+
+			// fire Javascript "runbeforepre"; abort the launch if the event is canceled
+			if (!FireLaunchEvent(jsRunBeforePreEvent, report->gameInternalID, report->launchCmd))
+			{
+				curMsg->lResult = FALSE;
+				return true;
+			}
+
+			// Show the "Launching Game" message while the game is loading, and
+			// while we're running the RunBefore javascript and external commands.
+			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ? 
+				IDS_CAPTURE_LOADING : IDS_GAME_LOADING));
+
+			// fire Javascript "runbefore"
+			if (!FireLaunchEvent(jsRunBeforeEvent, report->gameInternalID, report->launchCmd))
+			{
+				curMsg->lResult = FALSE;
+				return true;
+			}
 		}
 
 		// done
@@ -6064,61 +6833,98 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// "runafter" event, clear the "Exiting Game" message, and fire the
 		// Javascript "runafterpost" event.  These Javascript events aren't 
 		// cancelable.
+		{
+			// get the launch report
+			auto report = reinterpret_cast<LaunchReport*>(lParam);
 
-		// Fire "runafter"
-		FireLaunchEvent(jsRunAfterEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+			// Fire "runafter"
+			FireLaunchEvent(jsRunAfterEvent, report->gameInternalID, report->launchCmd);
 
-		// clear the screen
-		ShowRunningGameMessage(nullptr, 0);
+			// clear the screen
+			ShowRunningGameMessage(nullptr);
 
-		// fire "runafter post"
-		FireLaunchEvent(jsRunAfterPostEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+			// fire "runafter post"
+			FireLaunchEvent(jsRunAfterPostEvent, report->gameInternalID, report->launchCmd);
+		}
 
 		// done
 		return true;
 
 	case PFVMsgGameLoaded:
-		// switch to "Running" mode in the UI
-		runningGameMode = RunningGameMode::Running;
-		ShowRunningGameMessage(LoadStringT(wParam == ID_CAPTURE_GO ? IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING), 48);
+		{
+			// get the launch report
+			auto report = reinterpret_cast<LaunchReport*>(lParam);
 
-		// Reset the game inactivity timer now that the game has actually
-		// started running.  This effectively removes however long the game
-		// needed to start from the timeout period.  Note that we start the
-		// timeout when first trying to load the game, just in case we fail
-		// to figure out when the game has finished loading; that way the
-		// timeout will still trigger.
-		ResetGameTimeout();
-		
-		// set running game mode in the other windows
-		Application::Get()->BeginRunningGameMode();
+			// switch to "Running" mode in the UI
+			runningGameMode = RunningGameMode::Running;
+			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ?
+				IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING));
 
-		// Fire the Javascript "gamestarted" event
-		FireLaunchEvent(jsGameStartedEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+			// Reset the game inactivity timer now that the game has actually
+			// started running.  This effectively removes however long the game
+			// needed to start from the timeout period.  Note that we start the
+			// timeout when first trying to load the game, just in case we fail
+			// to figure out when the game has finished loading; that way the
+			// timeout will still trigger.
+			ResetGameTimeout();
 
-		// We're presumably running in the background at this point, since
-		// the game player app should be in front now, so we're not doing
-		// the usual D3D redraw-on-idle that we do in the foreground.  We
-		// need to do an old-fashioned InvalidateRect() to trigger a
-		// WM_PAINT to show the running game popup.  That remains static
-		// as long as the game is running, so we won't need further manual
-		// updates, but we at least need one now for the initial display.
-		InvalidateRect(hWnd, 0, false);
+			// set running game mode in the other windows
+			Application::Get()->BeginRunningGameMode();
+
+			// Fire the Javascript "gamestarted" event
+			FireLaunchEvent(jsGameStartedEvent, report->gameInternalID, report->launchCmd);
+
+			// We're presumably running in the background at this point, since
+			// the game player app should be in front now, so we're not doing
+			// the usual D3D redraw-on-idle that we do in the foreground.  We
+			// need to do an old-fashioned InvalidateRect() to trigger a
+			// WM_PAINT to show the running game popup.  That remains static
+			// as long as the game is running, so we won't need further manual
+			// updates, but we at least need one now for the initial display.
+			InvalidateRect(hWnd, 0, false);
+		}
 		return true;
 
 	case PFVMsgGameOver:
-		// the running game has ended - exit running game mode in the UI
-		EndRunningGameMode();
+		{
+			// get the launch report
+			auto report = reinterpret_cast<LaunchReport*>(lParam);
 
-		// clean up the thread monitor in the application
-		Application::Get()->CleanGameMonitor();
+			// The current running game's child process has exited.  If we're
+			// not already in "exiting game" mode, the process must have exited
+			// on its own rather than via a Kill Game message, so update the UI
+			// to "exiting game" mode now.
+			if (runningGameMode != RunningGameMode::Exiting)
+			{
+				runningGameMode = RunningGameMode::Exiting;
+				ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING));
+			}
 
-		// Fire the Javascript "gamestarted" event
-		FireLaunchEvent(jsGameOverEvent, static_cast<LONG>(lParam), static_cast<int>(wParam));
+			// fire the javascript "gameover" event
+			FireLaunchEvent(jsGameOverEvent, report->gameInternalID, report->launchCmd);
+		}
 
-		// launch the next queued game, if in batch capture mode
-		if (batchCaptureMode.active)
-			PostMessage(WM_COMMAND, ID_BATCH_CAPTURE_NEXT_GAME);
+		// handled
+		return true;
+
+	case PFVMsgLaunchThreadExit:
+		{
+			// get the launch report
+			auto report = reinterpret_cast<LaunchReport*>(lParam);
+		
+			// the game launch thread has exited - exit running game mode in the UI
+			EndRunningGameMode();
+
+			// clean up the thread monitor in the application
+			Application::Get()->CleanGameMonitor();
+
+			// Fire the Javascript "postlaunch" event
+			FireLaunchEvent(jsPostLaunchEvent, report->gameInternalID, report->launchCmd);
+
+			// launch the next queued game, if in batch capture mode
+			if (batchCaptureMode.active)
+				PostMessage(WM_COMMAND, ID_BATCH_CAPTURE_NEXT_GAME);
+		}
 
 		// handled
 		return true;
@@ -6640,11 +7446,8 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 		| Gdiplus::StringFormatFlagsMeasureTrailingSpaces);
 
 	// set up our main text font and checkmark font
-	const int ptSize = 42, dlgPtSize = 36, weight = 500;
-	std::unique_ptr<Gdiplus::Font> txtfont(CreateGPFont(_T("Tahoma"), ptSize, weight));
-	std::unique_ptr<Gdiplus::Font> dlgfont(CreateGPFont(_T("Tahoma"), dlgPtSize, weight));
-	std::unique_ptr<Gdiplus::Font> symfont(CreateGPFont(_T("Wingdings"), ptSize, weight));
-	ArrowFont arrowFont(ptSize);
+	std::unique_ptr<Gdiplus::Font> symfont(CreateGPFont(_T("Wingdings"), menuFont.ptSize, 400));
+	ArrowFont arrowFont(menuFont.ptSize);
 
 	// checkmark and bullet characters in Wingdings
 	static const TCHAR *checkmark = _T("\xFC");
@@ -6656,7 +7459,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	const TCHAR *downArrow = arrowFont.menuArrowDown;
 
 	// get the text font height
-	int txtHt = (int)txtfont->GetHeight(&g);
+	int txtHt = (int)menuFont->GetHeight(&g);
 
 	// calculate the height of each item and of the overall menu
 	const int yPadding = 4;
@@ -6726,7 +7529,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 		// in the layout area
 		auto i = items.front();
 		Gdiplus::RectF bbox;
-		g.MeasureString(i.text.c_str(), -1, dlgfont.get(), rcLayout, &tformat, &bbox);
+		g.MeasureString(i.text.c_str(), -1, menuHeaderFont, rcLayout, &tformat, &bbox);
 
 		// Use the actual text height, and then add a little height for
 		// whitespace between the prompt and the top menu item, to set
@@ -6828,7 +7631,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 	// create the text item overlay
 	if (!m->sprItems->Load(boxWid, menuHt, 
-		[this, boxWid, menuHt, &txtfont, &dlgfont, &symfont, &arrowFont, &items, &m, 
+		[this, boxWid, menuHt, &symfont, &arrowFont, &items, &m, 
 		lineHt, spacerHt, yPadding, borderWidth, nPagedItems, nItemsPerPage, &tformat,
 		upArrow, downArrow, subMenuArrow, promptHt, &rcLayout, flags]
 	    (HDC hdc, HBITMAP hbmp)
@@ -6915,7 +7718,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 			default:
 				// use the item's text label
 				text = i.text.c_str();
-				font = txtfont.get();
+				font = menuFont.Get();
 
 				// If we're in the paged section, count the item and check
 				// to see if it's within the current page
@@ -6940,7 +7743,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 			if ((flags & SHOWMENU_DIALOG_STYLE) != 0 && &i == &m->descs.front())
 			{
 				// draw it centered in the layout area
-				g.DrawString(text, -1, dlgfont.get(), rcLayout, &tformat, &textBr);
+				g.DrawString(text, -1, menuHeaderFont, rcLayout, &tformat, &textBr);
 
 				// advance by the prompt height
 				y += promptHt;
@@ -7381,7 +8184,7 @@ void PlayfieldView::SyncInfoBox()
 				Gdiplus::PointF origin((float)marginX, (float)marginY);
 
 				// add the logo or title, if desired
-				std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 38, 500));
+				FontPref &titleFont = infoBoxTitleFont;
 				TSTRING wheelFile;
 				std::unique_ptr<Gdiplus::Bitmap> wheelImage;
 				if (infoBoxOpts.gameLogo
@@ -7398,7 +8201,7 @@ void PlayfieldView::SyncInfoBox()
 				else if (infoBoxOpts.title)
 				{
 					// draw the title as text
-					GPDrawStringAdv(g, game->title.c_str(), titleFont.get(), &txt, origin, rcLayout);
+					GPDrawStringAdv(g, game->title.c_str(), titleFont, &txt, origin, rcLayout);
 					origin.Y += 12;
 				}
 
@@ -7424,7 +8227,7 @@ void PlayfieldView::SyncInfoBox()
 				}
 
 				// add the manufacturer, type, and year
-				std::unique_ptr<Gdiplus::Font> txtFont(CreateGPFont(_T("Tahoma"), 28, 500));
+				FontPref &txtFont = infoBoxFont;
 				Gdiplus::Image *manufLogo;
 				if (infoBoxOpts.manufLogo && LoadManufacturerLogo(manufLogo, game->manufacturer, game->year))
 				{
@@ -7436,7 +8239,7 @@ void PlayfieldView::SyncInfoBox()
 
 					// add the type and year, if non-empty
 					if (typeAndYear.length() != 0)
-						g.DrawString(MsgFmt(_T("  (%s)"), typeAndYear.c_str()), -1, txtFont.get(),
+						g.DrawString(MsgFmt(_T("  (%s)"), typeAndYear.c_str()), -1, txtFont,
 							Gdiplus::PointF(origin.X + wid, origin.Y + txtHt * .2f), &txt);
 
 					// advance past it
@@ -7456,13 +8259,13 @@ void PlayfieldView::SyncInfoBox()
 					// draw the combined tstring
 					GPDrawString gp(g, rcLayout);
 					gp.curOrigin = origin;
-					gp.DrawString(str.c_str(), txtFont.get(), &txt);
+					gp.DrawString(str.c_str(), txtFont, &txt);
 					origin = gp.curOrigin;
 				}
 				else if (typeAndYear.length() != 0)
 				{
 					// draw just the type and year string
-					GPDrawStringAdv(g, typeAndYear.c_str(), txtFont.get(), &txt, origin, rcLayout);
+					GPDrawStringAdv(g, typeAndYear.c_str(), txtFont, &txt, origin, rcLayout);
 				}
 
 				// add the system
@@ -7481,15 +8284,14 @@ void PlayfieldView::SyncInfoBox()
 				else if (infoBoxOpts.system && game->system != nullptr)
 				{
 					// draw the system name as text
-					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont.get(), &txt, origin, rcLayout);
+					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont, &txt, origin, rcLayout);
 				}
 
 				// add the game file name
 				if (infoBoxOpts.tableFile && game->filename.length() != 0)
 				{
-					std::unique_ptr<Gdiplus::Font> smallFont(CreateGPFont(_T("Tahoma"), 16, 500));
 					Gdiplus::SolidBrush gray(Gdiplus::Color(255, 192, 192, 192));
-					GPDrawStringAdv(g, game->filename.c_str(), smallFont.get(), &gray, origin, rcLayout);
+					GPDrawStringAdv(g, game->filename.c_str(), infoBoxDetailFont, &gray, origin, rcLayout);
 				}
 
 				// add the rating, if set
@@ -8436,6 +9238,22 @@ void PlayfieldView::OnConfigChange()
 	attractMode.idleTime = cfg->GetInt(ConfigVars::AttractModeIdleTime, 60) * 1000;
 	attractMode.switchTime = cfg->GetInt(ConfigVars::AttractModeSwitchTime, 5) * 1000;
 
+	// load the fonts
+	popupFont.ParseConfig(ConfigVars::PopupFont);
+	popupTitleFont.ParseConfig(ConfigVars::PopupTitleFont);
+	popupSmallerFont.ParseConfig(ConfigVars::PopupSmallerFont);
+	popupDetailFont.ParseConfig(ConfigVars::PopupDetailFont);
+	mediaDetailFont.ParseConfig(ConfigVars::MediaDetailFont);
+	wheelFont.ParseConfig(ConfigVars::WheelFont);
+	menuFont.ParseConfig(ConfigVars::MenuFont);
+	menuHeaderFont.ParseConfig(ConfigVars::MenuHeaderFont);
+	statusFont.ParseConfig(ConfigVars::StatusFont);
+	creditsFont.ParseConfig(ConfigVars::CreditsFont);
+	highScoreFont.ParseConfig(ConfigVars::HighScoreFont);
+	infoBoxFont.ParseConfig(ConfigVars::InfoBoxFont);
+	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont);
+	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont);
+
 	// reload the status lines
 	InitStatusLines();
 
@@ -8616,6 +9434,94 @@ void PlayfieldView::OnConfigChange()
 
 	// notify Javascript
 	FireConfigEvent(jsSettingsReloadEvent);
+}
+
+void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
+{
+	// try matching the standard format: <size> <weight> <name>
+	static std::basic_regex<TCHAR> pat(_T("\\s*(\\d+)(?:pt)?\\s+(\\S+)\\s+(.*)"));
+	std::match_results<const TCHAR*> m;
+	if (std::regex_match(text, m, pat))
+	{
+		// read the size; use the default if it's not valid
+		ptSize = _ttoi(m[1].str().c_str());
+		if (ptSize <= 0)
+			ptSize = defaultPtSize;
+
+		// Read the weight.  If it looks like a number from 100 to 1000, use
+		// the numeric weight; otherwise check it against the standard names.
+		weight = _ttoi(m[2].str().c_str());
+		if (weight == 0)
+		{
+			static const struct
+			{
+				const TCHAR *name;
+				int weight;
+			}
+			names[] = {
+				{ _T("thin"), 100 },
+				{ _T("hairline"), 100 },
+				{ _T("xlight"), 200 },
+				{ _T("extralight"), 200 },
+				{ _T("extra-light"), 200 },
+				{ _T("ultralight"), 200 },
+				{ _T("ultra-light"), 200 },
+				{ _T("light"), 300 },
+				{ _T("normal"), 400 },
+				{ _T("medium"), 500 },
+				{ _T("semibold"), 600 },
+				{ _T("semi-bold"), 600 },
+				{ _T("bold"), 700 },
+				{ _T("extrabold"), 800 },
+				{ _T("extra-bold"), 800 },
+				{ _T("xbold"), 800 },
+				{ _T("black"), 900 },
+				{ _T("heavy"), 900 }
+			};
+			for (size_t i = 0; i < countof(names); ++i)
+			{
+				if (_tcsicmp(m[2].str().c_str(), names[i].name) == 0)
+				{
+					weight = names[i].weight;
+					break;
+				}
+			}
+		}
+		if (weight < 100 || weight > 1000)
+			weight = defaultWeight;
+
+		// set the name
+		name = m[2].str();
+
+		// clear any cached font object
+		font.reset();
+	}
+	else if (useDefaults)
+	{
+		// it's not in the standard format, and the caller directed us to
+		// apply defaults in this case, so apply the defaults
+		name = defaultName;
+		ptSize = defaultPtSize;
+		weight = defaultWeight;
+
+		// clear any cached font object
+		font.reset();
+	}
+}
+
+void PlayfieldView::FontPref::ParseConfig(const TCHAR *varname)
+{
+	// Parse the config variable value.  If it's not defined, just parse an
+	// empty string, which will set the defaults for the font.
+	Parse(ConfigManager::GetInstance()->Get(varname, _T("")));
+}
+
+Gdiplus::Font* PlayfieldView::FontPref::Get()
+{
+	if (font == nullptr)
+		font.reset(CreateGPFont(name.c_str(), ptSize, weight));
+
+	return font.get();
 }
 
 void PlayfieldView::AddJsCommand(int unit, int button, const KeyCommand &cmd)
@@ -9659,18 +10565,18 @@ void PlayfieldView::DisplayCredits()
 		MsgFmt line2(IDS_FREE_PLAY);
 
 		// measure the text
-		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), 42, 400));
+		FontPref &font = creditsFont;
 		Gdiplus::PointF pt(0.0f, 0.0f);
 		Gdiplus::RectF bbox1, bbox2;
-		g.MeasureString(line1, -1, font.get(), pt, &bbox1);
-		g.MeasureString(line2, -1, font.get(), pt, &bbox2);
+		g.MeasureString(line1, -1, font, pt, &bbox1);
+		g.MeasureString(line2, -1, font, pt, &bbox2);
 		float txtht = bbox1.Height + bbox2.Height;
 		float y = ((float)height - txtht) / 2.0f;
 
 		// draw the text centered
 		Gdiplus::SolidBrush br(Gdiplus::Color(0xff, 0xff, 0xff, 0xff));
-		g.DrawString(line1, -1, font.get(), Gdiplus::PointF(((float)width - bbox1.Width)/2.0f, y - bbox1.Height), &br);
-		g.DrawString(line2, -1, font.get(), Gdiplus::PointF(((float)width - bbox2.Width)/2.0f, y), &br);
+		g.DrawString(line1, -1, font, Gdiplus::PointF(((float)width - bbox1.Width)/2.0f, y - bbox1.Height), &br);
+		g.DrawString(line2, -1, font, Gdiplus::PointF(((float)width - bbox2.Width)/2.0f, y), &br);
 
 		// flush our drawing to the pixel buffer
 		g.Flush();
@@ -11199,15 +12105,15 @@ void PlayfieldView::ShowMediaFiles(int dir)
 
 		// set up for text drawing
 		GPDrawString gds(g, Gdiplus::RectF(margin, margin, (float)width - 2.0f*margin, (float)height - 2.0f*margin));
-		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 20, 400));
-		std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 12, 400));
+		FontPref &titleFont = popupSmallerFont;
+		FontPref &textFont = mediaDetailFont;
 		Gdiplus::SolidBrush textbr(Gdiplus::Color(255, 255, 255));
 		Gdiplus::SolidBrush graybr(Gdiplus::Color(128, 128, 128));
 		Gdiplus::SolidBrush hilitebr(Gdiplus::Color(0, 128, 255));
 
 		// show the caption
-		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_CAPTION, game->title.c_str()), titleFont.get(), &textbr);
-		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_TEMPLATE, game->mediaName.c_str()), textFont.get(), &textbr);
+		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_CAPTION, game->title.c_str()), titleFont, &textbr);
+		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_TEMPLATE, game->mediaName.c_str()), textFont, &textbr);
 		gds.VertSpace(margin / 2.0f);
 
 		// draw a button
@@ -11219,7 +12125,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 			{
 				// draw the highlight
 				Gdiplus::RectF txtrc;
-				g.MeasureString(name, -1, textFont.get(), gds.curOrigin, &txtrc);
+				g.MeasureString(name, -1, textFont, gds.curOrigin, &txtrc);
 				g.FillRectangle(&hilitebr, Gdiplus::RectF(
 					gds.curOrigin.X, gds.curOrigin.Y, txtrc.Width, txtrc.Height));
 
@@ -11228,7 +12134,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 			}
 
 			// draw the text
-			gds.DrawString(name, textFont.get(), &textbr, false);
+			gds.DrawString(name, textFont, &textbr, false);
 			gds.curOrigin.X += 16;
 		};
 
@@ -11303,7 +12209,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 			if (itemIndex == showMedia.sel && activeItemButton < 0)
 			{
 				Gdiplus::RectF txtrc;
-				g.MeasureString(name, -1, textFont.get(), gds.curOrigin, &txtrc);
+				g.MeasureString(name, -1, textFont, gds.curOrigin, &txtrc);
 				g.FillRectangle(&hilitebr, Gdiplus::RectF(
 					gds.curOrigin.X, boxY, txtrc.Width + float(icon->GetWidth() + 10), (float)lineHt));
 			}
@@ -11313,7 +12219,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 			gds.curOrigin.X += icon->GetWidth() + 10;
 
 			// draw the folder name
-			gds.DrawString(name, textFont.get(), &textbr, false);
+			gds.DrawString(name, textFont, &textbr, false);
 
 			// if one of our buttons is active, draw the buttons
 			if (itemIndex == showMedia.sel && activeItemButton >= 0)
@@ -11327,7 +12233,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 			}
 
 			// add a newline at the end of the line
-			gds.DrawString(_T(" "), textFont.get(), &textbr, true);
+			gds.DrawString(_T(" "), textFont, &textbr, true);
 
 			// if the icon is taller than the text, add whitespace at
 			// the bottom to compensate
@@ -11439,14 +12345,14 @@ void PlayfieldView::ShowMediaFiles(int dir)
 
 		// show instructions
 		gds.VertSpace(12);
-		gds.DrawString(LoadStringT(IDS_SHOWMEDIA_INSTRS), textFont.get(), &textbr);
+		gds.DrawString(LoadStringT(IDS_SHOWMEDIA_INSTRS), textFont, &textbr);
 
 		// show the "close" button
 		gds.VertSpace(12);
 		DrawButton(LoadStringT(IDS_SHOWMEDIA_CLOSE), ShowMediaState::CloseDialog);
 		
 		// end the button line
-		gds.DrawString(_T(" "), textFont.get(), &textbr);
+		gds.DrawString(_T(" "), textFont, &textbr);
 
 		// flush the bitmap
 		g.Flush();
@@ -11840,14 +12746,14 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 
 		// draw the main text
 		Gdiplus::RectF rc(0.0f, 0.0f, (float)width, (float)height/2.0f);
-		std::unique_ptr<Gdiplus::Font> font1(CreateGPFont(_T("Tahoma"), 48, 400));
+		FontPref &font1 = popupTitleFont;
 		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-		g.DrawString(MsgFmt(IDS_CAPTURE_DELAYTIME1, adjustedCaptureStartupDelay), -1, font1.get(), rc, &centerFmt, &textBr);
+		g.DrawString(MsgFmt(IDS_CAPTURE_DELAYTIME1, adjustedCaptureStartupDelay), -1, font1, rc, &centerFmt, &textBr);
 
 		// draw the bottom text
 		rc.Y += (float)height/2.0f;
-		std::unique_ptr<Gdiplus::Font> font2(CreateGPFont(_T("Tahoma"), 20, 400));
-		g.DrawString(LoadStringT(IDS_CAPTURE_DELAYTIME2), -1, font2.get(), rc, &centerFmt, &textBr);
+		FontPref &font2 = popupSmallerFont;
+		g.DrawString(LoadStringT(IDS_CAPTURE_DELAYTIME2), -1, font2, rc, &centerFmt, &textBr);
 
 		// done with GDI+
 		g.Flush();
@@ -12167,7 +13073,7 @@ void PlayfieldView::AdvanceCaptureItemState(int cmd)
 void PlayfieldView::CaptureMediaGo()
 {
 	// Run the game in media capture mode
-	PlayGame(ID_CAPTURE_GO);
+	PlayGame(ID_CAPTURE_GO, Application::LaunchFlags::StdCaptureFlags);
 }
 
 void PlayfieldView::OnCaptureDone(const CaptureDoneReport *report)
@@ -13118,9 +14024,9 @@ void PlayfieldView::BatchCaptureView()
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// set up resources for text drawing
-		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(_T("Tahoma"), 16, 400));
-		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(_T("Tahoma"), 12, 400));
-		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(_T("Tahoma"), 14, 400));
+		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(popupFont.name.c_str(), 16, 400));
+		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(popupFont.name.c_str(), 12, 400));
+		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(popupFont.name.c_str(), 14, 400));
 		Gdiplus::SolidBrush gameTitleBr(Gdiplus::Color(255, 255, 255));
 		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(128, 128, 128));
 		Gdiplus::SolidBrush mediaItemBr(Gdiplus::Color(220, 220, 220));
@@ -13277,7 +14183,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 
 		// draw a title bar at the top
 		auto title = LoadStringT(IDS_CAPPREVIEW_TITLE);
-		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 20, 700));
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(popupFont.name.c_str(), 20, 700));
 		Gdiplus::SolidBrush titleBr(Gdiplus::Color(0, 0, 0));
 		Gdiplus::SolidBrush titleBkg(frameColor);
 		Gdiplus::RectF bbox;
@@ -13290,7 +14196,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 		if (srcHeight > maxHeight)
 		{
 			auto instr = LoadStringT(IDS_CAPPREVIEW_INSTRS);
-			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(_T("Tahoma"), 16, 400));
+			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(popupFont.name.c_str(), 16, 400));
 			g.MeasureString(instr, -1, instrFont.get(), Gdiplus::PointF(0.0f, 0.0f), &centerFmt, &bbox);
 			Gdiplus::RectF rcInstr(0.0f, (float)height - bbox.Height*1.4f, (float)width, bbox.Height*1.4f);
 			g.FillRectangle(&titleBkg, rcInstr);
@@ -13370,7 +14276,8 @@ void PlayfieldView::BatchCaptureGo()
 		{
 			// enqueue this launch
 			Application::BatchCaptureInfo bci(nCurGame, nGames, remainingTime, totalTime);
-			Application::Get()->QueueLaunch(ID_CAPTURE_GO, game, game->system, &capList, captureStartupDelay, &bci);
+			Application::Get()->QueueLaunch(ID_CAPTURE_GO, Application::LaunchFlags::StdCaptureFlags,
+				game, game->system, &capList, captureStartupDelay, &bci);
 
 			// deduct this from the remaining time
 			remainingTime -= EstimateCaptureTime(game) + captureStartupDelay;
@@ -13380,6 +14287,7 @@ void PlayfieldView::BatchCaptureGo()
 
 	// set the play command to 'capture'
 	lastPlayGameCmd = ID_CAPTURE_GO;
+	lastPlayGameLaunchFlags = Application::LaunchFlags::StdCaptureFlags;
 
 	// enter batch capture mode
 	EnterBatchCapture();
@@ -14043,15 +14951,15 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, float y)
 	sprite.Attach(new Sprite());
 	const int width = 1080, height = 75;
 	Application::InUiErrorHandler eh;
-	sprite->Load(width, height, [this, width, height](HDC hdc, HBITMAP)
+	sprite->Load(width, height, [this, pfv, width, height](HDC hdc, HBITMAP)
 	{
 		// set up a drawing context
 		Gdiplus::Graphics g(hdc);
 
 		// measure the text
 		Gdiplus::RectF bbox;
-		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), 36, 500));
-		g.MeasureString(dispText.c_str(), -1, font.get(), Gdiplus::PointF(0, 0), &bbox);
+		FontPref &font = pfv->statusFont;
+		g.MeasureString(dispText.c_str(), -1, font, Gdiplus::PointF(0, 0), &bbox);
 
 		// center it
 		float x = (float(width) - bbox.Width) / 2.0f;
@@ -14060,8 +14968,8 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, float y)
 		// draw it centered
 		Gdiplus::SolidBrush txt(Gdiplus::Color(255, 255, 255, 255));
 		Gdiplus::SolidBrush shadow(Gdiplus::Color(192, 0, 0, 0));
-		g.DrawString(dispText.c_str(), -1, font.get(), Gdiplus::PointF(x+2, y+2), &shadow);
-		g.DrawString(dispText.c_str(), -1, font.get(), Gdiplus::PointF(x, y), &txt);
+		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x+2, y+2), &shadow);
+		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x, y), &txt);
 
 		// flush the drawing context to the bitmap
 		g.Flush();

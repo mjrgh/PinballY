@@ -172,17 +172,20 @@ public:
 	// Launch a game.  Returns true if the game was launched, false
 	// if not.
 	//
-	// 'cmd' specifies the launch mode:
+	// 'cmd' specifies the launch mode.  This can be any command code,
+	// since Javascript can specify arbitrary commands when launching
+	// via scripting, but the built-in code uses the following:
 	//
 	//    ID_PLAY_GAME -> normal launch to play the game
 	//    ID_CAPTURE_GO -> launch for media capture
 	//
-	// In capture mode, the caller must supply the list of capture items. 
-	// This can be null for regular launch mode.  captureStartupDelay is
-	// the initial startup delay (the time to wait after launching the
-	// child process for the game) in seconds.
+	// If capture mode is indicated in the launch flags, the caller must
+	// supply the list of capture items.  This can be null if capture
+	// isn't specified.  captureStartupDelay is the initial startup delay
+	// (the time to wait after launching the child process for the game) in 
+	// seconds.
 	//
-	bool Launch(int cmd, GameListItem *game, GameSystem *system, 
+	bool Launch(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system, 
 		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay, ErrorHandler &eh);
 
 	// Batch capture information.  When queueing a game for batch
@@ -214,8 +217,22 @@ public:
 		int totalTime;
 	};
 
-	// Queue a game for launch.  This is used for batch capture.
-	void QueueLaunch(int cmd, GameListItem *game, GameSystem *system,
+	// Launch flags
+	struct LaunchFlags
+	{
+		static const DWORD ConsumeCredit = 0x00000001;    // consume a credit
+		static const DWORD UpdateStats   = 0x00000002;    // update play count & time stats
+		static const DWORD Capturing     = 0x00010000;    // capture media on this launch
+
+		// standard flags for PLAY mode
+		static const DWORD StdPlayFlags = ConsumeCredit | UpdateStats;
+
+		// standard flags for CAPTURE mode
+		static const DWORD StdCaptureFlags = Capturing;
+	};
+
+	// Queue a game for launch
+	void QueueLaunch(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system,
 		const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 		const BatchCaptureInfo *bci = nullptr);
 
@@ -234,6 +251,11 @@ public:
 		LONG gameId;      // internal ID of the game
 	};
 	bool GetNextQueuedGame(QueuedGameInfo &info) const;
+
+	// Set a launch parameter override for the next queued game.  This is
+	// used by the Javascript "prelaunch" event to let event listeners
+	// modify the launch parameters.
+	void SetNextQueuedGameOverride(const CHAR *prop, const TSTRING &val);
 
 	// Launch the next game in the queue
 	bool LaunchNextQueuedGame(ErrorHandler &eh);
@@ -557,7 +579,8 @@ protected:
 		~GameMonitorThread();
 
 		// prepare the object and launch in one step
-		bool Launch(int cmd, GameListItem *game, GameSystem *system, 
+		bool Launch(int cmd, DWORD launchFlags,
+			GameListItem *game, GameSystem *system, 
 			const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 			ErrorHandler &eh);
 
@@ -565,7 +588,8 @@ protected:
 		// can be used to create a deferred launch object, such as
 		// during batch capture, and then launch it when its turn
 		// comes up.
-		void Prepare(int cmd, GameListItem *game, GameSystem *system,
+		void Prepare(int cmd, DWORD launchFlags,
+			GameListItem *game, GameSystem *system,
 			const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 			const BatchCaptureInfo *bci = nullptr);
 		bool Launch(ErrorHandler &eh);
@@ -602,10 +626,19 @@ protected:
 		// apply variable substitution to a command line
 		TSTRING SubstituteVars(const TSTRING &str);
 
-		// launch command:
+		// Command used to launch the game.  This can in principle be any
+		// command, since Javascript can specify an arbitrary command code
+		// when queueing a launch via scripting.  For built-in actions,
+		// though, we always use one of the following
+		//
 		//   ID_PLAY_GAME -> normal launch
 		//   ID_CAPTURE_GO -> media capture
+		//
 		int cmd;
+
+		// Launch flags.  This is a combination of bit flags from the
+		// Application::LaunchFlag:: constants.
+		DWORD launchFlags;
 
 		// game description
 		GameBaseInfo game;
@@ -624,6 +657,18 @@ protected:
 
 		// game system 
 		GameSysInfo gameSys;
+
+		// Launch overrides.  The Javascript "prelaunch" event can specify
+		// overrides for the normal system launch parameters via entries in
+		// this map.
+		std::unordered_map<CSTRING, TSTRING> overrides;
+
+		// Get the value for a launch parameter, applying the Javascript
+		// "prelaunch" event override if it exists, otherwise using the
+		// value defined for the system.  'propname' is the property name
+		// from the Javascript "prelaunch" event.
+		const TSTRING &GetLaunchParam(const CHAR *propname, const TSTRING &defaultVal);
+		int GetLaunchParamInt(const CHAR *propname, int defaultVal);
 
 		// is this system approved for elevation to Administrator mode?
 		bool elevationApproved;

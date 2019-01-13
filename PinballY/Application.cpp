@@ -1182,13 +1182,14 @@ void Application::EndRunningGameMode()
 		ic->EndRunningGameMode();
 }
 
-bool Application::Launch(int cmd, GameListItem *game, GameSystem *system,
+bool Application::Launch(int cmd, DWORD launchFlags,
+	GameListItem *game, GameSystem *system,
 	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	ErrorHandler &eh)
 {
 	// prepare a new game monitor object
 	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
-	mon->Prepare(cmd, game, system, captureList, captureStartupDelay);
+	mon->Prepare(cmd, launchFlags, game, system, captureList, captureStartupDelay);
 
 	// launch it
 	return Launch(mon, eh);
@@ -1227,13 +1228,14 @@ bool Application::LaunchNextQueuedGame(ErrorHandler &eh)
 	return Launch(mon, eh);
 }
 
-void Application::QueueLaunch(int cmd, GameListItem *game, GameSystem *system,
+void Application::QueueLaunch(int cmd, DWORD launchFlags,
+	GameListItem *game, GameSystem *system,
 	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	const BatchCaptureInfo *bci)
 {
 	// prepare a new game monitor object
 	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
-	mon->Prepare(cmd, game, system, captureList, captureStartupDelay, bci);
+	mon->Prepare(cmd, launchFlags, game, system, captureList, captureStartupDelay, bci);
 
 	// queue it, handing over our reference count to the list
 	queuedLaunches.emplace_back(mon.Detach());
@@ -1253,6 +1255,13 @@ bool Application::GetNextQueuedGame(QueuedGameInfo &info) const
 	return true;
 }
 
+void Application::SetNextQueuedGameOverride(const CHAR *prop, const TSTRING &val)
+{
+	// if a game is available, add the property to its override map
+	if (queuedLaunches.size() != 0)
+		queuedLaunches.front()->overrides.emplace(prop, val);
+}
+
 void Application::RemoveNextQueuedGame()
 {
 	queuedLaunches.pop_front();
@@ -1262,7 +1271,7 @@ TSTRING Application::ExpandGameSysVars(TSTRING &str, GameSystem *system, GameLis
 {
 	// set up a dummy monitor object
 	RefPtr<GameMonitorThread> mon(new GameMonitorThread());
-	mon->Prepare(ID_PLAY_GAME, game, system, nullptr, 0);
+	mon->Prepare(ID_PLAY_GAME, LaunchFlags::StdPlayFlags, game, system, nullptr, 0);
 
 	// resolve the game file
 	TCHAR gameFileWithPath[MAX_PATH];
@@ -1337,9 +1346,10 @@ void Application::CleanGameMonitor()
 	// if the game monitor thread has exited, remove our reference
 	if (gameMonitor != nullptr && !gameMonitor->IsThreadRunning())
 	{
-		// Update the run time for the game, assuming it was a normal
-		// "play" run (don't count media capture runs as plays).
-		if (gameMonitor->cmd == ID_PLAY_GAME)
+		// Update the run time for the game if desired.  (This flag
+		// is normally set for regular play sessions but not for
+		// media capture launches.)
+		if ((gameMonitor->launchFlags & LaunchFlags::UpdateStats) != 0)
 		{
 			// figure the total run time in seconds
 			int seconds = (int)((gameMonitor->exitTime - gameMonitor->launchTime) / 1000);
@@ -1585,7 +1595,7 @@ void Application::GameMonitorThread::CloseGame()
 			}
 
 			// Check the termination mode
-			if (_tcsicmp(gameSys.terminateBy.c_str(), _T("KillProcess")) == 0)
+			if (_tcsicmp(GetLaunchParam("terminateBy", gameSys.terminateBy).c_str(), _T("KillProcess")) == 0)
 			{
 				// KillProcess mode.  Don't try to close windows; just terminate
 				// the process by fiat.
@@ -1686,24 +1696,26 @@ void Application::GameMonitorThread::BringToForeground()
 }
 
 bool Application::GameMonitorThread::Launch(
-	int cmd, GameListItem *game, GameSystem *system,
+	int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system,
 	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	ErrorHandler &eh)
 {
 	// prepare the object
-	Prepare(cmd, game, system, captureList, captureStartupDelay, nullptr);
+	Prepare(cmd, launchFlags, game, system, captureList, captureStartupDelay, nullptr);
 
 	// do the launch
 	return Launch(eh);
 }
 
 void Application::GameMonitorThread::Prepare(
-	int cmd, GameListItem *game, GameSystem *system,
+	int cmd, DWORD launchFlags, GameListItem *game,
+	GameSystem *system,
 	const std::list<LaunchCaptureItem> *captureList, int captureStartupDelay,
 	const BatchCaptureInfo *bci)
 {
 	// save the game information
 	this->cmd = cmd;
+	this->launchFlags = launchFlags;
 	this->game = *game;
 	this->gameId = game->internalID;
 	this->gameSys = *system;
@@ -1734,7 +1746,7 @@ void Application::GameMonitorThread::Prepare(
 	// access any outside objects to do the captures, thus avoiding
 	// the need for any cross-thread synchronization for the game
 	// list item or windows.
-	if (cmd == ID_CAPTURE_GO && captureList != nullptr)
+	if ((launchFlags & LaunchFlags::Capturing) != 0 && captureList != nullptr)
 	{
 		// Keep a running total of the capture time as we go.  Start
 		// with some fixed overhead for our own initialization.
@@ -1818,7 +1830,7 @@ void Application::GameMonitorThread::Prepare(
 bool Application::GameMonitorThread::Launch(ErrorHandler &eh)
 {
 	// check if we're in capture mode
-	if (cmd == ID_CAPTURE_GO && capture.items.size() != 0)
+	if ((launchFlags & LaunchFlags::Capturing) != 0 && capture.items.size() != 0)
 	{
 		// create the status window
 		capture.statusWin.Attach(new CaptureStatusWin());
@@ -1857,9 +1869,10 @@ bool Application::GameMonitorThread::Launch(ErrorHandler &eh)
 	GameListItem *pgame = gl->GetByInternalID(this->gameId);
 	if (pgame != nullptr)
 	{
-		// If we're in "play" mode, update the game's last launch time
-		// and play count.  Media capture doesn't count as playing.
-		if (cmd == ID_PLAY_GAME)
+		// If desired, update the game's last launch time and play count.  
+		// (This flag is usually only set for regular play sessions, not
+		// media capture launches.)
+		if ((launchFlags & LaunchFlags::UpdateStats) != 0)
 		{
 			gl->SetLastPlayedNow(pgame);
 			gl->SetPlayCount(pgame, gl->GetPlayCount(pgame) + 1);
@@ -1881,7 +1894,10 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// Regardless of how we exited, tell the main window that the game
 	// monitor thread is exiting.
 	if (self->playfieldView != 0)
-		self->playfieldView->SendMessage(PFVMsgGameOver, static_cast<WPARAM>(self->cmd), static_cast<WPARAM>(self->gameId));
+	{
+		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId);
+		self->playfieldView->SendMessage(PFVMsgLaunchThreadExit, 0, reinterpret_cast<LPARAM>(&report));
+	}
 
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
@@ -1979,6 +1995,22 @@ void Application::GameMonitorThread::GetGameFileWithPath(TCHAR gameFileWithPath[
 		PathCombine(gameFileWithPath, gameSys.tablePath.c_str(), gameFileWithExt.c_str());
 	else
 		_tcscpy_s(gameFileWithPath, MAX_PATH, gameFileWithExt.c_str());
+}
+
+const TSTRING &Application::GameMonitorThread::GetLaunchParam(const CHAR *propname, const TSTRING &defaultVal)
+{
+	if (auto it = overrides.find(propname); it != overrides.end())
+		return it->second;
+	else
+		return defaultVal;
+}
+
+int Application::GameMonitorThread::GetLaunchParamInt(const CHAR *propname, int defaultVal)
+{
+	if (auto it = overrides.find(propname); it != overrides.end())
+		return _ttoi(it->second.c_str());
+	else
+		return defaultVal;
 }
 
 DWORD Application::GameMonitorThread::Main()
@@ -2417,7 +2449,7 @@ DWORD Application::GameMonitorThread::Main()
 	// continue if a close event occurs.
 	RunBeforeAfterParser runAfterPostCmd(this, rotationManager,
 		_T("RunAfterPost (final post-game exit command)"), IDS_ERR_GAMERUNAFTERPOST, 
-		gameSys.runAfterPost, true);
+		GetLaunchParam("runAfterPost", gameSys.runAfterPost), true);
 
 	// Run the RunBeforePre command, if any.  This command is executed with
 	// a completely blank playfield window, before we show the "Launching 
@@ -2429,26 +2461,29 @@ DWORD Application::GameMonitorThread::Main()
 	// continue if Close is signaled.
 	RunBeforeAfterParser runBeforePreCmd(this, rotationManager,
 		_T("RunBeforePre (initial pre-launch command)"), IDS_ERR_GAMERUNBEFOREPRE, 
-		gameSys.runBeforePre, false);
+		GetLaunchParam("runBeforePre", gameSys.runBeforePre), false);
 	if (!runBeforePreCmd.Run())
 		return 0;
 
 	// Display the "Launching Game" message in the main window, and run
 	// Javascript scripts.  Stop if the Javascript handlers cancel the launch.
-	if (playfieldView != nullptr
-		&& !playfieldView->SendMessage(PFVMsgGameRunBefore, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId)))
-		return 0;
+	if (playfieldView != nullptr)
+	{
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		if (!playfieldView->SendMessage(PFVMsgGameRunBefore, 0, reinterpret_cast<LPARAM>(&report)))
+			return 0;
+	}
 
 	// Set up guaranteed execution for the RunAfter command, now that
 	// we're about to fire RunBefore.
 	RunBeforeAfterParser runAfterCmd(this, rotationManager,
 		_T("RunAfter (post-game exit command)"), IDS_ERR_GAMERUNAFTER, 
-		gameSys.runAfter, true);
+		GetLaunchParam("runAfter", gameSys.runAfter), true);
 
 	// Run the RunBefore command, if any
 	RunBeforeAfterParser runBeforeCmd(this, rotationManager,
 		_T("RunBefore (pre-launch command)"), IDS_ERR_GAMERUNBEFORE,
-		gameSys.runBefore, false);
+		GetLaunchParam("runBefore", gameSys.runBefore), false);
 	if (!runBeforeCmd.Run())
 		return 0;
 
@@ -2501,21 +2536,22 @@ DWORD Application::GameMonitorThread::Main()
 	GetSystemTimeAsFileTime(&t0);
 
 	// get the program executable
-	const TCHAR *exe = gameSys.exe.c_str();
+	const TSTRING &exe = GetLaunchParam("exe", gameSys.exe);
 
 	// Replace substitution variables in the command-line parameters
-	TSTRING cmdline = SubstituteVars(gameSys.params);
+	const TSTRING &rawParams = GetLaunchParam("params", gameSys.params);
+	TSTRING cmdline = SubstituteVars(rawParams);
 	LogFile::Get()->Write(LogFile::TableLaunchLogging,
 		_T("+ table launch: executable: %s\n")
 		_T("+ table launch: applying command line variable substitutions:\n+ Original> %s\n+ Final   > %s\n"),
-		exe, gameSys.params.c_str(), cmdline.c_str());
+		exe.c_str(), rawParams.c_str(), cmdline.c_str());
 
 	// set up the startup information struct
 	STARTUPINFO startupInfo;
 	ZeroMemory(&startupInfo, sizeof(startupInfo));
 	startupInfo.cb = sizeof(startupInfo);
 	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-	startupInfo.wShowWindow = gameSys.swShow;
+	startupInfo.wShowWindow = GetLaunchParamInt("swShow", gameSys.swShow);
 
 	// process creation flags
 	DWORD createFlags = 0;
@@ -2524,10 +2560,11 @@ DWORD Application::GameMonitorThread::Main()
 	// environment.
 	WCHAR *lpEnvironment = nullptr;
 	std::unique_ptr<WCHAR> mergedEnvironment;
-	if (gameSys.envVars.length() != 0)
+	const TSTRING &envVarsParam = GetLaunchParam("envVars", gameSys.envVars);
+	if (envVarsParam.length() != 0)
 	{
 		// create the merged environment from the flattened ';'-delimited list
-		CreateMergedEnvironment(mergedEnvironment, gameSys.envVars.c_str());
+		CreateMergedEnvironment(mergedEnvironment, envVarsParam.c_str());
 
 		// use the merged environment, noting in the create flags that it's Unicode
 		lpEnvironment = mergedEnvironment.get();
@@ -2535,10 +2572,11 @@ DWORD Application::GameMonitorThread::Main()
 	}
 
 	// Try launching the new process
+	const TSTRING &workingPath = GetLaunchParam("workingPath", gameSys.workingPath);
 	PROCESS_INFORMATION procInfo;
 	ZeroMemory(&procInfo, sizeof(procInfo));
-	if (!CreateProcess(exe, cmdline.data(), NULL, NULL, false, createFlags,
-		lpEnvironment, gameSys.workingPath.c_str(), &startupInfo, &procInfo))
+	if (!CreateProcess(exe.c_str(), cmdline.data(), NULL, NULL, false, createFlags,
+		lpEnvironment, workingPath.c_str(), &startupInfo, &procInfo))
 	{
 		// failed - get the error
 		WindowsErrorMessage sysErr;
@@ -2573,8 +2611,8 @@ DWORD Application::GameMonitorThread::Main()
 			// elevation is truly required.
 			LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: retrying launch As Invoker\n"));
 			if (!CreateProcessAsInvoker(
-				exe, cmdline.data(), NULL, NULL, false, createFlags,
-				lpEnvironment, gameSys.workingPath.c_str(), &startupInfo, &procInfo))
+				exe.c_str(), cmdline.data(), NULL, NULL, false, createFlags,
+				lpEnvironment, workingPath.c_str(), &startupInfo, &procInfo))
 			{
 				// get the new error code
 				sysErr.Reset();
@@ -2605,17 +2643,17 @@ DWORD Application::GameMonitorThread::Main()
 			isAdminMode = true;
 
 			// set up the request parameters
-			MsgFmt swShowStr(_T("%d"), gameSys.swShow);
+			MsgFmt swShowStr(_T("%d"), GetLaunchParamInt("swShow", gameSys.swShow));
 			const TCHAR *request[] = {
 				_T("run"),                        // admin request verb
-				exe,                              // full path to executable
-				gameSys.workingPath.c_str(),      // working directory for new process
+				exe.c_str(),                      // full path to executable
+				workingPath.c_str(),              // working directory for new process
 				cmdline.c_str(),                  // command line 
-				gameSys.envVars.c_str(),          // environment variable list
+				envVarsParam.c_str(),             // environment variable list
 				gameInactivityTimeout.c_str(),    // inactivity timeout, in seconds
 				swShowStr,                        // ShowWindow mode
 				_T("game"),                       // process handle retention mode
-				gameSys.terminateBy.c_str()       // termination mode
+				GetLaunchParam("terminateBy", gameSys.terminateBy).c_str()  // termination mode
 			};
 
 			// Allow the admin host to set the foreground window when the
@@ -2671,7 +2709,7 @@ DWORD Application::GameMonitorThread::Main()
 				// send the error to the playfield view for display
 				if (playfieldView != nullptr)
 				{
-					PlayfieldView::LaunchErrorReport report(cmd, gameId, errDetails.c_str());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, errDetails.c_str());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -2705,7 +2743,7 @@ DWORD Application::GameMonitorThread::Main()
 				default:
 					// use the generic error message for anything else
 					{
-						PlayfieldView::LaunchErrorReport report(cmd, gameId, sysErr.Get());
+						PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, sysErr.Get());
 						playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 					}
 					break;
@@ -2743,7 +2781,8 @@ DWORD Application::GameMonitorThread::Main()
 	// we have a separate parameter for the game system, "Process name", 
 	// which tells us the EXE name of the actual game process.  
 	// 
-	if (gameSys.process.length() == 0)
+	const TSTRING &secondaryProcessName = GetLaunchParam("processName", gameSys.process);
+	if (secondaryProcessName.length() == 0)
 	{
 		// Single-stage launch - remember the process handle
 		hGameProc = hProcFirstStage;
@@ -2752,7 +2791,7 @@ DWORD Application::GameMonitorThread::Main()
 	{
 		// Two-stage launch
 		LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-			_T("+ table launch: waiting for secondary process %s to start\n"), gameSys.process.c_str());
+			_T("+ table launch: waiting for secondary process %s to start\n"), secondaryProcessName.c_str());
 
 		// keep going until the process launches, the launcher process
 		// dies, or we get an abort signal
@@ -2772,7 +2811,7 @@ DWORD Application::GameMonitorThread::Main()
 				if (playfieldView != nullptr)
 				{
 					MsgFmt msg(_T("Error getting process snapshot: %s"), sysErr.Get());
-					PlayfieldView::LaunchErrorReport report(cmd, gameId, msg.Get());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, msg.Get());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -2790,7 +2829,7 @@ DWORD Application::GameMonitorThread::Main()
 				do
 				{				
 					// check for a match to our name
-					if (_tcsicmp(gameSys.process.c_str(), procInfo.szExeFile) == 0)
+					if (_tcsicmp(secondaryProcessName.c_str(), procInfo.szExeFile) == 0)
 					{
 						// Check to see if was launched after the first stage - we don't
 						// want to match old instances that were already running.
@@ -2869,8 +2908,8 @@ DWORD Application::GameMonitorThread::Main()
 				// isn't going to start.
 				if (playfieldView != nullptr)
 				{
-					MsgFmt msg(_T("Launcher process exited, target process %s hasn't started"), gameSys.process.c_str());
-					PlayfieldView::LaunchErrorReport report(cmd, gameId, msg.Get());
+					MsgFmt msg(_T("Launcher process exited, target process %s hasn't started"), secondaryProcessName.c_str());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, msg.Get());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -2878,7 +2917,7 @@ DWORD Application::GameMonitorThread::Main()
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
 					_T("+ table launch: launcher process exited, target process %s hasn't started;")
 					_T(" assuming failure and aborting launch\n"),
-					gameSys.process.c_str());
+					secondaryProcessName.c_str());
 				return 0;
 			}
 
@@ -2907,7 +2946,10 @@ DWORD Application::GameMonitorThread::Main()
 
 	// switch the playfield view to Running mode
 	if (playfieldView != nullptr)
-		playfieldView->PostMessage(PFVMsgGameLoaded, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId));
+	{
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
+	}
 
 	// If the game system has a startup key sequence, send it
 	if (gameSys.startupKeys.length() != 0)
@@ -3250,7 +3292,7 @@ DWORD Application::GameMonitorThread::Main()
 
 	// If we're capturing screenshots of the running game, start
 	// the capture process
-	if (cmd == ID_CAPTURE_GO)
+	if ((launchFlags & LaunchFlags::Capturing) != 0)
 	{
 		// Collect a list of results for the items.  (Note that it's just
 		// a weird coincidence that we're using a CapturingErrorHandler
@@ -4135,13 +4177,23 @@ DWORD Application::GameMonitorThread::Main()
 	// note the exit time
 	exitTime = GetTickCount64();
 
+	// let the main window know that the game child process has exited
+	if (playfieldView != nullptr)
+	{
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		playfieldView->SendMessage(PFVMsgGameOver, 0, reinterpret_cast<LPARAM>(&report));
+	}
+
 	// run the RunAfter command, if any
 	if (!runAfterCmd.Run())
 		return 0;
 
 	// remove the "game exiting" message
 	if (playfieldView != nullptr)
-		playfieldView->SendMessage(PFVMsgGameRunAfter, static_cast<WPARAM>(cmd), static_cast<LPARAM>(gameId));
+	{
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		playfieldView->SendMessage(PFVMsgGameRunAfter, 0, reinterpret_cast<LPARAM>(&report));
+	}
 
 	// run the RunAfterPost command, if any
 	if (!runAfterPostCmd.Run())

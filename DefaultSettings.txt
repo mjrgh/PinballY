@@ -287,6 +287,44 @@ InfoBox.TableFile = 0
 #
 InstructionCardLocation = Backglass
 
+# Fonts for UI elements.  Specify as <point size> <weight> <name>.
+#
+# The point size is a number, with optional "pt" suffix.
+#
+# The weight can be a standard font weight value from 100 to 900,
+# (400 is normal weight in most fonts, 700 is bold), or one of the
+# standard weight names: "thin" (100), "extralight" (200), "light" 
+# (300), "normal" (400), "medium" (500), "semibold" (600), "bold" 
+# (700), "ultrabold" (800), "black" (900).
+#
+# MenuFont = menu items
+# PopupFont = base font for popup dialogs and messages
+# PopupTitleFont = large font for title text in popups
+# PopupSmallerFont = smaller text font in popups
+# PopupDetailFont = even smaller detail text font in popups
+# MediaDetailFont = small font for line items in media file listings
+# WheelFont = game titles in the wheel when logos aren't available
+# HighScoreFont = font for generated high score displays in the DMD window
+# InfoBoxTitleFont = large font for title text in info box displays
+# InfoBoxFont = font for main text in info box displays
+# InfoBoxDetailFont = small font for fine print in info box displays
+# StatusFont = status line font
+# CreditsFont = credits message font
+#
+MenuFont = 42pt normal Tahoma
+PopupFont = 24pt normal Tahoma
+PopupTitleFont = 48pt normal Tahoma
+PopupSmallerFont = 20pt normal Tahoma
+PopupDetailFont = 18pt normal Tahoma
+MediaDetailFont = 12pt normal Tahoma
+WheelFont = 80pt normal Tahoma
+HighScoreFont = 24pt normal Tahoma
+InfoBoxTitleFont = 38pt normal Tahoma
+InfoBoxFont = 28pt normal Tahoma
+InfoBoxDetailFont = 16pt normal Tahoma
+StatusFont = 36pt normal Tahoma
+CreditsFont = 42pt normal Tahoma
+
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 
 # backglass, DMD).  You can change this while the program is running,
