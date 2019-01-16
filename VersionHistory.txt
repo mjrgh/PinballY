@@ -52,6 +52,9 @@ the same name.
 * In Beta 1, the cumulative playing time for wasn't being updated
 after playing a game.  This has been fixed.
 
+* DOF re-setup after finishing a game session is now performed in a
+background thread, for improved responsiveness.
+
 
 10-13-2018 (1.0.0 Beta 1)
 
