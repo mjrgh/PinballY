@@ -57,6 +57,9 @@ public:
 	// initialize javascript
 	void InitJavascript();
 
+	// Show any errors from DOF Client initialization
+	void ShowDOFClientInitErrors();
+
 	// Update keyboard shortcut listings in a menu.  We call this when
 	// creating a menu and again whenever the keyboard preferences are
 	// updated.  The parent window can also call this to update Player
@@ -194,6 +197,17 @@ public:
 		const TCHAR *errorMessage;
 	};
 
+	// Game Over report, for PFVMsgGameOver
+	struct GameOverReport : LaunchReport
+	{
+		GameOverReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, INT64 runTime_ms) :
+			LaunchReport(launchCmd, launchFlags, gameInternalID),
+			runTime_ms(runTime_ms)
+		{}
+
+		INT64 runTime_ms;
+	};
+
 	// Capture Done report, for PFVMsgCaptureDone
 	struct CaptureDoneReport
 	{
@@ -285,6 +299,17 @@ protected:
 	FontPref infoBoxDetailFont{ 16 };   // info box fine print
 	FontPref creditsFont{ 42 };         // credits message font
 
+	// Figure the pixel width of the window layout in terms of the normalized
+	// height of 1920 pixels.
+	int NormalizedWidth()
+	{
+		if (szLayout.cy == 0)
+			return 1080;
+		else
+			return static_cast<int>(1920.0f *
+				(static_cast<float>(szLayout.cx) / static_cast<float>(szLayout.cy)));
+	}
+
 	// InputManager::RawInputReceiver implementation
 	virtual bool OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize) override;
 
@@ -362,12 +387,13 @@ protected:
 	static const int gameTimeoutTimerID = 114;    // game inactivity timeout timer
 	static const int endSplashTimerID = 115;      // remove the "splash screen"
 	static const int restoreDOFAndDMDTimerID = 116; // restore DOF and DMD access after a game terminates
-	static const int cleanupTimerID = 117;        // periodic cleanup tasks
-	static const int mediaDropTimerID = 118;      // media drop continuation timer
-	static const int autoDismissMsgTimerID = 119;  // auto dismiss a message dialog
-	static const int batchCaptureCancelTimerID = 120;  // batch capture cancel button pushed
-	static const int javascriptTimerID = 121;     // javascript scheduled tasks
-	static const int fullRefreshTimerID = 122;    // full UI refresh (filters, selection, status text)
+	static const int dofReadyTimerID = 117;       // check if DOF is ready after post-game reinit
+	static const int cleanupTimerID = 118;        // periodic cleanup tasks
+	static const int mediaDropTimerID = 119;      // media drop continuation timer
+	static const int autoDismissMsgTimerID = 120; // auto dismiss a message dialog
+	static const int batchCaptureCancelTimerID = 121;  // batch capture cancel button pushed
+	static const int javascriptTimerID = 122;     // javascript scheduled tasks
+	static const int fullRefreshTimerID = 123;    // full UI refresh (filters, selection, status text)
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1747,6 +1773,13 @@ protected:
 	// front of the queue and sends it to DOF.  Stops the timer if 
 	// the queue is empty after pulling this effect.
 	void OnDOFTimer();
+	
+	// DOF initialization status from the last initialization attempt.
+	// We suppress DOF initialization errors if the last attempt to
+	// intialize DOF also failed.  This avoids showing the same error
+	// messages over and over on a system where DOF isn't set up 
+	// properly and will thus fail on every attempt to initialize.
+	bool dofInitFailed = false;
 
 	// DOF interaction
 	class DOFIfc

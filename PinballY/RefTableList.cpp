@@ -18,6 +18,22 @@ RefTableList::~RefTableList()
 		WaitForSingleObject(hInitThread, INFINITE);
 }
 
+bool RefTableList::GetByIpdbId(const TCHAR *id, std::unique_ptr<Table> &table)
+{
+	// fail if initialization isn't finished
+	if (!IsReady())
+		return false;
+
+	// look up the table
+	auto it = ipdbIdMap.find(id);
+	if (it == ipdbIdMap.end())
+		return false;
+
+	// return the result
+	table.reset(new Table(this, it->second, 1.0f));
+	return true;
+}
+
 void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst)
 {
 	// if initialization hasn't finished yet, return an empty list
@@ -179,6 +195,7 @@ RefTableList::Table::Table(RefTableList *rtl, int row, float score) :
 	listName = rtl->listNameCol->Get(row, _T(""));
 	name = rtl->nameCol->Get(row, _T(""));
 	manuf = rtl->manufCol->Get(row, _T(""));
+	manufOrig = rtl->manufOrigCol->Get(row, _T(""));
 	year = rtl->yearCol->GetInt(row, 0);
 	players = rtl->playersCol->GetInt(row, 0);
 	themes = rtl->themeCol->Get(row, _T(""));
@@ -212,6 +229,7 @@ void RefTableList::Init()
 		self->nameCol = self->csvFile.DefineColumn(_T("Name"));
 		self->altNameCol = self->csvFile.DefineColumn(_T("AltName"));
 		self->manufCol = self->csvFile.DefineColumn(_T("ManufacturerShort"));
+		self->manufOrigCol = self->csvFile.DefineColumn(_T("Manufacturer"));
 		self->yearCol = self->csvFile.DefineColumn(_T("Year"));
 		self->playersCol = self->csvFile.DefineColumn(_T("Players"));
 		self->typeCol = self->csvFile.DefineColumn(_T("Type"));
@@ -235,8 +253,11 @@ void RefTableList::Init()
 		self->altNameBigrams.reserve(nRows);
 		for (size_t i = 0; i < nRows; ++i)
 		{
+			// get the row number as an integer
+			int rownum = static_cast<int>(i);
+
 			// get the name, in lower-case
-			TSTRING name = self->nameCol->Get((int)i, _T(""));
+			TSTRING name = self->nameCol->Get(rownum, _T(""));
 			std::transform(name.begin(), name.end(), name.begin(), _totlower);
 
 			// Emplace a new row in the bigram set vector, and build
@@ -245,16 +266,16 @@ void RefTableList::Init()
 			DiceCoefficient::BuildBigramSet(self->nameBigrams.back(), name.c_str());
 
 			// likewise for the AltName bigrams
-			TSTRING altName = self->altNameCol->Get((int)i, _T(""));
+			TSTRING altName = self->altNameCol->Get(rownum, _T(""));
 			std::transform(altName.begin(), altName.end(), altName.begin(), _totlower);
 			self->altNameBigrams.emplace_back();
 			DiceCoefficient::BuildBigramSet(self->altNameBigrams.back(), altName.c_str());
 
 			// Synthesize the sorting key
-			self->MakeSortKey((int)i);
+			self->MakeSortKey(rownum);
 
 			// Synthesize the list name
-			self->MakeListName((int)i);
+			self->MakeListName(rownum);
 
 			// Synthesize the initials.  Start by stripping out any paren-
 			// thetical suffix, then strip out any remaining punctuation
@@ -267,7 +288,12 @@ void RefTableList::Init()
 			initName = std::regex_replace(initName, initPat, _T("$1"));
 
 			// store it
-			self->initialsCol->Set((int)i, initName.c_str());
+			self->initialsCol->Set(rownum, initName.c_str());
+
+			// if it has an IPDB ID, add it to the IPDB map
+			const TCHAR *ipdbId = self->ipdbIdCol->Get(rownum, nullptr);
+			if (ipdbId != nullptr && ipdbId[0] != 0)
+				self->ipdbIdMap.emplace(ipdbId, rownum);
 		}
 
 		// done (the thread return value isn't used, but we have to return

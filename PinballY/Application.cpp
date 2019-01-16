@@ -299,8 +299,7 @@ int Application::EventLoop(int nCmdShow)
 	CheckRunAtStartup();
 
 	// set up DOF before creating the UI
-	CapturingErrorHandler dofErrs;
-	DOFClient::Init(dofErrs);
+	DOFClient::Init();
 
 	// initialize the game list
 	CapturingErrorHandler loadErrs;
@@ -404,11 +403,11 @@ int Application::EventLoop(int nCmdShow)
 	if (loadErrs.CountErrors() != 0)
 		GetPlayfieldView()->ShowError(EIT_Error, LoadStringT(IDS_ERR_LISTLOADWARNINGS), &loadErrs);
 
+	// wait for DOF initialization to complete
+	DOFClient::WaitReady();
+
 	// If we ran into DOF errors, show those
-	if (dofErrs.CountErrors() == 1)
-		dofErrs.EnumErrors([this](const ErrorList::Item &item) { GetPlayfieldView()->ShowSysError(item.message.c_str(), item.details.c_str()); });
-	else if (dofErrs.CountErrors() > 1)
-		GetPlayfieldView()->ShowError(EIT_Error, LoadStringT(IDS_ERR_DOFLOAD), &dofErrs);
+	GetPlayfieldView()->ShowDOFClientInitErrors();
 
 	// bring the main playfield window to the front
 	SetForegroundWindow(playfieldWin->GetHWnd());
@@ -1345,25 +1344,7 @@ void Application::CleanGameMonitor()
 {
 	// if the game monitor thread has exited, remove our reference
 	if (gameMonitor != nullptr && !gameMonitor->IsThreadRunning())
-	{
-		// Update the run time for the game if desired.  (This flag
-		// is normally set for regular play sessions but not for
-		// media capture launches.)
-		if ((gameMonitor->launchFlags & LaunchFlags::UpdateStats) != 0)
-		{
-			// figure the total run time in seconds
-			int seconds = (int)((gameMonitor->exitTime - gameMonitor->launchTime) / 1000);
-
-			// find the game
-			GameList *gl = GameList::Get();
-			GameListItem *game = gl->GetByInternalID(gameMonitor->gameId);
-			if (game != nullptr)
-				gl->SetPlayTime(game, gl->GetPlayTime(game) + seconds);
-		}
-
-		// forget the game monitor thread
 		gameMonitor = nullptr;
-	}
 }
 
 void Application::EnableVideos(bool enable)
@@ -4180,7 +4161,7 @@ DWORD Application::GameMonitorThread::Main()
 	// let the main window know that the game child process has exited
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		PlayfieldView::GameOverReport report(cmd, launchFlags, gameId, exitTime - launchTime);
 		playfieldView->SendMessage(PFVMsgGameOver, 0, reinterpret_cast<LPARAM>(&report));
 	}
 

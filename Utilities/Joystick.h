@@ -268,8 +268,20 @@ public:
 		int index;
 	};
 
-	// Physical joystick descriptor.  We create one of these
-	// for actual device found in a system scan.
+	// Physical joystick descriptor.  We create one of these for each 
+	// joystick device that Windows reports in a device scan.  (We call
+	// these "physical" joysticks because they usually correspond
+	// directly to physical devices attached to the system.  That's not 
+	// exactly true, though, since what we're really talking about is
+	// what Windows thinks of as a physical device, and Windows has
+	// several ways to virtualize these supposedly physical interfaces.
+	// For example, we could be seeing a virtual device created by a 
+	// purely software device driver like vJoy, or we could be seeing
+	// one USB HID interface presented by a physical device that has
+	// multiple HID interfaces and thus looks like multiple devices.
+	// So a better name for this might be "WindowsJoystickDevice" or
+	// something like that.  But "physical" is clearer and is pretty
+	// close to the truth in most cases.)
 	struct PhysicalJoystick : Joystick
 	{
 		PhysicalJoystick(

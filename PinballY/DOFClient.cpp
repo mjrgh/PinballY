@@ -15,7 +15,10 @@
 #pragma comment(lib, "Propsys.lib")
 
 // statics
-DOFClient *DOFClient::inst;
+DOFClient *DOFClient::inst = nullptr;
+volatile bool DOFClient::ready = false;
+HandleHolder DOFClient::hInitThread;
+CapturingErrorHandler DOFClient::initErrors;
 
 // 64-bit-only statics
 #ifdef _M_X64
@@ -25,111 +28,161 @@ CLSID DOFClient::clsidProxyClass;
 #endif
 
 // initialize
-bool DOFClient::Init(ErrorHandler &eh)
+void DOFClient::Init()
 {
-	LogFile::Get()->Group(LogFile::DofLogging);
-	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF (DirectOutput): initializing DOF client\n"));
+	// if a prior initialization is already in progress, wait for it
+	if (hInitThread != nullptr)
+		WaitForSingleObject(hInitThread, 15000);
 
-	// If we're in 64-bit mode, we need to create our surrogate
-	// process for loading the DOF DLL.
-#ifdef _M_X64
-	if (!surrogateStarted)
-	{
-		// flag that we've at least tried to start the surrogate
-		surrogateStarted = true;
-
-		// Generate a random GUID for the proxy class.  We use a random GUID
-		// to make the proxy private to this application instance, to avoid any 
-		// collisions with other running instances.
-		CoCreateGuid(&clsidProxyClass);
-
-		// Create the events to coordinate with the child process.  These are
-		// passed by name, with the name generated from our process ID.
-		DWORD pid = GetCurrentProcessId();
-		TCHAR readyEventName[128], doneEventName[128];
-		_stprintf_s(readyEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Ready"), pid);
-		_stprintf_s(doneEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Done"), pid);
-
-		HandleHolder hSurrogateReadyEvent = CreateEvent(NULL, FALSE, FALSE, readyEventName);
-		hSurrogateDoneEvent = CreateEvent(NULL, FALSE, FALSE, doneEventName);
-
-		// get the surrogate exe name
-		TCHAR surrogateExe[MAX_PATH];
-		GetDeployedFilePath(surrogateExe, _T("Dof3264Surrogate.exe"), _T("$(SolutionDir)$(Configuration)\\Dof3264Surrogate.exe"));
-
-		// build the command line
-		TSTRINGEx cmdline;
-		cmdline.Format(_T(" -parent_pid=%ld -clsid=%s"),
-			pid, FormatGuid(clsidProxyClass).c_str());
-
-		// set up the launch information
-		STARTUPINFO si;
-		ZeroMemory(&si, sizeof(si));
-		si.dwFlags = STARTF_USESHOWWINDOW;
-		si.wShowWindow = SW_HIDE;
-
-		// log the proxy setup
-		LogFile::Get()->Write(LogFile::DofLogging,
-			_T("+ Launching DOF surrogate process.  This is required because PinballY is running\n")
-			_T("  in 64-bit, and DOF is a 32-bit COM object.  Surrogate command line:\n")
-			_T("  >\"%s\" %s\n"), surrogateExe, cmdline.c_str());
-			
-		// launch it
-		PROCESS_INFORMATION pi;
-		if (!CreateProcess(surrogateExe, cmdline.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
-		{
-			WindowsErrorMessage err;
-			eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("Surrogate process (\"%s\" %s) launch failed: %s"), 
-				surrogateExe, cmdline.c_str(), err.Get()));
-
-			LogFile::Get()->Group();
-			LogFile::Get()->Write(_T("DOF surrogate launch failed:\n")
-				_T("  Command line: \"%s\" %s\n")
-				_T("  CreateProcess Error: %s\n"),
-				surrogateExe, cmdline.c_str(), err.Get());
-		}
-		else
-		{
-			// wait for the process to declare itself ready
-			if (WaitForSingleObject(hSurrogateReadyEvent, 5000) != WAIT_OBJECT_0)
-			{
-				eh.SysError(LoadStringT(IDS_ERR_DOFLOAD), _T("Surrogate process isn't responding (ready wait timed out"));
-				LogFile::Get()->Group();
-				LogFile::Get()->Write(_T("DOF surrogate process isn't responding (ready wait timed out)\n")
-					_T("Command line: \"%s\" %s\n"),
-					surrogateExe, cmdline.c_str());
-
-				// set the 'done' event to try to make the surrogate shut down
-				SetEvent(hSurrogateDoneEvent);
-				hSurrogateDoneEvent = NULL;
-
-				// give it a moment to shut down on its own, then try to kill it
-				Sleep(250);
-				SaferTerminateProcess(pi.hProcess);
-			}
-
-			// close the process and thread handles
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
-	}
-#endif
+	// reset the initialization status
+	hInitThread = nullptr;
+	ready = false;
+	initErrors.Clear();
 
 	// if there's not an instance yet, create and initialize it
 	if (inst == nullptr)
 	{
-		inst = new DOFClient();
-		if (!inst->InitInst(eh))
+		// do initialization on a background thread
+		struct ThreadContext
 		{
-			// initialization failed - delete the object and return failure
-			delete inst;
-			inst = nullptr;
-			return false;
-		}
-	}
+			ThreadContext() { }
+		};
+		auto ThreadMain = [](LPVOID lpvParam) -> DWORD
+		{
+			// retrieve the context
+			std::unique_ptr<ThreadContext> ctx(static_cast<ThreadContext*>(lpvParam));
 
-	// success
-	return true;
+			// log what we're doing
+			LogFile::Get()->Group(LogFile::DofLogging);
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF (DirectOutput): initializing DOF client\n"));
+
+			// initialize COM on this thread
+			CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+			// If we're in 64-bit mode, we need to create our surrogate
+			// process for loading the DOF DLL.
+#ifdef _M_X64
+			if (!surrogateStarted)
+			{
+				// flag that we've at least tried to start the surrogate
+				surrogateStarted = true;
+
+				// Generate a random GUID for the proxy class.  We use a random GUID
+				// to make the proxy private to this application instance, to avoid any 
+				// collisions with other running instances.
+				CoCreateGuid(&clsidProxyClass);
+
+				// Create the events to coordinate with the child process.  These are
+				// passed by name, with the name generated from our process ID.
+				DWORD pid = GetCurrentProcessId();
+				TCHAR readyEventName[128], doneEventName[128];
+				_stprintf_s(readyEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Ready"), pid);
+				_stprintf_s(doneEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Done"), pid);
+
+				HandleHolder hSurrogateReadyEvent = CreateEvent(NULL, FALSE, FALSE, readyEventName);
+				hSurrogateDoneEvent = CreateEvent(NULL, FALSE, FALSE, doneEventName);
+
+				// get the surrogate exe name
+				TCHAR surrogateExe[MAX_PATH];
+				GetDeployedFilePath(surrogateExe, _T("Dof3264Surrogate.exe"), _T("$(SolutionDir)$(Configuration)\\Dof3264Surrogate.exe"));
+
+				// build the command line
+				TSTRINGEx cmdline;
+				cmdline.Format(_T(" -parent_pid=%ld -clsid=%s"),
+					pid, FormatGuid(clsidProxyClass).c_str());
+
+				// set up the launch information
+				STARTUPINFO si;
+				ZeroMemory(&si, sizeof(si));
+				si.dwFlags = STARTF_USESHOWWINDOW;
+				si.wShowWindow = SW_HIDE;
+
+				// log the proxy setup
+				LogFile::Get()->Write(LogFile::DofLogging,
+					_T("+ Launching DOF surrogate process.  This is required because PinballY is running\n")
+					_T("  in 64-bit, and DOF is a 32-bit COM object.  Surrogate command line:\n")
+					_T("  >\"%s\" %s\n"), surrogateExe, cmdline.c_str());
+
+				// launch it
+				PROCESS_INFORMATION pi;
+				if (!CreateProcess(surrogateExe, cmdline.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+				{
+					WindowsErrorMessage err;
+					initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("Surrogate process (\"%s\" %s) launch failed: %s"),
+						surrogateExe, cmdline.c_str(), err.Get()));
+
+					LogFile::Get()->Group();
+					LogFile::Get()->Write(_T("DOF surrogate launch failed:\n")
+						_T("  Command line: \"%s\" %s\n")
+						_T("  CreateProcess Error: %s\n"),
+						surrogateExe, cmdline.c_str(), err.Get());
+				}
+				else
+				{
+					// wait for the process to declare itself ready
+					if (WaitForSingleObject(hSurrogateReadyEvent, 5000) != WAIT_OBJECT_0)
+					{
+						initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), _T("Surrogate process isn't responding (ready wait timed out"));
+						LogFile::Get()->Group();
+						LogFile::Get()->Write(_T("DOF surrogate process isn't responding (ready wait timed out)\n")
+							_T("Command line: \"%s\" %s\n"),
+							surrogateExe, cmdline.c_str());
+
+						// set the 'done' event to try to make the surrogate shut down
+						SetEvent(hSurrogateDoneEvent);
+						hSurrogateDoneEvent = NULL;
+
+						// give it a moment to shut down on its own, then try to kill it
+						Sleep(250);
+						SaferTerminateProcess(pi.hProcess);
+					}
+
+					// close the process and thread handles
+					CloseHandle(pi.hProcess);
+					CloseHandle(pi.hThread);
+				}
+			}
+#endif
+
+			// create and initialize a new instance
+			auto newInst = std::make_unique<DOFClient>();
+			if (newInst->InitInst(initErrors))
+			{
+				// successfully initialized - store the global singletone
+				inst = newInst.release();
+			}
+
+			// initialization is completed
+			ready = true;
+
+			// done
+			CoUninitialize();
+			return 0;
+		};
+
+		// launch the initializer thread
+		auto ctx = std::make_unique<ThreadContext>();
+		DWORD tid;
+		hInitThread = CreateThread(NULL, 0, ThreadMain, ctx.get(), 0, &tid);
+
+		// if the thread launch succeeded, release our unique pointer to the
+		// context, to pass ownership to the thread
+		if (hInitThread != nullptr)
+			ctx.release();
+	}
+}
+
+bool DOFClient::WaitReady()
+{
+	// wait for the initialization thread to complete, if it hasn't already
+	if (!ready && hInitThread != nullptr)
+		WaitForSingleObject(hInitThread, INFINITE);
+
+	// forget the initializer thread handle
+	hInitThread = nullptr;
+
+	// if initialization succeeded, the global singleton will exist
+	return inst != nullptr;
 }
 
 // shut down
@@ -138,6 +191,14 @@ void DOFClient::Shutdown(bool final)
 	LogFile::Get()->Group(LogFile::DofLogging);
 	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: shutting down DOF client\n"));
 
+	// wait for the initializer thread to finish
+	if (hInitThread != nullptr)
+	{
+		WaitForSingleObject(hInitThread, 15000);
+		hInitThread = nullptr;
+	}
+
+	// if there's an instance, delete it and forget it
 	if (inst != nullptr)
 	{
 		delete inst;
@@ -165,7 +226,7 @@ DOFClient::DOFClient()
 DOFClient::~DOFClient()
 {
 	// if we initialized DOF, un-initialize it
-	if (pDispatch != 0)
+	if (ready && pDispatch != 0)
 	{
 		DISPPARAMS args = { nullptr, nullptr, 0, 0 };
 		VARIANTEx result;
@@ -177,7 +238,7 @@ DOFClient::~DOFClient()
 
 void DOFClient::SetNamedState(const WCHAR *name, int val)
 {
-	if (pDispatch != nullptr)
+	if (ready && pDispatch != nullptr)
 	{
 		// Invoke UpdateNamedTableElement(name, val)
 		// NB - Invoke() arguments are sent in reverse order
@@ -509,6 +570,10 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 
 const TCHAR *DOFClient::GetRomForTable(const GameListItem *game)
 {
+	// return null if we're not ready
+	if (!ready)
+		return nullptr;
+
 	// Check to see if we've resolved this game before
 	if (auto it = resolvedRoms.find(game); it != resolvedRoms.end())
 		return it->second.c_str();
@@ -570,6 +635,10 @@ const TCHAR *DOFClient::GetRomForTable(const GameListItem *game)
 
 const TCHAR *DOFClient::GetRomForTitle(const TCHAR *title, const GameSystem *system)
 {
+	// return null if not ready
+	if (!ready)
+		return nullptr;
+
 	// get the simplified title string to use as the fuzzy-match key
 	TSTRING titleKey = SimplifiedTitle(title);
 

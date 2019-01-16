@@ -86,6 +86,9 @@ public:
 	// Title.  This is the title portion of the full name.
 	TSTRING title;
 
+	// IPDB ID, if known
+	TSTRING ipdbId;
+
 	// Game filename.  This is the name of the playable simulator
 	// file (.vpt, .vpx, .fpt, etc).  
 	//
@@ -240,6 +243,7 @@ public:
 		const char *filename, 
 		const GameManufacturer *manufacturer, 
 		int year,	
+		const TCHAR *ipdbId,
 		const char *tableType,
 		const char *rom, GameSystem *system, bool enabled,
 		const char *gridpos);

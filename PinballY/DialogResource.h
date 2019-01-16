@@ -22,6 +22,8 @@
 #define IDC_CB_HIGH_SCORE_STYLE         3014
 #define IDC_TXT_DATE_ADDED              3015
 #define IDC_TXT_ARCHENTRY               3016
+#define IDC_TXT_DATE_ADDED2             3016
+#define IDC_TXT_IPDB_ID                 3016
 #define IDC_ST_GRIDPOS                  3017
 #define IDC_BTN_PINBALLX                3019
 #define IDC_BTN_PINBALLY                3020

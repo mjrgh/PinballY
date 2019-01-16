@@ -265,6 +265,9 @@ public:
 	virtual void EnumErrors(std::function<void(const Item &)>) const;
 	virtual size_t CountErrors() const { return errors.size(); }
 
+	// clear the error list
+	void Clear() { errors.clear(); }
+
 protected:
 	virtual void Display(ErrorIconType icon, const TCHAR *msg);
 

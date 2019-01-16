@@ -301,6 +301,16 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
 </p>
 
 <p>
+   <b><i>gameInfo</i>.ipdbId:</b>  A string giving the <a href="https://www.ipdb.org">IPDB</a>
+   ID of the game.  This is the database key that IPDB uses to identify the game; all of
+   the existing entries are in the form of a decimal number, but we use a string to
+   store the ID just in case IPDB ever expands the format to allow non-digit characters.  The ID for
+   a given game should be permanent, and it should be unique across all of the pinball
+   machines known to IPDB.  The ID can used to address the game's IPDB page via a URL of
+   the form <tt>https://www.ipdb.org/machine.cgi?id=<i>ipdbId</i></tt>.
+</p>
+
+<p>
    <b><i>gameInfo</i>.isConfigured:</b>  A boolean value indicating if the game has been
    configured.  A configured game has an XML database entry; an unconfigured game
    represents a playable game file that PinballY found in a system's table folder,
@@ -695,6 +705,7 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    <li>dateAdded (Date)
    <li>gridPos (object, {row: <i>integer</i>, column: <i>integer</i>})
    <li>highScoreStyle (string: "Auto", "Alpha", "DMD", "TT", "None")
+   <li>ipdbId (string)
    <li>isFavorite (boolean)
    <li>isHidden (boolean)
    <li>isMarkedForCapture (boolean)

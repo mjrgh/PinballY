@@ -4,9 +4,9 @@
 #pragma once
 #include <unordered_set>
 #include <propvarutil.h>
+#include "../Utilities/LogError.h"
 #include "DiceCoefficient.h"
 
-class ErrorHandler;
 class GameListItem;
 class GameSystem;
 
@@ -20,8 +20,10 @@ public:
 	DOFClient();
 	~DOFClient();
 
-	// create the singleton
-	static bool Init(ErrorHandler &eh);
+	// Create the singleton and initialize DOF.  Initialization runs as
+	// a background thread, since it can take a noticeable amount of time.
+	// To sync up with the initialization process, use WaitReady().
+	static void Init();
 
 	// get the singleton
 	static DOFClient *Get() { return inst; }
@@ -31,8 +33,20 @@ public:
 	// well as destroying the singleton.  
 	static void Shutdown(bool final);
 
+	// Wait for initialization to complete.  Returns true if initialization
+	// was successful, false if not.
+	static bool WaitReady();
+
+	// is the DOF client ready?
+	static bool IsReady() { return ready; }
+
+	// Initialization error list.  The initializer thread captures any
+	// errors to this list; the client can display or log these errors
+	// as desired when initialization finishes.
+	static CapturingErrorHandler initErrors;
+
 	// get the DOF version
-	const TCHAR *GetDOFVersion() const { return version.c_str(); }
+	const TCHAR *GetDOFVersion() const { return ready ? version.c_str() : _T("N/A"); }
 	
 	// Set a DOF "named state" value.  Named states are states identified
 	// by arbitrary labels.  These labels are reference in the config tool
@@ -75,6 +89,19 @@ protected:
 	// global singleton instance
 	static DOFClient *inst;
 
+	// Is the instance ready for use?  We initialize the instance in a
+	// background thread, since DOF itself can take a noticeable amount 
+	// of time to initialize, and it can also take a while to build the
+	// DOF table list, since we have to compute bigram sets for all of
+	// the table titles for fast fuzzy matching.  We set this flag when
+	// the initializer thread finishes; until then, we ignore any calls
+	// to our public interface, to make sure everything is properly
+	// initialized.
+	static volatile bool ready;
+
+	// Handle to initializer thread, if any
+	static HandleHolder hInitThread;
+
 	// Surrogate process for 64-bit mode.  When we're in 64-bit mode,
 	// we can't create the DOF COM object directly, since it's 32-bit
 	// code; it doesn't register as a 64-bit object, and can't be loaded
@@ -104,7 +131,7 @@ protected:
 	RefPtr<IDispatch> pDispatch;
 
 	// DOF version number
-	TSTRING version;
+	TSTRING version = _T("N/A");
 
 	// initialize - load the DOF COM object interface
 	bool InitInst(ErrorHandler &eh);

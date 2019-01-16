@@ -2026,6 +2026,7 @@ bool GameList::LoadGameDatabaseFile(
 	//       <hidebackglass>True</hidebackglass>         // boolean
 	//       <enabled>True</enabled>                     // boolean; default = true
 	//       <rating>0</rating>                          // star rating, 1-5; 0 if unrated
+	//       <ipdbid>1234</ipdbid>                       // PinballY extension: the IPDB ID for the game, if known
 	//     </game>
 	//   </menu>
 	if (node *menu = xml->doc.first_node("menu"); menu != nullptr)
@@ -2044,6 +2045,7 @@ bool GameList::LoadGameDatabaseFile(
 			const char *rom = nullptr;
 			const char *tableType = nullptr;
 			int year = 0;
+			TSTRING ipdbId;
 			bool enabled = true;
 			float rating = 0.0f;
 			for (node *n = game->first_node(); n != 0; n = n->next_sibling())
@@ -2065,6 +2067,8 @@ bool GameList::LoadGameDatabaseFile(
 					gridPos = n->value();
 				else if (_stricmp(id, "type") == 0)
 					tableType = n->value();
+				else if (_stricmp(id, "ipdbid") == 0)
+					ipdbId = AnsiToTSTRING(n->value());
 			}
 
 			// if the entry has a valid filename and title, add it
@@ -2132,8 +2136,8 @@ bool GameList::LoadGameDatabaseFile(
 
 				// add the entry
 				GameListItem &g = games.emplace_back(
-					mediaName.c_str(), title.c_str(), name, manuf, year, tableType,
-					rom, system, enabled, gridPos);
+					mediaName.c_str(), title.c_str(), name, manuf, year, ipdbId.c_str(),
+					tableType, rom, system, enabled, gridPos);
 
 				// log it
 				Log(_T("++ adding game %hs, table file %hs, media file base name %s\n"),
@@ -3184,6 +3188,7 @@ void GameList::DeleteXml(GameListItem *game)
 		game->isConfigured = false;
 		game->tableType = _T("");
 		game->rom = _T("");
+		game->ipdbId = _T("");
 		game->year = 0;
 		game->gridPos.col = game->gridPos.row = 0;
 
@@ -3273,6 +3278,9 @@ void GameList::FlushToXml(GameListItem *game)
 	// Use the display name ("Title (Manufacturer Year)" as the XML
 	// "description" attribute.
 	TSTRING desc = game->GetDisplayName();
+
+	// store the IPDB ID, if known
+	UpdateChildT("ipdbid", game->ipdbId.c_str());
 
 	// store the description
 	UpdateChildT("description", desc.c_str());
@@ -3397,6 +3405,7 @@ GameListItem::GameListItem(
 	const char *filename,
 	const GameManufacturer *manufacturer, 
 	int year, 
+	const TCHAR *ipdbId,
 	const char *tableType,
 	const char *rom,
 	GameSystem *system,
@@ -3412,6 +3421,7 @@ GameListItem::GameListItem(
 	this->filename = AnsiToTSTRING(filename);
 	this->manufacturer = manufacturer;
 	this->year = year;
+	this->ipdbId = ipdbId;
 	if (tableType != nullptr)
 		this->tableType = AnsiToTSTRING(tableType);
 	if (rom != nullptr)

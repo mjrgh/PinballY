@@ -692,6 +692,7 @@ void PlayfieldView::InitJavascript()
 			if (!AddGameInfoGetter<TSTRING>("configId", [](GameListItem *game) { return game->GetGameId(); }, eh)
 				|| !AddGameInfoGetter<TSTRING>("displayName", [](GameListItem *game) { return game->GetDisplayName(); }, eh)
 				|| !AddGameInfoGetter<TSTRING>("title", [](GameListItem *game) { return game->title; }, eh)
+				|| !AddGameInfoGetter<TSTRING>("ipdbId", [](GameListItem *game) { return game->ipdbId; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("rom",
 					[](GameListItem *game) { return game->rom.length() != 0 ? JE::NativeToJs(game->rom) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<TSTRING>("mediaName", [](GameListItem *game) { return game->mediaName; }, eh)
@@ -2087,6 +2088,7 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		Prop(DateTime, dateAdded);
 		Prop(int, playTime);
 		Prop(int, playCount);
+		Prop(TSTRING, ipdbId);
 
 		// if gridPos is specified, get its components {row, column}
 		GameInfoDescItem<int> gridPosRow, gridPosColumn;
@@ -2217,6 +2219,13 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		if (title.isDefined)
 		{
 			game->title = title.value;
+			rebuildDb = true;
+		}
+
+		// update the IPDB ID, if present
+		if (ipdbId.isDefined)
+		{
+			game->ipdbId = ipdbId.value;
 			rebuildDb = true;
 		}
 		
@@ -2953,14 +2962,12 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		return true;
 
 	case restoreDOFAndDMDTimerID:
-		// reinitialize the DOF client
-		if (DOFClient::Init(Application::InUiErrorHandler()))
-		{
-			// set wheel context
-			QueueDOFPulse(L"PBYEndGame");
-			dof.SetUIContext(_T("PBYWheel"));
-			dof.SyncSelectedGame();
-		}
+		// Start reinitializing the DOF client.  This fires off a background
+		// thread, so DOF won't be ready immediately.
+		DOFClient::Init();
+
+		// start polling for when DOF is ready
+		SetTimer(hWnd, dofReadyTimerID, 250, NULL);
 
 		// reinstate the real DMD
 		InitRealDMD(SilentErrorHandler());
@@ -2969,6 +2976,23 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 
 		// this is a one-shot
 		KillTimer(hWnd, timer);
+		return true;
+
+	case dofReadyTimerID:
+		// Check if DOF has finished initializing
+		if (DOFClient::IsReady())
+		{
+			// show any DOF client errors
+			ShowDOFClientInitErrors();
+
+			// set wheel context
+			QueueDOFPulse(L"PBYEndGame");
+			dof.SetUIContext(_T("PBYWheel"));
+			dof.SyncSelectedGame();
+
+			// we're done waiting for DOF startup
+			KillTimer(hWnd, timer);
+		}
 		return true;
 
 	case cleanupTimerID:
@@ -6681,7 +6705,7 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg)
 {
 	// create the sprite
 	runningGamePopup.Attach(new Sprite());
-	const int width = 1080, height = 1920;
+	const int width = NormalizedWidth(), height = 1920;
 	Application::InUiErrorHandler eh;
 	runningGamePopup->Load(width, height, [width, height, msg, this](Gdiplus::Graphics &g)
 	{
@@ -6888,7 +6912,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	case PFVMsgGameOver:
 		{
 			// get the launch report
-			auto report = reinterpret_cast<LaunchReport*>(lParam);
+			auto report = reinterpret_cast<GameOverReport*>(lParam);
 
 			// The current running game's child process has exited.  If we're
 			// not already in "exiting game" mode, the process must have exited
@@ -6898,6 +6922,23 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				runningGameMode = RunningGameMode::Exiting;
 				ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING));
+			}
+
+			// Update the run time for the game, if statistics updates were requested
+			// when the game was launched.  (This flag is typically set when launching
+			// a regular play sessions, but not when launching for media capture.)
+			if ((report->launchFlags & Application::LaunchFlags::UpdateStats) != 0)
+			{
+				// find the game
+				GameList *gl = GameList::Get();
+				if (auto game = gl->GetByInternalID(report->gameInternalID); game != nullptr)
+				{
+					// figure the total run time in seconds for this session
+					int seconds = static_cast<int>(report->runTime_ms / 1000);
+
+					// add it to the cumulative play time in the database
+					gl->SetPlayTime(game, gl->GetPlayTime(game) + seconds);
+				}
 			}
 
 			// fire the javascript "gameover" event
@@ -11035,6 +11076,7 @@ void PlayfieldView::EditGameInfo()
 			};
 			GetText(IDC_CB_TITLE, game->title);
 			GetText(IDC_CB_ROM, game->rom);
+			GetText(IDC_TXT_IPDB_ID, game->ipdbId);
 
 			// update the year
 			TSTRING year;
@@ -11163,6 +11205,10 @@ void PlayfieldView::EditGameInfo()
 					// store the year
 					if (selTable->year != 0)
 						SetDlgItemText(hDlg, IDC_TXT_YEAR, MsgFmt(_T("%d"), selTable->year).Get());
+
+					// store the IPDB ID
+					if (selTable->ipdbId.length() != 0)
+						SetDlgItemText(hDlg, IDC_TXT_IPDB_ID, selTable->ipdbId.c_str());
 
 					// store the type
 					if (selTable->machineType.length() != 0)
@@ -11435,12 +11481,13 @@ void PlayfieldView::EditGameInfo()
 				SetDlgItemText(hDlg, IDC_CB_MANUF, game->manufacturer->manufacturer.c_str());
 			if (game->year != 0)
 				SetDlgItemText(hDlg, IDC_TXT_YEAR, MsgFmt(_T("%d"), game->year));
+			SetDlgItemText(hDlg, IDC_TXT_IPDB_ID, game->ipdbId.c_str());
 			SetDlgItemText(hDlg, IDC_CB_ROM, game->rom.c_str());
 
 			// initialize the ROM combo list
 			PopulateROMCombo();
 
-			// update dependent items for the initial system selection
+			// update dependent items for the initial system selecstion
 			OnSelectSystem();
 
 			// populate the table type combo
@@ -15212,8 +15259,43 @@ void PlayfieldView::OnEndAttractMode()
 // DOF event queue
 //
 
+void PlayfieldView::ShowDOFClientInitErrors()
+{
+	// check for errors
+	auto& eh = DOFClient::initErrors;
+	if (eh.CountErrors() != 0)
+	{
+		// If the last DOF initialization attempt failed, don't show errors
+		// this time: we're probably just running into the same configuration
+		// problem on every attempt, so there's no point in repeating the 
+		// error.  If we haven't already shown an error, display the current
+		// error list.
+		if (!dofInitFailed)
+		{
+			if (eh.CountErrors() == 1)
+				eh.EnumErrors([this](const ErrorList::Item &item) { ShowSysError(item.message.c_str(), item.details.c_str()); });
+			else if (eh.CountErrors() > 1)
+				ShowError(EIT_Error, LoadStringT(IDS_ERR_DOFLOAD), &eh);
+		}
+
+		// remember that this attempt failed, so that we can suppress errors
+		// on the next attempt
+		dofInitFailed = true;
+	}
+	else
+	{
+		// There are no errors to show.  Flag that we successfully initialized,
+		// to ensure that we display errors if the next attempt fails.
+		dofInitFailed = false;
+	}
+}
+
 void PlayfieldView::QueueDOFPulse(const TCHAR *name)
 {
+	// Skip this if DOF isn't ready
+	if (!DOFClient::IsReady())
+		return;
+
 	// Check to see if this pulse is already queued.  If it is, don't
 	// queue a new event, but instead extend the current event:
 	//
@@ -15253,7 +15335,8 @@ void PlayfieldView::QueueDOFPulse(const TCHAR *name)
 const DWORD dofPulseTimerInterval = 20;
 void PlayfieldView::QueueDOFEvent(const TCHAR *name, UINT8 val)
 {
-	if (DOFClient::Get() != nullptr)
+	// only proceed if DOF is ready
+	if (DOFClient::IsReady() && DOFClient::Get() != nullptr)
 	{
 		// if the queue is empty, start the timer
 		if (dofQueue.size() == 0)
@@ -15281,7 +15364,7 @@ void PlayfieldView::QueueDOFEvent(const TCHAR *name, UINT8 val)
 void PlayfieldView::OnDOFTimer()
 {
 	// if there's anything in the queue, process the event
-	if (dofQueue.size() != 0)
+	if (DOFClient::IsReady() && dofQueue.size() != 0)
 	{
 		// Send the effect to DOF, if DOF is active.  Note that
 		// we might have nulled out the event by replacing its name
@@ -15304,7 +15387,7 @@ void PlayfieldView::OnDOFTimer()
 void PlayfieldView::FireDOFEvent(const TCHAR *name, UINT8 val)
 {
 	// fire the event in DOF
-	if (DOFClient *dof = DOFClient::Get(); dof != nullptr)
+	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 		dof->SetNamedState(name, val);
 
 	// note the last event time
@@ -15329,7 +15412,7 @@ void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar
 	// proceed only if DOF is active
 	if (DOFClient *dof = DOFClient::Get(); dof != nullptr)
 	{
-		// Has the value changed
+		// proceed only if this reflects a change in the value
 		if (itemVar != newVal)
 		{
 			// turn off the current state, if any

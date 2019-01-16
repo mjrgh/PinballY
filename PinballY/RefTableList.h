@@ -20,6 +20,32 @@
 // as though the table simply isn't available, as that's always
 // a possibility as well (e.g., the user could accidentally 
 // delete the file).
+//
+// Note on manufacturer names:  Our data set has two versions of
+// the manufacturer name, with the columns called "Manufacturer" 
+// and "ManufacturerShort" in the CSV file.  Internally, we refer
+// to these as "manufOrig" and "manuf" respectively.  The first
+// column ("Manufacturer" == manufOrig) is the original text from
+// the raw IPDB data.  The second ("ManufacturerShort" == manuf)
+// is a shortened and normalized version.  The original IPDB name
+// is usually the full legal name of the company.  The shortened
+// name is the more informal name by which the company is usually
+// known to players.  For example, the short name for "Williams 
+// Manufacturing Company" is simply "Williams".  We only use the
+// short name for metadata and on-screen displays, since it's the
+// name that players will know.  We keep the original name for 
+// reference purposes.  Many of the major pinball manufacturers
+// were around for a long time and went through numerous corporate
+// reorganizations (mergers, acquisitions, spinoffs, etc), so a
+// given familiar brand name might have several corresponding
+// "original" manufacturer names in the database.  For example,
+// "Williams" refers to Williams Manufacturing Company; Williams
+// Electronic Manufacturing Company; Williams Electronics, Inc.;
+// Williams Electronic Games, Incorporated, a subsidiary of WMS
+// Ind., Incorporated; and several other corporate entities, all
+// related through successive reorganizations.
+// 
+//
 
 #pragma once
 #include "CSVFile.h"
@@ -42,7 +68,8 @@ public:
 
 		TSTRING listName;     // list name - "title (manufacturer year)"
 		TSTRING name;		  // table name
-		TSTRING manuf;		  // manufacturer
+		TSTRING manuf;		  // manufacturer (shortened and normalized name)
+		TSTRING manufOrig;    // original IPDB manufacturer name (full corporate legal name)
 		int year;			  // year; 0 if unknown
 		int players;		  // number of players; 0 if unknown
 		TSTRING themes;		  // themes, with " - " delimiters
@@ -55,6 +82,9 @@ public:
 	// Get the top N matches to a given string.  The results
 	// are sorted by table name.
 	void GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst);
+
+	// Look up an entry by IPDB ID.  Returns true if found.
+	bool GetByIpdbId(const TCHAR *ipdbId, std::unique_ptr<Table> &table);
 
 protected:
 	// Is the table ready?  This checks to see if the initializer
@@ -80,10 +110,14 @@ protected:
 	std::vector<DiceCoefficient::BigramSet<TCHAR>> nameBigrams;
 	std::vector<DiceCoefficient::BigramSet<TCHAR>> altNameBigrams;
 
+	// IPDB ID map.  This maps IPDB ID keys to row numbers in the CSV.
+	std::unordered_map<TSTRING, int> ipdbIdMap;
+
 	// CSV file column accessors
 	CSVFile::Column *nameCol;
 	CSVFile::Column *altNameCol;
 	CSVFile::Column *manufCol;
+	CSVFile::Column *manufOrigCol;
 	CSVFile::Column *yearCol;
 	CSVFile::Column *playersCol;
 	CSVFile::Column *typeCol;
