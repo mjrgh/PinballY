@@ -96,6 +96,12 @@
     <ClCompile Include="InfoBoxDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FontDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FontPreviewCombo\FontPreviewCombo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="OptionsDialog.def">
@@ -199,6 +205,12 @@
     <ClInclude Include="InfoBoxDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FontDialog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FontPreviewCombo\FontPreviewCombo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\ListEditIcons.png">
@@ -214,6 +226,9 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="res\FolderBrowserImages.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="FontPreviewCombo\res\ttf_glyph.bmp">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

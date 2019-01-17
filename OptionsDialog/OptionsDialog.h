@@ -133,6 +133,7 @@ public:
 	static const int GameWheelPage = 14;
 	static const int LogFilePage = 15;
 	static const int InfoBoxPage = 16;
+	static const int FontPage = 17;
 	
 	// system pages are identified by SystemBasePage + <system number>
 	static const int SystemBasePage = 1000;

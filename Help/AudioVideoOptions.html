@@ -39,5 +39,20 @@
    button presses in the user interface. 
 </p>
 
+<p>
+   <b>Lock frame rate to monitor refresh rate:</b>  Checking this box
+   throttles the graphics rendering rate in each window to the physical
+   refresh rate for the monitor where the window appears.  By default
+   (if this box isn't checked), the program renders graphics as
+   quickly as possible.  On a machine with a fast video card, this
+   can render internal frames much more quickly than the monitor's
+   physical refresh rate, which wastes system resources by rendering
+   lots of extra frames that never make it to the physical display
+   surface.  This can place a high load on the CPU or GPU (video card),
+   which can have unpleasant effects like making your GPU fan run
+   constantly.  Throttling to the monitor refresh rate will reduce
+   the unnecessary extra work.
+</p>
+
 </body>
 </html>

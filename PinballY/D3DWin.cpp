@@ -13,6 +13,8 @@
 #include "D3DWin.h"
 #include "shaders/FullScreenQuadShaderVS.h"
 
+// vertical sync mode
+int D3DWin::vsyncMode = 0;
 
 D3DWin::D3DWin()
 {
@@ -119,6 +121,7 @@ bool D3DWin::Init(HWND hWnd)
 		sd.SampleDesc.Quality = 0;
 		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 		sd.BufferCount = 1;
+		sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
 		// create the DX11.1 SwapChain1 interface; if that succeeds, query the
 		// base SwapChain interface from it as well
@@ -144,6 +147,7 @@ bool D3DWin::Init(HWND hWnd)
 		sd.SampleDesc.Count = 1;
 		sd.SampleDesc.Quality = 0;
 		sd.Windowed = TRUE;
+		sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 		hr = dxgiFactory->CreateSwapChain(device, &sd, &swapChain);
 	}
 
@@ -332,7 +336,7 @@ void D3DWin::EndFrame()
 {
 	// present the back buffer to the screen
 	D3D::DeviceContextLocker context;
-	swapChain->Present(0, 0);
+	swapChain->Present(vsyncMode, 0);
 }
 
 void D3DWin::RenderToWindow()

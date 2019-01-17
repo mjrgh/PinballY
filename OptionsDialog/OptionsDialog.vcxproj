@@ -216,6 +216,8 @@
     <ClCompile Include="CaptureDialog.cpp" />
     <ClCompile Include="CoinsDialog.cpp" />
     <ClCompile Include="DMDDialog.cpp" />
+    <ClCompile Include="FontDialog.cpp" />
+    <ClCompile Include="FontPreviewCombo\FontPreviewCombo.cpp" />
     <ClCompile Include="GameLaunchDialog.cpp" />
     <ClCompile Include="GameWheelDialog.cpp" />
     <ClCompile Include="InfoBoxDialog.cpp" />
@@ -253,6 +255,8 @@
     <ClInclude Include="CaptureDialog.h" />
     <ClInclude Include="CoinsDialog.h" />
     <ClInclude Include="DMDDialog.h" />
+    <ClInclude Include="FontDialog.h" />
+    <ClInclude Include="FontPreviewCombo\FontPreviewCombo.h" />
     <ClInclude Include="GameLaunchDialog.h" />
     <ClInclude Include="GameWheelDialog.h" />
     <ClInclude Include="GroupComboBox\ShellDlgFont.h" />
@@ -282,6 +286,7 @@
     <ClInclude Include="VCEdit.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="FontPreviewCombo\res\ttf_glyph.bmp" />
     <Image Include="res\FolderBrowserImages.bmp" />
     <Image Include="res\FolderIcon.png" />
     <Image Include="res\ListEditIcons.png" />

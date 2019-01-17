@@ -73,6 +73,45 @@ you can download from the ffmpeg site.
 
 ---------------------------------------------------------------------------
 
+Font Preview Combo by Chris Losinger and Dave Schumann
+
+https://www.codeproject.com/Articles/2014/Font-Combo
+
+Dave Schumann's version (the final version used here) was released
+under The Code Project Open License (CPOL) (www.codeproject.com).
+That version was evidently based on earlier versions with the license
+text below appearing in the source code:
+
+  Copyright (C) 2002 Smaller Animals Software, Inc.
+
+  This software is provided 'as-is', without any express or implied
+  warranty.  In no event will the authors be held liable for any damages
+  arising from the use of this software.
+
+  Permission is granted to anyone to use this software for any purpose,
+  including commercial applications, and to alter it and redistribute it
+  freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented; you must not
+     claim that you wrote the original software. If you use this software
+     in a product, an acknowledgment in the product documentation would be
+     appreciated but is not required.
+
+  2. Altered source versions must be plainly marked as such, and must not be
+     misrepresented as being the original software.
+
+  3. This notice may not be removed or altered from any source distribution.
+
+  http://www.smalleranimals.com
+  smallest@smalleranimals.com
+
+  This code is based, in part, on:
+  "A WTL-based Font preview combo box", Ramon Smits
+  http://www.codeproject.com/wtl/rsprevfontcmb.asp
+
+
+---------------------------------------------------------------------------
+
 Highlightjs
 
 Copyright (c) 2006, Ivan Sagalaev

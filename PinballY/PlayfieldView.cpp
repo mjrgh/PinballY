@@ -9532,7 +9532,7 @@ void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 			weight = defaultWeight;
 
 		// set the name
-		name = m[2].str();
+		name = m[3].str();
 
 		// clear any cached font object
 		font.reset();

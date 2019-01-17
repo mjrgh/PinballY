@@ -23,6 +23,7 @@
 #include "AudioVideoDialog.h"
 #include "LogFileDialog.h"
 #include "InfoBoxDialog.h"
+#include "FontDialog.h"
 
 using namespace TreePropSheet;
 
@@ -333,6 +334,7 @@ MainOptionsDialog::MainOptionsDialog(
 	AddPage(new LogFileDialog(IDD_LOGGING), LogFilePage, _T("LogFileOptions.html"));
 	AddPage(sysGroupDialog = new SysGroupDialog(IDD_SYSTEM_GROUP), SysGroupPage, _T("SystemOptions.html"));
 	AddPage(new InfoBoxDialog(IDD_INFOBOX), InfoBoxPage, _T("InfoBoxOptions.html"));
+	AddPage(new FontDialog(IDD_FONTS), FontPage, _T("FontOptions.html"));
 
 	// Add pages for the systems
 	auto cfg = ConfigManager::GetInstance();

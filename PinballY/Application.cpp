@@ -86,6 +86,7 @@ namespace ConfigVars
 	static const TCHAR *HideTaskbarDuringGame = _T("HideTaskbarDuringGame");
 	static const TCHAR *FirstRunTime = _T("FirstRunTime");
 	static const TCHAR *HideUnconfiguredGames = _T("GameList.HideUnconfigured");
+	static const TCHAR *VSyncLock = _T("VSyncLock");
 }
 
 // include the capture-related variables
@@ -795,6 +796,8 @@ void Application::OnConfigChange()
 	muteTableAudio = cfg->GetBool(ConfigVars::MuteTableAudio, false);
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
 	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
+
+	D3DWin::vsyncMode = cfg->GetBool(ConfigVars::VSyncLock, false) ? 1 : 0;
 }
 
 void Application::SaveFiles()

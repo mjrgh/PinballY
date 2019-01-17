@@ -2,20 +2,33 @@ PinballY Update History
 
 ? (1.0.0 Beta 2)
 
-* The system now has a built-in Javascript engine, offering extensive
-new customization capabilities.  Scripts can intercept many UI events
-to change or augment the normal handling of buttons and commands;
-create custom menus; create custom filters; send HTML requests to
-integrate with Web applications; and more.  This is a new feature, but
-the eventual goal is to make the program into not just a virtual
-pinball front end, but also a construction set for virtual pinball
-front ends.  See "Javascript Scripting" in the help for details.
+* The system now features a built-in Javascript engine, offering
+extensive new customization capabilities.  Scripts can intercept many
+UI events to change or augment the normal handling of buttons and
+commands; create custom menus; create custom filters; send HTML
+requests to integrate with Web applications; and more.  See
+"Javascript Scripting" in the help for details.
 
 * The game metadata now accepts the IPDB ID of each game.  In the
 game information editor dialog, the IPDB ID is automatically
 filled in when you select a known game from the list of suggested
 matches.  The IPDB ID is stored in the XML table list file under
 the tag &lt;ipdbid&gt;.
+
+* A new "lock video refresh rate" option lets you throttle the
+graphics rendering rate in each window to match the physical refresh
+rate of the monitor displaying the window.  In the past (and if this
+option is not selected, which is the default), graphics frames are
+rendered as quickly as your machine's hardware can render them.  If
+you have video card, this can waste system resources by rendering more
+internal frames than are actually needed for the physical display.
+This can in turn place a higher than necessary load on your CPU and/or
+GPU (video card), which can cause unpleasant side effects such as
+making your GPU fan run continuously.  The "lock refresh rate" option
+helps avoid this by making the renderer pace itself in step with the
+monitor refresh cycle.  If you have a fast machine, enabling this
+option should reduce CPU/GPU load without any degradation in graphics
+quality.
 
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.

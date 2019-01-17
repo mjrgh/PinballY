@@ -63,6 +63,16 @@ Log.RealDMD = 1
 Log.DOF = 1
 Log.Javascript = 1
 
+# Vertical Sync Lock.  If this is enabled (1), the graphics rendering
+# rate is throttled to the monitor's physical refresh rate.  If disabled
+# (0), the graphics are rendered as quickly as possible, so the limiting
+# factor is basically the CPU speed.  On machines with fast video cards,
+# rendering "as quickly as possible" can use excessive system resources,
+# so it can be better to throttle rendering to the actual refresh rate.
+# You can display the current frames-per-second rendering rate in each
+# window using the right-click context menu.
+VSyncLock = 0
+
 
 # Media folder path.  This is the root of the our media folder tree, where
 # we look for the various table media files (images, videos, sounds, etc).

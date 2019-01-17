@@ -28,6 +28,11 @@ public:
 	// destruction
 	~D3DWin();
 
+	// Global video sync setting.  0 presents frames without synchronization,
+	// so we'll present frames as quickly as we can render them.  1 waits for
+	// vertical sync on each frame, so we'll throttle to the refresh rate.
+	static int vsyncMode;
+
 	// Initialize D3D resources.  Returns true on success,
 	// false on failure.
 	bool Init(HWND hwnd);
