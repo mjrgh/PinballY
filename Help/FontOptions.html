@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Font Options</h1>
+
+<p>
+   This dialog lets you customize the text fonts used throughout the
+   PinballY user interface.
+</p>
+<p>
+   <b>Default Font</b> is the master control.  This lets you
+   select the font family that will be used for all of the other
+   task-specific fonts by default.  This will be used for all of the
+   other items below for which you don't select different fonts.
+   The initial setting for all of the other fonts is "*",
+   meaning "use the master default font", so you can change
+   all of the program's text displays through this one option.
+</p>
+<p>
+   The rest of the entries let you select the fonts used in
+   specific places in the program.  These individual options let
+   you select different fonts for different functions; for example,
+   you can set a specific font just for menu text, and a different
+   font just for popup boxes.
+</p>
+<p>
+   For each of of the function-specific font options, you can
+   specify the font name, point size, and weight (normal or bold).
+   For each field, "*" means "use the default", which is to say:
+</p>
+<ul>
+   <li>For font names, the default is the master Default Font chosen
+   at the top of the dialog
+
+   <li>For point sizes, the default is a system-defined size that
+   varies by function
+
+   <li>For weights, the default is also a system-defined weight for
+   the function, but this is currently just "normal" for everything
+</ul>
+
+<p>
+   <b>Menus:</b>  The font used for the line items in pop-up menus.
+</p>
+
+<p>
+   <b>Menu Headers:</b>  Some menus have a short paragraph of explanatory
+   text at the top.  This is the font used for that top section.  The
+   default size is a bit smaller than the normal menu font, since this
+   text tends to be quite a bit lengthier than the menu's line item, so
+   a smaller font looks a little nicer (and fits better).
+</p>
+
+<p>
+   <b>Popup Titles:</b>  The large title text shown at the top of a popup box.
+</p>
+
+<p>
+   <b>Popup main text:</b>  The main text in a popup box.
+</p>
+<p>
+   <b>Popup smaller text:</b>  A smaller font for popup box text, for items
+   that we want to be a little less conspicuous but still be visible.
+</p>
+<p>
+   <b>Popup detail text:</b>  An even smaller font for technical detail text,
+   which we want to be even less conspicuous.
+</p>
+<p>
+   <b>Media detail text:</b>  A small font for details shown in the media
+   file list popup display.
+</p>
+
+<p>
+   <b>Wheel titles:</b>  A large font used to display title text in
+   the "wheel" for games that don't have graphical wheel image files.
+</p>
+<p>
+   <b>High scores list:</b>  Text showing the high scores in the
+   high scores popup box.  (This is the popup box that you can bring up
+   via the "High Scores" command in the main menu, not the automatic
+   high score display show in the DMD window.  The DMD version uses
+   a different style meant to simulate the original score panel style
+   for each game.)
+</p>
+<p>
+   <b>Info box titles:</b>  Title text in game info boxes.  (These are
+   the boxes that automatically appear on screen when there isn't
+   something else showing, such as a menu or popup dialog.)
+</p>
+<p>
+   <b>Info box text:</b>  Main text in game info boxes.
+</p>
+<p>
+   <b>Info box detail text:</b>  A smaller font for details in game info boxes.
+</p>
+<p>
+   <b>Status line text:</b>  The informational message text that appears at the
+   bottom of the main window.
+</p>
+<p>
+   <b>Coin/credit messages:</b>  Messages that appear briefly when you press
+   the "coin" button (or insert a coin, if your cabinet has a coin slot
+   that's set up to send button presses to the program).
+</p>
+
+</body>
+</html>

@@ -1,5 +1,8 @@
 /*********************************************************************
 
+   Note: this is a customized version of the font combo for PinballY's
+   options dialogs.
+
    Copyright (C) 2002 Smaller Animals Software, Inc.
 
    This software is provided 'as-is', without any express or implied
@@ -32,6 +35,7 @@
 **********************************************************************/
 
 #include "stdafx.h"
+#include <algorithm>
 #include "../resource.h"
 #include "FontPreviewCombo.h"
 
@@ -49,17 +53,11 @@ static char THIS_FILE[] = __FILE__;
 
 CFontPreviewCombo::CFontPreviewCombo()
 {
-	m_iFontHeight = 16;
-	m_iMaxNameWidth = 0;
-    m_iMaxSampleWidth = 0;
-	m_style = NAME_THEN_SAMPLE;
-	m_csSample = "abcdeABCDE";
 	m_clrSample = GetSysColor(COLOR_WINDOWTEXT);
 }
 
 CFontPreviewCombo::~CFontPreviewCombo()
 {
-	DeleteAllFonts();
 }
 
 
@@ -74,56 +72,149 @@ END_MESSAGE_MAP()
 // CFontPreviewCombo message handlers
 
 
-BOOL CALLBACK FPC_EnumFontProc (LPLOGFONT lplf, LPTEXTMETRIC lptm, DWORD dwType, LPARAM lpData)	
-{	
-	CFontPreviewCombo *pThis = reinterpret_cast<CFontPreviewCombo*>(lpData);		
-	int index = pThis->AddString(lplf->lfFaceName);
-	ASSERT(index!=-1);
-	size_t maxLen = lptm->tmMaxCharWidth * _tcslen(lplf->lfFaceName);
-	int ret = pThis->SetItemData (index, dwType); 
+/////////////////////////////////////////////////////////////////////////////
 
-	ASSERT(ret!=-1);
+static int CALLBACK FontEnumProc(ENUMLOGFONT *lplf, NEWTEXTMETRIC *lptm, DWORD dwType, LPARAM lpData)
+{
+	// skip "@" fonts - these are for writing sideways (rotated 90 degrees)
+	if (lplf->elfLogFont.lfFaceName[0] == '@')
+		return TRUE;
 
-	pThis->AddFont (lplf->lfFaceName);
-	
+	// get the font list object
+	auto fonts = reinterpret_cast<CFontPreviewCombo::Fonts*>(lpData);
+
+	// get the name
+	auto const faceName = lplf->elfLogFont.lfFaceName;
+
+	// figure our internal flags for the item data
+	DWORD flags = 0;
+	if ((dwType & TRUETYPE_FONTTYPE) != 0)
+		flags |= CFontPreviewCombo::ffTrueType;
+	if (lplf->elfLogFont.lfCharSet == SYMBOL_CHARSET)
+		flags |= CFontPreviewCombo::ffSymbol;
+
+	// set up a logical font
+	CFont cf;
+	if (!cf.CreateFont(fonts->fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, 
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, DEFAULT_PITCH, 
+		faceName))
+	{
+		ASSERT(0);
+		return TRUE;
+	}
+
+	LOGFONT lf;
+	cf.GetLogFont(&lf);
+
+	CClientDC dc(fonts->cwndPar);
+
+	// measure font name in GUI font
+	HFONT hFont = ((HFONT)GetStockObject(DEFAULT_GUI_FONT));
+	HFONT hf = (HFONT)dc.SelectObject(hFont);
+	CSize sz = dc.GetTextExtent(faceName);
+	LONG nameWidth = sz.cx;
+	fonts->maxNameWidth = max(fonts->maxNameWidth, nameWidth);
+	dc.SelectObject(hf);
+
+	// measure sample in cur font
+	hf = (HFONT)dc.SelectObject(cf);
+	if (hf)
+	{
+		sz = dc.GetTextExtent(fonts->sample);
+		LONG cappedSampleWidth = min(sz.cx, static_cast<LONG>(nameWidth * 1.25f));
+		fonts->maxSampleWidth = max(fonts->maxSampleWidth, cappedSampleWidth);
+		dc.SelectObject(hf);
+	}
+
+	// add it to the font vector
+	fonts->fonts.emplace(
+		std::piecewise_construct,
+		std::forward_as_tuple(faceName),
+		std::forward_as_tuple(faceName, flags, lf.lfHeight));
+
+	// continue the iteration
 	return TRUE;
 }
 
-/////////////////////////////////////////////////////////////////////////////
+void CFontPreviewCombo::InitFonts(Fonts &fonts, CWnd *parent, int fontHeight, const TCHAR *sampleText)
+{
+	// enumerate system fonts
+	fonts.fontHeight = fontHeight;
+	fonts.sample = sampleText;
+	fonts.cwndPar = parent;
+	EnumFontFamilies(parent->GetDC()->m_hDC, NULL, reinterpret_cast<FONTENUMPROC>(FontEnumProc), reinterpret_cast<LPARAM>(&fonts));
 
-void CFontPreviewCombo::Init()
-{		
-	m_img.Create(IDB_TTF_BMP, GLYPH_WIDTH, 1, RGB(255,255,255));
-	CClientDC dc(this);		
+	// create a vector of the fonts, for sorting
+	fonts.byName.reserve(fonts.fonts.size() + 1);
+	for (auto &f : fonts.fonts)
+		fonts.byName.emplace_back(&f.second);
 
+	// sort by name
+	std::sort(fonts.byName.begin(), fonts.byName.end(), [](const FontInfo* const &a, const FontInfo* const &b) {
+		return lstrcmpi(a->name.GetString(), b->name.GetString()) < 0; });
+}
+
+void CFontPreviewCombo::Init(Fonts *fonts)
+{
+	// save the font map
+	m_fonts = fonts;
+
+	// load the image list
+	m_img.Create(IDB_TTF_BMP, GLYPH_WIDTH, 1, RGB(255, 255, 255));
+
+	// turn off sorting while loading the fonts, so that we don't waste time
+	// doing the insertion sort at every step
+	bool sorted = (GetStyle() & CBS_SORT) != 0;
+	ModifyStyle(CBS_SORT, 0);
+
+	// likewise, turn off drawing
+	SetRedraw(false);
+
+	// reset the list
 	ResetContent();
-	DeleteAllFonts();
-	EnumFonts (dc, 0,(FONTENUMPROC) FPC_EnumFontProc,(LPARAM)this); //Enumerate font
 
-    SetCurSel(0);
+	// allocate space for the list
+	UINT nBytes = 128;
+	for (auto &f : fonts->fonts)
+		nBytes += static_cast<UINT>((f.first.length() + 1)*sizeof(TCHAR) + 8);
+	InitStorage(static_cast<int>(fonts->fonts.size() + 1), nBytes);
+
+	// add an entry for the default
+	AddComboItem(_T("*"), 0);
+
+	// add a combo item for each font
+	for (auto &f : fonts->byName)
+		AddComboItem(f->name, f->flags);
+
+	// restore drawing
+	SetRedraw(true);
+
+	// reenable sorting
+	if (sorted)
+		ModifyStyle(0, CBS_SORT);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
-void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS) 
+void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 {
-	ASSERT(lpDIS->CtlType == ODT_COMBOBOX); 
-	
+	ASSERT(lpDIS->CtlType == ODT_COMBOBOX);
+
 	CRect rc = lpDIS->rcItem;
-	
+
 	CDC dc;
 	dc.Attach(lpDIS->hDC);
 
 	if (lpDIS->itemState & ODS_FOCUS)
 		dc.DrawFocusRect(&rc);
-	
+
 	if (lpDIS->itemID == -1)
 		return;
 
 	int nIndexDC = dc.SaveDC();
-	
+
 	CBrush br;
-	
+
 	COLORREF clrSample = m_clrSample;
 
 	if (lpDIS->itemState & ODS_SELECTED)
@@ -136,32 +227,45 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 	{
 		br.CreateSolidBrush(dc.GetBkColor());
 	}
-	
+
 	dc.SetBkMode(TRANSPARENT);
 	dc.FillRect(&rc, &br);
-	
+
 	// which one are we working on?
 	CString csCurFontName;
 	GetLBText(lpDIS->itemID, csCurFontName);
 
 	// draw the cute TTF glyph
 	DWORD_PTR dwData = GetItemData(lpDIS->itemID);
-	if (dwData & TRUETYPE_FONTTYPE)
-	{
-		m_img.Draw(&dc, 0, CPoint(rc.left+5, rc.top+4),ILD_TRANSPARENT);
-	}
+	if ((dwData & ffTrueType) != 0)
+		m_img.Draw(&dc, 0, CPoint(rc.left + 5, rc.top + 4), ILD_TRANSPARENT);
+
+	// advance past the glyph whether it's there or not, so that the font names line up
 	rc.left += GLYPH_WIDTH;
-	
+
 	int iOffsetX = SPACING;
+
+	// figure the style
+	PreviewStyle style = m_style;
+	if (style == NAME_ONLY && (dwData & ffSymbol) != 0)
+		style = NAME_THEN_SAMPLE;
+
+	// if we need it, create a font 
+	CFont cf;
+	BOOL fontCreateResult = FALSE;
+	if (style != NAME_GUI_FONT && csCurFontName != _T("*"))
+	{
+		fontCreateResult = cf.CreateFont(
+			m_fonts->fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
+			FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+			CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, csCurFontName);
+	}
 
 	// draw the text
 	CSize sz;
 	int iPosY = 0;
 	HFONT hf = NULL;
-	CFont* cf;
-	BOOL lookupResult = m_fonts.Lookup (csCurFontName, (void*&)cf) != NULL;
-	_ASSERTE (lookupResult);
-	switch (m_style)
+	switch (style)
 	{
 	case NAME_GUI_FONT:
 		{
@@ -171,16 +275,22 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY,csCurFontName);
 		}
 		break;
+
 	case NAME_ONLY:
 		{
 			// font name in current font
-			hf = (HFONT)dc.SelectObject(*cf);
+			if (fontCreateResult)
+				hf = (HFONT)dc.SelectObject(cf);
+
 			sz = dc.GetTextExtent(csCurFontName);
 			iPosY = (rc.Height() - sz.cy) / 2;
 			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY,csCurFontName);
-			dc.SelectObject(hf);
+
+			if (fontCreateResult)
+				dc.SelectObject(hf);
 		}
 		break;
+
 	case NAME_THEN_SAMPLE:
 		{
 			// font name in GUI font
@@ -188,40 +298,46 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 			iPosY = (rc.Height() - sz.cy) / 2;
 			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY, csCurFontName);
 
-         // condense, for edit
-         int iSep = m_iMaxNameWidth;
-         if ((lpDIS->itemState & ODS_COMBOBOXEDIT) == ODS_COMBOBOXEDIT)
-         {
-            iSep = sz.cx;
-         }
+			// show the sample in the current font, if available
+			if (fontCreateResult)
+			{
+				// condense, for edit
+				int iSep = m_fonts->maxNameWidth;
+				if ((lpDIS->itemState & ODS_COMBOBOXEDIT) == ODS_COMBOBOXEDIT)
+					iSep = sz.cx;
 
-         // sample in current font
-			hf = (HFONT)dc.SelectObject(*cf);
-			sz = dc.GetTextExtent(m_csSample);
-			iPosY = (rc.Height() - sz.cy) / 2;
-			COLORREF clr = dc.SetTextColor(clrSample);
-			dc.TextOut(rc.left + iOffsetX + iSep + iOffsetX, rc.top + iPosY, m_csSample);
-			dc.SetTextColor(clr);
-			dc.SelectObject(hf);
+				// sample in current font
+				hf = (HFONT)dc.SelectObject(cf);
+				sz = dc.GetTextExtent(m_fonts->sample);
+				iPosY = (rc.Height() - sz.cy) / 2;
+				COLORREF clr = dc.SetTextColor(clrSample);
+				dc.TextOut(rc.left + iOffsetX + iSep + iOffsetX, rc.top + iPosY, m_fonts->sample);
+				dc.SetTextColor(clr);
+				dc.SelectObject(hf);
+			}
 		}
 		break;
+
 	case SAMPLE_THEN_NAME:
 		{
-         // sample in current font
-			hf = (HFONT)dc.SelectObject(*cf);
-			sz = dc.GetTextExtent(m_csSample);
-			iPosY = (rc.Height() - sz.cy) / 2;
-			COLORREF clr = dc.SetTextColor(clrSample);
-			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY, m_csSample);
-			dc.SetTextColor(clr);
-			dc.SelectObject(hf);
+			// sample in current font, if available
+			if (fontCreateResult)
+			{
+				hf = (HFONT)dc.SelectObject(cf);
 
-         // condense, for edit
-         int iSep = m_iMaxSampleWidth;
-         if ((lpDIS->itemState & ODS_COMBOBOXEDIT) == ODS_COMBOBOXEDIT)
-         {
-            iSep = sz.cx;
-         }
+				sz = dc.GetTextExtent(m_fonts->sample);
+				iPosY = (rc.Height() - sz.cy) / 2;
+				COLORREF clr = dc.SetTextColor(clrSample);
+				dc.TextOut(rc.left + iOffsetX, rc.top + iPosY, m_fonts->sample);
+				dc.SetTextColor(clr);
+
+				dc.SelectObject(hf);
+			}
+
+			// condense, for edit
+			int iSep = m_fonts->maxSampleWidth;
+			if ((lpDIS->itemState & ODS_COMBOBOXEDIT) == ODS_COMBOBOXEDIT)
+	            iSep = sz.cx;
 
 			// font name in GUI font
 			sz = dc.GetTextExtent(csCurFontName);
@@ -229,14 +345,19 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 			dc.TextOut(rc.left + iOffsetX + iSep + iOffsetX, rc.top + iPosY, csCurFontName);
 		}
 		break;
+
 	case SAMPLE_ONLY:
 		{			
 			// sample in current font
-			hf = (HFONT)dc.SelectObject(*cf);
-			sz = dc.GetTextExtent(m_csSample);
+			if (fontCreateResult)
+				hf = (HFONT)dc.SelectObject(cf);
+
+			sz = dc.GetTextExtent(m_fonts->sample);
 			iPosY = (rc.Height() - sz.cy) / 2;
-			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY, m_csSample);
-			dc.SelectObject(hf);
+			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY, m_fonts->sample);
+
+			if (fontCreateResult)
+				dc.SelectObject(hf);
 		}
 		break;
 	}
@@ -250,48 +371,16 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 
 void CFontPreviewCombo::MeasureItem(LPMEASUREITEMSTRUCT lpMeasureItemStruct) 
 {
-	// ok, how big is this ?
-
+	// get the font name
 	CString csFontName;
 	GetLBText(lpMeasureItemStruct->itemID, csFontName);
 
-	CFont cf;
-	if (!cf.CreateFont(m_iFontHeight,0,0,0,FW_NORMAL,FALSE, FALSE, FALSE,DEFAULT_CHARSET ,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,ANTIALIASED_QUALITY,DEFAULT_PITCH, csFontName))
+	// look up the item in the font list
+	if (auto it = m_fonts->fonts.find(csFontName.GetString()); it != m_fonts->fonts.end())
 	{
-		ASSERT(0);
-		return;
+		// use the height from the font list, with a few extra pixels for padding
+		lpMeasureItemStruct->itemHeight = it->second.height + 4;
 	}
-
-	LOGFONT lf;
-	cf.GetLogFont(&lf);
-
-	if ((m_style == NAME_ONLY) || (m_style == SAMPLE_ONLY) || (m_style == NAME_GUI_FONT))
-	{
-		m_iMaxNameWidth = 0;
-		m_iMaxSampleWidth = 0;
-	}
-	else
-	{
-		CClientDC dc(this);
-
-		// measure font name in GUI font
-		HFONT hFont = ((HFONT)GetStockObject( DEFAULT_GUI_FONT ));
-		HFONT hf = (HFONT)dc.SelectObject(hFont);
-		CSize sz = dc.GetTextExtent(csFontName);
-		m_iMaxNameWidth = max(m_iMaxNameWidth, sz.cx);
-		dc.SelectObject(hf);
-
-		// measure sample in cur font
-		hf = (HFONT)dc.SelectObject(cf);
-      if (hf)
-      {
-		   sz = dc.GetTextExtent(m_csSample);
-		   m_iMaxSampleWidth = max(m_iMaxSampleWidth, sz.cx);
-		   dc.SelectObject(hf);
-      }
-	}
-
-	lpMeasureItemStruct->itemHeight = lf.lfHeight + 4;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -305,67 +394,48 @@ void CFontPreviewCombo::OnDropdown()
 	switch (m_style)
 	{
 	case NAME_GUI_FONT:
-      nWidth += m_iMaxNameWidth;
+      nWidth += m_fonts->maxNameWidth;
 		break;
 	case NAME_ONLY:
-      nWidth += m_iMaxNameWidth;
+      nWidth += m_fonts->maxNameWidth;
 		break;
 	case NAME_THEN_SAMPLE:
-      nWidth += m_iMaxNameWidth;
-      nWidth += m_iMaxSampleWidth;
+      nWidth += m_fonts->maxNameWidth;
+      nWidth += m_fonts->maxSampleWidth;
       nWidth += SPACING * 2;
 		break;
 	case SAMPLE_THEN_NAME:
-      nWidth += m_iMaxNameWidth;
-      nWidth += m_iMaxSampleWidth;
+      nWidth += m_fonts->maxNameWidth;
+      nWidth += m_fonts->maxSampleWidth;
       nWidth += SPACING * 2;
 		break;
 	case SAMPLE_ONLY:
-      nWidth += m_iMaxSampleWidth;
+      nWidth += m_fonts->maxSampleWidth;
 		break;
 	}
 
    SetDroppedWidth(nWidth);
 }
 
-void
-CFontPreviewCombo::AddFont (const CString& faceName)
+void CFontPreviewCombo::AddComboItem(const TCHAR *faceName, DWORD itemData)
 {
-	if (m_style != NAME_GUI_FONT)
-	{
-		void *cfCur = nullptr;
-		if (!m_fonts.Lookup(faceName, cfCur))
-		{
-			CFont* cf = new CFont;
-			BOOL createFontResult =
-				cf->CreateFont(m_iFontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
-					FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-					CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, faceName);
-			_ASSERTE(createFontResult);
-			m_fonts.SetAt(faceName, cf);
-		}
-	}
+	int index = InsertString(this->GetCount(), faceName);
+	ASSERT(index != -1);
+
+	int ret = SetItemData(index, itemData);
+	ASSERT(ret != -1);
 }
 
-void CFontPreviewCombo::SetFontHeight(int newHeight, bool reinitialize)
-{
-	if (newHeight == m_iFontHeight) return;
-	m_iFontHeight = newHeight;
-	if (reinitialize)
-		Init();
-}
 
 int CFontPreviewCombo::GetFontHeight()
 {
-	return m_iFontHeight;
+	return m_fonts->fontHeight;
 }
 
-void CFontPreviewCombo::SetPreviewStyle(PreviewStyle style, bool reinitialize)
+void CFontPreviewCombo::SetPreviewStyle(PreviewStyle style)
 {
 	if (style == m_style) return;
 	m_style = style;
-	if (reinitialize)
-		Init();
 }
 
 int CFontPreviewCombo::GetPreviewStyle()
@@ -373,21 +443,7 @@ int CFontPreviewCombo::GetPreviewStyle()
 	return m_style;
 }
 
-void CFontPreviewCombo::DeleteAllFonts()
-{
-	POSITION i = m_fonts.GetStartPosition();
-	CFont* font;
-	CString dummy;
-	while (i != NULL)
-	{
-		m_fonts.GetNextAssoc (i, dummy, (void*&)font);
-		delete font;
-	}
-	m_fonts.RemoveAll ();
-}
-
-void WINAPI 
-DDX_FontPreviewCombo (CDataExchange* pDX, int nIDC, CString& faceName)
+void WINAPI DDX_FontPreviewCombo(CDataExchange* pDX, int nIDC, CString& faceName)
 {
     HWND hWndCtrl = pDX->PrepareCtrl(nIDC);
     _ASSERTE (hWndCtrl != NULL);                
@@ -423,6 +479,3 @@ DDX_FontPreviewCombo (CDataExchange* pDX, int nIDC, CString& faceName)
 			ctrl->SetCurSel (0);
 	}
 }
-
-
-

@@ -86,6 +86,7 @@ namespace ConfigVars
 	static const TCHAR *InfoBoxRating = _T("InfoBox.Rating");
 	static const TCHAR *InfoBoxTableFile = _T("InfoBox.TableFile");
 
+	static const TCHAR *DefaultFontFamily = _T("DefaultFontFamily");
 	static const TCHAR *MenuFont = _T("MenuFont");
 	static const TCHAR *MenuHeaderFont = _T("MenuHeaderFont");
 	static const TCHAR *PopupFont = _T("PopupFont");
@@ -95,7 +96,7 @@ namespace ConfigVars
 	static const TCHAR *MediaDetailFont = _T("MediaDetailFont");
 	static const TCHAR *WheelFont = _T("WheelFont");
 	static const TCHAR *HighScoreFont = _T("HighScoreFont");
-	static const TCHAR *InfoBoxTitleFont = _T("InfoBoxtitleFont");
+	static const TCHAR *InfoBoxTitleFont = _T("InfoBoxTitleFont");
 	static const TCHAR *InfoBoxFont = _T("InfoBoxFont");
 	static const TCHAR *InfoBoxDetailFont = _T("InfoBoxDetailFont");
 	static const TCHAR *StatusFont = _T("StatusFont");
@@ -5701,7 +5702,7 @@ void PlayfieldView::ShowHighScores()
 
 	// set up the default font
 	int textFontPts = highScoreFont.ptSize;
-	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(highScoreFont.name.c_str(), textFontPts, highScoreFont.weight));
+	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(highScoreFont.family.c_str(), textFontPts, highScoreFont.weight));
 
 	// drawing function
 	int width = 972, height = 2000;
@@ -5770,7 +5771,7 @@ void PlayfieldView::ShowHighScores()
 
 		// reduce the font size slightly and try again
 		textFontPts -= 4;
-		textFont.reset(CreateGPFont(highScoreFont.name.c_str(), textFontPts, highScoreFont.weight));
+		textFont.reset(CreateGPFont(highScoreFont.family.c_str(), textFontPts, highScoreFont.weight));
 	}
 
 	// set a minimum height, so that the box doesn't look too squat for
@@ -6394,7 +6395,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			for (int ptsize = wheelFont.ptSize; ptsize >= 40; ptsize -= 8)
 			{
 				// create the font at this size
-				font.reset(CreateGPFont(wheelFont.name.c_str(), ptsize, wheelFont.weight));
+				font.reset(CreateGPFont(wheelFont.family.c_str(), ptsize, wheelFont.weight));
 
 				// measure it
 				g.MeasureString(title, -1, font.get(), rcLayout, &bbox);
@@ -9279,7 +9280,13 @@ void PlayfieldView::OnConfigChange()
 	attractMode.idleTime = cfg->GetInt(ConfigVars::AttractModeIdleTime, 60) * 1000;
 	attractMode.switchTime = cfg->GetInt(ConfigVars::AttractModeSwitchTime, 5) * 1000;
 
-	// load the fonts
+	// Get the default font.  If it's undefined or "*", use the system default.
+	if (auto df = cfg->Get(ConfigVars::DefaultFontFamily, _T("*")); _tcscmp(df, _T("*")) != 0)
+		defaultFontFamily = df;
+	else
+		defaultFontFamily = _T("Tahoma");
+
+	// now load the individual task-specific font preferences
 	popupFont.ParseConfig(ConfigVars::PopupFont);
 	popupTitleFont.ParseConfig(ConfigVars::PopupTitleFont);
 	popupSmallerFont.ParseConfig(ConfigVars::PopupSmallerFont);
@@ -9480,20 +9487,30 @@ void PlayfieldView::OnConfigChange()
 void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 {
 	// try matching the standard format: <size> <weight> <name>
-	static std::basic_regex<TCHAR> pat(_T("\\s*(\\d+)(?:pt)?\\s+(\\S+)\\s+(.*)"));
+	static std::basic_regex<TCHAR> pat(_T("\\s*(\\d+(pt)?|\\*)\\s+(\\S+)\\s+(.*)"), std::regex_constants::icase);
 	std::match_results<const TCHAR*> m;
 	if (std::regex_match(text, m, pat))
 	{
-		// read the size; use the default if it's not valid
-		ptSize = _ttoi(m[1].str().c_str());
-		if (ptSize <= 0)
-			ptSize = defaultPtSize;
-
-		// Read the weight.  If it looks like a number from 100 to 1000, use
-		// the numeric weight; otherwise check it against the standard names.
-		weight = _ttoi(m[2].str().c_str());
-		if (weight == 0)
+		// read the size
+		ptSize = defaultPtSize;
+		auto ptSizeStr = m[1].str();
+		if (int n = _ttoi(ptSizeStr.c_str()); n > 0)
 		{
+			// non-zero point size specified - use that
+			ptSize = n;
+		}
+
+		// read the weight
+		weight = defaultWeight;
+		auto weightStr = m[3].str();
+		if (int n = _ttoi(weightStr.c_str()); n >= 100 && n <= 900)
+		{
+			// numeric weight specified
+			weight = n;
+		}
+		else if (weightStr.length() != 0 && weightStr != _T("*"))
+		{
+			// try a standard weight keyword
 			static const struct
 			{
 				const TCHAR *name;
@@ -9521,18 +9538,30 @@ void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 			};
 			for (size_t i = 0; i < countof(names); ++i)
 			{
-				if (_tcsicmp(m[2].str().c_str(), names[i].name) == 0)
+				if (_tcsicmp(weightStr.c_str(), names[i].name) == 0)
 				{
 					weight = names[i].weight;
 					break;
 				}
 			}
 		}
-		if (weight < 100 || weight > 1000)
-			weight = defaultWeight;
 
-		// set the name
-		name = m[3].str();
+		// get the family
+		auto familyStr = m[4].str();
+		if (familyStr.length() != 0 && familyStr != _T("*"))
+		{
+			// use the explicit family name
+			family = familyStr;
+		}
+		else
+		{
+			// use our use-specific default family if specified, otherwise use the
+			// global default family from the preferences
+			if (defaultFamily != nullptr)
+				family = defaultFamily;
+			else
+				family = pfv->defaultFontFamily;
+		}
 
 		// clear any cached font object
 		font.reset();
@@ -9541,9 +9570,12 @@ void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 	{
 		// it's not in the standard format, and the caller directed us to
 		// apply defaults in this case, so apply the defaults
-		name = defaultName;
 		ptSize = defaultPtSize;
 		weight = defaultWeight;
+		if (defaultFamily != nullptr)
+			family = defaultFamily;
+		else
+			family = pfv->defaultFontFamily;
 
 		// clear any cached font object
 		font.reset();
@@ -9560,7 +9592,7 @@ void PlayfieldView::FontPref::ParseConfig(const TCHAR *varname)
 Gdiplus::Font* PlayfieldView::FontPref::Get()
 {
 	if (font == nullptr)
-		font.reset(CreateGPFont(name.c_str(), ptSize, weight));
+		font.reset(CreateGPFont(family.c_str(), ptSize, weight));
 
 	return font.get();
 }
@@ -14071,9 +14103,9 @@ void PlayfieldView::BatchCaptureView()
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// set up resources for text drawing
-		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(popupFont.name.c_str(), 16, 400));
-		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(popupFont.name.c_str(), 12, 400));
-		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(popupFont.name.c_str(), 14, 400));
+		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(popupFont.family.c_str(), 16, 400));
+		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(popupFont.family.c_str(), 12, 400));
+		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(popupFont.family.c_str(), 14, 400));
 		Gdiplus::SolidBrush gameTitleBr(Gdiplus::Color(255, 255, 255));
 		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(128, 128, 128));
 		Gdiplus::SolidBrush mediaItemBr(Gdiplus::Color(220, 220, 220));
@@ -14230,7 +14262,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 
 		// draw a title bar at the top
 		auto title = LoadStringT(IDS_CAPPREVIEW_TITLE);
-		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(popupFont.name.c_str(), 20, 700));
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(popupFont.family.c_str(), 20, 700));
 		Gdiplus::SolidBrush titleBr(Gdiplus::Color(0, 0, 0));
 		Gdiplus::SolidBrush titleBkg(frameColor);
 		Gdiplus::RectF bbox;
@@ -14243,7 +14275,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 		if (srcHeight > maxHeight)
 		{
 			auto instr = LoadStringT(IDS_CAPPREVIEW_INSTRS);
-			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(popupFont.name.c_str(), 16, 400));
+			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(popupFont.family.c_str(), 16, 400));
 			g.MeasureString(instr, -1, instrFont.get(), Gdiplus::PointF(0.0f, 0.0f), &centerFmt, &bbox);
 			Gdiplus::RectF rcInstr(0.0f, (float)height - bbox.Height*1.4f, (float)width, bbox.Height*1.4f);
 			g.FillRectangle(&titleBkg, rcInstr);

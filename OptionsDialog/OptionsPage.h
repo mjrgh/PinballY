@@ -105,7 +105,7 @@ protected:
 		int intVar;
 		bool defVal;
 		CButton ckbox;
-		virtual void doDDX(CDataExchange *pDX) { DDX_Check(pDX, controlID, intVar); }
+		virtual void doDDX(CDataExchange *pDX) override { DDX_Check(pDX, controlID, intVar); }
 		virtual void LoadConfigVar() override { intVar = ConfigManager::GetInstance()->GetBool(configVar, defVal); }
 		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->SetBool(configVar, intVar); }
 		virtual bool IsModifiedFromConfig() override;
@@ -135,7 +135,7 @@ protected:
 		CString strVar;
 		CString defVal;
 		CEdit edit;
-		virtual void doDDX(CDataExchange *pDX) { DDX_Text(pDX, controlID, strVar); }
+		virtual void doDDX(CDataExchange *pDX) override { DDX_Text(pDX, controlID, strVar); }
 		virtual void LoadConfigVar() override { strVar = FromConfig(ConfigManager::GetInstance()->Get(configVar, defVal)).c_str(); }
 		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->Set(configVar, ToConfig(strVar).c_str()); }
 		virtual bool IsModifiedFromConfig() override;
@@ -165,7 +165,7 @@ protected:
 		int intVar;
 		int defVal;
 		CEdit edit;
-		virtual void doDDX(CDataExchange *pDX) { DDX_Text(pDX, controlID, intVar); }
+		virtual void doDDX(CDataExchange *pDX) override { DDX_Text(pDX, controlID, intVar); }
 		virtual void LoadConfigVar() override { intVar = ConfigManager::GetInstance()->GetInt(configVar, defVal); }
 		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->Set(configVar, intVar); }
 		virtual bool IsModifiedFromConfig() override;
@@ -179,7 +179,7 @@ protected:
 		float floatVar;
 		float defVal;
 		CEdit edit;
-		virtual void doDDX(CDataExchange *pDX);
+		virtual void doDDX(CDataExchange *pDX) override;
 		virtual void LoadConfigVar() override { floatVar = ConfigManager::GetInstance()->GetFloat(configVar, defVal); }
 		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->SetFloat(configVar, floatVar); }
 		virtual bool IsModifiedFromConfig() override;
@@ -197,7 +197,7 @@ protected:
 
 		virtual void InitControl() override { spinBtn.SetRange(minVal, maxVal); }
 
-		virtual void ddxControl(CDataExchange *pDX)
+		virtual void ddxControl(CDataExchange *pDX) override
 		{
 			__super::ddxControl(pDX);
 			DDX_Control(pDX, spinControlID, spinBtn);
@@ -221,7 +221,7 @@ protected:
 		CButton radio;
 		const TCHAR *const *vals;
 		size_t nVals;
-		virtual void doDDX(CDataExchange *pDX) { DDX_Radio(pDX, controlID, intVar); }
+		virtual void doDDX(CDataExchange *pDX) override { DDX_Radio(pDX, controlID, intVar); }
 
 		virtual void LoadConfigVar() override;
 		virtual void SaveConfigVar() override;

@@ -297,43 +297,60 @@ InfoBox.TableFile = 0
 #
 InstructionCardLocation = Backglass
 
-# Fonts for UI elements.  Specify as <point size> <weight> <name>.
+# Default font family for most UI elements.
+DefaultFontFamily = Tahoma
+
+# Fonts for UI elements.  Specify as <point size> <weight> <family>.
 #
-# The point size is a number, with optional "pt" suffix.
+# <point size> is a number, with optional "pt" suffix.
 #
-# The weight can be a standard font weight value from 100 to 900,
+# <weight> can be a standard font weight value from 100 to 900,
 # (400 is normal weight in most fonts, 700 is bold), or one of the
 # standard weight names: "thin" (100), "extralight" (200), "light" 
 # (300), "normal" (400), "medium" (500), "semibold" (600), "bold" 
 # (700), "ultrabold" (800), "black" (900).
 #
-# MenuFont = menu items
-# PopupFont = base font for popup dialogs and messages
-# PopupTitleFont = large font for title text in popups
-# PopupSmallerFont = smaller text font in popups
-# PopupDetailFont = even smaller detail text font in popups
-# MediaDetailFont = small font for line items in media file listings
-# WheelFont = game titles in the wheel when logos aren't available
-# HighScoreFont = font for generated high score displays in the DMD window
-# InfoBoxTitleFont = large font for title text in info box displays
-# InfoBoxFont = font for main text in info box displays
-# InfoBoxDetailFont = small font for fine print in info box displays
-# StatusFont = status line font
-# CreditsFont = credits message font
+# <family> is a font family name (e.g., Tahoma or Comic Sans MS).
+# Speciy the full name as it appears in the Windows Fonts control
+# panel.
 #
-MenuFont = 42pt normal Tahoma
-PopupFont = 24pt normal Tahoma
-PopupTitleFont = 48pt normal Tahoma
-PopupSmallerFont = 20pt normal Tahoma
-PopupDetailFont = 18pt normal Tahoma
-MediaDetailFont = 12pt normal Tahoma
-WheelFont = 80pt normal Tahoma
-HighScoreFont = 24pt normal Tahoma
-InfoBoxTitleFont = 38pt normal Tahoma
-InfoBoxFont = 28pt normal Tahoma
-InfoBoxDetailFont = 16pt normal Tahoma
-StatusFont = 36pt normal Tahoma
-CreditsFont = 42pt normal Tahoma
+# Any of <point size>, <weight>, and <family> can be entered as *
+# (an asterisk) to use the system default value for that item.
+# The system default for <point size> varies for each item; the
+# default for <weight> is always "normal", and the default for
+# <family> is always the value of DefaultFontFamily above.
+#
+# The default entries below use all default values.  For your
+# reference, the normal system point sizes are listed in the
+# comments below.
+#
+# MenuFont = menu items (42pt)
+# PopupFont = base font for popup dialogs and messages (24pt)
+# PopupTitleFont = large font for title text in popups (48pt)
+# PopupSmallerFont = smaller text font in popups (20pt)
+# PopupDetailFont = even smaller detail text font in popups (18pt)
+# MediaDetailFont = small font for line items in media file listings (12pt)
+# WheelFont = game titles in the wheel when logos aren't available (80pt)
+# HighScoreFont = font for the high score list in the info box (24pt)
+# InfoBoxTitleFont = large font for title text in info box displays (38pt)
+# InfoBoxFont = font for main text in info box displays (28pt)
+# InfoBoxDetailFont = small font for fine print in info box displays (16pt)
+# StatusFont = status line font (36pt)
+# CreditsFont = credits message font (42pt)
+#
+MenuFont = * * *
+PopupFont = * * *
+PopupTitleFont = * * *
+PopupSmallerFont = * * *
+PopupDetailFont = * * *
+MediaDetailFont = * * *
+WheelFont = * * *
+HighScoreFont = * * *
+InfoBoxTitleFont = * * *
+InfoBoxFont = * * *
+InfoBoxDetailFont = * * *
+StatusFont = * * *
+CreditsFont = * * *
 
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 

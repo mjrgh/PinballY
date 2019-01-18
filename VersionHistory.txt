@@ -9,6 +9,10 @@ commands; create custom menus; create custom filters; send HTML
 requests to integrate with Web applications; and more.  See
 "Javascript Scripting" in the help for details.
 
+* You can now select custom fonts for most of the on-screen displays.
+The Fonts page in the options dialog lets you select a font for each
+display function.
+
 * The game metadata now accepts the IPDB ID of each game.  In the
 game information editor dialog, the IPDB ID is automatically
 filled in when you select a known game from the list of suggested

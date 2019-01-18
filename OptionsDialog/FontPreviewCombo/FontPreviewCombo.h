@@ -38,15 +38,11 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+#include <unordered_map>
+#include <memory>
 #include <afxwin.h>
 #include <afxtempl.h>
 
-BOOL CALLBACK FPC_EnumFontProc (LPLOGFONT lplf, LPTEXTMETRIC lptm, 
-						        DWORD dwType, LPARAM lpData);	
-
-void WINAPI DDX_FontPreviewCombo (CDataExchange* pDX, int nIDC, CString& faceName);
-// FontPreviewCombo.h : header file
-//
 
 /////////////////////////////////////////////////////////////////////////////
 // CFontPreviewCombo window
@@ -60,15 +56,58 @@ public:
 // Attributes
 public:
 
-   /*
-      All of the following options must be set before you call Init() !!
-   */
+	// System font listing.  The caller is responsible for creating
+	// and deleting this object, so that it can be shared among
+	// multiple font controls to avoid having to enumerate fonts
+	// for each control.
+	struct FontInfo
+	{
+		FontInfo(const TCHAR *name, DWORD flags, LONG height) : 
+			name(name), flags(flags), height(height)
+		{ }
 
-	// set the "sample" text string, defaults to "abcdeABCDE"
-	CString m_csSample;
+		// name
+		CString name;
+
+		// font height in pixels
+		LONG height;
+
+		// ffXxx flags for the font
+		DWORD flags;
+	};
+	struct Fonts
+	{
+		// parent window
+		CWnd *cwndPar;
+
+		// sample text
+		CString sample;
+
+		// font height
+		int fontHeight;
+
+		// font map
+		std::unordered_map<std::basic_string<TCHAR>, FontInfo> fonts;
+		
+		// vector of the fonts in the map, sorted by name
+		std::vector<FontInfo*> byName;
+
+		// maximum name and sample width
+		LONG maxNameWidth = 0;
+		LONG maxSampleWidth = 0;
+	};
+
+	// Internal font type information.  This is stored in the item data for
+	// each combo box item.
+	static const DWORD ffTrueType = 0x00000001;  // font is a TrueType font
+	static const DWORD ffSymbol = 0x00000002;  // this is a symbol font
+
+	//
+	// All of the following options must be set before you call Init() !!
+	//
 
 	// choose the sample color (only applies with NAME_THEN_SAMPLE and SAMPLE_THEN_NAME)
-	COLORREF	m_clrSample;
+	COLORREF m_clrSample;
 
 	// choose how the name and sample are displayed
 	typedef enum
@@ -82,9 +121,12 @@ public:
 
 // Operations
 public:
+
+	// populate a Fonts object with the system font list
+	static void InitFonts(Fonts &fonts, CWnd *parent, int fontHeight = 16, const TCHAR *sampleText = _T("abcABC"));
 	
 	// call this to load the font strings
-	void	Init();
+	void Init(Fonts *fonts);
 
 // Overrides
 	// ClassWizard generated virtual function overrides
@@ -96,38 +138,28 @@ public:
 
 // Implementation
 public:
-	int GetPreviewStyle (void);
-	void SetPreviewStyle (PreviewStyle style, bool reinitialize = true);
-	int GetFontHeight (void);
-	void SetFontHeight (int newHeight, bool reinitialize = true);
+	int GetPreviewStyle();
+	void SetPreviewStyle(PreviewStyle style);
+	int GetFontHeight();
 	virtual ~CFontPreviewCombo();
 	
 protected:
 	CImageList m_img;	
-	CMapStringToPtr m_fonts;
+	Fonts *m_fonts = nullptr;
 
-	PreviewStyle	m_style;
-	int m_iFontHeight;
-	int m_iMaxNameWidth;
-	int m_iMaxSampleWidth;
+	PreviewStyle m_style = NAME_THEN_SAMPLE;
 
-	void AddFont (const CString& faceName);
-	friend BOOL CALLBACK FPC_EnumFontProc (LPLOGFONT, LPTEXTMETRIC, DWORD, LPARAM);
-	void DeleteAllFonts (void);	
+	void AddComboItem(const TCHAR *faceName, DWORD itemData);
 
 	// Generated message map functions
 	//{{AFX_MSG(CFontPreviewCombo)
 	afx_msg void OnDropdown();
 	//}}AFX_MSG
 
-	
-
 	DECLARE_MESSAGE_MAP()
-
-
 };
 
-void WINAPI DDX_FontPreviewCombo (CDataExchange* pDX, int nIDC, CString& faceName);
+void WINAPI DDX_FontPreviewCombo(CDataExchange* pDX, int nIDC, CString& faceName);
 
 /////////////////////////////////////////////////////////////////////////////
 

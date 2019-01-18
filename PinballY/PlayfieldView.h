@@ -255,14 +255,23 @@ protected:
 	// font options
 	struct FontPref
 	{
-		FontPref(int defaultPtSize, const TCHAR *defaultName = _T("Tahoma"), int defaultWeight = 400) :
-			defaultPtSize(defaultPtSize), defaultName(defaultName), defaultWeight(defaultWeight) { }
+		FontPref(PlayfieldView *pfv, int defaultPtSize, const TCHAR *defaultFamily = nullptr, int defaultWeight = 400) :
+			pfv(pfv),
+			defaultPtSize(defaultPtSize), 
+			defaultFamily(defaultFamily), 
+			defaultWeight(defaultWeight)
+		{ }
 
-		TSTRING name;
+		PlayfieldView *pfv;
+
+		// font description
+		TSTRING family;
 		int ptSize = 0;
 		int weight = 0;
 
-		const TCHAR *defaultName;
+		// Defaults for the font.  defaultName can be null, in which case the
+		// global DefaultFontFamily preference is used.
+		const TCHAR *defaultFamily;
 		int defaultPtSize;
 		int defaultWeight;
 
@@ -284,20 +293,21 @@ protected:
 		// cached font
 		std::unique_ptr<Gdiplus::Font> font;
 	};
-	FontPref popupTitleFont{ 48 };      // title font for popups
-	FontPref popupFont{ 24 };           // base text font for popup dialogs
-	FontPref popupSmallerFont{ 20 };    // small font for popups
-	FontPref popupDetailFont{ 18 };     // detail font for popups
-	FontPref mediaDetailFont{ 12 };     // line items in media file listings
-	FontPref wheelFont{ 80 };           // wheel titles (in lieu of icons)
-	FontPref menuFont{ 42 };            // base font for menus
-	FontPref menuHeaderFont{ 36 };      // font for menu header text
-	FontPref statusFont{ 36 };          // status line font
-	FontPref highScoreFont{ 24 };       // synthesized high score display font
-	FontPref infoBoxFont{ 28 };         // info box main text
-	FontPref infoBoxTitleFont{ 38 };    // info box title font
-	FontPref infoBoxDetailFont{ 16 };   // info box fine print
-	FontPref creditsFont{ 42 };         // credits message font
+	TSTRING defaultFontFamily;                // default font family for all fonts
+	FontPref popupTitleFont{ this, 48 };      // title font for popups
+	FontPref popupFont{ this, 24 };           // base text font for popup dialogs
+	FontPref popupSmallerFont{ this, 20 };    // small font for popups
+	FontPref popupDetailFont{ this, 18 };     // detail font for popups
+	FontPref mediaDetailFont{ this, 12 };     // line items in media file listings
+	FontPref wheelFont{ this, 80 };           // wheel titles (in lieu of icons)
+	FontPref menuFont{ this, 42 };            // base font for menus
+	FontPref menuHeaderFont{ this, 36 };      // font for menu header text
+	FontPref statusFont{ this, 36 };          // status line font
+	FontPref highScoreFont{ this, 24 };       // high score list font
+	FontPref infoBoxFont{ this, 28 };         // info box main text
+	FontPref infoBoxTitleFont{ this, 38 };    // info box title font
+	FontPref infoBoxDetailFont{ this, 16 };   // info box fine print
+	FontPref creditsFont{ this, 42 };         // credits message font
 
 	// Figure the pixel width of the window layout in terms of the normalized
 	// height of 1920 pixels.
