@@ -83,6 +83,17 @@ after playing a game.  This has been fixed.
 * DOF re-setup after finishing a game session is now performed in a
 background thread, for improved responsiveness.
 
+* A new Media Drop logging category has been added, which logs the
+details of media file drag-and-drop operations.  This is mostly to
+help troubleshoot problems with these operations that aren't
+adequately explained by the on-screen error messages.
+
+* In past versions, media drop operations with archive files (ZIP,
+RAR, etc) didn't work properly in the 64-bit version of the program
+because the release distribution incorrectly included the 32-bit
+version of the 7-Zip DLL.  The 64-bit distribution now includes the
+correct version of the DLL.
+
 
 10-13-2018 (1.0.0 Beta 1)
 

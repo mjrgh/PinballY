@@ -293,6 +293,7 @@ DWORD GetExeFilePath(TCHAR *buf, DWORD buflen);
 //  $(Bits)          -> "32" or "64", per build configuration
 //  $(32)            -> "32" for a 32-bit build, empty otherwise
 //  $(64)            -> "64" for a 64-bit build, empty otherwise
+//  $(Platform)      -> "x86" for 32-bit build, "x64" for 64-bit build
 //
 void GetDeployedFilePath(
 	TCHAR *result /* must be >= MAX_PATH characters long */, 

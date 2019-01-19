@@ -129,8 +129,13 @@
 
     <DirectoryRef Id="SEVENZIPDIR">
       <Component Id="SevenZip" Guid="82137583-E243-4728-A562-6FF6BC3FB238">
-        <File Source="$(var.SolutionDir)7-Zip\7z.dll" />
-      </Component>
+				<?if $(var.Platform) = x86 ?>
+					<File Source="$(var.SolutionDir)7-Zip\x86\7z.dll" />
+				<?endif?>
+				<?if $(var.Platform) = x64 ?>
+					<File Source="$(var.SolutionDir)7-Zip\x64\7z.dll" />
+				<?endif?>
+			</Component>
     </DirectoryRef>
 
     <DirectoryRef Id="FFMPEGDIR">

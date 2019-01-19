@@ -128,7 +128,7 @@ public:
 			do
 			{
 				// get the DLL path
-				GetDeployedFilePath(dllPath, _T("7-Zip\\7z.dll"), _T(""));
+				GetDeployedFilePath(dllPath, _T("7-Zip\\7z.dll"), _T("$(SolutionDir)\\7-Zip\\$(Platform)\\7z.dll"));
 
 				// load the DLL
 				where = _T("in LoadLibrary()");

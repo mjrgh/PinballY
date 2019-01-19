@@ -13421,17 +13421,21 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 		int nMatched = 0;
 
 		// open the archive
-		SilentErrorHandler eh;
+		LogFile::Get()->Write(LogFile::MediaDropLogging, _T("Dropping archive file %s\n"), fname);
+		LogFileErrorHandler eh(_T("Media drop: opening archive file: "));
 		if (arch.OpenArchive(fname, eh))
 		{
 			// scan the contents
 			arch.EnumFiles([this, fname, game, &nMatched](UINT32 idx, const WCHAR *entryName, bool isDir)
 			{
+				LogFile::Get()->Write(LogFile::MediaDropLogging, _T(". found %s %ws\n"), isDir ? _T("directory") : _T("file"), entryName);
+
 				// skip directory entries
 				if (isDir)
 					return;
 
 				// check each media type
+				bool curMatched = false;
 				for (auto &mediaType : GameListItem::allMediaTypes)
 				{
 					// check for a valid implied game name
@@ -13443,13 +13447,20 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 							game->GetDropDestFile(entryName, *mediaType).c_str(),
 							mediaType, game->MediaExists(*mediaType));
 
+						LogFile::Get()->Write(LogFile::MediaDropLogging, _T("  -> type: %s, destination: %s\n"),
+							LoadStringT(mediaType->nameStrId).c_str(), dropList.back().destFile.c_str());
+
 						// count it
+						curMatched = true;
 						++nMatched;
 
 						// no need to look for other types
 						break;
 					}
 				}
+
+				if (!curMatched)
+					LogFile::Get()->Write(LogFile::MediaDropLogging, _T("  -> no media type match; file omitted from unpack list"));
 			});
 		}
 
@@ -13470,11 +13481,15 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 		dropList.emplace_back(fname, -1, impliedGameName.c_str(), 
 			game->GetDropDestFile(fname, *mediaType).c_str(), mediaType, game->MediaExists(*mediaType));
 
+		LogFile::Get()->Write(LogFile::MediaDropLogging, _T("Media drop: %s -> type: %s, destination: %s\n"),
+			fname, LoadStringT(mediaType->nameStrId).c_str(), dropList.back().destFile.c_str());
+
 		// matched
 		return true;
 	}
 
 	// we don't know how to handle it
+	LogFile::Get()->Write(LogFile::MediaDropLogging, _T("Media drop: %s: file doesn't match a known type; ignored\n"), fname);
 	return false;
 }
 

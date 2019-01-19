@@ -43,6 +43,8 @@ FirstRunTime =
 #
 # Log.MediaFiles - media file searching
 #
+# Log.MediaDrop - media file drag-and-drop installation
+#
 # Log.SystemSetup - player system setup and table file searches
 #
 # Log.MediaCapture - media capture
@@ -56,6 +58,7 @@ FirstRunTime =
 # Log.Javascript - Javascript scripting
 #
 Log.MediaFiles = 0
+Log.MediaDrop = 1
 Log.SystemSetup = 0 
 Log.MediaCapture = 1
 Log.TableLaunch = 0

@@ -442,6 +442,8 @@ void GetDeployedFilePath(TCHAR *result, const TCHAR *relFilePath, const TCHAR *d
 						return IF_32_64(_T("32"), _T(""));
 					else if (m[1].str() == _T("64"))
 						return IF_32_64(_T(""), _T("64"));
+					else if (m[1].str() == _T("Platform"))
+						return IF_32_64(_T("x86"), _T("x64"));
 					else
 						return m[0].str();
 				});

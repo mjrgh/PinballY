@@ -33,6 +33,7 @@ public:
 	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
 	static const DWORD DofLogging         = 0x00000040;   // DOF
 	static const DWORD JSLogging          = 0x00000080;   // Javascript
+	static const DWORD MediaDropLogging   = 0x00000100;   // media file drag-and-drop operations
 
 	// Is a feature enabled?
 	bool IsFeatureEnabled(DWORD feature) { return ((enabledFeatures | tempFeatures) & feature) != 0; }

@@ -89,6 +89,7 @@ void LogFile::OnConfigReload()
 		{ _T("Log.RealDMD"),      DmdLogging, true },
 		{ _T("Log.DOF"),          DofLogging, true },
 		{ _T("Log.Javascript"),   JSLogging, true },
+		{ _T("Log.MediaDrop"),    MediaDropLogging, true }
 	};
 	for (auto &v : vars)
 	{
