@@ -7,6 +7,8 @@
 
 namespace ConfigVars
 {
+	static const TCHAR *CaptureAudioDevice = _T("Capture.AudioDevice");
+
 	static const TCHAR *CaptureStartupDelay = _T("Capture.StartupDelay");
 
 	static const TCHAR *CapturePFImageStart = _T("Capture.PlayfieldImage.Start");

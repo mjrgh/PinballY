@@ -5,6 +5,7 @@
 #include "resource.h"
 #include "CaptureDialog.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/AudioCapture.h"
 
 IMPLEMENT_DYNAMIC(CaptureDialog, OptionsPage)
 
@@ -53,5 +54,30 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new SpinIntMap(_T("Capture.TopperVideo.Time"), IDC_EDIT_CAP_TOPPER_TIME, 30, IDC_SPIN_CAP_TOPPER_TIME, 1, 120));
 	
 	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
+
+	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
 }
 
+void CaptureDialog::AudioDeviceMap::InitControl()
+{
+	// populate the audio capture devices
+	EnumDirectShowAudioInputDevices([this](const AudioCaptureDeviceInfo *info)
+	{
+		// add the item to the combo list
+		combo.AddString(info->friendlyName);
+
+		// continue the enumeration
+		return true;
+	});
+
+	// Select the current value from the configuration.  The default is always
+	// at the first item in the combo list (index 0); this is rendered as an
+	// empty string in the config, but it's rendered in the combo as "(Default)"
+	// or some simliar (possibly localized) string defined in the dialog 
+	// resource.  So we need to select index 0 explicitly.
+	auto cv = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	if (cv[0] == 0)
+		combo.SetCurSel(0);
+	else
+		combo.SelectString(1, cv);
+}

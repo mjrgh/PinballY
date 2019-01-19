@@ -21,6 +21,7 @@
 #include "../Utilities/AutoRun.h"
 #include "../Utilities/ProcUtil.h"
 #include "../Utilities/DateUtil.h"
+#include "../Utilities/AudioCapture.h"
 #include "Application.h"
 #include "GraphicsUtil.h"
 #include "Resource.h"
@@ -1746,6 +1747,7 @@ void Application::GameMonitorThread::Prepare(
 		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
 
 		// build our local list of capture items
+		bool audioNeeded = false;
 		for (auto &cap : *captureList)
 		{
 			// create a capture item in our local list
@@ -1807,6 +1809,42 @@ void Application::GameMonitorThread::Prepare(
 			POINT pt = { 0, 0 };
 			ClientToScreen(hwndView, &pt);
 			OffsetRect(&item.rc, pt.x, pt.y);
+
+			// note if audio is required
+			if ((item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio)
+				|| item.mediaType.format == MediaType::Audio)
+				audioNeeded = true;
+		}
+
+		// If audio is required, figure the audio device
+		if (audioNeeded)
+		{
+			// start with the config setting
+			audioCaptureDevice = cfg->Get(ConfigVars::CaptureAudioDevice, _T(""));
+
+			// if there's no config setting, search for a "Stereo Mix" device by default
+			if (audioCaptureDevice.length() == 0)
+			{
+				// friendly name pattern we're scanning for
+				static const std::basic_regex<WCHAR> stmixPat(L"\\bstereo mix\\b", std::regex_constants::icase);
+
+				// search for a device with a name containing "stereo mix"
+				EnumDirectShowAudioInputDevices([this](const AudioCaptureDeviceInfo *info)
+				{
+					// check if the name matches our pattern
+					if (std::regex_search(info->friendlyName, stmixPat))
+					{
+						// use this source
+						audioCaptureDevice = info->friendlyName;
+
+						// stop searching
+						return false;
+					}
+
+					// not a match - keep looking
+					return true;
+				});
+			}
 		}
 	}
 }
@@ -3323,10 +3361,6 @@ DWORD Application::GameMonitorThread::Main()
 		TCHAR ffmpeg[MAX_PATH];
 		GetDeployedFilePath(ffmpeg, _T("ffmpeg\\ffmpeg.exe"), _T("$(SolutionDir)ffmpeg$(64)\\ffmpeg.exe"));
 
-		// Audio capture device name, to pass to ffmpeg.  We populate
-		// this the first time we need it.
-		TSTRING audioCaptureDevice;
-
 		// Capture one item.  Returns true to continue capturing
 		// additional items, false to end the capture process.
 		// A true return doesn't necessarily mean that the 
@@ -3376,50 +3410,26 @@ DWORD Application::GameMonitorThread::Main()
 				|| item.mediaType.format == MediaType::Audio;
 			if (hasAudio && audioCaptureDevice.length() == 0)
 			{
-				// friendly name pattern we're scanning for
-				std::basic_regex<WCHAR> stmixPat(L"\\bstereo mix\\b", std::regex_constants::icase);
+				// Audio capture is needed, but audio isn't available.  Note
+				// that the item didn't complete successfully.
+				captureOkay = false;
 
-				// create the audio device enumerator
-				RefPtr<ICreateDevEnum> pCreateDevEnum;
-				RefPtr<IEnumMoniker> pEnumMoniker;
-				LPMALLOC coMalloc = nullptr;
-				if (SUCCEEDED(CoGetMalloc(1, &coMalloc))
-					&& SUCCEEDED(CoCreateInstance(CLSID_SystemDeviceEnum, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pCreateDevEnum)))
-					&& pCreateDevEnum->CreateClassEnumerator(CLSID_AudioInputDeviceCategory, &pEnumMoniker, 0) == S_OK
-					&& pEnumMoniker != nullptr)
+				// If this is video with audio, disable audio for the item and
+				// continue with the capture; we can at least still capture a
+				// silent video for it.  If it's pure audio, there's no point,
+				// so just skip the item.
+				if (item.mediaType.format == MediaType::VideoWithAudio)
 				{
-					// scan through the audio devices
-					for (;;)
-					{
-						// get the next device in the enumeration
-						RefPtr<IMoniker> m;
-						if (pEnumMoniker->Next(1, &m, NULL) != S_OK)
-							break;
-
-						// get the friendly name from the object's properties
-						RefPtr<IBindCtx> bindCtx;
-						RefPtr<IPropertyBag> propertyBag;
-						VARIANTEx v(VT_BSTR);
-						if (SUCCEEDED(CreateBindCtx(0, &bindCtx))
-							&& SUCCEEDED(m->BindToStorage(bindCtx, NULL, IID_PPV_ARGS(&propertyBag)))
-							&& SUCCEEDED(propertyBag->Read(L"FriendlyName", &v, NULL)))
-						{
-							// check if the name matches our pattern
-							if (std::regex_search(v.bstrVal, stmixPat))
-							{
-								// use this source
-								audioCaptureDevice = v.bstrVal;
-								break;
-							}
-						}
-					}
+					// disable the audio, proceed with the capture (but log an
+					// error to alert the user to the reason the video doesn't
+					// have the audio they requested)
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_NO_AUDIO_DEV_VIDEO).c_str()));
+					item.enableAudio = false;
 				}
-
-				// if a capture device isn't available, skip this item
-				if (audioCaptureDevice.length() == 0)
+				else
 				{
+					// pure audio - skip the item entirely
 					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_NO_AUDIO_DEV).c_str()));
-					captureOkay = false;
 					continue;
 				}
 			}

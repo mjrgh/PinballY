@@ -165,6 +165,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="AudioCapture.h" />
     <ClInclude Include="AutoRun.h" />
     <ClInclude Include="ComUtil.h" />
     <ClInclude Include="Config.h" />
@@ -191,6 +192,7 @@
     <ClInclude Include="WinUtil.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AudioCapture.cpp" />
     <ClCompile Include="AutoRun.cpp" />
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="DateUtil.cpp" />

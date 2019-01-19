@@ -698,7 +698,40 @@ GameList.CurrentFilter = All
 # window layout as a proxy for the running game's window layout, so
 # there's no need to configure the game window layout separately.
 # The only thing you have to configure here is the timing of the
-# capture process.  
+# capture process, and in some cases the audio capture device.
+#
+# The first parameter selects the audio capture device.  An audio
+# capture device is required to capture the audio portion when
+# recording screen captures; it's not needed if you just want to
+# capture still screen shots or silent videos.  The capture device
+# is a virtual Windows device that reads back the sound playing
+# through your sound card's Line Out port.  You should find this
+# device listed in your Windows Sound control panel under the
+# Recording tab.  The device is commonly called "Stereo Mix" or
+# some variation containing those words, but not always; the
+# exact name is up to your sound card manufacturer.  Note that
+# the Microphone or Line In inputs won't usually work for screen
+# captures because they record from the physical line inputs; for
+# screen capture recording, you need the "fake" device that reads
+# back the Line Out audio.
+#
+# By default, if you leave this setting blank, PinballY will
+# search through the list of all attached audio input devices for
+# one containing the words "Stereo Mix" in the name.  That works
+# on many systems, particularly with US localization, but doesn't
+# work if your sound card manufacturer happened to choose a 
+# different name for their equivalent of this device, OR if your
+# system has a non-English localization, in which case the name
+# of the device will probably be translated to your language.
+# So if PinballY complains that no audio capture device is
+# present when you try to do a capture with audio, you can fill
+# in the correct name here.
+#
+Capture.AudioDevice =
+
+
+# The rest of the capture parameters control the timing of the
+# capture process.
 #
 # The first timing parameter is how long to wait for the game to
 # start up.  You'll want to give it enough time to enter "Attract

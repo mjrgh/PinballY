@@ -358,6 +358,7 @@
 #define IDS_ERR_JSCB                    713
 #define IDS_ERR_JSERR                   714
 #define IDS_ERR_JSLOADMOD               715
+#define IDS_ERR_CAP_NO_AUDIO_DEV_VIDEO  716
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801

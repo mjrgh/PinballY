@@ -643,6 +643,9 @@ protected:
 		// game description
 		GameBaseInfo game;
 
+		// Audio capture device name
+		TSTRING audioCaptureDevice;
+
 		// game file with extension
 		TSTRING gameFileWithExt;
 

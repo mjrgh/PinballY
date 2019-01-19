@@ -34,6 +34,17 @@ monitor refresh cycle.  If you have a fast machine, enabling this
 option should reduce CPU/GPU load without any degradation in graphics
 quality.
 
+* You can now manually select an audio input device to use for media
+capture operations.  By default, as in the past, the system searches
+your audio recording device list for a device with the words "Stereo
+Mix" in its name.  But the actual device name doesn't always match
+this pattern, especially on systems with non-English localizations,
+where the device name may be translated to the local language.  So the
+program now lets you select a suitable device yourself.  You'll find
+the new "Audio Capture Device" option in the settings dialog, in the
+Media Capture section.  That offers a list of available devices for
+you to choose from.
+
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.
 
