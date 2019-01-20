@@ -1,4 +1,5 @@
 assets\*
+Media\Readme.txt
 Help\*
 Help\highlightjs\*
 Help\highlightjs\styles\*

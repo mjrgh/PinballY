@@ -21,6 +21,7 @@
     <Feature Id="ProductFeature" Title="WixSetup" Level="1">
       <ComponentRef Id="PinballY" />
       <ComponentRef Id="SevenZip"/>
+			<ComponentRef Id="MediaFolder"/>
 			<ComponentRef Id="Scripts"/>
 			<ComponentRef Id="SystemScripts"/>
 			<ComponentRef Id="ffmpeg"/>
@@ -73,6 +74,7 @@
         <Directory Id="INSTALLFOLDER" Name="PinballY">
           <Directory Id="PBYDIR" >
             <Directory Id="ASSETSDIR" Name="Assets" />
+						<Directory Id="MEDIADIR" Name="Media" />
             <Directory Id="HELPDIR" Name="Help" />
 						<Directory Id="SCRIPTSDIR" Name="Scripts">
 							<Directory Id="SYSTEMSCRIPTSDIR" Name="System" />
@@ -113,6 +115,12 @@
 				<?endif?>
 			</Component>
     </DirectoryRef>
+
+		<DirectoryRef Id="MEDIADIR">
+			<Component Id="MediaFolder" Guid="55118B19-A4BE-49D0-A8C8-88C147F9F8E4">
+				<File Id="MediaReadme" Source="$(var.SolutionDir)Media\Readme.txt" />
+			</Component>
+		</DirectoryRef>
 
 		<DirectoryRef Id="SCRIPTSDIR">
 			<Component Id="Scripts" Guid="FC0D9658-A410-4641-9798-740329A5C812">

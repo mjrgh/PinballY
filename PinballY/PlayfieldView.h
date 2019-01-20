@@ -335,6 +335,11 @@ protected:
 	// idle event handler
 	virtual void OnIdleEvent() override;
 
+	// Show the initial UI.  This sets up the status lines, loads
+	// media for the initially selected game, sets up timers for
+	// dynamic UI elements, and optionally brings up the about box.
+	void ShowInitialUI(bool showAboutBox);
+
 	// window creation
 	virtual bool OnCreate(CREATESTRUCT *cs) override;
 
@@ -404,6 +409,7 @@ protected:
 	static const int batchCaptureCancelTimerID = 121;  // batch capture cancel button pushed
 	static const int javascriptTimerID = 122;     // javascript scheduled tasks
 	static const int fullRefreshTimerID = 123;    // full UI refresh (filters, selection, status text)
+	static const int overlayFadeoutTimerID = 124; // fading out the video overlay for removal
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1234,6 +1240,15 @@ protected:
 	// Popup name, for javascript purposes
 	WSTRING popupName;
 
+	// popup animation mode and start time
+	enum
+	{
+		PopupAnimNone,		// no animation
+		PopupAnimOpen,		// opening a popup
+		PopupAnimClose		// closing a popup
+	} popupAnimMode;
+	DWORD popupAnimStartTime;
+
 	// Start a popup animation.  If replaceTypes is not null, it's an array of
 	// popup types that the new type can replace without any animation effects.
 	// The array must be terminated with a final PopupNone entry.  If the array
@@ -1246,28 +1261,13 @@ protected:
 	};
 	void StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupDesc *replaceTypes = nullptr);
 
+	// Adjust a sprite to our standard popup position.  This centers
+	// the sprite in the top half of the screen, but leaves a minimum
+	// margin above.
+	void AdjustSpritePosition(Sprite *sprite);
+
 	// close the current popup
 	void ClosePopup();
-
-	// separate popup for the credit count overlay, used when a
-	// coin is inserted
-	RefPtr<Sprite> creditsSprite;
-	DWORD creditsStartTime;
-
-	// update/remove the credits display
-	void OnCreditsDispTimer();
-
-	// show the next queued error
-	void ShowQueuedError();
-
-	// popup animation mode and start time
-	enum
-	{
-		PopupAnimNone,		// no animation
-		PopupAnimOpen,		// opening a popup
-		PopupAnimClose		// closing a popup
-	} popupAnimMode;
-	DWORD popupAnimStartTime;
 
 	// Current flyer page, from 0.  Each game can have up to 8 pages
 	// of flyers, stored as separate images in the media folder.  We
@@ -1281,19 +1281,6 @@ protected:
 
 	// Instruction card location, from the configuration
 	TSTRING instCardLoc;
-
-	// Active audio clips.  Audio clips that we play back via
-	// AudioVideoPlayer have to be kept as active object references
-	// while playing, and released when playback finishes.  The
-	// player notifies us at end of playback by sending the private
-	// message AVPMsgEndOfPresentation to our window.  This map
-	// keeps track of the active clips that need to be released
-	// at end of playback.  Note that clips are keyed by cookie,
-	// not object pointer, since the object pointer isn't safe to
-	// use for asynchronous purposes like this due to the possibility
-	// that C++ could reuse a memory address for a new object after
-	// an existing object is deleted.
-	std::unordered_map<DWORD, RefPtr<AudioVideoPlayer>> activeAudio;
 
 	// Queued errors.  If an error occurs while we're showing an
 	// error popup, we'll queue it for display after the current
@@ -1320,10 +1307,36 @@ protected:
 	};
 	std::list<QueuedError> queuedErrors;
 
-	// Adjust a sprite to our standard popup position.  This centers
-	// the sprite in the top half of the screen, but leaves a minimum
-	// margin above.
-	void AdjustSpritePosition(Sprite *sprite);
+	// show the next queued error
+	void ShowQueuedError();
+
+	// separate popup for the credit count overlay, used when a
+	// coin is inserted
+	RefPtr<Sprite> creditsSprite;
+	DWORD creditsStartTime;
+
+	// update/remove the credits display
+	void OnCreditsDispTimer();
+
+	// Active audio clips.  Audio clips that we play back via
+	// AudioVideoPlayer have to be kept as active object references
+	// while playing, and released when playback finishes.  The
+	// player notifies us at end of playback by sending the private
+	// message AVPMsgEndOfPresentation to our window.  This map
+	// keeps track of the active clips that need to be released
+	// at end of playback.  Note that clips are keyed by cookie,
+	// not object pointer, since the object pointer isn't safe to
+	// use for asynchronous purposes like this due to the possibility
+	// that C++ could reuse a memory address for a new object after
+	// an existing object is deleted.
+	std::unordered_map<DWORD, RefPtr<AudioVideoPlayer>> activeAudio;
+
+	// Video overlay sprite.  This is the surface where we draw
+	// the startup video.
+	RefPtr<VideoSprite> videoOverlay;
+
+	// video overlay ID
+	TSTRING videoOverlayID;
 
 	// Menu item flags.  MenuStayOpen is mostly intended for use with
 	// checkmarks or radio buttons, to allow making a series of item

@@ -9,6 +9,22 @@ commands; create custom menus; create custom filters; send HTML
 requests to integrate with Web applications; and more.  See
 "Javascript Scripting" in the help for details.
 
+* You can now set up a custom startup video.  Place a video file
+called "Startup Video.mp4" in the PinballY\Media folder.  (You can use
+.mp4 or any of the other supported video extensions: .mpg, .f4v, .mkv,
+.wmv, .m4v, .avi.)  If this file exists, the video will be played in
+the main playfield window immediately after the program loads, and
+then the initially selected game will be shown a normal.  If there's
+no such file, the program goes straight to the normal UI. 
+
+* You can also set up a custom startup audio track.  Place an audio
+file called "Startup Audio.mp3" in the PinballY\Media folder.  (You
+can also use .wav or .ogg format.)  If this file exists, it will be
+played immediately after the program loads.  If a startup video file
+is also present, the video and the audio track will be played
+concurrently, so you'll probably prefer to use a silent video in this
+case.
+
 * You can now select custom fonts for most of the on-screen displays.
 The Fonts page in the options dialog lets you select a font for each
 display function.

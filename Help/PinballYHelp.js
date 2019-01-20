@@ -71,6 +71,7 @@ var contents = [
             "++NativeObject.html NativeObject",
             "++NativePointer.html NativePointer",
             "++Variant.html Variant",
+    "StartupAudioVideo.html Startup Audio/Video",
     "AdminMode.html Administrator Mode",
     "DirectoryInfo.html Files &amp; Folders",
     "DOFEvents.html DOF Events",

@@ -20,6 +20,8 @@ PinballY Release Checklist
 
 - Run RELEASE.BAT
 
+- Update PinballY.php on mjrnet.org if needed
+
 - Upload to mjrnet.org/pinscape/downloads/PinballY:
     Builds\PinballY-xxxxxxx.zip
     Builds\PinballY-Min-xxxxxx.zip
@@ -28,6 +30,7 @@ PinballY Release Checklist
     Builds\PinballY-64bit-Min-xxxxxx.zip
     Builds\PinballY-64bit-xxxxxx.msi
     VersionHistory.txt
+    Help\*
 
 - git commit -a -m "checkin message"
 
@@ -36,4 +39,3 @@ PinballY Release Checklist
 - git tag vX.Y.Z-LevelN
 
 - git push origin --tags
-

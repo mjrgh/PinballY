@@ -2812,15 +2812,103 @@ bool PlayfieldView::OnCreate(CREATESTRUCT *cs)
 	// inherit the default handling
 	bool ret = __super::OnCreate(cs);
 
-	// Set a timer to do some extra initialization in a couple of
-	// seconds, to allow the UI to stabilize.
+	// Set a timer to do some extra initialization in a moment, to
+	// allow the UI to stabilize.
 	SetTimer(hWnd, startupTimerID, 1000, 0);
 
 	// return the inherited result
 	return ret;
 }
 
+// Search for a file matching the given root name using the provided
+// list of extensions.  On entry, fname[] is set up with the root
+// name.  We'll add each extension in turn until we find one that
+// gives us the name of an extant file.  If we find such a file,
+// we'll return true, with the full name in fname[].  If we don't
+// find any files matching any of the possible names, we'll return
+// false.
+bool FindFileUsingExtensions(TCHAR fname[MAX_PATH], const TCHAR* const exts[], size_t nExts)
+{
+	// start with the root name
+	size_t rootLen = _tcslen(fname);
+	for (size_t i = 0; i < nExts; ++i)
+	{
+		const TCHAR *ext = exts[i];
+		size_t extLen = _tcslen(ext);
+		if (extLen + rootLen + 1 < MAX_PATH)
+		{
+			memcpy(fname + rootLen, ext, (extLen+1)*sizeof(TCHAR));
+			if (FileExists(fname))
+				return true;
+		}
+	}
+
+	// not found
+	return false;
+}
+
+// Idle event handler.  We use this to detect when the window is
+// ready at program startup.
 void PlayfieldView::OnIdleEvent()
+{
+	// We only want a one-shot idle notification, for when the event
+	// queue becomes idle after our initial application startup is
+	// finished.  Now that we've received the one notification, remove
+	// our idle event subscription.
+	D3DView::UnsubscribeIdleEvents(this);
+
+	// check for a startup video
+	TCHAR startupVideo[MAX_PATH];
+	GetDeployedFilePath(startupVideo, _T("Media\\Startup Video"), _T(""));
+
+	// search for a supported video type
+	bool foundStartupVideo = false;
+	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
+	if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+	{
+		// try loading the video in the overlay video sprite
+		videoOverlay.Attach(new VideoSprite());
+		videoOverlay->alpha = 1.0f;
+		POINTF pos = { static_cast<float>(NormalizedWidth()) / 1920.0f, 1.0f };
+		if (videoOverlay->LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading initial video")))
+		{
+			// success
+			foundStartupVideo = true;
+			videoOverlayID = _T("Startup");
+
+			// the video sprite loops by default; we only want to play once
+			videoOverlay->GetVideoPlayer()->SetLooping(false);
+
+			// udpate the drawing list to include the video overlay sprite
+			UpdateDrawingList();
+		}
+	}
+
+	// check for a startup audio track
+	TCHAR startupAudio[MAX_PATH];
+	GetDeployedFilePath(startupAudio, _T("Media\\Startup Audio"), _T(""));
+	static const TCHAR *audioExts[] = { _T(".mp3"), _T(".wav"), _T(".ogg") };
+	if (FindFileUsingExtensions(startupAudio, audioExts, countof(audioExts)))
+	{
+		// create a player and load the audio track
+		LogFileErrorHandler eh(_T("Startup audio: "));
+		RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+		if (player->Open(startupAudio, eh) && player->Play(eh))
+		{
+			// success - add the player to the active audio playback list,
+			// which will let us automatically clean up it when it finishes
+			// playback
+			DWORD cookie = player->GetCookie();
+			activeAudio.emplace(cookie, player.Detach());
+		}
+	}
+
+	// if we didn't find a startup video, go straight to the regular UI
+	if (!foundStartupVideo)
+		ShowInitialUI(true);
+}
+
+void PlayfieldView::ShowInitialUI(bool showAboutBox)
 {
 	// initialize the status lines
 	InitStatusLines();
@@ -2851,19 +2939,16 @@ void PlayfieldView::OnIdleEvent()
 	SetTimer(hWnd, cleanupTimerID, 1000, 0);
 
 	// Show the about box for a few seconds, as a sort of splash screen.
-	// Skip this if an error message is showing.
-	if (popupType != PopupErrorMessage
+	// Skip this if an error message is showing, or if the caller didn't
+	// want to show the about box, or if the initial about box is disabled
+	// in the config settings.
+	if (showAboutBox
+		&& popupType != PopupErrorMessage
 		&& ConfigManager::GetInstance()->GetBool(ConfigVars::SplashScreen, true))
 	{
 		ShowAboutBox();
 		SetTimer(hWnd, endSplashTimerID, 5000, 0);
 	}
-
-	// We only want a one-shot idle notification, for when the event
-	// queue becomes idle after our initial application startup is
-	// finished.  Now that we've received the one notification, remove
-	// our idle event subscription.
-	D3DView::UnsubscribeIdleEvents(this);
 }
 
 void PlayfieldView::InitStatusLines()
@@ -3036,6 +3121,15 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		infoBox.game = nullptr;
 
 		// this is a one-shot timer
+		KillTimer(hWnd, timer);
+		break;
+
+	case overlayFadeoutTimerID:
+		// remove the video overlay
+		videoOverlay = nullptr;
+		UpdateDrawingList();
+
+		// this is a one-shot
 		KillTimer(hWnd, timer);
 		break;
 	}
@@ -7121,12 +7215,36 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case AVPMsgEndOfPresentation:
-		// End of playback.  Check to see if this is an audio clip in 
-		// our active audio table.  If so, we can remove it from the 
-		// table, which will release the reference and delete the
-		// object.
-		if (auto it = activeAudio.find((DWORD)wParam); it != activeAudio.end())
-			activeAudio.erase(it);
+		// End of playback for an audio/video clip.  The WPARAM is the
+		// cookie identifying the media player instance.
+		//
+		// If it's audio clip in our active audio table, remove it from the 
+		// table, which will release the reference and delete the object.
+		//
+		// Otherwise, if it's the overlay video, fade out the overlay video.
+		//
+		{
+			auto cookie = static_cast<DWORD>(wParam);
+			if (auto it = activeAudio.find(cookie); it != activeAudio.end())
+			{
+				// audio playback - remove it from the audio list
+				activeAudio.erase(it);
+			}
+			else if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == cookie)
+			{
+				// video overlay - take the appropriate ending action
+				if (videoOverlayID == _T("Startup"))
+				{
+					// Startup video - start an alpha fade-out and kick off the
+					// normal UI initialization.  Skip the about box "splash",
+					// since the intro video serves the same purpose of providing
+					// a graphical transition into the new program.
+					ShowInitialUI(false);
+					videoOverlay->StartFade(-1, 250);
+					SetTimer(hWnd, overlayFadeoutTimerID, 300, NULL);
+				}
+			}
+		}
 		break;
 
 	case AVPMsgLoopNeeded:
@@ -8081,6 +8199,10 @@ void PlayfieldView::UpdateDrawingList()
 	// add the running game overlay
 	if (runningGamePopup != nullptr)
 		sprites.push_back(runningGamePopup);
+
+	// add the video overlay sprite
+	if (videoOverlay != nullptr)
+		sprites.push_back(videoOverlay);
 
 	// add the popup
 	if (popupSprite != nullptr)

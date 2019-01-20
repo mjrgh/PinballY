@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Startup Audio and Video</h1>
+
+<p>
+   You can make PinballY play a custom audio and/or video file whenever the
+   program starts up.  Setting up the startup items is just a matter of
+   creating suitable files in the <b>Media</b> folder within your main
+   PinballY program folder.
+</p>
+
+<p>
+   <b>Custom startup video:</b>  Place a file called <b>Startup Video.mp4</b>
+   in the PinballY <b>Media</b> folder.  It has to use that exact name, including
+   the space, but you can change the suffix from .mp4 to any of the other
+   supported video format extensions (.mpg, .f4v, .mkv, .wmv, .m4v, .avi).
+   If a file with this name (using any of the supported extensions) exists,
+   PinballY will automatically play it in the main playfield window
+   each time the program starts.
+</p>
+
+<p>
+   <b>Custom startup audio:</b>  Place a file called <b>Startup Audio.mp3</b>
+   in the PinballY <b>Media</b> folder.  Use that exact name, including the
+   space, but you can change the suffix from .mp3 to .wav or .ogg if you
+   wish to use one of those formats.  As with the startup video, the program
+   will automatically play back this file each time you start a new session.
+</p>
+
+<p>
+   If the startup audio and startup video files are both present, PinballY
+   will simply play them both at the same time.  It's best to use a silent
+   video in this case so that the soundtracks aren't trying to shout each
+   other down.
+</p>
+
+</body>
+</html>
+
+
+
+
+
+
