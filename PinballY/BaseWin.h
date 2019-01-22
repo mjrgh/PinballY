@@ -290,7 +290,7 @@ protected:
 	virtual bool OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
 	// private application message (WM_APP to 0xBFFF)
-	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) { return false; }
+	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 
 	// Handle an ENTER IDLE message.  The 'code' value is one of:
 	//

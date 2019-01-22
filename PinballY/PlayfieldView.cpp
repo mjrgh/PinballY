@@ -35,6 +35,7 @@
 #include "AudioManager.h"
 #include "DOFClient.h"
 #include "AudioVideoPlayer.h"
+#include "DShowAudioPlayer.h"
 #include "VLCAudioVideoPlayer.h"
 #include "HighScores.h"
 #include "RefTableList.h"
@@ -2892,7 +2893,7 @@ void PlayfieldView::OnIdleEvent()
 	{
 		// create a player and load the audio track
 		LogFileErrorHandler eh(_T("Startup audio: "));
-		RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+		RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
 		if (player->Open(startupAudio, eh) && player->Play(eh))
 		{
 			// success - add the player to the active audio playback list,
@@ -4258,7 +4259,7 @@ void PlayfieldView::LaunchQueuedGame()
 			// Sound Manager, because the latter can only handle uncompressed
 			// PCM formats like WAV.  Launch audio clips are typically MP3s.
 			SilentErrorHandler eh;
-			RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+			RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
 			if (player->Open(audio.c_str(), eh) && player->Play(eh))
 			{
 				// Playback started.  We'll need to keep this object alive
@@ -6275,7 +6276,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// Load the audio
 	if (audio.length() != 0)
 	{
-		incomingPlayfield.audio.Attach(new VLCAudioVideoPlayer(hWnd, hWnd, true));
+		incomingPlayfield.audio.Attach(new DShowAudioPlayer(hWnd));
 		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
 		{
 			// set the muting mode to match playfield video

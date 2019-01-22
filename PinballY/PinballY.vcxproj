@@ -242,6 +242,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="DMDView.cpp" />
     <ClCompile Include="DMDWin.cpp" />
     <ClCompile Include="DOFClient.cpp" />
+    <ClCompile Include="DShowAudioPlayer.cpp" />
     <ClCompile Include="FlashClient\FlashClient.cpp" />
     <ClCompile Include="FrameWin.cpp" />
     <ClCompile Include="GameList.cpp" />
@@ -308,6 +309,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="DMDView.h" />
     <ClInclude Include="DMDWin.h" />
     <ClInclude Include="DOFClient.h" />
+    <ClInclude Include="DShowAudioPlayer.h" />
     <ClInclude Include="FlashClient\FlashClient.h" />
     <ClInclude Include="FrameWin.h" />
     <ClInclude Include="GameList.h" />

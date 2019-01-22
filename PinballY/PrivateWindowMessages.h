@@ -89,10 +89,13 @@ const UINT PWM_ISFULLSCREEN = WM_APP + 101;         // is the window full-screen
 
 // Audio Video Player app-wide messages.  These messages are sent 
 // from AVP objects to their associated event windows during playback.
-// These messages pass the AVP cookie in the WPARAM.
+// These messages pass the AVP cookie in the WPARAM. 
 const UINT AVPMsgFirstFrameReady = WM_APP + 200;	// first frame is ready
 const UINT AVPMsgEndOfPresentation = WM_APP + 201;	// end of presentation
 const UINT AVPMsgLoopNeeded = WM_APP + 202;			// end of presentation - window must initiate looping
+
+// DirectShow media player events
+const UINT DSMsgOnEvent = WM_APP + 300;             // DirectShow IMediaEvent event ready notification
 	
 // Private dialog subclass messages.  For dialog boxes implemented
 // via the Windows dialog APIs, the Windows dialog manager defines
