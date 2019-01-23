@@ -6,7 +6,7 @@ Help\highlightjs\styles\*
 Scripts\Scripts_Folder.txt
 Scripts\System\*.js
 Farsight\*.pinballArcade
-README.txt
+-j release_temp\README.txt
 DefaultSettings.txt
 License.txt
 "Third Party Licenses.txt"

@@ -5,6 +5,10 @@
 @rem
 @echo off
 
+rem  Use the git README.md as README.txt
+mkdir release_temp
+copy README.md release_temp\README.txt
+
 rem  Get the date in YYYYMMDD format, to use as a filename suffix
 rem  for the release ZIP files
 set SysDateTime=
@@ -71,3 +75,7 @@ copy "WixSetup\bin\x64-Release\PinballY Setup.msi" Builds\PinballY-64bit-%Releas
 
 rem  Copy the release notes
 copy /y VersionHistory.txt Builds\*.*
+
+
+rem  Remove the temporary release folder
+rmdir /q /s release_temp

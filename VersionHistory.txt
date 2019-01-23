@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 2)
+01-22-2019 (1.0.0 Beta 2)
 
 * The system now features a built-in Javascript engine, offering
 extensive new customization capabilities.  Scripts can intercept many
@@ -48,7 +48,7 @@ making your GPU fan run continuously.  The "lock refresh rate" option
 helps avoid this by making the renderer pace itself in step with the
 monitor refresh cycle.  If you have a fast machine, enabling this
 option should reduce CPU/GPU load without any degradation in graphics
-quality.
+quality.  (Issue #13 on github.)
 
 * You can now manually select an audio input device to use for media
 capture operations.  By default, as in the past, the system searches
@@ -59,7 +59,7 @@ where the device name may be translated to the local language.  So the
 program now lets you select a suitable device yourself.  You'll find
 the new "Audio Capture Device" option in the settings dialog, in the
 Media Capture section.  That offers a list of available devices for
-you to choose from.
+you to choose from.  (Issue #16 on github.)
 
 * PinballY Admin Mode.exe now passes through any command line
 arguments to the child PinballY.exe process.
@@ -77,8 +77,8 @@ better with other "show" modes, so it's best if this setting can be
 customized per system.
 
 * The Filter by System and Filter by Manufacturer menus are now
-paginated if necessary (that is, if there are too many items to fit
-the available display space).
+paginated and scrollable if necessary (that is, if there are too many
+items to fit the available display space).  (Issue #17 on github.)
 
 * On some systems, menu graphic arrows weren't drawing properly.  This
 is because the font "Wingdings 3" was being used for the arrows, and
@@ -108,7 +108,13 @@ adequately explained by the on-screen error messages.
 RAR, etc) didn't work properly in the 64-bit version of the program
 because the release distribution incorrectly included the 32-bit
 version of the 7-Zip DLL.  The 64-bit distribution now includes the
-correct version of the DLL.
+correct version of the DLL.  (Issue #14 on github.)
+
+* In past versions, mp3 audio clips were sometimes cut off near the
+end, so that the last fraction of a second was never played back.
+This was particularly noticeable for the sort of short clips typically
+used for Launch Audio sound effects.  This has been fixed; clips
+should always play back in their entirety now.  (Issue #18 on github.)
 
 
 10-13-2018 (1.0.0 Beta 1)
