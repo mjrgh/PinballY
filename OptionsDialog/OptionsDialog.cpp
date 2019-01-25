@@ -11,6 +11,7 @@
 #include "CaptureDialog.h"
 #include "CoinsDialog.h"
 #include "DMDDialog.h"
+#include "DOFDialog.h"
 #include "InstCardDialog.h"
 #include "GameLaunchDialog.h"
 #include "GameWheelDialog.h"
@@ -324,6 +325,7 @@ MainOptionsDialog::MainOptionsDialog(
 	AddPage(new AttractModeDialog(IDD_ATTRACT_MODE), AttractModePage, _T("AttractModeOptions.html"));
 	AddPage(new CoinsDialog(IDD_COINS), CoinsPage, _T("CoinOptions.html"));
 	AddPage(new DMDDialog(IDD_DMD), DMDPage, _T("RealDMDOptions.html"));
+	AddPage(new DOFDialog(IDD_DOF), DOFPage, _T("DOFOptions.html"));
 	AddPage(new InstCardDialog(IDD_INST_CARD), InstCardPage, _T("InstCardOptions.html"));
 	AddPage(new GameLaunchDialog(IDD_LAUNCH), GameLaunchPage, _T("GameLaunchOptions.html"));
 	AddPage(new GameWheelDialog(IDD_GAME_WHEEL), GameWheelPage, _T("GameWheelOptions.html"));

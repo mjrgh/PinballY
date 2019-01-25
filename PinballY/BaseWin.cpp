@@ -79,7 +79,7 @@ bool BaseWin::Create(HWND parent, const TCHAR *title, DWORD style, int nCmdShow)
 		rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
 		parent, NULL, G_hInstance, this);
 
-	if (hWnd == 0)
+	if (hWnd == NULL)
 	{
 		LogSysError(EIT_Error, LoadStringT(IDS_ERR_CREATEWIN),
 			MsgFmt(_T("BaseWin::CreateWindow() failed, Win32 error %d"), GetLastError()));
@@ -95,16 +95,21 @@ bool BaseWin::Create(HWND parent, const TCHAR *title, DWORD style, int nCmdShow)
 	{
 		// failed - destroy the window and abort
 		DestroyWindow(hWnd);
-		hWnd = 0;
+		hWnd = NULL;
 		return false;
 	}
 
 	// show the window and do initial drawing
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	InitShowWin(nCmdShow);
 
 	// success
 	return true;
+}
+
+void BaseWin::InitShowWin(int nCmdShow)
+{
+	ShowWindow(hWnd, nCmdShow);
+	UpdateWindow(hWnd);
 }
 
 LRESULT BaseWin::SendMessage(UINT message, WPARAM wParam, LPARAM lParam)
@@ -149,7 +154,7 @@ LRESULT CALLBACK BaseWin::StaticWndProc(HWND hWnd, UINT message, WPARAM wParam, 
 	}
 
 	// if we have a 'self' pointer, dispatch through it
-	if (self != 0)
+	if (self != nullptr)
 	{
 		// stack a message descriptor
 		struct Stacker
@@ -396,13 +401,23 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 
+	case WM_WINDOWPOSCHANGING:
+		if (OnWindowPosChanging(reinterpret_cast<WINDOWPOS*>(lParam)))
+			return curMsg->lResult;
+		break;
+
+	case WM_WINDOWPOSCHANGED:
+		if (OnWindowPosChanged(reinterpret_cast<WINDOWPOS*>(lParam)))
+			return curMsg->lResult;
+		break;
+
 	case WM_GETMINMAXINFO:
-		if (OnGetMinMaxInfo((MINMAXINFO *)lParam))
+		if (OnGetMinMaxInfo(reinterpret_cast<MINMAXINFO*>(lParam)))
 			return curMsg->lResult;
 		break;
 
 	case WM_CREATE:
-		if (OnCreate((CREATESTRUCT *)lParam))
+		if (OnCreate(reinterpret_cast<CREATESTRUCT*>(lParam)))
 			return curMsg->lResult;
 		break;
 
@@ -419,7 +434,12 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_NCDESTROY:
 		if (OnNCDestroy())
 			return curMsg->lResult;
-		break;
+
+		// OnNCDestroy() normally releases our self-reference, which can have
+		// the side effect of deleting the object.  So do the system default
+		// work and return immediately, to be sure we don't try to dereference
+		// 'this' after this point.
+		return DefWindowProc(hWnd, message, wParam, lParam);
 
 	case WM_NCHITTEST:
 		{

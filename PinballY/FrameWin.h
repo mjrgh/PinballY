@@ -11,6 +11,7 @@
 #include "BaseView.h"
 
 class ViewWin;
+class VanityShieldWindow;
 
 class FrameWin : public BaseWin
 {
@@ -107,6 +108,9 @@ protected:
 	// close the window
 	virtual bool OnClose() override;
 
+	// destroy
+	virtual bool OnDestroy() override;
+
 	// window activation
 	virtual bool OnNCActivate(bool active, HRGN updateRegion) override;
 	virtual bool OnActivate(int waCode, int minimized, HWND hWndOther) override;
@@ -120,6 +124,7 @@ protected:
 	// size/move
 	virtual void OnResize(int width, int height) override;
 	virtual void OnMove(POINT pos) override;
+	virtual bool OnWindowPosChanging(WINDOWPOS *pos) override;
 
 	// get min/max window size
 	virtual bool OnGetMinMaxInfo(MINMAXINFO *mmi) override;
@@ -158,6 +163,9 @@ protected:
 	// update the view layout
 	virtual void UpdateLayout();
 
+	// private window messages (WM_USER .. WM_APP-1)
+	virtual bool OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
+	
 	// private app messages (WM_APP+)
 	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
 
@@ -179,6 +187,25 @@ protected:
 	// window coordinates.  Returns true if the given monitor was found,
 	// false if no such monitor exists.
 	bool GetDisplayMonitorCoords(int n, RECT &rc);
+
+	// "Vanity shield" window.  During window creation, if we're creating a
+	// full-screen or borderless window, we'll create a separate, temporary
+	// cover window first to cover the area of the new window.  This is just
+	// to make the window creation process look seamless by hiding the
+	// initial appearance of the window at creation, since we have to create
+	// the window with borders.  You'd *think* we could just create it
+	// borderless in the first place, wouldn't you?  Sadly we can't, because
+	// of an apparent bug or undocumented limitation in the Windows DWM: if
+	// we create a window as borderless initially, the DWM won't be able to
+	// properly render the caption bar and borders if we later enable them.
+	// To work around this, we have to create the window with borders and
+	// then turn them off; we can't go straight to the borderless style
+	// during creation.  But we *can* create a separate vanity shield
+	// window that's initially borderless and that initialy fills the full
+	// space if full-screen; the vanity shield only lasts as long as it
+	// takes to set up the *real* window, so the vanity shield never has
+	// to show borders itself, thus the DWM bug is irrelevant to it.
+	RefPtr<VanityShieldWindow> vanityShield;
 
 	// main view window
 	RefPtr<BaseView> view;

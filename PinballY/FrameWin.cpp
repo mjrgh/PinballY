@@ -15,6 +15,38 @@
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Uxtheme.lib")
 
+// -----------------------------------------------------------------------
+//
+// Vanity shield window.  This is a temporary window that we create to
+// cover up the final window area when creating a borderless or full-screen
+// window, to hide the "normal window" appearance of the window that we 
+// have to give it briefly during the creation process in order to work
+// around a DWM bug.
+//
+class VanityShieldWindow : public BaseWin
+{
+public:
+	VanityShieldWindow(RECT &rc) : BaseWin(0), rc(rc) { }
+	virtual void UpdateMenu(HMENU, BaseWin *) override { }
+	virtual RECT GetCreateWindowPos(int &nCmdShow) override { return rc; }
+	virtual bool OnEraseBkgnd(HDC hdc)
+	{
+		RECT rcClient;
+		GetClientRect(hWnd, &rcClient);
+		FillRect(hdc, &rcClient, GetStockBrush(BLACK_BRUSH));
+		return true;
+	}
+
+	// initial window position
+	RECT rc;
+};
+
+
+// -----------------------------------------------------------------------
+//
+// Frame window
+//
+
 // config variable names
 namespace ConfigVars
 {
@@ -115,9 +147,16 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 
 	// Get the full screen mode flag.  We won't actually reinstate this
 	// until we've finished creating the window, to work around a mystery
-	// problem with custom caption drawing that seems to occur if we start
-	// with full-screen styles.
+	// DWM bug with custom caption drawing that's triggered if we start
+	// with full-screen styles (specifically, without caption and sizing
+	// borders).
 	fullScreenMode = ConfigManager::GetInstance()->GetBool(configVarFullScreen);
+	
+	// Also note the borderless state.  As with full-screen mode, we can't
+	// go borderless initially, because we'll trigger a DWM bug with frame
+	// drawing if we don't let DWM set up the initial window with border
+	// and caption styles enabled.
+	bool borderless = ConfigManager::GetInstance()->GetBool(configVarBorderless);
 
 	// get the stored window location
 	RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
@@ -166,6 +205,28 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 		pos = rc;
 	}
 
+	// If the saved window setup is borderless or full-screen, create a
+	// "vanity shield" window covering the creation area.
+	if ((borderless || fullScreenMode) 
+		&& (nCmdShow != SW_MINIMIZE && nCmdShow != SW_SHOWMINIMIZED && nCmdShow != SW_SHOWMINNOACTIVE && nCmdShow != SW_HIDE))
+	{
+		// start with the same position as the window itself
+		RECT rcVanity = pos;
+
+		// get the full-screen area, if desired
+		if (fullScreenMode)
+		{
+			// use the full display area of the monitor containing the normal window rect
+			MONITORINFO mi = { sizeof(mi) };
+			if (GetMonitorInfo(MonitorFromRect(&pos, MONITOR_DEFAULTTONEAREST), &mi))
+				rcVanity = mi.rcMonitor;
+		}
+
+		// create the window
+		vanityShield.Attach(new VanityShieldWindow(rcVanity));
+		vanityShield->Create(NULL, _T("PinballY"), WS_POPUP | WS_CLIPSIBLINGS, SW_SHOW);
+	}
+
 	// return the position
 	return pos;
 }
@@ -179,7 +240,7 @@ bool FrameWin::InitWin()
 
 	// create my view
 	view.Attach(CreateViewWin());
-	if (view == 0)
+	if (view == nullptr)
 		return false;
 
 	// If we're starting in full-screen mode, post a command to self to
@@ -215,6 +276,14 @@ bool FrameWin::InitWin()
 	borderless = false;
 	if (!IsBorderless() && ConfigManager::GetInstance()->GetBool(configVarBorderless))
 		PostMessage(WM_COMMAND, ID_WINDOW_BORDERS);
+
+	// If there's a vanity shield, remove it as soon as we finish with
+	// the FULL SCREEN and TOGGLE BORDERS commands.  The vanity shield is 
+	// specifically to cover up the initial redraws with the window in its
+	// half-formed state, so it's no longer needed once we're finished 
+	// setting up the full set of window styles.
+	if (vanityShield != nullptr)
+		PostMessage(FWRemoveVanityShield);
 
 	// customize the system menu
 	CustomizeSystemMenu(GetSystemMenu(hWnd, FALSE));
@@ -260,7 +329,7 @@ void FrameWin::CopyContextMenuToSystemMenu(HMENU contextMenu, HMENU systemMenu,
 	const std::unordered_set<UINT> &excludeCommandIDs)
 {
 	// if there's no system menu, there's nothing to do
-	if (systemMenu == 0)
+	if (systemMenu == NULL)
 		return;
 
 	// get the first submenu of the context menu, as that's the actual
@@ -452,7 +521,6 @@ void FrameWin::ToggleFullScreen()
 		// we switch back to windowed mode later.
 		normalWindowStyle = style;
 		normalWindowPlacement.length = sizeof(normalWindowPlacement);
-		MONITORINFO mi = { sizeof(mi) };
 		if (!GetWindowPlacement(hWnd, &normalWindowPlacement))
 		{
 			// that failed - flag that the placement is invalid by zeroing
@@ -461,10 +529,13 @@ void FrameWin::ToggleFullScreen()
 		}
 
 		// Determine which monitor the window currently occupies, using the 
-		// primary monitor by default.  Take over the whole viewing area of
-		// that monitor.
+		// primary monitor by default.
+		MONITORINFO mi = { sizeof(mi) };
 		if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
 		{
+			// got it - take over the whole viewing area of the selected monitor
+			RECT rcFull = mi.rcMonitor;
+
 			// we're now in full-screen mode
 			fullScreenMode = true;
 
@@ -474,8 +545,8 @@ void FrameWin::ToggleFullScreen()
 			// fill the monitor
 			SetWindowPos(
 				hWnd, HWND_TOP,
-				mi.rcMonitor.left, mi.rcMonitor.top,
-				mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top,
+				rcFull.left, rcFull.top, 
+				rcFull.right - rcFull.left, rcFull.bottom - rcFull.top,
 				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
 			// update the config
@@ -647,6 +718,24 @@ bool FrameWin::OnClose()
 	return __super::OnClose();
 }
 
+bool FrameWin::OnDestroy()
+{
+	// Destroy the vanity window if it's still around.  It *shouldn't*
+	// be, since we should have removed it as soon as our own window
+	// was fully initialized, but it's conceivable that we prematurely
+	// aborted the window creation process due to error or user
+	// cancellation.
+	if (vanityShield != nullptr)
+	{
+		HWND vanityHWnd = vanityShield->GetHWnd();
+		vanityShield = nullptr;
+		DestroyWindow(vanityHWnd);
+	}
+
+	// do the base class work
+	return __super::OnDestroy();
+}
+
 bool FrameWin::OnCommand(int cmd, int source, HWND hwndControl)
 {
 	return DoCommand(cmd) || __super::OnCommand(cmd, source, hwndControl);
@@ -752,6 +841,18 @@ bool FrameWin::OnInitMenuPopup(HMENU hMenu, int itemPos, bool isWinMenu)
 	return __super::OnInitMenuPopup(hMenu, itemPos, isWinMenu);
 }
 
+
+bool FrameWin::OnWindowPosChanging(WINDOWPOS *pos)
+{
+	// if we're changing the Z order, and we have a vanity shield, make
+	// sure we stay behind the vanity shield
+	if ((pos->flags & SWP_NOZORDER) == 0 && vanityShield != nullptr)
+		pos->hwndInsertAfter = vanityShield->GetHWnd();
+
+	// inherit the default processing
+	return __super::OnWindowPosChanging(pos);
+}
+
 void FrameWin::OnMove(POINT pos)
 {
 	// do the base class work
@@ -788,10 +889,10 @@ bool FrameWin::OnCreate(CREATESTRUCT *cs)
 	// do the base class work
 	__super::OnCreate(cs);
 
-	// explicitly recalculate the frame
+	// Explicitly recalculate the frame
 	RECT rc;
 	GetWindowRect(hWnd, &rc);
-	SetWindowPos(hWnd, NULL, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, SWP_FRAMECHANGED);
+	SetWindowPos(hWnd, HWND_TOP, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, SWP_FRAMECHANGED);
 
 	// allow the system handler to proceed
 	return false;
@@ -1394,6 +1495,40 @@ void FrameWin::AddSystemMenu(HMENU m, int cmd, int idx)
 		}
 	}
 }
+
+// private window messages (WM_USER .. WM_APP-1)
+bool FrameWin::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case FWRemoveVanityShield:
+		// close the vanity shield window if present
+		if (vanityShield != nullptr)
+		{
+			// The order here is somewhat important to avoid drawing glitches
+			// (and avoiding drawing glitches is the whole point of the vanity
+			// shield window, so it would be a shame to let glitches happen
+			// during its removal).  First, forget the vanity shield, so that
+			// our WM_WINDOWPOSCHANGING handler won't think the vanity shield
+			// is still present while rearranging things during the vanity
+			// window destruction.
+			HWND vanityHWnd = vanityShield->GetHWnd();
+			vanityShield = nullptr;
+
+			// now flush the desktop window manager, which will sync window
+			// drawing with the monitor refresh cycle
+			DwmFlush();
+
+			// and finally, remove the vanity window
+			DestroyWindow(vanityHWnd);
+		}
+		return true;
+	}
+
+	// inherit the default handling
+	return __super::OnUserMessage(msg, wParam, lParam);
+}
+
 
 // private app messages (WM_APP+)
 bool FrameWin::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)

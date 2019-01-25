@@ -9,6 +9,7 @@ var contents = [
         "+AudioVideoOptions.html Audio/Video",
         "+ButtonOptions.html Buttons",
         "+CoinOptions.html Coins",
+        "+DOFOptions.html DOF",
         "+PathOptions.html Folders",
         "+FontOptions.html Fonts",
         "+GameLaunchOptions.html Game Launch",

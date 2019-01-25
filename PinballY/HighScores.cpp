@@ -300,50 +300,52 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 
 		// If we don't have a valid result yet, the next stop is the ROM
 		// that we matched for the table from the DOF config, if available.
-		if (!Valid()
-			&& DOFClient::Get() != nullptr
-			&& ((nvramFile = DOFClient::Get()->GetRomForTable(game)), nvramFile.length() != 0))
+		if (!Valid() && DOFClient::Get() != nullptr)
 		{
-			// We found a DOF ROM.  But this isn't quite good enough to
-			// pick a High Score NVRAM file, because the ROMs in the DOF
-			// config are generally the "family" name rather than the
-			// specific version.  For example, the DOF ROM entry for The
-			// Addams Family is usually "taf", but the actual ROM will
-			// be something like "taf_l1", "taf_l2", "taf_l3"...  The
-			// suffix is a version number.  There's no formal structure
-			// to the naming, but the longstanding convention is to use
-			// "_" to delimit the version suffix, and it's consistent
-			// enough that DOF uses this as a hardcoded assumption.  So
-			// we will too.  
-			//
-			// So: starting with the DOF name, look in the NVRAM folder
-			// for files of the form "<DOF name>_<suffix>.nv".  There
-			// might even be a versionless file "<DOF name>.nv", so
-			// count that as well.
-			TSTRING fileFound;
-			int nFound = 0;
-			std::basic_regex<TCHAR> dofNamePat(
-				MsgFmt(_T("%s(_([a-z0-9]+))?\\.nv"), nvramFile.c_str()),
-				std::regex_constants::icase);
-			for (auto &file : fs::directory_iterator(nvramPath))
+			if (const TCHAR *rom = DOFClient::Get()->GetRomForTable(game); rom != nullptr && rom[0] != 0)
 			{
-				// if it matches the pattern, stash it and count it
-				TSTRING fname = file.path().filename();
-				if (std::regex_match(fname, dofNamePat))
+				// We found a DOF ROM.  But this isn't quite good enough to
+				// pick a High Score NVRAM file, because the ROMs in the DOF
+				// config are generally the "family" name rather than the
+				// specific version.  For example, the DOF ROM entry for The
+				// Addams Family is usually "taf", but the actual ROM will
+				// be something like "taf_l1", "taf_l2", "taf_l3"...  The
+				// suffix is a version number.  There's no formal structure
+				// to the naming, but the longstanding convention is to use
+				// "_" to delimit the version suffix, and it's consistent
+				// enough that DOF uses this as a hardcoded assumption.  So
+				// we will too.  
+				//
+				// So: starting with the DOF name, look in the NVRAM folder
+				// for files of the form "<DOF name>_<suffix>.nv".  There
+				// might even be a versionless file "<DOF name>.nv", so
+				// count that as well.
+				nvramFile = rom;
+				TSTRING fileFound;
+				int nFound = 0;
+				std::basic_regex<TCHAR> dofNamePat(
+					MsgFmt(_T("%s(_([a-z0-9]+))?\\.nv"), nvramFile.c_str()),
+					std::regex_constants::icase);
+				for (auto &file : fs::directory_iterator(nvramPath))
 				{
-					fileFound = fname;
-					++nFound;
+					// if it matches the pattern, stash it and count it
+					TSTRING fname = file.path().filename();
+					if (std::regex_match(fname, dofNamePat))
+					{
+						fileFound = fname;
+						++nFound;
+					}
 				}
-			}
 
-			// If we found a unique matching file, take it as the result.
-			// If multiple files exist, the user must have run multiple
-			// versions of the ROM on this PC, so they might have multiple
-			// versions of the table still installed, so we can't just
-			// we have no way to guess which ROM version goes with which
-			// table (and thus which ROM version goes with this table).
-			if (nFound == 1)
-				nvramFile = fileFound;
+				// If we found a unique matching file, take it as the result.
+				// If multiple files exist, the user must have run multiple
+				// versions of the ROM on this PC, so they might have multiple
+				// versions of the table still installed, so we can't just
+				// we have no way to guess which ROM version goes with which
+				// table (and thus which ROM version goes with this table).
+				if (nFound == 1)
+					nvramFile = fileFound;
+			}
 		}
 
 		// If we still don't have a valid result, try fuzzy matching the

@@ -88,6 +88,7 @@ namespace ConfigVars
 	static const TCHAR *FirstRunTime = _T("FirstRunTime");
 	static const TCHAR *HideUnconfiguredGames = _T("GameList.HideUnconfigured");
 	static const TCHAR *VSyncLock = _T("VSyncLock");
+	static const TCHAR *DOFEnable = _T("DOF.Enable");
 }
 
 // include the capture-related variables
@@ -301,7 +302,8 @@ int Application::EventLoop(int nCmdShow)
 	CheckRunAtStartup();
 
 	// set up DOF before creating the UI
-	DOFClient::Init();
+	if (ConfigManager::GetInstance()->GetBool(ConfigVars::DOFEnable, true))
+		DOFClient::Init();
 
 	// initialize the game list
 	CapturingErrorHandler loadErrs;
@@ -798,7 +800,22 @@ void Application::OnConfigChange()
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
 	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
 
+	// update the video sync mode
 	D3DWin::vsyncMode = cfg->GetBool(ConfigVars::VSyncLock, false) ? 1 : 0;
+
+	// If the DOF mode has changed since we last checked, create or destroy
+	// the DOF client.
+	DOFClient::WaitReady();
+	bool dofWasActive = DOFClient::Get() != nullptr;
+	bool dofIsActive = cfg->GetBool(ConfigVars::DOFEnable, true);
+	if (dofWasActive != dofIsActive)
+	{
+		// if DOF is newly enabled, initialize it; if it's newly disabled, shut it down
+		if (dofIsActive)
+			DOFClient::Init();
+		else
+			DOFClient::Shutdown(false);
+	}
 }
 
 void Application::SaveFiles()

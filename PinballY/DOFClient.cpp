@@ -34,14 +34,14 @@ void DOFClient::Init()
 	if (hInitThread != nullptr)
 		WaitForSingleObject(hInitThread, 15000);
 
-	// reset the initialization status
-	hInitThread = nullptr;
-	ready = false;
-	initErrors.Clear();
-
 	// if there's not an instance yet, create and initialize it
 	if (inst == nullptr)
 	{
+		// reset the initialization status
+		hInitThread = nullptr;
+		ready = false;
+		initErrors.Clear();
+
 		// do initialization on a background thread
 		struct ThreadContext
 		{

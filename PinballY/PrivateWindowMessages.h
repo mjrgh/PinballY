@@ -36,6 +36,9 @@ const UINT BVMsgAsyncSpriteLoadDone = WM_USER + 0;	// sprite loading finished
 const UINT BWMsgUpdateMenu = WM_USER + 100;			// update menu commands; wparam=HMENU, lParam=BaseWin* fromWin
 const UINT BWMsgCallLambda = WM_USER + 101;         // call a lamdba on the window thread (see CallOnMainThread() in BaseWin.h)
 
+// FrameWin messages
+const UINT FWRemoveVanityShield = WM_USER + 150;    // remove the vanity shield window
+
 // PlayfieldView messages
 const UINT PFVMsgGameLoaded = WM_USER + 200;        // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)
 const UINT PFVMsgGameOver = WM_USER + 201;          // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)

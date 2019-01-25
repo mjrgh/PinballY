@@ -102,6 +102,8 @@ namespace ConfigVars
 	static const TCHAR *InfoBoxDetailFont = _T("InfoBoxDetailFont");
 	static const TCHAR *StatusFont = _T("StatusFont");
 	static const TCHAR *CreditsFont = _T("CreditsFont");
+
+	static const TCHAR *DOFEnable = _T("DOF.Enable");
 };
 
 // include the capture-related variables
@@ -1970,7 +1972,7 @@ JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
 
 		// if DOF is active, get the DOF ROM
 		const WCHAR *dofRom = nullptr;
-		if (auto dofClient = DOFClient::Get(); dofClient != nullptr)
+		if (auto dofClient = DOFClient::Get(); dofClient != nullptr && DOFClient::IsReady())
 			dofRom = dofClient->GetRomForTable(game);
 
 		// try getting the NVRAM file
@@ -3049,9 +3051,10 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		return true;
 
 	case restoreDOFAndDMDTimerID:
-		// Start reinitializing the DOF client.  This fires off a background
-		// thread, so DOF won't be ready immediately.
-		DOFClient::Init();
+		// If DOF is enabled, start reinitializing the DOF client.  This fires 
+		// off a background thread, so DOF won't be ready immediately.
+		if (ConfigManager::GetInstance()->GetBool(ConfigVars::DOFEnable, true))
+			DOFClient::Init();
 
 		// start polling for when DOF is ready
 		SetTimer(hWnd, dofReadyTimerID, 250, NULL);
@@ -3900,7 +3903,7 @@ void PlayfieldView::ShowAboutBox()
 
 		// add the DOF version if present
 		std::unique_ptr<Gdiplus::Font> smallerFont(CreateGPFont(_T("Segoe UI"), 12, 400));
-		if (DOFClient *dof = DOFClient::Get(); dof != 0)
+		if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 			GPDrawStringAdv(g, MsgFmt(_T("DirectOutput Framework %s"), dof->GetDOFVersion()),
 				smallerFont.get(), &br, origin, bbox);
 
@@ -5688,7 +5691,7 @@ void PlayfieldView::ShowGameInfo()
 			gds.DrawString(MsgFmt(IDS_GAMEINFO_MEDIANAME, game->mediaName.c_str()), detailsFont, &detailsBr);
 
 		// add the DOF ROM, if present
-		if (auto dofClient = DOFClient::Get(); dofClient != nullptr)
+		if (auto dofClient = DOFClient::Get(); dofClient != nullptr && DOFClient::IsReady())
 		{
 			if (const WCHAR *rom = dofClient->GetRomForTable(game); rom != 0 && rom[0] != 0)
 				gds.DrawString(MsgFmt(IDS_GAMEINFO_DOF_ROM, rom), detailsFont, &detailsBr);
@@ -11445,7 +11448,7 @@ void PlayfieldView::EditGameInfo()
 
 			// If there's a DOF ROM for the title, and it's not already in
 			// the list, add that as well
-			if (auto dof = DOFClient::Get(); dof != nullptr)
+			if (auto dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 			{
 				// DOF is active - look up the DOF ROM by title
 				if (auto rom = dof->GetRomForTitle(title, nullptr); rom != nullptr)
@@ -15580,7 +15583,7 @@ PlayfieldView::DOFIfc::~DOFIfc()
 void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar)
 {
 	// proceed only if DOF is active
-	if (DOFClient *dof = DOFClient::Get(); dof != nullptr)
+	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 	{
 		// proceed only if this reflects a change in the value
 		if (itemVar != newVal)
@@ -15602,7 +15605,7 @@ void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar
 void PlayfieldView::DOFIfc::SyncSelectedGame()
 {
 	// only proceed if DOF is active
-	if (auto dof = DOFClient::Get(); dof != nullptr)
+	if (auto dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 	{
 		// set the new ROM for the current game selection
 		if (auto game = GameList::Get()->GetNthGame(0); IsGameValid(game))
@@ -15629,7 +15632,7 @@ void PlayfieldView::DOFIfc::SetKeyEffectState(const TCHAR *effect, bool keyDown)
 		it->second = keyDown;
 		
 		// update DOF, if active
-		if (auto dof = DOFClient::Get(); dof != nullptr)
+		if (auto dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 			dof->SetNamedState(effect, keyDown ? 1 : 0);
 	}
 }
@@ -15637,7 +15640,7 @@ void PlayfieldView::DOFIfc::SetKeyEffectState(const TCHAR *effect, bool keyDown)
 void PlayfieldView::DOFIfc::KeyEffectsOff()
 {
 	// if DOF is active, turn off all key effects
-	if (auto dof = DOFClient::Get(); dof != nullptr)
+	if (auto dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 	{
 		// visit all key effects
 		for (auto &k : keyEffectState)

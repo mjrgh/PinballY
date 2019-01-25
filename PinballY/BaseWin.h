@@ -100,6 +100,10 @@ protected:
 	// Initialize the window.  Returns true on success, false on failure.
 	virtual bool InitWin() { return true; }
 
+	// Initially show the window.  The default shows the window with the
+	// given mode and does an initial update.
+	virtual void InitShowWin(int nCmdShow);
+
 	// get the initial window position for creation
 	virtual RECT GetCreateWindowPos(int &nCmdShow) { return { 0, 0, 1, 1 }; }
 
@@ -223,6 +227,12 @@ protected:
 
 	// Handle a WM_SIZE event for minimizing the window
 	virtual void OnMinimize() { }
+
+	// Window position is about to change
+	virtual bool OnWindowPosChanging(WINDOWPOS *) { return false; }
+
+	// Window position has just changed
+	virtual bool OnWindowPosChanged(WINDOWPOS *) { return false; }
 
 	// Handle a DPI change event
 	virtual void OnDpiChanged(int dpiX, int dpiY, LPCRECT prcNewPos);

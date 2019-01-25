@@ -216,6 +216,7 @@
     <ClCompile Include="CaptureDialog.cpp" />
     <ClCompile Include="CoinsDialog.cpp" />
     <ClCompile Include="DMDDialog.cpp" />
+    <ClCompile Include="DOFDialog.cpp" />
     <ClCompile Include="FontDialog.cpp" />
     <ClCompile Include="FontPreviewCombo\FontPreviewCombo.cpp" />
     <ClCompile Include="GameLaunchDialog.cpp" />
@@ -255,6 +256,7 @@
     <ClInclude Include="CaptureDialog.h" />
     <ClInclude Include="CoinsDialog.h" />
     <ClInclude Include="DMDDialog.h" />
+    <ClInclude Include="DOFDialog.h" />
     <ClInclude Include="FontDialog.h" />
     <ClInclude Include="FontPreviewCombo\FontPreviewCombo.h" />
     <ClInclude Include="GameLaunchDialog.h" />

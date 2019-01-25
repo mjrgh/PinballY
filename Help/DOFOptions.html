@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>DOF Options</h1>
+
+<p>
+   This dialog lets you control how PinballY uses DOF (the DirectOutput
+   Framework).  DOF is a separate software package that manages feedback
+   devices in a pin cab, such as flipper solenoids and flasher lights.
+   PinballY can use DOF to activate your feedback devices when events occur
+   in the UI.  For example, it can trigger the flipper solenoids when you
+   press the flipper buttons, and flash your flasher lights when switching
+   between games.
+</p>
+<p>
+   The only option in the DOF setup page is <b>Enable DOF effects</b>.
+   Check this box to use DOF effects in PinballY; un-check it to disable
+   these effects.  This only affects PinballY's DOF usage, obviously; it
+   won't change the way DOF is used in Visual Pinball or any other
+   programs.
+</p>
+
+<h2>DOF setup</h2>
+<p>
+   To use DOF with PinballY, the only thing you have to do is install
+   DOF itself.  PinballY automatically detects and accesses DOF once
+   it's installed.  There's no need to install or configure anything
+   extra to use DOF with PinballY.
+</p>
+<p>
+   The specific DOF effects that PinballY triggers are defined through
+   DOF's own configuration files.  Most people set up the DOF configuration using
+   the online <a target="_blank" href="http://configtool.vpuniverse.com/">DOF Config Tool</a>.
+   As far as DOF is concerned, PinballY is just another pinball table,
+   called "PinballY".  You can customize the PinballY DOF effects as follows:
+</p>
+<ul>
+   <li>Open the <a target="_blank" href="http://configtool.vpuniverse.com/">DOF Config Tool</a> in your browser
+   <li>Click on the Table Configs button in the top nav bar
+   <li>Select <b>PinballY</b> in the Table Name drop list
+</ul>
+<p>
+   All of the PinballY event triggers are "virtual" events, which have
+   names starting with <b>$PBY</b>.  For a list of these events, see
+   <a href="DOFEvents.html">DOF Events</a>.
+</p>
+<p>
+   For more information about DOF in general, see
+   <a target="_blank" href="http://mjrnet.org/pinscape/BuildGuideV2/BuildGuide.php?sid=DOF">DOF Setup</a>
+   in the Pinscape Build Guide.
+</p>
+   
+</body>
+</html>

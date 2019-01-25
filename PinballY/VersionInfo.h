@@ -30,7 +30,7 @@
 // build information.
 // 
 // 
-// II.  General guidelines for release version numbering
+// II.  Guidelines for release version numbering
 // 
 // - Update PINBALLY_VERSION with a new version number when creating a new
 //   official public release.
@@ -45,8 +45,8 @@
 // 
 // - Don't update the main version number string or pre-release
 //   sequence number for internal development builds.  Just use the
-//   automatically generated build number/date stamp to tell binaries
-//   apart as needed.
+//   automatically generated build number/date stamp to distinguish
+//   binaries.
 // 
 // - If you're creating a forked version, see the section on fork
 //   version numbers below.
@@ -86,31 +86,18 @@
 // 
 // This specifies the release status - alpha, beta, etc.
 // 
-// To some degree, the traditional alpha/beta/production release cycle
-// is meaningless in an open source pboject, because such an open source
-// project is arguably in a perpetual "beta" state by its very nature.  
-// In commercial software, the release level often has a formal meaning, 
-// spelled out in sales contracts, that defines the type of support and
-// warranty service that customers will receive during a testing cycle.
-// A testing release also typically restricts the circulation to a
-// limited set of customers who have agreed to participate in the test
-// cycle.  None of these factors are relevant to open-source software, 
-// where anyone can generally download any version, and where there's
-// explicitly no warranty or support service at *any* point in the
-// lifecycle.
-// 
-// Even so, the traditional software lifecycle is so widely used and 
-// understood that open source projects tend to use it, just less
-// formally than in commercial products.  For users, it provides an
-// indication of how much testing a release has had and how stable the
-// developers consider it to be.  This lets users opt in to releases
-// according to their individual tolerance for bugs and instability vs.
-// their desire to have access to the latest features and their interest
-// in helping with the testing process.  For the developers, the release
-// status is useful for gauging how much risk they should be willing to 
-// take (in terms of the potential for breaking existing functionality 
-// and introducing new instability) when considering what sorts of 
-// changes to include in a particular build.
+// In a commercial software product, the traditional alpha/beta/production
+// phases have concrete meanings spelled out in sales contracts, relating
+// to things like support SLAs, warranty terms, and which customers have
+// access to which releases.  None of those things translate very well to
+// an open-source project, because most open-source projects (including
+// this one) come without any warranty or promise of support and are
+// (almost by definition of "open") available to anyone at any release
+// level.
+//
+// Even so, most open-source projects still use these terms, albeit
+// informally, since they're widely known and serve as a useful 
+// shorthand to express how stable a given release is.
 // 
 // As with the version numbering scheme, there's not a precise or
 // universal set of rules for the release lifecycle, even in the

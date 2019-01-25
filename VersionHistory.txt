@@ -1,5 +1,15 @@
 PinballY Update History
 
+? (1.0.0 Beta 3)
+
+* You can disable DOF effects, via a checkbox on the new DOF page of
+the settings dialog.  (Issue #27 on github.)
+
+* The Topper window now has a "Show window borders" option in its
+right-click context menu, which allows hiding the window's caption bar
+and sizing borders if desired.
+
+
 01-22-2019 (1.0.0 Beta 2)
 
 * The system now features a built-in Javascript engine, offering

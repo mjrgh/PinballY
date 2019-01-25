@@ -187,6 +187,33 @@ WaitForMonitors = 1 monitor, 10 seconds
 SplashScreen = 1
 
 
+# DOF.  PinballY can use DOF to activate effects on your pin cab 
+# feedback devices, such as firing the flipper solenoids when you 
+# press the flipper buttons and showing lighting effects when switching
+# between games.  The program detects and accesses DOF automatically,
+# using DOF's registered COM objects, so there's nothing extra that
+# you have to install or configure to make DOF work with PinballY.
+#
+# The specific DOF effects that PinballY triggers are controlled by
+# the DOF config files.  Most people set these up using the online
+# DOF Config Tool, https://configtool.vpuniverse.com/.  PinballY
+# pretends to be yet another pinball game as far as DOF is concerned,
+# so PinballY's effects can be customized just any table's effects
+# can be customized.  PinballY's pretend table name in the DOF
+# config is "PinballY".  If you're using the online DOF Config tool,
+# you can find the PinballY settings by clicking the Table Configs
+# tab in the top nav bar, then selecting "PinballY" from the Table
+# Name drop list.
+#
+# PinballY's DOF events are "virtual" events, with names starting
+# with $PBY.  For a full list of these events, refer to the Help
+# section on DOF Events.
+#
+# If you'd like to disable PinballY's DOF usage completely, set
+# DOF.Enable to 0.
+DOF.Enable = 1
+
+
 # Real DMD setup.  This is for real pinball-style Dot Matrix Display
 # devices.  (It's NOT for normal video monitors used to display simulated
 # DMD images; it's only for physical DMD devices, such as the commercial

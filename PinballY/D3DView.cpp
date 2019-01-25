@@ -87,7 +87,7 @@ void D3DView::SetMirrorVert(bool f)
 bool D3DView::InitWin()
 {
 	// do nothing if I've already been initialized
-	if (d3dwin != 0)
+	if (d3dwin != nullptr)
 		return true;
 
 	// load the menu icons
