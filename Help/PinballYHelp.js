@@ -41,6 +41,7 @@ var contents = [
                 "+++MenuEvent.html MenuEvent [event:mainWindow]",
                 "+++PopupEvent.html PopupEvent [event:mainWindow]",
                 "+++SettingsEvent.html SettingsEvent [event:optionSettings]",
+                "+++StatusLineEvent.html StatusLineEvent [event:mainWindow]",
                 "+++WheelModeEvent.html WheelModeEvent [event:mainWindow]",
         "+JsDebug.html Debugging",
         "+DllImport.html Calling Native DLLs from Javascript",

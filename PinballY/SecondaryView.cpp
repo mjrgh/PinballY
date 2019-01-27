@@ -18,7 +18,6 @@
 #include "VideoSprite.h"
 #include "GameList.h"
 #include "Application.h"
-#include "MouseButtons.h"
 #include "PlayfieldView.h"
 #include "MediaDropTarget.h"
 
@@ -349,79 +348,4 @@ void SecondaryView::ShowContextMenu(POINT pt)
 
 	// use the normal handling
 	__super::ShowContextMenu(pt);
-}
-
-bool SecondaryView::IsBorderlessWindowMode(HWND parent)
-{
-	return parent != NULL
-		&& ::SendMessage(parent, PWM_ISBORDERLESS, 0, 0) != 0
-		&& ::SendMessage(parent, PWM_ISFULLSCREEN, 0, 0) == 0;
-}
-
-bool SecondaryView::OnNCHitTest(POINT pt, UINT &hit)
-{
-	// If the parent is borderless and not in full-screen mode, simulate
-	// sizing borders around the perimeter of the client area.
-	if (HWND parent = GetParent(hWnd); IsBorderlessWindowMode(parent))
-	{
-		// If it's within the sizing border with of an edge, let 
-		// the parent window handle it.  This gives us an invisible
-		// sizing border that acts like a normal sizing border, but
-		// is covered out to the edge by the DMD contents.
-
-		// figure the sizing border area of the parent, based on its
-		// window style, but excluding the caption area
-		RECT rcFrame = { 0, 0, 0, 0 };
-		DWORD dwStyle = GetWindowLong(parent, GWL_STYLE);
-		DWORD dwExStyle = GetWindowLong(parent, GWL_EXSTYLE);
-		AdjustWindowRectEx(&rcFrame, dwStyle & ~WS_CAPTION, FALSE, dwExStyle);
-
-		// get my window rect 
-		RECT rcWindow;
-		GetWindowRect(hWnd, &rcWindow);
-
-		// check if we're in the sizing border
-		if ((pt.x >= rcWindow.left && pt.x < rcWindow.left - rcFrame.left)
-			|| (pt.x < rcWindow.right && pt.x >= rcWindow.right - rcFrame.right)
-			|| (pt.y >= rcWindow.top && pt.y < rcWindow.top - rcFrame.top)
-			|| (pt.y < rcWindow.bottom && pt.y >= rcWindow.bottom - rcFrame.bottom))
-		{
-			// it's in the sizing border - let the parent window handle it
-			hit = HTTRANSPARENT;
-			return true;
-		}
-	}
-
-	// inherit the default handling
-	return __super::OnNCHitTest(pt, hit);
-}
-
-bool SecondaryView::OnMouseMove(POINT pt)
-{
-	// check if we're in a left-button drag operation
-	if (dragButton == MouseButton::mbLeft)
-	{
-		// If the parent is borderless and not in full-scree mode, 
-		if (HWND parent = GetParent(hWnd); parent != NULL && IsBorderlessWindowMode(parent))
-		{
-			// Get the delta from the initial position
-			POINT delta;
-			delta.x = pt.x - dragPos.x;
-			delta.y = pt.y - dragPos.y;
-
-			// move the parent window by the drag position
-			RECT rc;
-			GetWindowRect(parent, &rc);
-			SetWindowPos(parent, 0, rc.left + delta.x, rc.top + delta.y, -1, -1, SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
-
-			// Note that we don't need to update the drag position, as it's
-			// relative to the client area, and we're moving the client area
-			// in sync with each mouse position change.  That means that the
-			// relative mouse never changes.
-			return true;
-		}
-	}
-
-	// use the default handling 
-	return __super::OnMouseMove(pt);
 }

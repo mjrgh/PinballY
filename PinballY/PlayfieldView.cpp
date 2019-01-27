@@ -531,6 +531,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsSettingsReloadEvent, "SettingsReloadEvent")
 				|| !GetObj(jsSettingsPreSaveEvent, "SettingsPreSaveEvent")
 				|| !GetObj(jsSettingsPostSaveEvent, "SettingsPostSaveEvent")
+				|| !GetObj(jsStatusLineEvent, "StatusLineEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -2957,9 +2958,9 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 void PlayfieldView::InitStatusLines()
 {
 	// initialize the status lines from the config
-	upperStatus.Init(this, 75, 0, 6, _T("UpperStatus"), IDS_DEFAULT_STATUS_UPPER);
-	lowerStatus.Init(this, 0, 0, 6, _T("LowerStatus"), IDS_DEFAULT_STATUS_LOWER);
-	attractModeStatus.Init(this, 32, 0, 6, _T("AttractMode.StatusLine"), IDS_DEFAULT_STATUS_ATTRACTMODE);
+	upperStatus.Init(this, _T("upper"), 75, 0, 6, _T("UpperStatus"), IDS_DEFAULT_STATUS_UPPER);
+	lowerStatus.Init(this, _T("lower"), 0, 0, 6, _T("LowerStatus"), IDS_DEFAULT_STATUS_LOWER);
+	attractModeStatus.Init(this, _T("attract"), 32, 0, 6, _T("AttractMode.StatusLine"), IDS_DEFAULT_STATUS_ATTRACTMODE);
 
 	// reset the drawing list, as the sprites might have changed
 	UpdateDrawingList();
@@ -14887,10 +14888,14 @@ void PlayfieldView::UpdateAllStatusText()
 	attractModeStatus.OnSourceDataUpdate(this);
 }
 
-void PlayfieldView::StatusLine::Init(PlayfieldView *pfv,
+void PlayfieldView::StatusLine::Init(
+	PlayfieldView *pfv, const WCHAR *jsid,
 	int yOfs, int idleSlide, int fadeSlide,
 	const TCHAR *cfgVar, int defaultMessageResId)
 {
+	// remember my javascript ID
+	this->jsid = jsid;
+
 	// remember my location slide distance, normalized to camera coordinates
 	this->y = float(yOfs) / 1920.0f;
 	this->idleSlide = float(idleSlide) / 1920.0f;
@@ -14973,7 +14978,7 @@ void PlayfieldView::StatusLine::OnSourceDataUpdate(PlayfieldView *pfv)
 		float alpha = curItem->sprite->alpha;
 
 		// update its text
-		curItem->Update(pfv, y);
+		curItem->Update(pfv, this, y);
 
 		// set the same alpha in the new item
 		if (curItem->sprite != nullptr)
@@ -15065,8 +15070,8 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 			// switch to the new item
 			curItem = NextItem();
 
-			// udpate it
-			curItem->Update(pfv, y);
+			// update it
+			curItem->Update(pfv, this, y);
 
 			// set it up for the fade-in
 			curItem->sprite->alpha = 0;
@@ -15154,14 +15159,41 @@ TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 	});
 }
 
-void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, float y)
+void PlayfieldView::FireStatusLineEvent(const WCHAR *id, const TSTRING &srcText, TSTRING &expandedText)
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		// fire the event, retrieving the event object
+		JsValueRef eventObjVal;
+		js->FireAndReturnEvent(eventObjVal, jsMainWindow, jsStatusLineEvent, id, srcText, expandedText);
+
+		try
+		{
+			// replace the expanded text with the text in the event object
+			JavascriptEngine::JsObj eventObj(eventObjVal);
+			if (eventObj.Has(L"expandedText"))
+				expandedText = eventObj.Get<TSTRING>("expandedText");
+		}
+		catch (...)
+		{
+			// clear and ignore any Javascript exception
+			JsValueRef jsexc;
+			JsGetAndClearException(&jsexc);
+		}
+	}
+}
+
+void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float y)
 {
 	// get my new display text
 	TSTRING newDispText = ExpandText(pfv);
 	
+	// fire the Javascript event
+	pfv->FireStatusLineEvent(sl->jsid.c_str(), this->srcText, newDispText);
+
 	// if there's already a sprite, and the message is the same as
 	// before, no update is necessary
-	if (sprite != 0 && newDispText == dispText)
+	if (sprite != nullptr && newDispText == dispText)
 		return;
 
 	// store the new expanded text

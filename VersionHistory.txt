@@ -5,9 +5,18 @@ PinballY Update History
 * You can disable DOF effects, via a checkbox on the new DOF page of
 the settings dialog.  (Issue #27 on github.)
 
-* The Topper window now has a "Show window borders" option in its
-right-click context menu, which allows hiding the window's caption bar
-and sizing borders if desired.
+* The Topper window and main playfield windows now have "Show window
+borders" options in their right-click context menus.  This allows
+hiding the caption bar and sizing borders on these windows if desired.
+(This is the same borderless option that was already available for the
+DMD, instruction card, and backglass windows.  You can still move a
+borderless window by dragging it with the mouse anywhere within the
+window, and you can resize by dragging near any edge or corner of the
+window with the mouse, as though the normal sizing borders were still
+there, even though you can't see them.)
+
+* Javascript additions: status line events (StatusLineEvent).  See
+the Javascript section in the help files for details.
 
 
 01-22-2019 (1.0.0 Beta 2)
@@ -24,7 +33,7 @@ called "Startup Video.mp4" in the PinballY\Media folder.  (You can use
 .mp4 or any of the other supported video extensions: .mpg, .f4v, .mkv,
 .wmv, .m4v, .avi.)  If this file exists, the video will be played in
 the main playfield window immediately after the program loads, and
-then the initially selected game will be shown a normal.  If there's
+then the initially selected game will be shown as normal.  If there's
 no such file, the program goes straight to the normal UI. 
 
 * You can also set up a custom startup audio track.  Place an audio

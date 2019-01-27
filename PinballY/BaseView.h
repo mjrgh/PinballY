@@ -43,6 +43,12 @@ public:
 protected:
 	~BaseView();
 
+	// Is the parent in borderless window mode?  This returns true if
+	// the parent is in borderless mode and not in full-screen mode.
+	// (Full-screen mode is also technically borderless, but it's not
+	// "window mode" in the sense of being sizeable and movable.)
+	bool IsBorderlessWindowMode(HWND parent);
+
 	// Instruction card display setup.  Returns a new sprite on
 	// success, null on failure.
 	Sprite *PrepInstructionCard(const TCHAR *filename);
@@ -174,6 +180,12 @@ protected:
 
 	// destroy the window
 	virtual bool OnDestroy() override;
+
+	// mouse move handler
+	virtual bool OnMouseMove(POINT pt) override;
+
+	// non-client hit testing
+	virtual bool OnNCHitTest(POINT pt, UINT &hit) override;
 
 	// Handle a Windows keyboard event
 	virtual bool OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam) override;

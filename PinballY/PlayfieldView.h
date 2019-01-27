@@ -1046,12 +1046,13 @@ protected:
 	// text, and if it differs, we replace the sprite.  This lets
 	// us reuse sprites for as long as they're valid, while still
 	// updating them as needed.
+	struct StatusLine;
 	struct StatusItem
 	{
 		StatusItem(const TCHAR *srcText) : srcText(srcText) { }
 
 		// Update the item's sprite if necessary
-		void Update(PlayfieldView *pfv, float y);
+		void Update(PlayfieldView *pfv, StatusLine *sl, float y);
 
 		// determine if an update is needed
 		bool NeedsUpdate(PlayfieldView *pfv);
@@ -1070,7 +1071,8 @@ protected:
 		StatusLine() : curItem(items.end()), dispTime(2000), y(0), height(75), phase(DispPhase) { }
 
 		// initialize
-		void Init(PlayfieldView *pfv, int yOfs, int fadeSlide, int idleSlide,
+		void Init(PlayfieldView *pfv, const WCHAR *jsid, 
+			int yOfs, int fadeSlide, int idleSlide,
 			const TCHAR *cfgVar, int defaultMessageResId);
 
 		// handle a timer update
@@ -1109,6 +1111,9 @@ protected:
 			if (curItem != items.end())
 				curItem->sprite->alpha = 0.0f;
 		}
+
+		// Status line ID for javascript purposes
+		WSTRING jsid;
 
 		// Start time for current item display
 		DWORD startTime;
@@ -2329,6 +2334,7 @@ protected:
 	JsValueRef jsSettingsPreSaveEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsSettingsPostSaveEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsFilterSelectEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsStatusLineEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2352,6 +2358,7 @@ protected:
 	bool FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 	bool FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type,
 		GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
+	void FireStatusLineEvent(const WCHAR *id, const TSTRING &rawText, TSTRING &expandedText);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode

@@ -45,8 +45,12 @@ for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestFFmpeg32.txt) do zip %ReleaseZipFull% %%i
-for /f "delims=" %%i in (ReleaseManifest7zip32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull% %%i
+
+rem  7-zip needs special handling because of its path setup
+move 7-zip\x86\7z.dll 7-zip
+zip %ReleaseZipFull% 7-zip\7z.dll
+move 7-zip\7z.dll 7-zip\x86
 
 rem  Build the "Min" ZIP
 if exist %ReleaseZipMin% del %ReleaseZipMin%
@@ -60,8 +64,12 @@ for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestFFmpeg64.txt) do zip %ReleaseZipFull64% %%i
-for /f "delims=" %%i in (ReleaseManifest7zip64.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull64% %%i
+
+rem  7-zip needs special handling because of its path setup
+move 7-zip\x64\7z.dll 7-zip
+zip %ReleaseZipFull64% 7-zip\7z.dll
+move 7-zip\7z.dll 7-zip\x64
 
 rem  Build the "Min" 64-bit ZIP
 if exist %ReleaseZipMin64% del %ReleaseZipMin64%

@@ -20,37 +20,55 @@
    tables in the table list.
 </p>
 <p>
-   DOF integration is automatic;
-   to take advantage of it, just make sure that DOF is installed
+   DOF integration is automatic.
+   To take advantage of it, just make sure that DOF is installed
    and that your .ini files from the
-   <a href="http://configtool.vpuniverse.com/">DOF Config Tool</a>
+   <a href="http://configtool.vpuniverse.com/" target="_blank">DOF Config Tool</a>
    are up to date.  The PinballY definitions were added to the
    Config Tool database in late July 2018, so you'll need to generate
    and download fresh copies if your current .ini files are older
    than that.
 </p>
+<p>
+   You can disable PinballY's DOF usage entirely via the
+   <a href="DOFOptions.html">DOF Options</a> page in the Settings
+   dialog.
+</p>
 
 <h2>Customizing DOF effects</h2>
 <p>
-   The DOF Config Tool's database includes a predefined set of
+   You can customize all of PinballY's DOF effects via the
+   <a href="http://configtool.vpuniverse.com/" target="_blank">DOF Config Tool</a>.
+</p>
+<p>
+   The Config Tool's database  includes a predefined set of
    effects for PinballY, so you don't have to do anything to use
-   the standard effects other than make sure your .ini files are
+   the standard effects other than making sure your .ini files are
    up-to-date.  If you want to customize anything, though, the
    Config Tool lets you override any of the default effects with
    your own custom settings.
 </p>
 <p>
-   All PinballY events are defined under the pseudo-table named
-   <b>PinballY</b>.  To view the event settings in the DOF Config Tool,
-   go to the Table Configs page and select <b>PinballY</b> from the
-   Table Name drop list.
+   Here's how you can access the PinballY settings in the Config Tool:
+</p>
+<ul>
+   <li>In your Web browser, open the <a href="http://configtool.vpuniverse.com/" target="_blank">DOF Config Tool</a>
+   <li>Log in
+   <li>Click <b>Table Configs</b> in the top navigation bar
+   <li>Select <b>PinballY</b> from the Table Names drop list
+</ul>
+
+<p>
+   All of the PinballY DOF effects are defined under this
+   "PinballY" pseudo-table.  As far as DOF is concerned, PinballY is
+   just another pinball table.
 </p>
 <p>
    PinballY's entries in the Config Tool follow the standard format
-   defined by DOF.  That's a bit obscure and hard to read, but we
-   won't try to explain it here, since you can find documentation
-   on it in the DOF user guide.  What we will give you is a list of
-   the special event names and state names that PinballY generates.
+   defined by DOF.  That standard format is unfortunately rather obtuse
+   and difficult to read, and it's beyond the scope of what we can explain here, but you can find
+   documentation on it in the DOF user guide.  What we will give you is a
+   list of the special event names and state names that PinballY generates.
 </p>
 <p>
    Note that all named effects in the Config Tool are specified with
@@ -168,7 +186,7 @@
    a menu, running the "attract mode" screen saver, and so on.
 </p>
 <ul>
-   <li><b>PBYMenu:</b> A menu is displayed
+   <li><b>PBYMenu:</b> A menu is being displayed
 
    <li><b>PBYScreenSaver:</b> Attract mode is active
 

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>StatusLineEvent</h1>
+
+<p>
+   This event class is fired when one of the status line messages is about
+   to change.  (The status line is the area near the bottom of the main
+   window where a rotating series of messages are displayed.)
+</p>
+<p>
+   This event has only one subtype:
+</p>
+<ul>
+   <li><b>statusline:</b> Fires when a status line message is about to change.
+   This event isn't cancelable, but you can change the text to be displayed
+   by assigning a new value to the <b>expandedText</b> property of the event.
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+<h2>Triggers</h2>
+
+<p>
+   The <b>statusline</b> event can be triggered in two different ways:
+</p>
+<ul>
+   <li>By the normal timed rotation through the different messages
+   assigned to the the status line.  Each message is displayed for a
+   fixed amount of time (configured in the settings), and when the
+   time is up, the system automatically switches to the next message
+   in the rotation.  The <b>statusline</b> event is fired each time one
+   of these routine timed updates occurs.
+
+   <li>By a change to something else in the PinballY environment that
+   affects or could affect one of the status line substitution variables.
+   PinballY re-evaluates the text of each current status line message to
+   check for changes to the text whenever something changes in the environment,
+   such as switching to a new game on the wheel or selecting a different
+   filter.  When the program detects a change in the expanded text, it
+   immediately updates the displayed text to match, firing this event
+   in the process.
+</ul>
+
+
+<h2>Properties</h2>
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the following
+   additional items:
+</p>
+
+<ul>
+   <li><b>expandedText:</b> a string containing the expanded text for
+   the new message that's being displayed.  This is the result of
+   replacing any substitution variables in the source text with their
+   current values.  See <a href="StatuslineOptions.html#substVars">Statusline Options</a>
+   for a list of the substitution variables.
+   <p>
+      If you assign a new value to <b>expandedText</b>, the program
+      will display your new value in place of the expanded text it was
+      going to display.
+   </p>
+
+   <li><b>sourceText:</b>  a string containing the source text for the
+   new message that's being displayed.  This is the raw text specified
+   in the settings, before replacing substitution variables with
+   their current values.  See <a href="StatuslineOptions.html">Statusline Options</a>
+   for more on setting up the messages to be displayed.
+
+   <li><b>which:</b>  a string identifying which part of the status line
+   is being updated:
+
+   <ul>
+      <li>"upper": the upper line of the main status line
+      <li>"lower": the lower line of the main status line
+      <li>"attract": the single status line shown in attract mode
+   </ul>
+</ul>
+
+</body>
+</html>

@@ -921,6 +921,18 @@ this.SettingsPostSaveEvent = class SettingsPostSaveEvent extends SettingsEvent
     }
 };
 
+// Status line events
+this.StatusLineEvent = class StatusLineEvent extends Event
+{
+    constructor(which, sourceText, expandedText)
+    {
+        super("statusline", { cancelable: false });
+        this.which = which;
+        this.sourceText = sourceText;
+        this.expandedText = expandedText;
+    }
+};
+
 
 // ------------------------------------------------------------------------
 //
