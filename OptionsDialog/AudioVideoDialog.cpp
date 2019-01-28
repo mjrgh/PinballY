@@ -24,5 +24,6 @@ void AudioVideoDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Video.Mute"), IDC_CK_MUTE_VIDEOS, false));
 	varMap.emplace_back(new CkBoxMap(_T("Buttons.Mute"), IDC_CK_MUTE_BUTTONS, false));
 	varMap.emplace_back(new CkBoxMap(_T("VSyncLock"), IDC_CK_VSYNC_LOCK, false));
+	varMap.emplace_back(new CkBoxMap(_T("Playfield.Stretch"), IDC_CK_STRETCH_PLAYFIELD, false));
 }
 

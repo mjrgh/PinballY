@@ -1183,6 +1183,10 @@ protected:
 		RefPtr<AudioVideoPlayer> audio;
 	};
 	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield;
+	
+	// Should we maintain the playfield image aspect ratio or stretch
+	// it to fit the window?
+	bool stretchPlayfield = false;
 
 	// asynchronous loader for the playfield sprite
 	AsyncSpriteLoader playfieldLoader;

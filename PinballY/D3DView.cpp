@@ -285,11 +285,8 @@ void D3DView::ScaleSprite(Sprite *sprite, float span, bool maintainAspect)
 	// are we maintaining the aspect ratio?
 	if (maintainAspect)
 	{
-		// We're maintaining the aspect ratio.  Figure the scale that
-		// makes the sprite exactly fill the span in each dimension,
-		// then pick the smaller of the two and use it for both 
-		// scaling dimensions.  This will make the sprite fill the
-		// span in one dimension without overflowing the other.
+		// We're maintaining the aspect ratio.  Use the smaller of the
+		// two scaling factors.
 		sprite->scale.x = sprite->scale.y = fminf(xScale, yScale);
 	}
 	else

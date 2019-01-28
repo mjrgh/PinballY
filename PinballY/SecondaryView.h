@@ -30,7 +30,7 @@ public:
 	virtual void ClearMedia();
 
 	// Begin/end running game mode
-	virtual void BeginRunningGameMode();
+	virtual void BeginRunningGameMode(GameListItem *game);
 	void EndRunningGameMode();
 
 	// frame window is being shown/hidden
@@ -50,6 +50,22 @@ protected:
 	// command of the form ID_SYNC_window; this command is sent
 	// to the main playfield view for dispatch.
 	virtual UINT GetNextWindowSyncCommand() const = 0;
+
+	// Should we continue to show media in this window when we
+	// start running a game?  This is a per-game setting, stored
+	// in the game stats database, since the desirability is a
+	// function of the particular game's ability to display its
+	// own graphics in the area this window represents.  To some
+	// extent, it's a function of the player system: for example,
+	// Pinball FX3 doesn't provide animated backglass graphics, so
+	// most people will want to let the PBY video continue to play
+	// in the backglass for every FX3 game.  But it can also vary
+	// per game, especially in VP, where some games provide
+	// backglass and DMD graphics and some don't.
+	bool ShowMediaWhenRunning(GameListItem *game) const;
+
+	// window ID for "Show When Running" column in the game stats
+	virtual const TCHAR *ShowWhenRunningWindowId() const = 0;
 
 	// send the sync command to the next window
 	void SyncNextWindow();

@@ -2,21 +2,69 @@ PinballY Update History
 
 ? (1.0.0 Beta 3)
 
-* You can disable DOF effects, via a checkbox on the new DOF page of
-the settings dialog.  (Issue #27 on github.)
+* There are now two options for how the playfield background image or
+video is displayed.  By default, the original aspect ratio of the
+image or video is maintained, and the image is made as large as
+possible such that it fits entirely within the window.  Alternatively,
+you can "stretch" the image or video so that it exactly fills the
+window.  This might be preferable if you're using a desktop setup
+rather than a pin cab, and might even be preferable on a pin cab if
+you have a mix of background videos captured with slightly different
+aspect ratios.  The new option can be found in the Audio/Video section
+in the settings dialog.  (Addresses issue #15 on github.)
+
+* You can now continue to show PinballY's backglass, DMD, topper, and
+instruction card windows while a game is running.  By default, these
+windows are all blanked out to a plain black background when a game is
+launched, which is how it always worked in the past.  But now you can
+make any of these windows continue to show its image or video for the
+running game.
+
+This is controlled individually for each window AND each game.  For
+example, you can make the VP version of Aladdin's Castle show just the
+PinballY DMD graphics while the game is running, while the FP version
+of the same game shows both the PinballY backglass and DMD graphics.
+
+To select which windows should continue to show graphics during a
+game, use the Game Details dialog, which you can reach from the Game
+Setup menu.  (The Game Setup menu, in turn, can be reached from the
+Operator menu: with the default key mappings, press "0", the digit
+zero, to bring up the Operator Menu.)  Look for the "Show when
+running" checkboxes.
+
+When a window is designated to keep showing its graphics during the
+game, PinballY also makes it a "topmost" window, which helps ensure
+that it's not covered up by a window that the game program opens.
+This lets you use the feature not only to fill in for display elements
+that a game lacks entirely, but also to replace display elements that
+the game displays but which you don't like.  For example, some game
+systems can only display static backglass images, which you might
+prefer to cover with the PinballY video display instead.  This feature
+naturally does that by ensuring (or at least trying to ensure) that
+the PinballY window stays in front of any window the game system opens
+in the same area of the display.
+
+(This address issue #26 on github.)
 
 * The Topper window and main playfield windows now have "Show window
 borders" options in their right-click context menus.  This allows
 hiding the caption bar and sizing borders on these windows if desired.
 (This is the same borderless option that was already available for the
-DMD, instruction card, and backglass windows.  You can still move a
+DMD, instruction card, and backglass windows.  You can move a
 borderless window by dragging it with the mouse anywhere within the
 window, and you can resize by dragging near any edge or corner of the
 window with the mouse, as though the normal sizing borders were still
 there, even though you can't see them.)
 
+* You can now disable DOF effects, via a checkbox on the new DOF page
+of the settings dialog.  (Issue #27 on github.)
+
 * Javascript additions: status line events (StatusLineEvent).  See
 the Javascript section in the help files for details.
+
+* Fixed a couple of problems in the 64-bit ZIP distribution (these
+didn't affect the MSI): 7z.dll was missing; the folder containing the
+ffmpeg files was incorrectly named ffmpeg64.
 
 
 01-22-2019 (1.0.0 Beta 2)

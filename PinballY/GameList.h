@@ -1274,6 +1274,7 @@ public:
 	const CSVFile::Column *categoriesCol;
 	const CSVFile::Column *hiddenCol;
 	const CSVFile::Column *markedForCaptureCol;
+	const CSVFile::Column *showWhenRunningCol;
 
 	// Get/set the Last Played time
 	const TCHAR *GetLastPlayed(GameListItem *game) 
@@ -1338,6 +1339,10 @@ public:
 	//hidden == not enabled)
 	bool IsHidden(GameListItem *game) { return hiddenCol->GetBool(GetStatsDbRow(game)); }
 	void SetHidden(GameListItem *game, bool f) { hiddenCol->SetBool(GetStatsDbRow(game, true), f); }
+
+	// get/set the Show When Running window list for a game
+	const TCHAR *GetShowWhenRunning(GameListItem *game) { return showWhenRunningCol->Get(GetStatsDbRow(game)); }
+	void SetShowWhenRunning(GameListItem *game, const TCHAR *val) { showWhenRunningCol->Set(GetStatsDbRow(game, true), val); }
 
 	// Find a category or create a new one.  If a category already exists 
 	// with this name, this simply returns the existing category object;

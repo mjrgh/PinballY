@@ -62,6 +62,9 @@ protected:
 	virtual const MediaType *GetBackgroundVideoType() const override;
 	virtual const TCHAR *GetDefaultBackgroundImage() const override;
 
+	// "show when running" window ID
+	virtual const TCHAR *ShowWhenRunningWindowId() const override { return _T("dmd"); }
+
 	// handle a change of background image
 	virtual void OnChangeBackgroundImage() override;
 

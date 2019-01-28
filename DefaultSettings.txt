@@ -312,6 +312,12 @@ InfoBox.Rating = 1
 InfoBox.TableFile = 0
 
 
+# Playfield background layout.  By default, the playfield background
+# image/video is shown at its original aspect ratio.  Set this to 1
+# to stretch the video to fill the entire window, even if that distorts
+# the aspect ratio.
+Playfield.Stretch = 0
+
 # Where should instruction card pop-up images be displayed?  Enter 
 # Playfield, Topper, or Backglass to select the desired display window.
 # (If the window you designate here isn't visible when you ask to 

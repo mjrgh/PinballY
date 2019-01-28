@@ -119,6 +119,16 @@ public:
 	// Render the video onto the given sprite
 	virtual bool Render(Camera *camera, Sprite *sprite) = 0;
 
+	// Format descriptor.  During video playback, when the video frame
+	// format is first detected or when it changes during playback, the
+	// player sends the event window an AVPMsgSetFormat message with a
+	// pointer to this struct in the LPARAM.
+	struct FormatDesc
+	{
+		UINT width;
+		UINT height;
+	};
+
 protected:
 	// reference counted -> protected destructor
 	virtual ~AudioVideoPlayer();

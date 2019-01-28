@@ -22,13 +22,17 @@
 #define IDC_CB_HIGH_SCORE_STYLE         3014
 #define IDC_TXT_DATE_ADDED              3015
 #define IDC_TXT_ARCHENTRY               3016
-#define IDC_TXT_DATE_ADDED2             3016
 #define IDC_TXT_IPDB_ID                 3016
 #define IDC_ST_GRIDPOS                  3017
 #define IDC_BTN_PINBALLX                3019
 #define IDC_BTN_PINBALLY                3020
 #define IDC_TXT_PBX_PROMPT              3021
 #define IDC_TXT_PORT                    3022
+#define IDC_CK_SHOW_WHEN_RUNNING_BG     3023
+#define IDC_CK_SHOW_WHEN_RUNNING_DMD    3024
+#define IDC_CK_SHOW_WHEN_RUNNING_TOPPER 3025
+#define IDC_CHECK4                      3026
+#define IDC_CK_SHOW_WHEN_RUNNING_INSTCARD 3026
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003
@@ -43,7 +47,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        4014
 #define _APS_NEXT_COMMAND_VALUE         45000
-#define _APS_NEXT_CONTROL_VALUE         3023
+#define _APS_NEXT_CONTROL_VALUE         3024
 #define _APS_NEXT_SYMED_VALUE           7000
 #endif
 #endif

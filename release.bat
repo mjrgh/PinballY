@@ -44,7 +44,7 @@ if exist %ReleaseZipFull% del %ReleaseZipFull%
 for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC32.txt) do zip %ReleaseZipFull% %%i
-for /f "delims=" %%i in (ReleaseManifestFFmpeg32.txt) do zip %ReleaseZipFull% %%i
+for /f "delims=" %%i in (ReleaseManifestFFmpeg.txt) do zip %ReleaseZipFull% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull% %%i
 
 rem  7-zip needs special handling because of its path setup
@@ -58,18 +58,26 @@ for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipMin% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin% %%i
 
 
+rem  Rename the .\ffmpeg64 folder to plain .\ffmpeg for the ZIP build
+move ffmpeg ffmpeg32
+move ffmpeg64 ffmpeg
+
 rem  Build the Full 64-bit ZIP
 if exist %ReleaseZipFull64% del %ReleaseZipFull64%
 for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestVLC64.txt) do zip %ReleaseZipFull64% %%i
-for /f "delims=" %%i in (ReleaseManifestFFmpeg64.txt) do zip %ReleaseZipFull64% %%i
+for /f "delims=" %%i in (ReleaseManifestFFmpeg.txt) do zip %ReleaseZipFull64% %%i
 for /f "delims=" %%i in (ReleaseManifestFull.txt) do zip %ReleaseZipFull64% %%i
 
 rem  7-zip needs special handling because of its path setup
 move 7-zip\x64\7z.dll 7-zip
 zip %ReleaseZipFull64% 7-zip\7z.dll
 move 7-zip\7z.dll 7-zip\x64
+
+rem  Put renamed 64-bit folders back as they were
+move ffmpeg ffmpeg64
+move ffmpeg32 ffmpeg
 
 rem  Build the "Min" 64-bit ZIP
 if exist %ReleaseZipMin64% del %ReleaseZipMin64%

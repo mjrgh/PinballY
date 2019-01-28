@@ -74,6 +74,8 @@ namespace ConfigVars
 	static const TCHAR *OptsDialogPos = _T("OptionsDialog.Position");
 	static const TCHAR *SplashScreen = _T("SplashScreen");
 
+	static const TCHAR *PlayfieldStretch = _T("Playfield.Stretch");
+
 	static const TCHAR *InfoBoxShow = _T("InfoBox.Show");
 	static const TCHAR *InfoBoxTitle = _T("InfoBox.Title");
 	static const TCHAR *InfoBoxGameLogo = _T("InfoBox.GameLogo");
@@ -6298,7 +6300,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// for HD monitors, and it's the target display format that most
 	// full-screen games are designed for.  However, if the window
 	// is in full-screen mode and portrait orientation, it looks
-	// nice if we fit the video to the monitor, so use the window's
+	// nicer if we fit the video to the monitor, so use the window's
 	// actual aspect ratio in this case.
 	float aspectRatio = 9.0f/16.0f;
 	if (auto pfw = Application::Get()->GetPlayfieldWin(); 
@@ -6316,11 +6318,11 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		// initialize it to fully transparent so we can cross-fade into it
 		sprite->alpha = 0;
 
-		// First try loading a playfield video.  Load it at the window
-		// height and proportional width for the aspect ratio we determine
-		// above.  Playfield and images and videos are stored "sideways"
-		// (rotated 90 degrees clockwise), so the display height is the
-		// image width, and vice versa.
+		// First try loading a playfield video.  Load it at the full window
+		// height (1.0), and figure the proportional width based on the aspect
+		// ratio calculated above  Playfield and images and videos are stored 
+		// "sideways" (rotated 90 degrees clockwise), so the display height 
+		// is the image width, and vice versa.
 		Application::AsyncErrorHandler eh;
 		if (video.length() != 0
 			&& sprite->LoadVideo(video, hWnd, { 1.0f, aspectRatio }, eh, _T("Playfield Video")))
@@ -6984,6 +6986,9 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ?
 				IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING));
 
+			// get the game we're launching
+			auto game = GameList::Get()->GetByInternalID(report->gameInternalID);
+
 			// Reset the game inactivity timer now that the game has actually
 			// started running.  This effectively removes however long the game
 			// needed to start from the timeout period.  Note that we start the
@@ -6993,7 +6998,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			ResetGameTimeout();
 
 			// set running game mode in the other windows
-			Application::Get()->BeginRunningGameMode();
+			Application::Get()->BeginRunningGameMode(game);
 
 			// Fire the Javascript "gamestarted" event
 			FireLaunchEvent(jsGameStartedEvent, report->gameInternalID, report->launchCmd);
@@ -7205,6 +7210,32 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
+	case AVPMsgSetFormat:
+		// Video frame format detection/change.
+		{
+			auto UpdateFormat = [this, wParam, lParam](VideoSprite *sprite)
+			{
+				if (sprite != nullptr && sprite->GetVideoPlayerCookie() == wParam)
+				{
+					// Update the sprite's load size to match the actual video frame size.
+					// Note that playfield videos are by convention rotated 90 degrees CW,
+					// so the nominal 'x' dimension is actually the height.
+					auto desc = reinterpret_cast<const AudioVideoPlayer::FormatDesc*>(lParam);
+					if (desc->height != 0)
+						sprite->loadSize.y = static_cast<float>(desc->height) / static_cast<float>(desc->width);
+
+					// tell the caller this sprite matched the cookie
+					return true;
+				}
+
+				// these aren't the droids you're looking for
+				return false;
+			};
+			if (UpdateFormat(incomingPlayfield.sprite) || UpdateFormat(currentPlayfield.sprite))
+				ScaleSprites();
+		}
+		break;
+
 	case AVPMsgFirstFrameReady:
 		// First frame of a video is ready to display.  If this is the
 		// incoming playfield video player, start the cross-fade for the
@@ -8246,9 +8277,13 @@ void PlayfieldView::ScaleSprites()
 	}
 
 	// Scale the playfield to fill as much of the window as possible,
-	// maintaining the original aspect ratio
-	ScaleSprite(currentPlayfield.sprite, 1.0f, true);
-	ScaleSprite(incomingPlayfield.sprite, 1.0f, true);
+	// maintaining the original aspect ratio or stretching, according
+	// to the option settings.
+	ScaleSprite(currentPlayfield.sprite, 1.0f, !stretchPlayfield);
+	ScaleSprite(incomingPlayfield.sprite, 1.0f, !stretchPlayfield);
+
+	// make the drop target sprite as large as possible, maintaining
+	// aspect ratio
 	ScaleSprite(dropTargetSprite, 1.0f, true);
 }
 
@@ -9401,8 +9436,12 @@ void PlayfieldView::OnConfigPostSave(bool succeeded)
 
 void PlayfieldView::OnConfigChange()
 {
-	// load the attract mode settings
 	ConfigManager *cfg = ConfigManager::GetInstance();
+
+	// get the playfield stretch mode
+	stretchPlayfield = cfg->GetBool(ConfigVars::PlayfieldStretch, false);
+
+	// load the attract mode settings
 	attractMode.enabled = cfg->GetBool(ConfigVars::AttractModeEnabled, true);
 	attractMode.idleTime = cfg->GetInt(ConfigVars::AttractModeIdleTime, 60) * 1000;
 	attractMode.switchTime = cfg->GetInt(ConfigVars::AttractModeSwitchTime, 5) * 1000;
@@ -11297,6 +11336,22 @@ void PlayfieldView::EditGameInfo()
 				// column to zero to indicate that there's no position set
 				game->gridPos.row = game->gridPos.col = 0;
 			}
+
+			// Update the "Show When Running" list
+			TSTRING showWhenRunning;
+			auto TestShowWhenRunning = [&showWhenRunning, this](int buttonId, const TCHAR *windowId)
+			{
+				if (IsDlgButtonChecked(hDlg, buttonId) == BST_CHECKED)
+				{
+					if (showWhenRunning.length() != 0) showWhenRunning += _T(" ");
+					showWhenRunning += windowId;
+				}
+			};
+			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
+			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
+			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
+			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
+			gl->SetShowWhenRunning(game, showWhenRunning.c_str());
 
 			// Update the system.  This is the last step, because it might
 			// require moving the entry from one database file to another,

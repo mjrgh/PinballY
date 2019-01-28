@@ -178,7 +178,7 @@ void SecondaryView::OnShowHideFrameWindow(bool show)
 
 void SecondaryView::SyncCurrentGame()
 {
-	// if we don't load any media, sync the next window before we leave
+	// make sure we synchronize the next window no matter how we exit
 	class Syncer
 	{
 	public:
@@ -191,21 +191,32 @@ void SecondaryView::SyncCurrentGame()
 
 		SecondaryView *self;
 		bool loadedMedia;
-	} syncer(this);
+	};
+	Syncer syncer(this);
 
 	// do nothing if minimized or hidden
 	if (!IsWindowVisible(hWnd) || IsIconic(hWnd))
 		return;
 
-	// get the currently selected game, if any
-	GameListItem *game = GameList::Get()->GetNthGame(0);
+	// Get the game to display, according to the current mode
+	GameListItem *game = nullptr;
+	if (Application::Get()->IsGameRunning())
+	{
+		// Running game mode.  Show media for the running game,
+		// but only if the game is specifically designated for
+		// media display in this window.
+		game = GameList::Get()->GetByInternalID(Application::Get()->GetRunningGameId());
+		if (!ShowMediaWhenRunning(game))
+			game = nullptr;
+	}
+	else
+	{
+		// normal wheel mode - show the currently selected game
+		game = GameList::Get()->GetNthGame(0);
+	}
 
 	// do nothing if there's no game
 	if (game == nullptr)
-		return;
-
-	// if we're in running game mode, do nothing
-	if (auto pfv = Application::Get()->IsGameRunning())
 		return;
 
 	// if the new game is already the incoming game, just let that 
@@ -310,18 +321,81 @@ void SecondaryView::ClearMedia()
 	UpdateDrawingList();
 }
 
-void SecondaryView::BeginRunningGameMode()
+void SecondaryView::BeginRunningGameMode(GameListItem *game)
 {
-	// Clear the sprites, to free up video memory and stop any video
-	// playback.  Note that we don't need any transition effects, as
-	// we just hid the window entirely.
-	ClearMedia();
+	// Check if we're set to continue showing this window's media
+	// while this game is running.
+	if (ShowMediaWhenRunning(game))
+	{
+		// We're showing this window's media while this game is
+		// running.  Bring this window into the topmost layer so
+		// that stays in front of any window the game itself tries
+		// to open, as "show when running" overrides whatever the
+		// game shows.
+		SetWindowPos(GetParent(hWnd), HWND_TOPMOST, -1, -1, -1, -1,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+	}
+	else
+	{
+		// Show nothing in this window while the game is running.
+		// Explicitly clear any media currently being displayed, to
+		// free up video memory and reduce CPU load.
+		ClearMedia();
+	}
+}
+
+bool SecondaryView::ShowMediaWhenRunning(GameListItem *game) const
+{
+	// make sure there's a game
+	if (game != nullptr)
+	{
+		// get the Show When Running data
+		if (const TCHAR *s = GameList::Get()->GetShowWhenRunning(game); s != nullptr)
+		{
+			// scan the list for our window ID
+			const TCHAR * id = ShowWhenRunningWindowId();
+			size_t idLen = _tcslen(id);
+			while (*s != 0)
+			{
+				// find the end of the current token
+				const TCHAR *nxt = s;
+				for (; *nxt != 0 && *nxt != ' '; ++nxt);
+
+				// check for a "negative" token, with a "-" prefix: e.g., "-dmd" means
+				// that the DMD is explicitly not shown in this game
+				bool tokSense = true;
+				if (*s == '-')
+				{
+					tokSense = false;
+					++s;
+				}
+
+				// compare this token - if it's a match, this window is indeed in the
+				// Show When Running list, so keep showing the media
+				if (_tcsnicmp(s, id, idLen) == 0)
+					return tokSense;
+
+				// advance to the start of the next token
+				for (s = nxt; *s == ' '; ++s);
+			}
+		}
+	}
+
+	// we didn't find this window in the Show When Running, so the default is "no"
+	return false;
 }
 
 void SecondaryView::EndRunningGameMode()
 {
 	// send a Restore Visibility command to the parent frame
 	::SendMessage(GetParent(hWnd), WM_COMMAND, ID_RESTORE_VISIBILITY, 0);
+
+	// remove myself from the topmost layer, if I'm there
+	if ((GetWindowLong(GetParent(hWnd), GWL_EXSTYLE) & WS_EX_TOPMOST) != 0)
+	{
+		SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, -1, -1, -1, -1,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+	}
 }
 
 bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)

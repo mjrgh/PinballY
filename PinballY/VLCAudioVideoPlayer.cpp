@@ -618,6 +618,12 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 		bufsize += pitches[i] * lines[i];
 	}
 
+	// send a format update to the event window
+	FormatDesc formatDesc;
+	formatDesc.width = *width;
+	formatDesc.height = *height;
+	SendMessage(self->hwndEvent, AVPMsgSetFormat, static_cast<WPARAM>(self->cookie), reinterpret_cast<LPARAM>(&formatDesc));
+
 	// lock the object while updating its fields
 	CriticalSectionLocker locker(self->lock);
 

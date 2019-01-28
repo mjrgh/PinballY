@@ -120,6 +120,7 @@ GameList::GameList()
 	dateAddedCol = statsDb.DefineColumn(_T("Date Added"));
 	highScoreStyleCol = statsDb.DefineColumn(_T("High Score Style"));
 	markedForCaptureCol = statsDb.DefineColumn(_T("Marked For Capture"));
+	showWhenRunningCol = statsDb.DefineColumn(_T("Show When Running"));
 
 	// populate the SW_SHOWxxx table
 	// populate the SW_SHOW table

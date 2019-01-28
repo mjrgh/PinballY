@@ -278,6 +278,10 @@ public:
 	// Is the game running in Admin mode?
 	bool IsGameInAdminMode() const { return gameMonitor != nullptr && gameMonitor->IsAdminMode(); }
 
+	// Get the ID of the running game
+	LONG GetRunningGameId() const
+		{ return gameMonitor != nullptr && gameMonitor->IsGameRunning() ? gameMonitor->gameId : 0; }
+
 	// Try to steal focus from the runing game and set it to our window
 	void StealFocusFromGame();
 
@@ -300,7 +304,7 @@ public:
 	// Begin/end running game mode.  The playfield view calls these
 	// when games start and stop.  We manage the visibility of the
 	// other windows accordingly.
-	void BeginRunningGameMode();
+	void BeginRunningGameMode(GameListItem *game);
 	void EndRunningGameMode();
 
 	// Clean up the game monitor thread

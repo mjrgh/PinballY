@@ -1174,19 +1174,29 @@ void Application::ClearMedia()
 		ic->ClearMedia();
 }
 
-void Application::BeginRunningGameMode()
+void Application::BeginRunningGameMode(GameListItem *game)
 {
 	// Put the backglass, DMD, and topper windows into running-game mode.  
 	// Note that it's not necessary to notify the playfield window, since 
 	// it initiates this process.
-	if (auto bgv = GetBackglassView(); bgv != nullptr)
-		bgv->BeginRunningGameMode();
+	auto bgv = GetBackglassView();
+	if (bgv != nullptr)
+		bgv->BeginRunningGameMode(game);
 	if (auto dmv = GetDMDView(); dmv != nullptr)
-		dmv->BeginRunningGameMode();
+		dmv->BeginRunningGameMode(game);
 	if (auto tpv = GetTopperView(); tpv != nullptr)
-		tpv->BeginRunningGameMode();
+		tpv->BeginRunningGameMode(game);
 	if (auto ic = GetInstCardView(); ic != nullptr)
-		ic->BeginRunningGameMode();
+		ic->BeginRunningGameMode(game);
+
+	// Now start the media sync process for the secondary windows, by
+	// syncing the backglass window.  Each window will forward the
+	// request to the next window in the chain after it finishes with
+	// its own media loading.  Note that the secondary windows 
+	// understand "current" to mean the running game when in running
+	// game mode.
+	if (bgv != nullptr)
+		bgv->SyncCurrentGame();
 }
 
 void Application::EndRunningGameMode()

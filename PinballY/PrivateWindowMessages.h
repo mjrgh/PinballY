@@ -96,6 +96,7 @@ const UINT PWM_ISFULLSCREEN = WM_APP + 101;         // is the window full-screen
 const UINT AVPMsgFirstFrameReady = WM_APP + 200;	// first frame is ready
 const UINT AVPMsgEndOfPresentation = WM_APP + 201;	// end of presentation
 const UINT AVPMsgLoopNeeded = WM_APP + 202;			// end of presentation - window must initiate looping
+const UINT AVPMsgSetFormat = WM_APP + 203;          // video frame format detected; LPARAM(AudioVideoPlayer::FormatDesc*)
 
 // DirectShow media player events
 const UINT DSMsgOnEvent = WM_APP + 300;             // DirectShow IMediaEvent event ready notification
