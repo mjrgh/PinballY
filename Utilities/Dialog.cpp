@@ -214,7 +214,7 @@ INT_PTR CALLBACK Dialog::DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPAR
 	default:
 		// For other messages, the DWLP_USER window long should have our
 		// object pointer.  Retrieve it, make sure it's valid, and call
-		// our virtual.
+		// our virtual dialog proc method.
 		self = (Dialog *)GetWindowLongPtr(hDlg, DWLP_USER);
 		if (self != 0)
 			return self->Proc(message, wParam, lParam);

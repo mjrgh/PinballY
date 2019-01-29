@@ -31,8 +31,8 @@
 #define IDC_CK_SHOW_WHEN_RUNNING_BG     3023
 #define IDC_CK_SHOW_WHEN_RUNNING_DMD    3024
 #define IDC_CK_SHOW_WHEN_RUNNING_TOPPER 3025
-#define IDC_CHECK4                      3026
 #define IDC_CK_SHOW_WHEN_RUNNING_INSTCARD 3026
+#define IDC_CHECK1                      3027
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003

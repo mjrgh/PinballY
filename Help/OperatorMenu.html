@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Operator Menu</h1>
+
+<p>
+   PinballY has a "hidden" menu for special setup functions, known
+   as the Operator Menu.  This menu is intentionally somewhat hidden,
+   so that it doesn't clutter up the screen with technical options
+   during normal play, and so that you don't have to worry about
+   "civilians" playing games on your cab accidentally messing up
+   your configuration by accessing setup functions.
+</p>
+<img src="OperatorMenu.jpg" class="example">
+<p>
+   By default, the Operator menu is accessed with the "0" (digit zero)
+   key.  (That's the digit zero, not the letter O).  This is the
+   default key assignment because it matches the VPinMAME mapping
+   for the "Service Enter/Select" button, which corresponds to the
+   button on a real pinball machine that the owner/operator would
+   use to access the machine's setup menu.  On a real machine, this
+   button is hidden inside the locked coin door, to prevent
+   any teenagers at the arcade from adding 10,000 credits or
+   setting the reply score to 10 points.  If you're running
+   PinballY on a pin cab with a real coin door, and you've set
+   up your coin door service buttons with the VPinMAME mappings,
+   then you can access the PinballY Operator Menu using that
+   same coin door button you'd use to bring up the Operator
+   Menu on any WPC game.
+</p>
+<p>
+   If you want to remap the Operator Menu to some other key,
+   open the Settings dialog, go to the Buttons page, and change
+   the assignment for the <b>Service 4/Enter</b> button.
+</p>
+
+<h2>Command descriptions</h2>
+
+<p>
+   <b>Game Setup:</b>  Brings up the <a href="GameSetupMenu.html">Game Setup menu</a>,
+   which has commands for configuring the currently selected game.
+</p>
+
+<p>
+   <a name="batchCapture">,/a>
+   <b>Batch Capture:</b>  Starts a batch capture, which lets you capture
+   videos and background images for multiple games in one operation.
+</p>
+
+<p>
+   <b>Show Hidden Games:</b>  Selects the "hidden games only" filter, which makes
+   the wheel UI show all of the games that you've previously marked as "hidden".
+   You can mark a game as hidden when you want to keep it from showing up in
+   the normal wheel UI; for example, you can hide old versions of games that
+   you no longer want to play but still want to keep around as backups or
+   for reference purposes.  The "hidden games" filter lets you review all
+   of the games you've previously hidden, which can be useful if you want
+   to un-hide a game.
+</p>
+<p>
+   To return to the normal display, you can either select a different
+   filter (including "All Tables") from the main menu, or you can return
+   to the Operator Menu and un-check the Show Hidden Games option.
+</p>
+
+<p>
+   <b>Show Unconfigured Games:</b>  Selects the "unconfigured games only"
+   filter, which makes the wheel UI show only games that don't have any
+   details entered.  This can be useful if you want to methodically
+   go through your games and enter details for any games that aren't
+   already configured.
+</p>
+<p>
+   To return to the normal display, you can either select a different
+   filter (including "All Tables") from the main menu, or you can return
+   to the Operator Menu and un-check the Show Unconfigured Games option.
+</p>
+
+<p>
+   <b>Reset Coins/Credits:</b>  Zeroes the internal counters for coins
+   and credits.
+</p>
+
+<p>
+   <b>PinballY Options:</b>  Shows the <a href="Options.html">Options dialog</a>.
+</p>
+
+<p>
+   <b>Enable Videos:</b>  Check or un-check this item to allow or disable
+   video playback.  If you un-check this, still images will be displayed instead
+   of any videos for all of the windows.
+</p>
+
+<p>
+   <b>Mute Videos:</b>  Check this item to mute the audio portion of the
+   playfield video.  (Videos in other windows are always muted.)
+</p>
+
+<p>
+   <b>Mute Table Audio:</b>  Check this item to disable playback of
+   table audio tracks.
+</p>
+
+<p>
+   <b>Mute Buttons:</b>  Check this item to disable the sound effects
+   normally played when you press the navigation buttons.
+</p>
+
+<p>
+   <b>Mute Attract Mode:</b>  Check this item to disable all audio playback
+   when attract mode is active.
+</p>
+
+<p>
+   <b>Help:</b>  Opens the help files.
+</p>
+
+<p>
+   <b>About PinballY:</b>  Shows the PinballY "about box", with information
+   on the program version and which subsystems are being used.
+</p>
+
+<p>
+   <b>Cancel:</b>  Closes the menu.
+   
+
+</body>
+</html>
+

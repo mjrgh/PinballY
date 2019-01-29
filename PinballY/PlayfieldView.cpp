@@ -11206,6 +11206,22 @@ void PlayfieldView::EditGameInfo()
 				OnInitThreadDone();
 				return 0;
 
+			case WM_SYSCOMMAND:
+				switch (wParam)
+				{
+				case SC_CONTEXTHELP:
+					// show the help file
+					{
+						TCHAR helpFile[MAX_PATH];
+						GetDeployedFilePath(helpFile, _T("Help\\EditGameDetails.html"), _T(""));
+						pfv->ShellExec(helpFile);
+					}
+
+					// skip the system handling (which would go into help-cursor mode)
+					return TRUE;
+				}
+				break;
+
 			case WM_COMMAND:
 				switch (LOWORD(wParam))
 				{

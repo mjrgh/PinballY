@@ -296,6 +296,7 @@
 </p>
    
 
+<a name="gameStatsCsv"></a>
 <h2>Table Statistics</h2>
 
 <p>
@@ -317,6 +318,33 @@
    is a "database row" that contains the data for one game, in the
    column format described by that first column name line.
 </p>
+<p>
+   If you want to import the GameStats.csv file into another program
+   or convert it to a different format, you'll need to know which
+   CSV parameters it uses, since CSV files come in several varieties.
+   We use commas as field separators, double quote marks (") as quotes,
+   and stuttered quotes ("") for embedded quotes in values.  With
+   those parameters set properly, you can mechanically translate
+   CSV into just about any other format.
+</p>
+
+<p>
+   (It would have been nicer to store everything about a game in one
+   place, namely the XML database file.  There are two reasons we don't.
+   The first is that we wanted to maintain the greatest degree of
+   compatibility possible between the PinballY and HyperPin/PinballX
+   databases, so that you can switch between the programs easily.
+   So we didn't want to add anything to the XML files that the other
+   programs wouldn't understand, to avoid confusing them or making
+   them unable to read the files.  We therefore only use the XML
+   files for the metadata that the other programs already store
+   there.  The second reason is that XML entries only exist for
+   "configured" games, where you've manually set up the metadata.
+   PinballY, unlike the other front ends, lets you see all of your
+   table files in its wheel UI.  So we needed a separate place to
+   store information about unconfigured games.)
+</p>
+
 
 <h2>Settings</h2>
 
