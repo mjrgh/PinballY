@@ -412,6 +412,9 @@ void PlayfieldView::InitJavascript()
 		auto js = JavascriptEngine::Get();
 		try
 		{
+			const TCHAR *where;
+			JsErrorCode err;
+
 			// set up our callbacks
 			if (!js->DefineGlobalFunc("alert", &PlayfieldView::JsAlert, this, eh)
 				|| !js->DefineGlobalFunc("message", &PlayfieldView::JsMessage, this, eh)
@@ -620,6 +623,53 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh))
 				return;
 
+			// Get the status lines
+			auto GetStatusLine = [this, js](const char *propName, StatusLine &statusLine)
+			{
+				// get the statusLines object, then retrieve the property for this status line
+				const TCHAR *where;
+				JsErrorCode err;
+				JsValueRef sl;
+				if ((err = js->GetProp(sl, jsMainWindow, "statusLines", where)) != JsNoError
+					|| (err = js->GetProp(statusLine.jsobj, sl, propName, where)) != JsNoError)
+				{
+					LogFile::Get()->Write(LogFile::JSLogging, _T(". error getting mainWindow.statusLines.%hs: %s\n"), propName, where);
+					return false;
+				}
+
+				// got it - keep an external reference on the object and return success
+				JsAddRef(statusLine.jsobj, nullptr);
+				return true;
+			};
+			if (!GetStatusLine("upper", upperStatus)
+				|| !GetStatusLine("lower", lowerStatus)
+				|| !GetStatusLine("attract", attractModeStatus))
+				return;
+
+			// get the StatusLine prototype object
+			JsValueRef statusLineObj, statusLineProto;
+			if ((err = js->GetGlobProp(statusLineObj, "StatusLine", where)) != JsNoError
+				|| (err = js->GetProp(statusLineProto, statusLineObj, "prototype", where)) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error getting StatusLine prototype object: %s\n"), where);
+				return;
+			}
+
+			// set up the StatusLine prototype methods
+			if (!js->DefineObjMethod(statusLineProto, "StatusLine", "getText",
+				&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsGetText), &StatusLine::JsGetText, JsValueRef>, this, eh)
+				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "getCur",
+					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsGetCur), &StatusLine::JsGetCur, int>, this, eh)
+				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "setText",
+					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsSetText), &StatusLine::JsSetText, void, int, TSTRING>, this, eh) 
+				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "add",
+					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsAdd), &StatusLine::JsAdd, void, TSTRING, JsValueRef>, this, eh)
+				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "remove",
+					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsRemove), &StatusLine::JsRemove, void, int>, this, eh)
+				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "show",
+					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsShow), &StatusLine::JsShow, void, TSTRING>, this, eh))
+				return;
+
 			// create the DrawingContext prototype and populate its methods
 			if (!js->CreateObj(jsDrawingContextProto)
 				|| JsAddRef(jsDrawingContextProto, nullptr) != JsNoError
@@ -794,7 +844,6 @@ void PlayfieldView::InitJavascript()
 
 			// set up command IDs in the Command object
 			JsValueRef jsCommand;
-			const TCHAR *where;
 			if (js->GetGlobProp(jsCommand, "command", where) == JsNoError)
 			{
 #define C(name, id) js->SetProp(jsCommand, #name, id)
@@ -1481,6 +1530,21 @@ JsValueRef PlayfieldView::JsGetGameInfo(WSTRING id)
 	}
 }
 
+// Launch override property names
+static const CHAR *const launchOverrideProps[] = {
+	"envVars",
+	"exe",
+	"params",
+	"processName",
+	"runAfter",
+	"runAfterPost",
+	"runBefore",
+	"runBeforePre",
+	"terminateBy",
+	"workingPath",
+	"swShow"
+};
+
 void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 {
 	// Look up the game object by self.id
@@ -1516,6 +1580,7 @@ void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 
 		// get the options
 		JavascriptEngine::JsObj options(optsval);
+		std::list<std::pair<CSTRING, TSTRING>> overrides;
 		if (!options.IsNull())
 		{
 			// get the launch command code
@@ -1530,6 +1595,17 @@ void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 				if (system == nullptr)
 					return js->Throw(_T("GameSysInfo object is no longer valid")), static_cast<void>(0);
 			}
+
+			// check for overrides
+			if (options.Has(L"overrides"))
+			{
+				JavascriptEngine::JsObj ov(options.Get<JsValueRef>("options"));
+				for (auto p : launchOverrideProps)
+				{
+					if (ov.Has(p))
+						overrides.emplace_back(std::make_pair(p, ov.Get<TSTRING>(p)));
+				}
+			}
 		}
 
 		// make sure a system was either inferred or specified explicitly
@@ -1541,7 +1617,7 @@ void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 		CloseMenusAndPopups();
 
 		// launch the game in play mode
-		PlayGame(cmd, launchFlags, game, system);
+		PlayGame(cmd, launchFlags, game, system, &overrides);
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
@@ -2960,9 +3036,9 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 void PlayfieldView::InitStatusLines()
 {
 	// initialize the status lines from the config
-	upperStatus.Init(this, _T("upper"), 75, 0, 6, _T("UpperStatus"), IDS_DEFAULT_STATUS_UPPER);
-	lowerStatus.Init(this, _T("lower"), 0, 0, 6, _T("LowerStatus"), IDS_DEFAULT_STATUS_LOWER);
-	attractModeStatus.Init(this, _T("attract"), 32, 0, 6, _T("AttractMode.StatusLine"), IDS_DEFAULT_STATUS_ATTRACTMODE);
+	upperStatus.Init(this, 75, 0, 6, _T("UpperStatus"), IDS_DEFAULT_STATUS_UPPER);
+	lowerStatus.Init(this, 0, 0, 6, _T("LowerStatus"), IDS_DEFAULT_STATUS_LOWER);
+	attractModeStatus.Init(this, 32, 0, 6, _T("AttractMode.StatusLine"), IDS_DEFAULT_STATUS_ATTRACTMODE);
 
 	// reset the drawing list, as the sprites might have changed
 	UpdateDrawingList();
@@ -4080,7 +4156,8 @@ void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, int systemIndex)
 	}
 }
 
-void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system)
+void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system,
+	const std::list<std::pair<CSTRING, TSTRING>> *overrides)
 {
 	// If desired, collect a credit on launch
 	if ((launchFlags & Application::LaunchFlags::ConsumeCredit) != 0)
@@ -4165,8 +4242,16 @@ void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, GameListItem *game, Gam
 	}
 
 	// queue the game for launch, replacing any prior launch queue
-	Application::Get()->ClearLaunchQueue();
-	Application::Get()->QueueLaunch(cmd, launchFlags, game, system, &launchCaptureList, captureStartupDelay);
+	auto app = Application::Get();
+	app->ClearLaunchQueue();
+	app->QueueLaunch(cmd, launchFlags, game, system, &launchCaptureList, captureStartupDelay);
+
+	// apply overrides
+	if (overrides != nullptr)
+	{
+		for (auto &p : *overrides)
+			app->SetNextQueuedGameOverride(p.first.c_str(), p.second);
+	}
 
 	// launch it
 	LaunchQueuedGame();
@@ -4197,20 +4282,7 @@ void PlayfieldView::LaunchQueuedGame()
 			{
 				try
 				{
-					static const CHAR *const props[] = {
-						"envVars",
-						"exe",
-						"params",
-						"processName",
-						"runAfter",
-						"runAfterPost",
-						"runBefore",
-						"runBeforePre",
-						"terminateBy",
-						"workingPath",
-						"swShow"
-					};
-					for (auto p : props)
+					for (auto p : launchOverrideProps)
 					{
 						if (overrides.Has(p))
 							Application::Get()->SetNextQueuedGameOverride(p, overrides.Get<TSTRING>(p));
@@ -14960,13 +15032,9 @@ void PlayfieldView::UpdateAllStatusText()
 }
 
 void PlayfieldView::StatusLine::Init(
-	PlayfieldView *pfv, const WCHAR *jsid,
-	int yOfs, int idleSlide, int fadeSlide,
+	PlayfieldView *pfv, int yOfs, int idleSlide, int fadeSlide,
 	const TCHAR *cfgVar, int defaultMessageResId)
 {
-	// remember my javascript ID
-	this->jsid = jsid;
-
 	// remember my location slide distance, normalized to camera coordinates
 	this->y = float(yOfs) / 1920.0f;
 	this->idleSlide = float(idleSlide) / 1920.0f;
@@ -15080,11 +15148,15 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 			// - We have more than one item in the list
 			// - The next item's text needs updating
 			// - We have a slide effect
+			// - This is a temporary item
 			//
 			// In any of these cases, we can't leave the current item
 			// on the screen, so we have to initiate a fade.
 			auto nextItem = NextItem();
-			if (nextItem->NeedsUpdate(pfv) || nextItem != curItem || idleSlide != 0.0f)
+			if (nextItem->NeedsUpdate(pfv) 
+				|| nextItem != curItem 
+				|| idleSlide != 0.0f
+				|| (curItem != items.end() && curItem->isTemp))
 				phase = FadeOutPhase;
 
 			// start the next phase timer
@@ -15138,16 +15210,34 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 		// transition to the next item when we reach the end of the fade
 		if (progress == 1.0f)
 		{
-			// switch to the new item
-			curItem = NextItem();
+			// get the next item, noting if it's the same as the current item
+			auto next = NextItem();
 
-			// update it
-			curItem->Update(pfv, this, y);
+			// if the outgoing item was temporary, delete it
+			if (curItem != items.end() && curItem->isTemp)
+			{
+				// remove the temporary item from the list and discard it
+				items.erase(curItem);
 
-			// set it up for the fade-in
-			curItem->sprite->alpha = 0;
-			curItem->sprite->offset.x = idleSlide*0.5f + fadeSlide;
-			curItem->sprite->UpdateWorld();
+				// if the list is now empty, the next item is 'end'
+				if (items.size() == 0)
+					next = items.end();
+			}
+
+			// advance to the next item
+			curItem = next;
+			
+			// initialize the new item's fade-in, if there is a new item
+			if (curItem != items.end())
+			{
+				// update it
+				curItem->Update(pfv, this, y);
+
+				// set it up for the fade-in
+				curItem->sprite->alpha = 0;
+				curItem->sprite->offset.x = idleSlide * 0.5f + fadeSlide;
+				curItem->sprite->UpdateWorld();
+			}
 
 			// update the drawing list
 			pfv->UpdateDrawingList();
@@ -15169,6 +15259,21 @@ void PlayfieldView::StatusLine::AddSprites(std::list<Sprite*> &sprites)
 bool PlayfieldView::StatusItem::NeedsUpdate(PlayfieldView *pfv)
 {
 	return sprite == 0 || ExpandText(pfv) != dispText;
+}
+
+std::list<PlayfieldView::StatusItem>::iterator PlayfieldView::StatusLine::NextItem()
+{
+	// get the current item, wrapping to the first if past the end
+	auto i = curItem;
+	if (i == items.end())
+		return items.begin();
+
+	// get the next item
+	auto next = i;
+	++next;
+
+	// return the new item, wrapping to the first if past the end
+	return (next == items.end() ? items.begin() : next);
 }
 
 TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
@@ -15230,13 +15335,13 @@ TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 	});
 }
 
-void PlayfieldView::FireStatusLineEvent(const WCHAR *id, const TSTRING &srcText, TSTRING &expandedText)
+void PlayfieldView::FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING &srcText, TSTRING &expandedText)
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
 		// fire the event, retrieving the event object
 		JsValueRef eventObjVal;
-		js->FireAndReturnEvent(eventObjVal, jsMainWindow, jsStatusLineEvent, id, srcText, expandedText);
+		js->FireAndReturnEvent(eventObjVal, statusLineObj, jsStatusLineEvent, srcText, expandedText);
 
 		try
 		{
@@ -15260,7 +15365,7 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 	TSTRING newDispText = ExpandText(pfv);
 	
 	// fire the Javascript event
-	pfv->FireStatusLineEvent(sl->jsid.c_str(), this->srcText, newDispText);
+	pfv->FireStatusLineEvent(sl->jsobj, this->srcText, newDispText);
 
 	// if there's already a sprite, and the message is the same as
 	// before, no update is necessary
@@ -15304,6 +15409,172 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 
 	// update the drawing list
 	pfv->UpdateDrawingList();
+}
+
+// Generic Javascript StatusLine method invoker.  Figures out which concrete
+// status line object is being invoked via the Javascript this's "id" property,
+// then invokes the StatusLine:: method M using the js arguments.
+template<typename MethodType, MethodType M, typename R, typename... Args>
+R PlayfieldView::JsStatusLineMethod(JsValueRef selfVal, Args... args)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the status line ID from this.id
+		JavascriptEngine::JsObj self(selfVal);
+		auto id = self.Get<WSTRING>("id");
+
+		// invoke the method on the appropriate status line
+		auto pfv = Application::Get()->GetPlayfieldView();
+		if (id == L"upper")
+			return static_cast<R>((this->upperStatus.*M)(args...));
+		else if (id == L"lower")
+			return static_cast<R>((this->lowerStatus.*M)(args...));
+		else if (id == L"attract")
+			return static_cast<R>((this->attractModeStatus.*M)(args...));
+
+		js->Throw(_T("StatusLine method called on non-StatusLine object"));
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+
+	// dummy return value - if we get here, we've already put the javascript
+	// engine into an exception state, so it'll ignore whatever we return
+	return static_cast<R>(0);
+}
+
+JsValueRef PlayfieldView::StatusLine::JsGetText()
+{
+	// create an array for the results
+	auto arr = JavascriptEngine::JsObj::CreateArray();
+
+	// populate it with our messages
+	for (auto const &s : items)
+	{
+		// create an object: { isTemp, text }
+		auto obj = JavascriptEngine::JsObj::CreateObject();
+		obj.Set("text", s.srcText);
+		obj.Set("isTemp", s.isTemp);
+		arr.Push(obj);
+	}
+
+	// return the array
+	return arr.jsobj;
+}
+
+int PlayfieldView::StatusLine::JsGetCur()
+{
+	// if there are no items, return -1
+	if (items.size() == 0)
+		return -1;
+
+	// Scan the list for the current display index
+	int i = 0;
+	for (auto s = items.begin(); s != items.end(); ++s, ++i)
+	{
+		// If this is the current item, return its index
+		if (s == curItem)
+			return i;
+	}
+
+	// we didn't find it
+	return -1;
+}
+
+void PlayfieldView::StatusLine::JsSetText(int index, TSTRING txt)
+{
+	// find the item by index
+	int i = 0;
+	for (auto s = items.begin(); s != items.end(); ++s, ++i)
+	{
+		// if this is the item we're looking for, update it
+		if (i == index)
+		{
+			// this is the one - update it
+			s->srcText = txt;
+
+			// if it's the current display item, refresh the display
+			if (s == curItem)
+				this->OnSourceDataUpdate(Application::Get()->GetPlayfieldView());
+
+			// no need to keep searching
+			break;
+		}
+	}
+}
+
+void PlayfieldView::StatusLine::JsAdd(TSTRING txt, JsValueRef indexVal)
+{
+	// the index value is undefined, insert at the end of the list.
+	auto js = JavascriptEngine::Get();
+	if (indexVal != js->GetUndefVal())
+	{
+		// get the numeric index
+		int index = js->JsToNative<int>(indexVal);
+
+		// find the item by index
+		int i = 0;
+		for (auto s = items.begin(); s != items.end(); ++s, ++i)
+		{
+			// if this is the item we're looking for, update it
+			if (i == index)
+			{
+				// insert here, then mission accomplished
+				items.emplace(s, txt.c_str());
+				return;
+			}
+		}
+	}
+
+	// no index specified, or it's not within range; insert at the
+	// end of the list
+	items.emplace_back(txt.c_str());
+}
+
+void PlayfieldView::StatusLine::JsRemove(int index)
+{
+	// find the item by index
+	int i = 0;
+	for (auto s = items.begin(); s != items.end(); ++s, ++i)
+	{
+		// if this is the item we're looking for, remove the item
+		if (i == index)
+		{
+			items.erase(s);
+			return;
+		}
+	}
+}
+
+void PlayfieldView::StatusLine::JsShow(TSTRING txt)
+{
+	// Find the position for the new item.  Insert after the current
+	// item and after any temporary items already in the list after
+	// the current item.
+	auto pos = curItem;
+	if (items.size() != 0)
+	{
+		for (;;)
+		{
+			// advance to the next item, wrapping at the end
+			if (++pos == items.end())
+				pos = items.begin();
+
+			// If this *isn't* a temporary item, insert here.  Also stop
+			// if we're back to the first item: that must mean that all of
+			// the items in the list are temporary, in which case we want
+			// to insert before the current item so that the new item is
+			// scheduled after all of the existing items.
+			if (!pos->isTemp || pos == curItem || (pos == items.begin() && curItem == items.end()))
+				break;
+		}
+	}
+
+	// insert it and mark it as temporary
+	auto it = items.emplace(pos, txt.c_str());
+	it->isTemp = true;
 }
 
 // ------------------------------------------------------------------------

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>StatusLine Class</h1>
+
+<p>
+   This is the base class for objects representing the status lines,
+   which are the one-line text messages that appear near the bottom
+   of the main playfield window.  Each status line rotates through a
+   series of messages that can be customized by the user in the
+   setting.
+</p>
+<p>
+   There are three status lines in PinballY, each one represented
+   by a system-defined Javascript object of class StatusLine.  Each
+   one can be accessed through a property of the
+   <b><a href="MainWindowObject.html">mainWindow</a>.statusLines</b>
+   object, which is just a wrapper object containing the references
+   to the individual status line objects in its properties.
+</p>
+<ul>
+   <li><b>mainWindow.statusLines.upper:</b>  The upper line of the
+   main status line, displayed in the playfield window during normal
+   operation.
+
+   <li><b>mainWindow.statusLines.lower:</b>  The lower line of the
+   main status line.
+
+   <li><b>mainWindow.statusLines.attract:</b>  The "attract mode"
+   status line.  This is a single-line status message that replaces
+   the normal upper/lower pair when attract mode is active.  This
+   is only visible during attract mode.
+</ul>
+
+<p>
+   You can use methods of these objects to access and change the
+   messages displayed in the corresponding on-screen status areas.
+</p>
+
+<h2>Event target</h2>
+
+<p>
+   Each StatusLine object is an event target, so you can use the standard
+   event methods (on(), off(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.
+</p>
+<p>
+   The StatusLine objects serve as the target for the following event types:
+</p>
+<div class="eventTargetTOC" data-eventtarget="StatusLine"></div>
+   
+
+<h2>Properties and methods</h2>
+
+<p>
+   <b><i>statusLine</i>.add(<i>text</i>, <i>index</i>):</b>  Inserts a new
+   message.  <i>text</i> is a string giving the new message text to add.
+   This is the source text of the message, so it can contain 
+   <a href="StatuslineOptions.html#substVars">substitution variables</a>
+   that will be replaced with their current values each time the message is
+   displayed on-screen.  <i>index</i> is an optional integer giving the
+   position in the list at which to insert the new message.  0 inserts
+   the new message before the first existing message, 1 inserts it
+   before the existing second message, and so on.  If this is omitted
+   or is out of range, the new message is inserted at the end of the
+   current list.
+</p>
+
+<p>
+   <b><i>statusLine</i>.getCur():</b>  Returns the index of the item currently
+   being displayed.  Returns -1 if there are no items in the list.
+</p>
+<p>
+   The current message index can change <i>between</i> Javascript event handler
+   invocations, but it can't change within a single event handler.
+</p>
+
+<p>
+   <b><i>statusLine</i>.getText():</b>  Returns an array representing all of the
+   messages in the rotation list for this status line.  The array indices correspond
+   to the index values used in the methods that operate on specific message
+   entries (<b>add()</b>, <b>remove()</b>, etc).  Each element of the array is an object
+  with these properties:
+</p>
+<ul>
+   <li><b>text:</b>  A string giving the source text (before substitution variable
+   replacements) of this message.
+   <li><b>isTemp:</b> A boolean indicating if this is a temporary message scheduled
+   via the <b>show()</b> method).  Temporary messages are shown
+   once and then automatically removed from the rotation.
+</ul>
+<p>
+   The array is just a snapshot of the system's internal message list, so 
+   changes you make to the array or the message strings won't have any effect
+   on what's displayed.  If you want to make changes to the live display
+   list, use the various methods that operate on it (<b>setText()</b>,
+   <b>add()</b>, etc).
+</p>
+
+<p>
+   <b><i>statusLine</i>.id:</b>  A string identifying the status line:
+</p>
+<ul class="compact">
+   <li>"upper" for the upper status line
+   <li>"lower" for the lower status line
+   <li>"attract" for the attract-mode status line
+</ul>
+
+<p>
+   <b><i>statusLine</i>.remove(<i>index</i>):</b>  Deletes an entry
+   from the status line's message list.  <i>index</i> is an integer
+   giving the position of the item to remove: 0 is the first item,
+   1 is the second item, and so on.
+</p>
+
+<p>
+   <b><i>statusLine</i>.setText(<i>index</i>, <i>text</i>):</b>  Changes the
+   source text of the item selected by the integer <i>index</i> value
+   to the string <i>text</i>.  The source text is the text before
+   <a href="StatuslineOptions.html#substVars">substitution variables</a>
+   are replaced, so this can contain variables that will be automatically
+   replaced with current values each time the message is displayed.
+</p>
+<p>
+   The <i>index</i> value can range from 0 to one less than the number of items
+   in the status line's internal message list.  You can retrieve the current
+   list with <b>getText()</b>.
+</p>
+<p>
+   If the item is currently being displayed, the on-screen message will be
+   immediately updated to reflect the new message.
+</p>
+
+<p>
+   <b><i>statusLine</i>.show(<i>text</i>):</b>  Displays a one-time-only
+   message.  <i>text</i> is the source text to display, which can include
+   <a href="StatuslineOptions.html#substVars">substitution variables</a>
+   that will be replaced with their current values.  
+</p>
+<p>
+   The message isn't displayed immediately, but rather is inserted into
+   the message list just after the current message and after any temporary
+   messages that already follow the current message.  This means that it
+   will be displayed as soon as the current message's normal timer interval
+   expires and the status line is ready to move on to the next message
+   naturally.  The reason that the new message is inserted after
+   any other temporary messages already queued up is that this preserves the
+   ordering if you display a series of temporary messages, so that the
+   messages are displayed in the same order in which they were added.
+   The inserted message is marked as temporary, so that it's only displayed
+   once, and then automatically deleted from the rotation.
+</p>
+<p>
+   This function lets you display quick feedback
+   for user actions in situations where a more intrusive message format
+   (such as a pop-up message box) would be too heavy-weight.  Status
+   line messages don't require any user acknowledgment and are
+   visually unobtrusive, so they're good for cases where there's
+   no particular need to alert the user to whatever information is
+   being displayed, but where a user who's actively watching for the
+   information might still want to see it.
+</p>
+
+
+</body>
+</html>

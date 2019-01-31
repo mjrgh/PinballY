@@ -238,6 +238,26 @@
    But for obvious reasons, the launched program will probably show an error,
    crash, or otherwise fail to work properly if you try to launch it with
    a game file designed for a different system.
+
+   <li><b>overrides:</b>  An optional object value specifying overrides for
+   the normal launch parameters.  The parameters are specified via the
+   object's properties.  These are the same
+   properties that can be set in the <b>override</b> property
+   of a <b>prelaunch</b> event; see <a href="LaunchEvent.html#overrideProperties">override properties</a>
+   for the list of properties and their meanings.
+   <p>
+      You can specify any
+      subset of the override properties.  The normal system launch parameters
+      are used for any properties you omit from the override set.  For example,
+      if you want to change the "show window" mode but use the rest of the
+      normal the launch parameters unchanged, you could do something
+      like this:
+   </p>
+
+   <div class="code">
+mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
+   </div>
+   
 </ul>
 
 <p>
@@ -265,6 +285,18 @@
    The <a href="AttractModeEvent.html"><b>attractmodestart</b></a> event isn't
    fired when you use this method.
 </p>
+
+<p>
+   <b>mainWindow.statusLines:</b>  An object containing references to the
+   <a href="StatusLine.html">StatusLine</a> objects representing the on-screen
+   status line displays.  The object has the following properties:
+</p>
+<ul class="compact">
+   <li><b>upper:</b>  The upper line of the main two-line status area
+   <li><b>lower:</b>  The lower line of the main two-line status area
+   <li><b>attract:</b>  The single-line status area that replaces the main status
+   area when attract mode is active
+</ul>
 
 </body>
 </html>

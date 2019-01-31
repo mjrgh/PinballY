@@ -456,7 +456,8 @@ protected:
 	void ShowHighScores();
 
 	// play a specific game with a specific system
-	void PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system);
+	void PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system, 
+		const std::list<std::pair<CSTRING, TSTRING>> *overrides = nullptr);
 
 	// Launch the next queued game
 	void LaunchQueuedGame();
@@ -1063,6 +1064,10 @@ protected:
 		TSTRING srcText;         // source text, which might contain {xxx} macros
 		TSTRING dispText;        // display text, with macros expanded
 		RefPtr<Sprite> sprite;   // sprite
+
+		// Is this item temporary?  A temporary item is removed from the
+		// list after being displayed once.
+		bool isTemp = false;
 	};
 
 	// Status line 
@@ -1071,7 +1076,7 @@ protected:
 		StatusLine() : curItem(items.end()), dispTime(2000), y(0), height(75), phase(DispPhase) { }
 
 		// initialize
-		void Init(PlayfieldView *pfv, const WCHAR *jsid, 
+		void Init(PlayfieldView *pfv,
 			int yOfs, int fadeSlide, int idleSlide,
 			const TCHAR *cfgVar, int defaultMessageResId);
 
@@ -1096,14 +1101,7 @@ protected:
 		std::list<StatusItem>::iterator curItem;
 
 		// get the next item
-		std::list<StatusItem>::iterator NextItem()
-		{
-			auto i = curItem;
-			if (i == items.end())
-				return items.begin();
-			++i;
-			return (i == items.end() ? items.begin() : i);
-		}
+		std::list<StatusItem>::iterator NextItem();
 
 		// hide the current item
 		void Hide()
@@ -1112,8 +1110,16 @@ protected:
 				curItem->sprite->alpha = 0.0f;
 		}
 
-		// Status line ID for javascript purposes
-		WSTRING jsid;
+		// The Javascript object representing this status line
+		JsValueRef jsobj = JS_INVALID_REFERENCE;
+
+		// Javascript methods
+		JsValueRef JsGetText();
+		int JsGetCur();
+		void JsSetText(int index, TSTRING txt);
+		void JsAdd(TSTRING txt, JsValueRef index);
+		void JsRemove(int index);
+		void JsShow(TSTRING txt);
 
 		// Start time for current item display
 		DWORD startTime;
@@ -2362,7 +2368,7 @@ protected:
 	bool FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 	bool FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type,
 		GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
-	void FireStatusLineEvent(const WCHAR *id, const TSTRING &rawText, TSTRING &expandedText);
+	void FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING &rawText, TSTRING &expandedText);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode
@@ -2510,6 +2516,11 @@ protected:
 	// Enter/exit attract mode via javascript
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
+
+	// Generic status line method handler.  Gets the target status line from
+	// the 'this' object and invokes the method M with the Javascript arguments.
+	template<typename MethodType, MethodType M, typename R, typename... Args>
+	R JsStatusLineMethod(JsValueRef self, Args... args);
 
 	// Launch a game
 	void JsPlayGame(JsValueRef val, JsValueRef options);

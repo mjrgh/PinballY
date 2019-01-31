@@ -62,7 +62,7 @@ let pCreateDeviceEnum = dllImport.create("ICreateDevEnum*");
    COM object creation isn't like C or Javascript object
    creation where new objects are created with a built-in
    language keyword like "new".  Instead, you have to use COM
-   APIs to create COM objects.  There are many ways such APIs,
+   APIs to create COM objects.  There are many such APIs,
    but they mostly fall into three categories:
 </p>
 <ul>
@@ -74,12 +74,10 @@ let pCreateDeviceEnum = dllImport.create("ICreateDevEnum*");
 </ul>
 
 <p>
-   In every one of these cases, the standard COM formulation
-   is to call one of these functions or interface methods,
-   passing in the address of a pointer variable that will
-   receive the new interface pointer.  That's where our
-   thus-far "empty" COMPointer object - the one we created
-   above via dllImport.create() - comes into play.  For this
+   In each case, one of the parameters to the API function is the
+   address of a pointer variable that will receive the new interface
+   pointer.  That's where our thus-far "empty" COMPointer object - the one
+   we created above via dllImport.create() - comes into play.  For this
    example, we'll use CoCreateInstance() to create our object:
 </p>
 <div class="code">
@@ -109,16 +107,18 @@ let hr = COM.CoCreateInstance(CLSID_SystemDeviceEnum, null, CLSCTX_INPROC_SERVER
 <h2>Special handling for IID_PPV_ARGS</h2>
 
 <p>
-   In COM functions, there's a common pattern in methods that return
-   new interface pointers, where you pass a pair of arguments
-   known as IID_PPV_ARGS.  That stands for "Interface ID, pointer
-   to pointer to void arguments".  The term IID_PPV_ARGS is the
-   name of a C macro in the standard COM SDK headers, which they
-   created because it's so pervasive in COM functions.
+   There's a recurring pattern in COM API functions that create new
+   interface pointers, where the parameter list has two consecutive
+   parameters that specify, respectively, the Interface ID (IID) to use
+   and the address of the variable that receives the new interface
+   pointer.  This happens so much in the COM universe that Microsoft
+   created a "helper macro" for C programmers to make the syntax a
+   little more concise: IID_PPV_ARGS.  That stands for "Interface ID,
+   pointer to pointer to void arguments".
 </p>
 <p>
-   The canonical example is IUnknown::QueryInterface, which takes
-   the following arguments:
+   You see this pattern in many COM API functions, but the canonical
+   example is IUnknown::QueryInterface:
 </p>
 <div class="code">
 HRESULT QueryInterface(REFIID, void**);
@@ -133,10 +133,10 @@ HRESULT QueryInterface(REFIID, void**);
 <p>
    The "void**" is a "</i>pointer to</i> a pointer to void".
    That's a double level of pointer indirection, which is awfully
-   hard to visualize if you're used to Javascript, and not much
-   easier for most C programmers.  All you really have to know
-   about it here is that it's an "out" parameter that will
-   <i>receive a pointer on return</i> to a COM interface.
+   hard to visualize if you're used to Javascript (and frankly,
+   it's not much easier for most C programmers).  All you really
+   have to know about it here is that it's an "out" parameter that
+   will <i>receive a pointer on return</i> to a COM interface.
 </p>
 
 <p>

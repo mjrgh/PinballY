@@ -59,8 +59,9 @@ there, even though you can't see them.)
 * You can now disable DOF effects, via a checkbox on the new DOF page
 of the settings dialog.  (Issue #27 on github.)
 
-* Javascript additions: status line events (StatusLineEvent).  See
-the Javascript section in the help files for details.
+* Javascript: added status line events (StatusLineEvent); added
+optional "overrides" parameter to mainWindow.playGame().  See the
+Javascript section in the help files for details.
 
 * Fixed a couple of problems in the 64-bit ZIP distribution (these
 didn't affect the MSI): 7z.dll was missing; the folder containing the

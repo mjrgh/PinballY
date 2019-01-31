@@ -28,8 +28,25 @@
 
 <p>
    The <a href="EventTarget.html">event target</a> for this event type is the
-   <a href="MainWindowObject.html">mainWindow</a> object.
+   <a href="StatusLine.html">StatusLine</a> object representing the status
+   line being updated.  In an event handler, you can determine which status
+   line triggered the event via the <b>target</b> property of the event
+   object passed as a parameter to the event handler; this can be helpful
+   if you want to attach a single handler function to multiple status
+   lines.
 </p>
+<div class="code">
+function handler(event)
+{
+    // get the StatusLine object representing the status line being updated
+    let whichStatusLine = event.target; 
+}
+
+// attach the same handler to each status line
+mainWindow.statusLines.upper.on("statusline", handler);  
+mainWindow.statusLines.lower.on("statusline", handler);  
+mainWindow.statusLines.attract.on("statusline", handler);  
+</div>
 
 <h2>Triggers</h2>
 
@@ -80,14 +97,6 @@
    their current values.  See <a href="StatuslineOptions.html">Statusline Options</a>
    for more on setting up the messages to be displayed.
 
-   <li><b>which:</b>  a string identifying which part of the status line
-   is being updated:
-
-   <ul>
-      <li>"upper": the upper line of the main status line
-      <li>"lower": the lower line of the main status line
-      <li>"attract": the single status line shown in attract mode
-   </ul>
 </ul>
 
 </body>

@@ -924,10 +924,9 @@ this.SettingsPostSaveEvent = class SettingsPostSaveEvent extends SettingsEvent
 // Status line events
 this.StatusLineEvent = class StatusLineEvent extends Event
 {
-    constructor(which, sourceText, expandedText)
+    constructor(sourceText, expandedText)
     {
         super("statusline", { cancelable: false });
-        this.which = which;
         this.sourceText = sourceText;
         this.expandedText = expandedText;
     }
@@ -1012,6 +1011,27 @@ const SWP_NOZORDER = 0x0004;
 const SW_HIDE = 0;
 const SW_SHOWMINIMIZED = 2;
 const SW_SHOW = 5;
+
+
+// ------------------------------------------------------------------------
+//
+// Status line objects.  A status line is an event target for
+// StatusLineEvent events.
+//
+this.StatusLine = class StatusLine extends EventTarget {
+    constructor(id) {
+        super();
+        this.id = id;
+    }
+};
+
+// The status lines are all properties of the mainWindow object's
+// statusLine object.
+this.mainWindow.statusLines = {
+    upper: new StatusLine("upper"),
+    lower: new StatusLine("lower"),
+    attract: new StatusLine("attract")
+};
 
 
 // ------------------------------------------------------------------------
