@@ -16,6 +16,7 @@
 #include "../Utilities/Config.h"
 #include "../Utilities/FileVersionInfo.h"
 #include "../Utilities/DateUtil.h"
+#include "../Utilities/FileUtil.h"
 #include "PlayfieldView.h"
 #include "Resource.h"
 #include "DialogResource.h"
@@ -2902,33 +2903,6 @@ bool PlayfieldView::OnCreate(CREATESTRUCT *cs)
 	return ret;
 }
 
-// Search for a file matching the given root name using the provided
-// list of extensions.  On entry, fname[] is set up with the root
-// name.  We'll add each extension in turn until we find one that
-// gives us the name of an extant file.  If we find such a file,
-// we'll return true, with the full name in fname[].  If we don't
-// find any files matching any of the possible names, we'll return
-// false.
-bool FindFileUsingExtensions(TCHAR fname[MAX_PATH], const TCHAR* const exts[], size_t nExts)
-{
-	// start with the root name
-	size_t rootLen = _tcslen(fname);
-	for (size_t i = 0; i < nExts; ++i)
-	{
-		const TCHAR *ext = exts[i];
-		size_t extLen = _tcslen(ext);
-		if (extLen + rootLen + 1 < MAX_PATH)
-		{
-			memcpy(fname + rootLen, ext, (extLen+1)*sizeof(TCHAR));
-			if (FileExists(fname))
-				return true;
-		}
-	}
-
-	// not found
-	return false;
-}
-
 // Idle event handler.  We use this to detect when the window is
 // ready at program startup.
 void PlayfieldView::OnIdleEvent()
@@ -2939,31 +2913,11 @@ void PlayfieldView::OnIdleEvent()
 	// our idle event subscription.
 	D3DView::UnsubscribeIdleEvents(this);
 
-	// check for a startup video
-	TCHAR startupVideo[MAX_PATH];
-	GetDeployedFilePath(startupVideo, _T("Media\\Startup Video"), _T(""));
-
-	// search for a supported video type
-	bool foundStartupVideo = false;
-	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
-	if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+	// check for startup videos
+	if (!Application::Get()->LoadStartupVideos())
 	{
-		// try loading the video in the overlay video sprite
-		videoOverlay.Attach(new VideoSprite());
-		videoOverlay->alpha = 1.0f;
-		POINTF pos = { static_cast<float>(NormalizedWidth()) / 1920.0f, 1.0f };
-		if (videoOverlay->LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading initial video")))
-		{
-			// success
-			foundStartupVideo = true;
-			videoOverlayID = _T("Startup");
-
-			// the video sprite loops by default; we only want to play once
-			videoOverlay->GetVideoPlayer()->SetLooping(false);
-
-			// udpate the drawing list to include the video overlay sprite
-			UpdateDrawingList();
-		}
+		// No startup videos found.  Go to the normal wheel UI.
+		ShowInitialUI(true);
 	}
 
 	// check for a startup audio track
@@ -2984,10 +2938,6 @@ void PlayfieldView::OnIdleEvent()
 			activeAudio.emplace(cookie, player.Detach());
 		}
 	}
-
-	// if we didn't find a startup video, go straight to the regular UI
-	if (!foundStartupVideo)
-		ShowInitialUI(true);
 }
 
 void PlayfieldView::ShowInitialUI(bool showAboutBox)
@@ -8254,9 +8204,11 @@ void PlayfieldView::UpdatePopupAnimation(bool opening, float progress)
 
 void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 {
-	// if an animation is in progress, or there's anything in the
-	// key command queue, defer this until later
-	if (isAnimTimerRunning || keyQueue.size() != 0)
+	// if an animation is in progress, or a startup video is in progress,
+	// or if there's anything in the key command queue, defer this until later
+	if (isAnimTimerRunning 
+		|| keyQueue.size() != 0
+		|| (videoOverlay != nullptr && videoOverlayID == _T("Startup")))
 		return;
 
 	// if a game is running, don't do anything unless we're

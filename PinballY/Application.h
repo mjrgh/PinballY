@@ -74,6 +74,10 @@ public:
 	// Application title, for display purposes (e.g., message box title)
 	TSTRINGEx Title;
 
+	// Load startup videos in all windows.  Returns true if a startup
+	// video exists in any window, false if not.
+	bool LoadStartupVideos();
+
 	// Update secondary windows for a change in the selected game.
 	// This notifies the backglass and DMD windows when a new game
 	// is selected in the playfield window.

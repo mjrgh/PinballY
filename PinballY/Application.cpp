@@ -394,9 +394,6 @@ int Application::EventLoop(int nCmdShow)
 	// Generate a PINemHi version request on behalf of the main window
 	highScores->GetVersion(GetPlayfieldView()->GetHWnd());
 
-	// show the initial game selection in all windows
-	SyncSelectedGame();
-
 	// If we got this far, we were able to load at least part of the game
 	// list, but there might have been errors or warnings from loading
 	// parts of the list.  If there are any errors in the capture list, show 
@@ -922,6 +919,48 @@ bool Application::RunCommand(const TCHAR *cmd,
 		// the process was successfully launched
 		return true;
 	}
+}
+
+bool Application::LoadStartupVideos()
+{
+
+	// Call a function for each view.  Continues as long as each
+	// callback returns true; returns the AND combination of all of 
+	// the callback results.
+	auto ForEachView = [this](std::function<bool(BaseView*)> func)
+	{
+		return func(GetPlayfieldView())
+			&& func(GetBackglassView())
+			&& func(GetDMDView())
+			&& func(GetInstCardView())
+			&& func(GetTopperView());
+	};
+
+	// Try loading a video in each window
+	bool found = false;
+	ForEachView([&found](BaseView *view) 
+	{ 
+		// we have a startup video if there's a video in any window
+		found |= view->LoadStartupVideo();
+		return true; 
+	});
+
+	// if we found any videos, start them playing
+	if (found)
+	{
+		// start them, noting if they all succeed
+		bool ok = ForEachView([](BaseView *view) { return view->PlayStartupVideo(); });
+
+		// if we ran into any errors, cancel them all
+		if (!ok)
+		{
+			ForEachView([](BaseView *view) { view->EndStartupVideo(); return true; });
+			found = false;
+		}
+	}
+
+	// tell the caller whether or not any videos were found
+	return found;
 }
 
 void Application::SyncSelectedGame()

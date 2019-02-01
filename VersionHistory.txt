@@ -2,6 +2,25 @@ PinballY Update History
 
 ? (1.0.0 Beta 3)
 
+* Startup videos can now be displayed in any or all of the windows.
+As with the playfield window startup video, each window's startup
+video goes in the Media folder within the main PinballY folder, and
+uses a special name that identifies it as a startup video for one
+of the windows:
+
+   Playfield:  Startup Video.mpg       (or .mp4, etc)
+   Backglass:  Startup Video (bg).mpg
+   DMD:        Startup Video (dmd).mpg
+   Topper:     Startup Video (topper).mpg
+   Inst Card:  Starutp Video (instcard).mpg
+
+The startup videos are loaded and started simultaneously (or as close
+to simultaneously as possible).  You can therefore synchronize effects
+across windows simply by editing the videos to place simultaneous
+events at the same point in time in each video.
+
+(Addresses issue #33 on github.)
+
 * There are now two options for how the playfield background image or
 video is displayed.  By default, the original aspect ratio of the
 image or video is maintained, and the image is made as large as
@@ -60,8 +79,9 @@ there, even though you can't see them.)
 of the settings dialog.  (Issue #27 on github.)
 
 * Javascript: added status line events (StatusLineEvent); added
-optional "overrides" parameter to mainWindow.playGame().  See the
-Javascript section in the help files for details.
+StatusLine objects; added optional "overrides" parameter to
+mainWindow.playGame().  See the Javascript section in the help files
+for details.
 
 * Fixed a couple of problems in the 64-bit ZIP distribution (these
 didn't affect the MSI): 7z.dll was missing; the folder containing the

@@ -298,3 +298,13 @@ DWORD GetExeFilePath(TCHAR *buf, DWORD buflen);
 void GetDeployedFilePath(
 	TCHAR *result /* must be >= MAX_PATH characters long */, 
 	const TCHAR *relativeFilename, const TCHAR *devSysPath);
+
+// Search for a file matching the given root name using the provided
+// list of extensions.  On entry, fname[] is set up with the root
+// name.  We'll add each extension in turn until we find one that
+// gives us the name of an extant file.  If we find such a file,
+// we'll return true, with the full name in fname[].  If we don't
+// find any files matching any of the possible names, we'll return
+// false.
+bool FindFileUsingExtensions(TCHAR fname[MAX_PATH], const TCHAR* const exts[], size_t nExts);
+

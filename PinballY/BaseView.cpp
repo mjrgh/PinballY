@@ -2,13 +2,14 @@
 // Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 #include "stdafx.h"
+#include "../Utilities/FileUtil.h"
 #include "BaseView.h"
 #include "Application.h"
 #include "PlayfieldView.h"
 #include "VideoSprite.h"
 #include "MediaDropTarget.h"
 #include "MouseButtons.h"
-
+#include "LogFile.h"
 
 BaseView::~BaseView()
 {
@@ -664,3 +665,76 @@ bool BaseView::OnMouseMove(POINT pt)
 	// use the default handling 
 	return __super::OnMouseMove(pt);
 }
+
+// Load our startup video
+bool BaseView::LoadStartupVideo()
+{
+	// check for a startup video
+	TCHAR startupVideo[MAX_PATH];
+	GetDeployedFilePath(startupVideo, _T("Media"), _T(""));
+	PathAppend(startupVideo, StartupVideoName());
+
+	// search for a supported video type
+	bool foundStartupVideo = false;
+	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
+	if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+	{
+		// Try loading the video in the overlay video sprite.  Don't start
+		// playing it yet; we want to get the loading going in any other
+		// windows that also have videos so that we can start them all at
+		// the same time, for closer synchronization in case we're showing
+		// a coordinated multi-screen "experience".
+		videoOverlay.Attach(new VideoSprite());
+		videoOverlay->alpha = 1.0f;
+		POINTF pos = { static_cast<float>(szLayout.cx)/static_cast<float>(szLayout.cy), 1.0f };
+		if (videoOverlay->LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading startup video"), false))
+		{
+			// success
+			foundStartupVideo = true;
+			videoOverlayID = _T("Startup");
+
+			// the video sprite loops by default; we only want to play once
+			videoOverlay->GetVideoPlayer()->SetLooping(false);
+
+			// udpate the drawing list to include the video overlay sprite
+			UpdateDrawingList();
+		}
+	}
+
+	// tell the caller whether or not we loaded a startup video
+	return foundStartupVideo;
+}
+
+bool BaseView::PlayStartupVideo()
+{
+	// If there's no startup video, simply return success.  This counts
+	// as success because an error condition means that we cancel startup
+	// videos in all windows, and it's perfectly fine (thus not an error
+	// condition) if we simply don't have a video to show.  We'll simply
+	// sit out the startup video interval with a blank window.
+	if (videoOverlay == nullptr 
+		|| videoOverlay->GetVideoPlayer() == nullptr 
+		|| videoOverlayID != _T("Startup"))
+		return true;
+
+	// start the video
+	return videoOverlay->GetVideoPlayer()->Play(LogFileErrorHandler());
+}
+
+void BaseView::EndStartupVideo()
+{
+	if (videoOverlay != nullptr && videoOverlayID == _T("Startup"))
+	{
+		if (auto player = videoOverlay->GetVideoPlayer(); player != nullptr)
+		{
+			// stop the video and shut down the video player
+			player->Stop(LogFileErrorHandler());
+			player->Shutdown();
+
+			// forget the overlay
+			videoOverlay = nullptr;
+			UpdateDrawingList();
+		}
+	}
+}
+

@@ -243,6 +243,19 @@ bool FrameWin::InitWin()
 	if (view == nullptr)
 		return false;
 
+	// Turn off window transition animations if we have a vanity shield.  
+	// The whole point of the vanity shield is to hide the initial window
+	// placement sequence behind a cloak of darkness.  Allowing transition
+	// animations can actually make things worse, because our cloak might
+	// be lifted midway through an animation: so we'll have the screen go
+	// black, then get a flash of the desktop around the edges of the real
+	// window as it animates out to full size.
+	if (vanityShield != nullptr)
+	{
+		int value = 1;
+		DwmSetWindowAttribute(hWnd, DWMWA_TRANSITIONS_FORCEDISABLED, &value, sizeof(value));
+	}
+
 	// If we're starting in full-screen mode, post a command to self to
 	// switch to full screen mode, and do the rest of the initialization
 	// as a normal window.  Initializing the window in full-screen mode
@@ -1521,6 +1534,11 @@ bool FrameWin::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 			// and finally, remove the vanity window
 			DestroyWindow(vanityHWnd);
+
+			// restore normal window transition animations, which we disabled
+			// until the vanity shield was removed
+			int value = 0;
+			DwmSetWindowAttribute(hWnd, DWMWA_TRANSITIONS_FORCEDISABLED, &value, sizeof(value));
 		}
 		return true;
 	}

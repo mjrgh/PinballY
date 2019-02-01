@@ -309,6 +309,9 @@ protected:
 	FontPref infoBoxDetailFont{ this, 16 };   // info box fine print
 	FontPref creditsFont{ this, 42 };         // credits message font
 
+	// name of my startup video
+	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video"); }
+
 	// Figure the pixel width of the window layout in terms of the normalized
 	// height of 1920 pixels.
 	int NormalizedWidth()
@@ -1345,13 +1348,6 @@ protected:
 	// that C++ could reuse a memory address for a new object after
 	// an existing object is deleted.
 	std::unordered_map<DWORD, RefPtr<AudioVideoPlayer>> activeAudio;
-
-	// Video overlay sprite.  This is the surface where we draw
-	// the startup video.
-	RefPtr<VideoSprite> videoOverlay;
-
-	// video overlay ID
-	TSTRING videoOverlayID;
 
 	// Menu item flags.  MenuStayOpen is mostly intended for use with
 	// checkmarks or radio buttons, to allow making a series of item

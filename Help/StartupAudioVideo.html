@@ -28,6 +28,31 @@
    PinballY will automatically play it in the main playfield window
    each time the program starts.
 </p>
+<p>
+   You can also play startup videos in any of the secondary windows at the
+   same time.  These go in the same Media folder, with the target window
+   identified by the filename:
+</p>
+<table class="dataTable">
+   <tr><th>Window</th><th>Filename</th></tr>
+   <tr><td>Playfield</td><td>Startup Video.<i>ext</i></td></tr>
+   <tr><td>Backglass</td><td>Startup Video (bg).<i>ext</i></td></tr>
+   <tr><td>DMD</td><td>Startup Video (dmd).<i>ext</i></td></tr>
+   <tr><td>Topper</td><td>Startup Video (topper).<i>ext</i></td></tr>
+   <tr><td>Instruction Card</td><td>Startup Video (instcard).<i>ext</i></td></tr>
+</table>
+<p>
+   As with the playfield video, the extension <i>.ext</i> can .mpg, .mp4,
+   .f4v, or any of the other standard extensions for any supported video formats.
+</p>
+<p>
+   PinballY loads all of the startup videos and starts playback simultaneously,
+   or as close to simultaneously as possible.  This lets you coordinate effects
+   across the separate videos to some extent, since the videos should all be
+   synchronized to the same playback clock.  If you want effects in two or
+   more of the videos to occur simultaneously in playback, simply edit the
+   videos so that the events occur at the same time code in each video.
+</p>
 
 <p>
    <b>Custom startup audio:</b>  Place a file called <b>Startup Audio.mp3</b>

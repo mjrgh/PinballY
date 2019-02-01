@@ -470,3 +470,33 @@ void GetDeployedFilePath(TCHAR *result, const TCHAR *relFilePath, const TCHAR *d
 		PathCombine(result, exePath, relFilePath);
 	}
 }
+
+//------------------------------------------------------------------------
+//
+// Search for a file matching the given root name using the provided
+// list of extensions.  On entry, fname[] is set up with the root
+// name.  We'll add each extension in turn until we find one that
+// gives us the name of an extant file.  If we find such a file,
+// we'll return true, with the full name in fname[].  If we don't
+// find any files matching any of the possible names, we'll return
+// false.
+bool FindFileUsingExtensions(TCHAR fname[MAX_PATH], const TCHAR* const exts[], size_t nExts)
+{
+	// start with the root name
+	size_t rootLen = _tcslen(fname);
+	for (size_t i = 0; i < nExts; ++i)
+	{
+		const TCHAR *ext = exts[i];
+		size_t extLen = _tcslen(ext);
+		if (extLen + rootLen + 1 < MAX_PATH)
+		{
+			memcpy(fname + rootLen, ext, (extLen + 1) * sizeof(TCHAR));
+			if (FileExists(fname))
+				return true;
+		}
+	}
+
+	// not found
+	return false;
+}
+

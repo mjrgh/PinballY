@@ -39,6 +39,7 @@ protected:
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
 	virtual const TCHAR *GetDefaultBackgroundImage() const override;
+	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video (topper)"); }
 
 	// "show when running" window ID
 	virtual const TCHAR *ShowWhenRunningWindowId() const override { return _T("topper"); }

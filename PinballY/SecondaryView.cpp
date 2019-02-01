@@ -57,6 +57,10 @@ void SecondaryView::UpdateDrawingList()
 	if (incomingBackground.sprite != 0)
 		sprites.push_back(incomingBackground.sprite);
 
+	// add the video overlay
+	if (videoOverlay != nullptr)
+		sprites.push_back(videoOverlay);
+
 	// add the drop effect overlay
 	if (dropTargetSprite != nullptr)
 		sprites.push_back(dropTargetSprite);
@@ -408,6 +412,15 @@ bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		if (incomingBackground.sprite != nullptr && incomingBackground.sprite->GetVideoPlayerCookie() == wParam)
 			StartBackgroundCrossfade();
 		break;
+
+	case AVPMsgEndOfPresentation:
+		// If this is the overlay video, remove it
+		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
+		{
+			videoOverlay = nullptr;
+			UpdateDrawingList();
+		}
+		break;
 	}
 
 	// inherit the default handling
@@ -423,3 +436,4 @@ void SecondaryView::ShowContextMenu(POINT pt)
 	// use the normal handling
 	__super::ShowContextMenu(pt);
 }
+

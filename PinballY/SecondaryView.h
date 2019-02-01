@@ -73,7 +73,7 @@ protected:
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }
 
-	// get my default background image
+	// get my default background image name
 	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
 
 	// Get the media files for the background for the given game

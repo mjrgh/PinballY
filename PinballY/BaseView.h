@@ -10,6 +10,7 @@
 #include "D3DView.h"
 #include "PrivateWindowMessages.h"
 #include "Sprite.h"
+#include "VideoSprite.h"
 #include "MediaDropTarget.h"
 
 
@@ -39,6 +40,15 @@ public:
 	// Media information for the main background image/video
 	virtual const MediaType *GetBackgroundImageType() const = 0;
 	virtual const MediaType *GetBackgroundVideoType() const = 0;
+
+	// load/play our startup video
+	bool LoadStartupVideo();
+	bool PlayStartupVideo();
+	void EndStartupVideo();
+
+	// Startup video name for this window.  This is the base filename,
+	// with no path or extension.
+	virtual const TCHAR *StartupVideoName() const = 0;
 
 protected:
 	~BaseView();
@@ -263,4 +273,11 @@ protected:
 
 	// media drop target object
 	RefPtr<MediaDropTarget> dropTarget;
+
+	// Video overlay sprite.  This is the surface where we draw
+	// the startup video.
+	RefPtr<VideoSprite> videoOverlay;
+
+	// video overlay ID
+	TSTRING videoOverlayID;
 };

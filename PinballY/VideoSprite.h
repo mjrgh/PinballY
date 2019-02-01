@@ -21,7 +21,7 @@ public:
 	// in our normalized coordinates, where 1.0 is the height of the
 	// window.
 	bool LoadVideo(const TSTRING &filename, HWND hwnd, POINTF normalizedSize, 
-		ErrorHandler &eh, const TCHAR *descForErrors);
+		ErrorHandler &eh, const TCHAR *descForErrors, bool play = true);
 
 	// Render the video
 	virtual void Render(Camera *camera) override;

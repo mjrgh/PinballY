@@ -94,7 +94,8 @@ void VideoSprite::ReleaseVideoPlayer()
 
 bool VideoSprite::LoadVideo(
 	const TSTRING &filename, HWND hwnd, POINTF sz,
-	ErrorHandler &eh, const TCHAR *descForErrors)
+	ErrorHandler &eh, const TCHAR *descForErrors,
+	bool play)
 {
 	// create a new video player
 	RefPtr<AudioVideoPlayer> v(new VLCAudioVideoPlayer(hwnd, hwnd, false));
@@ -105,13 +106,13 @@ bool VideoSprite::LoadVideo(
 	// set the initial mute mode according to the current global status
 	v->Mute(Application::Get()->IsMuteVideosNow());
 
-	// try opening the video and starting it playing
-	if (!v->Open(TSTRINGToWSTRING(filename).c_str(), eh)
-		|| !v->Play(eh))
-	{
-		// we couldn't get the video loaded or playing - return failure
+	// try opening the video 
+	if (!v->Open(TSTRINGToWSTRING(filename).c_str(), eh))
 		return false;
-	}
+
+	// if desired, start it playing
+	if (play && !v->Play(eh))
+		return false;
 
 	// discard any previous video player and store the new one
 	ReleaseVideoPlayer();
