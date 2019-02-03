@@ -159,12 +159,12 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    its own configuration files.  You can use it for similar purposes.
 </p>
 <p>
-   The config ID is based on the game's title and system name.
+   The config ID is based on the game's title, manufacturer, year, and system name.
    This makes it stable across sessions, but it's not necessarily
    permanent for a given in-memory record.  Since it's based on the game's
-   title and player system, the config ID for an in-memory record changes
-   whenever you change the game's title, assign it to a different system, or
-   change the display name of the player system. 
+   metadata and system assignment, the config ID for an in-memory record changes
+   whenever you change the game's title, manufacturer, or year, or assign it to a
+   different system, or change the display name of the player system. 
 </p>
 <p>
    The way to think about the config ID is as a permanent identifier for

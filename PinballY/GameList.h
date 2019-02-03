@@ -287,6 +287,14 @@ public:
 	// permanent for a given game.
 	TSTRING GetGameId() const;
 
+	// Old ID string for the saved configuration.  The ID key changed
+	// in 1.0 Beta 3 to use the media file format, "Title (Manuf Year)",
+	// when those data are known.  Before that we only used the title
+	// portion.  When looking up the CSV row, we try the old format if
+	// we can't find a match for the new format, in case the CSV file
+	// was carried over from a past version.
+	TSTRING GetOldGameId() const;
+
 	// Resolve the game file.  This looks in the system's table folder
 	// for a file matching the filename in the metadata.  If the file
 	// as named doesn't exist, we'll try adding the default extension

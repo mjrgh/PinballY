@@ -2346,7 +2346,24 @@ int GameList::GetStatsDbRow(GameListItem *game, bool createIfNotFound)
 	if (row == -2)
 	{
 		// look up the game in our index
-		auto it = statsDbIndex.find(game->GetGameId());
+		TSTRING id = game->GetGameId();
+		auto it = statsDbIndex.find(id);
+
+		// If we didn't find a match, try looking up the game by its
+		// "old" (pre-1.0 Beta 3) ID.  If we find it under that ID,
+		// update it to use the new ID instead.
+		if (it == statsDbIndex.end() && (it = statsDbIndex.find(game->GetOldGameId())) != statsDbIndex.end())
+		{
+			// note the row
+			int row = it->second;
+
+			// replace the index entry with the new key
+			statsDbIndex.erase(it);
+			it = statsDbIndex.emplace(id, row).first;
+
+			// update the row in the database
+			gameCol->Set(row, id.c_str());
+		}
 
 		// If we found a matching row, store the row number in the
 		// game object and return the row.
@@ -3531,6 +3548,26 @@ GameListItem::~GameListItem()
 }
 
 TSTRING GameListItem::GetGameId() const
+{
+	// get the system name suffix
+	const TCHAR *sys = (system != nullptr ? system->displayName.c_str() : _T("Unconfigured"));
+
+	// use the title, manufacturer, and year, to the extent they're known
+	TSTRINGEx result;
+	if (manufacturer != nullptr && year != 0)
+		result.Format(_T("%s (%s %d).%s"), title.c_str(), manufacturer->manufacturer.c_str(), year, sys);
+	else if (manufacturer != nullptr)
+		result.Format(_T("%s (%s).%s"), title.c_str(), manufacturer->manufacturer.c_str(), sys);
+	else if (year != 0)
+		result.Format(_T("%s (%d).%s"), title.c_str(), year, sys);
+	else
+		result.Format(_T("%s.%s"), title.c_str(), sys);
+
+	// return the result
+	return result;
+}
+
+TSTRING GameListItem::GetOldGameId() const
 {
 	return title + _T(".") + (system != nullptr ? system->displayName : _T("Unconfigured"));
 }

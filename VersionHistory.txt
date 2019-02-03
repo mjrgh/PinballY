@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 3)
+02-02-2019 (1.0.0 Beta 3)
 
 * Startup videos can now be displayed in any or all of the windows.
 As with the playfield window startup video, each window's startup
@@ -78,10 +78,38 @@ there, even though you can't see them.)
 * You can now disable DOF effects, via a checkbox on the new DOF page
 of the settings dialog.  (Issue #27 on github.)
 
-* Javascript: added status line events (StatusLineEvent); added
-StatusLine objects; added optional "overrides" parameter to
+* The ID for each game in the GameStats.csv file has been changed to
+include the manufacturer and year of the game, if known.  In the past,
+the ID consisted only of the game's title and system name, which was
+problematic because there are a number of real pinball machines that
+share titles with other, unrelated machines (e.g., IPDB lists 9
+different machines named "Circus").  Using only the title made it
+impossible to distinguish the GameStats records for different tables
+sharing the same name, so the system couldn't store separate star
+ratings, play times, etc for each like-named game.  
+
+The change should be transparent, because the program looks for a
+record using the old "Title.System" ID format whenever it can't find
+an entry under the new format, and then immediately updates the record
+to the new format.  So your GameStats.csv file should be automatically
+updated to the new format the first time you run the new version, and
+all of your existing records should be carried forward.
+
+(Issue #35 on github.)
+
+* Javascript additions: status line events (StatusLineEvent);
+StatusLine objects; a new optional "overrides" parameter to
 mainWindow.playGame().  See the Javascript section in the help files
 for details.
+
+* The configID property of a GameInfo object returns the "new" config
+ID, which uses the format "Title (Manufacturer Year).System".  (The
+manufacturer and/or year are omitted if they're not configured in the
+game's database entry; the System is "Unconfigured" if that hasn't
+been set for the game.)  If you created any external files that used
+the old config ID that was based only on the title and system, they'll
+no longer match the entries, so you'll have to fix up your files by
+hand.
 
 * Fixed a couple of problems in the 64-bit ZIP distribution (these
 didn't affect the MSI): 7z.dll was missing; the folder containing the
