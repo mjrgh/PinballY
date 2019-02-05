@@ -19,6 +19,27 @@ playfield backgrounds are almost always exactly 9:16 anyway.  This has
 been fixed: both the "stretch" and default modes should now work for
 any source material aspect ratio.  (Issue #15 on github, revisited.)
 
+* The XML database loader can now handle titles that contain
+parentheses, such as "Mustang (Limited Edition)".  In the past, the
+loader couldn't read such titles properly, because it interpreted the
+first open parenthesis in a game list XML <description> element as
+introducing the "(Manufacturer Year)" suffix.  The game list parser is
+now more careful: it looks for the *last* parenthesized section,
+instead of the first open parenthesis.  It also recognizes nested
+parenthetical clauses within the suffix, in case the manufacturer name
+includes parentheses.  (There are several such manufacturer names in
+the IPDB list, such as "Universal Industries, Inc. (Chicago)".)
+
+* In beta 3, if you played startup videos in some combination of
+windows *not* including the main playfield window, PinballY failed to
+show its normal wheel UI after the videos ended, because it only paid
+attention to the end of the playfield video when deciding when to show
+the UI.  This also meant that it could show the UI before all of the
+videos finished playing, if the videos in secondary windows had longer
+playback times than the one in the playfield window.  Both problems
+are now fixed, as the program now takes into account all windows
+playing startup videos when deciding when to show the UI.
+
 
 02-02-2019 (1.0.0 Beta 3)
 

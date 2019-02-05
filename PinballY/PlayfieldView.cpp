@@ -2940,6 +2940,28 @@ void PlayfieldView::OnIdleEvent()
 	}
 }
 
+void PlayfieldView::OnEndExtStartupVideo()
+{
+	// The startup video in one of the windows has finished.
+	// Check to see if they're *all* finished.
+	auto IsDone = [](BaseView *view)
+	{
+		return view == nullptr || !view->IsStartupVideoPlaying();
+	};
+	auto app = Application::Get();
+	if (IsDone(this)
+		&& IsDone(app->GetBackglassView())
+		&& IsDone(app->GetDMDView())
+		&& IsDone(app->GetTopperView())
+		&& IsDone(app->GetInstCardView()))
+	{
+		// All startup videos are done.   Show the initial wheel UI.
+		// Skip the about box splash, since the intro video serves the
+		// purpose of the transition into the UI.
+		ShowInitialUI(false);
+	}
+}
+
 void PlayfieldView::ShowInitialUI(bool showAboutBox)
 {
 	// initialize the status lines
@@ -7278,20 +7300,6 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			{
 				// audio playback - remove it from the audio list
 				activeAudio.erase(it);
-			}
-			else if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == cookie)
-			{
-				// video overlay - take the appropriate ending action
-				if (videoOverlayID == _T("Startup"))
-				{
-					// Startup video - start an alpha fade-out and kick off the
-					// normal UI initialization.  Skip the about box "splash",
-					// since the intro video serves the same purpose of providing
-					// a graphical transition into the new program.
-					ShowInitialUI(false);
-					videoOverlay->StartFade(-1, 250);
-					SetTimer(hWnd, overlayFadeoutTimerID, 300, NULL);
-				}
 			}
 		}
 		break;

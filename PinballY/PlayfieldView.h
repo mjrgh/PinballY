@@ -243,6 +243,10 @@ public:
 		int nMediaItemsOk;
 	};
 
+	// The startup video has ended in one of the windows.  Check for overall
+	// startup video completion.
+	void OnEndExtStartupVideo();
+
 protected:
 	// destruction - called internally when the reference count reaches zero
 	~PlayfieldView();

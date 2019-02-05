@@ -45,6 +45,7 @@ public:
 	bool LoadStartupVideo();
 	bool PlayStartupVideo();
 	void EndStartupVideo();
+	bool IsStartupVideoPlaying() const;
 
 	// Startup video name for this window.  This is the base filename,
 	// with no path or extension.
@@ -207,6 +208,13 @@ protected:
 
 	// user message handling
 	virtual bool OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+	// app message handling
+	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
+
+	// overlay video ending
+	void OnEndOverlayVideo();
+	void OnEndStartupVideo();
 
 	// Drop area.  This describes a target area within the window where
 	// a media file can be dropped to install it as a particular media

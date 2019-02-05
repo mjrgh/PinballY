@@ -192,6 +192,27 @@ bool BaseView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	return __super::OnUserMessage(msg, wParam, lParam);
 }
 
+bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case AVPMsgEndOfPresentation:
+		// check for the end of the overlay video
+		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
+			OnEndOverlayVideo();
+		break;
+	}
+
+	return __super::OnAppMessage(msg, wParam, lParam);
+}
+
+void BaseView::OnEndOverlayVideo()
+{
+	// if the startup video is ending, remove it
+	if (videoOverlayID == _T("Startup"))
+		OnEndStartupVideo();
+}
+
 void BaseView::AsyncSpriteLoader::AsyncLoad(
 	bool sta,
 	std::function<void(VideoSprite*)> load,
@@ -723,18 +744,45 @@ bool BaseView::PlayStartupVideo()
 
 void BaseView::EndStartupVideo()
 {
+	// if a startup video is playing, stop it
 	if (videoOverlay != nullptr && videoOverlayID == _T("Startup"))
 	{
 		if (auto player = videoOverlay->GetVideoPlayer(); player != nullptr)
 		{
-			// stop the video and shut down the video player
+			// stop the video
 			player->Stop(LogFileErrorHandler());
-			player->Shutdown();
 
-			// forget the overlay
-			videoOverlay = nullptr;
-			UpdateDrawingList();
+			// clean up
+			OnEndStartupVideo();
 		}
 	}
+}
+
+void BaseView::OnEndStartupVideo()
+{
+	// make sure we haven't already cleaned up
+	if (videoOverlay != nullptr && videoOverlayID == _T("Startup"))
+	{
+		// shut down the video player
+		if (auto player = videoOverlay->GetVideoPlayer(); player != nullptr)
+			player->Shutdown();
+
+		// forget the overlay
+		videoOverlay = nullptr;
+		videoOverlayID = _T("");
+		UpdateDrawingList();
+
+		// notify the playfield window
+		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			pfv->OnEndExtStartupVideo();
+	}
+}
+
+bool BaseView::IsStartupVideoPlaying() const
+{
+	return videoOverlay != nullptr
+		&& videoOverlayID == _T("Startup")
+		&& videoOverlay->GetVideoPlayer() != nullptr
+		&& videoOverlay->GetVideoPlayer()->IsPlaying();
 }
 

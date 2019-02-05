@@ -412,15 +412,6 @@ bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		if (incomingBackground.sprite != nullptr && incomingBackground.sprite->GetVideoPlayerCookie() == wParam)
 			StartBackgroundCrossfade();
 		break;
-
-	case AVPMsgEndOfPresentation:
-		// If this is the overlay video, remove it
-		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
-		{
-			videoOverlay = nullptr;
-			UpdateDrawingList();
-		}
-		break;
 	}
 
 	// inherit the default handling
