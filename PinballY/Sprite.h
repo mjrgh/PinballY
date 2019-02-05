@@ -118,6 +118,9 @@ public:
 	// media, such as a Flash object.
 	void AdviseWindowSize(SIZE szLayout);
 
+	// re-create the mesh
+	void ReCreateMesh();
+
 protected:
 	virtual ~Sprite();
 

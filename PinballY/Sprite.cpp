@@ -313,6 +313,11 @@ bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, 
 	return true;
 }
 
+void Sprite::ReCreateMesh()
+{
+	CreateMesh(loadSize, SilentErrorHandler(), _T("Sprite::ReCreateMesh"));
+}
+
 bool Sprite::CreateMesh(POINTF sz, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// remove any prior resources

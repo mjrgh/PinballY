@@ -34,6 +34,7 @@ PinballY Release Checklist
     Builds\PinballY-64bit-Min-xxxxxx.zip
     Builds\PinballY-64bit-xxxxxx.msi
     VersionHistory.txt
+    License.txt
     Help\*
 
 - git commit -a -m "checkin message"

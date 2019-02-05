@@ -1,5 +1,21 @@
 PinballY Update History
 
+? (1.0.0 Beta 4)
+
+* In beta 3, the Game Details dialog didn't show checks in the boxes
+for the "Show when running" windows as saved in the settings (that is,
+all of the checkboxes were un-checked every time the dialog opened).
+This has been fixed; the boxes are now check-marked to match the saved
+settings properly.  (Issue #36 on github.)
+
+* The changes in beta 3 for rescaling the playfield background image
+(with options to maintain the original source material's aspect ratio,
+or stretch it to fit the window) didn't work properly for media
+created with a "landscape" aspect ratio (that is, wider than it is
+tall).  This should work now with either option.  (Issue #15 on
+github, revisited.)
+
+
 02-02-2019 (1.0.0 Beta 3)
 
 * Startup videos can now be displayed in any or all of the windows.

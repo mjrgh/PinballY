@@ -6317,22 +6317,10 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		}
 	}
 
-	// Figure the aspect ratio to use for displaying the playfield
-	// Use 16:9 by default, since that's the standard aspect ratio
-	// for HD monitors, and it's the target display format that most
-	// full-screen games are designed for.  However, if the window
-	// is in full-screen mode and portrait orientation, it looks
-	// nicer if we fit the video to the monitor, so use the window's
-	// actual aspect ratio in this case.
-	float aspectRatio = 9.0f/16.0f;
-	if (auto pfw = Application::Get()->GetPlayfieldWin(); 
-	   pfw != nullptr && pfw->IsFullScreen() && szLayout.cx < szLayout.cy)
-		aspectRatio = (float)szLayout.cx / (float)szLayout.cy;
-
 	// Asynchronous loader function
 	HWND hWnd = this->hWnd;
 	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, szLayout, aspectRatio](VideoSprite *sprite)
+	auto load = [hWnd, video, image, szLayout](VideoSprite *sprite)
 	{
 		// nothing loaded yet
 		bool ok = false;
@@ -6341,17 +6329,14 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		sprite->alpha = 0;
 
 		// First try loading a playfield video.  Load it at the full window
-		// height (1.0), and figure the proportional width based on the aspect
-		// ratio calculated above  Playfield and images and videos are stored 
-		// "sideways" (rotated 90 degrees clockwise), so the display height 
-		// is the image width, and vice versa.
+		// height (1.0) and width.  We'll scale the video when we get its format.
 		Application::AsyncErrorHandler eh;
 		if (video.length() != 0
-			&& sprite->LoadVideo(video, hWnd, { 1.0f, aspectRatio }, eh, _T("Playfield Video")))
+			&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video")))
 			ok = true;
 
 		// If there's no video, try a static image
-		if (!ok && image.length() != 0)
+		auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
 		{
 			// Get the image's native size, and figure the aspect
 			// ratio.  Playfield images are always stored "sideways",
@@ -6359,7 +6344,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// playfield images at 1.0 times the viewport height, so
 			// we just need to figure the relative width.
 			ImageFileDesc imageDesc;
-			GetImageFileInfo(image.c_str(), imageDesc, true);
+			GetImageFileInfo(path, imageDesc, true);
 			float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
 			POINTF normSize = { 1.0f, cx };
 
@@ -6367,15 +6352,18 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
 
 			// load the image into a new sprite
-			ok = sprite->Load(image.c_str(), normSize, pixSize, eh);
-		}
+			return sprite->Load(path, normSize, pixSize, eh);
+		};
+		if (!ok && image.length() != 0)
+			ok = LoadImage(image.c_str());
 
 		// if we didn't find any media to load, load the default playfield image
 		if (!ok)
 		{
+			// try loading the default image
 			TCHAR buf[MAX_PATH];
 			GetDeployedFilePath(buf, _T("assets\\DefaultPlayfield.png"), _T(""));
-			sprite->Load(buf, { 1.0f, aspectRatio }, { szLayout.cx, (int)(szLayout.cx * aspectRatio) }, eh);
+			ok = LoadImage(buf);
 		}
 
 		// HyperPin/PBX playfield images are oriented sideways, with the bottom at
@@ -7245,6 +7233,9 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 					auto desc = reinterpret_cast<const AudioVideoPlayer::FormatDesc*>(lParam);
 					if (desc->height != 0)
 						sprite->loadSize.y = static_cast<float>(desc->height) / static_cast<float>(desc->width);
+
+					// re-create the mesh at the new aspect ratio
+					sprite->ReCreateMesh();
 
 					// tell the caller this sprite matched the cookie
 					return true;
@@ -11737,6 +11728,41 @@ void PlayfieldView::EditGameInfo()
 				SetDlgItemText(hDlg, IDC_TXT_YEAR, MsgFmt(_T("%d"), game->year));
 			SetDlgItemText(hDlg, IDC_TXT_IPDB_ID, game->ipdbId.c_str());
 			SetDlgItemText(hDlg, IDC_CB_ROM, game->rom.c_str());
+
+			// populate the "Show when running" checkboxes
+			{
+				const TCHAR *showWhenRunning = GameList::Get()->GetShowWhenRunning(game);
+				auto SetShowWhenRunningCheckbox = [this, showWhenRunning](int controlId, const TCHAR *which)
+				{
+					// search for the 'which' token in the showWhenRunning string
+					size_t len = _tcslen(which);
+					for (const TCHAR *p = showWhenRunning; *p != 0; )
+					{
+						// find the next token
+						const TCHAR *nxt;
+						for (; *p == ' '; ++p);
+						for (nxt = p; *nxt != 0 && *nxt != ' '; ++nxt);
+
+						// check this token
+						if (len == nxt - p && _tcsnicmp(p, which, len) == 0)
+						{
+							// it's a match - check the box and stop looking
+							CheckDlgButton(hDlg, controlId, BST_CHECKED);
+							return;
+						}
+
+						// advance to the next token
+						p = nxt;
+					}
+
+					// not found - uncheck the box
+					CheckDlgButton(hDlg, controlId, BST_UNCHECKED);
+				};
+				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
+				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
+				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
+				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
+			}
 
 			// initialize the ROM combo list
 			PopulateROMCombo();
