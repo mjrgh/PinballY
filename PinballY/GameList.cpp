@@ -2084,47 +2084,98 @@ bool GameList::LoadGameDatabaseFile(
 				//
 				// This can also be just "Title (Manufacturer)" or "Title (Year)" when
 				// only one of the items is known, so check for the three formats.
-				static const std::regex patManYear("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s+(\\d{4})\\s*\\)\\s*$");
-				static const std::regex patYear("^\\s*(.*?)\\s*\\(\\s*(\\d{4})\\s*\\)\\s*$");
-				static const std::regex patMan("^\\s*(.*?)\\s*\\(\\s*(.*?)\\s*\\)\\s*$");
-				std::match_results<const char *> m;
+				//
+				// First, try parsing out a parenthetical suffix, respecting nested
+				// parentheses.  Scan backwards from the right of the string to see if
+				// it ends with a right paren (ignoring trailing spaces), and if so,
+				// scan backwards from there for the matching open paren.
 				CSTRING title;
-				if (std::regex_match(desc, m, patManYear))
+				const char *p;
+				for (p = desc + strlen(desc); p > desc && isspace(*(p - 1)); --p);
+				if (p > desc && *(p-1) == ')')
 				{
-					// We matched the "Title (Manufacturer Year)" pattern.  Pull out the
-					// base title stripped of the suffix, and use the manufacturer and
-					// year in the suffix to infer the corresponding metadata items if
-					// they weren't explicitly specified.
-					title = m[1].str().c_str();
-					if (manufName.length() == 0)
-						manufName = AnsiToTSTRING(m[2].str().c_str());
-					if (year == 0)
-						year = atoi(m[3].str().c_str());
+					// yes, it ends with a paren - scan for the matching open paren
+					const char *rightParen = --p;
+					int level = 1;
+					while (level > 0 && p > desc)
+					{
+						// move to the previous character
+						--p;
+
+						// count nesting levels
+						if (*p == '(')
+							--level;
+						else if (*p == ')')
+							++level;
+					}
+
+					// did we find the matching open paren?
+					if (level == 0)
+					{
+						// yes, we found the open paren
+						const char *leftParen = p;
+
+						// skip spaces to the left of the open paren
+						for (; p > desc && isspace(*(p - 1)); --p);
+						const char *titleEnd = p;
+
+						// skip spaces to at the start of the title portion
+						for (p = desc; isspace(*p) && p < titleEnd; ++p);
+
+						// make sure we found a non-empty title portion
+						if (titleEnd > p)
+						{
+							// We have a non-empty title and a parenthesized
+							// suffix, so this looks like the canonical format.
+							// Pull out the suffix.
+							CSTRING suffix(leftParen + 1, rightParen - leftParen - 1);
+
+							// Check if matches one of the standard suffix patterns:
+							// (Manufacturer Year), (Manufacturer), or (Year).
+							static const std::regex patManYear("\\s*(.*?)\\s+(\\d{4})\\s*");
+							static const std::regex patYear("\\s*(\\d{4})\\s*");
+							static const std::regex patMan("\\s*(.*?)\\s*");
+							std::match_results<CSTRING::const_iterator> m;
+							if (std::regex_match(suffix, m, patManYear))
+							{
+								// We matched the "Title (Manufacturer Year)" pattern.  Pull out the
+								// base title stripped of the suffix, and use the manufacturer and
+								// year in the suffix to infer the corresponding metadata items if
+								// they weren't explicitly specified.
+								title.assign(p, titleEnd - p);
+								if (manufName.length() == 0)
+									manufName = AnsiToTSTRING(m[1].str().c_str());
+								if (year == 0)
+									year = atoi(m[2].str().c_str());
+							}
+							else if (std::regex_match(suffix, m, patYear))
+							{
+								// Matched the "Title (Year)" pattern.  There's an off chance that
+								// the YYYY pattern is actually the manufacturer name, since that
+								// would end up looking just the same in the combined string.  We
+								// obviously can't tell from the string itself (since it looks the
+								// same either way), but we can at least check it against the
+								// explicit metadata: if it matches, it must not be the year.
+								title.assign(p, titleEnd - p);
+								if (year == 0 && (manufName.length() == 0 || AnsiToTSTRING(m[1].str().c_str()) != manufName))
+									year = atoi(m[1].str().c_str());
+							}
+							else if (std::regex_match(suffix, m, patMan))
+							{
+								// matched the "Title (Manufacturer)" pattern
+								title.assign(p, titleEnd - p);
+								if (manufName.length() == 0)
+									manufName = AnsiToTSTRING(m[1].str().c_str());
+							}
+						}
+					}
 				}
-				else if (std::regex_match(desc, m, patYear))
-				{
-					// Matched the "Title (Year)" pattern.  There's an off chance that
-					// the YYYY pattern is actually the manufacturer name, since that
-					// would end up looking just the same in the combined string.  We
-					// obviously can't tell from the string itself (since it looks the
-					// same either way), but we can at least check it against the
-					// explicit metadata: if it matches, it must not be the year.
-					title = m[1].str().c_str();
-					if (year == 0 && (manufName.length() == 0 || AnsiToTSTRING(m[2].str().c_str()) != manufName))
-						year = atoi(m[2].str().c_str());
-				}
-				else if (std::regex_match(desc, m, patMan))
-				{
-					// matched the "Title (Manufacturer)" pattern
-					title = m[1].str().c_str();
-					if (manufName.length() == 0)
-						manufName = AnsiToTSTRING(m[2].str().c_str());
-				}
-				else
-				{
-					// no match - use the desc as the title, exactly as specified
+
+				// If we didn't assign a title, we must not have matched a 
+				// valid suffix format.  Use the entire description as the
+				// title.
+				if (title.length() == 0)
 					title = desc;
-				}
 
 				// look up or create the manufacturer object
 				GameManufacturer *manuf = FindOrAddManufacturer(manufName.c_str());

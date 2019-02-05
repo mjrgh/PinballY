@@ -12,8 +12,12 @@ settings properly.  (Issue #36 on github.)
 (with options to maintain the original source material's aspect ratio,
 or stretch it to fit the window) didn't work properly for media
 created with a "landscape" aspect ratio (that is, wider than it is
-tall).  This should work now with either option.  (Issue #15 on
-github, revisited.)
+tall).  In fact, it didn't even quite work properly with material in
+"portrait" mode with aspect ratios other than exactly 9:16, but it was
+less visually obvious than with landscape material, and portrait-mode
+playfield backgrounds are almost always exactly 9:16 anyway.  This has
+been fixed: both the "stretch" and default modes should now work for
+any source material aspect ratio.  (Issue #15 on github, revisited.)
 
 
 02-02-2019 (1.0.0 Beta 3)
