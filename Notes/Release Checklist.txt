@@ -28,14 +28,18 @@ PinballY Release Checklist
 
 - Upload to mjrnet.org/pinscape/downloads/PinballY:
     Builds\PinballY-xxxxxxx.zip
-    Builds\PinballY-Min-xxxxxx.zip
     Builds\PinballY-xxxxxx.msi
     Builds\PinballY-64bit-xxxxxxx.zip
-    Builds\PinballY-64bit-Min-xxxxxx.zip
     Builds\PinballY-64bit-xxxxxx.msi
     VersionHistory.txt
     License.txt
     Help\*
+
+  (Note: the "Min" versions are deprecated, since it was too difficult
+  to figure out whether you needed the full or Min version.  I no longer
+  upload them.  For reference, they were as follows:)
+    Builds\PinballY-Min-xxxxxx.zip  [do not upload]
+    Builds\PinballY-64bit-Min-xxxxxx.zip  [do not upload]
 
 - git commit -a -m "checkin message"
 

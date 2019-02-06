@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 4)
+02-05-2019 (1.0.0 Beta 4)
 
 * In beta 3, the Game Details dialog didn't show checks in the boxes
 for the "Show when running" windows as saved in the settings (that is,
