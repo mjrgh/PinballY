@@ -11738,8 +11738,8 @@ void PlayfieldView::EditGameInfo()
 			SetDlgItemText(hDlg, IDC_CB_ROM, game->rom.c_str());
 
 			// populate the "Show when running" checkboxes
+			if (const TCHAR *showWhenRunning = GameList::Get()->GetShowWhenRunning(game); showWhenRunning != nullptr)
 			{
-				const TCHAR *showWhenRunning = GameList::Get()->GetShowWhenRunning(game);
 				auto SetShowWhenRunningCheckbox = [this, showWhenRunning](int controlId, const TCHAR *which)
 				{
 					// search for the 'which' token in the showWhenRunning string

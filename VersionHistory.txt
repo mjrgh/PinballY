@@ -1,5 +1,12 @@
 PinballY Update History
 
+02-07-2019 (1.0.0 Beta 5)
+
+* Fixed a bug added in beta 4 that caused a crash trying to open the
+Game Details dialog in some cases, particularly for previously
+unconfigured tables.
+
+
 02-05-2019 (1.0.0 Beta 4)
 
 * In beta 3, the Game Details dialog didn't show checks in the boxes
