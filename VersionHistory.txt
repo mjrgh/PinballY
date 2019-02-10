@@ -1,5 +1,16 @@
 PinballY Update History
 
+? (1.0.0 Beta 6)
+
+* Audio playback on real DMD videos is now enabled.  In the past it
+was muted, on the assumption that you wouldn't want to hear it because
+it would only interfere with the table's audio track or the main
+playfield video's soundtrack.  But I've heard from one person who does
+want to use the real DMD video's soundtrack.  So the program no longer
+makes any assumptions about which video's soundtrack takes precedence;
+it just plays them all now.  (Issue #38 on github.)
+
+
 02-07-2019 (1.0.0 Beta 5)
 
 * Fixed a bug added in beta 4 that caused a crash trying to open the

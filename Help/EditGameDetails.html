@@ -32,7 +32,7 @@
 <p>
    That will display the Game Details dialog:
 </p>
-<img src="EditGameDetails.jpg" class="example">
+<img src="EditGameDetails.png" class="example">
 
 <h2>Setting up a new game</h2>
 <p>
@@ -138,27 +138,40 @@
    <b>IPDB ID:</b>  If the game is a re-creation of a real table
    that has an entry on <a target="_blank" href="https://www.ipdb.org/">IPDB</a>,
    you can fill this in with the game's ID on IPDB.  The ID is a number
-   that IPDB uses as its database key to identify the game.  PinballY
-   doesn't currently do much with this information, but I think it's
-   a good piece of information to store for future reference.
-</p>
-<p>
+   that IPDB uses as its database key to identify the game.  
    If you look up the game on IPDB through a search, you'll find
    the ID number listed right at the top of the listing:
 </p>
 <img src="ipdbId.jpg" class="example">
 
 <p>
-   <b>Manufacturer:</b>  The name of the manufacturer that 
-   marketed the game, such as Williams or Gottlieb.  For purely virtual
-   tables (that never existed as real games), you might use the software
-   publisher or author here.
+   PinballY doesn't currently do much with the IPDB ID other than
+   storing it, but I think it's a good piece of information to
+   have on hand, if only for future reference.  It would
+   make a particularly good key for correlating information from
+   external sources, since it's so specific and unambiguous.
+
+<p>
+   <b>Manufacturer:</b>  The name of the company that built and
+   marketed the original pinball machine, such as Williams or Gottlieb.
+   For a purely virtual table (one that never existed as a physical arcade
+   pinball machine), you could enter the software publisher or author's name here.
+</p>
+<p>
+   I prefer to use the informal marketing name of the manufacturer here
+   (e.g., "Williams") rather than the full legal name of the company
+   ("Williams Electronic Games, Inc."), which you'll find if you look
+   games on IPDB.  PinballY uses the name you
+   enter here for a number of purposes, such as selecting which logo
+   file to use, so it's easier to shorten those long legal names down
+   to the more familiar marketing names.  If you let PinballY auto-populate
+   this field based on the title, it'll use the short name.
 </p>
 
 <p>
    <b>Release year:</b>  The year of release of the original real
-   pinball machine, or the year the software was published for a purely
-   virtual table.  Use a full four-digit year number here (e.g., 1995,
+   pinball machine, or, for a purely virtual game, the year the software
+   was first published.  Use a full four-digit year number here (e.g., 1995,
    not 95).
 </p>
 
@@ -248,24 +261,33 @@
 </p>
 
 <p>
-   <b>Show when running:</b>  This lets you tell PinballY to continue
-   showing the background image or video in any of the secondary
-   windows while the playing this game.  Normally, PinballY blanks
-   all of its windows while a game is running, since the assumption is
-   that the game will take over the entire display while it's running.
-   You don't want PinballY wasting CPU time and video memory by
-   continuing to play back videos in windows that are covered up
-   by the running game.  However, some game systems and some individual
-   games only use a portion of the display; for example, most systems
-   don't display anything at all in the "Topper" monitor, if you
-   have one, and some games don't include any backglass or DMD
-   graphics.  In these cases, you might prefer to let PinballY
-   keep showing its graphics in the display areas that the game
-   system doesn't use, so that there's something more interesting
-   in those areas than blank black backgrounds.  Simply check the
-   box for each window that you want PinballY to keep open while
-   the game is running.  PinballY will continue showing its
-   image or video in that window during play.
+   <b>"Keep the following windows open...":</b>  These checkboxes
+   let you tell PinballY to continue showing one or more of the
+   PinballY windows while the playing this game.  The
+   selected windows will remain in the foreground and will continue
+   to show their background graphics or videos throughout the game.
+</p>
+<p>
+   Normally, PinballY blanks all of its windows while a game is running,
+   and allows the running game to place its windows in front of the
+   PinballY windows (to the extent they're situated in the same
+   display area).  The assumption is that you want the game to take
+   over the entire display while it's running, and that you don't
+   want PinballY wasting CPU time and video memory by continuing to
+   play back videos in windows that are covered up by the running game.
+</p>
+<p>
+   However, some game systems and some individual games only use a
+   portion of the display.  For example, few systems display anything
+   at all in the "Topper" monitor (if you have one).  Some games don't
+   even include any backglass or DMD graphics.  In these cases, you
+   might prefer to let PinballY keep showing its graphics in the
+   display areas that the game system doesn't use, so that there's
+   something more interesting in those areas than blank black
+   backgrounds.  Simply check the box for each window that you want
+   PinballY to keep open while the game is running.  PinballY will
+   continue to show the game's video or background image in that
+   window during play.
 </p>
 <p>
    PinballY also forces each selected window into the "topmost"
@@ -274,13 +296,18 @@
    in the same area.  This lets you not just use the PinballY
    windows to fill in for missing graphics, but also to replace
    any graphics the game would normally display that you don't
-   like.  For example, some systems do display backglass
-   graphics, but only display boring still images there; you
-   might prefer to show the PinballY backglass video throughout
-   play instead for a more realistic appearance.  The automatic
+   like.  For example, some systems make a half-hearted attempt
+   at backglass graphics by displaying a static image with
+   no animation.  You might prefer to show the PinballY backglass
+   video throughout play instead in such cases.  The automatic
    "topmost" layering helps ensure that the PinballY window
    will appear in front of the game system's window, effectively
-   replacing it on the screen.
+   replacing it on the screen.  (This isn't absolutely guaranteed
+   to keep the PinballY window in front, because the game could
+   also lay claim to the "topmost" layer, in which case it will
+   usually have precedence because it's the foreground application.
+   You might need to resort to tweaking the game's settings in
+   such a case to tell the game not to show the unwanted window.)
 </p>
 
 

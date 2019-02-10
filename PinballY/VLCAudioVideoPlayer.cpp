@@ -462,6 +462,9 @@ bool VLCAudioVideoPlayer::Replay(ErrorHandler &eh)
 	libvlc_media_player_stop_(player);
 	libvlc_media_player_set_time_(player, 0);
 
+	// reset the muting mode
+	libvlc_audio_set_mute_(player, muted);
+
 	// start playback
 	libvlc_media_player_play_(player);
 
