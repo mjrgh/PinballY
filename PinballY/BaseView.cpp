@@ -472,6 +472,7 @@ void BaseView::ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DW
 
 	// clear out any old drop area list
 	dropAreas.clear();
+	activeDropArea = nullptr;
 
 	// by default, drops are processed through the playfield view, so we
 	// can't proceed unless that's available
@@ -507,7 +508,8 @@ void BaseView::ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DW
 			return;
 		}
 
-		// It's not a media type.  Try building a drop area list.
+		// It's not an archive type.  Try building a drop area list for
+		// the specific file type.
 		if (BuildDropAreaList(fname))
 		{
 			// success - draw the sprite

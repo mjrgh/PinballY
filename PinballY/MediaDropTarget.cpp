@@ -181,12 +181,16 @@ POINT MediaDropTarget::ScreenToView(POINTL ptl) const
 		return pt;
 
 	case 90:
-		return { rc.bottom - pt.y, rc.left + pt.x };
+		// NB - the POINT qualifier is a compiler bug workaround.  It might
+		// look redundant, which it is, but don't remove it until you can
+		// verify that Microsoft has fixed the compiler bug.
+		// https://developercommunity.visualstudio.com/content/problem/449167/return-with-struct-list-initializer-computes-wrong.html
+		return POINT { rc.bottom - pt.y, rc.left + pt.x };
 
 	case 180:
-		return { rc.right - pt.x, rc.bottom - pt.y };
+		return POINT { rc.right - pt.x, rc.bottom - pt.y };
 
 	case 270:
-		return { rc.top + pt.y, rc.right - pt.x };
+		return POINT { rc.top + pt.y, rc.right - pt.x };
 	}
 }

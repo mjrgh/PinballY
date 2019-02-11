@@ -1258,7 +1258,7 @@ System3.Exe =
 System3.ShowWindow = SW_SHOWMINIMIZED
 System3.Environment =
 System3.TablePath = Tables
-System3.Parameters = /play -"[TABLEPATH]\[TABLEFILE]"
+System3.Parameters = /minimized /play -"[TABLEPATH]\[TABLEFILE]"
 System3.DefExt = .vpx
 
 # Future Pinball

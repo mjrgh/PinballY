@@ -3251,6 +3251,9 @@ void GameList::DeleteXml(GameListItem *game)
 		// the database file now has unsaved changes
 		game->dbFile->isDirty = true;
 
+		// the game is no longer associated with a db file
+		game->dbFile = nullptr;
+
 		// clear the XML-derived fields from the game record
 		game->system = nullptr;
 		game->manufacturer = nullptr;

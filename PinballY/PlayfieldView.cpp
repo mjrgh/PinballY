@@ -6319,6 +6319,20 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
 	}
 
+	// If the outgoing game has a database record but is still marked
+	// as unconfigured, the game details must have been added just now.
+	// The nominally unconfigured status lasts as long as it's the
+	// current selection, even after entering the details, so that it
+	// doesn't abruptly vanish from the UI even if the current filter 
+	// hides unconfigured games, and so that the "Game Setup" command
+	// doesn't abruptly disappear from the main menu.  But as soon as
+	// we switch to a new game by whatever means, that special temporary
+	// UI status no longer applies, so we want its "configured" flag to
+	// match its true status.
+	if (auto oldGame = currentPlayfield.game;
+		IsGameValid(oldGame) && !oldGame->isConfigured && oldGame->dbFile != nullptr)
+		oldGame->isConfigured = true;
+
 	// stop any previous playfield audio
 	if (currentPlayfield.audio != nullptr)
 		currentPlayfield.audio->Stop(SilentErrorHandler());
@@ -6653,7 +6667,7 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 		// if the outgoing game is marked as unconfigured but now 
 		// has a database entry, mark it as configured
 		if (auto game = GameList::Get()->GetNthGame(0);
-			game != nullptr && !game->isConfigured && game->dbFile != nullptr)
+			IsGameValid(game) && !game->isConfigured && game->dbFile != nullptr)
 			game->isConfigured = true;
 	}
 

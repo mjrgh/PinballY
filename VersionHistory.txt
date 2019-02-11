@@ -3,12 +3,39 @@ PinballY Update History
 ? (1.0.0 Beta 6)
 
 * Audio playback on real DMD videos is now enabled.  In the past it
-was muted, on the assumption that you wouldn't want to hear it because
-it would only interfere with the table's audio track or the main
-playfield video's soundtrack.  But I've heard from one person who does
-want to use the real DMD video's soundtrack.  So the program no longer
-makes any assumptions about which video's soundtrack takes precedence;
-it just plays them all now.  (Issue #38 on github.)
+was muted, on the assumption that you wouldn't want it to interfere
+with the table's audio track or the main playfield video's soundtrack.
+But at least one user reports wanting to use the real DMD video as the
+source of the table's audio, so that assumption was evidently wrong.
+To simplify things and give you more control, the program now just
+plays the audio for all videos, so you can arrange the soundtracks any
+way you please by editing the videos.  (Issue #38 on github.)
+
+* Added /minimized to the command parameters for the default VP 10
+settings.  (This WON'T be applied to your settings if you're updating
+from a prior version, as all of your existing settings will be kept
+instead.  You might want to add /minimized at the start of the
+"parameters" line for VP 10 in the settings dialog, especially if
+you've had problems with VP 10 showing its designer window when you
+launch a VP 10 game from PinballY.)
+
+* Fixed a problem that sometimes prevented installing a wheel image
+via drag-and-drop with the mouse.  When the problem occurred, the
+"Drop here to install wheel image" box in the UI failed to recognize
+when the mouse was within its bounds, so the drop would always wind up
+as the playfield image instead.  The "install wheel image" box should
+now work correctly.
+
+* If you had the "Hide unconfigured games in the main list" option
+enabled (in the Game Wheel settings page), there was a snag in game
+visibility when setting up a new game.  If you enabled the "Show
+unconfigured games" filter in the Operator Menu, then entered the
+game's details, then un-selected "Show unconfigured games" to switch
+back to the normal game list, the newly configured game didn't appear
+in the normal list.  It *should* have appeared, but it was still being
+treated as unconfigured for the purposes of the filter.  This has been
+corrected; the game now immediately appears in the regular wheel list
+as soon as you switch back to it.  (Issue #42 on github.)
 
 
 02-07-2019 (1.0.0 Beta 5)
