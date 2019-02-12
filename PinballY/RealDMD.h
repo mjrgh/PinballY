@@ -45,6 +45,11 @@ public:
 	// for a given game.
 	void OnUpdateHighScores(GameListItem *game);
 
+	// End of presentation notification.  The main window calls this
+	// when it gets an AVPEndOfPresentation message from the video
+	// player.
+	void VideoEndOfPresentation(WPARAM cookie);
+
 	// Loop Needed notification.  The main window calls this when it
 	// gets an AVPMsgLoopNeeded message from the video player.  If
 	// the cookie matches our current video's cookie, we'll replay
@@ -67,6 +72,12 @@ public:
 	bool IsMirrorVert() const { return mirrorVert; }
 	void SetMirrorHorz(bool b);
 	void SetMirrorVert(bool b);
+
+	// startup video support
+	bool LoadStartupVideo();
+	bool PlayStartupVideo();
+	void EndStartupVideo();
+	bool IsStartupVideoPlaying() const;
 
 protected:
 	// singleton instance
@@ -192,6 +203,18 @@ protected:
 
 	// color space for the video
 	ColorSpace videoColorSpace;
+
+	// video mode
+	enum VideoMode
+	{
+		None,      // no video playing
+		Game,      // game video
+		Startup    // startup video
+	};
+	VideoMode videoMode = None;
+
+	// load a video
+	bool LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh);
 
 	// Generate high score graphics for the current game
 	void GenerateHighScoreGraphics();

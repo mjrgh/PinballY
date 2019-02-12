@@ -54,6 +54,9 @@ public:
 	// Initialize real DMD support
 	void InitRealDMD(ErrorHandler &eh);
 
+	// get the real DMD instance
+	RealDMD *GetRealDMD() const { return realDMD.get(); }
+
 	// initialize javascript
 	void InitJavascript();
 

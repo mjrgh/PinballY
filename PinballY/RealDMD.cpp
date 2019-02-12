@@ -761,6 +761,7 @@ void RealDMD::ClearMedia()
 	{
 		videoPlayer->Stop(SilentErrorHandler());
 		videoPlayer = nullptr;
+		videoMode = VideoMode::None;
 	}
 
 	// clear out the slide show
@@ -950,22 +951,7 @@ void RealDMD::UpdateGame()
 			// Try loading the video first, if we found one
 			bool ok = false;
 			if (video.length() != 0)
-			{
-				// create a new video player
-				auto pfv = Application::Get()->GetPlayfieldView();
-				auto hwndPfv = pfv != nullptr ? pfv->GetHWnd() : NULL;
-				videoPlayer.Attach(new VLCAudioVideoPlayer(hwndPfv, hwndPfv, false));
-
-				// Try loading the video.  Always play DMD videos muted.
-				Application::InUiErrorHandler uieh;
-				videoPlayer->Mute(true);
-				videoPlayer->SetLooping(true);
-				ok = videoPlayer->OpenDmdTarget(video.c_str(), uieh, this) && videoPlayer->Play(uieh);
-
-				// if that failed, forget the video player
-				if (!ok)
-					videoPlayer = nullptr;
-			}
+				ok = LoadVideo(video.c_str(), true, true, VideoMode::Game, Application::InUiErrorHandler());
 
 			// If we didn't manage to load a video, try loading the image
 			if (!ok && image.length() != 0)
@@ -1089,6 +1075,40 @@ void RealDMD::UpdateGame()
 			GenerateHighScoreGraphics();
 		}
 	}
+}
+
+bool RealDMD::LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh)
+{
+	// create a new video player
+	auto pfv = Application::Get()->GetPlayfieldView();
+	auto hwndPfv = pfv != nullptr ? pfv->GetHWnd() : NULL;
+	videoPlayer.Attach(new VLCAudioVideoPlayer(hwndPfv, hwndPfv, false));
+
+	// set the desired looping mode
+	videoPlayer->SetLooping(looping);
+
+	// try loading the video
+	bool ok = videoPlayer->OpenDmdTarget(path, eh, this);
+	
+	// if desired, start playback immediately
+	if (ok && play)
+		ok = videoPlayer->Play(eh);
+
+	// check the result
+	if (ok)
+	{
+		// success - set the new video mode
+		videoMode = mode;
+	}
+	else
+	{
+		// failed - forget the video player and clear the video mode
+		videoPlayer = nullptr;
+		videoMode = VideoMode::None;
+	}
+
+	// return the result
+	return ok;
 }
 
 void RealDMD::StartSlideShow()
@@ -1591,6 +1611,26 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 	}
 }
 
+void RealDMD::VideoEndOfPresentation(WPARAM cookie)
+{
+	// check if this is for our current video
+	if (videoPlayer != nullptr && videoPlayer->GetCookie() == cookie)
+	{
+		// check what mode we're in
+		switch (videoMode)
+		{
+		case VideoMode::Startup:
+			// startup video - clear the media and notify the main window 
+			// that our startup video has finished
+			ClearMedia();
+			if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+				pfv->OnEndExtStartupVideo();
+
+			break;
+		}
+	}
+}
+
 void RealDMD::VideoLoopNeeded(WPARAM cookie)
 {
 	// if the request is for our current video, restart playback
@@ -1619,3 +1659,62 @@ void RealDMD::LogGroup()
 {
 	LogFile::Get()->Group(LogFile::DmdLogging);
 }
+
+bool RealDMD::LoadStartupVideo()
+{
+	// Check for a startup video.  Try for a color video first,
+	// then a monochrome video
+	auto TryVideo = [this](const TCHAR *name, bool isColor)
+	{
+		// build the filename
+		TCHAR startupVideo[MAX_PATH];
+		GetDeployedFilePath(startupVideo, _T("Media"), _T(""));
+		PathAppend(startupVideo, name);
+
+		// search for a supported video type
+		static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
+		if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+		{
+			// got it - try loading the video
+			ClearMedia();
+			if (LoadVideo(startupVideo, false, false, VideoMode::Startup, LogFileErrorHandler()))
+			{
+				// use a 24-bit color space if this is a color video and the device
+				// supports full color, otherwise use 16-shade monochrome
+				videoColorSpace = isColor && Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
+
+				// success
+				return true;
+			}
+		}
+
+		// not found or failed to load
+		return false;
+	};
+
+	return TryVideo(_T("Startup Video (realdmd color)"), true)
+		|| TryVideo(_T("Startup Video (realdmd)"), false);
+}
+
+bool RealDMD::PlayStartupVideo() 
+{
+	// if there's a video, start it playing
+	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
+		return videoPlayer->Play(LogFileErrorHandler());
+	
+	// there's no video to play, so this is a successful no-op
+	return true;
+}
+
+void RealDMD::EndStartupVideo()
+{
+	// end the startup video
+	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
+		ClearMedia();
+}
+
+bool RealDMD::IsStartupVideoPlaying() const
+{
+	return videoMode == Startup && videoPlayer != nullptr && videoPlayer->IsPlaying();
+}
+

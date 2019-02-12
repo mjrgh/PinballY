@@ -329,12 +329,7 @@ void PlayfieldView::InitRealDMD(ErrorHandler &eh)
 		}
 
 		// check what happened
-		if (ok)
-		{
-			// loaded successfully - sync media in the DMD
-			realDMD->UpdateGame();
-		}
-		else
+		if (!ok)
 		{
 			// failed or not attempted - forget the DMD interface
 			realDMD.reset(nullptr);
@@ -2953,7 +2948,8 @@ void PlayfieldView::OnEndExtStartupVideo()
 		&& IsDone(app->GetBackglassView())
 		&& IsDone(app->GetDMDView())
 		&& IsDone(app->GetTopperView())
-		&& IsDone(app->GetInstCardView()))
+		&& IsDone(app->GetInstCardView())
+		&& (realDMD == nullptr || !realDMD->IsStartupVideoPlaying()))
 	{
 		// All startup videos are done.   Show the initial wheel UI.
 		// Skip the about box splash, since the intro video serves the
@@ -7303,10 +7299,11 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// End of playback for an audio/video clip.  The WPARAM is the
 		// cookie identifying the media player instance.
 		//
-		// If it's audio clip in our active audio table, remove it from the 
-		// table, which will release the reference and delete the object.
+		// * If it's audio clip in our active audio table, remove it from the 
+		//   table, which will release the reference and delete the object.
 		//
-		// Otherwise, if it's the overlay video, fade out the overlay video.
+		// * If it's the real DMD video, pass along the notification to the
+		//   real DMD object
 		//
 		{
 			auto cookie = static_cast<DWORD>(wParam);
@@ -7315,21 +7312,25 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 				// audio playback - remove it from the audio list
 				activeAudio.erase(it);
 			}
+			else if (realDMD != nullptr)
+				realDMD->VideoEndOfPresentation(cookie);
 		}
 		break;
 
 	case AVPMsgLoopNeeded:
 		// Loop needed for a video.  The base class handles this for
-		// video sprites, but we need to also pass it along to the real
-		// DMD handler, if present.
-		if (realDMD != nullptr)
-			realDMD->VideoLoopNeeded(wParam);
-
-		// Also loop the table audio, if playing
+		// video sprites, but we need to handle table audio looping, and
+		// we need to pass the notification to the real DMD if present.
+		// Note that each media item has a unique cookie, so if we find
+		// a match in one of the objects, we can skip the others.
 		if (auto a = currentPlayfield.audio.Get(); a != nullptr && a->GetCookie() == wParam)
 			a->Replay(SilentErrorHandler());
-		if (auto a = incomingPlayfield.audio.Get(); a != nullptr && a->GetCookie() == wParam)
+		else if (auto a = incomingPlayfield.audio.Get(); a != nullptr && a->GetCookie() == wParam)
 			a->Replay(SilentErrorHandler());
+		else if (realDMD != nullptr)
+			realDMD->VideoLoopNeeded(wParam);
+
+		// proceed to the default handling
 		break;
 
 	case HSMsgHighScores:

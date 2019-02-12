@@ -2,6 +2,14 @@ PinballY Update History
 
 ? (1.0.0 Beta 6)
 
+* A startup video can now be played on the real DMD, in addition to
+the startup videos in the regular windows.  Place it in the same
+folder as the other startup videos, and name it "Startup Video
+(realdmd)" for gray-scale playback, or "Startup Video (realdmd color)"
+for full-color playback.  As with other real DMD videos, full-color
+playback is only possible if you have a color DMD device. (Issue #37
+on github.)
+
 * Audio playback on real DMD videos is now enabled.  In the past it
 was muted, on the assumption that you wouldn't want it to interfere
 with the table's audio track or the main playfield video's soundtrack.

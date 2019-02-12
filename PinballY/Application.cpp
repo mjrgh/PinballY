@@ -50,6 +50,7 @@
 #include "RefTableList.h"
 #include "CaptureStatusWin.h"
 #include "LogFile.h"
+#include "RealDMD.h"
 
 // --------------------------------------------------------------------------
 //
@@ -936,7 +937,7 @@ bool Application::LoadStartupVideos()
 			&& func(GetTopperView());
 	};
 
-	// Try loading a video in each window
+	// try loading a video in each window
 	bool found = false;
 	ForEachView([&found](BaseView *view) 
 	{ 
@@ -945,16 +946,26 @@ bool Application::LoadStartupVideos()
 		return true; 
 	});
 
+	// try loading a video in the real DMD as well
+	auto dmd = GetPlayfieldView() != nullptr ? GetPlayfieldView()->GetRealDMD() : nullptr;
+	if (dmd != nullptr)
+		found |= dmd->LoadStartupVideo();
+
 	// if we found any videos, start them playing
 	if (found)
 	{
 		// start them, noting if they all succeed
 		bool ok = ForEachView([](BaseView *view) { return view->PlayStartupVideo(); });
+		if (dmd != nullptr)
+			ok &= dmd->PlayStartupVideo();
 
 		// if we ran into any errors, cancel them all
 		if (!ok)
 		{
 			ForEachView([](BaseView *view) { view->EndStartupVideo(); return true; });
+			if (dmd != nullptr)
+				dmd->EndStartupVideo();
+
 			found = false;
 		}
 	}
