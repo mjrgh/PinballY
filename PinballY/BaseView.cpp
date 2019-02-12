@@ -692,15 +692,11 @@ bool BaseView::OnMouseMove(POINT pt)
 // Load our startup video
 bool BaseView::LoadStartupVideo()
 {
-	// check for a startup video
+	// look for the startup video for this window type
+	bool found = false;
 	TCHAR startupVideo[MAX_PATH];
-	GetDeployedFilePath(startupVideo, _T("Media"), _T(""));
-	PathAppend(startupVideo, StartupVideoName());
-
-	// search for a supported video type
-	bool foundStartupVideo = false;
-	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
-	if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+	auto gl = GameList::Get();
+	if (gl != nullptr && gl->FindGlobalVideoFile(startupVideo, _T("Startup Videos"), StartupVideoName()))
 	{
 		// Try loading the video in the overlay video sprite.  Don't start
 		// playing it yet; we want to get the loading going in any other
@@ -713,7 +709,7 @@ bool BaseView::LoadStartupVideo()
 		if (videoOverlay->LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading startup video"), false))
 		{
 			// success
-			foundStartupVideo = true;
+			found = true;
 			videoOverlayID = _T("Startup");
 
 			// the video sprite loops by default; we only want to play once
@@ -725,7 +721,7 @@ bool BaseView::LoadStartupVideo()
 	}
 
 	// tell the caller whether or not we loaded a startup video
-	return foundStartupVideo;
+	return found;
 }
 
 bool BaseView::PlayStartupVideo()

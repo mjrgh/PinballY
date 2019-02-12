@@ -2,13 +2,31 @@ PinballY Update History
 
 ? (1.0.0 Beta 6)
 
+* IMPORTANT CHANGE NOTE: The startup video folder location has been
+changed.  The program now looks for startup videos in the following
+folders, in this order:
+
+    <base media folder>\Startup Videos
+    <PinballY folder>\Media\Startup Videos
+
+This allows you to share startup videos with an existing PinballX
+installation.  The filenames are the same as before, but you'll have
+to move the files to the "Startup Videos" subfolder.
+
+The startup audio folder location has been changed along the same
+lines:
+
+    <base media folder>\Startup Sounds
+    <PinballY folder>\Media\Startup Sounds
+
+
 * A startup video can now be played on the real DMD, in addition to
 the startup videos in the regular windows.  Place it in the same
-folder as the other startup videos, and name it "Startup Video
-(realdmd)" for gray-scale playback, or "Startup Video (realdmd color)"
-for full-color playback.  As with other real DMD videos, full-color
-playback is only possible if you have a color DMD device. (Issue #37
-on github.)
+location as the other startup videos (Media\Startup Videos), and name
+it "Startup Video (realdmd)" for gray-scale playback, or "Startup
+Video (realdmd color)" for full-color playback.  As with other real
+DMD videos, full-color playback is only possible if you have a color
+DMD device. (Issue #37 on github.)
 
 * Audio playback on real DMD videos is now enabled.  In the past it
 was muted, on the assumption that you wouldn't want it to interfere

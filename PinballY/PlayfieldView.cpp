@@ -2917,9 +2917,8 @@ void PlayfieldView::OnIdleEvent()
 
 	// check for a startup audio track
 	TCHAR startupAudio[MAX_PATH];
-	GetDeployedFilePath(startupAudio, _T("Media\\Startup Audio"), _T(""));
-	static const TCHAR *audioExts[] = { _T(".mp3"), _T(".wav"), _T(".ogg") };
-	if (FindFileUsingExtensions(startupAudio, audioExts, countof(audioExts)))
+	auto gl = GameList::Get();
+	if (gl != nullptr && gl->FindGlobalAudioFile(startupAudio, _T("Startup Sounds"), _T("Startup Audio")))
 	{
 		// create a player and load the audio track
 		LogFileErrorHandler eh(_T("Startup audio: "));

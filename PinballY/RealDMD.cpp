@@ -1666,14 +1666,10 @@ bool RealDMD::LoadStartupVideo()
 	// then a monochrome video
 	auto TryVideo = [this](const TCHAR *name, bool isColor)
 	{
-		// build the filename
+		// try this file
 		TCHAR startupVideo[MAX_PATH];
-		GetDeployedFilePath(startupVideo, _T("Media"), _T(""));
-		PathAppend(startupVideo, name);
-
-		// search for a supported video type
-		static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
-		if (FindFileUsingExtensions(startupVideo, videoExts, countof(videoExts)))
+		auto gl = GameList::Get();
+		if (gl != nullptr && gl->FindGlobalVideoFile(startupVideo, _T("Startup Videos"), name))
 		{
 			// got it - try loading the video
 			ClearMedia();

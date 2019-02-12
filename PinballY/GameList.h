@@ -1182,6 +1182,24 @@ public:
 	// get the media folder path
 	const TCHAR *GetMediaPath() const { return mediaPath.c_str(); }
 
+	// Find a global media file.  Global media files are media items not
+	// associated with any game, such as startup videos, startup audio,
+	// and button sounds.  We search the following locations:
+	//
+	//   <base media folder>\<subfolder>
+	//   <PinballY install folder>\Media\<subfolder>
+	//   <PinballY install folder>\Assets\<subfolder>
+	//   
+	bool FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file, 
+		const TCHAR *const *exts, size_t numExts);
+
+	// Find a global media file of the given type.  This simply calls
+	// FindGlobalMediaFile() with the appropriate list of suffixes for
+	// the type.
+	bool FindGlobalVideoFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
+	bool FindGlobalAudioFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
+	bool FindGlobalWaveFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
+
 	// Load all game lists
 	bool Load(ErrorHandler &eh);
 

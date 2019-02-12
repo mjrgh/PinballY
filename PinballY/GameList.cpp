@@ -3433,6 +3433,63 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 		func(pair.second);
 }
 
+bool GameList::FindGlobalVideoFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
+{
+	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
+	return FindGlobalMediaFile(path, subfolder, file, videoExts, countof(videoExts));
+}
+
+bool GameList::FindGlobalAudioFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
+{
+	static const TCHAR *audioExts[] = { _T(".mp3"), _T(".ogg"), _T(".wav") };
+	return FindGlobalMediaFile(path, subfolder, file, audioExts, countof(audioExts));
+}
+
+bool GameList::FindGlobalWaveFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
+{
+	static const TCHAR *audioExts[] = { _T(".wav") };
+	return FindGlobalMediaFile(path, subfolder, file, audioExts, countof(audioExts));
+}
+
+bool GameList::FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file,
+	const TCHAR *const *exts, size_t numExts)
+{
+	// Look in the <base media folder>\<subfolder> first
+	TCHAR baseMediaPath[MAX_PATH];
+	PathCombine(baseMediaPath, GetMediaPath(), subfolder);
+	PathCombine(path, baseMediaPath, file);
+	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+	if (FindFileUsingExtensions(path, exts, numExts))
+		return true;
+
+	// No luck there.  Try <PinballY>\Media\<subfolder>, but only if it's
+	// different from the base media folder.  It's different if the base
+	// media folder is from a PinballX or HyperPin installation.
+	TCHAR localMediaPath[MAX_PATH];
+	GetDeployedFilePath(localMediaPath, _T("Media"), _T(""));
+	PathAppend(localMediaPath, subfolder);
+	if (_tcsicmp(localMediaPath, baseMediaPath) != 0)
+	{
+		PathCombine(path, localMediaPath, file);
+		LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+		if (FindFileUsingExtensions(path, exts, numExts))
+			return true;
+	}
+
+	// Try <PinballY>\Assets\<subfolder>, in case this item has a built-in
+	// default media file.
+	GetDeployedFilePath(path, _T("Assets"), _T(""));
+	PathAppend(path, subfolder);
+	PathAppend(path, file);
+	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+	if (FindFileUsingExtensions(path, exts, numExts))
+		return true;
+
+	// no files found
+	return false;
+}
+
+
 
 // -----------------------------------------------------------------------
 // 

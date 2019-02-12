@@ -22,6 +22,8 @@
       <ComponentRef Id="PinballY" />
       <ComponentRef Id="SevenZip"/>
 			<ComponentRef Id="MediaFolder"/>
+			<ComponentRef Id="StartupVideosFolder"/>
+			<ComponentRef Id="StartupSoundsFolder"/>
 			<ComponentRef Id="Scripts"/>
 			<ComponentRef Id="SystemScripts"/>
 			<ComponentRef Id="ffmpeg"/>
@@ -74,7 +76,10 @@
         <Directory Id="INSTALLFOLDER" Name="PinballY">
           <Directory Id="PBYDIR" >
             <Directory Id="ASSETSDIR" Name="Assets" />
-						<Directory Id="MEDIADIR" Name="Media" />
+						<Directory Id="MEDIADIR" Name="Media">
+							<Directory Id="STARTUPVIDEOSDIR" Name="Startup Videos" />
+							<Directory Id="STARTUPSOUNDSDIR" Name="Startup Sounds" />
+						</Directory>
             <Directory Id="HELPDIR" Name="Help" />
 						<Directory Id="SCRIPTSDIR" Name="Scripts">
 							<Directory Id="SYSTEMSCRIPTSDIR" Name="System" />
@@ -119,6 +124,18 @@
 		<DirectoryRef Id="MEDIADIR">
 			<Component Id="MediaFolder" Guid="55118B19-A4BE-49D0-A8C8-88C147F9F8E4">
 				<File Id="MediaReadme" Source="$(var.SolutionDir)Media\Readme.txt" />
+			</Component>
+		</DirectoryRef>
+
+		<DirectoryRef Id="STARTUPVIDEOSDIR">
+			<Component Id="StartupVideosFolder" Guid="22DA624E-F28F-4D82-AA5B-D55171E61519">
+				<CreateFolder/>
+			</Component>
+		</DirectoryRef>
+
+		<DirectoryRef Id="STARTUPSOUNDSDIR">
+			<Component Id="StartupSoundsFolder" Guid="C3BE2CDC-E81D-45A5-993E-5ECD5CD8DBEF">
+				<CreateFolder/>
 			</Component>
 		</DirectoryRef>
 

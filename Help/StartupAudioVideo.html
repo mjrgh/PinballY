@@ -15,24 +15,44 @@
 <p>
    You can make PinballY play a custom audio and/or video file whenever the
    program starts up.  Setting up the startup items is just a matter of
-   creating suitable files in the <b>Media</b> folder within your main
-   PinballY program folder.
+   creating certain files in subfolders of the main Media folder, as
+   explained below.
 </p>
+<h2>Folder location2</h2>
+<p>
+   PinballY looks for startup media files in two locations:
+</p>
+<ul>
+   <li>Your main media folder, as configured with the Media Folder
+   option in the <a href="PathOptions.html">Folder Options</a> section
+   in the settings
+
+   <li>The <b>Media</b> folder within your PinballY program folder
+</ul>
 
 <p>
-   <b>Custom startup video:</b>  Place a file called <b>Startup Video.mp4</b>
-   in the PinballY <b>Media</b> folder.  It has to use that exact name, including
-   the space, but you can change the suffix from .mp4 to any of the other
-   supported video format extensions (.mpg, .f4v, .mkv, .wmv, .m4v, .avi).
-   If a file with this name (using any of the supported extensions) exists,
-   PinballY will automatically play it in the main playfield window
-   each time the program starts.
+   These two locations might be identical, which is the case if you've chosen
+   to keep your media files within the PinballY install folder.
+   But they'll be different if you're using a PinballX or HyperPin
+   installation as your main media folder.  In that case, the media
+   folder set in the options will be searched first, so files in
+   that location will take precedence.
+</p>
+
+<h2>Custom startup video</h2>
+
+<p>
+   You can show custom videos in any combination of PinballY's windows
+   each time the program starts.  
 </p>
 <p>
-   You can also play startup videos in any of the secondary windows at the
-   same time.  These go in the same Media folder, with the target window
-   identified by the filename:
+   These files all go in the <b>Startup Videos</b> folder within your
+   Media folder (see "Folder locations" above).
 </p>
+<p>
+   Each file's name determines which window it's displayed in:
+</p>
+
 <table class="dataTable">
    <tr><th>Window</th><th>Filename</th></tr>
    <tr><td>Playfield</td><td>Startup Video.<i>ext</i></td></tr>
@@ -42,8 +62,8 @@
    <tr><td>Instruction Card</td><td>Startup Video (instcard).<i>ext</i></td></tr>
 </table>
 <p>
-   As with the playfield video, the extension <i>.ext</i> can .mpg, .mp4,
-   .f4v, or any of the other standard extensions for any supported video formats.
+   For all of these files, the extension <i>.ext</i> can be any of the
+   supported video file suffixes:  .mpg, .f4v, .mkv, .wmv, .m4v, or .avi.
 </p>
 <p>
    PinballY loads all of the startup videos and starts playback simultaneously,
@@ -54,18 +74,23 @@
    videos so that the events occur at the same time code in each video.
 </p>
 
+<h2>Custom startup audio</h2>
 <p>
-   <b>Custom startup audio:</b>  Place a file called <b>Startup Audio.mp3</b>
-   in the PinballY <b>Media</b> folder.  Use that exact name, including the
-   space, but you can change the suffix from .mp3 to .wav or .ogg if you
-   wish to use one of those formats.  As with the startup video, the program
-   will automatically play back this file each time you start a new session.
+   Use this to play an audio clip each time PinballY starts.
 </p>
-
 <p>
-   If the startup audio and startup video files are both present, PinballY
-   will simply play them both at the same time.  It's best to use a silent
-   video in this case so that the soundtracks aren't trying to shout each
+   This file goes in the <b>Startup Sounds</b> folder within your Media
+   folder (see "Folder locations" above).
+</p>
+<p>
+   Name the file <b>Startup Audio<i>.ext</i></b>, where <i>.ext</i> is
+   any of the recognized audio format suffixes: .mp3, .ogg, or .wav.
+</p>   
+<p>
+   If startup audio and startup video files are present, PinballY
+   will simply play them all at the same time.  If you're using a separate
+   startup audio file, you'll probably want to make sure your startup videos
+   are silent, so that the various soundtracks aren't trying to shout each
    other down.
 </p>
 
