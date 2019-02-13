@@ -36,7 +36,7 @@ bool DShowAudioPlayer::Error(HRESULT hr, ErrorHandler &eh, const TCHAR *where)
 bool DShowAudioPlayer::Open(const WCHAR *path, ErrorHandler &eh)
 {
 	// remember the file path
-	this->path = path;
+	this->path = WideToTSTRING(path);
 
 	// create the graph manager
 	RefPtr<IGraphBuilder> pGraph;

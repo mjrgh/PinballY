@@ -6311,7 +6311,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			game->GetMediaItem(video, GameListItem::playfieldVideoType);
 		game->GetMediaItem(image, GameListItem::playfieldImageType);
 
-		// try loading the audio
+		// look for an audio track for the table
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
 	}
 
@@ -6349,72 +6349,108 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		}
 	}
 
-	// Asynchronous loader function
-	HWND hWnd = this->hWnd;
-	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, szLayout, videosEnabled](VideoSprite *sprite)
+	// If there's no incoming game, and the new media file matches the media
+	// file for the current sprite, leave the current one as-is.  This can
+	// happen when both the current and incoming games use the same default
+	// background.  Only bother with this in the case of video; for images,
+	// a re-load won't be visible.  With videos, a re-load would start the
+	// video over from the beginning, so it's nicer to leave it running
+	// uninterrupted.
+	bool isSameVideo = false;
+	if (videosEnabled
+		&& incomingPlayfield.sprite == nullptr
+		&& currentPlayfield.sprite != nullptr
+		&& currentPlayfield.sprite->GetVideoPlayer() != nullptr)
 	{
-		// nothing loaded yet
-		bool ok = false;
-
-		// initialize it to fully transparent so we can cross-fade into it
-		sprite->alpha = 0;
-
-		// First try loading a playfield video.  Load it at the full window
-		// height (1.0) and width.  We'll scale the video when we get its format.
-		Application::AsyncErrorHandler eh;
-		if (video.length() != 0
-			&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video")))
-			ok = true;
-
-		// If there's no video, try a static image
-		auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
+		// get the current video path
+		if (const TCHAR *oldPath = currentPlayfield.sprite->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
 		{
-			// Get the image's native size, and figure the aspect
-			// ratio.  Playfield images are always stored "sideways",
-			// so the nominal width is the display height.  We display
-			// playfield images at 1.0 times the viewport height, so
-			// we just need to figure the relative width.
-			ImageFileDesc imageDesc;
-			GetImageFileInfo(path, imageDesc, true);
-			float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
-			POINTF normSize = { 1.0f, cx };
+			// figure out which new video we're going to use
+			const TCHAR *newPath = nullptr;
+			TCHAR defaultVideo[MAX_PATH];
+			if (video.length() != 0)
+				newPath = video.c_str();
+			else if (image.length() != 0)
+				newPath = nullptr;  // we're using the image, not a video
+			else if (GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
+				newPath = defaultVideo;
 
-			// figure the corresponding pixel size
-			SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
+			// check if they're the same
+			if (newPath != nullptr && _tcsicmp(newPath, oldPath) == 0)
+				isSameVideo = true;
+		}
+	}
 
-			// load the image into a new sprite
-			return sprite->Load(path, normSize, pixSize, eh);
+	// if we're not staying with the same video, load the new one
+	if (!isSameVideo)
+	{
+		// Asynchronous loader function
+		HWND hWnd = this->hWnd;
+		SIZE szLayout = this->szLayout;
+		auto load = [hWnd, video, image, szLayout, videosEnabled](VideoSprite *sprite)
+		{
+			// nothing loaded yet
+			bool ok = false;
+
+			// initialize it to fully transparent so we can cross-fade into it
+			sprite->alpha = 0;
+
+			// First try loading a playfield video.  Load it at the full window
+			// height (1.0) and width.  We'll scale the video when we get its format.
+			Application::AsyncErrorHandler eh;
+			if (video.length() != 0
+				&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video")))
+				ok = true;
+
+			// If there's no video, try a static image
+			auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
+			{
+				// Get the image's native size, and figure the aspect
+				// ratio.  Playfield images are always stored "sideways",
+				// so the nominal width is the display height.  We display
+				// playfield images at 1.0 times the viewport height, so
+				// we just need to figure the relative width.
+				ImageFileDesc imageDesc;
+				GetImageFileInfo(path, imageDesc, true);
+				float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
+				POINTF normSize = { 1.0f, cx };
+
+				// figure the corresponding pixel size
+				SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
+
+				// load the image into a new sprite
+				return sprite->Load(path, normSize, pixSize, eh);
+			};
+			if (!ok && image.length() != 0)
+				ok = LoadImage(image.c_str());
+
+			// if we didn't find any media to load, and videos are enabled, try the
+			// default playfield video
+			TCHAR defaultVideo[MAX_PATH];
+			if (!ok && videosEnabled && GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
+				ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"));
+
+			// if we *still* didn't find anything, try the default playfield image
+			TCHAR defaultImage[MAX_PATH];
+			if (!ok && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
+				ok = LoadImage(defaultImage);
+
+			// HyperPin/PBX playfield images are oriented sideways, with the bottom at
+			// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
+			// The actual display will of course orient it according to the camera
+			// view, but it makes things easier to think about if we orient all
+			// graphics the "normal" way internally.  (Note that CCW is positive on
+			// the Z axis, since D3D coordinates are left-handed.)
+			sprite->rotation.z = XM_PI / 2.0f;
+			sprite->UpdateWorld();
 		};
-		if (!ok && image.length() != 0)
-			ok = LoadImage(image.c_str());
 
-		// if we didn't find any media to load, and videos are enabled, try the
-		// default playfield video
-		TCHAR defaultVideo[MAX_PATH];
-		if (!ok && videosEnabled && GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
-			ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"));
+		// Asynchronous loader completion
+		auto done = [this](VideoSprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
 
-		// if we *still* didn't find anything, try the default playfield image
-		TCHAR defaultImage[MAX_PATH];
-		if (!ok && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
-			ok = LoadImage(defaultImage);
-
-		// HyperPin/PBX playfield images are oriented sideways, with the bottom at
-		// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
-		// The actual display will of course orient it according to the camera
-		// view, but it makes things easier to think about if we orient all
-		// graphics the "normal" way internally.  (Note that CCW is positive on
-		// the Z axis, since D3D coordinates are left-handed.)
-		sprite->rotation.z = XM_PI/2.0f;
-		sprite->UpdateWorld();
-	};
-
-	// Asynchronous loader completion
-	auto done = [this](VideoSprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
-
-	// Kick off the asynchronous load
-	playfieldLoader.AsyncLoad(false, load, done);
+		// Kick off the asynchronous load
+		playfieldLoader.AsyncLoad(false, load, done);
+	}
 
 	// update the status line text, in case it mentions the current game selection
 	UpdateAllStatusText();

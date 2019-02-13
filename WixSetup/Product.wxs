@@ -82,9 +82,9 @@
 						<Directory Id="MEDIADIR" Name="Media">
 							<Directory Id="STARTUPVIDEOSDIR" Name="Startup Videos" />
 							<Directory Id="STARTUPSOUNDSDIR" Name="Startup Sounds" />
-							<Directory Id="BUTTONSOUNDSFOLDER" Name="Button Sounds" />
-							<Directory Id="MEDIAIMAGESFOLDER" Name="Images" />
-							<Directory Id="MEDIAVIDEOSFOLDER" Name="Videos" />
+							<Directory Id="BUTTONSOUNDSDIR" Name="Button Sounds" />
+							<Directory Id="MEDIAIMAGESDIR" Name="Images" />
+							<Directory Id="MEDIAVIDEOSDIR" Name="Videos" />
 						</Directory>
             <Directory Id="HELPDIR" Name="Help" />
 						<Directory Id="SCRIPTSDIR" Name="Scripts">

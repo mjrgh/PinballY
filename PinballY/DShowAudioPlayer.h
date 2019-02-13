@@ -21,6 +21,9 @@ public:
 	// open an audio track
 	virtual bool Open(const WCHAR *url, ErrorHandler &eh) override;
 
+	// get the media path
+	virtual const TCHAR *GetMediaPath() const override { return path.c_str(); }
+
 	// start/stop playback
 	virtual bool Play(ErrorHandler &eh) override;
 	virtual bool Replay(ErrorHandler &eh) override;
@@ -58,7 +61,7 @@ protected:
 	bool Error(HRESULT hr, ErrorHandler &eh, const TCHAR *where);
 
 	// file path, mostly for debugging purposes
-	WSTRING path;
+	TSTRING path;
 
 	// player interfaces
 	RefPtr<IMediaControl> pControl;

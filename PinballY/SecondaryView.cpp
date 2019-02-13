@@ -244,50 +244,87 @@ void SecondaryView::SyncCurrentGame()
 	TSTRING video, image, defaultVideo, defaultImage;
 	GetMediaFiles(game, video, image, defaultVideo, defaultImage);
 
-	// set up to load the sprite asynchronously
-	HWND hWnd = this->hWnd;
-	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout](VideoSprite *sprite)
+	// note whether or not videos are enabled
+	bool videosEnabled = Application::Get()->IsEnableVideo();
+
+	// If there's no incoming game, and the new media file matches the media
+	// file for the current sprite, leave the current one as-is.  This can
+	// happen when both the current and incoming games use the same default
+	// background.  Only bother with this in the case of video; for images,
+	// a re-load won't be visible.  With videos, a re-load would start the
+	// video over from the beginning, so it's nicer to leave it running
+	// uninterrupted.
+	bool isSameVideo = false;
+	if (videosEnabled
+		&& incomingBackground.sprite == nullptr
+		&& currentBackground.sprite != nullptr
+		&& currentBackground.sprite->GetVideoPlayer() != nullptr)
 	{
-		// start at zero alpha, for the cross-fade
-		sprite->alpha = 0;
+		// get the current video path
+		if (const TCHAR *oldPath = currentBackground.sprite->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
+		{
+			// figure out which new video we're going to use
+			const TCHAR *newPath = nullptr;
+			if (video.length() != 0)
+				newPath = video.c_str();
+			else if (image.length() != 0)
+				newPath = nullptr;  // we're using the image, not a video
+			else if (defaultVideo.length() != 0)
+				newPath = defaultVideo.c_str();
 
-		// try the video first, unless videos are disabled
-		Application::AsyncErrorHandler eh;
-		bool ok = false;
-		bool videosEnabled = Application::Get()->IsEnableVideo();
-		if (video.length() != 0 && videosEnabled)
-			ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"));
+			// check if they're the same
+			if (newPath != nullptr && _tcsicmp(newPath, oldPath) == 0)
+				isSameVideo = true;
+		}
+	}
 
-		// try the image if that didn't work
-		if (!ok && image.length() != 0)
-			ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, eh);
-
-		// try the default video if we still don't have anything
-		if (!ok && videosEnabled && defaultVideo.length() != 0)
-			ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"));
-
-		// load a default image if we didn't load anything custom
-		if (!ok)
-			sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, eh);
-	};
-
-	auto done = [this, game](VideoSprite *sprite)
+	// now load the new video or image if it's not the same as the old one
+	if (!isSameVideo)
 	{
-		// set the new sprite
-		incomingBackground.sprite = sprite;
-		incomingBackground.game = game;
+		// set up to load the sprite asynchronously
+		HWND hWnd = this->hWnd;
+		SIZE szLayout = this->szLayout;
+		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled](VideoSprite *sprite)
+		{
+			// start at zero alpha, for the cross-fade
+			sprite->alpha = 0;
 
-		// update the drawing list for the change in sprites
-		UpdateDrawingList();
+			// try the video first, unless videos are disabled
+			Application::AsyncErrorHandler eh;
+			bool ok = false;
+			if (video.length() != 0 && videosEnabled)
+				ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"));
 
-		// start the fade timer, unless we have a video that's still loading
-		if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
-			StartBackgroundCrossfade();
-	};
+			// try the image if that didn't work
+			if (!ok && image.length() != 0)
+				ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, eh);
 
-	backgroundLoader.AsyncLoad(false, load, done);
-	syncer.loadedMedia = true;
+			// try the default video if we still don't have anything
+			if (!ok && videosEnabled && defaultVideo.length() != 0)
+				ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"));
+
+			// load a default image if we didn't load anything custom
+			if (!ok)
+				sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, eh);
+		};
+
+		auto done = [this, game](VideoSprite *sprite)
+		{
+			// set the new sprite
+			incomingBackground.sprite = sprite;
+			incomingBackground.game = game;
+
+			// update the drawing list for the change in sprites
+			UpdateDrawingList();
+
+			// start the fade timer, unless we have a video that's still loading
+			if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
+				StartBackgroundCrossfade();
+		};
+
+		backgroundLoader.AsyncLoad(false, load, done);
+		syncer.loadedMedia = true;
+	}
 }
 
 void SecondaryView::StartBackgroundCrossfade()

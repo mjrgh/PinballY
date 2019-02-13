@@ -90,6 +90,9 @@ public:
 	// open a URL for playback
 	virtual bool Open(const WCHAR *url, ErrorHandler &eh) = 0;
 
+	// get the media file
+	virtual const TCHAR *GetMediaPath() const = 0;
+
 	// start/stop playback
 	virtual bool Play(ErrorHandler &eh) = 0;
 	virtual bool Stop(ErrorHandler &eh) = 0;

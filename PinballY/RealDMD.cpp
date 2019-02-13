@@ -791,88 +791,108 @@ void RealDMD::UpdateGame()
 	// update our game if the selection in the game list has changed
 	if (auto game = GameList::Get()->GetNthGame(0); game != curGame)
 	{
-		// discard any previous media
-		ClearMedia();
-
 		// remember the new selection
 		curGame = game;
 
-		// if there's a new game, load its media
+		// Set the DMD color scheme for the game (or the default, if
+		// there's no game)
+		SetColorScheme(game);
+
+		// Load media.  Search for video first, then a still image.
+		// If the physical DMD is color-capable, use color source media
+		// ahead of monochrome source material; for a monochrome device,
+		// prioritize monochrome source material ahead of color.
+		//
+		// For each media type, figure the appropriate color space to
+		// use for rendering.  We have to consider both the color space
+		// of the source material and the capabilities of the physical
+		// display device to generate the right mapping.
+		//
+		// The source material is all in ordinary computer video and 
+		// graphics formats, so the source media is in full color at
+		// the format level.  However, the actual graphics in the files
+		// can be in full color or in black-and-white grayscale.  We
+		// can't tell which is which from the format, but we follow
+		// the PinballX convention of determining this by folder
+		// location:
+		//
+		//  "Real DMD Image/Video" -> monochrome source
+		//  "Real DMD Color Image/Video" -> RGB source
+		//  "DMD Image/Video" (i.e., for the simulated DMD window) -> RGB source
+		//
+		// The device's capabilities can be determined from the DLL's
+		// exports.  If the DLL exports the Render_RGB_24() entrypoint,
+		// the device is capable of full-color images; if not, it's
+		// only capable of monochrome images.  All of the monochrome
+		// devices (as far as I can see) support 2-bit (4-shade) and
+		// 4-bit (16-shade) grayscale.
+		//
+		// So combining the source type and device capabilities, we 
+		// determine the rendering type:
+		//
+		//   Monochrome device + Monochrome source -> 16-shade grayscale rendering
+		//   Monochrome device + RGB source -> 16-shade grayscale rendering
+		//   RGB device + Monochrome source -> 16-shade grayscale rendering
+		//   RGB device + RGB source -> RGB rendering
+		//
+		bool videosEnabled = Application::Get()->IsEnableVideo();
+		TSTRING image, video;
+		ColorSpace imageColorSpace = DMD_COLOR_MONO16;
 		if (game != nullptr)
 		{
-			// Set the DMD color scheme for the game
-			SetColorScheme(game);
-
-			// Load media.  Look for, in order, a real DMD color video, 
-			// real DMD monochrome video, real DMD color image, real DMD
-			// monochrome image, simulated DMD video, simulated DMD image.
-			//
-			// For each media type, figure the appropriate color space to
-			// use for rendering.  We have to consider both the color space
-			// of the source material and the capabilities of the physical
-			// display device to generate the right mapping.
-			//
-			// The source material is all in ordinary computer video and 
-			// graphics formats, so the source media is in full color at
-			// the format level.  However, the actual graphics in the files
-			// can be in full color or in black-and-white grayscale.  We
-			// can't tell which is which from the format, but we follow
-			// the PinballX convention of determining this by folder
-			// location:
-			//
-			//  "Real DMD Image/Video" -> monochrome source
-			//  "Real DMD Color Image/Video" -> RGB source
-			//  "DMD Image/Video" (i.e., for the simulated DMD window) -> RGB source
-			//
-			// The device's capabilities can be determined from the DLL's
-			// exports.  If the DLL exports the Render_RGB_24() entrypoint,
-			// the device is capable of full-color images; if not, it's
-			// only capable of monochrome images.  All of the monochrome
-			// devices (as far as I can see) support 2-bit (4-shade) and
-			// 4-bit (16-shade) grayscale.
-			//
-			// So combining the source type and device capabilities, we 
-			// determine the rendering type:
-			//
-			//   Monochrome device + Monochrome source -> 16-shade grayscale rendering
-			//   Monochrome device + RGB source -> 16-shade grayscale rendering
-			//   RGB device + Monochrome source -> 16-shade grayscale rendering
-			//   RGB device + RGB source -> RGB rendering
-			//
-			bool videosEnabled = Application::Get()->IsEnableVideo();
-			TSTRING image, video;
-			ColorSpace imageColorSpace = DMD_COLOR_MONO16;
-			auto gl = GameList::Get();
-			TCHAR pathBuf[MAX_PATH];
-			if (videosEnabled && game->GetMediaItem(video, GameListItem::realDMDColorVideoType))
+			if (videosEnabled && Render_RGB24_ != nullptr
+				&& game->GetMediaItem(video, GameListItem::realDMDColorVideoType))
 			{
-				// Real DMD color video - use RGB rendering if the device supports it
-				videoColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
+				// Color video source + color device - use color rendering
+				videoColorSpace = DMD_COLOR_RGB;
 			}
 			else if (videosEnabled && game->GetMediaItem(video, GameListItem::realDMDVideoType))
 			{
-				// Real DMD monochrome video - use monochrome rendering
+				// Monochrome video source - use monochrome rendering regardless of device type
 				videoColorSpace = DMD_COLOR_MONO16;
 			}
-			else if (game->GetMediaItem(image, GameListItem::realDMDColorImageType))
+			else if (videosEnabled && Render_RGB24_ == nullptr
+				&& game->GetMediaItem(video, GameListItem::realDMDColorVideoType))
 			{
-				// Real DMD color image - use RGB mode if the device supports it
-				imageColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
+				// Color video source + monochrome device - use monochrome rendering
+				videoColorSpace = DMD_COLOR_MONO16;
+			}
+			else if (Render_RGB24_ != nullptr
+				&& game->GetMediaItem(image, GameListItem::realDMDColorImageType))
+			{
+				// Color image source + color device - use color rendering
+				imageColorSpace = DMD_COLOR_RGB;
 			}
 			else if (game->GetMediaItem(image, GameListItem::realDMDImageType))
 			{
-				// Real DMD monochrome image - use monochrome rendering
+				// Monochrome image - use monochrome rendering for any device type
+				imageColorSpace = DMD_COLOR_MONO16;
+			}
+			else if (Render_RGB24_ == nullptr
+				&& game->GetMediaItem(image, GameListItem::realDMDColorImageType))
+			{
+				// Color image + monochrome device - use monochrome rendering
 				imageColorSpace = DMD_COLOR_MONO16;
 			}
 			else if ((videosEnabled && game->GetMediaItem(video, GameListItem::dmdVideoType))
 				|| game->GetMediaItem(image, GameListItem::dmdImageType))
 			{
-				// We have a video or image for the simulated (video screen) DMD.
+				// We have a video or image for the SIMULATED (video screen) DMD.
 				// These are in full color, since they're intended for regular
 				// video display, so render in RGB if the device supports it.
 				videoColorSpace = imageColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
 			}
-			else if (videosEnabled && gl != nullptr && Render_RGB24_ != nullptr
+		}
+
+		// If we didn't find anything specific to the game, or we simply
+		// have no game selected), look for a default video or image.
+		if (image.length() == 0 && video.length() == 0)
+		{
+			// try to find, in order, a default color video, monochrome video, 
+			// color image, and monochrome image
+			auto gl = GameList::Get();
+			TCHAR pathBuf[MAX_PATH];
+			if (videosEnabled && gl != nullptr && Render_RGB24_ != nullptr
 				&& gl->FindGlobalVideoFile(pathBuf, _T("Videos"), _T("Default Real DMD (color)")))
 			{
 				// We didn't find any media for this game, but we found a
@@ -880,7 +900,7 @@ void RealDMD::UpdateGame()
 				video = pathBuf;
 				videoColorSpace = DMD_COLOR_RGB;
 			}
-			else if (videosEnabled && gl != nullptr 
+			else if (videosEnabled && gl != nullptr
 				&& gl->FindGlobalVideoFile(pathBuf, _T("Videos"), _T("Default Real DMD")))
 			{
 				// default monochrome DMD video
@@ -900,8 +920,25 @@ void RealDMD::UpdateGame()
 				image = pathBuf;
 				imageColorSpace = DMD_COLOR_MONO16;
 			}
+		}
 
-			// Try loading the video first, if we found one
+		// If we found a video, and it's exactly the same video we're
+		// already playing, simply leave the current video running.
+		bool reload = true;
+		if (video.length() != 0 && videoPlayer != nullptr && videoPlayer->IsPlaying())
+		{
+			if (auto oldPath = videoPlayer->GetMediaPath();
+				oldPath != nullptr && _tcsicmp(oldPath, video.c_str()) == 0)
+				reload = false;
+		}
+
+		// Load the new media if necessary
+		if (reload)
+		{
+			// clear any previous media
+			ClearMedia();
+
+			// try loading the video first, if we found one
 			bool ok = false;
 			if (video.length() != 0)
 				ok = LoadVideo(video.c_str(), true, true, VideoMode::Game, Application::InUiErrorHandler());
@@ -927,7 +964,7 @@ void RealDMD::UpdateGame()
 
 						// appply the scaling transform if needed
 						if (cx != dmdWidth || cy != dmdHeight)
-							g2.ScaleTransform(float(dmdWidth)/cx, float(dmdHeight)/cy);
+							g2.ScaleTransform(float(dmdWidth) / cx, float(dmdHeight) / cy);
 
 						// set up mirror transforms as needed
 						if (mirrorHorz)
@@ -967,7 +1004,7 @@ void RealDMD::UpdateGame()
 
 					// lock the bits
 					bmp->LockBits(nullptr,
-						Gdiplus::ImageLockMode::ImageLockModeRead | Gdiplus::ImageLockMode::ImageLockModeUserInputBuf, 
+						Gdiplus::ImageLockMode::ImageLockModeRead | Gdiplus::ImageLockMode::ImageLockModeUserInputBuf,
 						PixelFormat24bppRGB, &bits);
 
 					// figure out which rendering mode we're using
@@ -1000,11 +1037,11 @@ void RealDMD::UpdateGame()
 								// then want to further convert that to a 4-bit value, which
 								// is a simple matter of shifting right by another 4 bits. 
 								// So that gives us a total final shift of 20 bits.
-								*dst = (UINT8)((src[0]*19660 + src[1]*38666 + src[2]*7209) >> 20);
+								*dst = (UINT8)((src[0] * 19660 + src[1] * 38666 + src[2] * 7209) >> 20);
 							}
 
 							// add it to the slide show, and start playback
-							slideShow.emplace_back(new Slide(imageColorSpace, gray.release(), 
+							slideShow.emplace_back(new Slide(imageColorSpace, gray.release(),
 								imageDisplayTime, Slide::MediaSlide));
 							StartSlideShow();
 						}
@@ -1013,7 +1050,7 @@ void RealDMD::UpdateGame()
 					case DMD_COLOR_RGB:
 						// RGB mode - we have the bits in exactly the right format.
 						// Add the 24bpp buffer to the slide show.
-						slideShow.emplace_back(new Slide(imageColorSpace, buf.release(), 
+						slideShow.emplace_back(new Slide(imageColorSpace, buf.release(),
 							imageDisplayTime, Slide::MediaSlide));
 						StartSlideShow();
 						break;
@@ -1719,8 +1756,20 @@ bool RealDMD::LoadStartupVideo()
 		return false;
 	};
 
-	return TryVideo(_T("Startup Video (realdmd color)"), true)
-		|| TryVideo(_T("Startup Video (realdmd)"), false);
+	// if we're on a color device, try a color video first
+	if (Render_RGB24_ != nullptr && TryVideo(_T("Startup Video (realdmd color)"), true))
+		return true;
+
+	// try the monochrome video next
+	if (TryVideo(_T("Startup Video (realdmd)"), false))
+		return true;
+
+	// if we're on a monochrome device, try color video last
+	if (Render_RGB24_ == nullptr && TryVideo(_T("Startup Video (realdmd color)"), true))
+		return true;
+
+	// no media found
+	return false;
 }
 
 bool RealDMD::PlayStartupVideo() 

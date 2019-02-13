@@ -73,6 +73,9 @@ public:
 		return OpenWithTarget(path, eh, DMDTarget);
 	}
 
+	// get the media path
+	virtual const TCHAR *GetMediaPath() const override { return mediaPath.c_str(); }
+
 	// Start/stop playback
 	virtual bool Play(ErrorHandler &eh) override;
 	virtual bool Replay(ErrorHandler &eh) override;

@@ -234,7 +234,16 @@ void BaseView::AsyncSpriteLoader::AsyncLoad(
 	// our UI thread's message loop shouldn't be interrupted by the
     // video loader or Flash loader.  In practice it doesn't seem
     // to matter, especially with libvlc, which does all of its
-    // video decoding in separate threads anyway.
+    // video decoding in separate threads anyway.  (It would have
+	// been more important if we were using DirectShow or Windows
+	// Media Foundation instead of libvlc, since those do more of 
+	// the initial file loading work in the foreground thread.  WMF
+	// in particular does a LOT of work in the calling thread on 
+	// the initial video load, often about 100ms worth.  libvlc, in
+	// contrast, just seems to spin up some threads and then sits
+	// back and lets the threads do the heavy lifting.  In other
+	// words, it already does what our async version does, so it
+	// doesn't improve matters further to add our own async-ness.)
 
 	// Create a sprite
 	RefPtr<VideoSprite> sprite(new VideoSprite());

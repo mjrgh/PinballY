@@ -72,8 +72,9 @@
    of the devices.
 </p>
 <p>
-   If your DMD device supports full color, the search goes as
-   follows:
+   If your DMD device supports <b>full color</b>, the search prioritizes
+   color source material ahead of monochrome source material, and prioritizes
+   video ahead of a still image.  The exact search order is:
 </p>
 <ul class="compact">
    <li>Color Video
@@ -82,13 +83,22 @@
    <li>Monochrome Image
 </ul>
 <p>
-   If your device is monochrome, then any color video and image files are
-   ignored, so the search only looks for (in order) a monochrome video file
-   and then a monochrome image file.
+   If your device is <b>monochrome</b>, the search order prioritizes monochrome
+   source material instead.  The reasoning is that monochrome source material
+   will always look better on a physical monochrome display than color source
+   material would, since the monochrome source material has been optimized
+   for grayscale displays.  But the color material will still be used as
+   a fallback.  The exact search order for monochrome devices is:
 </p>
+<ul class="compact">
+   <li>Monochrome Video
+   <li>Color Video
+   <li>Monochrome Image
+   <li>Color Image
+</ul>
 <p>
-   And if video playback is disabled globally in the option settings, the
-   video files are ignored.
+   In either case, if video playback is disabled globally in the option settings, 
+   video files are ignored and a still image is used instead, if available.
 </p>
 
 </body>

@@ -72,7 +72,7 @@ If both a default video and default image file are provided, the
 default video takes precedence, unless you've disabled all video
 playback globally in the option settings.
 
-Subfolder:  these go in the "Videos" subfolder
+Subfolder:  "Videos"
 
 File names:
 

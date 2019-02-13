@@ -50,6 +50,17 @@ To simplify things and give you more control, the program now just
 plays the audio for all videos, so you can arrange the soundtracks any
 way you please by editing the videos.  (Issue #38 on github.)
 
+* The media search order for the real DMD has changed slightly.  In
+the past, the search order was as follows: full-color video first,
+then monochrome video, then a full-color still image, then a
+monochrome image.  That remains unchanged IF your DMD device is
+capable of full-color display.  If you have a monochrome DMD device,
+though, the monochrome video and images take precedence over the color
+source media.  The reasoning is that the the monochrome source files
+are optimized for grayscale display, so they'll look better on a
+monochrome display than the full-color versions would, hence they
+should be used instead of the color versions.
+
 * The real DMD device now respects the global option to disable all
 videos.
 
