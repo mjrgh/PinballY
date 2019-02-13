@@ -9,6 +9,197 @@
 #include "WinUtil.h"
 #include "ProcUtil.h"
 
+// -----------------------------------------------------------------------
+// 
+// Find the application name in a CreateProcess() command line.
+//
+bool GetAppNameFromCommandLine(TSTRING &appName, const TCHAR *cmdLine)
+{
+	// Test a file name fragment.  Adds the .EXE extension if there isn't
+	// one, and searches for a matching file.  On success, fills in appName
+	// with the matching file and returns true.
+	auto Test = [&appName](const TCHAR *name, size_t len) -> bool
+	{
+		// copy the name to a temp buffer
+		TSTRING tmp(name, len);
+
+		// Determine if we should append a default .EXE suffix.  Per the
+		// SDK documentation, the default .EXE suffix is appended UNLESS
+		// the name ends in '.', has an extension, or includes a path.
+		// To my reading, this means that .EXE is not added if we find '.',
+		// '/', or '\' in the name.
+		const TCHAR *p;
+		for (p = tmp.c_str(); *p != 0 && *p != '.' && *p != '\\' && *p != '/'; ++p);
+		if (*p == 0)
+			tmp.append(_T(".exe"));
+
+		// Check a particular folder
+		TCHAR path[MAX_PATH];
+		auto Check = [&appName, &path, &tmp]()
+		{
+			// build the full name
+			TCHAR fullPath[MAX_PATH];
+			PathCombine(fullPath, path, tmp.c_str());
+
+			// try the file
+			if (FileExists(fullPath))
+			{
+				// got it - store it as the result and return success
+				appName = fullPath;
+				return true;
+			}
+
+			// not found
+			return false;
+		};
+
+		//
+		// Apply the search sequence documented for CreateProcess()
+		//
+
+		// 1. The directory from which the application loaded
+		GetExeFilePath(path, countof(path));
+		if (Check())
+			return true;
+
+		// 2. The current directory for the parent process (I'll take
+		// that to mean "this process" - that is, the parent of the
+		// new process to be creaqted)
+		GetCurrentDirectory(countof(path), path);
+		if (Check()) 
+			return true;
+
+		// 3. The 32-bit Windows system directory
+		if (GetSystemDirectory(path, countof(path)) != 0 && Check())
+			return true;
+
+		// 4. The 16-bit Windows system directory: <windows root>\System
+		if (GetWindowsDirectory(path, countof(path)) != 0)
+		{
+			PathAppend(path, _T("System"));
+			if (Check())
+				return true;
+		}
+
+		// 5. The Windows directory
+		if (GetWindowsDirectory(path, countof(path)) != 0 && Check())
+			return true;
+
+		// 6. The directories in the PATH environment variable
+		std::unique_ptr<TCHAR> env(new TCHAR[32767]);
+		GetEnvironmentVariable(_T("PATH"), env.get(), 32767);
+		for (p = env.get(); *p != 0; )
+		{
+			// find the end of this element
+			const TCHAR *pStart = p;
+			for (; *p != 0 && *p != ';'; ++p);
+
+			// find the start of the next item
+			const TCHAR *pNxt = p;
+			for (; *pNxt == ';'; ++pNxt);
+
+			// try this element if it's not empty
+			if (p - pStart != 0)
+			{
+				_tcsncpy_s(path, pStart, p - pStart);
+				if (Check())
+					return true;
+			}
+
+			// move on to the next element
+			p = pNxt;
+		}
+
+		// not found
+		return false;
+	};
+
+	// skip leading spaces
+	const TCHAR *p = cmdLine;
+	for (; *p == ' '; ++p);
+	
+	// If the first character is a double quote, this is easy: just use
+	// the token delimited by the quotes.  If not, we have to guess where
+	// the token ends, using the algorithm described in the SDK doc for
+	// CreateProcess().
+	if (*p == '"')
+	{
+		// It's quoted.  The application name token is the part up to 
+		// the matching quote.
+		const TCHAR *pStart = ++p;
+		for (; *p != 0 && *p != '"'; ++p);
+		return Test(pStart, p - pStart);
+	}
+	else
+	{
+		// It's not quoted, so this is trickier.  As described in the
+		// SDK documentation, we have to try appending each space-delimited
+		// token until we find an extant file.
+		int nColons = 0;
+		bool invalid = false;
+		TSTRING tempName;
+		TSTRING firstTok;
+		tempName.reserve(_tcslen(cmdLine));
+		while (*p != 0 && nColons <= 1 && !invalid)
+		{
+			// find the next space
+			bool invalid = false;
+			bool inQuote = false;
+			for (; *p != 0 && (inQuote || *p != ' '); ++p)
+			{
+				// count colons as we scan - we can rule out a token as
+				// the continuation of the filename once we encounter
+				// more than one colon
+				if (*p == ':' && ++nColons > 1)
+					break;
+
+				// We can also stop as soon as we encounter the first
+				// non-filename character
+				if (strchr("?*|<>", static_cast<char>(*p)) != nullptr)
+				{
+					invalid = true;
+					break;
+				}
+
+				// check for quotes
+				if (*p == '"')
+				{
+					// entering or leaving a quoted section - toggle the
+					// status, and omit the quote from the result string
+					inQuote = !inQuote;
+				}
+				else
+				{
+					// add this character to the result
+					tempName.append(p, 1);
+				}
+			}
+
+			// if this is our first token, save it, as this will be our
+			// last resort if nothing else works out
+			if (firstTok.length() == 0)
+				firstTok = tempName;
+
+			// Test what we have so far.  If we find a matching file, this is
+			// the winner.
+			if (Test(tempName.c_str(), tempName.length()))
+				return true;
+
+			// if we stopped at a space, skip it
+			if (*p == ' ')
+			{
+				tempName.append(p, 1);
+				++p;
+			}
+		}
+
+		// We didn't find anything matching.  Return the first token,
+		// and indicate that we didn't find a match.
+		appName = firstTok;
+		return false;
+	}
+}
+
 
 // -----------------------------------------------------------------------
 //

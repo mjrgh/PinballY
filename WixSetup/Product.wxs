@@ -24,6 +24,9 @@
 			<ComponentRef Id="MediaFolder"/>
 			<ComponentRef Id="StartupVideosFolder"/>
 			<ComponentRef Id="StartupSoundsFolder"/>
+			<ComponentRef Id="ButtonSoundsFolder"/>
+			<ComponentRef Id="MediaImagesFolder"/>
+			<ComponentRef Id="MediaVideosFolder"/>
 			<ComponentRef Id="Scripts"/>
 			<ComponentRef Id="SystemScripts"/>
 			<ComponentRef Id="ffmpeg"/>
@@ -79,6 +82,9 @@
 						<Directory Id="MEDIADIR" Name="Media">
 							<Directory Id="STARTUPVIDEOSDIR" Name="Startup Videos" />
 							<Directory Id="STARTUPSOUNDSDIR" Name="Startup Sounds" />
+							<Directory Id="BUTTONSOUNDSFOLDER" Name="Button Sounds" />
+							<Directory Id="MEDIAIMAGESFOLDER" Name="Images" />
+							<Directory Id="MEDIAVIDEOSFOLDER" Name="Videos" />
 						</Directory>
             <Directory Id="HELPDIR" Name="Help" />
 						<Directory Id="SCRIPTSDIR" Name="Scripts">
@@ -138,6 +144,25 @@
 				<CreateFolder/>
 			</Component>
 		</DirectoryRef>
+
+		<DirectoryRef Id="MEDIAVIDEOSDIR">
+			<Component Id="MediaVideosFolder" Guid="D2169DED-7233-450C-BFB2-7AFD63E278C6">
+				<CreateFolder/>
+			</Component>
+		</DirectoryRef>
+
+		<DirectoryRef Id="MEDIAIMAGESDIR">
+			<Component Id="MediaImagesFolder" Guid="6FE38094-49FA-47A9-ABEB-7FEA6A9B56DD">
+				<CreateFolder/>
+			</Component>
+		</DirectoryRef>
+
+		<DirectoryRef Id="BUTTONSOUNDSDIR">
+			<Component Id="ButtonSoundsFolder" Guid="C7352D89-A5CB-4E9F-AB47-784F1370DEB8">
+				<CreateFolder/>
+			</Component>
+		</DirectoryRef>
+
 
 		<DirectoryRef Id="SCRIPTSDIR">
 			<Component Id="Scripts" Guid="FC0D9658-A410-4641-9798-740329A5C812">

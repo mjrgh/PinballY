@@ -32,4 +32,3 @@ TopperView::TopperView() : BackglassBaseView(IDR_TOPPER_CONTEXT_MENU, ConfigVars
 // get the background media info
 const MediaType *TopperView::GetBackgroundImageType() const { return &GameListItem::topperImageType; }
 const MediaType *TopperView::GetBackgroundVideoType() const { return &GameListItem::topperVideoType; }
-const TCHAR *TopperView::GetDefaultBackgroundImage() const { return _T("assets\\DefaultTopper.png"); }

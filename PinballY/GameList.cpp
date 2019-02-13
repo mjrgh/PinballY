@@ -3433,6 +3433,12 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 		func(pair.second);
 }
 
+bool GameList::FindGlobalImageFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
+{
+	static const TCHAR *imageExts[] = { _T(".png"), _T(".jpg"), _T(".jpeg") };
+	return FindGlobalMediaFile(path, subfolder, file, imageExts, countof(imageExts));
+}
+
 bool GameList::FindGlobalVideoFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
 {
 	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
@@ -3454,30 +3460,37 @@ bool GameList::FindGlobalWaveFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, 
 bool GameList::FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file,
 	const TCHAR *const *exts, size_t numExts)
 {
-	// Look in the <base media folder>\<subfolder> first
-	TCHAR baseMediaPath[MAX_PATH];
-	PathCombine(baseMediaPath, GetMediaPath(), subfolder);
-	PathCombine(path, baseMediaPath, file);
+	// Try the local <PinballY>\Media\<subfolder> first.  This is the first
+	// choice because it's the location for user-supplied media specific to
+	// PinballY.  (If we're sharing files with HyperPin or PinballX, we want
+	// to use the PinballY version ahead of the shared version, since this
+	// lets the user customize files just for PinballY without affecting the
+	// other program.)
+	TCHAR localMediaPath[MAX_PATH];
+	GetDeployedFilePath(localMediaPath, _T("Media"), _T(""));
+	PathAppend(localMediaPath, subfolder);
+	PathCombine(path, localMediaPath, file);
 	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
 	if (FindFileUsingExtensions(path, exts, numExts))
 		return true;
 
-	// No luck there.  Try <PinballY>\Media\<subfolder>, but only if it's
-	// different from the base media folder.  It's different if the base
-	// media folder is from a PinballX or HyperPin installation.
-	TCHAR localMediaPath[MAX_PATH];
-	GetDeployedFilePath(localMediaPath, _T("Media"), _T(""));
-	PathAppend(localMediaPath, subfolder);
+	// No luck there.  Look in the <base media folder>\<subfolder> next.
+	// Don't bother doing the file lookup if the path is identical to the
+	// local media path, which it will be if this installation isn't set
+	// up to share media files with HyperPin or PinballX.
+	TCHAR baseMediaPath[MAX_PATH];
+	PathCombine(baseMediaPath, GetMediaPath(), subfolder);
+	PathCombine(path, baseMediaPath, file);
 	if (_tcsicmp(localMediaPath, baseMediaPath) != 0)
 	{
-		PathCombine(path, localMediaPath, file);
 		LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
 		if (FindFileUsingExtensions(path, exts, numExts))
 			return true;
 	}
 
-	// Try <PinballY>\Assets\<subfolder>, in case this item has a built-in
-	// default media file.
+	// Still not found.  Try the <PinballY>\Assets\<subfolder>, in case this 
+	// item has a built-in default media file.  This is the option of last
+	// resort, since it's the built-in program option.
 	GetDeployedFilePath(path, _T("Assets"), _T(""));
 	PathAppend(path, subfolder);
 	PathAppend(path, file);

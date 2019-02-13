@@ -870,10 +870,21 @@ bool Application::RunCommand(const TCHAR *cmd,
 	// copy it into a local string
 	TSTRING cmdStr = cmd;
 
+	// If the command is specified with an absolute path, pull out the
+	// path and use it as the working directory.
+	const TCHAR *workingDir = nullptr;
+	TSTRING appName;
+	GetAppNameFromCommandLine(appName, cmdStr.c_str());
+	if (!PathIsRelative(appName.c_str()))
+	{
+		PathRemoveFileSpec(appName.data());
+		workingDir = appName.c_str();
+	}
+	
 	// launch the process
 	PROCESS_INFORMATION procInfo;
 	if (!CreateProcess(NULL, cmdStr.data(), NULL, NULL, false, 0, NULL,
-		NULL, &startupInfo, &procInfo))
+		workingDir, &startupInfo, &procInfo))
 	{
 		// failed to launch - show an error and abort
 		WindowsErrorMessage sysErr;

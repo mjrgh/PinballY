@@ -3,6 +3,7 @@
 //
 #include "stdafx.h"
 #include "AudioManager.h"
+#include "GameList.h"
 
 // statics
 AudioManager *AudioManager::inst;
@@ -71,17 +72,6 @@ AudioManager::~AudioManager()
 	delete engine;
 }
 
-void AudioManager::PlayAsset(const TCHAR *name)
-{
-	// build the full filename
-	MsgFmt base(_T("assets\\%s.wav"), name);
-	TCHAR path[MAX_PATH];
-	GetDeployedFilePath(path, base, _T(""));
-
-	// play the file
-	PlayFile(path);
-}
-
 void AudioManager::PlayFile(const TCHAR *path)
 {
 	// look for an existing instance in our cache
@@ -92,12 +82,16 @@ void AudioManager::PlayFile(const TCHAR *path)
 	}
 	else
 	{
-		// load the effect and start it playing
+		// load the effect 
 		auto sound = std::make_unique<DirectX::SoundEffect>(engine, path);
-		sound->Play();
+		if (sound->GetFormat() != nullptr)
+		{
+			// start it playing
+			sound->Play();
 
-		// add it to the cache
-		cache.emplace(path, sound.release());
+			// add it to the cache
+			cache.emplace(path, sound.release());
+		}
 	}
 }
 

@@ -35,7 +35,8 @@ protected:
 	// Get the background media info
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
-	virtual const TCHAR *GetDefaultBackgroundImage() const override;
+	virtual const TCHAR *GetDefaultBackgroundImage() const override { return _T("Default Instruction Card"); }
+	virtual const TCHAR *GetDefaultBackgroundVideo() const override { return _T("Default Instruction Card"); }
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video (instcard)"); }
 
 	// "show when running" window ID

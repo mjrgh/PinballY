@@ -6301,12 +6301,13 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// if there's a game, try loading its playfield media
 	Application::InUiErrorHandler uieh;
 	TSTRING video, image, audio;
+	bool videosEnabled = Application::Get()->IsEnableVideo();
 	if (IsGameValid(game))
 	{
 		// Retrieve the playfield video path and static image path.
 		// We'll use the video if present and fall back on the static
 		// image if it's not available or we can't load it.
-		if (Application::Get()->IsEnableVideo())
+		if (videosEnabled)
 			game->GetMediaItem(video, GameListItem::playfieldVideoType);
 		game->GetMediaItem(image, GameListItem::playfieldImageType);
 
@@ -6351,7 +6352,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// Asynchronous loader function
 	HWND hWnd = this->hWnd;
 	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, szLayout](VideoSprite *sprite)
+	auto load = [hWnd, video, image, szLayout, videosEnabled](VideoSprite *sprite)
 	{
 		// nothing loaded yet
 		bool ok = false;
@@ -6388,14 +6389,16 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		if (!ok && image.length() != 0)
 			ok = LoadImage(image.c_str());
 
-		// if we didn't find any media to load, load the default playfield image
-		if (!ok)
-		{
-			// try loading the default image
-			TCHAR buf[MAX_PATH];
-			GetDeployedFilePath(buf, _T("assets\\DefaultPlayfield.png"), _T(""));
-			ok = LoadImage(buf);
-		}
+		// if we didn't find any media to load, and videos are enabled, try the
+		// default playfield video
+		TCHAR defaultVideo[MAX_PATH];
+		if (!ok && videosEnabled && GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
+			ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"));
+
+		// if we *still* didn't find anything, try the default playfield image
+		TCHAR defaultImage[MAX_PATH];
+		if (!ok && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
+			ok = LoadImage(defaultImage);
 
 		// HyperPin/PBX playfield images are oriented sideways, with the bottom at
 		// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
@@ -10415,7 +10418,11 @@ void PlayfieldView::ShowExitMenu()
 void PlayfieldView::PlayButtonSound(const TCHAR *effectName)
 {
 	if (!muteButtons)
-		AudioManager::Get()->PlayAsset(effectName);
+	{
+		TCHAR path[MAX_PATH];
+		if (auto gl = GameList::Get(); gl != nullptr && gl->FindGlobalWaveFile(path, _T("Button Sounds"), effectName))
+			AudioManager::Get()->PlayFile(path);
+	}
 }
 
 void PlayfieldView::CloseMenusAndPopups()

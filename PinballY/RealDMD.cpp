@@ -800,75 +800,8 @@ void RealDMD::UpdateGame()
 		// if there's a new game, load its media
 		if (game != nullptr)
 		{
-			// If the game has any saved VPM config settings, load the
-			// DMD-related settings from the VPM config and send them
-			// to the device.  This helps ensure that the device looks
-			// the same as it would when actually playing this game;
-			// e.g., this should restore the color scheme for an RGB
-			// device.
-			TSTRING rom;
-			HKEYHolder hkey;
-			bool keyOk = false;
-			if (VPinMAMEIfc::FindRom(rom, game))
-			{
-				// open the registry key for the game
-				MsgFmt romkey(_T("%s\\%s"), VPinMAMEIfc::configKey, rom.c_str());
-				keyOk = (RegOpenKey(HKEY_CURRENT_USER, romkey, &hkey) == ERROR_SUCCESS);
-			}
-
-			// if we didn't get a key that way, try the VPM "default"
-			// key, which contains default settings for new tables
-			if (!keyOk)
-			{
-				MsgFmt dfltkey(_T("%s\\default"), VPinMAMEIfc::configKey);
-				keyOk = (RegOpenKey(HKEY_CURRENT_USER, dfltkey, &hkey) == ERROR_SUCCESS);
-			}
-
-			// set up the default device settings, in case we didn't get
-			// a key at all, or for any missing values in the registry
-			tPMoptions opts = defaultOpts;
-
-			// if we got the key, load the registry values
-			if (keyOk)
-			{
-				auto queryf = [&hkey](const TCHAR *valName, int *pval)
-				{
-					DWORD val, typ, siz = sizeof(val);
-					if (RegQueryValueEx(hkey, valName, NULL, &typ, (BYTE*)&val, &siz) == ERROR_SUCCESS
-						&& typ == REG_DWORD)
-						*pval = val;
-				};
-				#define Query(item) queryf(_T("dmd_") _T(#item), &opts.dmd_##item)
-
-				// Load the basic values.  Note that we disable "colorize" mode 
-				// regardless of the media type, so there's no need to read any of 
-				// the values associated with colorization.  Colorization is purely
-				// for VPM's use in generating graphics from live ROM output.  The
-				// colorization scheme doesn't work well with captured video because
-				// it's keyed to the four-level grayscale quantization used in the
-				// original pinball hardware.  Captured video can't accurately
-				// reproduce that quantization, so colorizing it would produce
-				// terrible results most of the time.  It's much better to apply
-				// the colorization when capturing the video in the first place,
-				// and capture it with the desired RGB colors; then we can simply
-				// play it back with the captured colors.  And of course this whole
-				// topic is moot for monochrome DMDs.
-				Query(red);
-				Query(green);
-				Query(blue);
-				Query(perc66);
-				Query(perc33);
-				Query(perc0);
-				Query(only);
-				Query(compact);
-				Query(antialias);
-			}
-
-			// send the settings to the device
-			SetGameSettings(TSTRINGToCSTRING(rom).c_str(), opts);
-
-			// remember the base color option
-			baseColor = RGB(opts.dmd_red, opts.dmd_green, opts.dmd_blue);
+			// Set the DMD color scheme for the game
+			SetColorScheme(game);
 
 			// Load media.  Look for, in order, a real DMD color video, 
 			// real DMD monochrome video, real DMD color image, real DMD
@@ -906,14 +839,17 @@ void RealDMD::UpdateGame()
 			//   RGB device + Monochrome source -> 16-shade grayscale rendering
 			//   RGB device + RGB source -> RGB rendering
 			//
+			bool videosEnabled = Application::Get()->IsEnableVideo();
 			TSTRING image, video;
 			ColorSpace imageColorSpace = DMD_COLOR_MONO16;
-			if (game->GetMediaItem(video, GameListItem::realDMDColorVideoType))
+			auto gl = GameList::Get();
+			TCHAR pathBuf[MAX_PATH];
+			if (videosEnabled && game->GetMediaItem(video, GameListItem::realDMDColorVideoType))
 			{
 				// Real DMD color video - use RGB rendering if the device supports it
 				videoColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
 			}
-			else if (game->GetMediaItem(video, GameListItem::realDMDVideoType))
+			else if (videosEnabled && game->GetMediaItem(video, GameListItem::realDMDVideoType))
 			{
 				// Real DMD monochrome video - use monochrome rendering
 				videoColorSpace = DMD_COLOR_MONO16;
@@ -928,23 +864,40 @@ void RealDMD::UpdateGame()
 				// Real DMD monochrome image - use monochrome rendering
 				imageColorSpace = DMD_COLOR_MONO16;
 			}
-			else if (game->GetMediaItem(video, GameListItem::dmdVideoType)
+			else if ((videosEnabled && game->GetMediaItem(video, GameListItem::dmdVideoType))
 				|| game->GetMediaItem(image, GameListItem::dmdImageType))
 			{
 				// We have a video or image for the simulated (video screen) DMD.
 				// These are in full color, since they're intended for regular
 				// video display, so render in RGB if the device supports it.
-				videoColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
+				videoColorSpace = imageColorSpace = Render_RGB24_ != nullptr ? DMD_COLOR_RGB : DMD_COLOR_MONO16;
 			}
-			else
+			else if (videosEnabled && gl != nullptr && Render_RGB24_ != nullptr
+				&& gl->FindGlobalVideoFile(pathBuf, _T("Videos"), _T("Default Real DMD (color)")))
 			{
-				// we couldn't find any media for this game - use the default 
-				// real DMD image
-				TCHAR path[MAX_PATH];
-				GetDeployedFilePath(path, _T("assets\\DefaultRealDMD.png"), _T(""));
-				image = path;
-
-				// the default image is a monochrome source
+				// We didn't find any media for this game, but we found a
+				// default color DMD video.
+				video = pathBuf;
+				videoColorSpace = DMD_COLOR_RGB;
+			}
+			else if (videosEnabled && gl != nullptr 
+				&& gl->FindGlobalVideoFile(pathBuf, _T("Videos"), _T("Default Real DMD")))
+			{
+				// default monochrome DMD video
+				video = pathBuf;
+				videoColorSpace = DMD_COLOR_MONO16;
+			}
+			else if (gl != nullptr && Render_RGB24_ != nullptr
+				&& gl->FindGlobalImageFile(pathBuf, _T("Images"), _T("Default Real DMD (color)")))
+			{
+				// default color image
+				image = pathBuf;
+				imageColorSpace = DMD_COLOR_RGB;
+			}
+			else if (gl != nullptr && gl->FindGlobalImageFile(pathBuf, _T("Images"), _T("Default Real DMD")))
+			{
+				// default monochrome image
+				image = pathBuf;
 				imageColorSpace = DMD_COLOR_MONO16;
 			}
 
@@ -1075,6 +1028,81 @@ void RealDMD::UpdateGame()
 			GenerateHighScoreGraphics();
 		}
 	}
+}
+
+void RealDMD::SetColorScheme(GameListItem *game)
+{
+	// If the game has any saved VPM config settings, load the
+	// DMD-related settings from the VPM config and send them
+	// to the device.  This helps ensure that the device looks
+	// the same as it would when actually playing this game;
+	// e.g., this should restore the color scheme for an RGB
+	// device.
+	TSTRING rom;
+	HKEYHolder hkey;
+	bool keyOk = false;
+	if (game != nullptr && VPinMAMEIfc::FindRom(rom, game))
+	{
+		// open the registry key for the game
+		MsgFmt romkey(_T("%s\\%s"), VPinMAMEIfc::configKey, rom.c_str());
+		keyOk = (RegOpenKey(HKEY_CURRENT_USER, romkey, &hkey) == ERROR_SUCCESS);
+	}
+
+	// if we didn't get a key that way, try the VPM "default"
+	// key, which contains default settings for new tables
+	if (!keyOk)
+	{
+		MsgFmt dfltkey(_T("%s\\default"), VPinMAMEIfc::configKey);
+		keyOk = (RegOpenKey(HKEY_CURRENT_USER, dfltkey, &hkey) == ERROR_SUCCESS);
+	}
+
+	// set up the default device settings, in case we didn't get
+	// a key at all, or for any missing values in the registry
+	tPMoptions opts = defaultOpts;
+
+	// if we got the key, load the registry values
+	if (keyOk)
+	{
+		auto queryf = [&hkey](const TCHAR *valName, int *pval)
+		{
+			DWORD val, typ, siz = sizeof(val);
+			if (RegQueryValueEx(hkey, valName, NULL, &typ, (BYTE*)&val, &siz) == ERROR_SUCCESS
+				&& typ == REG_DWORD)
+				*pval = val;
+		};
+#define Query(item) queryf(_T("dmd_") _T(#item), &opts.dmd_##item)
+
+		// Load the basic values.  Note that we disable "colorize" mode 
+		// regardless of the media type, so there's no need to read any of 
+		// the values associated with colorization.  Colorization is purely
+		// for VPM's use in generating graphics from live ROM output.  The
+		// colorization scheme doesn't work well with captured video because
+		// it's keyed to the four-level grayscale quantization used in the
+		// original pinball hardware.  Captured video can't accurately
+		// reproduce that quantization, so colorizing it would produce
+		// terrible results most of the time.  It's much better to apply
+		// the colorization when capturing the video in the first place,
+		// and capture it with the desired RGB colors; then we can simply
+		// play it back with the captured colors.  And of course this whole
+		// topic is moot for monochrome DMDs.
+		Query(red);
+		Query(green);
+		Query(blue);
+		Query(perc66);
+		Query(perc33);
+		Query(perc0);
+		Query(only);
+		Query(compact);
+		Query(antialias);
+
+#undef Query
+	}
+
+	// send the settings to the device
+	SetGameSettings(TSTRINGToCSTRING(rom).c_str(), opts);
+
+	// remember the base color option
+	baseColor = RGB(opts.dmd_red, opts.dmd_green, opts.dmd_blue);
 }
 
 bool RealDMD::LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh)
@@ -1490,7 +1518,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			{
 				dst = gray + dstStartRow*dmdWidth + dstStartCol;
 				dstStartRow += dstRowInc;
-				for (int col = 0; col < dmdWidth; ++col, y += 2)
+				for (int col = 0; col < dmdWidth; ++col)
 				{
 					BYTE b = (*y++) >> 4;
 					*dst = min(b, 15);
@@ -1671,8 +1699,11 @@ bool RealDMD::LoadStartupVideo()
 		auto gl = GameList::Get();
 		if (gl != nullptr && gl->FindGlobalVideoFile(startupVideo, _T("Startup Videos"), name))
 		{
-			// got it - try loading the video
+			// Got it.  Clear any previous media and set the default color scheme.
 			ClearMedia();
+			SetColorScheme(nullptr);
+
+			// Try loading the video.
 			if (LoadVideo(startupVideo, false, false, VideoMode::Startup, LogFileErrorHandler()))
 			{
 				// use a 24-bit color space if this is a color video and the device

@@ -216,6 +216,9 @@ protected:
 	// load a video
 	bool LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh);
 
+	// Set the oclor scheme for a game
+	void SetColorScheme(GameListItem *game);
+
 	// Generate high score graphics for the current game
 	void GenerateHighScoreGraphics();
 

@@ -1196,6 +1196,7 @@ public:
 	// Find a global media file of the given type.  This simply calls
 	// FindGlobalMediaFile() with the appropriate list of suffixes for
 	// the type.
+	bool FindGlobalImageFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
 	bool FindGlobalVideoFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
 	bool FindGlobalAudioFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);
 	bool FindGlobalWaveFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file);

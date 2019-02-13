@@ -19,7 +19,6 @@ lines:
     <base media folder>\Startup Sounds
     <PinballY folder>\Media\Startup Sounds
 
-
 * A startup video can now be played on the real DMD, in addition to
 the startup videos in the regular windows.  Place it in the same
 location as the other startup videos (Media\Startup Videos), and name
@@ -27,6 +26,20 @@ it "Startup Video (realdmd)" for gray-scale playback, or "Startup
 Video (realdmd color)" for full-color playback.  As with other real
 DMD videos, full-color playback is only possible if you have a color
 DMD device. (Issue #37 on github.)
+
+* It's now easier to customize button sound effects.  See the new
+help section Customizing > Button Sounds for details.
+
+* It's now easier to customize the background images shown in the
+various windows when the currently selected table doesn't have its own
+background media.  See the new help section Customizing > Custom
+Backgrounds for details.
+
+* You can now provide your own default background video to show in
+each window when the currently selected game doesn't have its own
+image or video.  These work like the default background images always
+have, but let you use video instead of static pictures.  See the
+new help section Customizing > Custom Backgrounds for details.
 
 * Audio playback on real DMD videos is now enabled.  In the past it
 was muted, on the assumption that you wouldn't want it to interfere
@@ -36,6 +49,12 @@ source of the table's audio, so that assumption was evidently wrong.
 To simplify things and give you more control, the program now just
 plays the audio for all videos, so you can arrange the soundtracks any
 way you please by editing the videos.  (Issue #38 on github.)
+
+* The real DMD device now respects the global option to disable all
+videos.
+
+* Fixed a problem with scaling for real DMD video playback using
+monochrome source material.
 
 * Added /minimized to the command parameters for the default VP 10
 settings.  (This WON'T be applied to your settings if you're updating
@@ -62,6 +81,12 @@ in the normal list.  It *should* have appeared, but it was still being
 treated as unconfigured for the purposes of the filter.  This has been
 corrected; the game now immediately appears in the regular wheel list
 as soon as you switch back to it.  (Issue #42 on github.)
+
+* "Run at startup" and "run before exit" commands are now launched
+with their working directories set to the folder containing the
+program .EXE to be launched.  In the past, these commands were started
+with the PinballY folder as the working directory, which caused
+problems for some programs.
 
 
 02-07-2019 (1.0.0 Beta 5)

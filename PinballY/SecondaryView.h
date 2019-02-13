@@ -73,12 +73,13 @@ protected:
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }
 
-	// get my default background image name
+	// get my default background image/video name
 	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
+	virtual const TCHAR *GetDefaultBackgroundVideo() const = 0;
 
 	// Get the media files for the background for the given game
 	virtual void GetMediaFiles(const GameListItem *game,
-		TSTRING &video, TSTRING &image, TSTRING &defaultImage);
+		TSTRING &video, TSTRING &image, TSTRING &defaultVideo, TSTRING &defaultImage);
 
 	// start a cross-fade for an incoming background image
 	void StartBackgroundCrossfade();

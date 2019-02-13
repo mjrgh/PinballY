@@ -49,7 +49,6 @@ DMDView::DMDView() : SecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPr
 // get the background media info
 const MediaType *DMDView::GetBackgroundImageType() const { return &GameListItem::dmdImageType; }
 const MediaType *DMDView::GetBackgroundVideoType() const { return &GameListItem::dmdVideoType; }
-const TCHAR *DMDView::GetDefaultBackgroundImage() const { return _T("assets\\DefaultDMD.png"); }
 
 void DMDView::ClearMedia()
 {

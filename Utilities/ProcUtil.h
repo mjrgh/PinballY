@@ -9,6 +9,7 @@
 
 class ErrorHandler;
 
+
 // -----------------------------------------------------------------------
 //
 // Search for the main window for a process, given the process ID.
@@ -60,6 +61,27 @@ void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged,
 // a stuttered semicolon (;;).
 void CreateMergedEnvironment(std::unique_ptr<WCHAR> &merged, const TCHAR *vars);
 
+// -----------------------------------------------------------------------
+//
+// Parse a command line, using the same algorithm as CreateProcess(), to
+// determine the full path of the application file to be launched.
+//
+// Important:  The rules for this are not what you'd probably think, if
+// you haven't read the details before.  Read the SDK documentation for
+// the lpApplicationName and lpCommandLine parameters to CreateProcess()
+// for a detailed accounting of the algorithm.
+//
+// On return, appName is populated with the application name portion of
+// the command line.  If we can find an extant file matching the name,
+// we return true, and appName contains the fully qualified name with
+// path and extension, even if those aren't actually specified in the
+// command line text.  If we can't find a matching file, we return
+// false; appName still has our best guess at the token, but we don't
+// attempt to add any path or extension information that isn't explicitly
+// specified in the command text in this case, so appName might have
+// a relative path or no path at all.
+//
+bool GetAppNameFromCommandLine(TSTRING &appName, const TCHAR *cmdLine);
 
 // -----------------------------------------------------------------------
 //

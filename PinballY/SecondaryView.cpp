@@ -31,7 +31,7 @@ SecondaryView::SecondaryView(int contextMenuId, const TCHAR *winConfigVarPrefix)
 }
 
 void SecondaryView::GetMediaFiles(const GameListItem *game,
-	TSTRING &video, TSTRING &image, TSTRING &defaultImage)
+	TSTRING &video, TSTRING &image, TSTRING &defaultVideo, TSTRING &defaultImage)
 {
 	// if we have a background image type, look for a matching file
 	if (auto m = GetBackgroundImageType(); m != nullptr)
@@ -41,10 +41,16 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 	if (auto m = GetBackgroundVideoType(); m != nullptr)
 		game->GetMediaItem(video, *m);
 
-	// get our default image name
-	TCHAR buf[MAX_PATH];
-	GetDeployedFilePath(buf, GetDefaultBackgroundImage(), _T(""));
-	defaultImage = buf;
+	// get our default video and image files
+	if (auto gl = GameList::Get(); gl != nullptr)
+	{
+		TCHAR buf[MAX_PATH];
+		if (gl->FindGlobalVideoFile(buf, _T("Videos"), GetDefaultBackgroundVideo()))
+			defaultVideo = buf;
+		
+		if (gl->FindGlobalImageFile(buf, _T("Images"), GetDefaultBackgroundImage()))
+			defaultImage = buf;
+	}
 }
 
 void SecondaryView::UpdateDrawingList()
@@ -235,13 +241,13 @@ void SecondaryView::SyncCurrentGame()
 		return;
 
 	// get the media files
-	TSTRING video, image, defaultImage;
-	GetMediaFiles(game, video, image, defaultImage);
+	TSTRING video, image, defaultVideo, defaultImage;
+	GetMediaFiles(game, video, image, defaultVideo, defaultImage);
 
 	// set up to load the sprite asynchronously
 	HWND hWnd = this->hWnd;
 	SIZE szLayout = this->szLayout;
-	auto load = [hWnd, video, image, defaultImage, szLayout](VideoSprite *sprite)
+	auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout](VideoSprite *sprite)
 	{
 		// start at zero alpha, for the cross-fade
 		sprite->alpha = 0;
@@ -249,12 +255,17 @@ void SecondaryView::SyncCurrentGame()
 		// try the video first, unless videos are disabled
 		Application::AsyncErrorHandler eh;
 		bool ok = false;
-		if (video.length() != 0 && Application::Get()->IsEnableVideo())
+		bool videosEnabled = Application::Get()->IsEnableVideo();
+		if (video.length() != 0 && videosEnabled)
 			ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"));
 
 		// try the image if that didn't work
 		if (!ok && image.length() != 0)
 			ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, eh);
+
+		// try the default video if we still don't have anything
+		if (!ok && videosEnabled && defaultVideo.length() != 0)
+			ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"));
 
 		// load a default image if we didn't load anything custom
 		if (!ok)

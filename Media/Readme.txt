@@ -3,12 +3,100 @@ the files listed below here to customize various events and effects in
 PinballY.
 
 
-== Startup Video ==
+== Button Sound Effects ==
+
+You can customize the sound effects played for button presses by
+providing your own .WAV files.
+
+Disabling an effect: If you want to disable a particular button sound
+entirely, you can simply use a .WAV file recording of a brief interval
+of silence.  For your convenience, you'll find a file called
+"Silence.wav" in the PinballY\Assets folder that you can use for
+this purpose.  Simply copy and rename this file to match the name
+for the effect you want to disable (see the list below).
+
+
+Subfolder:  "Button Sounds"
+
+File names:
+
+    "AddCredit.wav" - coin in added full credit
+    "CoinIn.wav"    - coin in added partial credit
+    "Deselect.wav"  - closing a menu, popup, etc
+    "Next.wav"      - flipper button right, next menu item, etc
+    "Prev.wav"      - flipper button left, previous menu item, etc
+    "Select.wav"    - open menu, select menu item, open popup
+
+Extension:  .wav
+
+
+== Default Background Images ==
+
+You can provide a custom default background image for each window.
+The default background is shown whenever the currently selected game
+doesn't have its own image or video for that window.  (If the current
+game does have its own image or video, that takes precedence over the
+default background.)
+
+If both a default video and default image file are provided, the
+default video takes precedence, unless you've disabled all video
+playback globally in the option settings.
+
+Subfolder:  "Images"
+
+File names:
+
+   "Default Playfield.png"
+   "Default Backglass.png"
+   "Default DMD.png"
+   "Default Real DMD.png"
+   "Default Real DMD (color).png"
+   "Default Instruction Card.png"
+   "Default Topper.png"
+
+Extensions: .png, .jpg, .jpeg
+
+The "(color)" version of the Real DMD image is used if you have a
+color-capable DMD device; otherwise the regular version is used, and
+is displayed in 16-shade monochrome.
+
+
+== Default Background Videos ==
+
+You can provide your own custom default background video for each
+window.  If a default background video is present, it will be shown
+whenever the currently selected game doesn't have its own video or
+image file.
+
+If both a default video and default image file are provided, the
+default video takes precedence, unless you've disabled all video
+playback globally in the option settings.
+
+Subfolder:  these go in the "Videos" subfolder
+
+File names:
+
+   "Default Playfield.mp4"
+   "Default Backglass.mp4"
+   "Default DMD.mp4"
+   "Default Real DMD.mp4"
+   "Default Real DMD (color).mp4"
+   "Default Instruction Card.mp4"
+   "Default Topper.mp4"
+
+Extensions: .mp4, .mpg, .f4v, mkv, .wmv, or .avi
+
+The "(color)" version of the Real DMD video is used if you have a
+color-capable DMD device; otherwise the regular version is used, and
+is displayed in 16-shade monochrome.
+
+
+== Startup Videos ==
 
 These are videos that will be played each time PinballY starts up.
 You can specify videos for each window separately.  
 
-Subfolder:  all of these go in the "Startup Videos" subfolder
+Subfolder:  "Startup Videos"
 
 File names:  You can use any combination of the following files:
 
@@ -43,7 +131,7 @@ at the same time offset in each video.
 
 This is an audio file played when PinballY starts up.
 
-Subfolder:  place this is the "Startup Sounds" folder
+Subfolder:  "Startup Sounds"
 
 File name:  "Startup Audio.mp3"
 

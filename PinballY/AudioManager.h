@@ -20,11 +20,6 @@ public:
 	// get the global singleton
 	static AudioManager *Get() { return inst; }
 
-	// Play a sound asset, which is a .wav file in our Assets folder.  The name 
-	// is the base file name, with no path or ".wav" suffix.  Assets are always
-	// cacheable.
-	void PlayAsset(const TCHAR *name);
-
 	// Play a sound file.  The file is given as a full path.
 	void PlayFile(const TCHAR *filename);
 

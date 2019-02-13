@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Button Sounds</h1>
+
+<p>
+   You can customize the sound effects played when navigation buttons
+   are pressed by supplying your own .WAV files with the sounds you'd
+   like to play.
+</p>
+
+<h2>Folder location</h2>
+<p>
+   Startup videos go in the <b>Button Sounds</b> folder within your
+   main Media folder.  See <a href="Customizing.html#mediaFolder">Media folder location</a>
+   for more on where that folder is located.
+</p>
+
+<h2>File types</h2>
+
+<p>
+   Button sounds must be .WAV files.
+</p>
+
+<h2>Individual button file names</h2>
+
+<p>
+   To customize the sound effect for a particular button, just place
+   a file in the <b>Button Sounds</b> folder with the name matching
+   the button, as shown below.
+</p>
+
+<style type="text/css">
+.buttonSoundTable td:nth-child(2) {
+    text-align: left;
+}
+</style>
+<table class="dataTable buttonSoundTable">
+   <tr><th>Filename</th><th>Button Description</th></tr>
+   <tr>
+      <td>AddCredit.wav</td>
+      <td>Coin-in sound when a full credit is added.  See <a href="CoinOptions.html">Coin Options</a>
+      for more on how the coin-in buttons are handled, and the distinction between a coin-in event
+      that adds a partial credit and one that adds a full credit.</td>
+   </tr>
+   <tr>
+      <td>CoinIn.wav</td>
+      <td>Coin-in sound when a partial credit is added</td>
+   </tr>
+   <tr>
+      <td>Deselect.wav</td>
+      <td>The "Exit" button, when closing a menu or popup</td>
+   </tr>
+   <tr>
+      <td>Next.wav</td>
+      <td>The "Next" button, moving right through the wheel or to the next menu item</td>
+   </tr>
+   <tr>
+      <td>Prev.wav</td>
+      <td>The "Previous" button, moving left through the wheel or to the previous men item</td>
+   </tr>
+   <tr>
+      <td>Select.wav</td>
+      <td>The "Select" button: opening a menu, selecting a menu command, opening a popup</td>
+   </tr>
+</table>
+      
+
+<h2>Disabling an individual button sound</h2>
+
+<p>
+   If you don't want to hear a sound effect at all when you press a
+   particular button, you can simply use a WAV file with a recording
+   of an interval of silence for that button's sound file.
+</p>
+<p>
+   For your convenience, we provide a pre-made silent WAV file for
+   this purpose.  You'll find the file in the <b>Assets</b> folder
+   in your PinballY program folder, under the name <b>Silence.wav</b>.
+   Simply copy this file to the Media\Button Sounds folder as
+   explained above, and rename it to match the button sound you want
+   to suppress.  Repeat that for each button you want to silence.
+</p>
+
+<h2>Muting all button sounds</h2>
+
+<p>
+   If you just want to disable all of the button sounds across the board, you can
+   use the "Mute Buttons" command in the <a href="OperatorMenu.html">Operator Menu</a>.
+</p>
+
+
+</body>
+</html>

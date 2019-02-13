@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Customizing graphics and sounds</h1>
+
+<p>
+   PinballY lets you customize many aspects of its appearance by providing
+   your own images, video, and sound files.  The sections below explain how
+   to install custom media to override the default files.
+</p>
+<div id="TOC"></div>
+
+<a name="mediaFolder"></a>
+<h2>Media folder location</h2>
+<p>
+   All of the customizable media items go in subfolders of the
+   main <b>Media</b> folder.  PinballY looks for the main Media folder
+   in two locations, in this order:
+</p>
+<ul>
+   <li>First, it looks in the <b>Media</b> folder within your PinballY
+   program folder
+
+   <li>Second, it uses the path set in the Media Folder option in the
+   <a href="PathOptions.html">Folder Options</a> section in the settings
+</ul>
+
+<p>
+   These two locations might be identical.  That's the case if you've
+   chosen to keep all of your game media files within the PinballY install folder.
+</p>
+<p>
+   But the two folder locations will be different if you're sharing game
+   media files with a HyperPin or PinballX installation.  In that case,
+   you can store your PinballY custom media files in either location.  The
+   PinballY Media folder will be searched first, so files located there will
+   take precedence.  This lets you share files by default with PinballX or
+   HyperPin, while also letting you override selected files just for PinballY,
+   without affecting the other program(s).  Just place the files you want to
+   override in the PinballY\Media folder, and PinballY will use those files
+   in preference to like-named files in the game media folder.
+</p>
+
+
+
+</body>
+</html>

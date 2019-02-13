@@ -33,4 +33,3 @@ InstCardView::InstCardView() : SecondaryView(IDR_INSTCARD_CONTEXT_MENU, ConfigVa
 // get the background media info
 const MediaType *InstCardView::GetBackgroundImageType() const { return &GameListItem::instructionCardImageType; }
 const MediaType *InstCardView::GetBackgroundVideoType() const { return nullptr; }
-const TCHAR *InstCardView::GetDefaultBackgroundImage() const { return _T("assets\\DefaultInstCard.png"); }

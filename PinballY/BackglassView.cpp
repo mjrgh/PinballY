@@ -39,7 +39,6 @@ BackglassView::BackglassView() : BackglassBaseView(IDR_BACKGLASS_CONTEXT_MENU, C
 // get the background media info
 const MediaType *BackglassView::GetBackgroundImageType() const { return &GameListItem::backglassImageType; }
 const MediaType *BackglassView::GetBackgroundVideoType() const { return &GameListItem::backglassVideoType; }
-const TCHAR *BackglassView::GetDefaultBackgroundImage() const { return _T("assets\\DefaultBackglass.png"); }
 
 // -----------------------------------------------------------------------
 //
