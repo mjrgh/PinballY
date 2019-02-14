@@ -1,5 +1,9 @@
-assets\*
+-r assets
 Media\Readme.txt
+"Media\Button Sounds"
+"Media\Images"
+"Media\Startup Videos"
+"Media\Videos"
 Help\*
 Help\highlightjs\*
 Help\highlightjs\styles\*
