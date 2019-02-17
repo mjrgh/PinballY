@@ -143,15 +143,19 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 	}
 
 	// check for special launch modes
-	if (std::regex_match(lpCmdLine, std::basic_regex<TCHAR>(_T("\\s*/AutoLaunch=AdminMode\\s*"))))
+	std::match_results<const TCHAR*> m;
+	if (std::regex_match(lpCmdLine, m, std::basic_regex<TCHAR>(_T("\\s*/AutoLaunch=AdminMode,delay=(\\d+)\\s*"))))
 	{
+		// Extract the delay time
+		auto delay = static_cast<DWORD>(_ttol(m[1].str().c_str()));
+
 		// Set up admin mode auto launch.  This sets up auto launch for
 		// our "PinballY Admin Mode" executable instead of the regular
 		// PinballY executable.
 		TCHAR exe[MAX_PATH];
 		GetExeFilePath(exe, countof(exe));
 		PathAppend(exe, _T("PinballY Admin Mode.exe"));
-		bool ok = SetUpAutoRun(true, _T("PinballY"), exe, nullptr, true, InteractiveErrorHandler());
+		bool ok = SetUpAutoRun(true, _T("PinballY"), exe, nullptr, true, delay, InteractiveErrorHandler());
 
 		// indicate success/failure via the exit code
 		return ok ? 0 : 2;
@@ -286,7 +290,10 @@ int Application::EventLoop(int nCmdShow)
 	// If desired, check for monitors
 	if (const TCHAR *monWaitSpec = ConfigManager::GetInstance()->Get(_T("WaitForMonitors"), _T(""));
 		!std::regex_match(monWaitSpec, std::basic_regex<TCHAR>(_T("\\s*"))))
-		MonitorCheck::WaitForMonitors(monWaitSpec);
+	{
+		int extraWait = ConfigManager::GetInstance()->GetInt(_T("WaitForMonitors.ExtraDelay"), 0);
+		MonitorCheck::WaitForMonitors(monWaitSpec, extraWait * 1000);
+	}
 
 	// Check for a RunBefore program.  Do this after the monitor check
 	// has been completed, so that the RunBefore program runs in the

@@ -5,9 +5,10 @@
 #include "Resource.h"
 #include "MonitorCheck.h"
 
-MonitorCheck::MonitorCheck(int numMonitors, DWORD wait_ms) :
+MonitorCheck::MonitorCheck(int numMonitors, DWORD max_wait_ms, DWORD extra_wait_ms) :
 	numMonitors(numMonitors),
-	wait_ms(wait_ms)
+	max_wait_ms(max_wait_ms),
+	extra_wait_ms(extra_wait_ms)
 {
 	// Look for the nVidia driver API.  The nVidia driver reportedly
 	// fools the Windows API that enumerates monitors with its own
@@ -23,7 +24,7 @@ MonitorCheck::~MonitorCheck()
 {
 }
 
-bool MonitorCheck::WaitForMonitors(const TCHAR *str)
+bool MonitorCheck::WaitForMonitors(const TCHAR *str, DWORD extra_wait_ms)
 {
 	// try matching the "N monitors, M seconds" pattern
 	std::basic_regex<TCHAR> pat(_T("\\s*(\\d+)\\s*monitors?\\s*[\\s,]\\s*(\\d+)\\s*seconds?\\s*"), std::regex_constants::icase);
@@ -31,11 +32,11 @@ bool MonitorCheck::WaitForMonitors(const TCHAR *str)
 	if (std::regex_match(str, m, pat))
 	{
 		// monitor count in group 1, seconds in group 2
-		int n = _ttoi(m[1].str().c_str());
-		int ms = _ttoi(m[2].str().c_str()) * 1000;
+		int nMonitors = _ttoi(m[1].str().c_str());
+		int max_wait_ms = _ttoi(m[2].str().c_str()) * 1000;
 
 		// do the wait
-		return WaitForMonitors(n, ms);
+		return WaitForMonitors(nMonitors, max_wait_ms, extra_wait_ms);
 	}
 	else
 	{
@@ -46,14 +47,14 @@ bool MonitorCheck::WaitForMonitors(const TCHAR *str)
 
 }
 
-bool MonitorCheck::WaitForMonitors(int numMonitors, DWORD wait_ms)
+bool MonitorCheck::WaitForMonitors(int numMonitors, DWORD max_wait_ms, DWORD extra_wait_ms)
 {
 	// create and show the dialog
-	std::unique_ptr<MonitorCheck> dlg(new MonitorCheck(numMonitors, wait_ms));
+	std::unique_ptr<MonitorCheck> dlg(new MonitorCheck(numMonitors, max_wait_ms, extra_wait_ms));
 
-	// if the required monitors are already attached, return success
-	// without even showing the dialog
-	if (dlg->CountMonitors() >= numMonitors)
+	// if the required monitors are already attached, and there's
+	// no additional startup delay, bypass the dialog
+	if (dlg->CountMonitors() >= numMonitors && extra_wait_ms == 0)
 		return true;
 
 	// run the dialog
@@ -103,7 +104,7 @@ INT_PTR MonitorCheck::Proc(UINT message, WPARAM wParam, LPARAM lParam)
 		ret = __super::Proc(message, wParam, lParam);
 
 		// set up a timer to do another check every so often
-		SetTimer(hDlg, UpdateTimerId, 250, 0);
+		SetTimer(hDlg, UpdateTimerId, 50, 0);
 
 		// note the starting time, so that we can auto-cancel when we
 		// reach the maximum wait time
@@ -113,15 +114,46 @@ INT_PTR MonitorCheck::Proc(UINT message, WPARAM wParam, LPARAM lParam)
 		return ret;
 
 	case WM_TIMER:
+		// check for our update timer
 		if (wParam == UpdateTimerId)
 		{
-			// Cancel the dialog if we've reached the timeout
-			if (wait_ms != INFINITE && (DWORD)(GetTickCount() - startTime) > wait_ms)
-				EndDialog(hDlg, IDCANCEL);
+			// check the phase
+			switch (phase)
+			{
+			case MonitorWait:
+				// Initial monitor wait phase.  Cancel the dialog if we've
+				// reached the maximum wait time.
+				if (max_wait_ms != INFINITE && static_cast<DWORD>(GetTickCount() - startTime) > max_wait_ms)
+					EndDialog(hDlg, IDCANCEL);
 
-			// Dismiss the dialog if we've reached the desired monitor count
-			if (CountMonitors() >= numMonitors)
-				EndDialog(hDlg, IDOK);
+				// If we've reached the desired monitor count, advance to the
+				// extra delay phase.
+				if (CountMonitors() >= numMonitors)
+				{
+					// go to the next phase
+					phase = ExtraWait;
+
+					// reset the start time for the new phase
+					startTime = GetTickCount();
+
+					// if there's no additional wait time, we can stop immediately
+					if (extra_wait_ms == 0)
+						EndDialog(hDlg, IDOK);
+				}
+				break;
+
+			case ExtraWait:
+				// Extra delay phase.  Check if the delay time has elapsed.
+				if (static_cast<DWORD>(GetTickCount() - startTime) > extra_wait_ms)
+					EndDialog(hDlg, IDOK);
+
+				// Update the message
+				if (auto rem = static_cast<int>((extra_wait_ms - static_cast<DWORD>(GetTickCount() - startTime) + 500) / 1000); rem != 1)
+					SetDlgItemText(hDlg, IDC_ST_MONITOR_WAIT_MSG, MsgFmt(IDS_STARTUP_WAIT, rem).Get());
+				else
+					SetDlgItemText(hDlg, IDC_ST_MONITOR_WAIT_MSG, LoadStringT(IDS_STARTUP_WAIT_1S));
+				break;
+			}
 
 			// timer handled
 			return 0;
@@ -132,4 +164,3 @@ INT_PTR MonitorCheck::Proc(UINT message, WPARAM wParam, LPARAM lParam)
 	// use the base class handling if we didn't override it
 	return __super::Proc(message, wParam, lParam);
 }
-

@@ -130,8 +130,8 @@ protected:
 		virtual void SaveConfigVar() override
 		{
 			TSTRING val;
-			if (_ttoi(sizeVar) != 0)
-				val = MsgFmt(_T("%dpt "), sizeVar);
+			if (int sizeVal = _ttoi(sizeVar); sizeVal != 0)
+				val = MsgFmt(_T("%dpt "), sizeVal);
 			else
 				val = _T("* ");
 

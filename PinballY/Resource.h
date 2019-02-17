@@ -96,6 +96,9 @@
 
 #define IDS_RENAME_MEDIA_PROMPT         280
 
+#define IDS_STARTUP_WAIT                281
+#define IDS_STARTUP_WAIT_1S             282
+
 #define IDS_APP_CPR                     300
 #define IDS_GAME_LOADING                301
 #define IDS_GAME_RUNNING                302
@@ -439,6 +442,7 @@
 #define IDS_HISCORECOMBO_STRINGS        933
 
 #define ID_DLG_MONITOR_WAIT             950
+#define IDC_ST_MONITOR_WAIT_MSG         951
 
 #define IDS_SHOWMEDIA_CAPTION           960
 #define IDS_SHOWMEDIA_UNCONFIG          961

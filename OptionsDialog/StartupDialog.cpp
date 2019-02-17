@@ -19,8 +19,9 @@ StartupDialog::StartupDialog(int dialogId) :
 	// information to override whatever is in the configuration.
 	bool exists;
 	bool adminMode;
+	DWORD delay;
 	TSTRING exe, params;
-	if (GetAutoRunState(_T("PinballY"), exists, exe, params, adminMode, SilentErrorHandler()))
+	if (GetAutoRunState(_T("PinballY"), exists, exe, params, adminMode, delay, SilentErrorHandler()))
 	{
 		// presume we won't find a valid task
 		const TCHAR *setting = _T("off");
@@ -51,6 +52,8 @@ StartupDialog::StartupDialog(int dialogId) :
 		auto cfg = ConfigManager::GetInstance();
 		if (_tcsicmp(cfg->Get(_T("AutoLaunch"), _T("off")), setting) != 0)
 			cfg->Set(_T("AutoLaunch"), setting);
+		if (cfg->GetInt(_T("AutoLaunch.Delay"), 0) != delay)
+			cfg->Set(_T("AutoLaunch.Delay"), delay);
 	}
 }
 
@@ -64,12 +67,14 @@ void StartupDialog::InitVarMap()
 
 	varMap.emplace_back(autoLaunchButtons = new AutoLaunchMap(
 		_T("AutoLaunch"), IDC_RB_START_MANUAL, _T("off"), startupVals, countof(startupVals)));
+	varMap.emplace_back(autoLaunchDelay = new SpinIntMap(_T("AutoLaunch.Delay"), IDC_EDIT_LOGON_DELAY, 0, IDC_SPIN_LOGON_DELAY, 0, 3600));
 	varMap.emplace_back(new CkBoxMap(_T("SplashScreen"), IDC_CK_SPLASH_SCREEN, true));
 	varMap.emplace_back(new EditStrMap(_T("RunAtStartup"), IDC_EDIT_RUN_AT_STARTUP, _T("")));
 	varMap.emplace_back(new EditStrMap(_T("RunAtExit"), IDC_EDIT_RUN_AT_EXIT, _T("")));
 	varMap.emplace_back(new MonVars(_T("WaitForMonitors"), IDC_CK_MONITOR_WAIT, 
 		IDC_EDIT_NUM_MONITORS, IDC_SPIN_NUM_MONITORS,
-		IDC_EDIT_MON_WAIT_TIME, IDC_SPIN_MON_WAIT_TIME));
+		IDC_EDIT_MON_WAIT_TIME, IDC_SPIN_MON_WAIT_TIME,
+		IDC_EDIT_MON_ADDED_WAIT, IDC_SPIN_MON_ADDED_WAIT));
 }
 
 void StartupDialog::MonVars::Val::LoadFromConfig()
@@ -93,6 +98,9 @@ void StartupDialog::MonVars::Val::LoadFromConfig()
 		numMon = 0;
 		waitTime = 0;
 	}
+
+	// get the added wait time
+	addedWait = ConfigManager::GetInstance()->GetInt(_T("WaitForMonitors.ExtraDelay"), 0);
 }
 
 void StartupDialog::MonVars::SaveConfigVar()
@@ -104,6 +112,9 @@ void StartupDialog::MonVars::SaveConfigVar()
 
 	// set the value in the config
 	ConfigManager::GetInstance()->Set(_T("WaitForMonitors"), s.c_str());
+
+	// set the added wait time
+	ConfigManager::GetInstance()->Set(_T("WaitForMonitors.ExtraDelay"), val.addedWait);
 }
 
 bool StartupDialog::MonVars::IsModifiedFromConfig()
@@ -115,7 +126,8 @@ bool StartupDialog::MonVars::IsModifiedFromConfig()
 	// check if they match
 	return cfgVal.enabled != val.enabled
 		|| cfgVal.numMon != val.numMon
-		|| cfgVal.waitTime != val.waitTime;
+		|| cfgVal.waitTime != val.waitTime
+		|| cfgVal.addedWait != val.addedWait;
 }
 
 int StartupDialog::AutoLaunchMap::ConfigToRadio()
@@ -169,7 +181,7 @@ BOOL StartupDialog::OnCommand(WPARAM wParam, LPARAM lParam)
 
 BOOL StartupDialog::OnApply()
 {
-	// get the old config setting
+	// get the old config settings
 	int oldAutoLaunch = autoLaunchButtons->ConfigToRadio();
 
 	// do the base class work first
@@ -177,7 +189,8 @@ BOOL StartupDialog::OnApply()
 		return FALSE;
 
 	// if the auto-launch settings have changed, update the Task Scheduler entry
-	if (auto a = autoLaunchButtons->intVar; a != oldAutoLaunch)
+	int newAutoLaunch = autoLaunchButtons->intVar;
+	if (newAutoLaunch != oldAutoLaunch || autoLaunchDelay->IsModifiedFromConfig())
 	{
 		// get the main dialog
 		auto mainDlg = dynamic_cast<MainOptionsDialog*>(GetParent()); 
@@ -192,13 +205,16 @@ BOOL StartupDialog::OnApply()
 			return OnApplyFail();
 		}
 
+		// get the delay time
+		DWORD delay = autoLaunchDelay->intVar;
+
 		// see what we have for the new mode
-		if (a == 0 || a == 1)
+		if (newAutoLaunch == 0 || newAutoLaunch == 1)
 		{
 			// Manual (0) or regular user-mode Auto (1).  We can make this 
 			// change in normal user mode (without UAC elevation).  Get the 
 			// program name, and add or remove the Task Scheduler task.
-			if (!SetUpAutoRun(a == 1, _T("PinballY"), exe, nullptr, false, InteractiveErrorHandler()))
+			if (!SetUpAutoRun(newAutoLaunch == 1, _T("PinballY"), exe, nullptr, false, delay, InteractiveErrorHandler()))
 				return OnApplyFail();
 		}
 		else
@@ -236,7 +252,9 @@ BOOL StartupDialog::OnApply()
 				ex.hwnd = GetParent()->GetSafeHwnd();
 				ex.lpVerb = _T("runas");
 				ex.lpFile = exe;
-				ex.lpParameters = _T(" /AutoLaunch=AdminMode");
+				TSTRINGEx params;
+				params.Format(_T(" /AutoLaunch=AdminMode,delay=%d"), delay);
+				ex.lpParameters = params.c_str();
 				ex.lpDirectory = NULL;
 				ex.nShow = SW_HIDE;
 				ex.hInstApp = NULL;

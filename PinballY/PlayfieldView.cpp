@@ -2915,6 +2915,9 @@ void PlayfieldView::OnIdleEvent()
 		ShowInitialUI(true);
 	}
 
+	// Hide the cursor while playing the startup videos
+	SetCursor(NULL);
+
 	// check for a startup audio track
 	TCHAR startupAudio[MAX_PATH];
 	auto gl = GameList::Get();
@@ -2976,7 +2979,7 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 	// makes it easy for the user to spot the cursor location if
 	// necessary.  We'll keep hiding the cursor again any time a
 	// keyboard key is pressed.
-	SetCursor(0);
+	SetCursor(NULL);
 
 	// start the status line timer
 	SetTimer(hWnd, statusLineTimerID, statusLineTimerInterval, 0);
@@ -15675,7 +15678,7 @@ void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 			t0 = GetTickCount();
 
 			// make sure the cursor stays hidden while in attract mode
-			SetCursor(0);
+			SetCursor(NULL);
 
 			// Fire a DOF attract mode game switch event
 			pfv->QueueDOFPulse(L"PBYAttractWheelNext");
@@ -15781,7 +15784,7 @@ void PlayfieldView::AttractMode::StartAttractMode(PlayfieldView *pfv)
 	pfv->OnStartAttractMode();
 
 	// turn off the cursor while in attract mode
-	SetCursor(0);
+	SetCursor(NULL);
 
 	// reset the timer, so that we the next elapsed time check
 	// measures from when we started attract mode

@@ -1,5 +1,40 @@
 PinballY Update History
 
+? (1.0.0 Beta 7)
+
+* A new Startup dialog option lets you more precisely control the
+timing of auto-launch at system startup.  In the Startup options,
+you'll find a new setting, "After logon, pause before starting
+PinballY".  Enter a delay time in seconds here.  Windows will wait
+this long after you log on to Windows before launching PinballY.  This
+can be useful if you're having conflicts with other programs that also
+launch automatically, such as keyboard focus problems or performance
+problems due to too many programs trying to run at once.  
+
+* Another new Startup dialog option lets you add some extra delay time
+after waiting for monitors to come on-line.  Some people have
+encountered video cards with quirky behavior that makes a monitor
+appear to come on-line briefly when an attached TV is powered up, only
+to disappear briefly while the HDMI connection is established.  This
+new option tells PinballY to wait for a fixed interval after all
+monitors are recognized, to ensure that the video setup has
+stabilized.  (Issue #47 on Github.)
+
+* The mouse cursor is now hidden before the startup video plays.  In
+the past, it wasn't initially hidden until after the video finished,
+so it might have remained visible during the video.  It's now hidden
+before the startup video start playing.  (Issue #45 on github.)
+
+* In Beta 6, the ZIP file distribution was missing some of the files
+in the "assets" folder.  This is the folder where some of the default
+media items, such as the default background images and button sounds,
+are kept, so you might have had some missing default images if you
+installed from the ZIP.  The ZIP should have the missing files now.
+
+* Fixed a problem that caused error messages in some cases when
+setting non-default font sizes in the options dialog.
+
+
 02-13-2019 (1.0.0 Beta 6)
 
 * IMPORTANT CHANGE NOTE: The startup video folder location has been

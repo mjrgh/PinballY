@@ -15,14 +15,14 @@ class ErrorHandler;
 // "<desc> Startup Task" that launches the given program when the current
 // user logs on.
 //
+// 'delay' is the delay time in seconds after logon.
+//
 bool SetUpAutoRun(bool add, const TCHAR *desc, 
-	const TCHAR *exe, const TCHAR *params, bool adminMode, 
+	const TCHAR *exe, const TCHAR *params, bool adminMode, DWORD delay,
 	ErrorHandler &eh);
 
 // Get the auto-launch state in Task Scheduler.  Returns true on success,
 // false on failure.
 bool GetAutoRunState(const TCHAR *desc, bool &exists, 
-	TSTRING &exe, TSTRING &params, bool &adminMode, 
+	TSTRING &exe, TSTRING &params, bool &adminMode, DWORD &delay,
 	ErrorHandler &eh);
-
-

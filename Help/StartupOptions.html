@@ -55,6 +55,29 @@
    is running.
 </p>
 
+<p>
+   <b>After logon, pause before starting PinballY:</b>  If you wish, you
+   can delay the automatic launch at logon by a specified
+   time in seconds.  This value is only used if you select one of the
+   Automatic modes.  A startup delay can be useful to clear up conflicts
+   with other programs that you're also launching at Windows startup.
+   Some example of when this could be helpful:
+</p>
+<ul>
+   <li>If another launch-at-startup program thrashes the disk
+   or uses a lot of CPU time while it's loading, PinballY's
+   initial video playback might look jumpy or glitchy.  Delaying
+   PinballY's launch until the other program has settled down
+   might help.
+
+   <li>Another program launched at about the same time might
+   steal keyboard focus away from PinballY, forcing you to click
+   the mouse in a PinballY window to give it keyboard focus again.
+   If you delay PinballY's startup so that it's the last program
+   to launch at startup, it should reliably get the initial
+   keyboard focus.
+</ul>
+
 
 <h2>Wait for monitors</h2>
 
@@ -78,7 +101,7 @@
    area, PinballY might not be able to restore the full layout properly.
 </p>
 <p>
-   So what you really want to do is have a way to tell Windows: "launch
+   So what you really want to do is tell Windows: "launch
    this program at system startup, but not until all of the monitors
    are ready."  That's exactly what the "wait for monitors" setting does.
    It makes PinballY deliberately stop and wait until all of your
@@ -86,15 +109,29 @@
 </p>
 <p>
    To use this feature, check the "Wait for monitors" box, then adjust
-   the "number of monitors" and "wait time" boxes to match your system.
-   The wait time is only the maximum time limit; PinballY will stop waiting
-   as soon as all of the monitors are online if that happens before the
-   wait time limit has been reached.  The wait time is only there to make
-   sure that things don't stall for too long if you happen to boot up
-   without all of your monitors connected.  You can also always cancel
-   the wait manually if necessary, since PinballY shows a little dialog
-   box with a "Cancel" button throughout the wait.
+   the parameters:
 </p>
+<ul>
+   <li><b>Number of monitors:</b>  The minimum number of monitors that
+   must be online before PinballY starts up.  PinballY will wait until
+   Windows thinks that at least this many physical displays are active
+   in the system.
+
+   <li><b>Maximum wait time:</b>  The time limit on how long to wait.
+   This is just a fail-safe, to make sure that PinballY doesn't get stuck
+   forever if for some reason you're not going to attach all of your monitors
+   for this session.  (You can also cancel the wait manually at any
+   time, by clicking the Cancel button in the little dialog box that
+   the program displays during the wait.)
+
+   <li><b>Additional wait time:</b>  This is an extra delay time,
+   in seconds, after all of the monitors have been recognized.  Some
+   video cards have a quirk where they appear in Windows as soon as
+   an attached TV is first turned on, but then drop out again for a
+   couple of seconds while the TV establishes its connection.  The
+   additional wait time can help work around such startup glitches.
+</ul>
+
 
 <h2>Splash screen</h2>
 
@@ -131,6 +168,7 @@
       syntax above to invoke the batch script
 
 </ul>
+
    
 </body>
 </html>

@@ -73,7 +73,8 @@ static bool CleanUpRunKey(const TCHAR *desc, ErrorHandler &eh)
 }
 
 // Set up Auto Run using Task Scheduler
-bool SetUpAutoRun(bool add, const TCHAR *desc, const TCHAR *exe, const TCHAR *params, bool adminMode, ErrorHandler &eh)
+bool SetUpAutoRun(bool add, const TCHAR *desc, const TCHAR *exe, const TCHAR *params, 
+	bool adminMode, DWORD delay, ErrorHandler &eh)
 {
 	// error handler - log an error and return false
 	LONG err;
@@ -190,11 +191,15 @@ bool SetUpAutoRun(bool add, const TCHAR *desc, const TCHAR *exe, const TCHAR *pa
 	if (!SUCCEEDED(hr = pTrigger->QueryInterface(IID_PPV_ARGS(&pLogonTrigger))))
 		return ReturnCOMError(_T("querying logon trigger interface"));
 
+	// set up the delay time
+	WCHAR delayStr[64];
+	swprintf_s(delayStr, L"PT%luS", static_cast<unsigned long>(delay));
+
 	// set it up
-	WCHAR triggerId[] = L"LogonTrigger", delay[] = L"PT5S";
+	WCHAR triggerId[] = L"LogonTrigger";
 	if (!SUCCEEDED(hr = pLogonTrigger->put_Id(triggerId)))
 		return ReturnCOMError(_T("setting logon trigger ID"));
-	if (!SUCCEEDED(hr = pLogonTrigger->put_Delay(delay)))
+	if (!SUCCEEDED(hr = pLogonTrigger->put_Delay(delayStr)))
 		return ReturnCOMError(_T("setting logon trigger delay"));
 
 	// set the username in the logon trigger to the current user account
@@ -253,7 +258,7 @@ bool SetUpAutoRun(bool add, const TCHAR *desc, const TCHAR *exe, const TCHAR *pa
 // Get the auto-launch state in Task Scheduler.  Returns true on success,
 // false on failure.
 bool GetAutoRunState(const TCHAR *desc, bool &exists,
-	TSTRING &exe, TSTRING &params, bool &adminMode,
+	TSTRING &exe, TSTRING &params, bool &adminMode, DWORD &delay,
 	ErrorHandler &eh)
 {
 	// set up the task name
@@ -293,16 +298,18 @@ bool GetAutoRunState(const TCHAR *desc, bool &exists,
 	if (!SUCCEEDED(hr = pService->GetFolder(rootFolderPath, &pRootFolder)))
 		return ReturnCOMError(_T("getting Task Scheduler root task folder"));
 
+	// set defaults
+	exe = _T("");
+	params = _T("");
+	adminMode = false;
+	delay = 0;
+
 	// retrieve the task, if present
 	RefPtr<IRegisteredTask> pRegisteredTask;
 	if ((hr = pRootFolder->GetTask(taskName, &pRegisteredTask)) == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))
 	{
-		// The task doesn't exist.  Fill in the results to indicate this
-		// and return success
+		// The task doesn't exist
 		exists = false;
-		exe = _T("");
-		params = _T("");
-		adminMode = false;
 		return true;
 	}
 	else if (!SUCCEEDED(hr))
@@ -328,6 +335,49 @@ bool GetAutoRunState(const TCHAR *desc, bool &exists,
 
 	// note whether it's admin mode or normal mode
 	adminMode = (runLevel == TASK_RUNLEVEL_HIGHEST);
+
+	// get the trigger collection
+	RefPtr<ITriggerCollection> pTriggerCollection;
+	if (!SUCCEEDED(hr = pTaskDef->get_Triggers(&pTriggerCollection)))
+		return ReturnCOMError(_T("retrieving trigger collection for task"));
+
+	// get the "at logon" trigger
+	long nTriggers;
+	if (!SUCCEEDED(hr = pTriggerCollection->get_Count(&nTriggers)))
+		return ReturnCOMError(_T("retrieving trigger collection for task"));
+	for (long i = 1; i <= nTriggers; ++i)
+	{
+		RefPtr<ITrigger> pTrigger;
+		RefPtr<ILogonTrigger> pLogonTrigger;
+		if (!SUCCEEDED(hr = pTriggerCollection->get_Item(i, &pTrigger)))
+			return ReturnCOMError(_T("retrieving trigger"));
+		if (SUCCEEDED(hr = pTrigger->QueryInterface(IID_PPV_ARGS(&pLogonTrigger))))
+		{
+			// get the delay time
+			BSTR bDelayTime = NULL;
+			if (!SUCCEEDED(hr = pLogonTrigger->get_Delay(&bDelayTime)))
+				return ReturnCOMError(_T("getting logon trigger delay time"));
+
+			// if we got it, parse it
+			if (bDelayTime != NULL)
+			{
+				// parse it - accept formats with hours, minutes, and seconds
+				static const std::basic_regex<WCHAR> pat(L"PT(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?");
+				std::match_results<const WCHAR*> m;
+				if (std::regex_match(bDelayTime, m, pat))
+				{
+					// compute the time in seconds from elements present
+					delay = 0;
+					if (m[1].matched)
+						delay += _wtol(m[1].str().c_str()) * 3600;
+					if (m[2].matched)
+						delay += _wtol(m[2].str().c_str()) * 60;
+					if (m[3].matched)
+						delay += _wtol(m[3].str().c_str());
+				}
+			}
+		}
+	}
 
 	// get the action collection
 	RefPtr<IActionCollection> pActionCollection;

@@ -24,28 +24,35 @@ protected:
 	{
 		MonVars(const TCHAR *configVar, int ckid, 
 			int numMonEditId, int numMonSpinId,
-			int waitTimeEditId, int waitTimeSpinId) :
+			int waitTimeEditId, int waitTimeSpinId,
+			int addedWaitEditId, int addedWaitSpinId) :
 			VarMap(configVar, ckid, ckEnable),
 			numMonEditId(numMonEditId), numMonSpinId(numMonSpinId),
-			waitTimeEditId(waitTimeEditId), waitTimeSpinId(waitTimeSpinId)
+			waitTimeEditId(waitTimeEditId), waitTimeSpinId(waitTimeSpinId),
+			addedWaitEditId(addedWaitEditId), addedWaitSpinId(addedWaitSpinId)
 		{ }
 
 		CButton ckEnable;
 		CEdit edNumMon;
 		CEdit edWaitTime;
+		CEdit edAddedWait;
 		CSpinButtonCtrl spinNumMon;
 		CSpinButtonCtrl spinWaitTime;
+		CSpinButtonCtrl spinAddedWait;
 
 		int numMonEditId;
 		int numMonSpinId;
 		int waitTimeEditId;
 		int waitTimeSpinId;
+		int addedWaitEditId;
+		int addedWaitSpinId;
 
 		struct Val
 		{
 			int enabled;
 			int numMon;
 			int waitTime;
+			int addedWait;
 
 			void LoadFromConfig();
 		} val;
@@ -57,12 +64,15 @@ protected:
 			DDX_Control(pDX, numMonSpinId, spinNumMon);
 			DDX_Control(pDX, waitTimeEditId, edWaitTime);
 			DDX_Control(pDX, waitTimeSpinId, spinWaitTime);
+			DDX_Control(pDX, addedWaitEditId, edAddedWait);
+			DDX_Control(pDX, addedWaitSpinId, spinAddedWait);
 		}
 
 		virtual void InitControl() override 
 		{
 			spinNumMon.SetRange(0, 10);
 			spinWaitTime.SetRange(0, 3600);
+			spinAddedWait.SetRange(0, 3600);
 		}
 
 		virtual void doDDX(CDataExchange *pDX) override
@@ -70,6 +80,7 @@ protected:
 			DDX_Check(pDX, controlID, val.enabled);
 			DDX_Text(pDX, numMonEditId, val.numMon);
 			DDX_Text(pDX, waitTimeEditId, val.waitTime);
+			DDX_Text(pDX, addedWaitEditId, val.addedWait);
 		}
 
 		virtual void LoadConfigVar() override { val.LoadFromConfig(); }
@@ -89,6 +100,6 @@ protected:
 	};
 
 	AutoLaunchMap *autoLaunchButtons;
-
+	SpinIntMap *autoLaunchDelay;
 };
 

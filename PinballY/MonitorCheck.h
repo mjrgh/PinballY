@@ -28,7 +28,7 @@ public:
 	// the given maximum wait time.  Returns true if all monitors
 	// are available, false if not.  The wait time is in 
 	// milliseconds; use INFINITE to wait forever.
-	static bool WaitForMonitors(int numMonitors, DWORD wait_ms);
+	static bool WaitForMonitors(int numMonitors, DWORD max_wait_ms, DWORD extra_wait_ms);
 
 	// Wait for monitors using the config file "WaitForMonitors"
 	// string format.  This allows the following formats:
@@ -42,10 +42,10 @@ public:
 	// For the formats that don't specify a wait time, we use a
 	// default wait time of 90 seconds.
 	//
-	static bool WaitForMonitors(const TCHAR *configString);
+	static bool WaitForMonitors(const TCHAR *configString, DWORD extra_wait_ms);
 
 protected:
-	MonitorCheck(int numMonitors, DWORD wait_ms);
+	MonitorCheck(int numMonitors, DWORD max_wait_ms, DWORD extra_wait_ms);
 
 	// dialog proc 
 	virtual INT_PTR Proc(UINT message, WPARAM wParam, LPARAM lParam) override;
@@ -57,10 +57,21 @@ protected:
 	int numMonitors;
 
 	// Maximum waiting time, in milliseconds
-	DWORD wait_ms;
+	DWORD max_wait_ms;
 
-	// starting time of dialog, as a GetTickCount() value
+	// Extra waiting time after the last monitor has checked in
+	DWORD extra_wait_ms;
+
+	// Starting time of current phase, as a GetTickCount() value
 	DWORD startTime;
+
+	// Current phase
+	enum WaitPhase
+	{
+		MonitorWait,    // waiting for monitors to come online
+		ExtraWait       // extra wait after monitors are online
+	};
+	WaitPhase phase = MonitorWait;
 
 	// Pointer to NVidia DLL entrypoint to refresh the video device
 	// cache.  We use this on systems with NVidia cards to get more

@@ -146,6 +146,23 @@ TableDatabasePath =
 # to update this setting, because the setting has to be 
 AutoLaunch = off
 
+# Autolaunch delay time, in seconds.  When launch at startup is enabled,
+# the launch is delayed after you log on by this amount of time.  This
+# can be used to avoid conflicts with other programs that are also 
+# launched when you log on, by sequencing the program launches so that
+# they don't all start at the same time.  It's usually desirable to
+# make sure that PinballY runs last when launching other programs, for
+# a couple of reasons.  One is that other programs can thrash the disk
+# while loading, which can make video playback jumpy; making PinballY
+# wait until other programs have finished loading can make the initial
+# video playback smoother.  Another is that the most recently launched
+# program usually has control of keyboard focus, so if another program
+# launches after PinballY, it can steal away the keyboard focus, which
+# can prevent PinballY from responding to button presses.  Delaying
+# PinballY's startup until after other programs have finished loading
+# can make sure that PinballY has the initial keyboard focus.
+AutoLaunch.Delay = 0
+
 
 # Should we wait for monitors to come online at startup?  Most pin cabs
 # have multiple monitors, and on many pin cabs, these are regular TVs rather 
@@ -179,6 +196,14 @@ AutoLaunch = off
 # wait if necessary.
 #
 WaitForMonitors = 1 monitor, 10 seconds
+
+# Additional wait time after the monitors are online, in seconds.
+# Some video cards have a quirk where they appear in Windows as soon
+# as an attached TV is powered on, but then disappear again briefly
+# while the physical connection (e.g., HDMI) is established.  This
+# added delay can be used in such cases, to ensure that PinballY
+# doesn't try to open any windows during that connection interval.
+WaitForMonitors.ExtraDelay = 0
 
 
 # Splash screen.  If true (1), the program displays a "splash screen"
