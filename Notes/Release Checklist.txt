@@ -35,9 +35,10 @@ PinballY Release Checklist
     License.txt
     Help\*
 
-  (Note: the "Min" versions are deprecated, since it was too difficult
-  to figure out whether you needed the full or Min version.  I no longer
-  upload them.  For reference, they were as follows:)
+  Note: the "Min" versions are deprecated, since it was too difficult
+  to figure out whether you needed the full or Min version.  The build
+  script still builds them, but I no longer upload them.  For reference,
+  the Min files are:
     Builds\PinballY-Min-xxxxxx.zip  [do not upload]
     Builds\PinballY-64bit-Min-xxxxxx.zip  [do not upload]
 

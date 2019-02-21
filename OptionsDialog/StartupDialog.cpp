@@ -232,7 +232,7 @@ BOOL StartupDialog::OnApply()
 				// The Admin Host is running, so it can launch the task
 				// setup program in elevated mode on for us without any
 				// UAC intervention.
-				if (!mainDlg->setUpAdminAutoRunCallback())
+				if (!mainDlg->setUpAdminAutoRunCallback(delay))
 					return OnApplyFail();
 			}
 			else

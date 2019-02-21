@@ -239,6 +239,15 @@ bool RealDMD::Init(ErrorHandler &eh)
 	mirrorHorz = cfg->GetBool(ConfigVars::MirrorHorz, false);
 	mirrorVert = cfg->GetBool(ConfigVars::MirrorVert, false);
 
+	// Send an initial empty frame.  This clears any leftover display
+	// cruft, and also forces the virtual DMD window to open if it's 
+	// going to open.  The virtual DMD can have side effects on the
+	// display when it first opens, so it's good to get those out of
+	// the way synchronously before we go on.  Note that we do this
+	// before starting the writer thread so that we don't have to
+	// worry about locking.
+	Render_16_Shades_(dmdWidth, dmdHeight, emptySlide->pix.get());
+
 	// launch the writer thread
 	DWORD tid;
 	writerThreadQuit = false;

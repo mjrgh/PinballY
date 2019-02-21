@@ -118,6 +118,8 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 //
 Application *Application::inst;
 bool Application::isInForeground = true;
+HCURSOR Application::emptyCursor;
+
 
 // --------------------------------------------------------------------------
 //
@@ -179,11 +181,19 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 	// Initialize GDI+
 	GdiplusIniter gdiplus;
 
+	// load the empty (blank) cursor
+	emptyCursor = static_cast<HCURSOR>(LoadImage(hInstance, MAKEINTRESOURCE(IDCSR_EMPTY), IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE));
+
 	// create the application object
 	std::unique_ptr<Application> appInst(new Application());
 
 	// run the event loop
 	return appInst->EventLoop(nCmdShow);
+}
+
+void Application::HideCursor()
+{
+	SetCursor(emptyCursor);
 }
 
 int Application::EventLoop(int nCmdShow)

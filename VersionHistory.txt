@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 7)
+02-21-2019 (1.0.0 Beta 7)
 
 * A new Startup dialog option lets you more precisely control the
 timing of auto-launch at system startup.  In the Startup options,
@@ -23,7 +23,9 @@ stabilized.  (Issue #47 on Github.)
 * The mouse cursor is now hidden before the startup video plays.  In
 the past, it wasn't initially hidden until after the video finished,
 so it might have remained visible during the video.  It's now hidden
-before the startup video start playing.  (Issue #45 on github.)
+before the startup video start playing.  In addition, the method used
+to hide the cursor has changed slightly to use an explicitly invisible
+cursor rather than setting no cursor.  (Issue #45 on github.)
 
 * PinballY now saves all of its window positions before launching each
 game, and restores the saved position when the game exits.  Some games

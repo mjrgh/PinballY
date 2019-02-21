@@ -76,7 +76,7 @@ bool BaseView::OnDestroy()
 bool BaseView::OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// hide the cursor on any key input
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// run it through the playfield view key handler
 	if (PlayfieldView *v = Application::Get()->GetPlayfieldView();
@@ -90,7 +90,7 @@ bool BaseView::OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
 bool BaseView::OnSysKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// hide the cursor on any key input
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// run it through the playfield view key handler
 	if (PlayfieldView *v = Application::Get()->GetPlayfieldView();
@@ -104,7 +104,7 @@ bool BaseView::OnSysKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
 bool BaseView::OnSysChar(WPARAM wParam, LPARAM lParam)
 {
 	// hide the cursor on any key input
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// run it through the playfield view key handler
 	if (PlayfieldView *v = Application::Get()->GetPlayfieldView();

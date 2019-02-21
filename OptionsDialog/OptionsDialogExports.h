@@ -49,7 +49,7 @@ extern "C" DWORD WINAPI GetOptionsDialogVersion();
 //
 typedef std::function<void(bool succeeded)> ConfigSaveCallback;
 typedef std::function<void(HWND hwnd)> InitializeDialogPositionCallback;
-typedef std::function<bool()> SetUpAdminAutoRunCallback;
+typedef std::function<bool(DWORD delayTime)> SetUpAdminAutoRunCallback;
 extern "C" void WINAPI ShowOptionsDialog(
 	ConfigSaveCallback configSaveCallback, 
 	InitializeDialogPositionCallback initPosCallback,

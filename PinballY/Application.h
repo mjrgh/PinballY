@@ -31,6 +31,9 @@ public:
 
 	// get the global singleton
 	static Application *Get() { return inst; }
+
+	// hide the mouse cursor
+	static void HideCursor();
 	
 	// Main application entrypoint.  WinMain (the standard Windows
 	// entrypoint function) simply calls this on startup.  This
@@ -451,6 +454,9 @@ protected:
 
 	// global singleton instance
 	static Application *inst;
+
+	// empty cursor, for hiding the cursor
+	static HCURSOR emptyCursor;
 
 	// Load the configuration.  This loads the configuration file
 	// and updates global singletons that use the configuration

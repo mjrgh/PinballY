@@ -2916,7 +2916,7 @@ void PlayfieldView::OnIdleEvent()
 	}
 
 	// Hide the cursor while playing the startup videos
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// check for a startup audio track
 	TCHAR startupAudio[MAX_PATH];
@@ -2979,7 +2979,7 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 	// makes it easy for the user to spot the cursor location if
 	// necessary.  We'll keep hiding the cursor again any time a
 	// keyboard key is pressed.
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// start the status line timer
 	SetTimer(hWnd, statusLineTimerID, statusLineTimerInterval, 0);
@@ -14951,12 +14951,16 @@ void PlayfieldView::ShowSettingsDialog()
 		RECT finalDialogRect;
 
 		// Admin Auto Run setup callback
-		auto setUpAdminAutoRun = [this]()
+		auto setUpAdminAutoRun = [this](DWORD delayTime)
 		{
-			// send an installAutoLaunch request to the Admin Host
-			static const TCHAR *request[] = { _T("installAutoLaunch") };
-			std::vector<TSTRING> reply;
+			// format an installAutoLaunch request
+			TCHAR delayTimeStr[30];
+			_stprintf_s(delayTimeStr, _T("%lu"), static_cast<unsigned long>(delayTime));
+			const TCHAR *request[] = { _T("installAutoLaunch"), delayTimeStr };
+
+			// send the request
 			TSTRING errDetails;
+			std::vector<TSTRING> reply;
 			if (Application::Get()->SendAdminHostRequest(request, countof(request), reply, errDetails))
 			{
 				// success
@@ -15678,7 +15682,7 @@ void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 			t0 = GetTickCount();
 
 			// make sure the cursor stays hidden while in attract mode
-			SetCursor(NULL);
+			Application::HideCursor();
 
 			// Fire a DOF attract mode game switch event
 			pfv->QueueDOFPulse(L"PBYAttractWheelNext");
@@ -15784,7 +15788,7 @@ void PlayfieldView::AttractMode::StartAttractMode(PlayfieldView *pfv)
 	pfv->OnStartAttractMode();
 
 	// turn off the cursor while in attract mode
-	SetCursor(NULL);
+	Application::HideCursor();
 
 	// reset the timer, so that we the next elapsed time check
 	// measures from when we started attract mode
