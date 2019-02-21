@@ -64,6 +64,10 @@ public:
 	// update my menu
 	virtual void UpdateMenu(HMENU hMenu, BaseWin *fromWin) override;
 
+	// Save/restore the pre-run window placement
+	void SavePreRunPlacement();
+	void RestorePreRunPlacement();
+
 protected:
 	virtual ~FrameWin();
 
@@ -258,6 +262,15 @@ protected:
 
 	// window closed
 	bool closed;
+
+	// Saved window position prior to running a game.  Some games change the
+	// display configuration in such a way that the Windows virtual desktop
+	// area changes size, and that can in turn cause Windows to reposition
+	// our windows to force them into the new display area.  It can also
+	// resize our windows by changing DPI settings.  To compensate, we save
+	// the window placement here prior to each game launch, and restore it
+	// when the game exits.
+	WINDOWPLACEMENT preRunPlacement = { 0 };
 
 	// configuration variables
 	TSTRINGEx configVarPos;

@@ -761,11 +761,15 @@ bool FrameWin::OnSysCommand(WPARAM wParam, LPARAM lParam)
 	if (DoCommand(LOWORD(wParam)))
 		return true;
 
-	// if the window can be hidden, hide it on minmize or close
+	// if the window can be hidden, hide it on minimize or close, unhide on restore
 	if (WORD sc = LOWORD(wParam); (sc == SC_MINIMIZE || sc == SC_CLOSE) && IsHideable())
 	{
 		ShowHideFrameWindow(false);
 		return true;
+	}
+	else if (sc == SC_RESTORE && IsHideable())
+	{
+		ShowHideFrameWindow(true);
 	}
 
 	// inherit the default handling
@@ -1566,4 +1570,35 @@ bool FrameWin::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 	// inherit default handling
 	return __super::OnAppMessage(msg, wParam, lParam);
+}
+
+void FrameWin::SavePreRunPlacement()
+{
+	// get the current placement data
+	preRunPlacement.length = sizeof(preRunPlacement);
+	if (GetWindowPlacement(hWnd, &preRunPlacement))
+	{
+		// if the window is hidden, keep it hidden when restored
+		if (!IsWindowVisible(hWnd))
+			preRunPlacement.showCmd = SW_HIDE;
+	}
+	else
+	{
+		// failed to get the placement - flag that the placement
+		// information is invalid by zeroing the length
+		preRunPlacement.length = 0;
+	}
+}
+
+void FrameWin::RestorePreRunPlacement()
+{
+	// if we have valid placement data, apply it
+	if (preRunPlacement.length != 0)
+	{
+		// restore the saved placement
+		SetWindowPlacement(hWnd, &preRunPlacement);
+
+		// clear it so that we don't try to use it again
+		preRunPlacement.length = 0;
+	}
 }

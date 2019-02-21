@@ -2542,11 +2542,14 @@ public:
 		// If there's a ';' between here and the end of the argument,
 		// we're looking at a field name.  Skip it to get to the type
 		// code.
-		const WCHAR *q = p, *endp = EndOfArg();
-		for (; q < endp && *q != ';'; ++q);
+		if (*p != '{')
+		{
+			const WCHAR *q = p, *endp = EndOfArg();
+			for (; q < endp && *q != ';' && *q != ' '; ++q);
 
-		if (q < endp && *q == ';')
-			p = q + 1;
+			if (q < endp && *q == ';')
+				p = q + 1;
+		}
 
 		// now do the regular marshalling
 		__super::MarshallValue();
@@ -2750,6 +2753,12 @@ public:
 		// Let's check the type
 		switch (type)
 		{
+		case JsNull:
+		case JsUndefined:
+			// pass a null pointer
+			Store(nullptr);
+			break;
+
 		case JsArrayBuffer:
 			// Array buffer.  This is an opaque byte array type that a caller
 			// can use for a reference to any type.  Pass the callee the underlying

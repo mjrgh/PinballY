@@ -121,6 +121,9 @@ public:
 	// This is used to implement the "Show Xxx" menu commands.
 	void ShowWindow(FrameWin *win);
 
+	// Enumerate the frame windows
+	void EnumFrameWindows(std::function<void(FrameWin*)> func);
+
 	// In-UI error handler.  If possible, this displays errors via a
 	// graphics overlay in the main playfield window.  This is more
 	// harmonious with the video-game look of the UI than a system

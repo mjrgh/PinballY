@@ -25,14 +25,33 @@ the past, it wasn't initially hidden until after the video finished,
 so it might have remained visible during the video.  It's now hidden
 before the startup video start playing.  (Issue #45 on github.)
 
+* PinballY now saves all of its window positions before launching each
+game, and restores the saved position when the game exits.  Some games
+change the display configuration in such a way that the size of the
+virtual desktop changes, which can force Windows to reposition or
+resize some of PinballY's windows to keep them within the valid area.
+In some cases, this left PinballY's windows with the wrong positions
+or sizes when the game exited.  The program now tries to restore the
+original layout after each game run.  (Issue #43 on Github.)
+
 * In Beta 6, the ZIP file distribution was missing some of the files
-in the "assets" folder.  This is the folder where some of the default
-media items, such as the default background images and button sounds,
-are kept, so you might have had some missing default images if you
-installed from the ZIP.  The ZIP should have the missing files now.
+in the "assets" folder.  This is the folder where most of the default
+media items are kept, such as default playfield and backglass
+background images and the button sound effects.  This didn't affect
+the Windows Setup .MSI version, just the ZIP version.  The ZIP should
+have all of the needed files now.
 
 * Fixed a problem that caused error messages in some cases when
 setting non-default font sizes in the options dialog.
+
+* In the past, passing null or undefined to a DllImport function as a
+string pointer argument didn't correctly pass a null pointer to the
+native code.  It does now.
+
+* Fixed a problem in Javascript DllImport that caused incorrect size
+calculations for native struct types containing members of separately
+defined struct types.  This affected dllImport.create() and
+dllImport.sizeof().
 
 
 02-13-2019 (1.0.0 Beta 6)

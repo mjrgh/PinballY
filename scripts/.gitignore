@@ -1,4 +1,5 @@
-main*.js
+/*.js
+/*.bat
 .vscode/
 test/
 DllImportTester/

@@ -1148,6 +1148,15 @@ void Application::ShowWindow(FrameWin *win)
 	BringWindowToTop(hWnd);
 }
 
+void Application::EnumFrameWindows(std::function<void(FrameWin*)> func)
+{
+	if (playfieldWin != nullptr) func(playfieldWin);
+	if (backglassWin != nullptr) func(backglassWin);
+	if (dmdWin != nullptr) func(dmdWin);
+	if (instCardWin != nullptr) func(instCardWin);
+	if (topperWin != nullptr) func(topperWin);
+}
+
 void Application::CheckForegroundStatus()
 {
 	// if one of our main windows is active, we're in the foreground
@@ -1278,6 +1287,11 @@ void Application::EndRunningGameMode()
 		tpv->EndRunningGameMode();
 	if (auto ic = GetInstCardView(); ic != nullptr)
 		ic->EndRunningGameMode();
+
+	// Restore the saved pre-game window positions, in case Windows
+	// repositioned any of our windows in response to monitor layout
+	// changes.
+	EnumFrameWindows([](FrameWin *win) { win->RestorePreRunPlacement(); });
 }
 
 bool Application::Launch(int cmd, DWORD launchFlags,
@@ -1304,6 +1318,9 @@ bool Application::Launch(GameMonitorThread *mon, ErrorHandler &eh)
 		// forget it
 		gameMonitor = nullptr;
 	}
+
+	// save the pre-run window position for each frame window
+	EnumFrameWindows([](FrameWin *win) { win->SavePreRunPlacement(); });
 
 	// make the new one current
 	gameMonitor = mon;

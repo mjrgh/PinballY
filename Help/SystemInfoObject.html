@@ -25,21 +25,23 @@ message("The PinballY version number is " + systemInfo.version.display);
 <h2>Properties</h2>
 
 <p>
-   <b>platform:</b> Processor architecture of the current session.  This is "x86"
-   on 32-bit Windows, or "x64" on 64-bit Windows.
+   <b>platform:</b> Processor architecture of the current session.  This is
+   one of the following:
 </p>
+<ul>
+   <li>"x86" for 32-bit Windows on a CPU using the Intel x86 instruction set
+   <li>"x64" for 64-bit Windows on a CPU using the Intel x64 instruction set
+</ul>
+
 <p>
-   "x86" and "x64" also imply that the CPU is based on the Intel architecture.
-   This doesn't necessarily mean that the CPU was actually manufactured by Intel,
-   only that it uses a compatible instruction set.  It could equally well be an
-   AMD chip, since AMD makes CPUs with the same architecture.  What "x86" and "x64"
-   do tell you for sure is that the program <i>isn't</i> running on an ARM CPU,
-   which is a different architecture used in some Windows tablets.  PinballY
-   doesn't currently run on ARM versions of Windows, so you won't currently
-   see any values besides x86 and x64 for this property.  However, it's always
-   good to keep open the possibility that new platforms could come into the
-   picture in the future, so if possible you shouldn't assume that these
-   are the only two possible cases.
+   As of this writing, Windows itself also is capable of running on ARM
+   CPUs, which are used in some Windows tablet computers.  PinballY doesn't
+   currently support the ARM versions of Windows, though, so you'll currently
+   only see the two Intel variants listed above.  However, to future-proof
+   your code, it's best not to assume that those are the only values
+   possible.  An ARM version of PinballY could come along at some point,
+   for example, plus it's entirely possible that Windows will one day
+   run on new CPU architectures that don't exist yet.
 </p>
 
 <p>

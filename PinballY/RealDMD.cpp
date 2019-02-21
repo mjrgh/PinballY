@@ -635,6 +635,11 @@ void RealDMD::Shutdown()
 
 	// close the session with the underlying device
 	CloseSession();
+
+	// unload the DLL
+	FreeLibrary(hmodDll);
+	hmodDll = NULL;
+	dllLoaded = false;
 }
 
 void RealDMD::OpenSession()
@@ -746,6 +751,9 @@ void RealDMD::EndRunningGameMode()
 {
 	// reopen the session
 	OpenSession();
+
+	// reload the current game
+	ReloadGame();
 }
 
 void RealDMD::ReloadGame()
