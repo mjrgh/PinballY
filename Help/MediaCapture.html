@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Media Capture</h1>
+
+<p>
+   PinballY can automatically create background images and videos for your
+   games by capturing live screen shots of the games as they run in their
+   player system.
+</p>
+
+<h2>How does PinballY determine the screen area to capture?</h2>
+
+<p>
+   During capture, PinballY captures screen images from the <b>exact same areas
+   of the screen</b> where your PinballY windows are located:
+</p>
+<ul>
+   <li>The playfield image/video is captured from the screen area that
+   the PinballY playfield window covers
+
+   <li>The backglass image/video is captured from the screen area that
+   the PinballY backglass window covers
+
+   <li>Etc.
+</ul>
+
+<p>
+   This means that you must arrange your PinballY windows to exactly mimic
+   the screen layout that the actual running game will use.  For example,
+   if the game will display the playfield in full-screen mode on monitor 1,
+   make sure that the PinballY playfield window is in full-screen mode on
+   the same monitor.
+</p>
+
+<p>
+   Why does PinballY use its own window layout rather than the game's window
+   layout?  This seems a little strange at first glance to some people:
+   surely the game's layout should take precedence, shouldn't it?
+   The snag is that PinballY can't be sure what the game's layout
+   really is.  The game might open multiple windows, or it might show
+   multiple things in a single window (e.g., it might combine the backglass
+   and DMD area in a single window).  PinballY has no way to know which
+   window is which or how the game subdivides its window contents.  So
+   PinballY has to rely on your assistance.  We thought the easiest, most
+   convenient, and most natural way to let you specify the game's window
+   layout is to do it "by example", by arranging PinballY's windows to
+   match.  If you're running on a pin cab, that's almost certainly
+   how you've arranged things anyway: you probably have it set up
+   so that PinballY and all of your games have exactly the same layout,
+   since each monitor has a specific purpose in a pin cab.
+   If you're running on a desktop system, though, you might not be using
+   the exact same layout for everything, so you might have to tweak you
+   window layout to get the right capture areas.
+</p>
+   
+
+<h2>Capture timing</h2>
+
+<p>
+   The capture process relies a lot on timing.  The
+   <a href="CaptureOptions.html">Capture Options</a> section in the settings
+   dialog lets you adjust many of the timing parameters as needed, so if
+   the capture is starting too quickly (before the game has finished
+   initializing), for example, or you want longer or shorter videos,
+   you can adjust the settings there.
+</p>
+<p>
+   One of the key timing parameters is the startup time for the game.
+   The capture process takes an image of what's actually on the display,
+   so you obviously want it to wait until the game is fully initialized
+   before taking any screen shots.  PinballY can't tell when the game
+   is actually ready for capture, so it uses a simple time delay to
+   give the game a chance to get started.  If some games take too
+   long, and you're getting screen shots of their loading screens,
+   you can adjust the setting "Wait for game to start" in the capture
+   options.
+</p>
+<p>
+   As an alternative to relying on timing, you can tell PinballY
+   that you want to control parts of the capture process manually.
+   You can do this using the "Manual start" and "Manual stop"
+   settings for the individual media types in the capture options.
+   When manual start or stop is in effect, the PinballY capture
+   status window will show a prompt telling you to press both
+   flipper buttons to advance to the next step.
+</p>
+
+
+<h2>Initiating a capture</h2>
+
+<p>
+   There are two ways to initiate the capture process: one game at a time, or
+   "batch capture", which captures screen shots for a whole group of games in
+   a single operation.
+</p>
+
+<h3>Single game capture</h2>
+
+<p>
+   To capture media for one game at a time:
+</p>
+<ul>
+   <li>Navigate to the game in the wheel UI
+   
+   <li>Open the <a href="OperatorMenu.html">Operator Menu</a> by pressing the "0" (digit zero) key
+   (or whichever key you assigned if you changed it in the options)
+
+   <li>Select "Game Setup" to open the <a href="GameSetupMenu.html">Game Setup menu</a>
+
+   <li>Select "Capture images &amp; videos"
+
+   <li>Follow the menu prompts to select the types of media you'd like to capture for the game,
+   then select "Begin Capture"
+</ul>
+
+<p>
+   <b>Selecting media types to capture:</b>  Before the capture starts, the program
+   shows a menu asking you to select which types of media to capture.  If the game
+   already has an existing file for a given type (e.g., the backglass video), the
+   menu will let you select whether to keep the existing item or replace it.
+</p>
+
+<h3>Batch capture</h2>
+
+<p>
+   Batch capture lets you capture media for multiple games in a single operation.
+   PinballY will automatically step through the games you select, launching each
+   game, capturing the desired media, exiting the game, and moving on to the next
+   selected game.
+</p>
+<p>
+   To start a batch capture operation:
+</p>
+<ul>
+   <li>Open the <a href="OperatorMenu.html">Operator Menu</a> by pressing the "0" (digit zero) key
+   (or whichever key you assigned if you changed it in the options)
+
+   <li>Select "Batch Capture" from the menu
+</ul>
+
+<p>
+   The batch capture operation will lead you through a series of menus to let you
+   specify which games and which types of media to include in the capture.  Before
+   the capture operation actually starts, the program will give you a chance to
+   review the exact list of titles and media items that will be included in the
+   capture.
+</p>
+
+<p>
+   <b>Selecting which games to capture:</b>  The first step of the batch capture
+   setup menus lets you select which games to capture.
+</p>
+<ul>
+   <li>The first option is "All Games".  Select this to include all of your
+   configured games in the capture.
+
+   <li>If you currently have a filter selected in the wheel UI (e.g.,
+   "Filter by manufacturer" or "Filter by year"), you'll see a second option
+   in the menu to include just the tables selected by the filter.  This option
+   will only be present if a filter is in effect.  If you want to use
+   a different filter, cancel out of the capture menu, select the desired
+   filter in the wheel UI, and start the batch capture command again.
+
+   <li>The last option is "Games marked for batch capture".  This includes
+   only the games that you've manually marked for capture, which lets you
+   construct an ad hoc set of games to capture as a group.  To mark a game
+   for capture, navigate to the game in the wheel UI, open the
+   <a href="GameSetupMenu.html">Game Setup menu</a>, and select
+   "Mark for batch capture" from the menu.  The menu command will be shown
+   with a checkmark if you've already marked the game for capture.
+   <p>
+      The "marked for capture" flag is automatically removed from a game
+      after a successful capture is performed on the game, so you don't
+      have to worry about clearing these flags yourself.  You can remove
+      the flag manually at any time, though, simply by un-checking the
+      item in the menu.
+   </p>
+</ul>
+
+<p>
+   Note that whichever subset of games you choose, the batch can only
+   include <b>configured</b> games - that is, games with database entries.
+</p>
+
+<p>
+   <b>Selecting which media types to capture:</b>  As with the regular
+   one-game-at-a-time capture, the program shows a menu that lets you select
+   which media types to capture during the batch operation.  This is a
+   two-step process for batch capture:  first you select which types you
+   want to include in the capture at all, and then you select what you
+   want to do with any existing files (keep them or replace them).
+</p>
+
+<p>
+   <b>Reviewing the capture list:</b>  Before the batch process starts,
+   the program gives you a chance to review the list of items to be
+   captured.  This will show each game to include in the batch, and
+   the disposition (capture new, keep, replace) for each media type
+   for each game.  This gives you a chance to cancel the capture if
+   the games to be included don't line up with what you expected.
+</p>
+
+<h2>Troubleshooting tips</h2>
+
+<p>
+   If you run a capture, and the resulting playfield video or image shows
+   a gray or black background with the text "Capturing Media", or shows the
+   capture status box, you might need to increase the startup delay time.
+   FFMPEG might have started recording the screen image before the game
+   actually started, making it capture PinballY loading screens instead of
+   the game. You might need a longer startup delay, which you can configure
+   in the Media Capture options.
+</p>
+<p>
+   Another possibility is that the game is running in "Exclusive Full-Screen"
+   mode. Visual Pinball and some other systems offer this option, which sends
+   graphics directly to the video card, bypassing Windows. FFMPEG captures from
+   the Windows display drivers, so it can't capture games running in Exclusive
+   mode. If possible, change the game options to use "Windowed Full-Screen"
+   mode. (That's an option you have to set in the game player program itself,
+   not PinballY.)
+</p>
+</body>
+</html>

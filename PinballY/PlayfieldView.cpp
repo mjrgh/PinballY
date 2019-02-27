@@ -107,6 +107,8 @@ namespace ConfigVars
 	static const TCHAR *CreditsFont = _T("CreditsFont");
 
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
+
+	static const TCHAR *CaptureSkipLayoutMessage = _T("Capture.SkipLayoutMessage");
 };
 
 // include the capture-related variables
@@ -898,6 +900,8 @@ void PlayfieldView::InitJavascript()
 				C(EditCategories, ID_EDIT_CATEGORIES);
 				C(CaptureMediaSetup, ID_CAPTURE_MEDIA);
 				C(CaptureGo, ID_CAPTURE_GO);
+				C(CaptureLayoutSkip, ID_CAPTURE_LAYOUT_SKIP);
+				C(CaptureLayoutOk, ID_CAPTURE_LAYOUT_OK);
 				C(MarkForBatchCapture, ID_MARK_FOR_BATCH_CAPTURE);
 				C(ShowFindMediaMenu, ID_FIND_MEDIA);
 				C(FindMediaGo, ID_MEDIA_SEARCH_GO);
@@ -3555,8 +3559,40 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		ShowGameSetupMenu();
 		return true;
 
+	case ID_CAPTURE_MEDIA:
 	case ID_BATCH_CAPTURE_STEP1:
-		BatchCaptureStep1();
+		// Start a single/batch capture.  The first step in both processes is
+		// the layout information message.
+		CaptureLayoutPrompt(cmd, false);
+		return true;
+
+	case ID_CAPTURE_LAYOUT_SKIP:
+		ConfigManager::GetInstance()->SetBool(ConfigVars::CaptureSkipLayoutMessage,
+			!ConfigManager::GetInstance()->GetBool(ConfigVars::CaptureSkipLayoutMessage, false));
+		CaptureLayoutPrompt(0, true);
+		return true;
+		break;
+
+	case ID_CAPTURE_LAYOUT_OK:
+		switch (origCaptureCmd)
+		{
+		case ID_CAPTURE_MEDIA:
+			CaptureMediaSetup();
+			return true;
+
+		case ID_BATCH_CAPTURE_STEP1:
+			BatchCaptureStep1();
+			return true;
+		}
+		break;
+
+	case ID_CAPTURE_GO:
+		CaptureMediaGo();
+		return true;
+
+	case ID_MARK_FOR_BATCH_CAPTURE:
+		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
+			GameList::Get()->ToggleMarkedForCapture(game);
 		return true;
 
 	case ID_BATCH_CAPTURE_ALL:
@@ -3611,19 +3647,6 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 
 	case ID_EDIT_CATEGORIES:
 		EditCategories();
-		return true;
-
-	case ID_CAPTURE_MEDIA:
-		CaptureMediaSetup();
-		return true;
-
-	case ID_CAPTURE_GO:
-		CaptureMediaGo();
-		return true;
-
-	case ID_MARK_FOR_BATCH_CAPTURE:
-		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
-			GameList::Get()->ToggleMarkedForCapture(game);
 		return true;
 
 	case ID_FIND_MEDIA:
@@ -13035,6 +13058,37 @@ bool PlayfieldView::CanAddMedia(GameListItem *game)
 	return true;
 }
 
+void PlayfieldView::CaptureLayoutPrompt(int cmd, bool reshow)
+{
+	// note the current "skip" status
+	bool skip = ConfigManager::GetInstance()->GetBool(ConfigVars::CaptureSkipLayoutMessage, false);
+
+	// if we're initially showing the menu, record the command and check
+	// to see if we can skip the menu entirely
+	if (!reshow)
+	{
+		// record the command that initiated the capture
+		origCaptureCmd = cmd;
+
+		// if the "skip this message" option is set, skip the prompt and go
+		// straight to the next step
+		if (skip)
+		{
+			PostMessage(WM_COMMAND, ID_CAPTURE_LAYOUT_OK);
+			return;
+		}
+	}
+
+	// show the menu
+	std::list<MenuItemDesc> md;
+	md.emplace_back(LoadStringT(IDS_CAPTURE_LAYOUT_MESSAGE), -1);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_CAPTURE_LAYOUT_SKIP), ID_CAPTURE_LAYOUT_SKIP, (skip ? MenuChecked : 0) | MenuStayOpen);
+	md.emplace_back(LoadStringT(IDS_CAPTURE_LAYOUT_OK), ID_CAPTURE_LAYOUT_OK, MenuSelected);
+	md.emplace_back(LoadStringT(IDS_CAPTURE_LAYOUT_CANCEL), ID_MENU_RETURN);
+	ShowMenu(md, L"capture layout message", SHOWMENU_DIALOG_STYLE | (reshow ? SHOWMENU_NO_ANIMATION : 0));
+}
+
 void PlayfieldView::CaptureMediaSetup()
 {
 	// Get the current game
@@ -13245,8 +13299,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 			selectedCmd == ID_CAPTURE_ADJUSTDELAY ? MenuSelected : 0);
 	}
 
-	// Add the Begin (for single capture) or Next Step (for batch
-	// capture setup) and Cancel items.
+	// Add the Begin (for single capture) or Next Step (for batch capture setup) 
 	md.emplace_back(_T(""), -1);
 	switch (captureMenuMode)
 	{
@@ -13265,6 +13318,9 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 	case CaptureMenuMode::NA:
 		break;
 	}
+
+	// add a Cancel command
+	md.emplace_back(LoadStringT(IDS_CAPTURE_CANCEL), ID_MENU_RETURN);
 
 	// show the menu
 	DWORD flags = SHOWMENU_DIALOG_STYLE;

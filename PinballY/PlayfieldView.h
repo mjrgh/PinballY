@@ -613,6 +613,13 @@ protected:
 	// the Save command in the menu.
 	std::unique_ptr<std::list<const GameCategory*>> categoryEditList;
 
+	// Show the initial capture window layout prompt
+	void CaptureLayoutPrompt(int cmd, bool reshow);
+
+	// Original capture command.  On ID_CAPTURE_LAYOUT_OK, we proceed to
+	// the next step according to which command was used to start the process.
+	int origCaptureCmd;
+
 	// show the media capture setup menu for the current game
 	void CaptureMediaSetup();
 

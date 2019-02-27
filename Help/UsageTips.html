@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Usage Tips</h1>
+
+<p>
+   PinballY aims to be easy enough to use that you don't need a manual,
+   so anything I have to write down here is kind of a failure on that
+   score.  My hope is that you'll be able to find everything yourself
+   by exploring the UI.  But it's worth mentioning a few things that
+   might not jump out at you the first few times you use the program.
+</p>
+
+<h2>Arranging windows</h2>
+<p>
+   You can arrange all of the PinballY windows just like any other
+   Windows program's windows.  Just drag them where you want them
+   and resize them as needed.  Right-click in a window to hide it
+   entirely, or to switch to
+   full-screen mode or "borderless" mode (which hides all of the normal
+   Windows caption and border controls).
+</p>
+
+<h2>Main menu</h2>
+<p>
+   When you're browsing games, you can access
+   the Main Menu at any time by pressing the Start button (the
+   "1" key by default, but you can of course change this in
+   the options).  The Main Menu has commands to launch the
+   game in its pinball player program, view the
+   game's full details, show the game's instruction cards and
+   promotional flyers, give the game a "star" rating, add it
+   to your favorites, and select various "filters".
+</p>
+
+
+<h2>Right-click menus</h2>
+<p>
+   Some of the more frequently accessed window
+   layout and setup options are available as right-click menu options.
+   Try right-clicking in each window to see the available commands.
+</p>
+
+<h2>Game list filters</h2>
+<p>
+   The Main Menu provides options for a
+   whole bunch of filters, which let you select a subset of
+   games to display in the wheel.  This can make it easier
+   to find games if you have a large collection.  The filters
+   let you select games by era, manufacturer, player system,
+   star ratings, how long it's been since you last played
+   them, how long it's been since you installed them, and
+   by any category tags you create yourself.
+</p>
+
+<h2>Operator menu</h2>
+<p>
+   PinballY makes many of the basic
+   game setup functions and global program options available
+   through the "Operator Menu", which you can access by pressing
+   the "Service Enter" button on your coin door service button
+   panel, if you have one.  If you don't, you can access this
+   menu via the Exit menu, which you can reach by pressing the
+   Exit/Cancel button.  See <a href="OperatorMenu.html">Operator Menu</a>
+   for more details.
+</p>
+
+
+<h2>Categories</h2>
+<p>
+   The Operator Menu lets you set up
+   categories, which are essentially "tags" that you can
+   apply to each game.  Edit a game's categories by going
+   to the Operator Menu &gt; Game Setup &gt; Select
+   Categories.  You can add your own categories from
+   there via the Edit Category Names command.  You can
+   assign any number of categories to each game.  Once
+   you've set up a category, it'll appear under the
+   category filter menu, which you can reach from the 
+   Main Menu via the Filter by Category command.
+</p>
+
+<h2>Unconfigured table files</h2>
+<p>
+   By default, the list of
+   games shown in the "wheel" includes all table files that
+   PinballY finds in the "tables" folders for your installed
+   systems, even if they haven't been set up with titles, media,
+   and other details yet.  You'll be able to spot these easily
+   because they'll be shown with default background images,
+   and the raw filename will be used in place of a title.
+</p>
+<p>
+   This notion of including configured and unconfigured games
+   side-by-side probably won't appeal to everyone's tastes.
+   I like it because it makes it easy to see everything on
+   my cab.  I don't have to go hunting through my table
+   folders to see what's there and what needs my attention.
+   And giving it the needed attention is easy: just select
+   Game Setup from the Operator Menu and you can enter
+   details, download media, and capture videos, right
+   from the keyboard menus.  Setting up new games was a bit
+   of a chore in the older systems; I find this new way
+   to be a lot easier and faster.
+   But if you think this is stupid, no problem.  Open up the
+   Options dialog; go to the Game Wheel page; check the
+   box for "Hide unconfigured games".
+</p>
+<p>
+   You probably have some tables that you never intend to
+   add to the game list, such as backup copies or
+   test games.  Don't worry - you can easily kick these out
+   of the list.  Just bring up the Operator Menu and select
+   "Hide Game".  That will relegate the game to a separate
+   Hidden list that will never show up - unless you
+   specifically ask to see the hidden games by selecting
+   "Show Hidden Games" from the Operator Menu.
+</p>
+
+<h2>Startup audio/video</h2>
+<p>
+   You can make PinballY play
+   a custom video and/or audio file each time the program
+   starts up.  See <a href="StartupAudioVideo.html">Startup Audio/Video</a>
+   for details.
+</p>
+
+<h2>Admin mode</h2>
+<p>
+   A lot of pin cab users are accustomed
+   to having to run some or all of their software in "Administrator
+   Mode", meaning that you give the software full system privileges
+   as though it were a core operating system component.  It's
+   best to minimize this, since Admin Mode opens up your system to
+   more risks from malware and program bugs, but many pin cab users
+   just give up and run everything in Admin mode to work around
+   weird problems.
+</p>
+<p>
+   PinballY has some features can will help you at least
+   reduce Admin mode usage.  Ideally, you should be able to
+   eliminate Admin mode entirely, but you might have some programs
+   that really do require it for one reason or another.
+</p>
+<p>
+   The big thing that you <i>shouldn't</i> do with PinballY
+   is to run the main PinballY.exe program in Admin mode.  You might
+   be used  to doing that with other front ends, but don't do it
+   with PinballY.  Instead, if you find that you must use
+   Admin mode, run the separate <b>PinballY Admin Mode.exe</b>
+   program instead.  That program identifies itself to Windows
+   as requiring Admin privileges, so you don't have to explicitly
+   set the "Run as Admin" checkbox in the properties and you
+   don't have to use the "Run as Admin" command from the desktop.
+   Just run it like a normal program and it'll automatically
+   use Admin mode.  (You'll still see a User Access Control
+   [UAC] warning from Windows asking for your permission to do
+   this, so this isn't some kind of end run around the Windows
+   security system.)
+</p>
+<p>
+   See <a href="AdminMode.html">Admin Mode</a> for full details.
+</p>
+
+</body>
+</html>

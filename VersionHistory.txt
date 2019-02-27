@@ -1,5 +1,14 @@
 PinballY Update History
 
+
+? (1.0.0 Beta 8)
+
+* A new message appears at the start of the capture process explaining
+how the PinballY window layout determines the screen area to be
+recorded during the capture.  The message has an option to skip it on
+future captures.  (Issue #48 on github.)
+
+
 02-21-2019 (1.0.0 Beta 7)
 
 * A new Startup dialog option lets you more precisely control the

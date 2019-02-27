@@ -302,6 +302,11 @@ LRESULT BaseWin::WndProc(UINT message, WPARAM wParam, LPARAM lParam)
 			return curMsg->lResult;
 		break;
 
+	case WM_SETCURSOR:
+		if (OnSetMouseCursor(reinterpret_cast<HWND>(wParam), LOWORD(lParam), HIWORD(lParam)))
+			return curMsg->lResult;
+		break;
+
 	case WM_NCLBUTTONDOWN:
 		if (OnNCMouseButtonDown(MouseButton::mbLeft, (UINT)wParam, { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) }))
 			return curMsg->lResult;

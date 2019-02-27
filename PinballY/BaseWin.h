@@ -273,6 +273,9 @@ protected:
 	// normal wheel, mbHWheel for the horizontal wheel.
 	virtual bool OnMouseWheel(int button, float delta) { return false; }
 
+	// Set the mouse cursor (WM_SETCURSOR)
+	virtual bool OnSetMouseCursor(HWND hwndOver, UINT hitTest, UINT mouseMessage) { return false; }
+
 	// Process WM_INITMENUPOPUP
 	virtual bool OnInitMenuPopup(HMENU hMenu, int itemPos, bool isWinMenu) { return false; }
 

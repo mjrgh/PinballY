@@ -107,6 +107,11 @@
 #define IDS_CAPTURE_RUNNING             305
 #define IDS_CAPTURE_EXITING             306
 
+#define IDS_CAPTURE_LAYOUT_MESSAGE      307
+#define IDS_CAPTURE_LAYOUT_OK           308
+#define IDS_CAPTURE_LAYOUT_SKIP         309
+#define IDS_CAPTURE_LAYOUT_CANCEL       310
+
 #define IDS_BATCH_CAPTURE_PROMPT        320
 #define IDS_BATCH_CAPTURE_ALL           321
 #define IDS_BATCH_CAPTURE_MARKED        322
@@ -119,6 +124,7 @@
 #define IDS_BATCH_CAPTURE_VIEW          329
 #define IDS_BATCH_CAPTURE_KEEP          330
 #define IDS_BATCH_CAPTURE_REPLACE       331
+
 
 #define IDS_RATE_GAME_PROMPT            360
 #define IDS_RATE_GAME_STARS             361
@@ -549,6 +555,8 @@
 #define ID_WINDOW_BORDERS               32867
 #define ID_SHOW_MAIN_MENU               32868
 #define ID_SHOW_EXIT_MENU               32869
+#define ID_CAPTURE_LAYOUT_SKIP          32870
+#define ID_CAPTURE_LAYOUT_OK            32871
 
 
 // Next default values for new objects
@@ -557,7 +565,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32868
+#define _APS_NEXT_COMMAND_VALUE         32872
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

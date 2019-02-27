@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>New Table Setup</h1>
+
+<p>
+   If you've used other front ends, you might be accustomed to
+   having to use separate "table list editor" programs or even
+   hand-editing XML or other files.  PinballY is a bit different.
+   You can do all of your table setup from within
+   the main PinballY program, and you never even have to exit the
+   program and restart it.
+</p>
+<p>
+   Here's the basic process for installing a new table in your
+   PinballY menus.
+</p>
+<p>
+   <b>Step one: download the table.</b>  The first step, obviously,
+   is to obtain the new table.  PinballY doesn't change anything
+   about this part.  Just do this like you always did.  Go to your
+   favorite download site, such as <a href="http://www.vpforums.org/">VP Forums</a>
+   or <a href="http://vpuniverse.com/">VP Universe</a>, and grab the
+   new table you're looking for.  Unpack it into the "Tables"
+   folder for Visual Pinball or whichever system it uses.  Note
+   that there's no need to exit PinballY while you do this; you
+   can leave it running in the background.
+</p>
+<p>
+   <b>Step two: find the new file in the PinballY wheel.</b>  As
+   described above under <a href="#unconfigTables">Unconfigured table files</a>,
+   PinballY normally shows new, unconfigured tables in its game wheel,
+   right alongside configured games.  The new game will be displayed
+   under its filename, since PinballY doesn't know its title yet
+   (that's kind of what "unconfigured" means).  PinballY sorts the
+   wheel in alphabetical order, so just navigate through the wheel
+   to the spot where the filename sorts in.
+</p>
+<p>
+   You <b>don't</b> have to exit and restart PinballY during this
+   part, by the way!  You can just leave it in the background
+   while you browse the download sites and grab files.  PinballY looks
+   for new table files every time it switches back into the foreground,
+   so the new tables will show up immediately in the wheel.
+</p>
+<p>
+   If you don't see the new file immediately, make sure that you're
+   viewing the "All Tables" filter rather than some more selective
+   filter.  And if you checked the box for "Hide unconfigured games"
+   in the options dialog, that will obviously prevent the new table
+   from showing up in the normal list.  In this case, you'll have
+   to specifically select the "Show Unconfigured Games" filter from
+   the Operator Menu.
+</p>
+<p>
+   <b>Step three: enter the game's details.</b>  Once you've found
+   the new file in the game wheel, press Start/Enter to bring up the
+   main menu.  There'll be a new command near the top, "Game Setup".
+   The main menu adds this command whenever an unconfigured game
+   is selected.  (This command isn't in the main menu for games that
+   have already been configured, but it's always available in the
+   Operator Menu, so you can always go back and further edit a game's
+   details any time after setting it up.)
+</p>
+<p>
+   "Game Setup" will bring up another menu with commands
+   for editing the game.  On this menu, select "Edit game details".
+   This will bring up a dialog box that lets you enter the
+   game's title and other bibliographic details.
+</p>
+<p>
+   This is one of the points in PinballY where you'll need to
+   reach for the regular mouse and keyboard.  Much as I like the
+   media-rich, button-only UI style for game playing functions,
+   it's just not the right interface when you have to enter a
+   bunch of text.  On-screen keyboards with two-button navigation
+   are just way too tedious.  So PinballY resorts to an ordinary
+   dialog box here.  Note that if you've rotated your playfield,
+   the dialog box won't rotate with it; it'll appear in the
+   normal Windows desktop orientation for the monitor.  If
+   you're running on a pin cab, you might prefer to drag it
+   onto another monitor that isn't rotated, such as your
+   backglass monitor.
+</p>
+<p>
+   Now we get to one of my favorite parts.  You can see that
+   the Title field has a little drop-list arrow at the right.
+   Click it.  This will bring up a list of likely matches
+   from a giant master list (derived from <a href="http://www.ipdb.org">IPDB</a>)
+   of just about all of the real pinball machines ever made.  The dialog
+   tries to use the filename to guess at which game it is,
+   using "fuzzy matching".  The closest match is listed first,
+   followed by several other possible matches. 
+   If you see the right title in the drop list, just pick it.
+   This will automatically fill in the rest of the dialog
+   with the appropriate values for the selected game, taken
+   from the IPDB data.
+</p>
+<p>
+   The fuzzy matching isn't perfect, so it might not always find
+   a valid match for the game based on the filename.  If you
+   can't find the right game in the list, you can still enter
+   the title and other details manually.  Likewise, even when
+   there is a match, you're still free to tweak any of the
+   details that you want to change if you disagree with the
+   IPDB data in any way.
+</p>
+<p>
+   The one other detail you might have to set manually is
+   the System.  If you have multiple versions of Visual Pinball
+   installed (which most people do), you'll have to select
+   the one to use with this game.  PinballY can't always figure
+   out which VP version to use for a given game, because VP
+   re-used the same file extension across multiple program
+   versions that can't actually use each other's files.
+</p>
+<p>
+   Once you're satisfied with the game's details, click OK
+   to save changes.
+</p>
+<p>
+   <b>Step four: download media.</b>  Bring up the Game Setup
+   menu again.  This time, select "Find game media online",
+   then select "Search".  This will bring up your Web
+   browser and navigate to a Google search for a "HyperPin
+   Media Pack" for this game.
+</p>
+<p>
+   At this point, you'll have to rely on your Web savvy to
+   find the right HP Media Pack file.  Fortunately, this
+   is usually really easy because the Web search usually
+   works like magic.  The top result is almost always the right
+   file from <a href="http://www.vpforums.org">VP Forums</a>.
+   If the Web search doesn't turn up a good result, though,
+   I'd recommend as a fallback that you manually browse
+   for the file in the "Frontend Media and Backglass" section
+   on <a href="http://www.vpforums.org">VP Forums</a>.
+</p>
+<p>
+   Once you find the file on VP Forums or elsewhere, click
+   through the links to download the file.  You should end
+   up with a downloaded ZIP file (or perhaps another archive
+   format like RAR or 7z).
+</p>
+<p>
+   Now simply <b>drag and drop the downloaded ZIP file
+      onto the PinballY playfield window</b>.  Assuming that the
+   downloaded file is a valid HP Media Pack file, PinballY will
+   show you a list of the media files it contains, giving you
+   a chance to select the individual items to include or skip.
+   Make your selections and select "Add Media" from the menu.
+</p>
+<p>
+   The new media will appear on-screen immediately.  Again,
+   there's no need to reboot PinballY.
+</p>
+<p>
+   By the way, if you find any individual media items for
+   a game that you want to add separately, that's easy, too.
+   For example, suppose you find a video of the backglass
+   that you want to install.  Just download the video and
+   drop the file onto the backglass window.  If you find
+   a DMD video, download it and drop it onto the DMD window.
+   PinballY will install the file in the appropriate location
+   for the window where you drop it.  You can do this with
+   still graphics or videos for any of the windows.  You
+   can also drop an audio file (.wav or .mp3) onto the
+   playfield to install a "Launch Audio" file, which is
+   played automatically each time you launch the game.
+</p>
+<p>
+   <b>Step five: capture videos (optional).</b>  The HP
+   Media Packs usually have static graphics for the playfield
+   and backglass, but they almost never include any video.
+   PinballY can display animated video graphics in all windows,
+   which makes for a livelier browsing experience.
+</p>
+<p>
+   Videos for some games are available online, but coverage
+   is spotty, and they're not as easy to find as the Media Packs.
+   Fortunately, PinballY makes it easy to create your own
+   videos for all windows by capturing screen shots of
+   the live game actually running.
+</p>
+<p>
+   Please see <a href="MediaCapture.html">Media Capture</a>
+   for how to use the built-in capture system.
+</p>
+
+</body>
+</html>

@@ -804,6 +804,13 @@ Capture.AudioDevice =
 # given in seconds.
 Capture.StartupDelay = 10
 
+# Each time a capture is started, we show a message by default
+# explaining how the PinballY window layout determines the screen
+# capture area.  The message offers an option to skip the message
+# on future captures.  This variable indicates that the user has
+# chosen the "skip" option.
+Capture.SkipLayoutMessage = 0
+
 # Capture timing for individual media types. 
 #
 # For each media type, you can select MANUAL or AUTO capturing:

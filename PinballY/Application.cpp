@@ -193,6 +193,7 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 
 void Application::HideCursor()
 {
+	// show the empty cursor
 	SetCursor(emptyCursor);
 }
 
