@@ -49,11 +49,12 @@
    Yes and no.  PinballY's Javascript <i>language</i> is exactly
    the same as the Javascript language in a modern Web browser.
    But the programming environment is somewhat different.
-   Many of the objects and functions you use when programming a Web page are
-   part of the browser, not part of Javascript itself.  For example, the
-   "document" and "window" objects, the HTML DOM tree, and events like
-   "onclick" and "onchar" all come from the browser, not from Javascript.
-   PinballY doesn't have those browser elements because it's not a browser.
+   Some of the common objects and functions that you might think of as
+   "native Javascript" aren't actually that.  They're really "native
+   Web browser" things.  For example, the "document" and "window" objects,
+   the HTML DOM tree, and events like "onclick" and "onchar" all come
+   from the browser, not from Javascript.  PinballY isn't a Web browser.
+   It doesn't have all of the standard browser elements.
    Instead, PinballY provides its own, somewhat different set of objects
    that represent the PinballY user interface environment.  With that in
    mind, we've tried to maintain familiar names and familiar behaviors
@@ -66,11 +67,10 @@
 
 <p>
    I won't attempt to write a Javascript tutorial or reference manual,
-   since you better ones on the Web than I could write.  PinballY's
-   uses standard Javascript, so the information in any good language
-   manual will apply here.  One good place to look is the
-   <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>,
-   which has extensive documentation that's up-to-date with current standards:
+   since you can easily find better ones on the Web than I could write.  PinballY
+   uses standard Javascript, so the information in any Javascript language
+   manual should apply.  One good place to look is the
+   <a target="_blank" href="https://developer.mozilla.org/">Mozilla Developer Network (MDN)</a>:
 </p>
 <div class="indented">
    <a target="_blank" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript">JavaScript documentation on MDN</a>
@@ -78,11 +78,16 @@
 <p>
    But remember that PinballY doesn't have the
    usual complement of Web browser environment objects ("document",
-   the HTML DOM tree, etc).  A lot of Javascript material is
-   really more about Web development than Javascript.  You'll
-   have to rework the examples from more Web-oriented material
-   in your mind to see past the assumption that you're working
-   in a browser.
+   the HTML DOM tree, etc).  A lot of "Teach Yourself Javascript"
+   Web sites think that Javascript is always about Web development,
+   so they might take it for granted that you're working in a
+   browser.  Fortunately, thanks to systems like Node.js, more
+   people are waking up to the idea that Javascript isn't just
+   for browsers any more, so the online manuals are getting
+   smarter about this.  But you might still find some online
+   examples that use Web browser objects as though they're
+   just part of the language, so you might have to rework
+   those in your mind to subtract out the browser elements.
 </p>
 
 

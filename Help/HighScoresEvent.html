@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+
+<h1>HighScoresEvent</h1>
+
+<p>
+   This event class is fired when the system retrieves high score
+   information for a game.  High score information is normally
+   handled through the external program <a target="_blank" href="http://www.pinemhi.com/">PinEMHi</a>.
+   PinEMHi is included with the PinballY install, and PinballY invokes
+   it automatically when needed, so this isn't something that the user is
+   even normally aware of.  But this is how PinballY reads high score
+   information for games that provide it using one of the "standard"
+   formats supported by PinEMHi
+</p>
+<p>
+   This event has the following subtypes:
+</p>
+<ul>
+   <li><b>highscoresrequest:</b>  Fired when PinballY is about to launch
+   PinEMHi to retrieve high scores for a game.  This event can be canceled,
+   which prevents PinballY from invoking PinEMHi, and can return its own
+   substitute high score information.
+
+   <li><b>highscoresready:</b>  Fired when PinballY receives results from
+   PinEMHi.  This event can't be canceled, since the high scores have already
+   been received.
+
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="GameList.html">gameList</a> object.
+</p>
+
+<h2>When are high scores requested?</h2>
+
+<p>
+   PinballY normally requests high scores for a game when the game
+   is first selected in the wheel UI.  Once the scores are obtained
+   from this initial request, they're kept in memory, so that they
+   can be used again the next time the game is selected.
+</p>
+<p>
+   When you launch a game session, PinballY discards any
+   cached scores for the launched game, just in case you set a
+   new high score when playing.  PinballY will make a fresh request
+   for the game's high scores the next time it's selected in UI,
+   which usually happens as soon as you exit the game and return
+   to the PinballY window.
+</p>
+
+<h2>Where does PinEMHi find score information?</h2>
+<p>
+   PinEMHi can read two sources of high score data:
+</p>
+<ul>
+   <li>VPinMAME NVRAM files.  VPinMAME is the program that Visual
+   Pinball uses to emulate ROM software for arcade game re-creations.
+   In their original arcade incarnations, most solid-state pinball
+   machines had special "non-volatile" memory (RAM) units that they
+   used to store settings and high score information.  VPinMAME
+   emulates this non-volatile RAM using disk files, so for any
+   Visual Pinball game you've played on your machine, you'll find
+   a corresponding NVRAM file in the VPinMAME folder tree.
+   These files contain the exact byte layout that the original
+   arcade ROMs used, so it can be pretty random looking to the
+   naked eye.  PinEMHi uses reverse engineering information to
+   decode the bytes of most of the known ROM-based games and
+   retrieve the high score data contained therein.
+
+   <li>Future Pinball NVRAM files.  Future Pinball doesn't use
+   VPinMAME or ROM emulation.  Instead, it provides its own Visual
+   Basic scripting that table authors use to re-create game rules.
+   One of FP's scripting features is its own equivalent of VPinMAME's
+   NVRAM files.  PinEMHi knows how to parse these files to retrieve
+   high score data.
+</ul>
+<p>
+   In both cases, PinballY automatically figures out where to
+   find the relevant files based on program install paths.
+</p>
+
+<p>
+   Note that PinEMHi only understands the two formats above.
+   For example, it doesn't work with any of the commercial pinball
+   game systems.  More subtly, it also doesn't work with any
+   Visual Pinball games that don't use ROM emulation.  That
+   excludes all electro-mechanical (EM) games as well as most
+   "original" tables (those that aren't re-creations of arcade
+   games).
+</p>
+   
+
+<a name="customScores"></a>
+<h2>Setting custom scores</h2>
+
+<p>
+   You can use the high score events to override or supplement
+   the normal PinEMHi score retrieval mechanism.
+</p>
+<p>
+   To <b>override</b> PinEMHi score retrieval for a given game,
+   create a listener for the <b>highscoresrequest</b> event, and
+   use <b><i>event</i>.preventDefault()</b> to cancel the event.
+   This tells PinballY to abort the PinEMHi invocation.  PinballY
+   will simply consider the game to have no high score information
+   at that point until you supply your own custom data.
+</p>
+<p>
+   To <b>supplement</b> PinEMHi score retrieval, create a listener
+   for the <b>highscoresready</b> event, and check the <b>success</b>
+   property of the event object.  If <b>success</b> is false, it
+   means that PinEMHi was unable to retrieve the score data for
+   the game.  You can use this to detect games that PinEMHi doesn't
+   cover, such as Farsight <i>Pinball Arcade</i> games or Visual
+   Pinball games that don't use ROM emulation.
+</p>
+<p>
+   In either case, you can then call <a href="GameInfo.html#setHighScores"><b><i>gameInfo</i>.setHighScores()</b></a>
+   to provide your own high score data for the game.  See the description
+   of that method for more details.
+</p>
+
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>).  In addition, it
+   has the following:
+</p>
+
+<ul>
+   <li><b>game:</b> A <href="GameInfo.html">GameInfo</a> object identifying
+   the game whose high scores are being requested or received.
+
+   <li><b>scores:</b> For a <b>highscoresready</b> event only, this contains an
+   array of strings giving the retrieved score information.
+
+   <li><a name="source"></a><b>source:</b>  For a <b>highscoresready</b> event only,
+   this is a string identifying the source of the score data.  This is one of the
+   following string values:
+
+   <ul>
+      <li>"cache": the scores were already cached in memory for this game
+
+      <li>"javascript": the data came from a <b>highscoresready</b> event
+      that was canceled via <b>preventDefault()</b>
+
+      <li>"pinemhi": the scores were retrieved via the PinEMHi program
+   </ul>
+
+   <li><b>success:</b>  For a <b>highscoresready</b> event only, a boolean
+   indicating whether or not the request succeeded.  
+
+</ul>

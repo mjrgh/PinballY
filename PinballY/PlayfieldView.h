@@ -509,7 +509,7 @@ protected:
 		HighScoresReadyCallback(LONG gameID) : gameID(gameID) { }
 		virtual ~HighScoresReadyCallback() { }
 
-		virtual void Ready(bool success) = 0;
+		virtual void Ready(bool success, const WCHAR *source) = 0;
 
 		// the game for the request
 		LONG gameID;
@@ -519,15 +519,21 @@ protected:
 	std::list<std::unique_ptr<HighScoresReadyCallback>> highScoresReadyList;
 
 	// process the ready list for a given game
-	void OnHighScoresReady(LONG gameID, bool success);
+	void OnHighScoresReady(LONG gameID, bool success, const WCHAR *source);
 
 	// Initiate a high score request for the current game.  This sends
 	// the request to PINemHi.exe asynchronously; the result will be
 	// provided via a notification message when the program finishes.
-	void RequestHighScores(GameListItem *game);
+	void RequestHighScores(GameListItem *game, bool notifyJavascript);
 
 	// receive a high score data update from the HighScores object
 	void ReceiveHighScores(const HighScores::NotifyInfo *ni);
+
+	// apply received high scores
+	void ApplyHighScores(GameListItem *game, const TCHAR *scores);
+
+	// apply the high scores in the game's highScores list
+	void ApplyHighScores(GameListItem *game, bool hadScores);
 
 	// Working rating for the current game.  This is the value shown
 	// in the Rate Game dialog, which isn't committed to the database
@@ -2355,6 +2361,8 @@ protected:
 	JsValueRef jsSettingsPostSaveEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsFilterSelectEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsStatusLineEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsHighScoresRequestEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsHighScoresReadyEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2379,6 +2387,8 @@ protected:
 	bool FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type,
 		GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 	void FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING &rawText, TSTRING &expandedText);
+	bool FireHighScoresRequestEvent(GameListItem *game);
+	void FireHighScoresReadyEvent(GameListItem *game, bool success, const TCHAR *source);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode
@@ -2577,6 +2587,7 @@ protected:
 
 	// GameInfo methods
 	JsValueRef JsGetHighScores(JsValueRef self);
+	void JsSetHighScores(JsValueRef self, JsValueRef scores);
 	JsValueRef JsResolveGameFile(JsValueRef self);
 	JsValueRef JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist);
 	JsValueRef JsResolveROM(JsValueRef self);

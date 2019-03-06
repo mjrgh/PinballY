@@ -43,6 +43,7 @@ var contents = [
                 "+++CommandButtonEvent.html CommandButtonEvent [event:mainWindow]",
                 "+++FilterSelectEvent.html FilterSelectEvent [event:gameList]",
                 "+++GameSelectEvent.html GameSelectEvent [event:gameList]",
+                "+++HighScoresEvent.html HighScoresEvent [event:gameList]",
                 "+++JoystickButtonEvent.html JoystickButtonEvent [event:mainWindow]",
                 "+++KeyEvent.html KeyEvent [event:mainWindow]",
                 "+++LaunchEvent.html LaunchEvent [event:mainWindow]",

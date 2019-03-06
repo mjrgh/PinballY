@@ -92,12 +92,13 @@
    software is present, PinballY uses the software to send images to your DMD.
 </p>
 <p>
-   The "right software" is a DLL called <b>dmddevice.dll</b>.  This usually
+   The "right software" is a DLL called <b>DmdDevice.dll</b>.  This usually
    comes from your VPinMAME installation, which in turn is usually installed
    as part of Visual Pinball.
 </p>
 <p>
-   PinballY searches for dmddevice.dll as follows:
+   <a name="folderSearchOrder"></a>
+   PinballY searches for DmdDevice.dll as follows:
 </p>
 <ul>
    <li>First, it looks in your PinballY install folder for the file.
@@ -105,16 +106,16 @@
 
    <li>Failing that, it looks in your VPinMAME folder.  This folder
    is found by looking in the Windows registry for the "VPinMAME
-   COM object".  If that's found, PinballY looks for dmddevice.dll
+   COM object".  If that's found, PinballY looks for DmdDevice.dll
    in the same folder containing the COM object.
 </ul>
 
 <p>
-   If PinballY does find a copy of dmddevice.dll in either location,
+   If PinballY does find a copy of DmdDevice.dll in either location,
    it proceeds as follows:
 </p>
 <ul>
-   <li>If the dmddevice.dll is the "DMD-Extensions" version, which is
+   <li>If the DmdDevice.dll is the "DMD-Extensions" version, which is
    included in recent (2018) distributions of Visual Pinball 10,
    PinballY checks its config file (DmdDevice.ini) to see if
    it's set up for "virtual" mode, where it displays an on-screen
@@ -139,12 +140,12 @@
       that you have a real DMD.
    </ul>
    
-   <li>For any other version of dmddevice.dll, PinballY just goes
+   <li>For any other version of DmdDevice.dll, PinballY just goes
    ahead and loads it unconditionally.
 </ul>
             
 <p>
-   If PinballY can't find a copy of dmddevice.dll in either place,
+   If PinballY can't find a copy of DmdDevice.dll in either place,
    it assumes that you don't have a real DMD installed, so it simply
    omits any real DMD displays for the session.
 </p>
@@ -153,16 +154,70 @@
    Simple, in that if you've already set up your real DMD to work with
    VPinMAME, then PinballY should automatically find it and use it, without
    making you repeat the same setup work for PinballY.  Flexible, in that
-   you can also force PinballY to use a different copy of dmddevice.dll
+   you can also force PinballY to use a different copy of DmdDevice.dll
    from the one used in VPinMAME, if you prefer, sipmly by copying
-   the alternative dmddevice.dll into the PinballY folder.
+   the alternative DmdDevice.dll into the PinballY folder.
 </p>
 <p>
    If you do copy an alternative DLL to the PinballY folder, remember to also
    copy any additional DLL files that it depends upon.  There might be
    a second DLL for your specific hardware device that you have to include.
 </p>
-   
+
+<h3>Where to get DmdDevice.dll</h3>
+
+<p>
+   There are several sources where you can get DmdDevice.dll:
+</p>
+<ul>
+   <li>If you installed Visual Pinball using its Windows Setup installer, you should
+   already have a copy of DmdDevice.dll in the VPinMAME folder under your main VP program folder.
+   This is the open-source <a target="_blank" href="https://github.com/freezy/dmd-extensions">dmd-extensions</a>
+   library, which works with all of the currently available commercial
+   DMD products as well as the DIY Pin2Dmd project.
+
+   <li>You can also download the dmd-extensions DLL directly from the
+   the <a target="_blank" href="https://github.com/freezy/dmd-extensions">GitHub project page</a>
+
+   <li>If you're using a commercial DMD product, it probably came with
+   its own copy of the DLL that only works with your device.
+</ul>
+
+<p>
+   My recommendation is to use the dmd-extensions DLL, unless for some
+   reason it doesn't work with your hardware, in which case you'll have
+   to use your hardware vendor's special version.  If dmd-extensions
+   works with your device, I recommend getting
+   the DLL directly from the GitHub project page rather than using the
+   bundled VP version, since the bundled VP copy is often a version
+   or two behind the latest official release.
+</p>
+
+<h3>64-bit versions</h2>
+<p>
+   If you're running the 64-bit version of PinballY, you <b>must</b> use a
+   64-bit version of DmdDevice.dll.
+</p>
+<p>
+   You'll probably also need to keep the 32-bit version of the DLL installed
+   on your system, since most of the other virtual pinball programs are
+   32-bit only, meaning they can only be used with a 32-bit DLL (for 
+   the same reasons that 64-bit PinballY can only use the 64-bit DLL).
+   Fortunately, there's an easy way to keep <b>both</b> the 32-bit and 64-bit
+   versions installed at the same time and in the same folder:
+</p>
+
+<ul>
+   <li>Leave your existing 32-bit DmdDevice.dll exactly where it is
+   <li>Download the 64-bit version of the DLL and rename it to <b>DmdDevice64.dll</b>
+   <li>You can now place the renamed 64-bit DLL in the same folder as the 32-bit DLL
+</ul>
+
+<p>
+   64-bit PinballY always looks for DmdDevice64.dll first in each folder it
+   searches (see the <a href="#folderSearchOrder">folder search order</a> above).
+   If DmdDevice64.dll isn't found, the program then looks for DmdDevice.dll.
+</p>
    
 </body>
 </html>

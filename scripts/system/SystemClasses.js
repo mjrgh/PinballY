@@ -932,6 +932,30 @@ this.StatusLineEvent = class StatusLineEvent extends Event
     }
 };
 
+// High scores events
+this.HighScoresEvent = class HighScoresEvent extends Event
+{
+    constructor(type, game, cancelable)
+    {
+        super(type, { cancelable: cancelable });
+        this.game = game;
+    }
+};
+this.HighScoresRequestEvent = class HighScoresRequestEvent extends HighScoresEvent
+{
+    constructor(game) { super("highscoresrequest", game, true); }
+};
+this.HighScoresReadyEvent = class HighScoresFetchEvent extends HighScoresEvent
+{
+    constructor(game, success, scores, source)
+    {
+        super("highscoresready", game, false);
+        this.success = success;
+        this.scores = scores;
+        this.source = source;
+    }
+};
+
 
 // ------------------------------------------------------------------------
 //

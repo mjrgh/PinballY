@@ -76,6 +76,19 @@
 </ul>
 
 <p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+<h2>Launch event sequence</h2>
+
+<p>
+   The process of launching a game has many steps, which is why
+   the launch event has such a large number of subtypes.  Here's how
+   all of these events get fired in the course of a game launch.
+</p>
+
+<p>
    The <b>runbeforepre</b>, <b>runbefore</b>, <b>runafter</b>, and
    <b>runafterpost</b> events run in that order, and correspond to the
    similarly named external commands that can be set up for each system
@@ -90,8 +103,8 @@
    a visually seamless transition to the new layout.
 </p>
 <p>
-   The full order of the events, including the external commands, is
-   as follows:
+   For a successful launch, the full order of the events, including the
+   external commands, is as follows:
 </p>
 <ul class="compact">
    <li><b>prelaunch</b> fires
@@ -114,23 +127,37 @@
    <li><b>postlaunch</b> fires
 </ul>
 <p>
-   The sequence above is for successful launches.  It will vary
-   slightly if anything goes wrong.  If the game system launch itself
-   fails (for example, if the game program can't be started, or if it
-   terminates or crashes before opening a UI window), a <b>launcherror</b>
-   event will be fired instead of <b>gamestarted</b> and <b>gameover</b>.
-   The sequence can also be cut short if the "Run Before" commands fail.
-   Errors in those steps will prevent the game from being launched,
-   although the system does try to run the paired "Run After" routines
-   in all cases to ensure that any global changes made in the "Run Before"
-   steps are undone by the matching "Run After" steps.
+   <b>Error handling:</b>
+   The sequence above is for successful launches.  Launches involve
+   a lot of external moving parts, obviously, so there are many places
+   where something can fail.  If an error occurs, the event sequence
+   will change accordingly:
 </p>
+<ul>
+   <li>If the game system launch itself fails (for example, if the game
+   program can't be started, or if it terminates or crashes before opening a
+   UI window), a <b>launcherror</b> event will be fired instead of
+   <b>gamestarted</b> and <b>gameover</b>.
+   
+   <li>If a Run Before command fails, the launch will be cut short
+   at that point in the sequence, without attempting to launch
+   the game.
+
+   <li>If a given Run Before step is executed successfully, the system
+   tries to ensure that the corresponding Run After step is also executed,
+   no matter what else went wrong along the way.  The Run After steps might
+   need to undo global changes made in the paired Run Before steps, so it's
+   important that these get executed even if other launch errors occur, so
+   that everything's in its proper state to return to the PinballY wheel UI.
+
+</ul>
+
 
 
 <h2>Properties</h2>
 
 <p>
-   This event has the standard event properties and methods (see the
+   Launch events include all of the standard event properties and methods (see the
    <a href="Event.html">Event</a> class), plus the following:
 </p>
 

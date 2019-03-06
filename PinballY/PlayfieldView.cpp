@@ -535,6 +535,8 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsSettingsPreSaveEvent, "SettingsPreSaveEvent")
 				|| !GetObj(jsSettingsPostSaveEvent, "SettingsPostSaveEvent")
 				|| !GetObj(jsStatusLineEvent, "StatusLineEvent")
+				|| !GetObj(jsHighScoresRequestEvent, "HighScoresRequestEvent")
+				|| !GetObj(jsHighScoresReadyEvent, "HighScoresReadyEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -715,6 +717,7 @@ void PlayfieldView::InitJavascript()
 
 			// Set up the GameInfo methods
 			if (!js->DefineObjMethod(jsGameInfo, "GameInfo", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "setHighScores", &PlayfieldView::JsSetHighScores, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveGameFile", &PlayfieldView::JsResolveGameFile, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveMedia, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh)
@@ -1814,7 +1817,7 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 				promise(promise)
 			{ }
 
-			virtual void Ready(bool success) override
+			virtual void Ready(bool success, const WCHAR *source) override
 			{
 				if (success)
 				{
@@ -1826,6 +1829,9 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 						for (auto &l : game->highScores)
 							arr.Push(l);
 
+						// set the source, as the .source property of the array
+						arr.Set("source", source);
+
 						// resolve the promise
 						promise->Resolve(arr.jsobj);
 					}
@@ -1835,7 +1841,16 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 				else
 				{
 					// reject the promise
-					promise->Reject(L"High scores not available");
+					try
+					{
+						auto e = JavascriptEngine::JsObj::CreateError(L"High scores not available");
+						e.Set("source", source);
+						promise->Reject(e.jsobj);
+					}
+					catch (JavascriptEngine::CallException)
+					{
+						// ignore errors
+					}
 				}
 			}
 
@@ -1855,7 +1870,7 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 		// just leave the callback enqueued; we automatically process all
 		// backlogged requests when we get the first ready notification.
 		if (hiScoreSysReady)
-			RequestHighScores(game);
+			RequestHighScores(game, true);
 
 		// return the Javascript Promise object
 		return jspromise;
@@ -1863,6 +1878,43 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 	catch (JavascriptEngine::CallException exc)
 	{
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsSetHighScores(JsValueRef self, JsValueRef scoresJsObj)
+{
+	auto js = JavascriptEngine::Get();
+	auto gl = GameList::Get();
+	try
+	{
+		// get the game 
+		JavascriptEngine::JsObj selfobj(self);
+		auto game = gl->GetByInternalID(selfobj.Get<int>("id"));
+		if (game == nullptr)
+			return js->Throw(_T("GameSysInfo object is no longer valid")), static_cast<void>(0);
+
+		// clear the game's prior high score list
+		bool hadScores = game->highScores.size() != 0;
+		game->highScores.clear();
+
+		// get the scores array as a string list
+		JavascriptEngine::JsObj scoresObj(scoresJsObj);
+		int n = scoresObj.Get<int>("length");
+		for (int i = 0; i < n; ++i)
+			game->highScores.emplace_back(scoresObj.GetAtIndex<TSTRING>(i));
+
+		// the game now has cached high score data
+		game->highScoreStatus = GameListItem::HighScoreStatus::Received;
+
+		// resolve any promises waiting for the high scores
+		OnHighScoresReady(game->internalID, true, L"javascript");
+
+		// apply the new high scores
+		ApplyHighScores(game, hadScores);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
 }
 
@@ -5605,7 +5657,7 @@ void PlayfieldView::ShowGameInfo()
 	// Request high score information for this game.  This is an
 	// asynchronous operation; we'll rebuild the sprite with the
 	// high score data when we receive it.
-	RequestHighScores(game);
+	RequestHighScores(game, true);
 
 	// info box drawing function
 	int width = 972, height = 2000;
@@ -5864,7 +5916,7 @@ void PlayfieldView::ShowHighScores()
 	// Request high score information for this game.  This is an
 	// asynchronous operation; we'll rebuild the sprite with the
 	// high score data when we receive it.
-	RequestHighScores(game);
+	RequestHighScores(game, true);
 
 	// set up the default font
 	int textFontPts = highScoreFont.ptSize;
@@ -5984,7 +6036,37 @@ void PlayfieldView::ShowHighScores()
 	QueueDOFPulse(L"PBYHighScores");
 }
 
-void PlayfieldView::RequestHighScores(GameListItem *game)
+bool PlayfieldView::FireHighScoresRequestEvent(GameListItem *game)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(jsGameList, jsHighScoresRequestEvent, BuildJsGameInfo(game));
+
+	return ret;
+}
+
+void PlayfieldView::FireHighScoresReadyEvent(GameListItem *game, bool success, const TCHAR *source)
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		try
+		{
+			// build an array of strings from the string list
+			auto arr = JavascriptEngine::JsObj::CreateArray();
+			for (auto &s : game->highScores)
+				arr.Push(s);
+
+			// fire the event
+			js->FireEvent(jsGameList, jsHighScoresReadyEvent, BuildJsGameInfo(game), success, arr, source);
+		}
+		catch (JavascriptEngine::CallException)
+		{
+			// ignore errors
+		}
+	}
+}
+
+void PlayfieldView::RequestHighScores(GameListItem *game, bool notifyJavascript)
 {
 	// If the current game is valid, and we don't already have the
 	// high scores for it, send the request.
@@ -5993,20 +6075,55 @@ void PlayfieldView::RequestHighScores(GameListItem *game)
 		switch (game->highScoreStatus)
 		{
 		case GameListItem::HighScoreStatus::Init:
-			// not yet requested - send the request
-			if (!hiScoreSysReady)
+			// If desired, fire a Javascript event for the high score request
+			if (notifyJavascript)
 			{
-				// don't send the request until the high score system is ready for it
+				// try invoking the javascript event
+				if (!FireHighScoresRequestEvent(game))
+				{
+					// Javascript canceled the event, so don't request high
+					// scores.  If the game is still in the "Init" state, set
+					// it to the "Failed" state.  Otherwise, leave it in its
+					// current state, as the javascript code must have explicitly
+					// set the scores in the course of handling the event.
+					if (game->highScoreStatus == GameListItem::HighScoreStatus::Init)
+					{
+						// treat it as a failure
+						game->highScoreStatus = GameListItem::HighScoreStatus::Failed;
+						OnHighScoresReady(game->internalID, false, L"javascript");
+					}
+
+					// we're done with the high score request
+					break;
+				}
 			}
-			else if (Application::Get()->highScores->GetScores(game, hWnd))
+
+			// Not yet requested.  Request the high scores if the high score system
+			// is ready.  If not, do nothing; the caller will either queue the request
+			// to the highScoresReadyList, or in the case of anything involving the
+			// current wheel selection, the caller will rely on the fact that we 
+			// automatically load high scores for the current game as soon as we get
+			// notification that the high score system is ready.
+			if (hiScoreSysReady)
 			{
-				// note that the request has been sent in the game object
-				game->highScoreStatus = GameListItem::HighScoreStatus::Requested;
-			}
-			else
-			{
-				// request failed - reject any outstanding callbacks
-				OnHighScoresReady(game->internalID, false);
+				// request the high scores for the game
+				if (Application::Get()->highScores->GetScores(game, hWnd))
+				{
+					// note that the request has been sent in the game object
+					game->highScoreStatus = GameListItem::HighScoreStatus::Requested;
+				}
+				else
+				{
+					// request failed - reject any outstanding callbacks
+					game->highScoreStatus = GameListItem::HighScoreStatus::Failed;
+					OnHighScoresReady(game->internalID, false, L"pinemhi");
+
+					// We didn't initiate an asynchronous request for this game's data,
+					// so there will be no further reply.  Fire the js failure event now
+					// if this is a notifiable request.
+					if (notifyJavascript)
+						FireHighScoresReadyEvent(game, false, L"pinemhi");
+				}
 			}
 			break;
 
@@ -6015,13 +6132,13 @@ void PlayfieldView::RequestHighScores(GameListItem *game)
 			break;
 
 		case GameListItem::HighScoreStatus::Received:
-			// request already completed - immediately fullfill any outstanding callbacks
-			OnHighScoresReady(game->internalID, true);
+			// request already completed - immediately fulfill any outstanding callbacks
+			OnHighScoresReady(game->internalID, true, L"cache");
 			break;
 
 		case GameListItem::HighScoreStatus::Failed:
 			// request already completed with error - reject any outstanding callbacks
-			OnHighScoresReady(game->internalID, false);
+			OnHighScoresReady(game->internalID, false, L"cache");
 			break;
 		}
 	}
@@ -6040,16 +6157,21 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 		// game IDs, since the original list can be modified in place by
 		// RequestHighScores().
 		{
+			// build a safe copy of the list
 			std::vector<LONG> ids;
 			ids.reserve(highScoresReadyList.size());
 			for (auto &c : highScoresReadyList)
 				ids.push_back(c->gameID);
+
+			// Request high scores for each list entry.  Don't notify Javascript,
+			// as whoever added this item to the list in the first place should
+			// have notified Javascript at that point.
 			for (auto id : ids)
-				RequestHighScores(GameList::Get()->GetByInternalID(id));
+				RequestHighScores(GameList::Get()->GetByInternalID(id), false);
 		}
 
 		// Request high scores for the current game, now that it's possible
-		RequestHighScores(GameList::Get()->GetNthGame(0));
+		RequestHighScores(GameList::Get()->GetNthGame(0), true);
 		break;
 
 	case HighScores::ProgramVersionQuery:
@@ -6065,85 +6187,98 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 		break;
 
 	case HighScores::HighScoreQuery:
-		// High score query results.  Retrieve the game object from the ID.
-		// Proceed only if it's valid; game objects can be deleted, so the
-		// one from the original request might have been deleted since the
-		// time we sent the request.
-		if (auto game = GameList::Get()->GetByInternalID(ni->gameID); game != nullptr)
+		// High score query results.  
 		{
-			// update the game's high score status
-			game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Success ?
-				GameListItem::HighScoreStatus::Received : GameListItem::HighScoreStatus::Failed);
+			bool success = ni->status == HighScores::NotifyInfo::Success;
 
-			// note if this is the current game
-			bool isCurGame = (game == GameList::Get()->GetNthGame(0));
-
-			// If the reply was successful, update the game with the new
-			// high score data from the reply.
-			if (ni->status == HighScores::NotifyInfo::Success)
+			// Retrieve the game object from the ID.  Proceed only if it's 
+			// valid; game objects can be deleted, so the one from the original 
+			// request might have been deleted since the time we sent the request.
+			if (auto game = GameList::Get()->GetByInternalID(ni->gameID); game != nullptr)
 			{
-				// note whether or not we had data previously
-				bool hadData = game->highScores.size() != 0;
-						
-				// clear any previous high score data
-				game->highScores.clear();
+				// update the game's high score status
+				game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Success ?
+					GameListItem::HighScoreStatus::Received : GameListItem::HighScoreStatus::Failed);
 
-				// break the new text into lines and populate the list
-				const TCHAR *start = ni->results.c_str();
-				for (;;)
-				{
-					// find the end of this line
-					const TCHAR *p = start;
-					for (; *p != 0 && *p != '\n' && *p != '\r'; ++p);
+				// If the reply was successful, update the game with the new
+				// high score data from the reply.
+				if (success)
+					ApplyHighScores(game, ni->results.c_str());
 
-					// add this line to the list
-					game->highScores.emplace_back(start, p - start);
-
-					// if this is the last line, we're done
-					if (*p == 0)
-						break;
-
-					// skip newline sequences - single \n or \r, or \n\r or \r\n pairs
-					if ((*p == '\n' && *(p + 1) == '\r') || (*p == '\r' && *(p + 1) == '\n'))
-						++p;
-					++p;
-
-					// this is the start of the next line
-					start = p;
-				}
-
-				// if this is the current game, update some display items
-				if (isCurGame)
-				{
-					// If we didn't have high scores previously and we do now,
-					// and we're displaying the game info popup, update it to
-					// reflect that we now have high scores.
-					if (!hadData && game->highScores.size() != 0 && popupType == PopupGameInfo)
-						ShowGameInfo();
-
-					// If we're currently displaying the high scores popup, show 
-					// it again to update it with the new data.
-					if (popupType == PopupHighScores)
-						ShowHighScores();
-
-					// notify the DMD window of the update
-					if (auto dv = Application::Get()->GetDMDView(); dv != nullptr)
-						dv->OnUpdateHighScores(game);
-
-					// notify the real DMD of the update
-					if (realDMD != nullptr)
-						realDMD->OnUpdateHighScores(game);
-				}
+				// fire the High Scores Ready event
+				FireHighScoresReadyEvent(game, success, L"pinemhi");
 			}
-		}
 
-		// update any notification callbacks
-		OnHighScoresReady(ni->gameID, ni->status == HighScores::NotifyInfo::Success);
+			// update any notification callbacks
+			OnHighScoresReady(ni->gameID, success, L"pinemhi");
+		}
 		break;
 	}
 }
 
-void PlayfieldView::OnHighScoresReady(LONG gameID, bool success)
+void PlayfieldView::ApplyHighScores(GameListItem *game, const TCHAR *scores)
+{
+	// note whether or not we had any score data previously
+	bool hadScores = game->highScores.size() != 0;
+
+	// clear any previous high score data
+	game->highScores.clear();
+
+	// break the new text into lines and populate the list
+	const TCHAR *start = scores;
+	for (;;)
+	{
+		// find the end of this line
+		const TCHAR *p = start;
+		for (; *p != 0 && *p != '\n' && *p != '\r'; ++p);
+
+		// add this line to the list
+		game->highScores.emplace_back(start, p - start);
+
+		// if this is the last line, we're done
+		if (*p == 0)
+			break;
+
+		// skip newline sequences - single \n or \r, or \n\r or \r\n pairs
+		if ((*p == '\n' && *(p + 1) == '\r') || (*p == '\r' && *(p + 1) == '\n'))
+			++p;
+		++p;
+
+		// this is the start of the next line
+		start = p;
+	}
+
+	// apply the scores
+	ApplyHighScores(game, hadScores);
+}
+
+void PlayfieldView::ApplyHighScores(GameListItem *game, bool hadScores)
+{
+	// if this is the current game, update some display items
+	if (game == GameList::Get()->GetNthGame(0))
+	{
+		// If we didn't have high scores previously and we do now,
+		// and we're displaying the game info popup, update it to
+		// reflect that we now have high scores.
+		if (!hadScores && game->highScores.size() != 0 && popupType == PopupGameInfo)
+			ShowGameInfo();
+
+		// If we're currently displaying the high scores popup, show 
+		// it again to update it with the new data.
+		if (popupType == PopupHighScores)
+			ShowHighScores();
+
+		// notify the DMD window of the update
+		if (auto dv = Application::Get()->GetDMDView(); dv != nullptr)
+			dv->OnUpdateHighScores(game);
+
+		// notify the real DMD of the update
+		if (realDMD != nullptr)
+			realDMD->OnUpdateHighScores(game);
+	}
+}
+
+void PlayfieldView::OnHighScoresReady(LONG gameID, bool success, const WCHAR *source)
 {
 	// notify any callbacks waiting for this game's data
 	for (auto it = highScoresReadyList.begin(); it != highScoresReadyList.end(); )
@@ -6156,7 +6291,7 @@ void PlayfieldView::OnHighScoresReady(LONG gameID, bool success)
 		if (it->get()->gameID == gameID)
 		{
 			// invoke the callback
-			it->get()->Ready(success);
+			it->get()->Ready(success, source);
 
 			// we're done with this item now
 			highScoresReadyList.erase(it);
@@ -6482,7 +6617,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	UpdateAllStatusText();
 
 	// request high scores if we don't already have them
-	RequestHighScores(game);
+	RequestHighScores(game, true);
 }
 
 void PlayfieldView::MuteTableAudio(bool mute)
@@ -8464,7 +8599,7 @@ void PlayfieldView::SyncInfoBox()
 		if (IsGameValid(game))
 		{
 			// request high score information if we don't already have it
-			RequestHighScores(game);
+			RequestHighScores(game, true);
 
 			// set our initial proposed width and height
 			int width = 712, height = 343;
@@ -12114,7 +12249,7 @@ void PlayfieldView::ApplyGameChangesToDatabase(GameListItem *game)
 	// Reload high score data for the game, as we might have changed
 	// something that affected the NVRAM source
 	game->highScoreStatus = GameListItem::HighScoreStatus::Init;
-	RequestHighScores(game);
+	RequestHighScores(game, true);
 }
 
 void PlayfieldView::DelGameInfo(bool confirmed)

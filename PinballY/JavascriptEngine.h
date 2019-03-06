@@ -523,6 +523,18 @@ public:
 			return JsObj(v);
 		}
 
+		// create an error object
+		static JsObj CreateError(const WCHAR *msg)
+		{
+			JsValueRef strObj, errObj;
+			JsErrorCode err;
+			if ((err = JsPointerToString(msg, wcslen(msg), &strObj)) != JsNoError
+				|| (err = JsCreateError(strObj, &errObj)) != JsNoError)
+				throw CallException("JsObj::CreateEerror()", err);
+
+			return JsObj(errObj);
+		}
+
 		// create an object with a prototype
 		static JsObj CreateObjectWithPrototype(JsValueRef prototype)
 		{

@@ -35,7 +35,7 @@ so it might have remained visible during the video.  It's now hidden
 before the startup video start playing.  In addition, the method used
 to hide the cursor has changed slightly to use an explicitly invisible
 cursor rather than setting no cursor.  (Issue #45 on github.)
-
+ 
 * PinballY now saves all of its window positions before launching each
 game, and restores the saved position when the game exits.  Some games
 change the display configuration in such a way that the size of the

@@ -602,6 +602,14 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
 </p>
 
 <p>
+   <a name="setHighScores"</a>
+   <b><i>gameInfo</i>.setHighScores(<i>scores</i>):</b>  Sets the game's high score
+   data.  <i>scores</i> is an array of string value giving the new high score text.
+   See <a href="#customHighScores">Custom high scores</a> below for information
+   on how this should be formatted.
+</p>
+
+<p>
    <a name="update"></a>
    <b><i>gameInfo</i>.update(<i>desc</i>, <i>options</i>):</b>  Update the game's properties.  This updates the
    in-memory record for the game and saves the changes to the XML database file
@@ -940,6 +948,12 @@ game.update({
    text.
 </p>
 <p>
+   The array of strings has an extra property, <b>source</b>, which has
+   a string value identifying the source of the score data.  This uses the same values
+   as the <b>source</b> property in a <a href="HighScoresEvent#source"><b>highscoresready</b></a>
+   event.
+</p>
+<p>
    Here's an example that gets the high scores for each new game that's
    selected in the wheel UI, and displays the results on the debugger
    console.
@@ -950,7 +964,8 @@ gameList.on("gameselect", ev =&gt; {
     if (ev.game)
     {
         ev.game.getHighScores().then(scores =&gt;
-            console.log(ev.game.title + " - High Scores:\n" + scores.join("\n")));
+            console.log(ev.game.title + " - High Scores:\n  " + scores.join("\n  ")
+                        + "\nSource: " + scores.source);
     }
 });
 </div>
@@ -972,5 +987,73 @@ info.getHighScores(ev.id).then(
    material on the Web.
 </p>
 
+<a name="customHighScores"></a>
+<h3>Custom high scores</h3>
+
+<p>
+   PinballY uses a separate program called <a target="_blank" href="http://www.pinemhi.com/">PinEMHi</a>
+   to retrieve high scores for most games.  PinEMHi works with most Visual Pinball
+   games that use emulated ROMs from original arcade games, and with all
+   Future Pinball games.  It doesn't work with Visual Pinball games that
+   aren't based on emulated ROMs, which means it can't retrieve high
+   scores for most electromechanical (EM) games written in VP.  It also
+   doesn't work with any other systems, including any of the commercial
+   pinball games.
+</p>
+<p>
+   You can use Javascript to extend high score coverage to other games
+   beyond what PinEMHi supports.  PinEMHi is limited to the FP and VP ROM
+   games because there are no other "standard" ways of storing high
+   scores, but that doesn't prevent you from adopting your own ad hoc
+   methods for other types of games.  For example, you could use Visual
+   Pinball's scripting capabilities to add your own custom high score
+   storage to EM tables.
+</p>
+<p>
+   The best way to extend high score coverage to your own custom storage
+   locations is to listen for the <a href="HighScoresEvent.html">High
+   Scores Event</a> types, and intervene for games where you know how to
+   provide custom data.  A particularly good approach is to intercept
+   that <b>highscoresready</b> event, and check the <i>event</i>.success
+   property to identify games that PinEMHi doesn't cover:
+</p>
+<div class="code">
+gameList.on("highscoresready", ev => {
+    if (!ev.success) {
+       // PinEMHi couldn't get this game's scores.  Provide our own!
+       
+       // First, do something here to retrieve your custom high scores.
+       // ev.game contains the game object whose scores we're retrieving.
+       // The scores should be prepared as an array of strings, one element
+       // per display line.
+       let scores = ["Custom Score Line 1", "Custom Score Line 2"];
+
+       // now set your custom scores in the game object
+       ev.game.setHighScores(scores);
+    }
+});
+</div>
+
+<p>
+   We leave to you the details of how to actually retrieve the scores for
+   particular games.  As I
+   said earlier, the whole reason that PinEMHi has the limits it does
+   is that there are no other "standard" ways of storing this
+   information.  So for the same reasons, I can't show you a simple
+   one-size-fits-all approach here; there just isn't one.  There is
+   one general tip we can offer, though:  whatever you do will probably
+   involve reading disk files, and if you need to do that, an easy
+   way is to use the Windows Scripting file system object:
+</p>
+<div class="code">
+let fs = createAutomationObject("Scripting.FileSystemObject");
+</div>
+<p>
+   If you've used Visual Basic or PowerShell,
+   you're probably already familiar with that; it works basically the
+   same way in Javascript as in other languages.  If you haven't
+   seen this object before, there's lots of online help for it on the Web,
+   since it's widely used in Windows scripting of all sorts.
 </body>
 </html>
+
