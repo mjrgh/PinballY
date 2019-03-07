@@ -202,7 +202,9 @@
 taskkill /f /m PinUpPlayer.exe
 taskkill /im PinUpDisplay.exe</div>
 
-   <li>In the "Run After 1" box, enter <tt>[MINIMIZE] cmd /c ClosePinUp.bat</tt>
+   <li>In the "Run After 1" box, enter:
+   <div class="code" style="margin-bottom: 0px;">
+[HIDE] cmd /c [PINBALLY]\ClosePinUp.bat</div>
 </ul>
    
 
@@ -601,6 +603,9 @@ taskkill /im PinUpDisplay.exe</div>
    game you're running, without any path prefix.  For example, for
    a Visual Pinball version of <i>Funhouse</i>, this might be something
    like <tt>funhouse_v2.vpt</tt>.
+
+   <li><b>[PINBALLY]</b>: the full path to your PinballY install
+   folder (e.g., <tt>c:\PinballY</tt>).
 
    <li><b>[LB]</b>: a literal left square bracket, <b>[</b>.
 
@@ -1063,6 +1068,9 @@ taskkill /im PinUpDisplay.exe</div>
    game you're running, without any path prefix.  For example, for
    a Visual Pinball version of <i>Funhouse</i>, this might be something
    like <tt>funhouse_v2.vpt</tt>.
+
+   <li><b>[PINBALLY]</b>: the full path to your PinballY install
+   folder (e.g., <tt>c:\PinballY</tt>).
 
    <li><b>[LB]</b>: a literal left square bracket, <b>[</b>.
 

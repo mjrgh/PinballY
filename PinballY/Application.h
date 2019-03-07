@@ -437,6 +437,9 @@ public:
 	// Javascript debugger options
 	JavascriptEngine::DebugOptions javascriptDebugOptions;
 
+	// send a message to PinVol
+	void SendPinVol(const WCHAR *fmt, ...);
+
 protected:
 	Application();
 
@@ -457,6 +460,9 @@ protected:
 
 	// global singleton instance
 	static Application *inst;
+	
+	// PinVol mail slot, if available
+	HandleHolder pinVolMailSlot;
 
 	// Load the configuration.  This loads the configuration file
 	// and updates global singletons that use the configuration

@@ -19,9 +19,7 @@
    handled through the external program <a target="_blank" href="http://www.pinemhi.com/">PinEMHi</a>.
    PinEMHi is included with the PinballY install, and PinballY invokes
    it automatically when needed, so this isn't something that the user is
-   even normally aware of.  But this is how PinballY reads high score
-   information for games that provide it using one of the "standard"
-   formats supported by PinEMHi
+   even normally aware of.
 </p>
 <p>
    This event has the following subtypes:
@@ -53,8 +51,9 @@
 </p>
 <p>
    When you launch a game session, PinballY discards any
-   cached scores for the launched game, just in case you set a
-   new high score when playing.  PinballY will make a fresh request
+   cached scores for the launched game, just in case you have
+   a particularly good time with it and set a new high score.
+   PinballY will make a fresh request
    for the game's high scores the next time it's selected in UI,
    which usually happens as soon as you exit the game and return
    to the PinballY window.
@@ -68,23 +67,36 @@
    <li>VPinMAME NVRAM files.  VPinMAME is the program that Visual
    Pinball uses to emulate ROM software for arcade game re-creations.
    In their original arcade incarnations, most solid-state pinball
-   machines had special "non-volatile" memory (RAM) units that they
-   used to store settings and high score information.  VPinMAME
+   machines had special "non-volatile" memory (RAM) chips that they
+   used to store settings and high score information.   VPinMAME
    emulates this non-volatile RAM using disk files, so for any
    Visual Pinball game you've played on your machine, you'll find
-   a corresponding NVRAM file in the VPinMAME folder tree.
+   a corresponding <i>rom-name</i>.nvram file in the VPinMAME folder tree.
    These files contain the exact byte layout that the original
    arcade ROMs used, so it can be pretty random looking to the
-   naked eye.  PinEMHi uses reverse engineering information to
-   decode the bytes of most of the known ROM-based games and
-   retrieve the high score data contained therein.
+   naked eye.  Fortunately, the NVRAM memory layout for most 
+   commercially released games has been decoded over the years
+   by hobbyists with good reverse-engineering skills (and a lot of
+   time on their hands).  PinEMHi uses those known memory layouts
+   to read your VPinMAME NVRAM files and extract the high scores
+   in a human-readable format.
+   <p>
+   (As an interesting bit of pinball trivia, the "non-volatile" RAM that they used
+   on the original machines wasn't truly non-volatile; flash memory
+   hadn't been invented yet.  They
+   actually used ordinary volatile RAM, with a trio of AAA
+   batteries supplying a constant trickle of power to keep the
+   data alive.  Ask any Williams System 11 pinball machine owner
+   how badly damaged their system board is from the alkaline battery
+   leakage.)</p>
 
    <li>Future Pinball NVRAM files.  Future Pinball doesn't use
    VPinMAME or ROM emulation.  Instead, it provides its own Visual
    Basic scripting that table authors use to re-create game rules.
    One of FP's scripting features is its own equivalent of VPinMAME's
-   NVRAM files.  PinEMHi knows how to parse these files to retrieve
-   high score data.
+   NVRAM files.  These use FP's own proprietary format, not the
+   original ROM format.  PinEMHi knows how to parse these files to
+   retrieve high score data.
 </ul>
 <p>
    In both cases, PinballY automatically figures out where to
@@ -95,10 +107,11 @@
    Note that PinEMHi only understands the two formats above.
    For example, it doesn't work with any of the commercial pinball
    game systems.  More subtly, it also doesn't work with any
-   Visual Pinball games that don't use ROM emulation.  That
-   excludes all electro-mechanical (EM) games as well as most
-   "original" tables (those that aren't re-creations of arcade
-   games).
+   Visual Pinball games that don't use ROM emulation.  That means
+   that PinEMHi can't read high score information for VP re-creations
+   of electro-mechanical (EM) games (since EM games don't use ROMs)
+   or of most VP "originals" (games not based on arcade machines,
+   but designed from scratch as VP virtual tables).
 </p>
    
 
@@ -124,11 +137,13 @@
    means that PinEMHi was unable to retrieve the score data for
    the game.  You can use this to detect games that PinEMHi doesn't
    cover, such as Farsight <i>Pinball Arcade</i> games or Visual
-   Pinball games that don't use ROM emulation.
+   Pinball games that don't use ROM emulation, and supply our
+   own code to read high scores for games that you know how to
+   handle specially.
 </p>
 <p>
    In either case, you can then call <a href="GameInfo.html#setHighScores"><b><i>gameInfo</i>.setHighScores()</b></a>
-   to provide your own high score data for the game.  See the description
+   to apply your own high score data to the game.  See the description
    of that method for more details.
 </p>
 

@@ -11,6 +11,34 @@ future captures.  (Issue #48 on github.)
 * New Javascript features: high score request events; setting custom
 high scores.  See the help files for details.
 
+* A new Attract Mode option setting lets you hide wheel images when
+attract mode is running.  The option is enabled by default.  Part of
+the purpose of attract mode is to act as a screen saver, which means
+that we want to frequently change the on-screen graphics over the
+whole screen area, to prevent the burn-in effect that some monitors
+can suffer from when static graphics are displayed for long periods.
+Attract mode tries to accomplish this by switching games every few
+seconds, but the wheel images can be too static even when the selected
+game changes frequently.  The problem is that some people use wheel
+images with uniform background areas, such as circles or squares.  So
+even though the individual wheel images keep changing, the circular or
+square background area is always more or less the same, and is always
+displayed at the same location.  (Issue #49 on github.)
+
+* The new substitution variable [PINBALLY] can be used in the system
+options for command line parameters and Run Before and Run After
+command strings.  [PINBALLY] in any of these fields is replaced with 
+the full absolute path of the PinballY install folder.
+
+* PinballY now notifies PinVol, if it's running, of the current game
+selection in the wheel UI.  This allows PinVol to keep maintain a
+separate custom volume level for each game in the PinballY wheel.  To
+take advantage of the custom volume levels, you need PinVol version
+1.7 or later.  (Earlier versions of PinVol won't cause any problems;
+they'll just ignore the game selection and treat PinballY as having a
+single local volume level across all selections.)  (Issue #9 on
+github.)
+
 
 02-21-2019 (1.0.0 Beta 7)
 

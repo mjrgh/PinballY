@@ -1694,7 +1694,11 @@ protected:
 			dofEventA = 1;
 			dofEventB = 1;
 			savePending = true;
+			hideWheelImages = false;
 		}
+
+		// should we hide wheel images while in attract mode?
+		bool hideWheelImages;
 
 		// Are we in attract mode?
 		bool active;

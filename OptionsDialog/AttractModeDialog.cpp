@@ -26,5 +26,6 @@ void AttractModeDialog::InitVarMap()
 	varMap.emplace_back(new SpinIntMap(_T("AttractMode.StatusLine.UpdateTime"), IDC_EDIT_ATTRACT_MSG_TIME, 1000, IDC_SPIN_ATTRACT_MSG_TIME, 0, 3600));
 	varMap.emplace_back(new StatusMessageMap(_T("AttractMode.StatusLine.Messages"), IDC_EDIT_ATTRACT_STATUS_MSG, _T("")));
 	varMap.emplace_back(new CkBoxMap(_T("AttractMode.Mute"), IDC_CK_MUTE_ATTRACT_MODE, true));
+	varMap.emplace_back(new CkBoxMap(_T("AttractMode.HideWheelImages"), IDC_CK_HIDE_WHEEL_IMAGES, true));
 }
 

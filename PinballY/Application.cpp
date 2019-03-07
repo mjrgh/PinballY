@@ -1627,6 +1627,47 @@ void Application::TogglePinscapeNightMode()
 		SetPinscapeNightMode(!nightMode);
 }
 
+void Application::SendPinVol(const WCHAR *fmt, ...)
+{
+	// If we don't have a mail slot handle yet, try creating one.  Note that
+	// we repeat this each time we want to send a message, since PinVol could
+	// be newly started at any time while we're running.
+	if (pinVolMailSlot == NULL || pinVolMailSlot == INVALID_HANDLE_VALUE)
+		pinVolMailSlot = CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
+			GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	// if we have a mail slot, try sending the message
+	if (pinVolMailSlot != INVALID_HANDLE_VALUE)
+	{ 
+		// Prepare the message: "game <filename>|<title>", in WCHAR
+		// (16-bit unicode) characters.
+		va_list ap;
+		va_start(ap, fmt);
+		WSTRINGEx msg;
+		msg.FormatV(fmt, ap);
+		va_end(ap);
+
+		// Write the message to the mailslot.  If the write fails, close
+		// the mail slot and retry - the old server might have shut down
+		// and a new one might have started, in which case we'll need to
+		// reopen the handle.
+		for (int tries = 0; tries < 2; ++tries)
+		{
+			DWORD actual;
+			if (!WriteFile(pinVolMailSlot, msg.c_str(), (DWORD)(msg.length() * sizeof(WCHAR)), &actual, NULL))
+			{
+				// try re-opening the slot
+				pinVolMailSlot = CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
+					GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+				// if that failed, there's no need to retry the write
+				if (pinVolMailSlot == INVALID_HANDLE_VALUE)
+					break;
+			}
+		}
+	}
+}
+
 // -----------------------------------------------------------------------
 //
 // Game monitor thread
@@ -1986,6 +2027,16 @@ bool Application::GameMonitorThread::Launch(ErrorHandler &eh)
 		capture.statusWin->SetCaptureStatus(LoadStringT(IDS_CAPSTAT_INITING), CaptureInfo::initTime);
 	}
 
+	// If PinVol is running, send it a message on its mailslot with the
+	// game file and title.  This lets it show the game's real title in
+	// its on-screen display text, rather than just the game's filename.
+	// PinVol infers which game is running from the window title of the 
+	// foreground app, and the apps usually only include the filename
+	// there.
+	Application::Get()->SendPinVol(L"game %s|%s",
+		TSTRINGToWSTRING(gameFileWithExt).c_str(),
+		TSTRINGToWSTRING(game.title).c_str());
+
 	// Add a reference to myself on behalf of the thread.  This will 
 	// keep the object alive as long as the thread is running.
 	AddRef();
@@ -2071,6 +2122,12 @@ TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
 		else if (var == _T("TABLEFILE"))
 		{
 			return gameFileWithExt;
+		}
+		else if (var == _T("PINBALLY"))
+		{
+			TCHAR exePath[MAX_PATH];
+			GetExeFilePath(exePath, countof(exePath));
+			return exePath;
 		}
 		else if (var == _T("LB"))
 		{
@@ -2641,27 +2698,6 @@ DWORD Application::GameMonitorThread::Main()
 	// actually existed until after those commands finished.  So do
 	// a second check here, in case the file has come into existence.
 	ResolveGameFile(gameFileWithPath);
-
-	// If PinVol is running, send it a message on its mailslot with the
-	// game file and title.  This lets it show the game's real title in
-	// its on-screen display text, rather than just the game's filename.
-	// PinVol infers which game is running from the window title of the 
-	// foreground app, and the apps usually only include the filename
-	// there.
-	if (HandleHolder mailslot(CreateFile(_T("\\\\.\\mailslot\\Pinscape.PinVol"),
-		GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
-		mailslot != NULL && mailslot != INVALID_HANDLE_VALUE)
-	{
-		// Prepare the message: "game <filename>|<title>", in WCHAR
-		// (16-bit unicode) characters.
-		WSTRINGEx msg;
-		msg.Format(L"game %s|%s", TSTRINGToWSTRING(gameFileWithExt).c_str(), TSTRINGToWSTRING(game.title).c_str());
-
-		// Write the message to the mailslot.  Ignore errors, as the only
-		// harm if we fail is that PinVol won't have the title to display.
-		DWORD actual;
-		WriteFile(mailslot, msg.c_str(), (DWORD)(msg.length() * sizeof(WCHAR)), &actual, NULL);
-	}
 
 	// Note the starting time.  We use this to figure the total time the
 	// game was running, for the total play time statistics.  We'll update

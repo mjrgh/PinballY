@@ -717,6 +717,12 @@ AttractMode.SwitchTime = 10
 AttractMode.StatusLine.Messages = Welcome to PinballY!|Free Play|Press a button to continue| |
 AttractMode.StatusLine.UpdateTime = 1000
 
+# Hide wheel images while in attract mode.  Wheel images can defeat
+# the screen saver aspect of attract mode, since some people use
+# images with very uniform background areas.  Hiding them helps
+# avoid overly static images in those areas of the display.
+AttractMode.HideWheelImages = true
+
 # Game timeout, in seconds.  If this is set to a non-zero value,
 # the system will automatically terminate a running game when there 
 # hasn't been any keyboard, joystick, or mouse input for this length 

@@ -57,6 +57,7 @@ namespace ConfigVars
 	static const TCHAR *AttractModeEnabled = _T("AttractMode.Enabled");
 	static const TCHAR *AttractModeIdleTime = _T("AttractMode.IdleTime");
 	static const TCHAR *AttractModeSwitchTime = _T("AttractMode.SwitchTime");
+	static const TCHAR *AttractModeHideWheelImages = _T("AttractMode.HideWheelImages");
 	static const TCHAR *PlayfieldWinPrefix = _T("PlayfieldWindow");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
 	static const TCHAR *ExitKeyMode = _T("ExitMenu.ExitKeyMode");
@@ -6640,6 +6641,12 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// update the status line text, in case it mentions the current game selection
 	UpdateAllStatusText();
 
+	// if PinVol is running, notify it of the new wheel selection
+	if (IsGameValid(game))
+		Application::Get()->SendPinVol(L"PinballY Select %s\n%s", game->GetGameId().c_str(), game->title.c_str());
+	else
+		Application::Get()->SendPinVol(L"PinballY SelectNone");
+
 	// request high scores if we don't already have them
 	RequestHighScores(game, true);
 }
@@ -8481,13 +8488,28 @@ void PlayfieldView::UpdateDrawingList()
 	// add the status lines
 	if (statusLineBkg != nullptr)
 		sprites.push_back(statusLineBkg);
-	upperStatus.AddSprites(sprites);
-	lowerStatus.AddSprites(sprites);
-	attractModeStatus.AddSprites(sprites);
 
-	// add the wheel images
-	for (auto& s : wheelImages)
-		sprites.push_back(s);
+	if (attractMode.active)
+		attractModeStatus.AddSprites(sprites);
+	else
+	{
+		upperStatus.AddSprites(sprites);
+		lowerStatus.AddSprites(sprites);
+	}
+
+	// Add the wheel images.  
+	//
+	// Don't show wheel images if we're in attract mode and the option is set 
+	// to hide them.  Some people use wheel images with very uniform background
+	// areas, so even when we're constantly changing which specific icon is 
+	// showing, the basic footprint of each icon can still be overly static
+	// and can cause burn-in.  Hiding the wheel images while in attract mode
+	// helps avoid this.
+	if (!attractMode.active || !attractMode.hideWheelImages)
+	{
+		for (auto& s : wheelImages)
+			sprites.push_back(s);
+	}
 
 	// add the game info box
 	if (infoBox.sprite != nullptr)
@@ -9706,6 +9728,7 @@ void PlayfieldView::OnConfigChange()
 	attractMode.enabled = cfg->GetBool(ConfigVars::AttractModeEnabled, true);
 	attractMode.idleTime = cfg->GetInt(ConfigVars::AttractModeIdleTime, 60) * 1000;
 	attractMode.switchTime = cfg->GetInt(ConfigVars::AttractModeSwitchTime, 5) * 1000;
+	attractMode.hideWheelImages = cfg->GetBool(ConfigVars::AttractModeHideWheelImages, true);
 
 	// Get the default font.  If it's undefined or "*", use the system default.
 	if (auto df = cfg->Get(ConfigVars::DefaultFontFamily, _T("*")); _tcscmp(df, _T("*")) != 0)
@@ -16045,6 +16068,10 @@ void PlayfieldView::OnStartAttractMode()
 
 	// update the javascript UI mode
 	UpdateJsUIMode();
+
+	// rebuild the display list - the list of visible layers can change in
+	// attract mode (e.g., we hide the wheel images)
+	UpdateDrawingList();
 }
 
 void PlayfieldView::OnEndAttractMode()
@@ -16064,6 +16091,9 @@ void PlayfieldView::OnEndAttractMode()
 
 	// update the javascript UI mode
 	UpdateJsUIMode();
+
+	// rebuild the display list for any layer visibility changes
+	UpdateDrawingList();
 }
 
 // -----------------------------------------------------------------------
