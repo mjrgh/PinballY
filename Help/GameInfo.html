@@ -608,6 +608,21 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    See <a href="#customHighScores">Custom high scores</a> below for information
    on how this should be formatted.
 </p>
+<p>
+   If <i>scores</i> is null or undefined, any previously retrieved high scores for
+   the game are forgotten.  This causes PinballY to retrieve the high scores again
+   the next time the game is selected in the wheel UI.  This is useful when you
+   know that the actual stored scores have changed or might have changed.  PinballY
+   itself automatically clears its internal high scores for a given game each time
+   the game is launched for play, since a new high score could be added on any run.
+</p>
+<p>
+   Note that setHighScores() doesn't affect any externally stored high score
+   information.  This can't be used, for example, to update an NVRAM file with
+   new high scores.  setHighScores() only affects PinballY's in-memory copy of
+   the high score information that it uses to generate high score displays on
+   the DMD and info box popups.
+</p>
 
 <p>
    <a name="update"></a>
@@ -988,7 +1003,7 @@ info.getHighScores(ev.id).then(
 </p>
 
 <a name="customHighScores"></a>
-<h3>Custom high scores</h3>
+<h3>Setting custom high scores</h3>
 
 <p>
    PinballY uses a separate program called <a target="_blank" href="http://www.pinemhi.com/">PinEMHi</a>
@@ -1035,13 +1050,39 @@ gameList.on("highscoresready", ev => {
 </div>
 
 <p>
+   This approach is nice because it lets PinEMHi handle everything it
+   knows about, and only tries to provide custom data for games that
+   PinEMHi doesn't cover.  You don't have to figure out on your own
+   whether or not a game will be covered by PinEMHi, since your code
+   is only invoked for games that aren't covered.
+</p>
+<p>
+   If for some reason you wanted to <i>replace</i> the PinEMHi data
+   across the board, you could do that as well: you'd listen for the
+   <b>highscoresrequest</b> event, which is fired <i>before</i> PinEMHi
+   is invoked, plug in your own high scores just like we did above,
+   and then cancel the <b>highscoresrequest</b> event to prevent
+   PinEMHi from running at all.
+</p>
+<div class="code">
+gameList.on("highscoresrequest", ev => {
+    // plug in our custom high score data
+    let scores = ["Override Line 1", "Override Line 2"];
+    ev.game.setHighScores(scores);
+
+    // cancel the event so that PinballY doesn't bother invoking PinEMHi
+    ev.preventDefault();
+});
+</div>
+
+<p>
    We leave to you the details of how to actually retrieve the scores for
-   particular games.  As I
-   said earlier, the whole reason that PinEMHi has the limits it does
-   is that there are no other "standard" ways of storing this
-   information.  So for the same reasons, I can't show you a simple
-   one-size-fits-all approach here; there just isn't one.  There is
-   one general tip we can offer, though:  whatever you do will probably
+   particular games.  As mentioned earlier, there are no standards
+   or conventions for how or where to store high scores other than the
+   ones that PinEMHi already handles.
+   So there's no one-size-fits-all approach that we can suggest for
+   handling games not covered by PinEMHi.  We
+   can offer a general tip, though:  whatever you do will probably
    involve reading disk files, and if you need to do that, an easy
    way is to use the Windows Scripting file system object:
 </p>
@@ -1050,10 +1091,111 @@ let fs = createAutomationObject("Scripting.FileSystemObject");
 </div>
 <p>
    If you've used Visual Basic or PowerShell,
-   you're probably already familiar with that; it works basically the
+   you're probably already familiar with that.  It works the
    same way in Javascript as in other languages.  If you haven't
    seen this object before, there's lots of online help for it on the Web,
    since it's widely used in Windows scripting of all sorts.
+</p>
+
+<h3>How to format high score data</h3>
+
+<p>
+   If you're providing your own custom high score text, you should
+   be aware of how PinballY formats the text on the display.  This will
+   help you control the appearance when it's displayed.
+</p>
+<p>
+   PinballY automatically displays the high scores for the current
+   game in its DMD video window and on your real DMD device, if you
+   have one.  It alternates between displaying high scores and displaying
+   the game's DMD background media (image or video), to simulate the
+   way that real machines rotate through high scores and other messages
+   and graphics in "game over" mode.
+</p>
+<p>
+   On the real machines, DMDs can generally only display two or three
+   lines of text at a time, since they don't have all that many pixels.
+   Most alphanumeric displays (used on the late 1980s machines) have
+   a fixed two-line display area.  So PinballY tries to simulate this
+   appearance by breaking up the high score text into blocks of two or
+   three lines of text per screen, and then showing the screens for
+   a few seconds each in sequence.
+</p>
+<p>
+   You can tell PinballY how to break up the text into screens by
+   inserting blank lines into the custom text.  When PinballY
+   displays the text, it scans through the list of messages and
+   breaks them up into "groups" at the blank lines.  For example,
+   consider this custom text:
+</p>
+<div class="code">
+game.setHighScores([
+   "HIGHEST SCORES",
+   "",                    // blank line marks a group boundary
+   "GRAND CHAMPION", "MJR  9,234,567",
+   "",
+   "LJE  4,101,623", "SPJ  3,991,424",
+   "",
+   "BHG  3,401,331", "SJW  2,103,377",
+   "",
+   "CASTLE CHAMPION", "MJR", "7 CASTLES DESTROYED"
+]);
+</div>
+<p>
+   We've used blank lines to identify the group breaks.  When displayed,
+   this will produce a series of screens like this:
+</p>
+<img class="example" src="highScoreExample.png">
+
+<p>
+   If you don't insert blank lines to delineate the groups, PinballY
+   will still break the text up into screens of one to three lines
+   each, but it'll be forced to pick the line groupings mechanically.
+   It uses this procedure:
+</p>
+<ul>
+   <li>For the alphanumeric display style, the text is broken
+   up into groups of two lines.  If there's an odd number of
+   lines, the first line is shown on its own.
+
+   <li>For other display styles, if there are three lines or fewer,
+   they're displayed as a group.  Otherwise, the text is broken
+   up into two-line groups.  If there's an odd number of lines,
+   the first line is shown on its own.
+</ul>
+
+<p>
+   Note that this procedure will be applied even if you use line
+   breaks, if the groups set off by your line breaks are too large.
+   For example, if provide a group of four lines and then a blank
+   line, the four lines will be displayed two at a time.  If there
+   are no blank lines anywhere, the procedure is simply applied to
+   the list as a whole.
+</p>
+<p>
+   It's worth pointing out that this line break procedure wasn't
+   created for Javascript's sake.  It was really designed around
+   PinEMHi's output.   PinEMHi <i>usually</i> uses blank lines to
+   set off groups of text that form "screens" - but not always,
+   so PinballY has to break up PinEMHi's output in some cases.
+   The procedure described above is just a heuristic that produces
+   decent results for nearly all PinEMHi output.  For Javascript
+   purposes, you don't have to rely on the heuristics; you can
+   control the exact layout by inserting blank lines to specify
+   the grouping you want.
+</p>
+
+<p>
+   <b>Upper/lower case:</b>  It's generally better to use pure
+   upper-case for the score information.  The DMD fonts
+   include a few lower-case letters, but the low resolution
+   makes it impossible to render many letters in lower-case, so
+   some letters you write in lower-case will actually be rendered
+   in upper-case.  That can make the results look weird if you mix
+   cases.  The exception is the "typewriter" style used for
+   EM games; that uses an ordinary Windows font, so mixed case
+   will be fine there.
+</p>
+      
 </body>
 </html>
-

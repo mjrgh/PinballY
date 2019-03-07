@@ -526,6 +526,19 @@ protected:
 	// provided via a notification message when the program finishes.
 	void RequestHighScores(GameListItem *game, bool notifyJavascript);
 
+	// high score request context
+	class HighScoreRequestContext : public HighScores::NotifyContext
+	{
+	public:
+		HighScoreRequestContext(bool notifyJavascript) : 
+			notifyJavascript(notifyJavascript)
+		{
+		}
+
+		// should javascript be notified when the results are received?
+		bool notifyJavascript;
+	};
+
 	// receive a high score data update from the HighScores object
 	void ReceiveHighScores(const HighScores::NotifyInfo *ni);
 

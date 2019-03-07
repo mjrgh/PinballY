@@ -1897,6 +1897,22 @@ void PlayfieldView::JsSetHighScores(JsValueRef self, JsValueRef scoresJsObj)
 		bool hadScores = game->highScores.size() != 0;
 		game->highScores.clear();
 
+		// clear the high scores rather than setting new ones
+		auto ClearHighScores = [game, this]()
+		{
+			// If the high score status isn't "requested", set it to "init"
+			// to indicate that we need new high scores.  Don't do this for
+			// "requested" status, as that means a PinEMHi process is running,
+			// and in that case we do want to keep its results when it finishes.
+			if (game->highScoreStatus != GameListItem::HighScoreStatus::Requested)
+				game->highScoreStatus = GameListItem::HighScoreStatus::Init;
+		};
+
+		// If the new high score value is null/undefined, simply clear
+		// the existing high scores.  
+		if (js->IsUndefinedOrNull(scoresJsObj))
+			return ClearHighScores();
+
 		// get the scores array as a string list
 		JavascriptEngine::JsObj scoresObj(scoresJsObj);
 		int n = scoresObj.Get<int>("length");
@@ -6107,7 +6123,7 @@ void PlayfieldView::RequestHighScores(GameListItem *game, bool notifyJavascript)
 			if (hiScoreSysReady)
 			{
 				// request the high scores for the game
-				if (Application::Get()->highScores->GetScores(game, hWnd))
+				if (Application::Get()->highScores->GetScores(game, hWnd, new HighScoreRequestContext(notifyJavascript)))
 				{
 					// note that the request has been sent in the game object
 					game->highScoreStatus = GameListItem::HighScoreStatus::Requested;
@@ -6189,6 +6205,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 	case HighScores::HighScoreQuery:
 		// High score query results.  
 		{
+			// note the result status
 			bool success = ni->status == HighScores::NotifyInfo::Success;
 
 			// Retrieve the game object from the ID.  Proceed only if it's 
@@ -6196,17 +6213,24 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 			// request might have been deleted since the time we sent the request.
 			if (auto game = GameList::Get()->GetByInternalID(ni->gameID); game != nullptr)
 			{
+				// note the old status
+				auto oldStatus = game->highScoreStatus;
+
 				// update the game's high score status
 				game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Success ?
 					GameListItem::HighScoreStatus::Received : GameListItem::HighScoreStatus::Failed);
 
-				// If the reply was successful, update the game with the new
-				// high score data from the reply.
-				if (success)
+				// If the reply was successful, and we haven't already set high
+				// scores in this game, update the game with the new high score 
+				// data from the reply.  Ignore the new data if we already have
+				// high scores, since Javascript might have intervened while the
+				// request was outstanding.
+				if (success && oldStatus != GameListItem::HighScoreStatus::Received)
 					ApplyHighScores(game, ni->results.c_str());
 
 				// fire the High Scores Ready event
-				FireHighScoresReadyEvent(game, success, L"pinemhi");
+				if (auto ctx = dynamic_cast<HighScoreRequestContext*>(ni->context); ctx == nullptr || ctx->notifyJavascript)
+					FireHighScoresReadyEvent(game, success, L"pinemhi");
 			}
 
 			// update any notification callbacks

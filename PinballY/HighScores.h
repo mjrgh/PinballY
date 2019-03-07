@@ -97,6 +97,13 @@ public:
 	// match based on a Dice coefficient search.
 	bool GetAllNvramFiles(std::list<TSTRING> &nvList, const TCHAR *title);
 
+	// notification context, for the caller to subclass
+	class NotifyContext
+	{
+	public:
+		virtual ~NotifyContext() { }
+	};
+
 	// Load the high score data for the given game, if possible.  The
 	// programs runs asynchronously in a background thread, so the
 	// score results are returned via an HSMsgHighScores message to the
@@ -107,7 +114,10 @@ public:
 	// asynchronously, but it does mean that an HSMsgHighScores message
 	// will eventually be sent to the notification window with some
 	// kind of results.
-	bool GetScores(GameListItem *game, HWND hwndNotify, void *notifyContext = nullptr);
+	//
+	// The notification context will be automatically deleted when the
+	// request is finished (or if it fails).
+	bool GetScores(GameListItem *game, HWND hwndNotify, NotifyContext *notifyContext = nullptr);
 
 	// Get the PINemHi version information.  This runs PINemHi in the
 	// background with the -v option (to retrieve the program version
@@ -115,7 +125,7 @@ public:
 	// window when done.  As with GetScores(), a true return means that
 	// the asynchronous request was successfully started, but doesn't
 	// guarantee that it will actually succeed.
-	bool GetVersion(HWND hwndNotify, void *notifyContext = nullptr);
+	bool GetVersion(HWND hwndNotify, NotifyContext *notifyContext = nullptr);
 
 	// type of query
 	enum QueryType
@@ -130,7 +140,7 @@ public:
 	// this as constant data.
 	struct NotifyInfo
 	{
-		NotifyInfo(QueryType queryType, GameListItem *game, void *notifyContext);
+		NotifyInfo(QueryType queryType, GameListItem *game, NotifyContext *notifyContext);
 
 		// query type
 		QueryType queryType;
@@ -139,7 +149,7 @@ public:
 		LONG gameID;
 
 		// caller's notification context
-		void *context;
+		NotifyContext *context;
 
 		// status
 		enum Status
@@ -254,7 +264,7 @@ protected:
 		Thread(const TCHAR *cmdline, QueryType queryType,
 			GameListItem *game,	const TSTRING &nvramPath, const TSTRING &nvramFile,
 			HighScores *hs, PathEntry *pathEntry,
-			HWND hwndNotify, void *notifyContext);
+			HWND hwndNotify, NotifyContext *notifyContext);
 
 		// main entrypoint
 		static DWORD WINAPI SMain(LPVOID param);
@@ -274,7 +284,7 @@ protected:
 		HWND hwndNotify;
 
 		// context object for notification message
-		void *notifyContext;
+		std::unique_ptr<NotifyContext> notifyContext;
 
 		// Game we're retrieving information on.  This can be null
 		// if we're doing a general query, such as a PINemHi program

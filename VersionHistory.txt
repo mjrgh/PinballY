@@ -8,6 +8,9 @@ how the PinballY window layout determines the screen area to be
 recorded during the capture.  The message has an option to skip it on
 future captures.  (Issue #48 on github.)
 
+* New Javascript features: high score request events; setting custom
+high scores.  See the help files for details.
+
 
 02-21-2019 (1.0.0 Beta 7)
 

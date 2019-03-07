@@ -1,5 +1,6 @@
 /*.js
 /*.bat
+/*.scores
 .vscode/
 test/
 DllImportTester/
