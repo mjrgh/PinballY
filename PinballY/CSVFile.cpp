@@ -141,11 +141,19 @@ bool CSVFile::Read(ErrorHandler &eh, UINT mbCodePage)
 	if (*p == 0)
 		return true;
 
+	// Clear our internal column index assignments.  We'll remap these
+	// to match the file's column layout, to the extent that we find our
+	// columns in the file.  That will let us retain the current column
+	// order when we save the data back to the file.
+	for (auto &c : columns)
+		c.second.index = -1;
+
 	// The first line of a CSV is the column list.  Parse it.  For each
 	// column, determine if the column exists in our current column set:
 	// if so, set the existing column's index to match the file order; 
 	// if not, add the new column.
-	for (int colno = 0; !eol; ++colno)
+	int colno = 0;
+	for (; !eol; ++colno)
 	{
 		// parse a field
 		wchar_t *colname = ParseField();
@@ -155,6 +163,14 @@ bool CSVFile::Read(ErrorHandler &eh, UINT mbCodePage)
 
 		// set the column index to match the file layout
 		col->index = colno;
+	}
+
+	// Assign new column indices, starting after the last file column,
+	// for any in-memory columns that we didn't find in the file.
+	for (auto &c : columns)
+	{
+		if (c.second.index == -1)
+			c.second.index = colno++;
 	}
 
 	// Now parse each line
@@ -183,18 +199,31 @@ bool CSVFile::Read(ErrorHandler &eh, UINT mbCodePage)
 
 bool CSVFile::Write(ErrorHandler &eh)
 {
-	// open the file
+	// set up a temporary filename for the initial write
+	TSTRING tempfile = filename + _T("~");
+
+	// open the temp file
 	FILE *fp = nullptr;
-	if (int err = _tfopen_s(&fp, filename.c_str(), _T("w,ccs=UTF-16LE")); err != 0)
+	if (int err = _tfopen_s(&fp, tempfile.c_str(), _T("w,ccs=UTF-16LE")); err != 0)
 	{
-		eh.Error(MsgFmt(IDS_ERR_OPENFILE, filename, FileErrorMessage(err).c_str()));
+		eh.Error(MsgFmt(IDS_ERR_OPENFILE, tempfile.c_str(), FileErrorMessage(err).c_str()));
 		return false;
 	}
 
 	// report a write error and return false
-	auto ReportError = [&eh, this](int err)
+	auto ReportError = [&eh, &fp, &tempfile, this](int err)
 	{
-		eh.Error(MsgFmt(IDS_ERR_WRITEFILE, filename, FileErrorMessage(err).c_str()));
+		// report the error
+		eh.Error(MsgFmt(IDS_ERR_WRITEFILE, tempfile.c_str(), FileErrorMessage(err).c_str()));
+
+		// close and delete the temp file if we opened it
+		if (fp != nullptr)
+		{
+			fclose(fp);
+			_tunlink(tempfile.c_str());
+		}
+
+		// return an error indication
 		return false;
 	};
 
@@ -258,9 +287,20 @@ bool CSVFile::Write(ErrorHandler &eh)
 			return ReportError(errno);
 	}
 
-	// close the file
+	// close the temp file
 	if (fclose(fp) < 0)
 		return ReportError(errno);
+
+	// the temp file is now closed
+	fp = nullptr;
+
+	// delete the original file and rename the temp file to the original name
+	_tunlink(filename.c_str());
+	if (_trename(tempfile.c_str(), filename.c_str()))
+	{
+		eh.Error(MsgFmt(IDS_ERR_MOVEFILE, tempfile.c_str(), filename.c_str(), FileErrorMessage(errno).c_str()));
+		return false;
+	}
 
 	// all nice and clean
 	dirty = false;

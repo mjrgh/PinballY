@@ -241,18 +241,25 @@ GPDrawString::GPDrawString(Gdiplus::Graphics &g) :
 }
 
 void GPDrawString::DrawString(
-	const TCHAR *str, 
-	Gdiplus::Font *font, Gdiplus::Brush *br, 
-	bool newline)
+	const TCHAR *str, Gdiplus::Font *font, Gdiplus::Brush *br, 
+	bool newline, int align)
 {
 	// figure the current layout area
 	Gdiplus::RectF layoutRect(
 		curOrigin.X, curOrigin.Y,
 		bbox.GetRight() - curOrigin.X, bbox.GetBottom() - curOrigin.Y);
 
-	// draw the string
+	// set up our formatter
 	Gdiplus::StringFormat format(Gdiplus::StringFormat::GenericTypographic());
 	format.SetFormatFlags(format.GetFormatFlags() & ~Gdiplus::StringFormatFlagsLineLimit);
+
+	// set the alignment
+	if (align == 0)
+		format.SetAlignment(Gdiplus::StringAlignmentCenter);
+	else if (align > 0)
+		format.SetAlignment(Gdiplus::StringAlignmentFar);
+
+	// draw the string
 	g.DrawString(str, -1, font, layoutRect, &format, br);
 
 	// measure it

@@ -243,6 +243,7 @@
 #define IDS_MENU_DEL_GAME_INFO          528
 #define IDS_MENU_MARK_BATCH             529
 #define IDS_MENU_MARKED_BATCH           530
+#define IDS_MENU_ADJUST_AUDIO_VOLUME    531
 
 #define IDS_MENU_SAVE_CATEGORIES        540
 #define IDS_MENU_CXL_CATEGORIES         541
@@ -255,6 +256,9 @@
 #define IDS_MENU_CXL_RUN_AS_ADMIN       556
 #define IDS_MENU_RUN_GAME_ADMIN         557
 #define IDS_MENU_CXL_RUN_GAME_ADMIN     558
+
+#define IDS_ADJUST_AUDIO_CAPTION        565
+#define IDS_ADJUST_AUDIO_INSTR          566
 
 #define IDS_CONFIRM_DEL_GAME_INFO       570
 #define IDS_CONFIRM_DEL_GAME_YES        571
@@ -557,6 +561,7 @@
 #define ID_SHOW_EXIT_MENU               32869
 #define ID_CAPTURE_LAYOUT_SKIP          32870
 #define ID_CAPTURE_LAYOUT_OK            32871
+#define ID_ADJUST_AUDIO_VOLUME          32872
 
 
 // Next default values for new objects
@@ -565,7 +570,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32872
+#define _APS_NEXT_COMMAND_VALUE         32873
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

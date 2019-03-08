@@ -569,6 +569,21 @@ protected:
 	// keys when the Rate Game dialog is showing
 	void AdjustRating(float delta);
 
+	// Show the game audio volume dialog
+	void ShowAudioVolumeDialog();
+	void UpdateAudioVolumeDialog();
+
+	// adjust the working audio volume - used for Next/Previous keys while in the dialog
+	void AdjustWorkingAudioVolume(int delta);
+
+	// apply the working audio volume level to all active media in all windows
+	void ApplyWorkingAudioVolume();
+
+	// Working audio volume for the current game, as shown in the volume
+	// adjustment dialog.  This isn't committed until the user presses
+	// Select.
+	int workingAudioVolume;
+
 	// show a filter submenu
 	void ShowFilterSubMenu(int cmd, const TCHAR *group, const WCHAR *menuID);
 	
@@ -1284,7 +1299,8 @@ protected:
 		PopupCaptureDelay,         // capture delay dialog
 		PopupMediaList,            // game media list dialog
 		PopupBatchCapturePreview,  // batch capture preview
-		PopupUserDefined           // user-defined popup via Javascript
+		PopupUserDefined,          // user-defined popup via Javascript
+		PopupGameAudioVolume       // game media audio volume dialog
 	} 
 	popupType;
 
@@ -1788,7 +1804,15 @@ protected:
 	void OnEndAttractMode();
 
 	// Play a button or event sound effect
-	void PlayButtonSound(const TCHAR *effectName);
+	void PlayButtonSound(const TCHAR *effectName, float volume = 1.0f);
+
+	// Get the context-sensitive button volume.  A few buttons use a
+	// modified volume level in certain contexts.  In particular, the
+	// next/prev buttons reflect the working audio volume when the
+	// audio volume adjustment dialog is showing, to provide feedback
+	// on the level while making adjustments.
+	struct QueuedKey;
+	float GetContextSensitiveButtonVolume(const QueuedKey &key) const;
 
 	// Are button/event sound effects muted?
 	bool muteButtons;
@@ -1944,7 +1968,6 @@ protected:
 	bool altHasMouseCommand;
 	
 	// Command handler function type
-	struct QueuedKey;
 	typedef void (PlayfieldView::*KeyCommandFunc)(const QueuedKey &key);
 
 	// Key press event modes.  This is basically a bit mask, where

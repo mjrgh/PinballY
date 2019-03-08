@@ -35,6 +35,9 @@ public:
 	// to the display while the game might be using it.
 	void ClearMedia();
 
+	// apply a working audio level to playing media
+	void ApplyWorkingAudioVolume(int volPct);
+
 	// Enter/exit running game mode.  If possible, we'll close our
 	// session with the DMD while a game is running, to avoid any
 	// contention with the game over access to the physical device.
@@ -214,7 +217,7 @@ protected:
 	VideoMode videoMode = None;
 
 	// load a video
-	bool LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh);
+	bool LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh, int volPct);
 
 	// Set the oclor scheme for a game
 	void SetColorScheme(GameListItem *game);

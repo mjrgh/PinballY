@@ -115,6 +115,7 @@ GameList::GameList()
 	playTimeCol = statsDb.DefineColumn(_T("Play Time"));
 	favCol = statsDb.DefineColumn(_T("Is Favorite"));
 	ratingCol = statsDb.DefineColumn(_T("Rating"));
+	audioVolumeCol = statsDb.DefineColumn(_T("Audio Volume"));
 	categoriesCol = statsDb.DefineColumn(_T("Categories"));
 	hiddenCol = statsDb.DefineColumn(_T("Is Hidden"));
 	dateAddedCol = statsDb.DefineColumn(_T("Date Added"));

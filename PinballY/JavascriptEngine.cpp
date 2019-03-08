@@ -1307,8 +1307,11 @@ ULONGLONG JavascriptEngine::GetNextTaskTime()
 	return nextReadyTime;
 }
 
-void JavascriptEngine::RunTasks() 
+bool JavascriptEngine::RunTasks() 
 {
+	// no tasks have been executed yet
+	bool tasksExecuted = false;
+
 	// only process tasks when we're not in a recursive Javascript invocation
 	if (inJavascript == 0)
 	{
@@ -1339,6 +1342,9 @@ void JavascriptEngine::RunTasks()
 			{
 				// The task is ready to run.  Execute it.
 				keep = task->Execute();
+
+				// note that at least one task has been executed
+				tasksExecuted = true;
 			}
 
 			// If we're not keeping the task, remove it
@@ -1352,6 +1358,9 @@ void JavascriptEngine::RunTasks()
 
 	// update the task timer
 	UpdateTaskTimer();
+
+	// return the task execution status
+	return tasksExecuted;
 }
 
 bool JavascriptEngine::EventTask::Execute()

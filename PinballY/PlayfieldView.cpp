@@ -50,6 +50,42 @@
 #include "../OptionsDialog/OptionsDialogExports.h"
 #include "JavascriptEngine.h"
 
+// Option setting: should we notify PinVol (if running) when we select
+// a new game in the wheel UI?
+//
+// By default, this is disabled.
+//
+// I implemented this to address an enhancement request (issue #9 on github)
+// asking for per-game audio volume level adjustments for the background
+// videos and table audio tracks.  The rationale is that some tables have
+// much louder soundtracks than others, so it would be nice to be able to
+// equalize the audio level of the background media from game to game with
+// a per-game volume adjustment in PinballY.  At first glance, I thought
+// this would be ideal to handle through PinVol, since game-to-game volume
+// equalization is what it's all about.  If we notify PinVol of our game
+// selection, it can treat us as "PinballY + Selected Game" rather than
+// just "PinballY", and can thereby store independent volume levels per
+// selection.  But after implementing it and trying it out, I realized
+// that this was the wrong way to do it.  The snag is that you only want
+// to adjust the game media volume - NOT the global effects like button
+// sounds.  PinVol can only adjust the volume across the board, so if you
+// turn down the volume for a loud game with PinVol, you also turn down 
+// the button sounds.  So in the name of equalizing sound levels for the
+// media items, we inadvertantly also dis-equalize levels for the button
+// sounds.  The effect is not pleasing.
+//
+// So I disabled it, both in PinVol and here.  Note that it would be
+// harmless functionally to leave the notifications intact, since PinVol
+// will just ignore them as long as the feature is disabled there, but I
+// figure it's better to remove them entirely as long as they're not
+// being used to avoid the added overhead of the mailslot transmission.
+// Simply change this to 'true' to re-enable the notifications on our end.
+// (Turning them back on here won't re-activate the feature in PinVol,
+// though, as it's separately disabled there.  You'd have to re-enable
+// it in both places to bring back the feature.)
+//
+const bool NOTIFY_PINVOL_ON_WHEEL_SELECTION = false;
+
 using namespace DirectX;
 
 namespace ConfigVars
@@ -783,6 +819,7 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameInfoStatsGetter<bool>("isFavorite", [](GameListItem *game) { return GameList::Get()->IsFavorite(game); }, eh)
 				|| !AddGameInfoStatsGetter<double>("rating", [](GameListItem *game) { return static_cast<double>(GameList::Get()->GetRating(game)); }, eh)
 				|| !AddGameInfoStatsGetter<bool>("isMarkedForCapture", [](GameListItem *game) { return GameList::Get()->IsMarkedForCapture(game); }, eh)
+				|| !AddGameInfoStatsGetter<int>("audioVolume", [](GameListItem *game) { return GameList::Get()->GetAudioVolume(game); }, eh)
 				|| !AddGameInfoStatsGetter<JsValueRef>("categories", GetCategories, eh))
 				return;
 
@@ -910,6 +947,7 @@ void PlayfieldView::InitJavascript()
 				C(ShowFindMediaMenu, ID_FIND_MEDIA);
 				C(FindMediaGo, ID_MEDIA_SEARCH_GO);
 				C(ShowMediaFiles, ID_SHOW_MEDIA_FILES);
+				C(AdjustAudioVolume, ID_ADJUST_AUDIO_VOLUME);
 				C(DeleteMediaFile, ID_DEL_MEDIA_FILE);
 				C(HideGame, ID_HIDE_GAME);
 				C(EnableVideos, ID_ENABLE_VIDEO_GLOBAL);
@@ -954,6 +992,21 @@ void PlayfieldView::InitJavascript()
 			LogFile::Get()->Write(LogFile::JSLogging, _T(". Loading main script file %s\n"), jsmain);
 			if (!js->LoadModule(jsmain, eh))
 				return;
+
+			// Allow imported modules to run.  Imports are deferred, similar
+			// to promises, so imported code won't run until the next task
+			// processing phase.  We want to allow imports to initialize now
+			// rather than later, so that imported modules can receive events
+			// generated during startup, such as the initial game selection.
+			//
+			// Repeat until there's nothing to run.  Imports could trigger 
+			// other imports dynamically, and we want to descend the whole 
+			// tree until everything is loaded and initialized.  But make
+			// sure we don't get stuck in an infinite loop with something
+			// pathological, like zero-length setTimeout()'s that keep
+			// resetting themselves: so stop after an arbitrary (large)
+			// number of iterations.
+			for (int iters = 0; iters < 100 && js->RunTasks(); ++iters);
 
 			// We successfully initialized the javascript engine and loaded
 			// the user script.
@@ -2241,6 +2294,7 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		Prop(int, playTime);
 		Prop(int, playCount);
 		Prop(TSTRING, ipdbId);
+		Prop(int, audioVolume);
 
 		// if gridPos is specified, get its components {row, column}
 		GameInfoDescItem<int> gridPosRow, gridPosColumn;
@@ -2366,6 +2420,20 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		// update the play time
 		if (playTime.isDefined)
 			gl->SetPlayTime(game, playTime.value);
+
+		// update the audio volume
+		if (audioVolume.isDefined)
+		{
+			// set it in the metadata
+			gl->SetAudioVolume(game, audioVolume.value);
+
+			// if this is the current game in the wheel, apply the working volume change
+			if (game == gl->GetNthGame(0))
+			{
+				workingAudioVolume = audioVolume.value;
+				ApplyWorkingAudioVolume();
+			}
+		}
 
 		// update the title, if present
 		if (title.isDefined)
@@ -3628,6 +3696,10 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		ShowGameSetupMenu();
 		return true;
 
+	case ID_ADJUST_AUDIO_VOLUME:
+		ShowAudioVolumeDialog();
+		return true;
+
 	case ID_CAPTURE_MEDIA:
 	case ID_BATCH_CAPTURE_STEP1:
 		// Start a single/batch capture.  The first step in both processes is
@@ -4865,6 +4937,168 @@ void PlayfieldView::AdjustRating(float delta)
 	UpdateRateGameDialog();
 }
 
+void PlayfieldView::ShowAudioVolumeDialog()
+{
+	// get the game and make sure we have a valid selection
+	auto gl = GameList::Get();
+	auto game = gl->GetNthGame(0);
+	if (IsGameValid(game))
+	{
+		// set the working audio volume to the game's current database value
+		workingAudioVolume = gl->GetAudioVolume(game);
+
+		// display the dialog
+		UpdateAudioVolumeDialog();
+	}
+}
+
+void PlayfieldView::UpdateAudioVolumeDialog()
+{
+	// fire an event first, abort on cancel
+	const WCHAR *popupName = L"game audio volume";
+	if (!FirePopupEvent(true, popupName))
+		return;
+
+	// ignore it if there's no game selection
+	GameList *gl = GameList::Get();
+	GameListItem *game = gl->GetNthGame(0);
+	if (!IsGameValid(game))
+		return;
+
+	// update all playing media with the current volume
+	ApplyWorkingAudioVolume();
+
+	// set up the dialog box display
+	int width = 800, height = 800;
+	auto Draw = [gl, game, this, width, &height](HDC hdc, HBITMAP)
+	{
+		// set up a GDI+ drawing context
+		Gdiplus::Graphics g(hdc);
+
+		// draw the background
+		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+		g.FillRectangle(&bkgBr, 0, 0, width, height);
+
+		// draw the border
+		const int borderWidth = 2;
+		Gdiplus::Pen pen(Gdiplus::Color(0xe0, 0xff, 0xff, 0xff), float(borderWidth));
+		g.DrawRectangle(&pen, borderWidth / 2, borderWidth / 2, width - borderWidth, height - borderWidth);
+
+		// margin for our content area
+		const float margin = 16.0f;
+		const float inner = margin + borderWidth;
+
+		// set up a string drawer
+		GPDrawString gds(g, Gdiplus::RectF(inner, inner, width - 2*inner, height - 2*inner));
+
+		// draw the main caption and instructions text
+		Gdiplus::SolidBrush br(Gdiplus::Color(0xff, 0xff, 0xff));
+		gds.DrawString(LoadStringT(IDS_ADJUST_AUDIO_CAPTION), popupFont, &br, true, 0);
+		gds.DrawString(LoadStringT(IDS_ADJUST_AUDIO_INSTR), popupSmallerFont, &br, true, 0);
+
+		// add some vertical space
+		gds.curOrigin.Y += 20.0f;
+
+		// set up the bounding box for the volume bar
+		const float barHeight = popupSmallerFont->GetHeight(&g) + 4.0f;
+		Gdiplus::RectF rc(gds.bbox.X, gds.curOrigin.Y, gds.bbox.Width, barHeight);
+		gds.curOrigin.Y += barHeight;
+
+		// draw the volume bar
+		const float onWidth = static_cast<float>(workingAudioVolume) / 100.0f * rc.Width;
+		Gdiplus::RectF rcOn = rc, rcOff = rc;
+		rcOn.Width = onWidth;
+		rcOff.X += onWidth;
+		rcOff.Width -= onWidth;
+		Gdiplus::SolidBrush brOn(Gdiplus::Color(0x00, 0xff, 0x00));
+		Gdiplus::SolidBrush brOff(Gdiplus::Color(0x00, 0x70, 0x00));
+		g.FillRectangle(&brOn, rcOn);
+		g.FillRectangle(&brOff, rcOff);
+
+		// superimpose the volume level
+		Gdiplus::StringFormat ctr(Gdiplus::StringFormat::GenericTypographic());
+		ctr.SetAlignment(Gdiplus::StringAlignmentCenter);
+		g.DrawString(MsgFmt(_T("%d%%"), workingAudioVolume).Get(), -1, popupSmallerFont, rc, &ctr, &br);
+
+		// set the actual needed height
+		height = static_cast<int>(gds.curOrigin.Y + inner);
+
+		// flush GDI+ drawing to the bitmap
+		g.Flush();
+	};
+
+	// draw once off-screen to figure the height
+	DrawOffScreen(width, height, [&](HDC hdc, HBITMAP hbmp, const void*, const BITMAPINFO&) { Draw(hdc, hbmp); });
+
+	// draw it for real
+	Application::InUiErrorHandler eh;
+	popupSprite.Attach(new Sprite());
+	if (!popupSprite->Load(width, height, Draw, eh, _T("Game Audio Volume Dialog")))
+	{
+		popupSprite = nullptr;
+		UpdateDrawingList();
+		return;
+	}
+
+	// adjust it to the canonical popup position
+	AdjustSpritePosition(popupSprite);
+
+	// if we're switching to flyer mode, animate the popup
+	StartPopupAnimation(PopupGameAudioVolume, popupName, true);
+
+	// put the new sprite in the drawing list
+	UpdateDrawingList();
+}
+
+void PlayfieldView::AdjustWorkingAudioVolume(int delta)
+{
+	// set the new volume
+	workingAudioVolume += delta;
+
+	// redisplay the dialog
+	UpdateAudioVolumeDialog();
+}
+
+void PlayfieldView::ApplyWorkingAudioVolume()
+{
+	// clamp the working audio volume to the valid range
+	workingAudioVolume = max(0, workingAudioVolume);
+	workingAudioVolume = min(workingAudioVolume, 100);
+
+	// update our video sprites
+	auto Update = [this](GameMedia<VideoSprite> &media)
+	{
+		// update its video player, if it has one
+		if (media.sprite != nullptr && media.sprite->IsVideo())
+		{
+			if (auto vp = media.sprite->GetVideoPlayer(); vp != nullptr)
+				vp->SetVolume(workingAudioVolume);
+		}
+
+		// update its audio player, if it has one
+		if (media.audio != nullptr)
+			media.audio->SetVolume(workingAudioVolume);
+	};
+	Update(incomingPlayfield);
+	Update(currentPlayfield);
+
+	// update the secondary windows
+	auto Update2 = [this](SecondaryView *view)
+	{
+		if (view != nullptr)
+			view->ApplyWorkingAudioVolume(workingAudioVolume);
+	};
+	auto app = Application::Get();
+	Update2(app->GetBackglassView());
+	Update2(app->GetDMDView());
+	Update2(app->GetTopperView());
+	Update2(app->GetInstCardView());
+
+	// update the real DMD video
+	if (realDMD != nullptr)
+		realDMD->ApplyWorkingAudioVolume(workingAudioVolume);
+}
+
 void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
 {
 	auto js = JavascriptEngine::Get();
@@ -5543,6 +5777,14 @@ void PlayfieldView::ClosePopup()
 		// close it
 		if (popupType == PopupInstructions)
 			RemoveInstructionsCard();
+
+		// for the audio volume popup, restore running media to the original volume
+		if (popupType == PopupGameAudioVolume)
+		{
+			auto gl = GameList::Get();
+			workingAudioVolume = gl->GetAudioVolume(gl->GetNthGame(0));
+			ApplyWorkingAudioVolume();
+		}
 
 		// start the fade-out animation
 		StartPopupAnimation(popupType, nullptr, false);
@@ -6488,6 +6730,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	Application::InUiErrorHandler uieh;
 	TSTRING video, image, audio;
 	bool videosEnabled = Application::Get()->IsEnableVideo();
+	int volumePct = 100;
 	if (IsGameValid(game))
 	{
 		// Retrieve the playfield video path and static image path.
@@ -6499,6 +6742,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 		// look for an audio track for the table
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
+
+		// note the new game's audio volume level in the settings
+		volumePct = GameList::Get()->GetAudioVolume(game);
 	}
 
 	// If the outgoing game has a database record but is still marked
@@ -6525,6 +6771,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		incomingPlayfield.audio.Attach(new DShowAudioPlayer(hWnd));
 		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
 		{
+			// set the game-specific media volume level
+			incomingPlayfield.audio->SetVolume(volumePct);
+
 			// set the muting mode to match playfield video
 			if (Application::Get()->IsMuteVideos())
 				incomingPlayfield.audio->Mute(true);
@@ -6573,7 +6822,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		// Asynchronous loader function
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, szLayout, videosEnabled](VideoSprite *sprite)
+		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
 		{
 			// nothing loaded yet
 			bool ok = false;
@@ -6585,7 +6834,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// height (1.0) and width.  We'll scale the video when we get its format.
 			Application::AsyncErrorHandler eh;
 			if (video.length() != 0
-				&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video")))
+				&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video"), true, volumePct))
 				ok = true;
 
 			// If there's no video, try a static image
@@ -6614,7 +6863,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// default playfield video
 			TCHAR defaultVideo[MAX_PATH];
 			if (!ok && videosEnabled && GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
-				ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"));
+				ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"), true, volumePct);
 
 			// if we *still* didn't find anything, try the default playfield image
 			TCHAR defaultImage[MAX_PATH];
@@ -6641,11 +6890,14 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// update the status line text, in case it mentions the current game selection
 	UpdateAllStatusText();
 
-	// if PinVol is running, notify it of the new wheel selection
-	if (IsGameValid(game))
-		Application::Get()->SendPinVol(L"PinballY Select %s\n%s", game->GetGameId().c_str(), game->title.c_str());
-	else
-		Application::Get()->SendPinVol(L"PinballY SelectNone");
+	// if desired, notify PinVol (it it's running) when we change the wheel selection
+	if constexpr (NOTIFY_PINVOL_ON_WHEEL_SELECTION)
+	{
+		if (IsGameValid(game))
+			Application::Get()->SendPinVol(L"PinballY Select %s\n%s", game->GetGameId().c_str(), game->title.c_str());
+		else
+			Application::Get()->SendPinVol(L"PinballY SelectNone");
+	}
 
 	// request high scores if we don't already have them
 	RequestHighScores(game, true);
@@ -10286,6 +10538,17 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 			if (dynamic_cast<const RatingFilter*>(gl->GetCurFilter()) != nullptr)
 				SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
 		}
+		else if (popupType == PopupGameAudioVolume)
+		{
+			// Audio volume dialog - commit the new volume
+			GameList *gl = GameList::Get();
+			GameListItem *game = gl->GetNthGame(0);
+			if (IsGameValid(game))
+				gl->SetAudioVolume(game, workingAudioVolume);
+
+			// use the "select" sound effect to indicate success
+			sound = _T("Select");
+		}
 		else if (popupType == PopupCaptureDelay)
 		{
 			// Capture Delay dialog - commit the new adjusted startup 
@@ -10659,13 +10922,13 @@ void PlayfieldView::ShowExitMenu()
 	QueueDOFPulse(L"PBYMenuOpen");
 }
 
-void PlayfieldView::PlayButtonSound(const TCHAR *effectName)
+void PlayfieldView::PlayButtonSound(const TCHAR *effectName, float volume)
 {
 	if (!muteButtons)
 	{
 		TCHAR path[MAX_PATH];
 		if (auto gl = GameList::Get(); gl != nullptr && gl->FindGlobalWaveFile(path, _T("Button Sounds"), effectName))
-			AudioManager::Get()->PlayFile(path);
+			AudioManager::Get()->PlayFile(path, volume);
 	}
 }
 
@@ -10682,12 +10945,24 @@ void PlayfieldView::CloseMenusAndPopups()
 	HideInfoBox();
 }
 
+float PlayfieldView::GetContextSensitiveButtonVolume(const QueuedKey &) const
+{
+	// if we're displaying the game media audio volume adjustment
+	// dialog, play next/prev/pgup/pgdn button sounds at the working
+	// volume level
+	if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+		return static_cast<float>(workingAudioVolume)/100.0f;
+
+	// for everything else, play buttons at normal volume
+	return 1.0f;
+}
+
 void PlayfieldView::CmdNext(const QueuedKey &key)
 {
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the audio effect
-		PlayButtonSound(_T("Next"));
+		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
 
 		// do the basic Next processing
 		DoCmdNext(key.mode == KeyRepeat);
@@ -10723,6 +10998,10 @@ void PlayfieldView::DoCmdNext(bool fast)
 		{
 			// Rate Game popup dialog - adjust the rating up 1/2 star
 			AdjustRating(0.5f);
+		}
+		else if (popupType == PopupGameAudioVolume)
+		{
+			AdjustWorkingAudioVolume(1);
 		}
 		else if (popupType == PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
 		{
@@ -10773,7 +11052,7 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Prev"));
+		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
 
 		// carry out the basic command action
 		DoCmdPrev(key.mode == KeyRepeat);
@@ -10821,6 +11100,10 @@ void PlayfieldView::DoCmdPrev(bool fast)
 		{
 			// Rate Game popup dialog - adjust the rating down 1/2 star
 			AdjustRating(-0.5f);
+		}
+		else if (popupType == PopupGameAudioVolume)
+		{
+			AdjustWorkingAudioVolume(-1);
 		}
 		else if (popupType == PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
 		{
@@ -10872,7 +11155,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Next"));
+		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
 
 		// If there's a menu, and it has a page-down item, treat the
 		// Next Page button as a shortcut for the page-down command.
@@ -10899,6 +11182,10 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			batchViewScrollY += 1250;
 			UpdateBatchCaptureView();
 		}
+		else if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+		{
+			AdjustWorkingAudioVolume(10);
+		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat it as a regular 'next'
@@ -10922,7 +11209,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Prev"));
+		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
 
 		// If there's an active menu, and it has a Page Up command, treat 
 		// this as a shortcut for that command.  Otherwise, if there's a
@@ -10947,6 +11234,10 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		{
 			batchViewScrollY -= 1250;
 			UpdateBatchCaptureView();
+		}
+		else if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+		{
+			AdjustWorkingAudioVolume(-10);
 		}
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
@@ -11424,6 +11715,7 @@ void PlayfieldView::ShowGameSetupMenu()
 	}
 	md.emplace_back(LoadStringT(IDS_MENU_FIND_MEDIA), ID_FIND_MEDIA);
 	md.emplace_back(LoadStringT(IDS_MENU_SHOW_MEDIA), ID_SHOW_MEDIA_FILES);
+	md.emplace_back(LoadStringT(IDS_MENU_ADJUST_AUDIO_VOLUME), ID_ADJUST_AUDIO_VOLUME);
 	md.emplace_back(_T(""), -1);
 
 	// cancel

@@ -799,6 +799,12 @@ void RealDMD::ClearMedia()
 	SendWriterFrame(emptySlide);
 }
 
+void RealDMD::ApplyWorkingAudioVolume(int volPct)
+{
+	if (videoPlayer != nullptr)
+		videoPlayer->SetVolume(volPct);
+}
+
 void RealDMD::UpdateGame()
 {
 	// do nothing if the DLL isn't loaded
@@ -806,10 +812,14 @@ void RealDMD::UpdateGame()
 		return;
 		
 	// update our game if the selection in the game list has changed
-	if (auto game = GameList::Get()->GetNthGame(0); game != curGame)
+	auto gl = GameList::Get();
+	if (auto game = gl->GetNthGame(0); game != curGame)
 	{
 		// remember the new selection
 		curGame = game;
+
+		// note the media volume level
+		int volPct = gl->GetAudioVolume(game);
 
 		// Set the DMD color scheme for the game (or the default, if
 		// there's no game)
@@ -958,7 +968,7 @@ void RealDMD::UpdateGame()
 			// try loading the video first, if we found one
 			bool ok = false;
 			if (video.length() != 0)
-				ok = LoadVideo(video.c_str(), true, true, VideoMode::Game, Application::InUiErrorHandler());
+				ok = LoadVideo(video.c_str(), true, true, VideoMode::Game, Application::InUiErrorHandler(), volPct);
 
 			// If we didn't manage to load a video, try loading the image
 			if (!ok && image.length() != 0)
@@ -1159,15 +1169,16 @@ void RealDMD::SetColorScheme(GameListItem *game)
 	baseColor = RGB(opts.dmd_red, opts.dmd_green, opts.dmd_blue);
 }
 
-bool RealDMD::LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh)
+bool RealDMD::LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh, int volPct)
 {
 	// create a new video player
 	auto pfv = Application::Get()->GetPlayfieldView();
 	auto hwndPfv = pfv != nullptr ? pfv->GetHWnd() : NULL;
 	videoPlayer.Attach(new VLCAudioVideoPlayer(hwndPfv, hwndPfv, false));
 
-	// set the desired looping mode
+	// set the desired looping mode and audio volume
 	videoPlayer->SetLooping(looping);
+	videoPlayer->SetVolume(volPct);
 
 	// try loading the video
 	bool ok = videoPlayer->OpenDmdTarget(path, eh, this);
@@ -1758,7 +1769,7 @@ bool RealDMD::LoadStartupVideo()
 			SetColorScheme(nullptr);
 
 			// Try loading the video.
-			if (LoadVideo(startupVideo, false, false, VideoMode::Startup, LogFileErrorHandler()))
+			if (LoadVideo(startupVideo, false, false, VideoMode::Startup, LogFileErrorHandler(), 100))
 			{
 				// use a 24-bit color space if this is a color video and the device
 				// supports full color, otherwise use 16-shade monochrome

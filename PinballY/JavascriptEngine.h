@@ -230,7 +230,6 @@ public:
 	// Enumerate tasks.  The predicate returns true to continue the enumeration.
 	void EnumTasks(std::function<bool(Task *)>);
 
-	// Are any tasks pending?
 	bool IsTaskPending() const { return taskQueue.size() != 0; }
 
 	// Get the scheduled time of the next task.  This is the time in terms
@@ -238,8 +237,9 @@ public:
 	// earlier than the current time. 
 	ULONGLONG GetNextTaskTime();
 
-	// Run ready scheduled tasks 
-	void RunTasks();
+	// Run ready scheduled tasks.  Returns true if any tasks were executed,
+	// false if nothing was ready to run.
+	bool RunTasks();
 
 	class CallException : public std::exception 
 	{

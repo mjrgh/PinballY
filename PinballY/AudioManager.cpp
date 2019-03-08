@@ -72,13 +72,13 @@ AudioManager::~AudioManager()
 	delete engine;
 }
 
-void AudioManager::PlayFile(const TCHAR *path)
+void AudioManager::PlayFile(const TCHAR *path, float volume)
 {
 	// look for an existing instance in our cache
 	if (auto it = cache.find(path); it != cache.end())
 	{
 		// got it - simply reuse the existing effect
-		it->second->Play();
+		it->second->Play(volume, 0.0f, 0.0f);
 	}
 	else
 	{
@@ -87,7 +87,7 @@ void AudioManager::PlayFile(const TCHAR *path)
 		if (sound->GetFormat() != nullptr)
 		{
 			// start it playing
-			sound->Play();
+			sound->Play(volume, 0.0f, 0.0f);
 
 			// add it to the cache
 			cache.emplace(path, sound.release());

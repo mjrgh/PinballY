@@ -95,13 +95,16 @@ void VideoSprite::ReleaseVideoPlayer()
 bool VideoSprite::LoadVideo(
 	const TSTRING &filename, HWND hwnd, POINTF sz,
 	ErrorHandler &eh, const TCHAR *descForErrors,
-	bool play)
+	bool play, int volumePct)
 {
 	// create a new video player
 	RefPtr<AudioVideoPlayer> v(new VLCAudioVideoPlayer(hwnd, hwnd, false));
 
 	// set looping mode
 	v->SetLooping(true);
+
+	// set the audio volume
+	v->SetVolume(volumePct);
 
 	// set the initial mute mode according to the current global status
 	v->Mute(Application::Get()->IsMuteVideosNow());

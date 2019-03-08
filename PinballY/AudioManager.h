@@ -21,7 +21,7 @@ public:
 	static AudioManager *Get() { return inst; }
 
 	// Play a sound file.  The file is given as a full path.
-	void PlayFile(const TCHAR *filename);
+	void PlayFile(const TCHAR *filename, float volume = 1.0f);
 
 	// Update.  This takes care of timed housekeeping work in the DXTK
 	// engine.  This must be called regularly, typically at the same

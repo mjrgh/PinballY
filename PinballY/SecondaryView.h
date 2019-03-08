@@ -39,6 +39,9 @@ public:
 	// change video enabling status
 	virtual void OnEnableVideos(bool enable) override;
 
+	// apply a working audio level to playing media
+	void ApplyWorkingAudioVolume(int volPct);
+
 protected:
 	// Get the next window to update during a game transition.
 	// We update the windows one at a time to spread out the extra 

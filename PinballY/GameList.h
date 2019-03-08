@@ -1302,6 +1302,7 @@ public:
 	const CSVFile::Column *hiddenCol;
 	const CSVFile::Column *markedForCaptureCol;
 	const CSVFile::Column *showWhenRunningCol;
+	const CSVFile::Column *audioVolumeCol;
 
 	// Get/set the Last Played time
 	const TCHAR *GetLastPlayed(GameListItem *game) 
@@ -1352,6 +1353,10 @@ public:
 	float GetRating(GameListItem *game);
 	void SetRating(GameListItem *game, float rating);
 	void ClearRating(GameListItem *game) { ratingCol->Set(GetStatsDbRow(game), -1.0f); }
+
+	// get/set the audio volume level for this game's media
+	int GetAudioVolume(GameListItem *game) { return audioVolumeCol->GetInt(GetStatsDbRow(game), 100); }
+	void SetAudioVolume(GameListItem *game, int vol) { audioVolumeCol->Set(GetStatsDbRow(game, true), vol); }
 
 	// get/set the "Marked for batch capture" flag
 	bool IsMarkedForCapture(GameListItem *game) { return markedForCaptureCol->GetBool(GetStatsDbRow(game)); }

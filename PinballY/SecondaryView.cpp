@@ -209,20 +209,21 @@ void SecondaryView::SyncCurrentGame()
 		return;
 
 	// Get the game to display, according to the current mode
+	auto gl = GameList::Get();
 	GameListItem *game = nullptr;
 	if (Application::Get()->IsGameRunning())
 	{
 		// Running game mode.  Show media for the running game,
 		// but only if the game is specifically designated for
 		// media display in this window.
-		game = GameList::Get()->GetByInternalID(Application::Get()->GetRunningGameId());
+		game = gl->GetByInternalID(Application::Get()->GetRunningGameId());
 		if (!ShowMediaWhenRunning(game))
 			game = nullptr;
 	}
 	else
 	{
 		// normal wheel mode - show the currently selected game
-		game = GameList::Get()->GetNthGame(0);
+		game = gl->GetNthGame(0);
 	}
 
 	// do nothing if there's no game
@@ -239,6 +240,9 @@ void SecondaryView::SyncCurrentGame()
 	if (incomingBackground.sprite == nullptr
 		&& currentBackground.sprite != nullptr && currentBackground.game == game)
 		return;
+
+	// get the audio volume
+	int volPct = gl->GetAudioVolume(game);
 
 	// get the media files
 	TSTRING video, image, defaultVideo, defaultImage;
@@ -284,7 +288,7 @@ void SecondaryView::SyncCurrentGame()
 		// set up to load the sprite asynchronously
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled](VideoSprite *sprite)
+		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled, volPct](VideoSprite *sprite)
 		{
 			// start at zero alpha, for the cross-fade
 			sprite->alpha = 0;
@@ -293,7 +297,7 @@ void SecondaryView::SyncCurrentGame()
 			Application::AsyncErrorHandler eh;
 			bool ok = false;
 			if (video.length() != 0 && videosEnabled)
-				ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"));
+				ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"), true, volPct);
 
 			// try the image if that didn't work
 			if (!ok && image.length() != 0)
@@ -301,7 +305,7 @@ void SecondaryView::SyncCurrentGame()
 
 			// try the default video if we still don't have anything
 			if (!ok && videosEnabled && defaultVideo.length() != 0)
-				ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"));
+				ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"), volPct);
 
 			// load a default image if we didn't load anything custom
 			if (!ok)
@@ -363,6 +367,20 @@ void SecondaryView::OnEnableVideos(bool enable)
 	// if necessary, reload
 	if (reload)
 		SyncCurrentGame();
+}
+
+void SecondaryView::ApplyWorkingAudioVolume(int volPct)
+{
+	auto Update = [volPct](decltype(incomingBackground) &item)
+	{
+		if (item.sprite != nullptr && item.sprite->IsVideo())
+		{
+			if (auto vp = item.sprite->GetVideoPlayer(); vp != nullptr)
+				vp->SetVolume(volPct);
+		}
+	};
+	Update(currentBackground);
+	Update(incomingBackground);
 }
 
 void SecondaryView::ClearMedia()

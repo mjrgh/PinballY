@@ -140,9 +140,18 @@ void DShowAudioPlayer::SetVolume(int pct)
 	if (muted)
 		muted = false;
 
-	// figure the new volume, converting from our 0%-100% scale to 
-	// DShow's -100db to 0db scale
-	vol = (pct - 100) * 100;
+	// Figure the new volume, converting from our 0%-100% scale to 
+	// DShow's -100db to 0db scale.
+	//
+	// 100% = 0db (reference volume, same as recorded level).
+	// 0% is really "minus infinity", but treat it as a special case at -100db.
+	//
+	// In between, calculate it on a log scale, with 1% set to -40db.
+	// That makes the log factor 20db.
+	// 
+	// Note that the DShow scale is 100x the nominal db level.
+	vol = pct < 1 ? -10000 :
+		static_cast<long>(2000.0f * log10f(static_cast<float>(pct) / 100.0f));
 
 	// set the new volume in the underlying interface
 	pBasicAudio->put_Volume(vol);

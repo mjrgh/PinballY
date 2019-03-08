@@ -181,9 +181,15 @@ struct GPDrawString
 	Gdiplus::RectF bbox;
 	Gdiplus::PointF curOrigin;
 
-	// Draw a string.  If newline is true, we'll advance to the start
-	// of the next line; otherwise we'll advance horizontally.
-	void DrawString(const TCHAR *str, Gdiplus::Font *font, Gdiplus::Brush *br, bool newline = true);
+	// Draw a string.  
+	//
+	// If newline is true, we'll advance to the start of the next line; 
+	// otherwise we'll advance horizontally.
+	//
+	// 'align' is -1 for left alignment (default), 0 for center, 1 for
+	// right alignment.
+	void DrawString(const TCHAR *str, Gdiplus::Font *font, Gdiplus::Brush *br, 
+		bool newline = true, int align = -1);
 
 	// add vertical whitespace
 	void VertSpace(float dy) { curOrigin.Y += dy; }

@@ -8,6 +8,16 @@ how the PinballY window layout determines the screen area to be
 recorded during the capture.  The message has an option to skip it on
 future captures.  (Issue #48 on github.)
 
+* A new option lets you adjust the background media audio volume for
+each game individually.  This can be useful to equalize the audio
+levels for captured videos and audio tracks from game to game.  To
+adjust a game's audio level, open the Game Setup menu (via the
+Operator menu, normally assigned to the digit "0" (zero) key) and
+select Adjust Audio Volume.  This brings up a dialog that lets you set
+the relative volume level for the game's media, from 0% to 100%.  The
+default initial setting for all games is 100%, which plays back the
+audio at its recorded volume level.  (Issue #9 on github.)
+
 * New Javascript features: high score request events; setting custom
 high scores.  See the help files for details.
 
@@ -30,14 +40,36 @@ options for command line parameters and Run Before and Run After
 command strings.  [PINBALLY] in any of these fields is replaced with 
 the full absolute path of the PinballY install folder.
 
-* PinballY now notifies PinVol, if it's running, of the current game
-selection in the wheel UI.  This allows PinVol to keep maintain a
-separate custom volume level for each game in the PinballY wheel.  To
-take advantage of the custom volume levels, you need PinVol version
-1.7 or later.  (Earlier versions of PinVol won't cause any problems;
-they'll just ignore the game selection and treat PinballY as having a
-single local volume level across all selections.)  (Issue #9 on
-github.)
+* During program startup, code in .js modules imported from main.js
+are now run immediately after main.js is finished running.  In the
+past, the timing wasn't as well defined: the initial imports were
+treated as equivalent to other program events generated during
+startup, so other events were sometimes processed before imports were
+resolved.  This was technically correct, in that Javascript imports
+are inherently asynchronous, but it was inconvenient and potentially
+confusing for some important cases.  For example, if an import module
+added an event listener for an event related to game selection, that
+listener wasn't necessarily notified of the *initial* game selection
+event, since that event might have been processed before the module
+import was resolved, which is where the listener was actually set up.
+To make startup event delivery more predictable, imports from main.js
+are now resolved immediately after main.js returns, and imports from
+those imports are resolved after those initial imports finish; this is
+repreated as many times as necessary to ensure that the full cascade
+of direct and indirect imports is fully resolved before regular
+program event processing begins.  Note that this doesn't preclude
+events generated from Javascript itself (such as timeouts, intervals,
+and promises) from being processed; these will be interleaved with
+import resolution as they become ready to run.
+
+* A couple of internal changes were made to the GameStats.csv file
+reader/writer to make it more robust: fixed a problem with the way the
+reader handles column ordering in the file that caused potential
+problems under certain obscure circumstances, including crashing the
+program; when saving, the original file is preserved until the write
+has completed successfully, to ensure that there's no data loss if
+something goes wrong during the write.
+
 
 
 02-21-2019 (1.0.0 Beta 7)

@@ -177,6 +177,17 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
 <h2>Properties and methods</h2>
 
 <p>
+   <b><i>gameInfo</i>.audioVolume:</b>  An integer from 0 to 100 giving the game's
+   media audio volume level.  This controls the relative audio playback level
+   for the game's background videos and table audio track when displayed in
+   the wheel UI.  The user can control this setting via the Game Setup menu.
+   0 means the audio is completely muted, 100 means that the audio is played
+   back at its actual recorded level, and values in between reduce the
+   perceptual loudness linearly: e.g., 50 sounds half as loud as the
+   recorded level.
+</p>
+
+<p>
    <b><i>gameInfo</i>.categories:</b>  An array containing the game's category tags, as
    strings.  The user can tag a game with any number of categories through
    the Game Setup menu in the wheel UI.
@@ -724,6 +735,7 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    for the <i>desc</i> object, are:
 </p>
 <ul class="compact">
+   <li>audioVolume (integer)
    <li>categories (array of strings)
    <li>dateAdded (Date)
    <li>gridPos (object, {row: <i>integer</i>, column: <i>integer</i>})
@@ -1125,8 +1137,20 @@ let fs = createAutomationObject("Scripting.FileSystemObject");
    You can tell PinballY how to break up the text into screens by
    inserting blank lines into the custom text.  When PinballY
    displays the text, it scans through the list of messages and
-   breaks them up into "groups" at the blank lines.  For example,
-   consider this custom text:
+   breaks them up into "groups" at the blank lines.
+</p>
+<p>
+   Remember that <i>gameInfo</i>.setHighScores() takes an <b>array of
+   strings</b> as its argument to set the text, and that each string
+   in the array represents <b>one line of text</b> on the display.
+   So when you call setHighScores(), you don't have to
+   (nor should you) include newline characters explicitly.  
+   That means <b>no "\n" sequences.</b>  Just break up the lines into
+   strings and fill the array with them.  If you want to add a blank
+   line, you can simply represent it as an empty string, "".
+</p>
+<p>
+   For example, consider this Javascript snippet:
 </p>
 <div class="code">
 game.setHighScores([
@@ -1142,7 +1166,8 @@ game.setHighScores([
 ]);
 </div>
 <p>
-   We've used blank lines to identify the group breaks.  When displayed,
+   We've used blank lines to identify the group breaks.  The blank
+   lines are those empty string - "".  When displayed,
    this will produce a series of screens like this:
 </p>
 <img class="example" src="highScoreExample.png">
@@ -1188,13 +1213,17 @@ game.setHighScores([
 <p>
    <b>Upper/lower case:</b>  It's generally better to use pure
    upper-case for the score information.  The DMD fonts
-   include a few lower-case letters, but the low resolution
-   makes it impossible to render many letters in lower-case, so
-   some letters you write in lower-case will actually be rendered
-   in upper-case.  That can make the results look weird if you mix
-   cases.  The exception is the "typewriter" style used for
-   EM games; that uses an ordinary Windows font, so mixed case
-   will be fine there.
+   only have a few lower-case letters, since the low resolution
+   (only 128x32 dots) makes it too hard to render most of them.
+   Most lower-case letters in your source text will be replaced
+   with capitals when rendered.  But not all, so the final
+   display results tend to look bad if you mix case.  The
+   exception is the "typewriter" style used for EM games, when
+   displayed on a <b>video</b> DMD monitor.  That uses an ordinary
+   Windows font, so mixed case will look fine there.  But
+   remember that real DMD devices are limited by their physical
+   characteristics to the 128x32 format, so there's no such thing
+   as typewriter style there.
 </p>
       
 </body>
