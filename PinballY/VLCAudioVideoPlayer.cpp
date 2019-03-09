@@ -252,7 +252,8 @@ VLCAudioVideoPlayer::VLCAudioVideoPlayer(HWND hwndVideo, HWND hwndEvent, bool au
 	firstFramePresented(false),
 	shader(nullptr),
 	dmd(nullptr),
-	nPlanes(0)
+	nPlanes(0),
+	volume(100)
 {
 	// load the libvlc DLLs if we haven't already
 	LoadLibvlc(Application::InUiErrorHandler());
@@ -376,6 +377,9 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 			break;
 		}
 
+		// set the initial volume
+		libvlc_audio_set_volume_(player, volume);
+
 		// register for events
 		libvlc_event_attach_(libvlc_media_player_event_manager_(player), libvlc_MediaPlayerEndReached, &OnMediaPlayerEndReached, this);
 
@@ -462,7 +466,8 @@ bool VLCAudioVideoPlayer::Replay(ErrorHandler &eh)
 	libvlc_media_player_stop_(player);
 	libvlc_media_player_set_time_(player, 0);
 
-	// reset the muting mode
+	// reset the audio volume and muting mode - these don't carry over across repeats
+	libvlc_audio_set_volume_(player, volume);
 	libvlc_audio_set_mute_(player, muted);
 
 	// start playback
@@ -508,6 +513,7 @@ void VLCAudioVideoPlayer::Mute(bool f)
 
 void VLCAudioVideoPlayer::SetVolume(int pctVol)
 {
+	volume = pctVol;
 	if (player != nullptr)
 		libvlc_audio_set_volume_(player, pctVol);
 }

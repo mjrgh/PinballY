@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-? (1.0.0 Beta 8)
+03-09-2019 (1.0.0 Beta 8)
 
 * A new message appears at the start of the capture process explaining
 how the PinballY window layout determines the screen area to be
@@ -19,7 +19,8 @@ default initial setting for all games is 100%, which plays back the
 audio at its recorded volume level.  (Issue #9 on github.)
 
 * New Javascript features: high score request events; setting custom
-high scores.  See the help files for details.
+high scores; new GameInfo property audioVolume.  See the help files
+for details.
 
 * A new Attract Mode option setting lets you hide wheel images when
 attract mode is running.  The option is enabled by default.  Part of
@@ -34,6 +35,13 @@ images with uniform background areas, such as circles or squares.  So
 even though the individual wheel images keep changing, the circular or
 square background area is always more or less the same, and is always
 displayed at the same location.  (Issue #49 on github.)
+
+* When running a game where the PinballY video DMD window is
+configured to continue displaying media during the game (using the
+"Show when running" options in the Game Setup dialog), the automatic
+high score display is disabled for the duration of the game session.
+This is mostly to reduce visual distraction during play.  The normal
+high score display resumes when you exit the game.
 
 * The new substitution variable [PINBALLY] can be used in the system
 options for command line parameters and Run Before and Run After
@@ -69,6 +77,9 @@ problems under certain obscure circumstances, including crashing the
 program; when saving, the original file is preserved until the write
 has completed successfully, to ensure that there's no data loss if
 something goes wrong during the write.
+
+* The embedded libvlc video software has been updated to version
+3.0.6.
 
 
 

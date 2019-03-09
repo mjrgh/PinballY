@@ -40,6 +40,10 @@ public:
 	// wait for high score image generator threads to exit
 	void WaitForHighScoreThreads(DWORD timeout = INFINITE);
 
+	// enter/exit running game mode
+	virtual void BeginRunningGameMode(GameListItem *game) override;
+	virtual void EndRunningGameMode() override;
+
 protected:
 	// private application message (WM_APP to 0xBFFF)
 	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;

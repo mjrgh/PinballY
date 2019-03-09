@@ -873,8 +873,10 @@ bool DMDView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// If we're looping the video, check for high score images: if
 	// present, start a slide show of the high score images instead
-	// of going directly to a replay of the video.
-	if (msg == AVPMsgLoopNeeded && highScoreImages.size() != 0)
+	// of going directly to a replay of the video.  If a game is
+	// currently running, skip the score display and just loop the
+	// video - we suppress score display while running.
+	if (msg == AVPMsgLoopNeeded && highScoreImages.size() != 0 && !Application::Get()->IsGameRunning())
 	{
 		// stop the video
 		if (currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
@@ -1007,4 +1009,42 @@ void DMDView::ScaleSprites()
 	// scale the high score images
 	for (auto &i : highScoreImages)
 		ScaleSprite(i.sprite, 1.0f, false);
+}
+
+void DMDView::BeginRunningGameMode(GameListItem *game)
+{
+	// do the base class work
+	__super::BeginRunningGameMode(game);
+
+	// if we're showing high score images, return to the base image and 
+	// cancel the high score rotation
+	if (highScoreImages.size() != 0)
+	{
+		// kill any pending timers
+		KillTimer(hWnd, StartHighScoreTimerID);
+		KillTimer(hWnd, NextHighScoreTimerID);
+
+		// If a high score image is currently being displayed, and we have a
+		// video, the video is currently stopped while showing high scores.
+		// Restart the video
+		if (highScorePos != highScoreImages.end() && currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
+			currentBackground.sprite->GetVideoPlayer()->Replay(SilentErrorHandler());
+
+		// go to the end of the high score rotation
+		highScorePos = highScoreImages.end();
+
+		// update the drawing list so that we're showing the background media
+		// (instead of a high score slide)
+		UpdateDrawingList();
+	}
+}
+
+void DMDView::EndRunningGameMode()
+{
+	// do the base class work
+	__super::EndRunningGameMode();
+
+	// if we have high score images, re-start the high score rotation
+	if (highScoreImages.size() != 0)
+		SetTimer(hWnd, StartHighScoreTimerID, StillImageDisplayTime, NULL);
 }

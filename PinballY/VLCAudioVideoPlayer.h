@@ -160,7 +160,8 @@ protected:
 	// do we loop playback?
 	bool looping;
 
-	// audio muted
+	// audio volume (linear scale, 0..100) and muting status
+	int volume;
 	bool muted;
 
 	// Frame buffers for the video decoder and renderer.  These are

@@ -31,7 +31,7 @@ public:
 
 	// Begin/end running game mode
 	virtual void BeginRunningGameMode(GameListItem *game);
-	void EndRunningGameMode();
+	virtual void EndRunningGameMode();
 
 	// frame window is being shown/hidden
 	virtual void OnShowHideFrameWindow(bool show) override;
