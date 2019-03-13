@@ -5,6 +5,16 @@
 
 #include "OptionsPage.h"
 
+class CDragButton : public CButton
+{
+public:
+	CDragButton() { }
+
+protected:
+	DECLARE_MESSAGE_MAP()
+	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+};
+
 class MouseDialog : public OptionsPage
 {
 	DECLARE_DYNAMIC(MouseDialog)
@@ -18,13 +28,16 @@ public:
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam) override;
 
 protected:
+	
 	DECLARE_MESSAGE_MAP()
 
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
-	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
+	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnCaptureChanged(CWnd *pWnd);
 
 	// capturing mouse off-screen hiding coordinates
 	bool capturingCoords = false;
+
+	CDragButton setCoordsBtn;
 };
 
