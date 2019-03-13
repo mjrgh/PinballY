@@ -228,6 +228,7 @@
     <ClCompile Include="InstCardDialog.cpp" />
     <ClCompile Include="LogFileDialog.cpp" />
     <ClCompile Include="MenuDialog.cpp" />
+    <ClCompile Include="MouseDialog.cpp" />
     <ClCompile Include="OptionsDialog.cpp" />
     <ClCompile Include="OptionsDialogDll.cpp" />
     <ClCompile Include="OptionsPage.cpp" />
@@ -269,6 +270,7 @@
     <ClInclude Include="InstCardDialog.h" />
     <ClInclude Include="LogFileDialog.h" />
     <ClInclude Include="MenuDialog.h" />
+    <ClInclude Include="MouseDialog.h" />
     <ClInclude Include="OptionsDialog.h" />
     <ClInclude Include="OptionsDialogDll.h" />
     <ClInclude Include="OptionsDialogExports.h" />

@@ -212,6 +212,23 @@ WaitForMonitors.ExtraDelay = 0
 SplashScreen = 1
 
 
+# Mouse hiding.  PinballY hides the mouse pointer at program startup, 
+# and again whenever you press a command button.  Normally, it does
+# this using a standard Windows "hide the mouse" command.  But for
+# reasons not yet understood, this standard command doesn't work on
+# some systems.  So we offer this alternative for systems where the
+# mouse refuses to be hidden: instead of hiding the pointer, we move
+# it to a parking position at a corner of the screen where it won't
+# be visible, or if that's not possible, where it at least won't be
+# in the way.  Set Mouse.HideByMoving to 1 if you want to enable this
+# alternative way of hiding the mouse, and set Mouse.HideCoords to
+# the screen coordinates in pixels where you want the mouse to be
+# parked.
+# 
+Mouse.HideByMoving = 0
+Mouse.HideCoords = 1920,540
+
+
 # DOF.  PinballY can use DOF to activate effects on your pin cab 
 # feedback devices, such as firing the flipper solenoids when you 
 # press the flipper buttons and showing lighting effects when switching

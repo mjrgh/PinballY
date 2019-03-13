@@ -342,20 +342,17 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 			Log(_T("+ This appears to be the dmd-extensions version of the DLL, based on the product/copyright strings\n"));
 			dmdExtInfo.matched = true;
 
-			// VERSION NOTE:  Freezy's nominal "1.7.2" release (as listed in
-			// the GitHub release list) actually has 1.7.3 version stamps on
-			// all of the files.  The version we check is the one marked in
-			// the file stamps.  (This is just as well, because 1.7.2 would
-			// be ambiguous.  There were several test builds labeled 1.7.2
-			// in circulation with different bug fixes.  All 1.7.3 releases
-			// should have the bug fixes we're interested in.)
+			// VERSION NOTE:  Freezy's original "1.7.2" release (as listed in
+			// the GitHub release list) actually had 1.7.3 version stamps on
+			// all of the files.  That apparently got fixed at some point;
+			// the 1.7.2 on github has 1.7.2 file stamps.
 
 			// Check the product version to see if it's a newer version
 			// with the fix for a bug that caused the DLL to crash if we
 			// called PM_GameSettings() more than once per process
 			// lifetime.  The fix is pull request #122, which is in
-			// official releases 1.7.3 and later.
-			if (vs.llVersion >= 0x0001000700030000UL
+			// official releases 1.7.2 and later.
+			if (vs.llVersion >= 0x0001000700020000UL
 				|| std::regex_search(vs.comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#122\\b"))))
 			{
 				Log(_T("+ Based on the version number, this version has the fix for the PM_GameSettings bug\n"));
@@ -372,8 +369,8 @@ bool RealDMD::LoadDLL(ErrorHandler &eh)
 			// Close/Open bug, which makes the DLL crash if we try to close
 			// and reopen it more than once per process lifetime.   This is
 			// fixed in pull request #127, which is in official releases
-			// 1.7.3 and later.
-			if (vs.llVersion >= 0x0001000700030000UL
+			// 1.7.2 and later.
+			if (vs.llVersion >= 0x0001000700020000UL
 				|| std::regex_search(vs.comments, std::basic_regex<TCHAR>(_T("\\b[Ii]ncludes fix.*\\s#127\\b"))))
 			{
 				Log(_T("+ Based on the version number, this version has the fix for the Open/Close bug\n"));
@@ -672,12 +669,12 @@ void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
 	if (PM_GameSettings_ != NULL)
 	{
 		// The dmd-extensions version of the DLL had a bug in versions
-		// prior to 1.7.3 that causes the DLL to crash if the DLL is in
+		// prior to 1.7.2 that causes the DLL to crash if the DLL is in
 		// "virtual dmd" mode AND we call this function after making any 
 		// other call to the DLL other than Open().  We take care to 
 		// call this immediately after each Open() call we make, so the
 		// very first call here is always safe.  After that, we can
-		// repeat the call unless we're talking to a pre-1.7.3 version
+		// repeat the call unless we're talking to a pre-1.7.2 version
 		// of dmd-extensions, in which case we have to skip it.  Skipping
 		// the call loses a small amount of functionality, namely the
 		// ability of the DLL to apply per-game colorization settings.

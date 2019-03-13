@@ -90,6 +90,8 @@ namespace ConfigVars
 	static const TCHAR *HideUnconfiguredGames = _T("GameList.HideUnconfigured");
 	static const TCHAR *VSyncLock = _T("VSyncLock");
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
+	static const TCHAR *MouseHideByMoving = _T("Mouse.HideByMoving");
+	static const TCHAR *MouseHideCoors = _T("Mouse.HideCoords");
 }
 
 // include the capture-related variables
@@ -193,8 +195,18 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 
 void Application::HideCursor()
 {
-	// show the empty cursor
-	SetCursor(emptyCursor);
+	// check which hide mode we're in
+	auto app = Get();
+	if (app->hideCursorByMoving)
+	{
+		// hide by moving the mouse to a (presumably) hidden parking position
+		SetCursorPos(app->hideCursorPos.x, app->hideCursorPos.y);
+	}
+	else
+	{
+		// hide by showing our empty cursor
+		SetCursor(emptyCursor);
+	}
 }
 
 int Application::EventLoop(int nCmdShow)
@@ -831,6 +843,14 @@ void Application::OnConfigChange()
 			DOFClient::Init();
 		else
 			DOFClient::Shutdown(false);
+	}
+
+	// update the mouse hiding mode
+	hideCursorByMoving = cfg->GetBool(ConfigVars::MouseHideByMoving, false);
+	if (hideCursorByMoving)
+	{
+		const TCHAR *txt = cfg->Get(ConfigVars::MouseHideCoors, _T("1920,540"));
+		_stscanf_s(txt, _T("%ld,%ld"), &hideCursorPos.x, &hideCursorPos.y);
 	}
 }
 

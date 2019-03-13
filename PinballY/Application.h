@@ -464,6 +464,10 @@ protected:
 	// PinVol mail slot, if available
 	HandleHolder pinVolMailSlot;
 
+	// Option setting for hiding the mouse by repositioning it
+	bool hideCursorByMoving = false;
+	POINT hideCursorPos;
+
 	// Load the configuration.  This loads the configuration file
 	// and updates global singletons that use the configuration
 	// data, such as the input manager and mouse manager.

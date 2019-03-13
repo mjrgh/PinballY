@@ -19,6 +19,7 @@ var contents = [
         "+LogFileOptions.html Log File",
         "+CaptureOptions.html Media Capture",
         "+MenuOptions.html Menus",
+        "+MouseOptions.html Mouse",
         "+RealDMDOptions.html Real DMD",
         "+StartupOptions.html Startup",
         "+StatuslineOptions.html Statusline",

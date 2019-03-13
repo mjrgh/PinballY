@@ -1,5 +1,28 @@
 PinballY Update History
 
+? (1.0.0 Beta 9)
+
+* A new option lets you hide the mouse cursor by repositioning it,
+rather than the normal default method, which asks Windows to hide the
+cursor in place.  The new "Hide mouse by moving it" option, and the
+desired place to position the mouse when hiding it, can be selected in
+the options dialog under the Mouse page.  The reason for this option
+is that the normal cursor-changing method doesn't work on some
+systems, for reasons not understood.  This method is an alternative
+for such systems.  Whichever method is selected, PinballY uses that
+method to hide the mouse at program startup and whenever you press a
+keyboard key or joystick button.  That gets the mouse out of the way
+for normal operation, where the mouse isn't needed.  (Addresses issue
+#45 on github.)
+
+* Before now, the real DMD code treated freezy's dmd-extensions 1.7.2
+as having a couple of bugs that were actually fixed in that release,
+and turned off a couple of small features in order to work around the
+DLL issues.  The code now properly recognizes the 1.7.2 version coding
+on the DLL, which allows full functionality with 1.7.2.  (My patched
+1.7.1+mjr versions (https://github.com/mjrgh/dmd-extensions/releases)
+were and continue to be recognized as having the bug fixes.)
+
 
 03-09-2019 (1.0.0 Beta 8)
 

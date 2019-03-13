@@ -135,6 +135,7 @@ public:
 	static const int InfoBoxPage = 16;
 	static const int FontPage = 17;
 	static const int DOFPage = 18;
+	static const int MousePage = 19;
 	
 	// system pages are identified by SystemBasePage + <system number>
 	static const int SystemBasePage = 1000;
