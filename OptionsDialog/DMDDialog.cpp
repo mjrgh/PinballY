@@ -23,4 +23,5 @@ void DMDDialog::InitVarMap()
 	varMap.emplace_back(new RadioStrMap(_T("RealDMD"), IDC_RB_DMD_AUTO, _T("Auto"), dmdOpts, countof(dmdOpts)));
 	varMap.emplace_back(new CkBoxMap(_T("RealDMD.MirrorHorz"), IDC_CK_DMD_MIRROR_HORZ, false));
 	varMap.emplace_back(new CkBoxMap(_T("RealDMD.MirrorVert"), IDC_CK_DMD_FLIP_VERT, false));
+	varMap.emplace_back(new EditFloatMap(_T("RealDMD.GrayscaleGamma"), IDC_EDIT_GAMMA, 2.8f));
 }

@@ -743,7 +743,9 @@ void HighScores::Thread::Main()
 	ZeroMemory(&sinfo, sizeof(sinfo));
 	sinfo.cb = sizeof(sinfo);
 	sinfo.dwFlags = STARTF_USESTDHANDLES;
+	sinfo.hStdInput = INVALID_HANDLE_VALUE;
 	sinfo.hStdOutput = hWritePipe;
+	sinfo.hStdError = hWritePipe;
 
 	// don't let the child inherit our end of the stdout pipe
 	SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
@@ -775,12 +777,26 @@ void HighScores::Thread::Main()
 	// launch if the system is busy, so give it a few seconds.
 	if (WaitForSingleObject(pinfo.hProcess, 7500) == WAIT_OBJECT_0)
 	{
-		// Success - read the results
+		// Success - read the results.  In some cases (about 10% of the time
+		// in my testing), ReadFile hangs indefinitely on this read after we've
+		// already read the last available byte.  It's clearly a race condition
+		// of some kind, but I can't tell what I'm doing wrong.  The main "rule"
+		// here is that we have to close our write handle on the pipe: once all
+		// write handles on the pipe are closed, Windows knows that no further
+		// data can be written to the pipe, hence ReadFile() should return
+		// immediately with zero bytes if the pipe buffer is empty.  Maybe 
+		// PinEMHi doesn't always close *its* end of the pipe, but I don't think 
+		// that should matter, because Windows should force the handle closed 
+		// when the process exits.  Which we know it has, because we wouldn't
+		// have gotten past the Wait on the process handle above otherwise.
+		// The hack solution is to add the PeekNamedPipe(), which tests that
+		// the buffer has bytes available before attempting the read.
 		CHAR buf[4096];
-		DWORD bytesRead;
-		while (ReadFile(hReadPipe, buf, sizeof(buf), &bytesRead, NULL) && bytesRead != 0)
+		DWORD nBytes;
+		while (PeekNamedPipe(hReadPipe, NULL, 0, NULL, &nBytes, NULL) && nBytes != 0
+			&& ReadFile(hReadPipe, buf, sizeof(buf), &nBytes, NULL) && nBytes != 0)
 		{
-			buf[bytesRead] = 0;
+			buf[nBytes] = 0;
 			ni.results.append(AnsiToTSTRING(buf));
 		}
 

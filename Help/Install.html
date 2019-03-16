@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Installation</h1>
+
+<p>
+   PinballY tries to make installation completely automatic,
+   but there are a few details that you might have to take
+   care of to make PinballY work with all of your other
+   virtual pinball software.
+</p>
+
+<h2>PinVol</h2>
+<p>
+   If you're using <a target="_blank" href="http://mjrnet.org/pinscape/PinVol.html">PinVol</a>,
+   you should update to <b>version 1.2</b> (July 2018) or later.  PinVol added recognition
+   for PinballY in that version.
+</p>
+
+<h2>DOF (DirectOutput Framework)</h2>
+
+<p>
+   If you're using DOF for feedback devices in your pin cab, a few
+   extra steps might be needed:
+</p>
+<ul>
+   <li>If you're using the 64-bit version of PinballY, make
+   sure your DOF software is one of my <a target="_blank" href="http://mjrnet.org/pinscape/dll-updates.html">DOF R3++</a>
+   releases dated <b>2018-09-04</b> or later.
+   
+   <li>Go to your Direct Output install folder, and open the Config folder.
+   Make a copy of the file <b>GlobalConfig_B2SServer.xml</b> and
+   name it <b>GlobalConfig_PinballY.xml</b>.
+   
+   <li>If you haven't refreshed your DOF config files from
+   <a target="_blank" href="http://configtool.vpuniverse.com/">DOF Config Tool</a>
+   lately, you should update them.  Log in to the site in your
+   browser, and generate and download a fresh set of .ini files.
+   That will ensure your DOF settings include the new effects for PinballY.
+   
+</ul>
+
+<h2>Real DMD</h2>
+<p>
+   If you're using a real DMD (dot matrix display) device (such as PinDMD or Pin2DMD),
+   you might need to update your copy of DmdDevice.dll (the system component that
+   accesses the DMD device).
+</p>
+<p>
+   DmdDevice.dll is normally installed as part of your Visual Pinball setup.  If
+   you used the VP installer, it should have placed a copy of DmdDevice.dll in
+   VP's VPinMAME subfolder.  That might be an older version, though.  For best
+   results, make sure you're using one of the following:
+</p>
+<ul>
+   <li>An official dmd-extensions release, version <b>1.7.2 or later</b>,
+   available at
+   <a target="_blank" href="https://github.com/freezy/dmd-extensions/releases">github.com/freezy/dmd-extensions/releases</a>
+   
+   <li>One of my patched versions (1.7.1, 1.7.2), available at
+   <a target="_blank" href="https://github.com/mjrgh/dmd-extensions/releases">github.com/mjrgh/dmd-extensions/releases</a>
+</ul>
+
+<p>
+   Version 1.7.2 has a known bug that prevents it from working
+   with ROM colorizations, so some people are still using my 1.7.1
+   patch for the time being, until that bug is fixed in the official
+   release branch.  (My patched 1.7.2 doesn't have a fix for the
+   colorization bug, so if you want to use colorization, stick with
+   1.7.1 for now.)
+</p>
+
+<p>
+   If you're not sure which version you have installed, open the file properties
+   (from the Windows desktop) for the file <b>DmdDevice.dll</b>, normally
+   found in your Visual Pinball\VPinMAME folder.  Check the Product
+   Version under the Details tab as shown at right.
+</p>
+
+<h2>Real DMD + 64-bit PinballY</h2>
+<p>
+   The 64-bit version of PinballY <b>requires</b> the 64-bit version of DmdDevice.dll.
+  It's safe to install both the 32-bit and 64-bit
+  versions of the DLL at the same time.  The trick is to make sure the 64-bit version is
+  named <b>DmdDevice64.dll</b>, so that it can coexist with the regular 32-bit
+  <b>DmdDevice.dll</b> without creating a file naming conflict.   
+</p>
+   
+
+</body>
+</html>

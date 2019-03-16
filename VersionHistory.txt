@@ -2,18 +2,42 @@ PinballY Update History
 
 ? (1.0.0 Beta 9)
 
-* A new option lets you hide the mouse cursor by repositioning it,
-rather than the normal default method, which asks Windows to hide the
-cursor in place.  The new "Hide mouse by moving it" option, and the
-desired place to position the mouse when hiding it, can be selected in
-the options dialog under the Mouse page.  The reason for this option
-is that the normal cursor-changing method doesn't work on some
-systems, for reasons not understood.  This method is an alternative
-for such systems.  Whichever method is selected, PinballY uses that
-method to hide the mouse at program startup and whenever you press a
-keyboard key or joystick button.  That gets the mouse out of the way
-for normal operation, where the mouse isn't needed.  (Addresses issue
-#45 on github.)
+* A new option lets you tell PinballY to "hide" the mouse cursor by
+repositioning it to a specified position on the screen, where it won't
+be in the way.  The normal method of hiding the cursor, used by
+default, is to actually make the cursor invisible, but that doesn't
+seem to work on some systems (for reasons not understood).  The new
+"hide by moving" option can be used as a workaround when the cursor
+refuses to disappear using the normal method.  To use the new option,
+open the settings dialog, go to the Mouse tab, and check the box for
+"Hide mouse by moving it".  Now select the screen location where the
+mouse will be moved in lieu of hiding it: click the "Drag here"
+button, hold the mouse button down while moving the mouse to the
+desired parking location, and then release the mouse button.  You'll
+probably want to choose a position near the right edge of the display
+area where the cursor will be entirely or mostly off-screen.
+Whichever option is chosen (the original invisible mouse cursor method
+or the new "hide by moving" method), PinballY automatically uses it to
+hide the mouse at program startup and again any time you press a key.
+This gets rid of the mouse cursor during normal arcade style
+operation, but lets you get the mouse cursor back at any time just by
+moving the mouse.  (Addresses issue #45 on github.)
+
+* A new option lets you set a "gamma" correction factor for grayscale
+video playback on real DMD devices.  This is primarily for people with
+monochrome devices such as PinDMD v1 or v2, where uncorrected video
+playback can look too bright and washed out.  Gamma correction is a
+method of adjusting the luminance (brightness) curve of video playback
+to compensate for differences between the way a particular physical
+display device renders light and the way your eye perceives it.
+"Gamma" is a number that determines the shape of this compensation
+curve.  There's no perfect gamma value in general, because the effect
+is a function of the physical display you're using and of your visual
+perception, which is inherently subjective.  It can also be affected
+(slightly) by things like ambient light.  This new setting lets you
+adjust the gamma as needed to make your display look right to your
+eye.  The new setting is in the options dialog, under the Real DMD
+tab.
 
 * Before now, the real DMD code treated freezy's dmd-extensions 1.7.2
 as having a couple of bugs that were actually fixed in that release,
@@ -22,6 +46,10 @@ DLL issues.  The code now properly recognizes the 1.7.2 version coding
 on the DLL, which allows full functionality with 1.7.2.  (My patched
 1.7.1+mjr versions (https://github.com/mjrgh/dmd-extensions/releases)
 were and continue to be recognized as having the bug fixes.)
+
+* Fixed some bugs in high score presentation on real DMD devices,
+which sometimes prevented high scores from displaying, or prevented
+the video/high score loop from continuing past a certain point.
 
 
 03-09-2019 (1.0.0 Beta 8)

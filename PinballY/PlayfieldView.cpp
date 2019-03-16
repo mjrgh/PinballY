@@ -10182,6 +10182,10 @@ void PlayfieldView::OnConfigChange()
 	infoBoxOpts.rating = cfg->GetBool(ConfigVars::InfoBoxRating, true);
 	infoBoxOpts.tableFile = cfg->GetBool(ConfigVars::InfoBoxTableFile, false);
 
+	// update real DMD gamma
+	if (realDMD != nullptr)
+		realDMD->UpdateGamma();
+
 	// notify Javascript
 	FireConfigEvent(jsSettingsReloadEvent);
 }

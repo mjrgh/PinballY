@@ -4,6 +4,7 @@ document.write("<script src=\"highlightjs/highlight.pack.js\" type=\"text/javasc
 $("head").prepend("<link rel=\"stylesheet\" type=\"text/css\" href=\"highlightjs/styles/vs.css\">");
 
 var contents = [
+   "Install.html Installation",
    "OptionSettings.html Option Settings",
         "+AttractModeOptions.html Attract Mode",
         "+AudioVideoOptions.html Audio/Video",

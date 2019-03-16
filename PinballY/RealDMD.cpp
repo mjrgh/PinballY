@@ -45,6 +45,7 @@ namespace ConfigVars
 {
 	static const TCHAR *MirrorHorz = _T("RealDMD.MirrorHorz");
 	static const TCHAR *MirrorVert = _T("RealDMD.MirrorVert");
+	static const TCHAR *Gamma = _T("RealDMD.GrayscaleGamma");
 }
 
 // -----------------------------------------------------------------------
@@ -94,6 +95,24 @@ RealDMD::RealDMD() :
 	std::unique_ptr<BYTE> emptyBuf(new BYTE[emptyBufSize]);
 	ZeroMemory(emptyBuf.get(), emptyBufSize);
 	emptySlide.Attach(new Slide(DMD_COLOR_MONO16, emptyBuf.release(), 0, Slide::EmptySlide));
+
+	// initialize gamma from the settings
+	UpdateGamma();
+}
+
+void RealDMD::UpdateGamma()
+{
+	// remember the gamma
+	float gamma = this->gamma = ConfigManager::GetInstance()->GetFloat(ConfigVars::Gamma, 2.8f);
+
+	// compute the grayscale mapping
+	for (int i = 0; i < 256; ++i)
+	{
+		int l = static_cast<int>(roundf(255.0f * powf(static_cast<float>(i) / 255.0f, gamma)));
+		l = max(0, l);
+		l = min(l, 255);
+		gammaMap[i] = l;
+	}
 }
 
 RealDMD::~RealDMD()
@@ -748,6 +767,7 @@ void RealDMD::BeginRunningGameMode()
 {
 	// clear media while running
 	ClearMedia();
+	curGame = nullptr;
 
 	// close the session
 	CloseSession();
@@ -782,14 +802,12 @@ void RealDMD::ClearMedia()
 	slideShow.clear();
 	slideShowPos = slideShow.end();
 
-	// there's now no game loaded
-	curGame = nullptr;
-
 	// kill any slide show timer
 	if (slideShowTimerID != 0)
 	{
 		KillTimer(NULL, slideShowTimerID);
 		slideShowTimerID = 0;
+		slideShowTimerRunning = false;
 	}
 
 	// send an empty frame to the display
@@ -949,7 +967,7 @@ void RealDMD::UpdateGame()
 		// If we found a video, and it's exactly the same video we're
 		// already playing, simply leave the current video running.
 		bool reload = true;
-		if (video.length() != 0 && videoPlayer != nullptr && videoPlayer->IsPlaying())
+		if (video.length() != 0 && videoPlayer != nullptr)
 		{
 			if (auto oldPath = videoPlayer->GetMediaPath();
 				oldPath != nullptr && _tcsicmp(oldPath, video.c_str()) == 0)
@@ -1084,10 +1102,10 @@ void RealDMD::UpdateGame()
 					bmp->UnlockBits(&bits);
 				}
 			}
-
-			// generate high-score graphics
-			GenerateHighScoreGraphics();
 		}
+
+		// generate high-score graphics
+		GenerateHighScoreGraphics();
 	}
 }
 
@@ -1205,16 +1223,28 @@ void RealDMD::StartSlideShow()
 {
 	// if we don't have any slides, there's nothing to do
 	if (slideShow.size() == 0)
+	{
+		// if there's a video player, and it's not already playing, loop it
+		if (videoPlayer != nullptr && !videoPlayer->IsPlaying())
+			videoPlayer->Replay(SilentErrorHandler());
+
+		// done
 		return;
+	}
 
 	// start at the first slide
 	slideShowPos = slideShow.begin();
+
+	// if a video is in progress, let it run - it'll start the slide show
+	// at its next loop
+	if (videoPlayer != nullptr && videoPlayer->IsPlaying())
+		return;
 
 	// render the first slide
 	RenderSlide();
 
 	// set a timer to advance to the next slide
-	slideShowTimerID = SetTimer(NULL, 0, (*slideShowPos)->displayTime, SlideTimerProc);
+	SetSlideShowTimer();
 }
 
 VOID CALLBACK RealDMD::SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
@@ -1231,6 +1261,7 @@ VOID CALLBACK RealDMD::SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DW
 	{
 		// we just killed the timer, so forget our record of its ID
 		inst->slideShowTimerID = 0;
+		inst->slideShowTimerRunning = false;
 
 		// advance to the next slide in the slide show
 		inst->NextSlide();
@@ -1239,6 +1270,7 @@ VOID CALLBACK RealDMD::SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DW
 
 void RealDMD::NextSlide()
 {
+	// if there are slides, advance to the next one
 	if (slideShow.size() != 0)
 	{
 		// if we're not already at the end of the list, advance to
@@ -1253,7 +1285,11 @@ void RealDMD::NextSlide()
 			// we alternate between the video and the slide show.
 			if (videoPlayer != nullptr)
 			{
-				videoPlayer->Replay(SilentErrorHandler());
+				// loop it if it's not already playing
+				if (!videoPlayer->IsPlaying())
+					videoPlayer->Replay(SilentErrorHandler());
+
+				// we're done until the video finishes this playback iteration
 				return;
 			}
 
@@ -1264,15 +1300,33 @@ void RealDMD::NextSlide()
 		// show the current slide
 		RenderSlide();
 
-		// set a timer to advance to the next slide
+		// set the slide show timer
+		SetSlideShowTimer();
+	}
+	else
+	{
+		// no slides - if there's a video player, and it's not already
+		// playing, loop it
+		if (videoPlayer != nullptr && !videoPlayer->IsPlaying())
+			videoPlayer->Replay(SilentErrorHandler());
+	}
+}
+
+void RealDMD::SetSlideShowTimer()
+{
+	// set a timer to advance to the next slide
+	if (!slideShowTimerRunning)
+	{
 		slideShowTimerID = SetTimer(NULL, 0, (*slideShowPos)->displayTime, SlideTimerProc);
+		slideShowTimerRunning = true;
 	}
 }
 
 void RealDMD::RenderSlide()
 {
-	// render the current slide
-	if (slideShow.size() != 0 && slideShowPos != slideShow.end())
+	// if a slide is current, and a video isn't playing, render the current slide
+	if (slideShow.size() != 0 && slideShowPos != slideShow.end()
+		&& !(videoPlayer != nullptr && videoPlayer->IsPlaying()))
 		SendWriterFrame(*slideShowPos);
 }
 
@@ -1487,6 +1541,9 @@ void RealDMD::GenerateHighScoreGraphics()
 
 	// reset the slide show pointer
 	slideShowPos = slideShow.end();
+
+	// restart the slide show
+	StartSlideShow();
 }
 
 bool RealDMD::SupportsRGBDisplay() const
@@ -1560,9 +1617,8 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 					if (c > a) a = c;
 					if (d > a) a = d;
 
-					// downconvert from 8 bits to 4 bits, clamp to 0..15, and store it
-					a >>= 4;
-					*dst = min(a, 15);
+					// downconvert from 8 bits to 4 bits
+					*dst = (gammaMap[a] >> 4) & 0x0F;
 					dst += dstColInc;
 				}
 			}
@@ -1582,8 +1638,7 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 				dstStartRow += dstRowInc;
 				for (int col = 0; col < dmdWidth; ++col)
 				{
-					BYTE b = (*y++) >> 4;
-					*dst = min(b, 15);
+					*dst = (gammaMap[*y++] >> 4) & 0x0F;
 					dst += dstColInc;
 				}
 			}
@@ -1712,6 +1767,7 @@ void RealDMD::VideoEndOfPresentation(WPARAM cookie)
 		case VideoMode::Startup:
 			// startup video - clear the media and notify the main window 
 			// that our startup video has finished
+			curGame = nullptr;
 			ClearMedia();
 			if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
 				pfv->OnEndExtStartupVideo();
@@ -1730,10 +1786,14 @@ void RealDMD::VideoLoopNeeded(WPARAM cookie)
 		// video.  The slide show will replay the video when it finishes
 		// with the last slide.  If there's no slide show, just loop the
 		// video immediately.
+		SilentErrorHandler seh;
 		if (slideShow.size() != 0)
+		{
+			videoPlayer->Stop(seh);
 			StartSlideShow();
+		}
 		else
-			videoPlayer->Replay(SilentErrorHandler());
+			videoPlayer->Replay(seh);
 	}
 }
 
@@ -1762,6 +1822,7 @@ bool RealDMD::LoadStartupVideo()
 		if (gl != nullptr && gl->FindGlobalVideoFile(startupVideo, _T("Startup Videos"), name))
 		{
 			// Got it.  Clear any previous media and set the default color scheme.
+			curGame = nullptr;
 			ClearMedia();
 			SetColorScheme(nullptr);
 
@@ -1811,7 +1872,10 @@ void RealDMD::EndStartupVideo()
 {
 	// end the startup video
 	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
+	{
+		curGame = nullptr;
 		ClearMedia();
+	}
 }
 
 bool RealDMD::IsStartupVideoPlaying() const

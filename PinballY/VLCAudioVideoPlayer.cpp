@@ -495,6 +495,7 @@ bool VLCAudioVideoPlayer::Stop(ErrorHandler &eh)
 		return true;
 
 	// stop playback
+	isPlaying = false;
 	libvlc_media_player_stop_(player);
 
 	// success

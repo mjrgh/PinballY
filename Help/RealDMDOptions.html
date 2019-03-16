@@ -84,6 +84,38 @@
 
 </ul>
 
+<h2>Gamma correction</h2>
+
+<p>
+   The <b>grayscale gamma</b> box lets you enter a gamma correction
+   value for grayscale video playback.  This is only used when playing
+   videos in grayscale mode, so it's primarily for people with
+   monochrome DMD displays, such as PinDMD v1 or v2 devices.
+</p>
+<p>
+   Gamma correction applies an adjustment to the brightness of each
+   pixel, to compensate for differences between the display device's
+   brightness curve and the way the human eye perceives brightness.
+   LED and plasma displays are actually <i>too</i> linear to look
+   right to the eye, since the eye perceives brightness on a
+   power-law curve.
+</p>
+<p>
+   The gamma value doesn't have any fixed range limits, but in
+   practice it will usually range from about 0.5 to 4.0.  Values
+   below 1.0 will tend to make the overall display look brighter
+   and decrease contrast between bright and dark pixels.
+   Values above 1.0 make the display look darker overall and
+   increase contrast.
+</p>
+<p>
+   There's no perfect or "right" gamma value, since it's all about making
+   the brightness curve look right to your eye, and that's inherently
+   subjective.  But with that in mind, it's mostly a function of the
+   display technology.  LEDs typically need a gamma around 2.8 to
+   look linear to the eye.
+</p>
+
 <a name="detect"></a>
 <h2>How PinballY detects a DMD</h2>
 <p>

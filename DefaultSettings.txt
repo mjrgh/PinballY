@@ -297,6 +297,11 @@ RealDMD = Off
 RealDMD.MirrorHorz = 0
 RealDMD.MirrorVert = 0
 
+# Real DMD grayscale gamma.  This sets the gamma correction value used
+# for playback of grayscale video.  Adjust this if video playback looks
+# too bright or dark on your real DMD display.
+RealDMD.GrayscaleGamma = 2.8
+
 
 # External program to run at startup.  This is executed when PinballY first
 # starts, before PinballY loads the game list or displays any UI windows.

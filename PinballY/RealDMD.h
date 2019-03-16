@@ -82,6 +82,9 @@ public:
 	void EndStartupVideo();
 	bool IsStartupVideoPlaying() const;
 
+	// initialize gamma from the settings
+	void UpdateGamma();
+
 protected:
 	// singleton instance
 	static RealDMD *inst;
@@ -113,6 +116,14 @@ protected:
 		DMD_COLOR_MONO16,		// 16-shade grayscale
 		DMD_COLOR_RGB			// 24-bit RGB
 	};
+
+	// gamma value
+	float gamma;
+
+	// Precomputed monochrome gamma table.  This is the map from
+	// a linear grayscale luminance value to a gamma-corrected
+	// luminance value.
+	BYTE gammaMap[256];
 
 	// default PM_GameSettings options
 	static const DMDDevice::tPMoptions defaultOpts;
@@ -309,6 +320,12 @@ protected:
 
 	// slide show timer ID
 	UINT_PTR slideShowTimerID;
+
+	// set the slide show timer
+	void SetSlideShowTimer();
+
+	// is the slide show timer running?
+	bool slideShowTimerRunning = false;
 
 	// timer event handler
 	static VOID CALLBACK SlideTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime);
