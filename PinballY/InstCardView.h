@@ -24,7 +24,8 @@ class VideoSprite;
 class TextureShader;
 class GameListItem;
 
-class InstCardView : public SecondaryView
+class InstCardView : public SecondaryView, public ConfigManager::Subscriber
+
 {
 public:
 	InstCardView();
@@ -35,10 +36,18 @@ protected:
 	// Get the background media info
 	virtual const MediaType *GetBackgroundImageType() const override;
 	virtual const MediaType *GetBackgroundVideoType() const override;
+	virtual void GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image) override;
 	virtual const TCHAR *GetDefaultBackgroundImage() const override { return _T("Default Instruction Card"); }
 	virtual const TCHAR *GetDefaultBackgroundVideo() const override { return _T("Default Instruction Card"); }
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video (instcard)"); }
 
 	// "show when running" window ID
 	virtual const TCHAR *ShowWhenRunningWindowId() const override { return _T("instcard"); }
+
+	// ConfigManager::Subscriber implementation
+	virtual void OnConfigReload() override { OnConfigChange(); }
+	void OnConfigChange();
+
+	// are SWF files enabled?
+	bool enableFlash = true;
 };

@@ -8,6 +8,10 @@
 
 IMPLEMENT_DYNAMIC(AudioVideoDialog, OptionsPage)
 
+BEGIN_MESSAGE_MAP(AudioVideoDialog, OptionsPage)
+	ON_WM_HSCROLL()
+END_MESSAGE_MAP()
+
 AudioVideoDialog::AudioVideoDialog(int dialogId) :
 	OptionsPage(dialogId)
 {
@@ -25,5 +29,32 @@ void AudioVideoDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Buttons.Mute"), IDC_CK_MUTE_BUTTONS, false));
 	varMap.emplace_back(new CkBoxMap(_T("VSyncLock"), IDC_CK_VSYNC_LOCK, false));
 	varMap.emplace_back(new CkBoxMap(_T("Playfield.Stretch"), IDC_CK_STRETCH_PLAYFIELD, false));
+	varMap.emplace_back(videoVolumeSlider = new SliderMap(_T("Video.MasterVolume"), IDC_SLIDER_VIDEO_VOL, IDC_TXT_VIDEO_VOL, 0, 100, 100));
+	varMap.emplace_back(buttonVolumeSlider = new SliderMap(_T("Buttons.Volume"), IDC_SLIDER_BUTTON_VOL, IDC_TXT_BUTTON_VOL, 0, 100, 100));
 }
 
+void AudioVideoDialog::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+	// if we're changing any of our volume sliders, update DDX variables
+	// and set the dirty-check timer
+	if (videoVolumeSlider->slider.GetSafeHwnd() == pScrollBar->GetSafeHwnd()
+		|| buttonVolumeSlider->slider.GetSafeHwnd() == pScrollBar->GetSafeHwnd())
+	{
+		UpdateData(TRUE);
+		SetTimer(DirtyCheckTimerId, 500, NULL);
+	}
+
+	__super::OnHScroll(nSBCode, nPos, pScrollBar);
+}
+
+void AudioVideoDialog::SliderMap::doDDX(CDataExchange *pDX)
+{
+	DDX_Slider(pDX, controlID, intVar);
+	UpdateLabel();
+}
+
+void AudioVideoDialog::SliderMap::LoadConfigVar()
+{
+	intVar = ConfigManager::GetInstance()->GetInt(configVar, defVal);
+	UpdateLabel();
+}

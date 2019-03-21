@@ -23,11 +23,26 @@ using namespace DirectX;
 namespace ConfigVars
 {
 	static const TCHAR *InstCardWinVarPrefix = _T("InstCardWindow");
+	static const TCHAR *EnableFlash = _T("InstructionCards.EnableFlash");
 };
 
 // construction
 InstCardView::InstCardView() : SecondaryView(IDR_INSTCARD_CONTEXT_MENU, ConfigVars::InstCardWinVarPrefix)
 {
+	// subscribe for configuration change events
+	ConfigManager::GetInstance()->Subscribe(this);
+	OnConfigChange();
+}
+
+void InstCardView::OnConfigChange()
+{
+	enableFlash = ConfigManager::GetInstance()->GetBool(ConfigVars::EnableFlash, true);
+}
+
+// get the background image, respecting the Flash Enabled option
+void InstCardView::GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image)
+{
+	game->GetMediaItem(image, *mtype, false, enableFlash);
 }
 
 // get the background media info

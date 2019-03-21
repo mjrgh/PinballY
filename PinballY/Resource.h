@@ -468,6 +468,12 @@
 #define IDS_SHOWMEDIA_CONFIRM_DEL_YES   981
 #define IDS_SHOWMEDIA_CONFIRM_DEL_NO    982
 
+#define IDS_SWF_ERROR                   990
+#define IDS_SWF_ERROR_DISABLE           991
+#define IDS_SWF_ERROR_SUPPRESS          992
+#define IDS_SWF_ERROR_IGNORE            993
+#define IDS_SWF_DISABLED                994
+
 #define ID_EXIT                         32777
 #define ID_OPTIONS                      32778
 #define ID_ABOUT                        32779
@@ -562,6 +568,8 @@
 #define ID_CAPTURE_LAYOUT_SKIP          32870
 #define ID_CAPTURE_LAYOUT_OK            32871
 #define ID_ADJUST_AUDIO_VOLUME          32872
+#define ID_SWF_ERROR_DISABLE            32873
+#define ID_SWF_ERROR_SUPPRESS           32874
 
 
 // Next default values for new objects

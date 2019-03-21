@@ -13,29 +13,54 @@
 <h1>Installation</h1>
 
 <p>
-   PinballY tries to make installation completely automatic,
+   PinballY tries to make installation mostly automatic,
    but there are a few details that you might have to take
-   care of to make PinballY work with all of your other
-   virtual pinball software.
+   care of manually.
+</p>
+
+<h2>Flash Player</h2>
+
+<p>
+   If you want PinballY to be able to display .swf (Shockwave Flash) files
+   for pinball instruction cards, you'll have to install the Adobe Flash
+   Player ActiveX control, also known as the Flash plug-in for IE (Internet
+   Explorer).  PinballY specifically requires the <b>ActiveX</b> version,
+   so you might have to add that to your system even if you already have
+   the Flash plug-in for Firefox or Chrome, as those browsers use
+   their own separate plug-ins that PinballY can't use.
+</p>
+<p>
+   Why in the world are we talking about SWF files 
+   when even Adobe considers them obsolete?  Because most of the
+   HyperPin Media Packs available online use SWF files for their
+   instruction card images.  This is mostly for historical reasons:
+   HyperPin (the earliest virtual pinball front end) used SWF
+   files for instruction cards, so it's what everyone used in the
+   early days to create Media Packs, and it's stuck ever since.
+   Those Media Pack files are still the most convenient source of 
+   instruction cards, flyers, and other media.  Maybe someday,
+   someone will tackle the rather large task of converting them
+   all to a more modern image file format.  Until then, it's easiest to
+   install Flash so that you can use all of those existing SWF files.
 </p>
 
 <h2>PinVol</h2>
 <p>
    If you're using <a target="_blank" href="http://mjrnet.org/pinscape/PinVol.html">PinVol</a>,
    you should update to <b>version 1.2</b> (July 2018) or later.  PinVol added recognition
-   for PinballY in that version.
+   for PinballY in that version to make the two programs work better together.
 </p>
 
 <h2>DOF (DirectOutput Framework)</h2>
 
 <p>
-   If you're using DOF for feedback devices in your pin cab, a few
-   extra steps might be needed:
+   If you're using DOF for feedback devices in your pin cab:
 </p>
 <ul>
    <li>If you're using the 64-bit version of PinballY, make
    sure your DOF software is one of my <a target="_blank" href="http://mjrnet.org/pinscape/dll-updates.html">DOF R3++</a>
-   releases dated <b>2018-09-04</b> or later.
+   releases dated <b>2018-09-04</b> or later.  Earlier versions of DOF
+   don't work with 64-bit programs.
    
    <li>Go to your Direct Output install folder, and open the Config folder.
    Make a copy of the file <b>GlobalConfig_B2SServer.xml</b> and
@@ -43,15 +68,15 @@
    
    <li>If you haven't refreshed your DOF config files from
    <a target="_blank" href="http://configtool.vpuniverse.com/">DOF Config Tool</a>
-   lately, you should update them.  Log in to the site in your
+   lately, you should update them now.  Log in to the site in your
    browser, and generate and download a fresh set of .ini files.
-   That will ensure your DOF settings include the new effects for PinballY.
+   That will ensure that your DOF settings include the new effects for PinballY.
    
 </ul>
 
 <h2>Real DMD</h2>
 <p>
-   If you're using a real DMD (dot matrix display) device (such as PinDMD or Pin2DMD),
+   If you're using a real DMD (dot matrix display) device, such as a PinDMD or Pin2DMD,
    you might need to update your copy of DmdDevice.dll (the system component that
    accesses the DMD device).
 </p>
@@ -71,12 +96,10 @@
 </ul>
 
 <p>
-   Version 1.7.2 has a known bug that prevents it from working
-   with ROM colorizations, so some people are still using my 1.7.1
+   Version 1.7.2 (even my patched 1.7.2) has a known bug that prevents it from
+   working with ROM colorizations, so some people are still using my 1.7.1
    patch for the time being, until that bug is fixed in the official
-   release branch.  (My patched 1.7.2 doesn't have a fix for the
-   colorization bug, so if you want to use colorization, stick with
-   1.7.1 for now.)
+   release branch.
 </p>
 
 <p>

@@ -163,10 +163,23 @@ Sprite *BaseView::PrepInstructionCard(const TCHAR *filename)
 	SIZE pixSize = { (int)(wid * szLayout.cy), (int)(ht * szLayout.cy) };
 
 	// load the image at the calculated size
-	Application::InUiErrorHandler eh;
+	CapturingErrorHandler eh;
 	RefPtr<Sprite> sprite(new Sprite());
 	if (!sprite->Load(filename, normSize, pixSize, eh))
+	{
+		// Load failed.  If the file is an SWF (Shockwave Flash), handle
+		// it with a special error in the main window, to give the user
+		// a chance to disable SWF loading in the future.  Otherwise 
+		// just show the error normally.
+		auto pfv = Application::Get()->GetPlayfieldView();
+		if (imageDesc.imageType == ImageFileDesc::SWF)
+			pfv->ShowFlashError(eh);
+		else
+			pfv->ShowError(EIT_Error, nullptr, &eh);
+
+		// return failure
 		return nullptr;
+	}
 
 	// return the new sprite, adding a reference on behalf of the caller
 	sprite->AddRef();

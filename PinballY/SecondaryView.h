@@ -84,6 +84,11 @@ protected:
 	virtual void GetMediaFiles(const GameListItem *game,
 		TSTRING &video, TSTRING &image, TSTRING &defaultVideo, TSTRING &defaultImage);
 
+	// Get an individual media item.  These get the main items only, 
+	// not the default files.
+	virtual void GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image);
+	virtual void GetBackgroundVideoMedia(const GameListItem *game, const MediaType *mtype, TSTRING &video);
+
 	// start a cross-fade for an incoming background image
 	void StartBackgroundCrossfade();
 

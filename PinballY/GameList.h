@@ -376,15 +376,18 @@ public:
 	// In this case, no check is made to determine if the file
 	// already exists, and the return value is always true.
 	//
+	// If 'enableSwf' is true, we'll include SWF (Shockwave Flash)
+	// files in the search; otherwise we'll skip these files.
+	//
 	bool GetMediaItem(TSTRING &filename,
-		const MediaType &mediaType, bool forCapture = false) const;
+		const MediaType &mediaType, bool forCapture = false, bool enableSwf = true) const;
 
 	// Get the list of media items for the given type
 	bool GetMediaItems(std::list<TSTRING> &filenames, 
 		const MediaType &mediaType, DWORD flags = GMI_EXISTS) const;
 
 	//
-	// GetMediaItems flags
+	// GetMediaItems() flags
 	//
 	
 	// Include only existing files
@@ -396,6 +399,9 @@ public:
 	// media type folder.  The exception is "paged" items (e.g., Flyer
 	// Images), which will include the page folder.
 	static const DWORD GMI_REL_PATH = 0x0002;
+
+	// Ignore SWF files
+	static const DWORD GMI_NO_SWF = 0x0004;
 
 
 	// Get the destination file for a given drop file

@@ -39,6 +39,22 @@ adjust the gamma as needed to make your display look right to your
 eye.  The new setting is in the options dialog, under the Real DMD
 tab.
 
+* A new option lets you set separate volume levels for videos and
+for button sound effects.  The volume levels can be adjusted in the
+options dialog under the Audio/Video section.
+
+* A new option lets you disable Shockwave Flash (SWF) files for
+instruction card images.  You'll find this option in the settings
+dialog under Instruction Cards.  By default, SWF files are included
+when searching for instruction card images, since many of the HyperPin
+Media Pack files available for download on the virtual pinball sites
+use SWF format for the instruction card images.  However, SWF files
+can only be displayed if you have the Adobe Flash Player ActiveX
+control (also known as the Flash plug-in for IE) installed, and some
+people don't want to install that extra software.  This new option
+lets you tell PinballY to ignore SWF files entirely, so that you won't
+see any error messages saying that Flash is missing.
+
 * Before now, the real DMD code treated freezy's dmd-extensions 1.7.2
 as having a couple of bugs that were actually fixed in that release,
 and turned off a couple of small features in order to work around the

@@ -22,5 +22,7 @@ void InstCardDialog::InitVarMap()
 	static const TCHAR *instCardLocs[] = { _T("Playfield"), _T("Backglass"), _T("Topper") };
 	varMap.emplace_back(new RadioStrMap(
 		_T("InstructionCardLocation"), IDC_RB_INST_PF, instCardLocs[1], instCardLocs, countof(instCardLocs)));
+
+	varMap.emplace_back(new CkBoxMap(_T("InstructionCards.EnableFlash"), IDC_CK_ENABLE_SWF, TRUE));
 }
 

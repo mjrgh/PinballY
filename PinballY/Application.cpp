@@ -81,6 +81,7 @@
 namespace ConfigVars
 {
 	static const TCHAR *MuteVideos = _T("Video.Mute");
+	static const TCHAR *VideoVolume = _T("Video.MasterVolume");
 	static const TCHAR *MuteTableAudio = _T("TableAudio.Mute");
 	static const TCHAR *EnableVideos = _T("Video.Enable");
 	static const TCHAR *MuteAttractMode = _T("AttractMode.Mute");
@@ -627,6 +628,7 @@ Application::Application()
 {
 	// initialize variables
 	muteVideos = false;
+	videoVolume = 100;
 	muteTableAudio = false;
 	muteAttractMode = true;
 	enableVideos = true;
@@ -824,6 +826,7 @@ void Application::OnConfigChange()
 	ConfigManager *cfg = ConfigManager::GetInstance();
 	enableVideos = cfg->GetBool(ConfigVars::EnableVideos, true);
 	muteVideos = cfg->GetBool(ConfigVars::MuteVideos, false);
+	videoVolume = cfg->GetInt(ConfigVars::VideoVolume, 100);
 	muteTableAudio = cfg->GetBool(ConfigVars::MuteTableAudio, false);
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
 	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
@@ -1531,7 +1534,23 @@ void Application::MuteVideos(bool mute)
 		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteVideos, mute);
 
 		// update the muting status for running videos
-		UpdateVideoMuting();
+		UpdateVideoVolume();
+	}
+}
+
+void Application::SetVideoVolume(int pctVol)
+{
+	// update playing videos if it's changing
+	if (pctVol != videoVolume)
+	{
+		// remember the new setting
+		videoVolume = pctVol;
+
+		// save it in the config
+		ConfigManager::GetInstance()->Set(ConfigVars::VideoVolume, pctVol);
+
+		// update the volume for running videos
+		UpdateVideoVolume();
 	}
 }
 
@@ -1562,31 +1581,38 @@ void Application::MuteAttractMode(bool mute)
 		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteAttractMode, mute);
 
 		// update the muting status for running videos
-		UpdateVideoMuting();
+		UpdateVideoVolume();
 	}
 }
 
-void Application::UpdateVideoMuting()
+void Application::UpdateVideoVolume()
 {
 	// get the active muting status
 	bool mute = IsMuteVideosNow();
+	int vol = videoVolume;
 
 	// update any playing videos in the windows that host them
-	auto DoMute = [mute](D3DView *view)
+	auto Update = [mute, vol](D3DView *view)
 	{
-		auto callback = [mute](Sprite *sprite)
+		auto callback = [mute, vol](Sprite *sprite)
 		{
 			if (auto video = dynamic_cast<VideoSprite*>(sprite); video != nullptr)
+			{
 				if (auto player = video->GetVideoPlayer(); player != nullptr)
+				{
 					player->Mute(mute);
+					if (!vol)
+						player->SetVolume(vol);
+				}
+			}
 		};
 		if (view != nullptr)
 			view->ForDrawingList(callback);
 	};
-	DoMute(GetPlayfieldView());
-	DoMute(GetBackglassView());
-	DoMute(GetDMDView());
-	DoMute(GetTopperView());
+	Update(GetPlayfieldView());
+	Update(GetBackglassView());
+	Update(GetDMDView());
+	Update(GetTopperView());
 }
 
 bool Application::IsMuteVideosNow() const

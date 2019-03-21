@@ -100,7 +100,9 @@ namespace ConfigVars
 	static const TCHAR *ExitMenuEnabled = _T("ExitMenu.Enabled");
 	static const TCHAR *ShowOpMenuInExitMenu = _T("ExitMenu.ShowOperatorMenu");
 	static const TCHAR *MuteButtons = _T("Buttons.Mute");
+	static const TCHAR *ButtonVolume = _T("Buttons.Volume");
 	static const TCHAR *InstCardLoc = _T("InstructionCardLocation");
+	static const TCHAR *InstCardEnableFlash = _T("InstructionCards.EnableFlash");
 	static const TCHAR *CoinSlotValue = _T("Coin%d.Value");
 	static const TCHAR *PricingModel = _T("PricingModel");
 	static const TCHAR *CreditBalance = _T("CreditBalance");
@@ -170,6 +172,7 @@ PlayfieldView::PlayfieldView() :
 	wheelAnimMode = WheelAnimNone;
 	menuAnimMode = MenuAnimNone;
 	muteButtons = false;
+	buttonVolume = 100;
 	lastDOFEventTime = 0;
 	coinBalance = 0.0f;
 	bankedCredits = 0.0f;
@@ -981,6 +984,8 @@ void PlayfieldView::InitJavascript()
 				C(RotateWindowCCW, ID_ROTATE_CCW);
 				C(MirrorWindowHorz, ID_MIRROR_HORZ);
 				C(MirrorWindowVert, ID_MIRROR_VERT);
+				C(SWFErrorDisable, ID_SWF_ERROR_DISABLE);
+				C(SWFErrorSuppress, ID_SWF_ERROR_SUPPRESS);
 #undef C
 
 				// initialize the ID-to-name table
@@ -3831,6 +3836,26 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		ShowCaptureDelayDialog(false);
 		return true;
 
+	case ID_SWF_ERROR_DISABLE:
+		// disable Flash in the config
+		ConfigManager::GetInstance()->SetBool(ConfigVars::InstCardEnableFlash, false);
+
+		// save and reload the configuration to effect the change immediately
+		ConfigManager::GetInstance()->Save();
+		Application::Get()->ReloadConfig();
+
+		// display the confirmation
+		ShowError(EIT_Information, LoadStringT(IDS_SWF_DISABLED));
+
+		// done
+		return true;
+
+
+	case ID_SWF_ERROR_SUPPRESS:
+		// flag that we should ignore Flash errors for this sessionj
+		showFlashErrors = false;
+		return true;
+
 	default:
 		// check for game filters
 		if (cmd >= ID_FILTER_FIRST && cmd <= ID_FILTER_LAST)
@@ -4578,6 +4603,18 @@ void PlayfieldView::OnGameTimeout()
 	}
 }
 
+bool PlayfieldView::InstructionCardExists(GameListItem *game)
+{
+	// figure the media search flags
+	DWORD gmiFlags = GameListItem::GMI_EXISTS;
+	if (!instCardEnableFlash)
+		gmiFlags |= GameListItem::GMI_NO_SWF;
+
+	// load the instruction card list; return true if it contains any items
+	std::list<TSTRING> cards;
+	return game->GetMediaItems(cards, GameListItem::instructionCardImageType, gmiFlags) && cards.size() != 0;
+}
+
 void PlayfieldView::ShowInstructionCard(int cardNumber)
 {
 	// fire an event first, abort on cancel
@@ -4590,9 +4627,14 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 	if (!IsGameValid(game))
 		return;
 
+	// figure the media search flags
+	DWORD gmiFlags = GameListItem::GMI_EXISTS;
+	if (!instCardEnableFlash)
+		gmiFlags |= GameListItem::GMI_NO_SWF;
+
 	// load the instruction card list
 	std::list<TSTRING> cards;
-	if (!game->GetMediaItems(cards, GameListItem::instructionCardImageType))
+	if (!game->GetMediaItems(cards, GameListItem::instructionCardImageType, gmiFlags))
 		return;
 
 	// if the selected page is out of range, wrap it
@@ -4645,24 +4687,27 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 		ok = (popupSprite != nullptr);
 	}
 
-	// If we're displaying the card in another window, we still
-	// need to display a fake popup in our own window so that we
-	// act like we're in popup mode as long a the card is up. 
-	// Just set up a blank sprite.
-	if (ok && !displayHere)
-		popupSprite.Attach(new Sprite());
+	if (ok)
+	{
+		// If we're displaying the card in another window, we still
+		// need to display a fake popup in our own window so that we
+		// act like we're in popup mode as long a the card is up. 
+		// Just set up a blank sprite.
+		if (!displayHere)
+			popupSprite.Attach(new Sprite());
 
-	// remember which card we're showing (there might be more than one)
-	instCardPage = cardNumber;
+		// remember which card we're showing (there might be more than one)
+		instCardPage = cardNumber;
 
-	// if we're switching to instruction card mode, animate the popup
-	StartPopupAnimation(PopupInstructions, popupName, true);
+		// if we're switching to instruction card mode, animate the popup
+		StartPopupAnimation(PopupInstructions, popupName, true);
 
-	// update the drawing list for the new sprite
-	UpdateDrawingList();
+		// update the drawing list for the new sprite
+		UpdateDrawingList();
 
-	// Signal an Instruction Card event in DOF
-	QueueDOFPulse(L"PBYInstructions");
+		// Signal an Instruction Card event in DOF
+		QueueDOFPulse(L"PBYInstructions");
+	}
 }
 
 void PlayfieldView::ShowFlyer(int pageNumber)
@@ -5065,28 +5110,32 @@ void PlayfieldView::ApplyWorkingAudioVolume()
 	workingAudioVolume = max(0, workingAudioVolume);
 	workingAudioVolume = min(workingAudioVolume, 100);
 
+	// figure the actual volume by combining the working volume and the
+	// global video volume setting
+	int vol = workingAudioVolume * Application::Get()->GetVideoVolume() / 100;
+
 	// update our video sprites
-	auto Update = [this](GameMedia<VideoSprite> &media)
+	auto Update = [vol](GameMedia<VideoSprite> &media)
 	{
 		// update its video player, if it has one
 		if (media.sprite != nullptr && media.sprite->IsVideo())
 		{
 			if (auto vp = media.sprite->GetVideoPlayer(); vp != nullptr)
-				vp->SetVolume(workingAudioVolume);
+				vp->SetVolume(vol);
 		}
 
 		// update its audio player, if it has one
 		if (media.audio != nullptr)
-			media.audio->SetVolume(workingAudioVolume);
+			media.audio->SetVolume(vol);
 	};
 	Update(incomingPlayfield);
 	Update(currentPlayfield);
 
 	// update the secondary windows
-	auto Update2 = [this](SecondaryView *view)
+	auto Update2 = [vol](SecondaryView *view)
 	{
 		if (view != nullptr)
-			view->ApplyWorkingAudioVolume(workingAudioVolume);
+			view->ApplyWorkingAudioVolume(vol);
 	};
 	auto app = Application::Get();
 	Update2(app->GetBackglassView());
@@ -5096,7 +5145,7 @@ void PlayfieldView::ApplyWorkingAudioVolume()
 
 	// update the real DMD video
 	if (realDMD != nullptr)
-		realDMD->ApplyWorkingAudioVolume(workingAudioVolume);
+		realDMD->ApplyWorkingAudioVolume(vol);
 }
 
 void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
@@ -6747,6 +6796,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		volumePct = GameList::Get()->GetAudioVolume(game);
 	}
 
+	// combine the game-specific volume with the global video volume level
+	volumePct = volumePct * Application::Get()->GetVideoVolume() / 100;
+
 	// If the outgoing game has a database record but is still marked
 	// as unconfigured, the game details must have been added just now.
 	// The nominally unconfigured status lasts as long as it's the
@@ -8032,6 +8084,35 @@ void PlayfieldView::ShowQueuedError()
 	// animate the popup
 	StartPopupAnimation(PopupErrorMessage, popupName, true);
 	UpdateDrawingList();
+}
+
+void PlayfieldView::ShowFlashError(const ErrorList &list)
+{
+	// if Flash errors are disabled for this session, ignore the error
+	if (!showFlashErrors)
+		return;
+
+	// make a string out of the error list
+	TSTRING msg;
+	list.EnumErrors([&msg](const ErrorList::Item &item) {
+		if (msg.length() != 0)
+			msg.append(_T("\n"));
+		if (item.details.length() != 0)
+			msg.append(MsgFmt(_T("%s (%s)"), item.message.c_str(), item.details.c_str()));
+		else
+			msg.append(item.message.c_str());
+	});
+
+	// construct the menu
+	std::list<MenuItemDesc> md;
+	md.emplace_back(MsgFmt(IDS_SWF_ERROR, msg.c_str()), -1);
+	md.emplace_back(_T(""), -1);
+	md.emplace_back(LoadStringT(IDS_SWF_ERROR_DISABLE), ID_SWF_ERROR_DISABLE);
+	md.emplace_back(LoadStringT(IDS_SWF_ERROR_SUPPRESS), ID_SWF_ERROR_SUPPRESS);
+	md.emplace_back(LoadStringT(IDS_SWF_ERROR_IGNORE), ID_MENU_RETURN);
+
+	// show the menu
+	ShowMenu(md, _T("swf error"), SHOWMENU_DIALOG_STYLE);
 }
 
 void PlayfieldView::AdjustSpritePosition(Sprite *sprite)
@@ -10044,12 +10125,16 @@ void PlayfieldView::OnConfigChange()
 		p = endp + 1;
 	}
 
-	// load the button mute setting
+	// load the button mute and volume settings
 	muteButtons = cfg->GetBool(ConfigVars::MuteButtons, false);
+	buttonVolume = cfg->GetInt(ConfigVars::ButtonVolume, 100);
 
 	// load the instruction card location; lower-case it for case-insensitive comparisons
 	instCardLoc = cfg->Get(ConfigVars::InstCardLoc, _T(""));
 	std::transform(instCardLoc.begin(), instCardLoc.end(), instCardLoc.begin(), ::_totlower);
+
+	// are SWF files enabled for instruction cards?
+	instCardEnableFlash = cfg->GetBool(ConfigVars::InstCardEnableFlash, true);
 
 	// we're not currently using any mouse commands with an Alt key
 	altHasMouseCommand = false;
@@ -10623,8 +10708,8 @@ void PlayfieldView::ShowMainMenu()
 		if (curGame->MediaExists(GameListItem::flyerImageType))
 			md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
 
-		// add "Instructions",if the game has an instruction card
-		if (curGame->MediaExists(GameListItem::instructionCardImageType))
+		// add "Instructions", if the game has an instruction card
+		if (InstructionCardExists(curGame))
 			md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
 
 		// add a separator
@@ -10729,7 +10814,7 @@ void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 			md.emplace_back(LoadStringT(IDS_MENU_HIGH_SCORES), ID_HIGH_SCORES);
 		if (curGame->MediaExists(GameListItem::flyerImageType))
 			md.emplace_back(LoadStringT(IDS_MENU_FLYER), ID_FLYER);
-		if (curGame->MediaExists(GameListItem::instructionCardImageType))
+		if (InstructionCardExists(curGame))
 			md.emplace_back(LoadStringT(IDS_MENU_INSTRUCTIONS), ID_INSTRUCTIONS);
 		md.emplace_back(_T(""), -1);
 	}
@@ -10930,9 +11015,14 @@ void PlayfieldView::PlayButtonSound(const TCHAR *effectName, float volume)
 {
 	if (!muteButtons)
 	{
+		// look up the effect file
 		TCHAR path[MAX_PATH];
 		if (auto gl = GameList::Get(); gl != nullptr && gl->FindGlobalWaveFile(path, _T("Button Sounds"), effectName))
-			AudioManager::Get()->PlayFile(path, volume);
+		{
+			// play back the file, combining the caller's volume level and the global
+			// button volume setting
+			AudioManager::Get()->PlayFile(path, volume*buttonVolume / 100);
+		}
 	}
 }
 
@@ -16360,7 +16450,7 @@ void PlayfieldView::OnStartAttractMode()
 	CloseMenusAndPopups();
 
 	// update video muting for the new attract mode status
-	Application::Get()->UpdateVideoMuting();
+	Application::Get()->UpdateVideoVolume();
 
 	// update the javascript UI mode
 	UpdateJsUIMode();
@@ -16383,7 +16473,7 @@ void PlayfieldView::OnEndAttractMode()
 	UpdateInfoBox();
 		
 	// update video muting, in case videos were muted in attract mode
-	Application::Get()->UpdateVideoMuting();
+	Application::Get()->UpdateVideoVolume();
 
 	// update the javascript UI mode
 	UpdateJsUIMode();

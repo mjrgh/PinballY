@@ -108,6 +108,17 @@ public:
 	void ShowError(ErrorIconType iconType, const TCHAR *groupMsg, const ErrorList *list = 0);
 	void ShowSysError(const TCHAR *msg, const TCHAR *details);
 
+	// Show an error box for a Flash file loading error.  This offers
+	// the user an option to disable Flash permanently or ignore
+	// errors for the remainder of this session.
+	void ShowFlashError(const ErrorList &list);
+
+	// Are Flash errors enabled for this session?  ShowFlashError()
+	// gives the user an option to suppress any Flash error messages
+	// for the remainder of the current session without actually
+	// disabling SWF media.  
+	bool showFlashErrors = true;
+
 	// Show an error with automatic dismissal after a given timeout
 	void ShowErrorAutoDismiss(DWORD timeout_ms, ErrorIconType iconType,
 		const TCHAR *groupMsg, const ErrorList *list = 0);
@@ -464,6 +475,9 @@ protected:
 	void ShowInstructionCard(int cardNumber = 0);
 	void RateGame();
 	void ShowHighScores();
+
+	// does at least one instruction card image exist for a game?
+	bool InstructionCardExists(GameListItem *game);
 
 	// play a specific game with a specific system
 	void PlayGame(int cmd, DWORD launchFlags, GameListItem *game, GameSystem *system, 
@@ -1349,6 +1363,9 @@ protected:
 	// Instruction card location, from the configuration
 	TSTRING instCardLoc;
 
+	// Are SWF files enabled for instruction cards?
+	bool instCardEnableFlash = true;
+
 	// Queued errors.  If an error occurs while we're showing an
 	// error popup, we'll queue it for display after the current
 	// error is dismissed.
@@ -1813,6 +1830,10 @@ protected:
 	// on the level while making adjustments.
 	struct QueuedKey;
 	float GetContextSensitiveButtonVolume(const QueuedKey &key) const;
+
+	// Button sound effect volume, as a percentage of the system
+	// master volume level (0..100)
+	int buttonVolume;
 
 	// Are button/event sound effects muted?
 	bool muteButtons;

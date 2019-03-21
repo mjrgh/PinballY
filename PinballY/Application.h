@@ -349,6 +349,10 @@ public:
 	void ToggleMuteVideos() { MuteVideos(!muteVideos); }
 	bool IsMuteVideos() const { return muteVideos; }
 
+	// get/set the video volume level
+	int GetVideoVolume() const { return videoVolume; }
+	void SetVideoVolume(int pctVol);
+
 	// Mute table audio
 	void MuteTableAudio(bool mute);
 	void ToggleMuteTableAudio() { MuteTableAudio(!muteTableAudio); }
@@ -367,13 +371,13 @@ public:
 	// global config settings and the current night mode status.
 	bool IsMuteVideosNow() const;
 
-	// Update the video muting status for all active videos, taking
-	// into account the global config settings and the current Attract
-	// Mode status.  We automatically call this internally on changing
-	// any of the mute settings via our methods (MuteVideos(), etc).
-	// This should also be called explicitly after entering or exiting
-	// Attract Mode.
-	void UpdateVideoMuting();
+	// Update the video volume and muting status for all active videos, 
+	// taking into account the global config settings and the current 
+	// Attract Mode status.  We automatically call this internally on 
+	// changing any of the volume or mute settings via our methods 
+	// (MuteVideos(), etc).  This should also be called explicitly 
+	// after entering or exiting Attract Mode.
+	void UpdateVideoVolume();
 
 	// Update the Pinscape device list.  Returns true if any Pinscape
 	// devices are currently active, false if not.
@@ -495,6 +499,9 @@ protected:
 
 	// are videos muted?
 	bool muteVideos;
+
+	// video volume level
+	int videoVolume;
 
 	// are table audios muted?
 	bool muteTableAudio;

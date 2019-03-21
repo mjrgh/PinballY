@@ -380,6 +380,35 @@ Playfield.Stretch = 0
 #
 InstructionCardLocation = Backglass
 
+# Are Shockwave Flash (.swf) files allowed for instruction cards?  If
+# this is enabled, the system will look for .swf files in addition to
+# the usual complement of image types (.png, .jpg, .jpeg) when searching
+# for instruction card images.  If this is disabled, .swf files will be
+# ignored.
+#
+# In order to use .swf files, the Adobe Shockwave Flash Player ActiveX
+# control must be installed on your system.  (Note that Flash Player
+# has separate plug-ins for IE and for other browsers.  PinballY can
+# only use the ActiveX IE plug-in, so you might have to install that
+# separately even if you already have another Flash plug-in for a
+# different browser.)  If for some reason you don't want to install
+# the Flash ActiveX on your system, you can disable this option to
+# make PinballY ignore SWF files, to avoid any error messages from
+# attempts to load them.
+#
+# Why is this even an issue, you might ask, when SWF is an obsolete
+# format?  Even Adobe, its creator, says it's obsolete.  The reason
+# is purely historical.  HyperPin, the first front end for pin cabs, 
+# used SWF for instruction cards.  That led to a large number of
+# downloadable Media Packs for HyperPin including instruction cards
+# in SWF format.  Those old Media Packs are still around and they're
+# still the most convenient way to get all of the media "extras" for
+# your games.  PinballY therefore supports SWF so that you can use
+# the many existing Media Packs without having to go through any
+# tedious format conversions every time you download one.
+# 
+InstructionCards.EnableFlash = 1
+
 # Default font family for most UI elements.
 DefaultFontFamily = Tahoma
 
@@ -441,6 +470,17 @@ CreditsFont = * * *
 # using the "Exit" menu.
 Video.Mute = 0
 
+# Master volume control for videos.  This sets the volume level
+# for all video playback, relative to the Windows system volume.
+# This is a percentage of the system volume, 0 to 100.
+#
+# You can also control the volume level for each game's videos
+# separately, via Operator Menu > Adjust Audio Volume.  The volume
+# level for each game is combined with the master volume, so a
+# change to the master volume will still affect all games, even
+# games with individual level settings.
+Video.MasterVolume = 100
+
 # Mute table audio.  This controls playback on table audio media,
 # separately from the video muting.
 TableAudio.Mute = 0
@@ -459,6 +499,11 @@ AttractMode.Mute = 1
 # Mute the sound effects for all button presses.  You can also change
 # this from the "Exit" menu.
 Buttons.Mute = 0
+
+# Audio volume level for the button sound effects, relative to the
+# Windows system volume setting.  This is a percentage value, from
+# 0 to 100.
+# Buttons.Volume = 100
 
 
 # Is the Exit menu enabled?  If this is true (1), pressing the Exit 

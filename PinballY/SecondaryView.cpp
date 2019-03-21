@@ -35,11 +35,11 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 {
 	// if we have a background image type, look for a matching file
 	if (auto m = GetBackgroundImageType(); m != nullptr)
-		game->GetMediaItem(image, *m);
+		GetBackgroundImageMedia(game, m, image);
 
 	// if we have a background video type, look for a matching file
 	if (auto m = GetBackgroundVideoType(); m != nullptr)
-		game->GetMediaItem(video, *m);
+		GetBackgroundVideoMedia(game, m, video);
 
 	// get our default video and image files
 	if (auto gl = GameList::Get(); gl != nullptr)
@@ -51,6 +51,16 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 		if (gl->FindGlobalImageFile(buf, _T("Images"), GetDefaultBackgroundImage()))
 			defaultImage = buf;
 	}
+}
+
+void SecondaryView::GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image)
+{
+	game->GetMediaItem(image, *mtype);
+}
+
+void SecondaryView::GetBackgroundVideoMedia(const GameListItem *game, const MediaType *mtype, TSTRING &video)
+{
+	game->GetMediaItem(video, *mtype);
 }
 
 void SecondaryView::UpdateDrawingList()
@@ -241,8 +251,11 @@ void SecondaryView::SyncCurrentGame()
 		&& currentBackground.sprite != nullptr && currentBackground.game == game)
 		return;
 
-	// get the audio volume
+	// get the audio volume for the game
 	int volPct = gl->GetAudioVolume(game);
+
+	// combine it with the global video volume setting
+	volPct = volPct * Application::Get()->GetVideoVolume() / 100;
 
 	// get the media files
 	TSTRING video, image, defaultVideo, defaultImage;

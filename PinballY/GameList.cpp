@@ -11,6 +11,7 @@
 #include "../Utilities/PBXUtil.h"
 #include "../Utilities/GlobalConstants.h"
 #include "../Utilities/DateUtil.h"
+#include "GraphicsUtil.h"
 #include "GameList.h"
 #include "Application.h"
 #include "LogFile.h"
@@ -4046,12 +4047,16 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 }
 
 bool GameListItem::GetMediaItem(TSTRING &filename,
-	const MediaType &mediaType, bool forCapture) const
+	const MediaType &mediaType, bool forCapture, bool enableSwf) const
 {
 	// if we're getting a name for capture purposes, the file
 	// doesn't have to exist; otherwise, we're looking for an
 	// extant file
-	DWORD flags = forCapture ? 0 : GMI_EXISTS;
+	DWORD flags = 0;
+	if (!forCapture)
+		flags |= GMI_EXISTS;
+	if (!enableSwf)
+		flags |= GMI_NO_SWF;
 
 	// get the list of media items
 	std::list<TSTRING> lst;
@@ -4064,8 +4069,10 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 		TCHAR dir[MAX_PATH];
 		mediaType.GetMediaPath(dir, system != nullptr ? system->mediaDir.c_str() : nullptr);
 		LogFile::Get()->Group();
-		LogFile::Get()->Write(_T("Media file lookup for %s%s: %s, path %s, found %s\n"),
-			title.c_str(), forCapture ? _T(", for capture") : _T(""),
+		LogFile::Get()->Write(_T("Media file lookup for %s%s%s: %s, path %s, found %s\n"),
+			title.c_str(), 
+			forCapture ? _T(", for capture") : _T(""),
+			enableSwf ? _T("") : _T(", ignore .swf"),
 			LoadStringT(mediaType.nameStrId).c_str(),
 			dir, lst.size() == 0 ? _T("no matches") : lst.front().c_str());
 	}
@@ -4171,6 +4178,7 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 				// one extension by separating items with spaces, so only append
 				// up to (and not including) the next space.
 				size_t index = endIndex;
+				const TCHAR *curExt = relName + index;
 				for (; *ext != 0 && *ext != ' '; ++ext)
 				{
 					// add this character if there's room
@@ -4185,10 +4193,43 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 				TCHAR fullName[MAX_PATH];
 				PathCombine(fullName, dir, relName);
 
-				// Include the file if the GMI_EXISTS flag isn't set (meaning
-				// that we're listing all files, even non-existent ones), or the
-				// file exists.
-				if (!(flags & GMI_EXISTS) || FileExists(fullName))
+				// assume we'll include this file, but we'll have to run some checks
+				// before knowing for sure
+				bool include = true;
+
+				// if the GMI_EXISTS flag is set, only include the file if it exists
+				if ((flags & GMI_EXISTS) != 0 && !FileExists(fullName))
+					include = false;
+
+				// If GMI_NO_SWF is set, skip it if it's an SWF file.  Note that there's
+				// a crazy special case thanks to HyperPin history: HyperPin required
+				// instruction card files to be named with an .swf extension, but it 
+				// nonetheless accepted PNG and JPG files, so long as they had the .swf
+				// suffix.  That is, the *contents* could actually be PNG or JPG format
+				// as long as the *name* looked like *.swf.  So: if the filename ends in
+				// .swf, and the file exists, check its contents to determine the actual
+				// format.  If the name ends in .swf and the file doesn't exist, treat
+				// it as SWF and exclude it.
+				if ((flags & GMI_NO_SWF) != 0 && _tcsicmp(curExt, _T(".swf")) == 0)
+				{
+					// it ends with .swf, so assume it's SWF based on the name...
+					bool swf = true;
+
+					// ...but if the file exists, check the contents to be sure
+					if (FileExists(fullName))
+					{
+						ImageFileDesc desc;
+						if (GetImageFileInfo(fullName, desc) && desc.imageType != ImageFileDesc::SWF)
+							swf = false;
+					}
+
+					// if it's an SWF file after all, exclude it
+					if (swf)
+						include = false;
+				}
+
+				// if we decided to include the file, add it to the list
+				if (include)
 					filenames.emplace_back((flags & GMI_REL_PATH) != 0 ? relName : fullName);
 
 				// if we're at a space separator in the extension string, skip it
