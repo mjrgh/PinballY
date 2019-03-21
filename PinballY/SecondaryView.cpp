@@ -314,7 +314,19 @@ void SecondaryView::SyncCurrentGame()
 
 			// try the image if that didn't work
 			if (!ok && image.length() != 0)
-				ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, eh);
+			{
+				// try loading the image
+				CapturingErrorHandler ceh;
+				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, ceh)))
+				{
+					// if this is an SWF file, log the error specially
+					ImageFileDesc desc;
+					if (GetImageFileInfo(image.c_str(), desc) && desc.imageType == ImageFileDesc::SWF)
+						eh.FlashError(ceh);
+					else
+						eh.GroupError(EIT_Error, nullptr, ceh);
+				}
+			}
 
 			// try the default video if we still don't have anything
 			if (!ok && videosEnabled && defaultVideo.length() != 0)

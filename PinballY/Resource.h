@@ -472,7 +472,8 @@
 #define IDS_SWF_ERROR_DISABLE           991
 #define IDS_SWF_ERROR_SUPPRESS          992
 #define IDS_SWF_ERROR_IGNORE            993
-#define IDS_SWF_DISABLED                994
+#define IDS_SWF_ERROR_HELP              994
+#define IDS_SWF_DISABLED                995
 
 #define ID_EXIT                         32777
 #define ID_OPTIONS                      32778
@@ -570,6 +571,7 @@
 #define ID_ADJUST_AUDIO_VOLUME          32872
 #define ID_SWF_ERROR_DISABLE            32873
 #define ID_SWF_ERROR_SUPPRESS           32874
+#define ID_SWF_ERROR_HELP               32875
 
 
 // Next default values for new objects
@@ -578,7 +580,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32873
+#define _APS_NEXT_COMMAND_VALUE         32876
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

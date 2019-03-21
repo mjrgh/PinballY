@@ -370,12 +370,20 @@ STDMETHODIMP FlashClientSite::OnDefWindowMessage(UINT msg, WPARAM wParam, LPARAM
 HRESULT FlashClientSite::Create(FlashClientSite **ppClientSite,
 	const TCHAR *swfFile, int width, int height, ErrorHandler &eh)
 {
+	// create our client site object
+	RefPtr<FlashClientSite> pClientSite(new FlashClientSite(swfFile));
+
+	// error return
 	HRESULT hr = S_OK;
-	auto RetHR = [&hr, &eh](const TCHAR *where, bool preLoad = false)
+	auto RetHR = [&hr, &eh, &pClientSite](const TCHAR *where, bool preLoad = false)
 	{
+		// log the error
 		WindowsErrorMessage winErr(hr);
 		eh.SysError(LoadStringT(preLoad ? IDS_ERR_CREATESWFOBJ : IDS_ERR_INITSWFOBJ),
 			MsgFmt(_T("%s failed, error %lx: %s"), where, (long)hr, winErr.Get()));
+
+		// shut down the client site, to disentangle COM references
+		pClientSite->Shutdown();
 
 		// return the HRESULT
 		return hr;
@@ -386,13 +394,10 @@ HRESULT FlashClientSite::Create(FlashClientSite **ppClientSite,
 	if (FAILED(hr = StgCreateDocfile(0, STGM_READWRITE | STGM_SHARE_EXCLUSIVE | STGM_DIRECT | STGM_CREATE, 0, &pStorage)))
 		return RetHR(_T("StgCreateDocfile"), true);
 
-	// create our client site object
-	RefPtr<FlashClientSite> pClientSite(new FlashClientSite(swfFile));
-
 	// create the ShockwaveFlash OLE object - this is the main ActiveX control
-	if (FAILED(hr = OleCreate(
+	if (FAILED((hr = OleCreate(
 		__uuidof(ShockwaveFlashObjects::ShockwaveFlash), IID_IOleObject,
-		OLERENDER_DRAW, 0, pClientSite, pStorage, (void**)&pClientSite->pOleObj)))
+		OLERENDER_DRAW, 0, pClientSite, pStorage, (void**)&pClientSite->pOleObj), hr = E_NOINTERFACE)))
 		return RetHR(_T("OleCreate(ShockwaveFlash)"), true);
 
 	// Get the IShockwaveFlash interface

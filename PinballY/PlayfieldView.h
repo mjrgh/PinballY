@@ -462,8 +462,9 @@ protected:
 	// about box
 	void ShowAboutBox();
 
-	// help
-	void ShowHelp();
+	// Show help.  If a section name is provided, it's the base name
+	// of the section, without a path or .html extension.
+	void ShowHelp(const TCHAR *section = _T("PinballY"));
 
 	// open a file or program via ShellExecute
 	void ShellExec(const TCHAR *file, const TCHAR *params = _T(""));

@@ -5,6 +5,7 @@ $("head").prepend("<link rel=\"stylesheet\" type=\"text/css\" href=\"highlightjs
 
 var contents = [
    "Install.html Installation",
+        "+SWF.html Flash Player",
    "OptionSettings.html Option Settings",
         "+AttractModeOptions.html Attract Mode",
         "+AudioVideoOptions.html Audio/Video",

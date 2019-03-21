@@ -50,8 +50,9 @@ const UINT PFVMsgManualGo = WM_USER + 206;          // manual start/stop event f
 const UINT PFVMsgLaunchThreadExit = WM_USER + 207;  // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)
 const UINT PFVMsgShowError = WM_USER + 208;			// LPARAM = const PFVMsgShowErrorParams *params
 const UINT PFVMsgShowSysError = WM_USER + 209;		// WPARAM = TCHAR *friendly, LPARAM = const TCHAR *details
-const UINT PFVMsgPlayElevReqd = WM_USER + 210;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
-const UINT PFVMsgJsDebugMessage = WM_USER + 211;    // Javascript debug request received from debugger UI
+const UINT PFVMsgShowFlashError = WM_USER + 210;    // LPARAM = const ErrorList *errorList
+const UINT PFVMsgPlayElevReqd = WM_USER + 211;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
+const UINT PFVMsgJsDebugMessage = WM_USER + 212;    // Javascript debug request received from debugger UI
 
 // DMDView messages
 const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images

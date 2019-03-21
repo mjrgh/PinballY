@@ -156,6 +156,9 @@ public:
 		virtual void Display(ErrorIconType iconType, const TCHAR *msg) override;
 		virtual void GroupError(ErrorIconType icon, const TCHAR *summary, const class ErrorList &geh) override;
 		virtual void SysError(const TCHAR *friendly, const TCHAR *details) override;
+
+		// invoke the special Shockwave Flash (SWF) error handler
+		void FlashError(const class ErrorList &geh);
 	};
 
 	// Clear media from all windows.  This releases any sprites

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Flash Player (.swf files)</h1>
+
+<p>
+   <img src="SampleInstructionCard.png" style="float: right; margin: 0px 0px 1em 2em;">
+   For historical reasons, many of the scanned pinball apron instruction
+   cards that you can find for download on the Web are in SWF
+   (Shockwave Flash) format.  PinballY can display these instruction
+   card files, but only if you install the Adobe Flash Player ActiveX
+   control.
+</p>
+
+<h2>What to install</h2>
+<p>
+   PinballY specifically requires the <b>ActiveX</b> version of the
+   Flash Player.  This is also known as the Flash plug-in for
+   Internet Explorer.  There are separate Flash plug-ins for other
+   browsers as well, but PinballY can't use those.  You'll need
+   to install the ActiveX version even if
+   you already have Flash working in Chrome or Firefox.
+</p>
+<p>
+   Getting the ActiveX version is a bit trickier than you'd think.
+   Adobe's Flash download page tries to make things "easy" by automatically
+   selecting a plug-in to match the browser you use to access the
+   download page.  But that actually makes things harder in this case,
+   when you need a specific version.  Here's how to override the automatic
+   selection and get the version you actually need for PinballY:
+</p>
+<ul>
+   <li>Go to the <a target="_blank" href="https://get.adobe.com/flashplayer/">Adobe Flash download page</a>
+
+   <li>Click "Need Flash Player for a different computer?"
+
+   <li>Select "Windows 7/Vista/XP" for the operating system (regardless of what you're using)
+
+   <li>Select "FP 32 for Internet Explorer - ActiveX" for the version
+
+   <li>Un-check the various MacAfee bloatware add-on boxes (unless you like bloatware!)
+
+   <li>Click Download Now
+
+   <li>Run the downloaded installer EXE file and follow the on-screen prompts to install
+</ul>
+
+<h2>But I already installed Flash for my Web browser!</h2>
+
+<p>
+   The Flash plug-in comes in several versions for different browsers.
+   Chrome uses one version, Firefox uses another version, and Internet
+   Explorer uses yet another.  Unfortunately, the different plug-ins
+   have incompatible interfaces, so you have to separately install each
+   one that you need.  What's more, some browsers have Flash support
+   built in, so they don't need plug-ins at all.
+</p>
+<p>In the case of PinballY, the Flash ActiveX control (also known as
+   the Internet Explorer plug-in) is the one that's needed.  It doesn't
+   matter if you have the Chrome version and/or Firefox version,
+   since PinballY can't access those.
+</p>
+<p>
+   Follow the step-by-step procedure above under "What to install" to
+   get the ActiveX version.
+<p>
+   It's perfectly fine to keep all of the different plug-ins installed at the
+   same time.  Adding the ActiveX version won't affect any of the other
+   versions you might already have installed.
+</p>
+
+
+<h2>Why SWF?</h2>
+<p>
+   Why in the world are we talking about SWF files when even Adobe
+   considers them obsolete?  Blame history.   The first front end for
+   virtual pin cabs was a program called HyperPin.  It was the only
+   option in the early days, so most pin cab builders used it, and
+   when they shared media files online, they naturally used the
+   file formats that HyperPin could work with.  HyperPin happened
+   to use .swf format for instruction card images.  HyperPin isn't
+   as widely used any more, but all of those media files that people
+   uploaded (including all of those .swf instruction cards) are still
+   out there.  At some point maybe someone will tackle the big job of
+   converting them all to modern image file formats and uploading new
+   versions, but in the meantime, it's easiest to 
+</p>
+
+</body>
+</html>

@@ -4590,6 +4590,23 @@ void Application::AsyncErrorHandler::GroupError(ErrorIconType icon, const TCHAR 
 	}
 }
 
+void Application::AsyncErrorHandler::FlashError(const ErrorList &geh)
+{
+	// check if we have a playfield view available
+	HWND hwnd;
+	if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != 0 && (hwnd = pfv->GetHWnd()) != NULL)
+	{
+		// send it to the playfield view
+		::SendMessage(hwnd, PFVMsgShowFlashError, 0, reinterpret_cast<LPARAM>(&geh));
+	}
+	else
+	{
+		// no playfield view - show the error through a regular dialog box
+		InteractiveErrorHandler ieh;
+		ieh.GroupError(EIT_Error, nullptr, geh);
+	}
+}
+
 // -----------------------------------------------------------------------
 //
 // Admin Host interface

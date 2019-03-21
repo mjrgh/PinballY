@@ -986,6 +986,7 @@ void PlayfieldView::InitJavascript()
 				C(MirrorWindowVert, ID_MIRROR_VERT);
 				C(SWFErrorDisable, ID_SWF_ERROR_DISABLE);
 				C(SWFErrorSuppress, ID_SWF_ERROR_SUPPRESS);
+				C(SWFErrorHelp, ID_SWF_ERROR_HELP);
 #undef C
 
 				// initialize the ID-to-name table
@@ -3856,6 +3857,10 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		showFlashErrors = false;
 		return true;
 
+	case ID_SWF_ERROR_HELP:
+		ShowHelp(_T("SWF"));
+		return true;
+
 	default:
 		// check for game filters
 		if (cmd >= ID_FILTER_FIRST && cmd <= ID_FILTER_LAST)
@@ -4086,11 +4091,13 @@ void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, bo
 	ProcessKeyQueue();
 }
 
-void PlayfieldView::ShowHelp()
+void PlayfieldView::ShowHelp(const TCHAR *section)
 {
-	// open the main help file in a browser window
+	// Build the full help file name - <install folder>\Help\section.html
 	TCHAR helpFile[MAX_PATH];
-	GetDeployedFilePath(helpFile, _T("Help\\PinballY.html"), _T(""));
+	GetDeployedFilePath(helpFile, MsgFmt(_T("Help\\%s.html"), section), _T(""));
+
+	// open the help file in a browser window
 	ShellExec(helpFile);
 }
 
@@ -7677,11 +7684,16 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		return true;
 
 	case PFVMsgShowError:
-		// Show in-UI error: WPARAM = TCHAR *summary, LPARAM = const ErrorList *groupError
+		// Show in-UI error; LPARAM = const PFVMsgShowErrorParams*
 		{
 			auto ep = reinterpret_cast<const PFVMsgShowErrorParams*>(lParam);
 			ShowError(ep->iconType, ep->summary, ep->errList);
 		}
+		return true;
+
+	case PFVMsgShowFlashError:
+		// Show in-UI Flash loading error; LPARAM = const ErrorList*
+		ShowFlashError(*reinterpret_cast<const ErrorList*>(lParam));
 		return true;
 
 	case PFVMsgShowSysError:
@@ -8109,6 +8121,7 @@ void PlayfieldView::ShowFlashError(const ErrorList &list)
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(IDS_SWF_ERROR_DISABLE), ID_SWF_ERROR_DISABLE);
 	md.emplace_back(LoadStringT(IDS_SWF_ERROR_SUPPRESS), ID_SWF_ERROR_SUPPRESS);
+	md.emplace_back(LoadStringT(IDS_SWF_ERROR_HELP), ID_SWF_ERROR_HELP, MenuStayOpen);
 	md.emplace_back(LoadStringT(IDS_SWF_ERROR_IGNORE), ID_MENU_RETURN);
 
 	// show the menu
@@ -11884,12 +11897,7 @@ void PlayfieldView::EditGameInfo()
 				switch (wParam)
 				{
 				case SC_CONTEXTHELP:
-					// show the help file
-					{
-						TCHAR helpFile[MAX_PATH];
-						GetDeployedFilePath(helpFile, _T("Help\\EditGameDetails.html"), _T(""));
-						pfv->ShellExec(helpFile);
-					}
+					pfv->ShowHelp(_T("EditGameDetails"));
 
 					// skip the system handling (which would go into help-cursor mode)
 					return TRUE;
