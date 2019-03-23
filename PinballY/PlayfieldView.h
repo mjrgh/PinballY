@@ -431,6 +431,7 @@ protected:
 	static const int javascriptTimerID = 122;     // javascript scheduled tasks
 	static const int fullRefreshTimerID = 123;    // full UI refresh (filters, selection, status text)
 	static const int overlayFadeoutTimerID = 124; // fading out the video overlay for removal
+	static const int audioFadeoutTimerID = 125;   // fading out audio tracks
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1424,7 +1425,37 @@ protected:
 	// use for asynchronous purposes like this due to the possibility
 	// that C++ could reuse a memory address for a new object after
 	// an existing object is deleted.
-	std::unordered_map<DWORD, RefPtr<AudioVideoPlayer>> activeAudio;
+	struct ActiveAudio
+	{
+		// clip type
+		enum ClipType
+		{
+			StartupAudio,   // startup audio track, played on program startup
+			LaunchAudio     // launch audio clip, played when a game is launched
+		};
+
+		// Create.  Note that we assume the caller's reference on the
+		// player, so if the caller is using a RefPtr, it should detach
+		// its reference before passing it to us.
+		ActiveAudio(AudioVideoPlayer *player, ClipType clipType, int pctVol) :
+			player(player), clipType(clipType), volume(pctVol) { }
+
+		// the player playing the clip
+		RefPtr<AudioVideoPlayer> player;
+
+		// base volume, as a percentage value (0..100)
+		int volume;
+
+		// fadeout volume
+		float fade = 1.0f;
+
+		// clip type
+		ClipType clipType;
+	};
+	std::unordered_map<DWORD, ActiveAudio> activeAudio;
+
+	// update audio fading - runs on the audio fadeout timer
+	void UpdateAudioFadeout();
 
 	// Menu item flags.  MenuStayOpen is mostly intended for use with
 	// checkmarks or radio buttons, to allow making a series of item

@@ -1,6 +1,23 @@
 PinballY Update History
 
-? (1.0.0 Beta 9)
+03-23-2019 (1.0.0 Beta 9)
+
+* A new option lets you set separate volume levels for videos and for
+button sound effects.  The volume levels can be adjusted in the
+options dialog under the Audio/Video section.  The video volume level
+applies to background videos (tables, backglasses, etc), table audio
+tracks, startup audio, and launch audio.
+
+* In the Game Details dialog, a new button lets you populate the form
+based on the IPDB ID number.  This is meant as a time-saver for cases
+where PinballY fails at its attempts to guess the game's title based
+the filename.  Those guesses are themselves meant as a time-saver, but
+they're not always successful, as filenames can be cryptic.  In such
+cases, it might be easier for you to look up the game on IPDB and
+enter the IPDB ID.  Then you can click the new button, "Fill in form
+from this IPDB ID", and the program will populate the other fields
+(title, manufacturer, year, and table type) from its built-in list of
+IPDB tables.
 
 * A new option lets you change the way PinballY hides the mouse
 cursor.  PinballY hides the mouse cursor at program startup, and again
@@ -20,16 +37,21 @@ release the mouse button.  You'll probably want to choose a position
 near the right edge of the display area where the cursor will be
 entirely or mostly off-screen.  (Addresses issue #45 on github.)
 
-* In the Game Details dialog, a new button lets you populate the form
-based on the IPDB ID number.  This is meant as a time-saver for cases
-where PinballY fails at its attempts to guess the game's title based
-the filename.  Those guesses are themselves meant as a time-saver, but
-they're not always successful, as filenames can be cryptic.  In such
-cases, it might be easier for you to look up the game on IPDB and
-enter the IPDB ID.  Then you can click the new button, "Fill in form
-from this IPDB ID", and the program will populate the other fields
-(title, manufacturer, year, and table type) from its built-in list of
-IPDB tables.
+* When capturing media, the program now remembers your media type
+selections and carries them forward to the next capture command as the
+default settings.  This makes it a little quicker and more convenient
+when you're capturing media for several games in a row, since you
+don't have to keep entering the same options over and over.  For
+example, suppose you run a capture for Medieval Madness, recording the
+table video in silent mode and skipping all of the other items, then
+after that finishes, you start a new capture for Medusa.  The media
+item menu will be displayed as usual, but this time it'll be
+initialized with the same selections as last time, with the table
+video set to "capture silent" and everything else set to "skip".
+
+* On launching a game, any startup audio track that's still playing is
+automatically faded out and removed, so that it doesn't keep playing
+into the game session.
 
 * A new option lets you set a "gamma" correction factor for grayscale
 video playback on real DMD devices.  This is primarily for people with
@@ -47,10 +69,6 @@ adjust the gamma as needed to make your display look right to your
 eye.  The new setting is in the options dialog, under the Real DMD
 tab.
 
-* A new option lets you set separate volume levels for videos and
-for button sound effects.  The volume levels can be adjusted in the
-options dialog under the Audio/Video section.
-
 * A new option lets you disable Shockwave Flash (SWF) files for
 instruction card images.  You'll find this option in the settings
 dialog under Instruction Cards.  By default, SWF files are included
@@ -63,30 +81,19 @@ people don't want to install that extra software.  This new option
 lets you tell PinballY to ignore SWF files entirely, so that you won't
 see any error messages saying that Flash is missing.
 
-* When capturing media, the program now remembers your media type
-selections and carries them forward to the next capture command as the
-default settings.  This makes it a little quicker and more convenient
-when you're capturing media for several games in a row, since you
-don't have to keep entering the same options over and over.  For
-example, suppose you run a capture for Medieval Madness, recording the
-table video in silent mode and skipping all of the other items, then
-after that finishes, you start a new capture for Medusa.  The media
-item menu will be displayed as usual, but this time it'll be
-initialized with the same selections as last time, with the table
-video set to "capture silent" and everything else set to "skip".
-
 * During startup videos, the new DOF state $PBYStartupVideo is set.
 This makes it possible to program DOF effects when the startup video
 is playing.  See the help section on DOF Events for more on setting up
 custom DOF effects.
 
-* Before now, the real DMD code treated freezy's dmd-extensions 1.7.2
-as having a couple of bugs that were actually fixed in that release,
-and turned off a couple of small features in order to work around the
-DLL issues.  The code now properly recognizes the 1.7.2 version coding
-on the DLL, which allows full functionality with 1.7.2.  (My patched
-1.7.1+mjr versions (https://github.com/mjrgh/dmd-extensions/releases)
-were and continue to be recognized as having the bug fixes.)
+* In past versions, the real DMD code treated freezy's dmd-extensions
+1.7.2 as having a couple of bugs that were actually fixed in that
+release, and turned off a couple of small features in order to work
+around the DLL issues.  The code now properly recognizes the 1.7.2
+version coding on the DLL, which allows full functionality with 1.7.2.
+(My patched 1.7.1+mjr versions were always recognized as having the
+fix - this change only affects the official freezy version.  My
+patches: https://github.com/mjrgh/dmd-extensions/releases)
 
 * Fixed some bugs in high score presentation on real DMD devices,
 which sometimes prevented high scores from displaying, or prevented

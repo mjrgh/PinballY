@@ -3076,13 +3076,23 @@ void PlayfieldView::OnIdleEvent()
 		// create a player and load the audio track
 		LogFileErrorHandler eh(_T("Startup audio: "));
 		RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
-		if (player->Open(startupAudio, eh) && player->Play(eh))
+		if (player->Open(startupAudio, eh))
 		{
-			// success - add the player to the active audio playback list,
-			// which will let us automatically clean up it when it finishes
-			// playback
-			DWORD cookie = player->GetCookie();
-			activeAudio.emplace(cookie, player.Detach());
+			// set the initial volume to the video volume level
+			int vol = Application::Get()->GetVideoVolume();
+			player->SetVolume(vol);
+
+			// start playback
+			if (player->Play(eh))
+			{
+				// success - add the player to the active audio playback list,
+				// which will let us automatically clean up it when it finishes
+				// playback
+				DWORD cookie = player->GetCookie();
+				activeAudio.emplace(std::piecewise_construct,
+					std::forward_as_tuple(cookie),
+					std::forward_as_tuple(player.Detach(), ActiveAudio::StartupAudio, vol));
+			}
 		}
 	}
 }
@@ -3179,6 +3189,10 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case animTimerID:
 		// animation update timer
 		UpdateAnimation();
+		return true;
+
+	case audioFadeoutTimerID:
+		UpdateAudioFadeout();
 		return true;
 
 	case pfTimerID:
@@ -4514,17 +4528,30 @@ void PlayfieldView::LaunchQueuedGame()
 			// PCM formats like WAV.  Launch audio clips are typically MP3s.
 			SilentErrorHandler eh;
 			RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
-			if (player->Open(audio.c_str(), eh) && player->Play(eh))
+			if (player->Open(audio.c_str(), eh))
 			{
-				// Playback started.  We'll need to keep this object alive
-				// until playback finishes, then delete it.  The object will
-				// notify us when playback ends via an AVPMsgEndOfPresentation
-				// message to the window.  Keep a reference to the object
-				// until then in our active audio table.
-				DWORD cookie = player->GetCookie();
-				activeAudio.emplace(cookie, player.Detach());
+				// set the volume level to the global video level
+				int vol = Application::Get()->GetVideoVolume();
+				player->SetVolume(vol);
+
+				// start playback
+				if (player->Play(eh))
+				{
+					// Playback started.  We'll need to keep this object alive
+					// until playback finishes, then delete it.  The object will
+					// notify us when playback ends via an AVPMsgEndOfPresentation
+					// message to the window.  Keep a reference to the object
+					// until then in our active audio table.
+					DWORD cookie = player->GetCookie();
+					activeAudio.emplace(std::piecewise_construct,
+						std::forward_as_tuple(cookie),
+						std::forward_as_tuple(player.Detach(), ActiveAudio::LaunchAudio, vol));
+				}
 			}
 		}
+
+		// start the audio fade timer for any non-launch audios currently playing
+		SetTimer(hWnd, audioFadeoutTimerID, 20, 0);
 	}
 	else
 	{
@@ -9484,6 +9511,59 @@ void PlayfieldView::EndAnimation()
 
 	// check for a game info box update
 	UpdateInfoBox();
+}
+
+// update audio fadeout
+void PlayfieldView::UpdateAudioFadeout()
+{
+	// presume we won't need to keep running
+	bool keepRunning = false;
+
+	// scan for audio tracks needing fadeout
+	for (auto it = activeAudio.begin(); it != activeAudio.end(); )
+	{
+		// remember the next list entry, in case we delete this one
+		auto nxt = it;
+		++nxt;
+
+		// check the clip type
+		auto &audio = it->second;
+		switch (audio.clipType)
+		{
+		case ActiveAudio::LaunchAudio:
+			// don't fade launch audio
+			break;
+
+		default:
+			// Fade out other types.  We run on a 20ms timer = 50 iterations
+			// per second, so a linear 1-second fade requires a 1/50 = 2%
+			// reduction per iteration.
+			audio.fade -= .02f;
+			if (auto newvol = static_cast<int>(roundf(static_cast<float>(audio.volume) * audio.fade)); newvol > 0)
+			{
+				// not at zero yet - set the new volume
+				audio.player->SetVolume(newvol);
+
+				// we'll need to keep running the timer to continue fading this item
+				keepRunning = true;
+			}
+			else
+			{
+				// track is inaudible - stop it and remove it from the list
+				audio.player->Stop(SilentErrorHandler());
+				audio.player->Shutdown();
+				activeAudio.erase(it);
+			}
+			break;
+		}
+
+		// on to the next one
+		it = nxt;
+	}
+
+	// kill the timer if we didn't find any items that need further work
+	if (!keepRunning)
+		KillTimer(hWnd, audioFadeoutTimerID);
 }
 
 // Update the animation

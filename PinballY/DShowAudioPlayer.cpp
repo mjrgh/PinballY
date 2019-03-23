@@ -61,6 +61,10 @@ bool DShowAudioPlayer::Open(const WCHAR *path, ErrorHandler &eh)
 	if (!SUCCEEDED(hr = pGraph->RenderFile(path, NULL)))
 		return Error(hr, eh, _T("Rendering file"));
 
+	// set the initial muting and volume level in the player
+	if (pBasicAudio != nullptr)
+		pBasicAudio->put_Volume(muted ? -10000 : vol);
+
 	// success
 	return true;
 }
@@ -129,8 +133,11 @@ bool DShowAudioPlayer::Replay(ErrorHandler &eh)
 
 void DShowAudioPlayer::Mute(bool mute)
 {
-	// mute
-	pBasicAudio->put_Volume(mute ? -10000 : vol);
+	// if we have a player, set the new status in the player
+	if (pBasicAudio != nullptr)
+		pBasicAudio->put_Volume(mute ? -10000 : vol);
+
+	// remember the new status internally
 	muted = mute;
 }
 
@@ -153,12 +160,12 @@ void DShowAudioPlayer::SetVolume(int pct)
 	vol = pct < 1 ? -10000 :
 		static_cast<long>(2000.0f * log10f(static_cast<float>(pct) / 100.0f));
 
-	// set the new volume in the underlying interface
-	pBasicAudio->put_Volume(vol);
+	// set the new volume in the underlying interface, if available
+	if (pBasicAudio != nullptr)
+		pBasicAudio->put_Volume(vol);
 }
 
 void DShowAudioPlayer::Shutdown()
 {
 	Stop(SilentErrorHandler());
 }
-
