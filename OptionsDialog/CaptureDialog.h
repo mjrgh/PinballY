@@ -53,5 +53,8 @@ public:
 		}
 	};
 
+protected:
+	DECLARE_MESSAGE_MAP()
+	afx_msg void OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult);
 };
 

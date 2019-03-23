@@ -2,26 +2,34 @@ PinballY Update History
 
 ? (1.0.0 Beta 9)
 
-* A new option lets you tell PinballY to "hide" the mouse cursor by
-repositioning it to a specified position on the screen, where it won't
-be in the way.  The normal method of hiding the cursor, used by
-default, is to actually make the cursor invisible, but that doesn't
-seem to work on some systems (for reasons not understood).  The new
-"hide by moving" option can be used as a workaround when the cursor
-refuses to disappear using the normal method.  To use the new option,
-open the settings dialog, go to the Mouse tab, and check the box for
-"Hide mouse by moving it".  Now select the screen location where the
-mouse will be moved in lieu of hiding it: click the "Drag here"
-button, hold the mouse button down while moving the mouse to the
-desired parking location, and then release the mouse button.  You'll
-probably want to choose a position near the right edge of the display
-area where the cursor will be entirely or mostly off-screen.
-Whichever option is chosen (the original invisible mouse cursor method
-or the new "hide by moving" method), PinballY automatically uses it to
-hide the mouse at program startup and again any time you press a key.
-This gets rid of the mouse cursor during normal arcade style
-operation, but lets you get the mouse cursor back at any time just by
-moving the mouse.  (Addresses issue #45 on github.)
+* A new option lets you change the way PinballY hides the mouse
+cursor.  PinballY hides the mouse cursor at program startup, and again
+each time you press a key/button, as part of its effort to create a
+more arcade-like (and less Windows PC-like) experience.  Normally,
+PinballY accomplishes this vanishing act using a standard Windows
+system call that makes the mouse cursor invisible.  But this system
+call doesn't seem to work on some machines, for reasons unknown.  To
+address this, a new option lets you tell PinballY to hide the cursor
+by simply moving it out of the way rather than trying to make it
+invisible.  To use this new option, open the settings dialog, go to
+the Mouse tab, and check the box for "Hide mouse by moving it".  Now
+select the screen location where the mouse will be moved in lieu of
+hiding it: click the "Drag here" button, hold the mouse button down
+while moving the mouse to the desired parking location, and then
+release the mouse button.  You'll probably want to choose a position
+near the right edge of the display area where the cursor will be
+entirely or mostly off-screen.  (Addresses issue #45 on github.)
+
+* In the Game Details dialog, a new button lets you populate the form
+based on the IPDB ID number.  This is meant as a time-saver for cases
+where PinballY fails at its attempts to guess the game's title based
+the filename.  Those guesses are themselves meant as a time-saver, but
+they're not always successful, as filenames can be cryptic.  In such
+cases, it might be easier for you to look up the game on IPDB and
+enter the IPDB ID.  Then you can click the new button, "Fill in form
+from this IPDB ID", and the program will populate the other fields
+(title, manufacturer, year, and table type) from its built-in list of
+IPDB tables.
 
 * A new option lets you set a "gamma" correction factor for grayscale
 video playback on real DMD devices.  This is primarily for people with
@@ -54,6 +62,23 @@ control (also known as the Flash plug-in for IE) installed, and some
 people don't want to install that extra software.  This new option
 lets you tell PinballY to ignore SWF files entirely, so that you won't
 see any error messages saying that Flash is missing.
+
+* When capturing media, the program now remembers your media type
+selections and carries them forward to the next capture command as the
+default settings.  This makes it a little quicker and more convenient
+when you're capturing media for several games in a row, since you
+don't have to keep entering the same options over and over.  For
+example, suppose you run a capture for Medieval Madness, recording the
+table video in silent mode and skipping all of the other items, then
+after that finishes, you start a new capture for Medusa.  The media
+item menu will be displayed as usual, but this time it'll be
+initialized with the same selections as last time, with the table
+video set to "capture silent" and everything else set to "skip".
+
+* During startup videos, the new DOF state $PBYStartupVideo is set.
+This makes it possible to program DOF effects when the startup video
+is playing.  See the help section on DOF Events for more on setting up
+custom DOF effects.
 
 * Before now, the real DMD code treated freezy's dmd-extensions 1.7.2
 as having a couple of bugs that were actually fixed in that release,

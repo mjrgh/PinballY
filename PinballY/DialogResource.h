@@ -32,7 +32,8 @@
 #define IDC_CK_SHOW_WHEN_RUNNING_DMD    3024
 #define IDC_CK_SHOW_WHEN_RUNNING_TOPPER 3025
 #define IDC_CK_SHOW_WHEN_RUNNING_INSTCARD 3026
-#define IDC_CHECK1                      3027
+#define IDC_BUTTON1                     3027
+#define IDC_BTN_FILL_FROM_IPDBID        3027
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003
@@ -47,7 +48,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        4014
 #define _APS_NEXT_COMMAND_VALUE         45000
-#define _APS_NEXT_CONTROL_VALUE         3024
+#define _APS_NEXT_CONTROL_VALUE         3028
 #define _APS_NEXT_SYMED_VALUE           7000
 #endif
 #endif

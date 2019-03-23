@@ -191,9 +191,13 @@
    PinUp Player is an add-on for Visual Pinball and other systems that displays
    videos in secondary windows during the game.  In principle, it shouldn't
    require anything extra in the PinballY options, since it should act like an
-   extension of the player system.  However, some people have reported problems
-   with the PinUp windows staying open after quitting out of Visual Pinball.
-   If you run into this problem, you can solve it as follows:
+   extension of the player system.  However, some people have problems
+   with PinUp windows staying open after the Visual Pinball game exits.
+   The root of the problem is that VP can sometimes crash or exit abnormally,
+   and PinUp doesn't detect this, so it just leaves its windows open forever
+   when this happens.  The way to ensure that PinUp closes when VP exits is
+   to explicitly terminate the PinUp processes at the end of each game,
+   which you can do as follows:
 </p>
 <ul class="compact">
    <li>Create a file called ClosePinUp.bat in your PinballY folder, containing

@@ -688,13 +688,13 @@ protected:
 	// screen-shot capture in the menu UI.
 	struct CaptureItem
 	{
-		CaptureItem(int cmd, const MediaType &mediaType, D3DView *win, bool exists, int mode) :
+		CaptureItem(int cmd, const MediaType &mediaType, D3DView *win, bool exists, int mode, bool batchReplace) :
 			cmd(cmd),
 			mediaType(mediaType),
 			win(win),
 			exists(exists),
 			mode(mode),
-			batchReplace(false)
+			batchReplace(batchReplace)
 		{
 		}
 
@@ -728,6 +728,16 @@ protected:
 		bool exists;
 	};
 	std::list<CaptureItem> captureList;
+
+	// Prior capture modes.  This keeps track of the disposition the user
+	// selected for each media type for the last capture run, so that we 
+	// can set the same dispositions initially on the new run.  The 'int'
+	// at each mapped item is the IDS_CAPTURE_xxx code selected for the
+	// corresponding media type in the last capture.
+	std::unordered_map<const MediaType*, int> lastCaptureModes;
+
+	// Prior batch capture 'replace' mode
+	std::unordered_map<const MediaType*, bool> lastBatchCaptureReplace;
 
 	// Startup delay time for the current item, in seconds
 	int captureStartupDelay;
@@ -1909,6 +1919,10 @@ protected:
 		// to set different effects depending on the main UI state.  The
 		// state names are arbitrarily defined in the config tool database.
 		void SetUIContext(const WCHAR *context) { SetContextItem(context, this->context); }
+
+		// Receive notification that DOF is ready.  We pass all current
+		// context states through to DOF.
+		void OnDOFReady();
 
 		// Sync the selected game
 		void SyncSelectedGame();

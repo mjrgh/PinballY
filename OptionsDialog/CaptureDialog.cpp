@@ -3,11 +3,16 @@
 //
 #include "stdafx.h"
 #include "resource.h"
+#include "OptionsDialog.h"
 #include "CaptureDialog.h"
 #include "../Utilities/Config.h"
 #include "../Utilities/AudioCapture.h"
 
 IMPLEMENT_DYNAMIC(CaptureDialog, OptionsPage)
+
+BEGIN_MESSAGE_MAP(CaptureDialog, OptionsPage)
+	ON_NOTIFY(NM_CLICK, IDC_LINK_AUDIO_HELP, OnClickAudioHelp)
+END_MESSAGE_MAP()
 
 CaptureDialog::CaptureDialog(int dialogId) :
 	OptionsPage(dialogId)
@@ -56,6 +61,14 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
 
 	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
+}
+
+afx_msg void CaptureDialog::OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	if (auto par = dynamic_cast<OptionsDialog*>(GetParent()); par != nullptr)
+		par->ShowHelpPage(_T("CaptureOptions_AudioDevice.html"));
+
+	*pResult = 0;
 }
 
 void CaptureDialog::AudioDeviceMap::InitControl()
@@ -110,3 +123,4 @@ void CaptureDialog::AudioDeviceMap::InitControl()
 	else
 		combo.SelectString(1, cv);
 }
+

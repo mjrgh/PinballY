@@ -92,6 +92,7 @@ var contents = [
     "DirectoryInfo.html Files &amp; Folders",
     "DOFEvents.html DOF Events",
     "Credits.html Credits and disclaimers",
+    "../License.txt Copyright &amp; License",
     "../VersionHistory.txt Version history",
 ];
 

@@ -13,7 +13,7 @@
 <h1>DOF Events</h1>
 
 <p>
-   If DOF is installed on your system, PinballY will generate
+   If DOF is installed on your system, PinballY generates
    DOF events to trigger effects from your feedback devices (such as
    solenoids and flasher lights).  This will fire flashers and other
    devices on certain events, such as when you switch between
@@ -34,6 +34,40 @@
    <a href="DOFOptions.html">DOF Options</a> page in the Settings
    dialog.
 </p>
+
+<h2>DOF setup</h2>
+<p>
+   If you use a "cabinet config" file with DOF, it's important to create
+   a DOF global config file for PinballY.  DOF uses a separate global
+   config file for each program.  The DOF global config file for PinballY
+   is called <b>GlobalConfig_PinballY.xml</b>.
+</p>
+<p>
+   The easiest way to create the PinballY global config is to copy your
+   existing global config for B2SServer:
+</p>
+<ul>
+   <li>Open your main DOF install folder
+   <li>Open the <b>Config</b> subfolder
+   <li>Make a copy of <b>GlobalConfig_B2SServer.xml</b>
+   <li>Rename the copy <b>GlobalConfig_PinballY.xml</b>
+</ul>
+<p>
+   In the future, if you make any changes to any of your global config files,
+   remember to make the same changes to your GlobalConfig_PinballY.xml file while
+   you're at it.
+</p>
+<p>
+   If you don't create a GlobalConfig_PinballY.xml file, DOF will just use its
+   default settings for PinballY.  That's fine if you don't need any custom
+   settings, but it's not fine if you need a cabinet config file, since the
+   DOF default is that there is no cabinet config file.  The cabinet config
+   file is important if you have devices that DOF can't discovery by scanning
+   your system, particularly addressable LED strips.  If you have LED strips
+   and they don't seem to work in PinballY, the problem might be a missing
+   global config file for PinballY.
+</p>
+   
 
 <h2>Customizing DOF effects</h2>
 <p>
@@ -190,21 +224,28 @@
 
    <li><b>PBYScreenSaver:</b> Attract mode is active
 
+   <li><b>PBYStartupVideo:</b> The startup video is playing
+
    <li><b>PBYWheel:</b> This is the default state, where the "wheel"
    interface is displayed with no menus or popups active
 
-   <li><b>ROM name:</b> In addition to the PBYxxx states, PinballY also
-      turns on a named event with the same name as the ROM for the table
-      currently selected in the wheel display.  For example,
-      PinballY turns on the named effect <b>MM</b> when Medieval
-      Madness is currently selected in the wheel.  This lets you trigger
-      effects that depend on which table is selected.  The <b>@allrgb@</b>
-      syntax described above uses this to select device colors according
-      to the selected table, but you can also use it explicitly
-      for individual effects.  The ROM names match the names in the
-      Config Tool, which you can see listed on the Table Config page 
-      (look for "Rom: XXX" near the top of the page).
 </ul>
+
+<h3>Current ROM name</h3>
+
+<p>
+   In addition to the PBYxxx states, PinballY also
+   turns on a named event with the same name as the ROM for the table
+   currently selected in the wheel display.  For example,
+   PinballY turns on the named effect <b>MM</b> when Medieval
+   Madness is currently selected in the wheel.  This lets you trigger
+   effects that depend on which table is selected.  The <b>@allrgb@</b>
+   syntax described above uses this to select device colors according
+   to the selected table, but you can also use it explicitly
+   for individual effects.  The ROM names match the names in the
+   Config Tool, which you can see listed on the Table Config page 
+   (look for "Rom: XXX" near the top of the page).
+</p>
 
 
 

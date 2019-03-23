@@ -395,9 +395,9 @@ HRESULT FlashClientSite::Create(FlashClientSite **ppClientSite,
 		return RetHR(_T("StgCreateDocfile"), true);
 
 	// create the ShockwaveFlash OLE object - this is the main ActiveX control
-	if (FAILED((hr = OleCreate(
+	if (FAILED(hr = OleCreate(
 		__uuidof(ShockwaveFlashObjects::ShockwaveFlash), IID_IOleObject,
-		OLERENDER_DRAW, 0, pClientSite, pStorage, (void**)&pClientSite->pOleObj), hr = E_NOINTERFACE)))
+		OLERENDER_DRAW, 0, pClientSite, pStorage, (void**)&pClientSite->pOleObj)))
 		return RetHR(_T("OleCreate(ShockwaveFlash)"), true);
 
 	// Get the IShockwaveFlash interface

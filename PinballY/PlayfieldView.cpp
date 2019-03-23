@@ -3062,6 +3062,9 @@ void PlayfieldView::OnIdleEvent()
 		ShowInitialUI(true);
 	}
 
+	// set the DOF context to startup video mode
+	dof.SetUIContext(L"PBYStartupVideo");
+
 	// Hide the cursor while playing the startup videos
 	Application::HideCursor();
 
@@ -3148,6 +3151,9 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 		ShowAboutBox();
 		SetTimer(hWnd, endSplashTimerID, 5000, 0);
 	}
+
+	// set the DOF context to "wheel" mode
+	dof.SetUIContext(L"PBYWheel");
 }
 
 void PlayfieldView::InitStatusLines()
@@ -3271,9 +3277,13 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 			// show any DOF client errors
 			ShowDOFClientInitErrors();
 
-			// set wheel context
+			// signal end of game
 			QueueDOFPulse(L"PBYEndGame");
-			dof.SetUIContext(_T("PBYWheel"));
+
+			// send any deferred context settings to DOF
+			dof.OnDOFReady();
+
+			// sync the current game context
 			dof.SyncSelectedGame();
 
 			// we're done waiting for DOF startup
@@ -4474,7 +4484,7 @@ void PlayfieldView::LaunchQueuedGame()
 	// Before launching, shut down our DOF interface, so that the game
 	// can take it over while running.
 	dof.SetRomContext(_T(""));
-	dof.SetUIContext(_T(""));
+	dof.SetUIContext(L"");
 	DOFClient::Shutdown(false);
 
 	// Also shut down the real DMD, so that the game can take it over
@@ -8671,7 +8681,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	}
 
 	// set DOF to menu mode
-	dof.SetUIContext(_T("PBYMenu"));
+	dof.SetUIContext(L"PBYMenu");
 }
 
 void PlayfieldView::OnCloseMenu(const std::list<MenuItemDesc> *incomingMenu)
@@ -9727,7 +9737,7 @@ void PlayfieldView::UpdateAnimation()
 				updateDrawingList = true;
 				
 				// return to wheel mode in DOF
-				dof.SetUIContext(_T("PBYWheel"));
+				dof.SetUIContext(L"PBYWheel");
 			}
 		}
 	}
@@ -11886,6 +11896,7 @@ void PlayfieldView::EditGameInfo()
 			switch (message) 
 			{
 			case WM_INITDIALOG:
+				// initialize fields
 				InitFields();
 				break;
 
@@ -11914,6 +11925,17 @@ void PlayfieldView::EditGameInfo()
 						// selected a new title
 						OnSelectTitle();
 						return 0;
+
+					case CBN_SETFOCUS:
+						// show the drop list
+						if (IsWindowVisible(GetDlgItem(IDC_CB_TITLE)))
+							ComboBox_ShowDropdown(GetDlgItem(IDC_CB_TITLE), TRUE);
+						return 0;
+
+					case CBN_KILLFOCUS:
+						// close the drop list
+						ComboBox_ShowDropdown(GetDlgItem(IDC_CB_TITLE), FALSE);
+						return 0;
 					}
 					break;
 
@@ -11927,6 +11949,10 @@ void PlayfieldView::EditGameInfo()
 					}
 					break;
 
+				case IDC_BTN_FILL_FROM_IPDBID:
+					OnFillFromIPDB();
+					break;
+
 				case IDOK:
 					// try saving changes - if that fails, cancel further
 					// processing so that we don't dismiss the dialog
@@ -11938,6 +11964,9 @@ void PlayfieldView::EditGameInfo()
 				}
 				break;
 
+			case WM_NOTIFY:
+				break;
+
 			case MsgFixTitle:
 				OnFixTitle(lParam);
 				return 0;
@@ -11945,6 +11974,38 @@ void PlayfieldView::EditGameInfo()
 
 			// do the base class work
 			return __super::Proc(message, wParam, lParam);
+		}
+
+		// Fill the form from the IPDB table ID entry
+		void OnFillFromIPDB()
+		{
+			// get the IPDB ID field
+			TCHAR id[128];
+			if (!GetDlgItemText(hDlg, IDC_TXT_IPDB_ID, id, countof(id)))
+				id[0] = 0;
+
+			// trim leading and trailing spaces
+			TCHAR *p;
+			for (p = id + _tcslen(id); p > id && _istspace(*(p - 1)); *--p = 0);
+			for (p = id; _istspace(*p); ++p);
+
+			// look up the game
+			std::unique_ptr<RefTableList::Table> table;
+			if (!Application::Get()->refTableList->GetByIpdbId(p, table))
+			{
+				MessageBox(hDlg, LoadStringT(IDS_ERR_INVAL_IPDB_ID),
+					LoadStringT(IDS_APP_TITLE), MB_OK | MB_ICONERROR);
+				return;
+			}
+
+			// populate the fields from the table data
+			SetDlgItemText(hDlg, IDC_CB_TITLE, table->name.c_str());
+			SetDlgItemText(hDlg, IDC_CB_MANUF, table->manuf.c_str());
+			SetDlgItemInt(hDlg, IDC_TXT_YEAR, table->year, FALSE);
+			SetDlgItemText(hDlg, IDC_CB_TABLE_TYPE, table->machineType.c_str());
+
+			// refill the ROM combo with possible matches for the new title
+			PopulateROMCombo();
 		}
 
 		// Save changes
@@ -12158,6 +12219,10 @@ void PlayfieldView::EditGameInfo()
 		// populate the ROM combo list
 		void PopulateROMCombo()
 		{
+			// Remember the old default text (the first combo item)
+			TCHAR oldDefault[256] = { 0 };
+			ComboBox_GetLBText(GetDlgItem(IDC_CB_ROM), 0, oldDefault);
+
 			// Get the game title text
 			TCHAR title[512];
 			GetDlgItemText(hDlg, IDC_CB_TITLE, title, countof(title));
@@ -12250,10 +12315,11 @@ void PlayfieldView::EditGameInfo()
 			for (auto &s : romv)
 				ComboBox_AddString(cbRom, s.c_str());
 
-			// If the field is blank, set it to the default string.
+			// If the field is currently blank, or it's set to the old default
+			// entry, set it to the new default entry.
 			TCHAR curtxt[512];
 			GetDlgItemText(hDlg, IDC_CB_ROM, curtxt, countof(curtxt));
-			if (curtxt[0] == 0)
+			if (curtxt[0] == 0 || _tcscmp(curtxt, oldDefault) == 0)
 				SetDlgItemText(hDlg, IDC_CB_ROM, dflt.c_str());
 		}
 
@@ -13706,18 +13772,46 @@ void PlayfieldView::InitCaptureList(const GameListItem *game)
 			// determine if the media exists
 			bool exists = game != nullptr && game->MediaExists(mediaType);
 
-			// Set the initial mode:
+			// Set the initial mode as follows:
 			//
-			//  - KEEP if the item exists
-			//  - CAPTURE WITH AUDIO if it's a video with audio enabled
-			//  - CAPTURE for other types
+			//  - If we have a disposition for the same item from the last 
+			//    capture operation, carry over the same disposition
 			//
-			int mode = exists ? IDS_CAPTURE_KEEP :
-				mediaType.format == MediaType::VideoWithAudio ? IDS_CAPTURE_WITH_AUDIO :
-				IDS_CAPTURE_CAPTURE;
+			//  - Otherwise, if the item already exists, KEEP EXISTING
+			//
+			//  - Otherwise, use the default disposition: CAPTURE or CAPTURE
+			//    WITH AUDIO, depending on the item type
+			//
+			int mode;
+			if (auto last = lastCaptureModes.find(&mediaType); last != lastCaptureModes.end())
+			{
+				// this item was in the last capture - keep the same disposition
+				mode = last->second;
+
+				// fix up KEEP/SKIP to match the item's status
+				if (mode == IDS_CAPTURE_SKIP && exists)
+					mode = IDS_CAPTURE_KEEP;
+				else if (mode == IDS_CAPTURE_KEEP && !exists)
+					mode = IDS_CAPTURE_SKIP;
+			}
+			else if (exists)
+			{
+				// the item exists, and we don't have a prior dispoition - keep it
+				mode = IDS_CAPTURE_KEEP;
+			}
+			else
+			{
+				// set the default disposition according to the item type
+				mode = mediaType.format == MediaType::VideoWithAudio ? IDS_CAPTURE_WITH_AUDIO : IDS_CAPTURE_CAPTURE;
+			}
+
+			// copy the last batch replace mode, if available
+			bool batchReplace = false;
+			if (auto lastrpl = lastBatchCaptureReplace.find(&mediaType); lastrpl != lastBatchCaptureReplace.end())
+				batchReplace = lastrpl->second;
 
 			// add the item
-			captureList.emplace_back(cmd++, mediaType, view, exists, mode);
+			captureList.emplace_back(cmd++, mediaType, view, exists, mode, batchReplace);
 		}
 	};
 	AddItem(this, GameListItem::playfieldImageType);
@@ -13863,7 +13957,17 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 			// in other modes, show the media type selection options
 			val = LoadStringT(cap.mode).c_str();
 		}
-		md.emplace_back(MsgFmt(_T("%s: %s"), LoadStringT(cap.mediaType.nameStrId).c_str(), val.c_str()), cap.cmd, flags);
+
+		// if we're in single-capture mode, and the disposition will overwrite
+		// an existing item, add an alert indicator
+		const TCHAR *overwriteAlert = _T("");
+		if (captureMenuMode == CaptureMenuMode::Single && cap.exists && cap.mode != IDS_CAPTURE_KEEP)
+			overwriteAlert = _T(" (!)");
+
+		// add the menu item
+		md.emplace_back(
+			MsgFmt(_T("%s: %s%s"), LoadStringT(cap.mediaType.nameStrId).c_str(), val.c_str(), overwriteAlert), 
+			cap.cmd, flags);
 	};
 
 	// add the delay time adjust item (except in the second batch capture step)
@@ -13875,20 +13979,24 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 			selectedCmd == ID_CAPTURE_ADJUSTDELAY ? MenuSelected : 0);
 	}
 
-	// Add the Begin (for single capture) or Next Step (for batch capture setup) 
+	// Add the Begin (for single capture) or Next Step (for batch capture setup).
+	// On the initial menu display, make this the initially selected item, so that
+	// the user can click through to the next menu immediately if the current 
+	// options look right.
+	UINT mdflags = updating ? 0 : MenuSelected;
 	md.emplace_back(_T(""), -1);
 	switch (captureMenuMode)
 	{
 	case CaptureMenuMode::Single:
-		md.emplace_back(LoadStringT(IDS_CAPTURE_GO), ID_CAPTURE_GO);
+		md.emplace_back(LoadStringT(IDS_CAPTURE_GO), ID_CAPTURE_GO, mdflags);
 		break;
 
 	case CaptureMenuMode::Batch1:
-		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP3);
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP3, mdflags);
 		break;
 
 	case CaptureMenuMode::Batch2:
-		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP4);
+		md.emplace_back(LoadStringT(IDS_BATCH_CAPTURE_NEXT), ID_BATCH_CAPTURE_STEP4, mdflags);
 		break;
 
 	case CaptureMenuMode::NA:
@@ -14099,6 +14207,10 @@ void PlayfieldView::AdvanceCaptureItemState(int cmd)
 
 void PlayfieldView::CaptureMediaGo()
 {
+	// Save the media type modes for the next capture
+	for (auto &c : captureList)
+		lastCaptureModes.emplace(&c.mediaType, c.mode);
+
 	// Run the game in media capture mode
 	PlayGame(ID_CAPTURE_GO, Application::LaunchFlags::StdCaptureFlags);
 }
@@ -15267,6 +15379,13 @@ void PlayfieldView::UpdateBatchCaptureView()
 
 void PlayfieldView::BatchCaptureGo()
 {
+	// save the capture modes and keep/replace settings for next time
+	for (auto &c : captureList)
+	{
+		lastCaptureModes.emplace(&c.mediaType, c.mode);
+		lastBatchCaptureReplace.emplace(&c.mediaType, c.batchReplace);
+	}
+
 	// Add up the total time for the whole batch
 	int totalTime = 0;
 	int nGames = 0;
@@ -16643,6 +16762,20 @@ PlayfieldView::DOFIfc::~DOFIfc()
 {
 }
 
+void PlayfieldView::DOFIfc::OnDOFReady()
+{
+	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
+	{
+		// set the UI context
+		if (context.length() != 0)
+			dof->SetNamedState(context.c_str(), 1);
+
+		// set the game ROM state
+		if (rom.length() != 0)
+			dof->SetNamedState(rom.c_str(), 1);
+	}
+}
+
 void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar)
 {
 	// proceed only if DOF is active
@@ -16662,6 +16795,12 @@ void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar
 			if (itemVar.length() != 0)
 				dof->SetNamedState(newVal, 1);
 		}
+	}
+	else
+	{
+		// DOF isn't active or isn't ready yet - just store the state 
+		// internally, so that we can apply it when DOF is ready
+		itemVar = newVal != nullptr ? newVal : _T("");
 	}
 }
 
