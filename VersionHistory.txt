@@ -1,5 +1,18 @@
 PinballY Update History
 
+? (1.0.0 Beta 10)
+
+* In the Game Details dialog, the title entry box now shows suggested
+matches from the built-in IPDB table list as you type.  This makes it
+easier to find matches when the initial search based on the filename
+fails to find the right table (which can happen for more cryptic
+filenames).  Click on the title box and type in the first few
+characters of the title.  Once the right title appears in the list,
+just click on it, or press Enter when it's selected, to choose that
+title and populate the rest of the dialog fields with its details
+from the IPDB list.
+
+
 03-23-2019 (1.0.0 Beta 9)
 
 * A new option lets you set separate volume levels for videos and for

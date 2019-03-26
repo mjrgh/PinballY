@@ -57,13 +57,44 @@
    <b>Filling in the form from IPDB data:</b>
    Take a close look at the Title field, and you'll notice that
    there's a little drop-list arrow next to it.  Click the arrow
-   to bring up a list of possible matches from 
+   (or press the Down Arrow cursor key) to display a list of
+   possible matches from
    <a target="_blank" href="https://www.ipdb.org/">IPDB</a>.
    PinballY has a built-in list of titles from IPDB that it
    tries to match to the filename.
 </p>
 <p>
-   Matching the filename to a real machine's title requires a bit of
+   The initial selection list is based on the game's filename,
+   since that's all PinballY has to work with at this point.
+   In many cases, the filename will contain enough of the
+   game's true title that PinballY can find a good match in
+   the IPDB title list.  In some cases, though, filenames
+   are so cryptic that they stump the "fuzzy match" guesswork
+   that PinballY is doing here.
+</p>
+<p>
+   If the drop list includes the correct title for the table,
+   simply select it with the mouse or arrow keys (if using
+   the arrow keys, press Enter to confirm the selection).
+   PinballY will automatically fill in the rest of the form
+   with the game's details from the IPDB list.
+</p>
+<p>
+   What if the drop list <i>doesn't</i> include the title you're
+   looking for?  In this case, you can help improve PinballY's
+   guesswork by typing the first few characters of the correct
+   title into the box.  As you type, the drop list will show
+   new guesses based on what you're typing, similar to how
+   Google shows you suggested search terms as you type.
+   In most cases, the correct title will appear after you
+   enter a few characters.  Once it does, select it with
+   the mouse or arrow keys (press Enter to confirm if you
+   use the arrow keys).  PinballY will automatically fill
+   in the rest of the form with the IPDB information for
+   the table you select.
+</p>   
+<p>
+   Matching a filename to a real machine's title requires a bit of
    guesswork on PinballY's part, since table file names tend
    to be a bit cryptic.  They often use initials or abbreviations,
    and usually have a bunch of other information apart from the
@@ -75,20 +106,23 @@
    its own: it needs your human intervention to make the final
    decision.
 </p>
-<p>
-   If the drop list contains the correct match for the game
-   you're setting up, simply choose that title from the list, and
-   the program will automatically use it to fill in not just the
-   title but also the other information available from IPDB:
-   the IPPD game number, manufacturer, year, and table type.
-</p>
 
 <p>
    <b>Filling in the details manually:</b>  If you can't find
-   the right match for the game in the title drop list, or if
-   there's anything you disagree with in the pre-populated
-   data, you can simply type values into any of the fields
-   manually.
+   the right match for the game in the title drop list even
+   after typing the full name, or if there's anything you disagree
+   with in the pre-populated data, you can simply type values into
+   any of the fields manually.
+</p>
+
+<p>
+   <b>Filling in the details form the IPDB number:</b>  If you
+   know the IPDB number for the table you're entering, you can
+   skip all of the title searching described above and just
+   enter the IPDB number.  Then click the button labeled "Fill
+   in form from this IPDB ID" - this will populate the rest of
+   the form with details from the IPDB list, just like when
+   you select a title from the title drop list.
 </p>
 
 <p>

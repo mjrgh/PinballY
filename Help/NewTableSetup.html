@@ -100,7 +100,7 @@
    Click it.  This will bring up a list of likely matches
    from a giant master list (derived from <a href="http://www.ipdb.org">IPDB</a>)
    of just about all of the real pinball machines ever made.  The dialog
-   tries to use the filename to guess at which game it is,
+   tries to use the filename to guess the game title,
    using "fuzzy matching".  The closest match is listed first,
    followed by several other possible matches. 
    If you see the right title in the drop list, just pick it.
@@ -109,13 +109,29 @@
    from the IPDB data.
 </p>
 <p>
-   The fuzzy matching isn't perfect, so it might not always find
-   a valid match for the game based on the filename.  If you
-   can't find the right game in the list, you can still enter
-   the title and other details manually.  Likewise, even when
-   there is a match, you're still free to tweak any of the
-   details that you want to change if you disagree with the
-   IPDB data in any way.
+   The fuzzy matching isn't perfect, and filenames can be
+   cryptic, so the initial list of guesses might not include
+   the title you're looking for.  If it doesn't,
+   you can search for the title by typing it directly into
+   the title box.  As you type, the drop list will show
+   new matches based on what you're typing.  The right title
+   will usually appear after you've entered the first few
+   letters.  As before, once the right match appears, just
+   select it from the list to populate the rest of the
+   form with the IPDB information for the game.
+</p>
+<p>
+   Alternatively, if you already know the IPDB number for
+   the game, you can skip the title search and just enter
+   the IPDB number into the box labeled "IPDB ID".  Then
+   click the button next to the box to fill in the rest of
+   the form from the IPDB information for that game ID.
+</p>
+<p>
+   And if all else fails, you can enter all of the details
+   manually.  You can also manually override anything that you
+   don't agree with from the IPDB data.  Just type new values
+   into fields you want to change.
 </p>
 <p>
    The one other detail you might have to set manually is
@@ -130,6 +146,9 @@
    Once you're satisfied with the game's details, click OK
    to save changes.
 </p>
+<p>
+   See <a href="EditGameDetails.html">Editing a Game's Details</a>
+   for more information on this dialog.
 <p>
    <b>Step four: download media.</b>  Bring up the Game Setup
    menu again.  This time, select "Find game media online",

@@ -18,8 +18,23 @@
 namespace DiceCoefficient
 {
 	// we store each bigram as a two-character string
-	template<typename chartype> using Bigram = std::basic_string<chartype>;
-	template<typename chartype> using BigramSet = std::unordered_set<Bigram<chartype>>;
+	template<typename chartype> struct Bigram_t
+	{
+		Bigram_t(chartype a, chartype b) : a(a), b(b) { }
+
+		struct hash
+		{
+			size_t operator()(Bigram_t const& s) const { return (static_cast<size_t>(s.a) << 16) + static_cast<size_t>(s.b); }
+		};
+		struct equal_to
+		{
+			constexpr bool operator()(const Bigram_t& lhs, const Bigram_t &rhs) const { return lhs.a == rhs.a && lhs.b == rhs.b; }
+		};
+
+		chartype a, b;
+	};
+	template<typename chartype> using Bigram = struct Bigram_t<chartype>;
+	template<typename chartype> using BigramSet = std::unordered_set<Bigram_t<chartype>, typename Bigram_t<chartype>::hash, typename Bigram_t<chartype>::equal_to>;
 
 	// create a set of bigrams in a string
 	template<typename chartype>
@@ -31,12 +46,11 @@ namespace DiceCoefficient
 		// mirror image of this - <last char><null> - in the
 		// main loop below, since the last character is followed
 		// by the trailing null for the whole string.
-		chartype first[2] = { 0, a[0] };
-		set.emplace(first, 2);
+		set.emplace(0, a[0]);
 
 		// go through each character pair in the string
 		for (int i = 0; a[i] != 0; ++i)
-			set.emplace(&a[i], 2);
+			set.emplace(a[i], a[i+1]);
 	};
 
 	template<typename chartype>
@@ -85,5 +99,4 @@ namespace DiceCoefficient
 		// divided by the total number of bigrams in the two sets
 		return 2.0f * float(nIntersection) / float(a.size() + b.size());
 	}
-
 }

@@ -11966,9 +11966,16 @@ void PlayfieldView::EditGameInfo()
 		// playfield view we're opened under
 		PlayfieldView *pfv;
 
-		// Reference table match list.  This is populated by the InitFields()
-		// initializer thread.
-		std::list<RefTableList::Table> tableMatches;
+		// title combo box edit control child
+		HWND hwndTitleEdit = NULL;
+
+		// Initial table match list, for the filename.  This is populated by the 
+		// InitFields() initializer thread.
+		std::list<RefTableList::Table> initTableMatches;
+		bool initTableMachesReady = false;
+
+		// Table match list for the name typed into the title box by the user.
+		std::list<RefTableList::Table> typedTableList;
 
 		// Custom dialog message handler
 		virtual INT_PTR Proc(UINT message, WPARAM wParam, LPARAM lParam)
@@ -11978,6 +11985,9 @@ void PlayfieldView::EditGameInfo()
 			case WM_INITDIALOG:
 				// initialize fields
 				InitFields();
+
+				// subclass the title combo
+				SubclassTitleCombo();
 				break;
 
 			case MsgInitThreadDone:
@@ -12001,7 +12011,7 @@ void PlayfieldView::EditGameInfo()
 				case IDC_CB_TITLE:
 					switch (HIWORD(wParam))
 					{
-					case CBN_SELCHANGE:
+					case CBN_SELENDOK:
 						// selected a new title
 						OnSelectTitle();
 						return 0;
@@ -12009,7 +12019,10 @@ void PlayfieldView::EditGameInfo()
 					case CBN_SETFOCUS:
 						// show the drop list
 						if (IsWindowVisible(GetDlgItem(IDC_CB_TITLE)))
+						{
 							ComboBox_ShowDropdown(GetDlgItem(IDC_CB_TITLE), TRUE);
+							SetCursor(LoadCursor(NULL, IDC_ARROW));
+						}
 						return 0;
 
 					case CBN_KILLFOCUS:
@@ -12022,7 +12035,7 @@ void PlayfieldView::EditGameInfo()
 				case IDC_CB_SYSTEM:
 					switch (HIWORD(wParam))
 					{
-					case CBN_SELCHANGE:
+					case CBN_SELENDOK:
 						// selected a new system
 						OnSelectSystem();
 						return 0;
@@ -12054,6 +12067,269 @@ void PlayfieldView::EditGameInfo()
 
 			// do the base class work
 			return __super::Proc(message, wParam, lParam);
+		}
+
+		// subclass the title combo control, for auto-complete actions
+		void SubclassTitleCombo()
+		{
+			// get the combo, and find its edit box component (it's a child of the combo)
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+			hwndTitleEdit = FindWindowEx(combo, NULL, WC_EDIT, NULL);
+
+			// subclass the edit control
+			SetProp(hwndTitleEdit, _T("WNDPROC"), reinterpret_cast<HANDLE>(GetWindowLongPtr(hwndTitleEdit, GWLP_WNDPROC)));
+			SetProp(hwndTitleEdit, _T("THIS"), reinterpret_cast<HANDLE>(this));
+			SubclassWindow(hwndTitleEdit, &ComboEditProc);
+		}
+
+		// subclassed window proc for the combo edit box
+		static LRESULT CALLBACK ComboEditProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+		{
+			switch (msg)
+			{
+			case WM_GETDLGCODE:
+				// let the dialog handle tab
+				if (wParam == VK_TAB)
+					return FALSE;
+
+				// if it's Escape, and the drop list is closed, let the dialog handle it
+				if (wParam == VK_ESCAPE && !ComboBox_GetDroppedState(GetParent(hwnd)))
+					return FALSE;
+
+				// intercept all other keys
+				return DLGC_WANTALLKEYS;
+
+			case WM_CHAR:
+				// handle character events specially
+				{
+					LRESULT lResult;
+					if (reinterpret_cast<EditGameDialog*>(GetProp(hwnd, _T("THIS")))->OnTitleChar(hwnd, msg, wParam, lParam, lResult))
+						return lResult;
+				}
+				break;
+
+			case WM_KEYDOWN:
+				// handle keystroke events
+				{
+					LRESULT lResult;
+					if (reinterpret_cast<EditGameDialog*>(GetProp(hwnd, _T("THIS")))->OnTitleKeyDown(hwnd, msg, wParam, lParam, lResult))
+						return lResult;
+				}
+				break;
+
+			case WM_DESTROY:
+				// undo our subclassing by setting the wndproc back to the original
+				SubclassWindow(hwnd, GetProp(hwnd, _T("WNDPROC")));
+				RemoveProp(hwnd, _T("WNDPROC"));
+				RemoveProp(hwnd, _T("THIS"));
+				break;
+			}
+
+			// inherit the base class handling
+			return CallWindowProc(reinterpret_cast<WNDPROC>(GetProp(hwnd, _T("WNDPROC"))), hwnd, msg, wParam, lParam);
+		}
+
+		// Update the title drop list
+		void UpdateTitleDroplist()
+		{
+			// get the current text
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+			TCHAR txt[256];
+			GetWindowText(combo, txt, countof(txt));
+
+			// get the ref table list
+			auto rtl = Application::Get()->refTableList.get();
+
+			// Populate the droplist with close matches to the current string.
+			// If the string is short, do a simple leading substring match.  
+			// Otherwise do a similarity match.  We don't attempt a similarity
+			// match on a short string since we can't get decent results until
+			// there's enough text to winnow the field a bit.   If the edit box
+			// is completely empty, revert to the original list based on the
+			// filename or prior title entry.
+			std::list<RefTableList::Table> lst;
+			if (txt[0] == 0 && initTableMachesReady)
+				lst = initTableMatches;
+			else if (_tcslen(txt) <= 3)
+				rtl->GetInitMatches(txt, 10, lst);
+			else
+				rtl->GetTitleFragmentMatches(txt, 10, lst);
+
+			// if we found any matches, populate the combo
+			if (lst.size() != 0)
+			{
+				// clear out the old list
+				ClearComboList(combo);
+				typedTableList.clear();
+
+				// populate it with the new list
+				for (auto &ele : lst)
+				{
+					int idx = ComboBox_AddString(combo, ele.listName.c_str());
+					RefTableList::Table &newEle = typedTableList.emplace_back(ele);
+					RefTableList::Table *pNewEle = &newEle;
+					ComboBox_SetItemData(combo, idx, reinterpret_cast<LPARAM>(&newEle));
+				}
+			}
+		}
+
+		// Handle key down events in the title combo box
+		bool OnTitleKeyDown(HWND edit, UINT msg, WPARAM wParam, LPARAM lParam, LRESULT &lResult)
+		{
+			// on the down-arrow key, open the drop list if it's not already open
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+			if (wParam == VK_DOWN && !ComboBox_GetDroppedState(combo))
+			{
+				// remember the current text and selection range
+				TCHAR txt[256];
+				GetWindowText(combo, txt, countof(txt));
+				DWORD sel = ComboBox_GetEditSel(combo);
+				DWORD start = LOWORD(sel), end = HIWORD(sel);
+
+				// show the drop list
+				ComboBox_ShowDropdown(combo, TRUE);
+
+				// set the arrow cursor explicitly
+				SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+				// restore the prior edit text and selection range
+				SetWindowText(combo, txt);
+				ComboBox_SetEditSel(combo, start, end);
+
+				// skip the normal handling, since that would also change the
+				// list selection, which we don't want at this point - we want
+				// down-arrow to just mean "open the list box"
+				lResult = 0;
+				return true;
+			}
+
+			// let the regular window handler have it
+			return false;
+		}
+
+		// Handle character events in the title combo box.  Returns true if we
+		// handle the event, false if not (in which case control should be passed 
+		// to the default window proc).
+		bool OnTitleChar(HWND edit, UINT msg, WPARAM wParam, LPARAM lParam, LRESULT &lResult)
+		{
+			// get the combo
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+
+			// the wparam is the character code
+			WCHAR ch = static_cast<WCHAR>(wParam);
+
+			// on escape, just close the drop list
+			if (ch == 27)
+			{
+				ComboBox_ShowDropdown(combo, FALSE);
+				return true;
+			}
+
+			// on Enter, accept the current selection and close the combo
+			if (ch == 10 || ch == 13)
+				return false;
+
+			// ignore control characters except backspace
+			if (iswcntrl(ch) && ch != 8)
+				return true;
+
+			// note if the combo list is dropped down
+			bool dropped = ComboBox_GetDroppedState(combo);
+
+			// Backspace is a bit of a special case for auto-complete.  If
+			// the current selection range extends to the end of the string,
+			// take it to be an auto-complete range.  In this case, we want
+			// backspace to delete the prior character, as though the auto-
+			// complete selection weren't even there.
+			if (ch == 8 && dropped)
+			{
+				// get the current text and selection range
+				TCHAR txt[256];
+				GetWindowText(combo, txt, countof(txt));
+				DWORD sel = ComboBox_GetEditSel(combo);
+				DWORD start = LOWORD(sel), end = HIWORD(sel);
+
+				// does the selection extend to the end of the text?
+				if (end >= _tcslen(txt) && start > 0)
+				{
+					// extend the selection range to the previous character
+					ComboBox_SetEditSel(combo, start - 1, end);
+				}
+			}
+
+			// invoke the normal handling first to update the text
+			lResult = CallWindowProc(reinterpret_cast<WNDPROC>(GetProp(edit, _T("WNDPROC"))), edit, msg, wParam, lParam);
+
+			// update auto-complete
+			UpdateTitleAutoComplete(true);
+
+			// handled
+			return true;
+		}
+
+		// Update auto-complete, forcing the combo list open if desired
+		void UpdateTitleAutoComplete(bool forceOpen)
+		{
+			// if the drop list isn't open, do nothing unless we want to force it open
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+			bool dropped = ComboBox_GetDroppedState(combo);
+			if (!dropped && !forceOpen)
+				return;
+
+			// update the auto-complete list
+			UpdateTitleDroplist();
+
+			// remember the current text and selection range
+			TCHAR txt[256];
+			GetWindowText(combo, txt, countof(txt));
+			DWORD sel = ComboBox_GetEditSel(combo);
+			DWORD start = LOWORD(sel), end = HIWORD(sel);
+
+			// if the selection range extends to the end of the text, keep only
+			// the portion up to the end of the selection - we'll assume that the
+			// selected range is only there from a prior auto-complete and wasn't
+			// actually entered by the user
+			bool isAutoComplete = false;
+			if (end >= _tcslen(txt) && start >= 0)
+			{
+				isAutoComplete = true;
+				end = start;
+				txt[end] = 0;
+			}
+
+			// if the combo isn't already open, open it
+			if (!dropped)
+			{
+				// show the drop list
+				ComboBox_ShowDropdown(combo, TRUE);
+
+				// Explicitly set the arrow cursor, since the edit control might
+				// have hidden it on the key press event, and the drop list window
+				// doesn't provide its own cursor.
+				SetCursor(LoadCursor(NULL, IDC_ARROW));
+
+				// If we're not auto-completing, restore the old text and remove
+				// the drop list selection.  Opening the drop list selects the first
+				// list item and updates the text to match, which we don't want to
+				// do if we're not auto-completing anything this time.
+				if (!isAutoComplete)
+				{
+					SetWindowText(combo, txt);
+					ComboBox_SetEditSel(combo, start, end);
+				}
+			}
+
+			// fill in the auto-complete if desired
+			if (isAutoComplete)
+			{
+				// find the first drop list entry with a matching leading substring
+				int index = ComboBox_FindString(combo, -1, txt);
+				if (index >= 0)
+				{
+					ComboBox_SetCurSel(combo, index);
+					ComboBox_SetEditSel(combo, start, -1);
+				}
+			}
 		}
 
 		// Fill the form from the IPDB table ID entry
@@ -12237,8 +12513,7 @@ void PlayfieldView::EditGameInfo()
 			// get the current selection's item data - this is the table
 			// record from the reference list
 			HWND cbTitle = GetDlgItem(IDC_CB_TITLE);
-			int selIdx = ComboBox_GetCurSel(cbTitle);
-			if (selIdx > 0)
+			if (int selIdx = ComboBox_GetCurSel(cbTitle); selIdx >= 0)
 			{
 				auto selTable = reinterpret_cast<const RefTableList::Table*>(ComboBox_GetItemData(cbTitle, selIdx));
 				if (selTable != nullptr)
@@ -12639,6 +12914,7 @@ void PlayfieldView::EditGameInfo()
 				// get pick out the right match.  But in the absence of any
 				// other metadata, it will have to do.
 				const TCHAR *nameToMatch = self->gameFile.c_str();
+				bool isFilename = true;
 
 				// In the case of VP, we can sometimes get better metadata
 				// from the table info embedded in the VP file.  The VP file
@@ -12665,12 +12941,21 @@ void PlayfieldView::EditGameInfo()
 						// metadata, so this might be missing even if we were
 						// able to read the file.
 						if (vpr.tableName != nullptr)
+						{
 							nameToMatch = vpr.tableName.get();
+							isFilename = false;
+						}
 					}
 				}
 
-				// populate the title drop list with close matches to the filename
-				Application::Get()->refTableList->GetTopMatches(nameToMatch, 10, self->tableMatches);
+				// Populate the title drop list with close matches to the filename
+				// or title.  Note that the match heuristics are somewhat different
+				// for the two cases, so use the appropriate one according to the
+				// source of the name.
+				if (isFilename)
+					Application::Get()->refTableList->GetFilenameMatches(nameToMatch, 10, self->initTableMatches);
+				else
+					Application::Get()->refTableList->GetTitleFragmentMatches(nameToMatch, 10, self->initTableMatches);
 
 				// Call back into the main thread. via a private message to
 				// populate the drop list in the UI
@@ -12692,10 +12977,13 @@ void PlayfieldView::EditGameInfo()
 
 		void OnInitThreadDone()
 		{
+			// note that the initial list is ready
+			initTableMachesReady = true;
+
 			// Populate the Title combo list from the matches.  Stash the
 			// match item pointer in each combo item's 'data' field.
 			HWND cbTitle = GetDlgItem(IDC_CB_TITLE);
-			for (auto &t : tableMatches)
+			for (auto &t : initTableMatches)
 			{
 				int idx = ComboBox_AddString(cbTitle, t.listName.c_str());
 				ComboBox_SetItemData(cbTitle, idx, reinterpret_cast<LPARAM>(&t));

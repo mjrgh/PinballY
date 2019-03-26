@@ -30,18 +30,35 @@ bool RefTableList::GetByIpdbId(const TCHAR *id, std::unique_ptr<Table> &table)
 		return false;
 
 	// return the result
-	table.reset(new Table(this, it->second, 1.0f));
+	table.reset(new Table(this, it->second));
 	return true;
 }
 
-void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst)
+void RefTableList::GetInitMatches(const TCHAR *leadingSubstr, int n, std::list<Table> &lst)
 {
-	// if initialization hasn't finished yet, return an empty list
+	// if initialization hasn't finished yet, return with nothing added to the list
+	if (!IsReady())
+		return;
+
+	// find the first item at or after the leading substring
+	auto it = std::lower_bound(sortedRows.begin(), sortedRows.end(), leadingSubstr, [this](const int &i, const TCHAR* const &s) {
+		return lstrcmpi(sortKeyCol->Get(i), s) < 0;
+	});
+
+	// fill in the next N items
+	for (; it != sortedRows.end() && n > 0; ++it, --n)
+		lst.emplace_back(this, *it);
+}
+
+
+void RefTableList::GetFilenameMatches(const TCHAR *filename, int n, std::list<Table> &lst)
+{
+	// if initialization hasn't finished yet, return with nothing added to the list
 	if (!IsReady())
 		return;
 
 	// get the lower-case version of the name
-	TSTRING lcName = name;
+	TSTRING lcName = filename;
 	std::transform(lcName.begin(), lcName.end(), lcName.begin(), _totlower);
 
 	// build the bigram set for the name
@@ -84,13 +101,14 @@ void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst
 	struct Result
 	{
 		Result(int idx, float score) : idx(idx), score(score) { }
-		int idx;		// CSV row index of the match
-		float score;	// match score
+		int idx;           // CSV row index of the match
+		float score;       // match score
 	};
 	std::vector<Result> searchResults;
 	searchResults.reserve(nRows);
 
 	// go through the table list and look for matches
+	float highScore = 0.0f;
 	for (size_t i = 0; i < nRows; ++i)
 	{
 		// figure the match strength for this item
@@ -136,61 +154,160 @@ void RefTableList::GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst
 			score = max(score, score2);
 		}
 
-		// add it to the results, using the highest score we found
+		// add it to the results, using the highest score we came up with
 		searchResults.emplace_back((int)i, score);
+
+		// note the highest score so far
+		if (score > highScore)
+			highScore = score;
 	}
 
-	// sort the list by descending score
-	std::sort(searchResults.begin(), searchResults.end(), [](const Result &a, const Result &b) {
-		return a.score > b.score;
-	});
+	// if we didn't come up with any matches, we're done
+	if (searchResults.size() == 0)
+		return;
 
-	// Get the highest score
-	float highestScore = searchResults[0].score;
-	const TCHAR *bestMatchTitle = nameCol->Get(searchResults[0].idx, _T(""));
+	// sort initially by score (high to low)
+	std::sort(searchResults.begin(), searchResults.end(), [](const Result &a, const Result &b) { return a.score > b.score; });
 
-	// Build the result list.  Keep the highest ranking N items, or
-	// the N items within a reasonable distance of the top score. 
-	// The distance-from-top test is to avoid keeping items with
-	// very low scores in cases where there aren't enough good
-	// matches to fill out the N; we don't want to keep N items
-	// just for the sake of keeping N items if there really aren't
-	// enough good matches.
+	// Build a subset of the top scoring items, keeping up to N
+	// items (the maximum the caller requested), but stopping when
+	// we reach an item with a score too far below the highest.
+	// This avoids keeping a bunch of garbage matches when we've
+	// identified a good match.
+	std::vector<Result> finalResults;
+	finalResults.reserve(n);
 	for (auto &it : searchResults)
 	{
-		// stop if we've filled out the list, or this item's
-		// score is too low
-		if ((int)lst.size() >= n || it.score < highestScore - 0.3f)
+		// stop if we've filled out the list, or this item's score 
+		// is too far below the top item's score
+		if ((int)lst.size() >= n || it.score < highScore - 0.3f)
 			break;
 
 		// add this item to the results
-		lst.emplace_back(this, it.idx, it.score);
-	}
+		finalResults.emplace_back(it.idx, it.score);
+	};
 
-	// Sort the list so that the highest-scoring item is at the top
-	// (or the highest-scoring items, if we have several with the
-	// same name), and the rest are sorted alphabetically.
-	lst.sort([highestScore, bestMatchTitle](const Table &a, const Table &b)
+	// Now sort this list so that the best match goes at the top
+	// (or the best matches, if there's a tie), and the rest of the
+	// list is sorted alphabetically by sort key.
+	std::sort(finalResults.begin(), finalResults.end(), [highScore, this](const Result &a, const Result &b)
 	{
-		// if we can distinguish on score, and one item matches
-		// the highest score, put the high-score item at the top
+		// if we can distinguish by score, and one of the items
+		// has the highest score we found, put the high-scoring
+		// item at the top of the list
 		if (a.score != b.score)
 		{
-			if (a.score == highestScore)
+			if (a.score == highScore)
 				return true;
-			if (b.score == highestScore)
+			if (b.score == highScore)
 				return false;
 		}
 
-		// We can't distinguish by score, so sort by name (more
-		// specifically, the pre-built sort key, which incorporates
-		// the name, year, and manufacturer)
-		return lstrcmp(a.sortKey.c_str(), b.sortKey.c_str()) < 0;
+		// otherwise, sort alphabetically by sort key
+		return lstrcmp(sortKeyCol->Get(a.idx), sortKeyCol->Get(b.idx)) < 0;
 	});
+
+	// now build the result list for the caller
+	for (auto &it : finalResults)
+		lst.emplace_back(this, it.idx);
 }
 
-RefTableList::Table::Table(RefTableList *rtl, int row, float score) :
-	score(score)
+void RefTableList::GetTitleFragmentMatches(const TCHAR *title, int n, std::list<Table> &lst)
+{
+	// if initialization hasn't finished yet, return with nothing added to the list
+	if (!IsReady())
+		return;
+
+	// get the lower-case version of the name
+	TSTRING lcName = title;
+	std::transform(lcName.begin(), lcName.end(), lcName.begin(), _totlower);
+
+	// build the bigram set for the name
+	DiceCoefficient::BigramSet<TCHAR> bg;
+	DiceCoefficient::BuildBigramSet(bg, lcName.c_str());
+
+	// get the number of rows in the reference list
+	size_t nRows = nameBigrams.size();
+
+	// there's nothing to do if the ref list is empty
+	if (nRows == 0)
+		return;
+
+	// working search results list
+	struct Result
+	{
+		Result(int idx, float score, bool isLeading) : idx(idx), score(score), isLeading(isLeading) { }
+		int idx;           // CSV row index of the match
+		float score;       // match score
+		bool isLeading;    // is this a leading substring of the name?
+	};
+	std::vector<Result> searchResults;
+	searchResults.reserve(nRows);
+
+	// go through the table list and look for matches
+	float highScore = 0.0f;
+	for (size_t i = 0; i < nRows; ++i)
+	{
+		// figure the match strength for this item
+		float score = DiceCoefficient::DiceCoefficient(bg, nameBigrams[i]);
+
+		// try again with the name against the alternate name
+		float score2 = DiceCoefficient::DiceCoefficient(bg, altNameBigrams[i]);
+		score = max(score, score2);
+
+		// Note if this is a leading substring of the name or sort key. 
+		// Check the sort key so that we match a fragment like "addams family",
+		// where the initial "the" in the regular name has been elided.
+		bool isLeading = tstriStartsWith(nameCol->Get(static_cast<int>(i)), title)
+			|| tstriStartsWith(sortKeyCol->Get(static_cast<int>(i)), title);
+
+		// add it to the results, using the highest score we came up with
+		searchResults.emplace_back((int)i, score, isLeading);
+
+		// note the highest score so far
+		if (score > highScore)
+			highScore = score;
+	}
+
+	// if we didn't come up with any matches, we're done
+	if (searchResults.size() == 0)
+		return;
+
+	// Sort the list so that leading substring matches are at the top,
+	// then by score.
+	std::sort(searchResults.begin(), searchResults.end(), [this](const Result &a, const Result &b)
+	{
+		// sort leading substring matches to the top
+		if (a.isLeading != b.isLeading)
+			return a.isLeading;
+
+		// then by score (high to low)
+		if (a.score != b.score)
+			return a.score > b.score;
+
+		// then alphabetically within items with the same score or substring status
+		return lstrcmpi(sortKeyCol->Get(a.idx), sortKeyCol->Get(b.idx)) < 0;
+	});
+
+	// Build the result list, keep the highest ranking N items.
+	for (auto &it : searchResults)
+	{
+		// stop when we reach the caller's maximum number of items
+		if ((int)lst.size() >= n)
+			break;
+
+		// If this isn't a leading substring, stop if the score is 
+		// too far below the best match, so that we don't keep a bunch
+		// of garbage matches once we have a good match.
+		if (!it.isLeading && it.score < highScore - 0.3f)
+			break;
+
+		// add this item to the results
+		lst.emplace_back(this, it.idx);
+	}
+}
+
+RefTableList::Table::Table(RefTableList *rtl, int row)
 {
 	listName = rtl->listNameCol->Get(row, _T(""));
 	name = rtl->nameCol->Get(row, _T(""));
@@ -242,10 +359,10 @@ void RefTableList::Init()
 		self->initialsCol = self->csvFile.DefineColumn(_T("Initials"));
 
 		// regex's for building the initials
-		std::basic_regex<TCHAR> parenPat(_T("\\s*\\(.*\\)\\s*"));
-		std::basic_regex<TCHAR> punctPat(_T("[^\\w]+"));
-		std::basic_regex<TCHAR> trimPat(_T("^(the|a|an)?\\s+|\\s+(,\\s+(the|a|an))?$"));
-		std::basic_regex<TCHAR> initPat(_T("(\\w)\\w+\\s*"));
+		static const std::basic_regex<TCHAR> parenPat(_T("\\s*\\(.*\\)\\s*"));
+		static const std::basic_regex<TCHAR> punctPat(_T("[^\\w]+"));
+		static const std::basic_regex<TCHAR> trimPat(_T("^(the|a|an)?\\s+|\\s+(,\\s+(the|a|an))?$"));
+		static const std::basic_regex<TCHAR> initPat(_T("(\\w)\\w+\\s*"));
 
 		// Build the bigram sets and sorting keys
 		size_t nRows = self->csvFile.GetNumRows();
@@ -280,8 +397,8 @@ void RefTableList::Init()
 			// Synthesize the initials.  Start by stripping out any paren-
 			// thetical suffix, then strip out any remaining punctuation
 			// entirely (replacing it with spaces), then trim any leading
-			// or trailing spaces, then pull out the first letter of each
-			// remaining word.
+			// or trailing spaces and articles ("the", "a", "an"), then pull
+			// out the first letter of each remaining word.
 			TSTRING initName = std::regex_replace(name, parenPat, _T(" "));
 			initName = std::regex_replace(initName, punctPat, _T(" "));
 			initName = std::regex_replace(initName, trimPat, _T(""));
@@ -295,6 +412,18 @@ void RefTableList::Init()
 			if (ipdbId != nullptr && ipdbId[0] != 0)
 				self->ipdbIdMap.emplace(ipdbId, rownum);
 		}
+
+		// Build the sorted row order vector.  Start by populating it with 
+		// all of the row numbers.
+		auto &sr = self->sortedRows;
+		sr.resize(nRows);
+		for (size_t i = 0; i < nRows; ++i)
+			sr[i] = static_cast<int>(i);
+
+		// now sort it by the referenced sort key in each row
+		std::sort(sr.begin(), sr.end(), [self](const int &a, const int &b) {
+			return lstrcmp(self->sortKeyCol->Get(a), self->sortKeyCol->Get(b)) < 0;
+		});
 
 		// done (the thread return value isn't used, but we have to return
 		// something to conform to the standard thread entrypoint prototype)

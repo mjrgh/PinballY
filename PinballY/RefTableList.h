@@ -64,7 +64,7 @@ public:
 	// Table match results struct
 	struct Table
 	{
-		Table(RefTableList *rtl, int row, float score);
+		Table(RefTableList *rtl, int row);
 
 		TSTRING listName;     // list name - "title (manufacturer year)"
 		TSTRING name;		  // table name
@@ -76,12 +76,27 @@ public:
 		TSTRING ipdbId;       // IPDB table ID
 		TSTRING sortKey;      // sort key
 		TSTRING machineType;  // IPDB machine type code (SS, EM, ME)
-		float score;		  // Dice coefficient score for the fuzzy match
 	};
 
-	// Get the top N matches to a given string.  The results
-	// are sorted by table name.
-	void GetTopMatches(const TCHAR *name, int n, std::list<Table> &lst);
+	// Get the top 'n' matches to the given filename.  This uses string
+	// similarity to look for titles that resemble the filename, with
+	// a bunch of heuristics based on file naming patterns frequently
+	// used for uploads to the virtual pinball sites.  The first entry
+	// in the result list is the best match according to our scoring
+	// heuristics; the rest of the list is sorted alphabetically.
+	// This routine is specifically designed to populate a list of
+	// possible matches for presentation to the user, such as in a
+	// combo box drop list.
+	void GetFilenameMatches(const TCHAR *filename, int n, std::list<Table> &lst);
+
+	// Get the top 'n' matches to a partial title entered by the user.
+	// This looks for similarity matches, giving precedence to leading
+	// substring matches.
+	void GetTitleFragmentMatches(const TCHAR *titleFragment, int n, std::list<Table> &lst);
+
+	// Get the first N matches, in alphabetical order, to the given string
+	// as a leading substring of the title.
+	void GetInitMatches(const TCHAR *leadingSubstr, int n, std::list<Table> &lst);
 
 	// Look up an entry by IPDB ID.  Returns true if found.
 	bool GetByIpdbId(const TCHAR *ipdbId, std::unique_ptr<Table> &table);
@@ -112,6 +127,11 @@ protected:
 
 	// IPDB ID map.  This maps IPDB ID keys to row numbers in the CSV.
 	std::unordered_map<TSTRING, int> ipdbIdMap;
+
+	// Sorted row order.  This gives the order of the CSV rows after sorting
+	// by sort key: sortedRows[0] is the row number of the first row in sorted
+	// order, etc.
+	std::vector<int> sortedRows;
 
 	// CSV file column accessors
 	CSVFile::Column *nameCol;

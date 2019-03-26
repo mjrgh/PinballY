@@ -65,21 +65,37 @@
 //   the application, especially changes that are incompatible with past
 //   versions (e.g., files from past versions can no longer be used), or 
 //   that require users to learn substantial new workflows for tasks, or
-//   that substantially change the look and feel of the UI.
+//   that substantially change the look and feel of the UI.  In actively
+//   developed projects, the time between major releases might be a year
+//   or two, or even longer (3-5 years) for very large systems like
+//   Windows.
 // 
 // - The "minor" version changes when substantial new functionality is
 //   added, but in a way that doesn't change existing functionality very
 //   much.  Older files should remain fully compatible, for example, and
 //   the user experience for previously existing functionality shouldn't
-//   have changed much.
+//   have changed much.  Minor releases might come out every few months
+//   for an actively developed project, and you might expect a handful
+//   of minor releases between major releases.
 // 
 // - The "maintenance" version should change on essentially every public
 //   release where the major and minor numbers aren't changing.  This
 //   represents a release containing bugs fixes, cosmetic changes, and
 //   minor improvements that don't really count as new features.  (Many
 //   people call this part of the string the "patch" number, but that's
-//   not a very good term for it, because "patch" has technical 
-//   connotations that are a bit misleading in this context.)
+//   not a very good term for it, because it has a technical meaning
+//   that's misleading in this context.)  Maintenance releases tend to
+//   appear as needed to fix important bugs or make new minor features
+//   available as soon as they're ready, so they don't tend to have a
+//   regular frequency; a maintenance update might appear just a day or
+//   two after another release to fix a new bug that was just added,
+//   for example.
+//
+//   During a pre-release test cycle (alpha, beta), the maintenance
+//   release number is typically NOT updated.  Instead, the base version
+//   number is held constant while the pre-release sequence number is 
+//   udpated:  1.0.0 Beta 1, 1.0.0 Beta 2, etc.
+//   
 // 
 // 
 // IV.  PINBALLY_RELEASE_STATUS
