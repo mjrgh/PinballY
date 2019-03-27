@@ -325,7 +325,7 @@ taskkill /im PinUpDisplay.exe</div>
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
-   <b>Parameters:</b> -applaunch 226980 "[TABLEFILE]"<br>
+   <b>Parameters:</b> -applaunch 226980 "[TABLEFILEBASE]"<br>
    <b>Window Mode:</b> Minimize<br>
    <b>Process name:</b> Pinball FX2.exe<br>
    <b>Table folder:</b> steamapps\common\Pinball FX2\data\steam<br>
@@ -342,7 +342,7 @@ taskkill /im PinUpDisplay.exe</div>
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
-   <b>Parameters:</b> -applaunch 442120 "-table_[TABLEFILE]"<br>
+   <b>Parameters:</b> -applaunch 442120 "-table_[TABLEFILEBASE]"<br>
    <b>Window Mode:</b> Minimize<br>
    <b>Process name:</b> Pinball FX3.exe<br>
    <b>Table folder:</b> steamapps\common\Pinball FX3\data\steam<br>
@@ -604,9 +604,27 @@ taskkill /im PinUpDisplay.exe</div>
    <tt>c:\VisualPinball\Tables</tt>.
 
    <li><b>[TABLEFILE]</b>: the filename of the table file for the
-   game you're running, without any path prefix.  For example, for
-   a Visual Pinball version of <i>Funhouse</i>, this might be something
-   like <tt>funhouse_v2.vpt</tt>.
+   game you're running, <b>without</b> any path prefix, and <b>with</b>
+   the system's default extension added, if that's necessary to form
+   the name of an existing file.   For example, for a Visual Pinball 9
+   version of <i>Funhouse</i>, this might be something like
+   <tt>funhouse_v2.vpt</tt>.  
+
+   <li><b>[TABLEFILEBASE]</b>:  the "base" filename for the table,
+   with any extension removed.  This differs from [TABLEFILE] in that
+   any extension is stripped from the end, leaving just the base name
+   of the file.  This also differs from [TABLEFILEORIG] in that
+   the extension is <b>always</b> removed from [TABLEFILEBASE],
+   whereas [TABLEFILEORIG] is never altered from the database version
+   of the filename.  In other words, if the filename <i>as it appears
+   in the database</i> contains an extension, [TABLEFILEORIG] will
+   contain the same extension, whereas [TABLEFILEBASE] won't.
+
+   <li><b>[TABLEFILEORIG]</b>: the "original" filename of the table,
+   exactly as it appears in the table database file.  This differs from
+   [TABLEFILE] in that [TABLEFILE] might have the system's default
+   file extension added, whereas [TABLEFILEORIG] has the exact original
+   filename from the database.
 
    <li><b>[PINBALLY]</b>: the full path to your PinballY install
    folder (e.g., <tt>c:\PinballY</tt>).
@@ -1069,9 +1087,27 @@ taskkill /im PinUpDisplay.exe</div>
    <tt>c:\VisualPinball\Tables</tt>.
 
    <li><b>[TABLEFILE]</b>: the filename of the table file for the
-   game you're running, without any path prefix.  For example, for
-   a Visual Pinball version of <i>Funhouse</i>, this might be something
-   like <tt>funhouse_v2.vpt</tt>.
+   game you're running, <b>without</b> any path prefix, and <b>with</b>
+   the system's default extension added, if that's necessary to form
+   the name of an existing file.   For example, for a Visual Pinball 9
+   version of <i>Funhouse</i>, this might be something like
+   <tt>funhouse_v2.vpt</tt>.  
+
+   <li><b>[TABLEFILEBASE]</b>:  the "base" filename for the table,
+   with any extension removed.  This differs from [TABLEFILE] in that
+   any extension is stripped from the end, leaving just the base name
+   of the file.  This also differs from [TABLEFILEORIG] in that
+   the extension is <b>always</b> removed from [TABLEFILEBASE],
+   whereas [TABLEFILEORIG] is never altered from the database version
+   of the filename.  In other words, if the filename <i>as it appears
+   in the database</i> contains an extension, [TABLEFILEORIG] will
+   contain the same extension, whereas [TABLEFILEBASE] won't.
+
+   <li><b>[TABLEFILEORIG]</b>: the "original" filename of the table,
+   exactly as it appears in the table database file.  This differs from
+   [TABLEFILE] in that [TABLEFILE] might have the system's default
+   file extension added, whereas [TABLEFILEORIG] has the exact original
+   filename from the database.
 
    <li><b>[PINBALLY]</b>: the full path to your PinballY install
    folder (e.g., <tt>c:\PinballY</tt>).

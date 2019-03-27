@@ -2,15 +2,42 @@ PinballY Update History
 
 ? (1.0.0 Beta 10)
 
-* In the Game Details dialog, the title entry box now shows suggested
-matches from the built-in IPDB table list as you type.  This makes it
-easier to find matches when the initial search based on the filename
-fails to find the right table (which can happen for more cryptic
-filenames).  Click on the title box and type in the first few
-characters of the title.  Once the right title appears in the list,
-just click on it, or press Enter when it's selected, to choose that
-title and populate the rest of the dialog fields with its details
-from the IPDB list.
+* In the Game Details dialog, the title box now lets you search for
+matching titles, simply by typing into the box.  The drop list will
+show suggested matches to what you've typed so far, refining its
+guesses as you type.  This makes it easier to find matches when the
+initial filename search fails to find the right table, which can
+easily happen when the filename is too short or too cryptic.  To use
+the new search feature, simply click on the title box, and start
+typing the title.  Usually, the right title will appear after you've
+typed the first few characters.  Once the right title appears, just
+click on it, or use the cursor arrow keys and Enter to select it.  As
+usual, that will populate the rest of the dialog fields with the IPDB
+details for the selected title.
+
+* A couple of new substitution variables have been added for use in
+game system command lines, to give you more precise control over
+the construction of game launch commands.  (These are in part to
+address issue #51 on github.)
+
+  * [TABLEFILEORIG] is the original table file name, exactly as it
+    appears in the table database.  This is similar to the existing
+    [TABLEFILE] variable, but [TABLEFILE] is slightly different, in
+    that [TABLEFILE] might have the system's default extension tacked
+    on to the end, if that's necessary to form the name of an existing
+    file.  For example, Visual Pinball X's default extension is .vpx,
+    so if the database refers to "MedMad_v1" as the table file,
+    [TABLEFILE] might be set to "MedMad_v1.vpx", whereas
+    [TABLEFILEORIG] will be set to the original "MedMad_v1".
+
+  * [TABLEFILEBASE] is the same as [TABLEFILE], but with any extension
+    removed.  This differs from [TABLEFILEORIG] in that the extension
+    is stripped off in all cases, whether or not it was in the original
+    filename in the table database.  [TABLEFILEORIG] reflects exactly
+    what's in the database file.  In some cases, it might be desirable
+    to include the extension in the database entry but omit it in the
+    table launch command line, so this variable lets you do that.
+
 
 
 03-23-2019 (1.0.0 Beta 9)

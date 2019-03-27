@@ -2153,7 +2153,7 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 
 TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
 {
-	std::basic_regex<TCHAR> pat(_T("\\[(\\w+)\\]"));
+	static const std::basic_regex<TCHAR> pat(_T("\\[(\\w+)\\]"));
 	return regex_replace(str, pat, [this](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
 	{
 		// get the variable name in all caps
@@ -2163,24 +2163,40 @@ TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
 		// check for known substitution variable names
 		if (var == _T("TABLEPATH"))
 		{
+			// the table path
 			return gameSys.tablePath;
 		}
 		else if (var == _T("TABLEFILE"))
 		{
+			// the table file, resolved to an existing file
 			return gameFileWithExt;
+		}
+		else if (var == _T("TABLEFILEBASE"))
+		{
+			// the resolved table file, stripped of its extension
+			static const std::basic_regex<TCHAR> extPat(_T("\\.[^.\\\\]+$"));
+			return std::regex_replace(gameFileWithExt, extPat, _T(""));
+		}
+		else if (var == _T("TABLEFILEORIG"))
+		{
+			// the original table file, exactly as it appears in the database
+			return game.filename;
 		}
 		else if (var == _T("PINBALLY"))
 		{
+			// the PinballY progrma folder
 			TCHAR exePath[MAX_PATH];
 			GetExeFilePath(exePath, countof(exePath));
 			return exePath;
 		}
 		else if (var == _T("LB"))
 		{
+			// a literal "[" (left bracket)
 			return _T("[");
 		}
 		else if (var == _T("RB"))
 		{
+			// a literal "]" (right bracket)
 			return _T("]");
 		}
 		else

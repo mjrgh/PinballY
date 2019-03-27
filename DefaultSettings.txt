@@ -1436,7 +1436,7 @@ System6.ShowWindow = SW_SHOWMINIMIZED
 System6.Environment =
 System6.TablePath = steamapps\common\Pinball FX3\data\steam
 System6.DefExt = .pxp
-System6.Parameters = -applaunch 442120 "-table_[TABLEFILE]"
+System6.Parameters = -applaunch 442120 "-table_[TABLEFILEBASE]"
 System6.Process = Pinball FX3.exe
 System6.DOFTitlePrefix = FX3
 
@@ -1448,7 +1448,7 @@ System7.ShowWindow = SW_SHOWMINIMIZED
 System7.Environment =
 System7.TablePath = steamapps\common\Pinball FX2\data\steam
 System7.DefExt = .pxp
-System7.Parameters = -applaunch 226980 "[TABLEFILE]"
+System7.Parameters = -applaunch 226980 "[TABLEFILEBASE]"
 System7.Process = Pinball FX2.exe
 System7.DOFTitlePrefix = FX2
 
