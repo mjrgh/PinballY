@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>A "Top 10" Filter</h1>
+
+<p>
+   PinballY has lots of built-in filters for viewing subsets of
+   your installed games.  One type is the Star Rating filters, which
+   let you see games that you've rated 5 Stars, 4 Stars, etc.
+</p>
+<p>
+   A poster on one of the virtual pinball forums suggested that
+   it might be nice to have filters for broader ratings categories -
+   say, "Good Games", which the poster proposed
+   might be anything rated 3 Stars or better.
+</p>
+<p>
+   Once you start thinking about complex filters like that, you
+   can come up with all sorts of variations.  Not just in the
+   nature of the filters, but in their details.  I might
+   think of "good" as 3+ stars, but you might be
+   a lot picker and think it means 4&frac12; or better.
+   So this struck me as a great candidate for some Javascript
+   custom filters, rather than something built into the system.
+   By expressing this type of filter in Javascript, everyone
+   can tune it to mean exactly what they think it should mean.
+   Plus, it avoids the runaway menu bloat that would result
+   if I started adding all of the ratings filters I can think of
+   to PinballY itself; pretty soon there'd be so many filters
+   that you'd never be able to find the one you're looking for.
+</p>
+
+<h2>3 Stars or Better</h2>
+<p>
+   Let's start with the original idea proposed on the forum: a
+   filter that selects games rated 3 Stars or better.
+</p>
+<p>
+   The basic way that all custom filters work is that you
+   create a "filter function" in Javascript.  This is a
+   function that you write, and which PinballY calls to
+   ask if a game is "in" or "out" when the filter is
+   selected.  PinballY passes the function a
+   <a href="GameInfo.html">GameInfo</a> object, which
+   is a Javascript object describing one entry in PinballY's
+   master list of all of your virtual pinball tables.
+   The GameInfo object provides you access to all of the
+   information that PinballY has about the game, such
+   as its name, release year, manufacturer, filename,
+   system - and, of course, the star rating you've assigned
+   to the game.
+</p>
+<p>
+   This makes the filter function for "3 Stars or better"
+   pretty easy to write.  All we have to do is check the
+   rating value from the game object that PinballY passes
+   us, and return true (for "yes, this game is in")
+   if the rating is 3 or higher.  The rating is represented
+   as a simple numeric value - 3 stars is simply the
+   number 3.  Half stars are fractional values, so
+   3&frac12; stars has the numeric value 3.5.  So the test
+   is just an ordinary Javascript comparison:
+</p>
+<div class="code">
+function ThreeStarsOrBetter(game)
+{
+    return game.rating >= 3;
+}
+</div>
+<p>
+   PinballY invokes a filter function once for each game
+   in your collection whenever the user activates the filter.
+   All you have to worry about in the filter function is
+   the one game you're being asked about; PinballY takes
+   care of iterating over the whole collection.
+</p>
+
+<p>
+   How do you get PinballY to call your filter
+   function in the first place, though?
+   To do that, you have to call a system function,
+   <a href="GameList.html#createFilter">gameList.createFilter()</a>.
+   That tells PinballY about your filter function, and also
+   gives it some other information that connects the filter
+   function to a menu command that can be presented to the
+   user.  The menu command lets the user activate the
+   filter.
+</p>
+<p>
+   See the <a href="GameList.html#createFilter">createFilter()</a>
+   documentation for full details, but for simple filters,
+   you only need to provide a few pieces of information:
+</p>
+<ul>
+   <li>A unique "ID" for the filter.  This is just a
+   string you make up, which PinballY uses to identify
+   the filter when saving the user's settings.  If the
+   user exits the program while this filter is selected,
+   the ID will be saved in the settings as the active
+   filter, so that PinballY can restore the same filter
+   again at the start of the next session.
+
+   <li>A title for the filter.  This is the name of the
+   filter displayed in status line messages when the
+   filter is selected.  It's also displayed by default
+   in the menu where the filter is listed, although
+   you can provide a separate menu title if you prefer.
+
+   <li>A menu group name.  This defines a top-level menu
+   command that PinballY automatically adds to the main
+   "Play" menu.  Selecting that group menu will open a
+   sub-menu showing all of the filters assigned to this
+   same group.  Alternatively, you can specify one of
+   the pre-defined system groups, which are all named
+   with [Square Brackets] around their names.  For this
+   example, we want to use the system "Filter by Ratings"
+   menu group, named "[Rating]".
+
+   <li>A "sort key".  This is optional, but highly
+   useful for aesthetic purposes.  This tells PinballY
+   where the filter's menu item goes in its menu, relative
+   to the other filters in its menu group.  By default,
+   the items are simply sorted alphabetically by title,
+   but that's not the nicest way for a lot of cases.
+   The sort key lets you specify a position more
+   precisely.  In the case of the ratings filters,
+   each "Star" item has a sort key equal to its
+   star number - "1", "2", etc - except for the
+   "Unrated" filter, which has sort key "Z" to make
+   it sort at the end of the menu.  If you wanted
+   to insert your Top Games filter after the "Star"
+   items and before the "Unrated" item, you could
+   use a sort key like "Y" (because it comes
+   before "Z").
+</ul>
+
+<p>
+   Here's how we create our 3-stars-or-better filter:
+</p>
+
+<div class="code">
+gameList.createFilter({
+    id: "Stars3Plus",
+    title: "3+ Stars",
+    menuTitle: "3+ Star Tables",
+    group: "[Rating]",
+    sortKey: "3+",
+    select: function(game) { return game.rating >= 3; }
+});
+</div>
+
+<p>
+   Note that we've written the filter function the concise way,
+   rather than writing it out as a named function as we did
+   above.  We could just as well have used the named function,
+   but this is a little neater because it keeps everything
+   together where you can read it at a glance, without
+   having to hunt around the file for the referenced
+   function definition.
+</p>
+<p>
+   Where do you put this code?  You just put it at the
+   top level of a Javascript module, so that it runs when
+   PinballY first reads the file.  You <i>could</i>
+   paste it directly into your Scripts\Main.js file, but I
+   think it's a little neater to break things up into separate
+   files, where each file contains all of the code for just
+   one feature.  So in this case, I'd put the code
+   above into its own file in your Scripts folder: 
+   call it ThreePlusRating.js, perhaps.  Then in your Main.js file,
+   write this somewhere:
+</p>
+<div class="code">
+import("ThreePlusRating.js");
+</div>
+
+<h2>Top N Games</h2>
+
+<p>
+   Instead of showing all of the games at a fixed rating
+   or better, how about showing your Top 10 games?  Or Top 25,
+   Top 100, etc?  I like this approach because
+   it adapts to how you've assigned ratings.  If you've been
+   in a particularly generous mood lately,  handing
+   out 4-star ratings like candy, "3 stars or better" might
+   encompass practically everything; or if you've been stingy
+   with the high ratings, you might not have enough high-rated
+   games to make "3 stars or better" a useful category.
+</p>
+<p>
+   This is a somewhat more complicated filter, because we
+   can't just rely on each individual game's rating, like
+   we could in the first example.  In this case, everything's
+   relative; we have to figure out where a game's rating
+   puts it in the overall collection ranking.  That means
+   that we have to look at where each game's ranking falls
+   in the overall game list.
+</p>
+<p>
+   How do we figure a game's place in the overall rankings?
+   It's actually pretty easy.   Start by getting the full list
+   of games via <a href="GameList.html#getAllGames">gameList.getAllGames()</a>.
+   That'll give us an array containing <a href="GameInfo.html">GameInfo</a>
+   objects for every game.  We can then use Javascript array sorting
+   to arrange these in order of star rating.  Since we want a "Top N"
+   list, we'll sort from highest rating to lowest: that'll put the
+   top-rated games at the start of the list.  We can then "slice"
+   the array to get the first N elements.
+</p>
+<div class="code">
+// get all of the games
+let topGames = gameList.getAllGames();
+
+// sort it by rating
+topGames.sort((a, b) => b.rating - a.rating);
+
+// get the first (highest rated) N games
+topGames = topGames.slice(0, n);
+</div>
+
+<p>
+   That'll give us our "Top N" list.  To determine if a game is in the
+   Top N, we just have to search the array to see if the game is there.
+   We could do that the straightforward way by literally searching the
+   array for every game, but if you know a little about algorithms, you
+   know that's fairly inefficient.  It's much faster to use a special
+   searching technique known as hashing.  Javascript has a built-in type
+   called Map that does this.  We can convert our array to a map,
+   keyed by the game ID, like this:
+</p>
+
+<div class="code">
+topGames = new Map(topGames.map(g => [g.id, g]));
+</div>
+
+<p>
+   We now have an efficient way to determine if a game is in the "Top N"
+   list: it's in the list if its ID is in the map:
+</p>
+
+<div class="code">
+select: function(game) { return topGames.get(game.id); }
+</div>
+
+<p>
+   There's one more detail, which is: when exactly do we build that
+   Top N map that we're going to search for each game?  We obviously
+   don't want to do that in the select function itself: that would
+   be extremely inefficient, since it would have to sort the entire
+   game list and convert the array to a map over and over.  Javascript
+   is fast, but repeating all of that work for every game in a large
+   collection would add up to an unacceptable delay when selecting
+   the filter.  We clearly want to do this work up front and save the
+   results.  But at the same time, we can't just do it once at the
+   start of the session and use the same results forever, because
+   the list wouldn't adapt to new ratings you enter during the
+   session.
+</p>
+<p>
+   The solution is to use another filter feature that we haven't
+   mentioned yet: the "before" function.  Remember that PinballY calls
+   the "select" function once per game.  The "before" function is
+   a companion function that's called once per filter invocation.
+   That is, whenever the user selects a filter in the UI, PinballY
+   first makes one call to the filter's "before" function, then calls
+   the "select" function for each game.  (It also then calls an
+   "after" function at the very end of the process, in case there's
+   any extra clean-up work you have to do after the filter is
+   applied, but we don't need that for this example.)
+</p>
+<p>
+   Putting this all together, here's our "Top N" filter.
+</p>
+<div class="code">
+function createTopFilter(n)
+{
+    let topGames = { };
+    gameList.createFilter({
+        id: "Top" + n,
+        title: "Top " + n + " Rated",
+        group: "[Rating]",
+        sortKey: "9 Top " + n,  // sort after the 1-star, 2-star, etc items, before Unrated ("Z")
+
+        // before each selection cycle, get the current Top N list
+        before: function() {
+            // get all of the games, sorted by descending rating, then slice to the top N
+            let list = gameList.getAllGames().sort((a, b) => b.rating - a.rating).slice(0, n);
+
+            // convert this to a Map (a hash lookup table), keyed by game ID
+            topGames = new Map(list.map(g => [g.id, g]));
+        },
+
+        // filter for games in our current hash of the top N games
+        select: function(game) {
+            return topGames.get(game.id);
+        }
+    });
+}
+
+// create a Top 10 filter
+createTopFilter(10);
+
+// create a Top 25 filter
+createTopFilter(25);
+</div>
+
+<p>
+   It should be obvious how to extend this to create whatever combination
+   of "Top N" filters you'd like to include.
+</p>
+
+<h2>Top N with ties</h2>
+
+<p>
+   One small quibble with the Top N filter we created above is that
+   it cuts off the list arbitrarily when there are ties.  For example,
+   say you create a Top 10 filter, but your collection has 15 games
+   with perfect 5-Star ratings.  The Top 10 filter we defined above is ruthless about
+   picking 10 games.  So even though we have 15 games with the top rating,
+   the filter above will still only select 10 games, so it'll select an
+   arbitrary group of 10 out of our equally good 15.
+</p>
+<p>
+   If this bothers you, one way to fix it would be to keep
+   all of the games that have the same score as the 10th game in the list.
+   Implementing this is a matter of adjusting
+   the "slice" operation in the "before" function so that it extends the
+   list to include any additional games that have the same star rating as the Nth game.
+   So in our example with the 15 games with 5-star ratings, we'd look at the 10th
+   slot in the list, see that it has a 5-star ratings, and then look to see
+   how many additional games beyond the 10th have the same rating.  We'd
+   then extend the "slice" cut-off point to the last 5-star game, so we'd
+   end up with a list of 15 games.
+</p>
+<div class="code">
+// get all of the games, sorted by descending rating
+let list = gameList.getAllGames().sort((a, b) => b.rating - a.rating);
+
+// include all games after the Nth game that are tied with the Nth game
+let i = n;
+while (i < list.length && list[i].rating == list[n-1].rating)
+    ++i;
+
+// slice and convert to a Map (a hash lookup table), keyed by game ID
+topGames = new Map(list.slice(0, i).map(g => [g.id, g]));
+</div>
+
+<p>
+   This is no longer technically a "Top 10" list,
+   since it'll adapt to keep all of the games tied for the 10th
+   position, but it's arguably a better approach than making an
+   arbitrary cut.
+</p>
+
+<h2>Top N with additional criteria</h2>
+<p>
+   Another approach would be to stick to the strict "Top N", but
+   come up with a better way to handle ties.  In particular,
+   you could adopt a secondary sorting rule that decides
+   which game is better when two games have the same rating.
+   For example, you could give priority to the game
+   with the higher play time or higher play count, on the
+   theory that you probably like a game more if you spend more time
+   playing it.  You can take that sort
+   of thing into account in the sorting function:
+</p>
+<div class="code">
+let list = gameList.getAllGames().sort((a, b) => {
+    // sort by rating first, then by play time
+    if (a.rating != b.rating)
+        return b.rating - a.rating;
+    else
+        return b.playTime - a.playTime;
+});
+</div>
+
+</body>
+</html>

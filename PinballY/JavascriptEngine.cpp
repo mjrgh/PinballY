@@ -5357,7 +5357,7 @@ JsValueRef JavascriptEngine::HWNDData::GetWindowPos(JavascriptEngine *js, JsValu
 //
 
 JavascriptEngine::NativePointerData::NativePointerData(void *ptr, size_t size, SigParser *sig, WCHAR stringType) :
-	ptr(ptr), size(size), sig(sig->sig)
+	ptr(ptr), size(size), sig(sig->sig), stringType(stringType)
 {
 	// add me to the native pointer map, to keep the underlying native
 	// data block we reference alive in dead object scans

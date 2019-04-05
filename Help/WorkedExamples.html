@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Worked Examples</h1>
+
+<p>
+   The Javascript engine in PinballY is pretty powerful, but as with
+   most programming tools, it can have a bit of a learning
+   curve.  I've tried to make it approachable for people who already
+   know their way around Javascript, but there's still a lot of new
+   information to take in because of the breadth of the interface
+   between Javascript and PinballY.
+</p>
+<p>
+   To help you get started, this section contains some worked
+   examples.  I think most people find it easiest to learn new
+   programming tasks by example, so hopefully this will ease the
+   learning curve a bit.  At the very least, it might give you
+   a feel for the sorts of things you can do with Javascript
+   and some pointers for where to start.  I've tried to choose tasks
+   that aren't just contrived exercises, but do things
+   that might actually be useful.  In fact, most are based
+   on actual use cases that came up talking to people using the
+   program.  I've also tried to flesh out the examples enough
+   to be usable as presented.
+</p>
+<p>
+   If you're new to Javascript itself, you might want to spend a
+   little time with a Javascript tutorial before diving into the
+   examples, so that the basic syntax makes sense.  These examples
+   are designed more to illustrate how to use PinballY features
+   than as examples of Javascript coding techniques, since there
+   are already so many good Javascript tutorials available online.
+</p>
+
+<p>
+   Here are the examples:
+</p>
+
+<div id="TOC"></div>
+
+<h2>How to use the examples on your system</h2>
+
+<p>
+   When PinballY starts up, it looks for a file in the PinballY
+   Scripts folder called Main.js.  If that file exists, PinballY
+   enables Javascript, reads the file, and executes the program
+   code it contains.  You can read more about this in the
+   main <a href="Javascript.html">Javascript Scripting</a>
+   help section.
+</p>
+<p>
+   To use any of the examples, then, you could simply copy and
+   paste the code sections you want to use into Main.js.  However,
+   I'd recommend a different approach.  Rather than
+   putting everything in that single file Main.js, I'd use a
+   separate file for each "feature", and then use the Javascript
+   <b>import()</b> command to load each file from Main.js.  By
+   "feature", I just mean a body of related Javascript code
+   that works as a unit.  Keeping each feature in its own
+   separate file will make it easier to keep track of which
+   code does what.
+</p>
+<p>
+   For example, to add a Top 10 Filter to your system:
+</p>
+<ul>
+   <li>Copy the desired code from the Top 10 Filter chapter to a new file
+      in your PinballY Scripts folder - let's call it <b>TopGames.js</b>
+
+   <li>In Main.js, add this code: <b>import("TopGames.js");</b>
+</ul>
+
+
+</body>
+</html>

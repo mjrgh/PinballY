@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom "Find Media" Menu</h1>
+
+<p>
+   One of the functions in the Game Setup menu is "Find game media
+   online", which brings up a Web browser with a Google search
+   term that looks for a HyperPin Media Pack for the current game.
+   This is designed to make it quick and easy to find the basic
+   media items (wheel image, promotional flyer, instruction cards)
+   for a game.
+</p>
+<p>
+   I heard from a user who wanted to augment this function with a
+   local search.  He explained that he has a large collection of
+   these media pack on his hard disk, so it's often more convenient
+   for him to do a "local" search for something he's already
+   downloaded than to look on the Web.  I can understand why
+   this would be useful for him, but it seemed like a difficult
+   idea to generalize into a built-in feature, because everyone
+   has their own way of arranging their disk files.  That made it
+   look like a good candidate for a Javascript feature, since
+   that approach would make it easy to customize for
+   different setups.
+</p>
+<p>
+   In this example, we'll supplement the "Find media online"
+   menu with a new command that opens the local Downloads
+   folder.  We'll keep the online search command as well,
+   so adding this extension lets you choose each time where
+   to look.  You could further customize the example to look
+   in a different folder (other than Downloads), or to add
+   extra commands to open other local folders.
+</p>
+<p>
+   The menu we're going to customize is the one that comes up when
+   you select "Find game media online" from the Game Setup menu.
+   Here's what the normal, built-in version of that menu looks like:
+</p>
+<img class="example" src="FindMediaOnlineMenu.png">
+<p>
+   That menu obviously doesn't do much; it's really only there to
+   remind you that you'll have to take some manual action after
+   switching to the Web browser to view the search results,
+   since PinballY won't have a way to interact with you once
+   the browser is in the foreground.  Even though the menu doesn't
+   do much right now, though, it does provide a natural place to
+   add our new search option.
+</p>
+<p>
+   Our main task in this example will be to add a new command, "Open
+   Downloads Folder", after the existing "Search" command.  This
+   really takes two tasks: the first is to modify the menu, and the
+   second is to actually implement the new command.  In addition,
+   we'll make a couple of small cosmetic changes to the menu to adapt
+   the text to reflect that there are more options present.
+</p>
+
+<h2>Creating a new command ID</h2>
+
+<p>
+   Before we start modifying the menu, there's a small detail that
+   always goes with creating new commands.  Each menu item needs a
+   "command ID", which PinballY uses to connect the menu item to
+   the code that carries out the command.  The ID is just an
+   arbitrary integer value.  PinballY assigns its own IDs to all
+   of the built-in commands (you can find a full list in
+   <a href="Commands.html#systemCommandIDs">Commands</a>), but
+   since we're adding a new command
+   that didn't exist before, we're responsible for assigning it a
+   new ID.  We only have to do this step once, at the start of the
+   program session, so we put this code at the "top level" of the
+   file, outside of any functions.  We'll save the new ID in a
+   global variable so that we can reference it later.
+</p>
+<div class="code">
+// create our custom command ID, for identifying our newly defined
+// command in a menu
+let openDownloadsCommand = command.allocate("OpenDownloadsFolder");
+</div>
+
+
+<h2>Customizing the menu</h2>
+
+
+<p>
+   The way to modify a system menu is to listen for the
+   <a href="MenuEvent.html">menuopen</a> event.  That gets fired
+   each time a menu is open.  The event contains an ID telling
+   us which menu is being opened, so our listener starts by
+   checking the ID to see if this is the menu we want to change.
+   From the <a href="Menus.html#systemMenus">list of system menus</a>,
+   we can see that the ID for the menu of interest in this
+   case is "media search".
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "media search") {
+        // put the code to customize the menu here
+        // TO DO
+    }
+});
+</div>
+
+<p>
+   Our main task here is to insert our new "Open Downloads Folder"
+   command after the existing "Search" command.  So we have to find
+   the "Search" command.  The event contains an <b>items</b> property
+   containing the list of menu items that the system proposes to
+   display, so we just have to search that list for that item.  The
+   best way to identify the item is via its command ID.  We could
+   check the title string instead, but that's not a good idea, because
+   the title could be tweaked in a future version, or it could be
+   translated into another language for a localized version.  The
+   command ID is more universal.
+</p>
+<p>
+   Once we find the existing "Search" item, we can use Javascript's
+   array "splice" method to insert our new item just after it.
+<div class="code">
+let i = ev.items.findIndex(item => item.cmd == command.FindMediaGo);
+if (i >= 0) {
+    ev.items.splice(i+1, 0, { title: "Open Downloads Folder", cmd: openDownloadsCommand });
+}
+</div>
+<p>
+   Notice that we referred to the global variable that we used to
+   save the new command ID we assigned earlier.
+</p>
+<p>
+   As long as we're messing with the menu, let's make a couple of small
+   cosmetic changes to the existing text.  That big explanatory
+   paragraph at the top isn't quite right now that there's another
+   option besides searching the Web, so let's touch it up to reflect
+   the new reality.  Note that explanatory text like this is always
+   in the first "items" slot, so we don't need to bother with a
+   search this time.
+</p>
+<div class="code">
+ev.items[0].title =
+    "Would you like to launch a Web browser to find a Media Pack " +
+    "for the game online, or search your existing Downloads folder?";
+</div>
+
+<p>
+   Let's also change the title of the existing "Search" item to make
+   it clear that this is the <i>Web</i> search option, now that we
+   also have an option to search locally.  We'll squeeze this line
+   into the bracketed section in the "if" above.
+</p>
+<div class="code">
+ev.items[i].title = "Search the Web";
+</div>
+
+<p>
+   There's one final step before we return, which is to tell PinballY
+   that we modified the menu.  For the sake of efficiency, the system
+   doesn't bother checking for changes to the item array unless you
+   set this flag in the event object.
+</p>
+<div class="code">
+// tell PinballY that we made changes to the menu
+ev.menuUpdated = true;
+</div>
+
+<p>
+   Putting it all together, here's our full listener:
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "media search") {
+        // The first item in the menu is the explanatory text.  The
+        // standard text explains how to drop a Media Pack file onto
+        // the window after downloading it from the Web search.  Change
+        // the text a bit to reflect the additional options we're adding.
+        ev.items[0].title =
+            "Would you like to launch a Web browser to find a Media Pack " +
+            "for the game online, or search your existing Downloads folder?";
+
+        // Find the "Search" command in the menu
+        let i = ev.items.findIndex(item => item.cmd == command.FindMediaGo);
+        if (i >= 0) {
+            // since we're adding more items, make the title more explicit
+            ev.items[i].title = "Search the Web";
+
+            // insert our Downloads folder command immediately after Search
+            ev.items.splice(i+1, 0, { title: "Open Downloads Folder", cmd: openDownloadsCommand });
+        }
+
+        // tell the system to use our updated menu
+        ev.menuUpdated = true;
+    }
+});
+</div>
+
+<p>
+   Note that it might have been a little easier in this case to just
+   replace the menu outright, by supplying a whole new array for "items".
+   That would eliminate the need to search for the "Search" item.  But
+   I think it's always better to use the modification approach we
+   chose here, because that adapts more readily to
+   any future changes to the system menu.  For example, if a future
+   version of PinballY adds its own new commands to this menu, you'll
+   see them show up on your modified menu automatically, because the
+   listener always starts with whatever the system is going to use by
+   default and then adds to it.  That wouldn't happen if we replaced the
+   menu entirely.
+</p>
+   
+<p>
+   For full details on modifying and replacing system menus, see
+   <a href="MenuEvent.html#overrideSysMenu">Overriding a system menu</a>.
+</p>
+   
+
+<h2>Opening the Downloads folder</h2>
+
+<p>
+   Okay, the menu is all set - the next time you open it, you'll see
+   the new command.  But selecting that command won't actually do anything
+   yet, because we still have to write the code to carry it out.
+</p>
+<p>
+   The place to handle a menu command is in a
+   <a href="CommandEvent.html">command</a> event listener.  The system
+   fires that event each time the user selects a command from a menu
+   (or by any other means, such as pressing a key assigned to the
+   command).   The event contains
+   an ID telling us which command is being executed.  We can test that
+   against the global variable we used to store the command ID we
+   assigned for our custom command.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == openDownloadsCommand) {
+        // TO DO - carry out the command
+    }
+}
+</div>
+
+<p>
+   Opening the current user's Downloads involves a bit of arcane Windows
+   API work.  But that's not an obstacle!  PinballY gives you access to nearly
+   any Windows API via the <a href="DllImport.html">dllImport</a> system.
+   The upside is that you can carry out almost any Windows function that
+   you could write in C++ or C# or any other language; the downside is that
+   you have to know your way around the complexities of the Windows API.
+</p>
+<p>
+   This isn't a tutorial for Windows API programming, so we won't go into
+   the details of how all of these API calls work.  But we did promise a
+   complete example, so let's lay out the full code required.
+</p>
+<p>
+   The first piece is to "bind" all of the Windows API calls we need to
+   make.  Like the global variable assignment we did earlier for our new
+   command ID, this is one-time-only work that we do at the top level
+   of the file, outside of any functions.
+</p>
+<div class="code">
+// Set up some native Windows SDK functions we need in order to
+// open the Downloads folder.
+let Shell32 = dllImport.bind("Shell32.dll", `
+    HINSTANCE WINAPI SHGetKnownFolderPath(
+        REFIID riid,
+        DWORD dwFlags,
+        HANDLE hToken,
+        LPWSTR *ppszPath);
+    HINSTANCE WINAPI ShellExecuteW(
+        HWND hwnd,
+        LPCWSTR lpOperation,
+        LPCWSTR lpFile,
+        LPCWSTR lpParameters,
+        LPCWSTR lpDirectory,
+        INT nShowCmd);
+    `);
+let Ole32 = dllImport.bind("Ole32.dll", `
+    void WINAPI CoTaskMemFree(void *pv);
+`);
+</div>
+
+<p>
+   I know that looks like gibberish if you're not familiar with
+   the Windows API, but if it's any consolation, this is 
+   all just copied and pasted from the standard Windows API headers.
+   If there's an API call you want to make, you can usually just
+   find the definition in the headers and copy it; you don't have
+   to make these things up yourself.
+   The <a href="DllImport.html">dllImport</a> mechanism uses the same
+   C++ syntax that the Windows headers use, specifically so that you
+   can mostly copy the function definitions from the Windows headers
+   verbatim.
+</p>
+
+<p>
+   With those system API bindings in place, we can now write the full
+   command handler.  The basic strategy here is that we have to ask
+   Windows for the file system path to the Downloads folder, then ask
+   the desktop shell (Windows Explorer) to open that folder for us.
+   Here's the full command event listener:
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == openDownloadsCommand) {
+        // Look up the folder path for the "known folder" Downloads.  The
+        // ID string is a magic number defined by Microsoft; it's listed
+        // (along with the IDs for all of the other special folders, such
+        // as Documents, Pictures, Program Files, etc) in the Win32 SDK
+        // documentation under the KNOWNFOLDERID type.  This sort of 
+        // magic number is known as a UUID, for Universally Unique ID,
+        // and it has the important property that it's permanent across
+        // all time and space.  It seems like the sort of number that
+        // might change in different versions of Windows, or on different
+        // people's computers, but that's guaranteed not to happen; by
+        // design, it's a permanent and universal ID for this folder.
+        //
+        // Note that the API call requires us to pass the address of
+        // a native string pointer; it allocates memory for the string
+        // and passes us back a pointer in that memory location.  It's
+        // a little cumbersome in Javascript because we have to allocate
+        // a spot for the pointer to be stored, as a native LPWSTR value.
+        let downloadsFolderIID = "374DE290-123F-4565-9164-39C4925E467B";
+        let path = dllImport.create("LPWSTR");
+        Shell32.SHGetKnownFolderPath(downloadsFolderIID, 0, null,
+            NativeObject.addressOf(path));
+
+        // now use ShellExecute to "open" that path, which will show
+        // a Windows Explorer window on the folder
+        Shell32.ShellExecuteW(null, "open",
+            path.value.toStringZ(), null, null, SW_SHOW);
+
+        // We need to explicitly dispose of the memory used for the
+        // path string that SHGetKnownFolderPath created for us, via
+        // CoTaskMemFree.  (This isn't something we're supposed to
+        // just "know"; the documentation for SHGetKnownFolderPath
+        // tells us to do this.)
+        Ole32.CoTaskMemFree(path.value);
+
+        // finish with a message similar to the one that the normal
+        // "Search the Web" command shows after opening a browser
+        mainWindow.message(
+            "When you find a media pack for this game, you can " +
+            "install it simply by dragging and dropping it into " +
+            "this window", "info");
+    }
+});
+</div>
+
+</body>
+</html>

@@ -107,7 +107,7 @@ mainWindow.on("menuopen", (ev) => {
 mainWindow.on("menuopen", (ev) =&gt; {
     if (ev.id = "main") {
         // edit the menu items
-        ev.items.foreach(i => {
+        ev.items.forEach(i => {
             if (i.cmd == command.PlayGame)
                 i.title = "Run Game";
         });

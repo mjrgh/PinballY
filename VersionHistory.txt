@@ -17,8 +17,7 @@ details for the selected title.
 
 * A couple of new substitution variables have been added for use in
 game system command lines, to give you more precise control over
-the construction of game launch commands.  (These are in part to
-address issue #51 on github.)
+the construction of game launch commands:
 
   * [TABLEFILEORIG] is the original table file name, exactly as it
     appears in the table database.  This is similar to the existing
@@ -37,6 +36,14 @@ address issue #51 on github.)
     what's in the database file.  In some cases, it might be desirable
     to include the extension in the database entry but omit it in the
     table launch command line, so this variable lets you do that.
+
+* In the default configuration settings, and in the help section on
+system settings, the command lines for Pinball FX2 and FX3 now use
+the new [TABLEFILEBASE] variable (instead of [TABLEFILE], as they
+did in the past).  Apparently, recent updates to FX2/FX3 changed
+the command line syntax in such a way that tables won't launch if
+the full filename with .pxp suffix is supplied.  (Addresses issue
+#51 on github.)
 
 
 

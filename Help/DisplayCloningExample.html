@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Display Cloning</h1>
+
+<p>
+   Most pin cabs have multiple monitors: one for the playfield, one for the
+   backglass, possibly a third for the DMD score area.  Visual Pinball and
+   some of the other pinball emulators can take full advantage of a
+   multi-display layout, but some other software can't.  For example, some
+   people run MAME arcade games or music jukebox software on their cabs.
+   For some single-screen software, the most attractive way to run it on
+   a multi-screen pin cab is to "clone" the desktop.  In "clone" mode,
+   Windows simply displays the contents of the main monitor on all of
+   the other monitors - it clones that one monitor across all of the
+   displays.  In contrast, the mode you usually use with multiple monitors
+   is "extend" mode, which allows each monitor to display an independent
+   section of the desktop.
+</p>
+<p>
+   The easiest way to switch between "extend" and "clone" mode is with
+   a built-in Windows utility called DisplaySwitch.  DisplaySwitch can
+   be run from a CMD (DOS box) window, so you can use it in Run Before
+   and Run After command lines to invoke it before and after launching
+   a game.  See <a href="SystemOptions.html">System Setup</a> for details
+   on Run Before and Run After.
+</p>
+<p>
+   So why not just do that?  Well, the standard DisplaySwitch utility has
+   a really irritating feature, which is that it briefly displays its
+   "control panel" UI every time it runs, even when you're using the
+   command line format.
+</p>
+<p>
+   This example shows how to accomplish the same kind of display
+   mode switching <i>without</i> invoking the DisplaySwitch command,
+   to make the change more seamless by eliminating the pointless
+   control panel popup.
+</p>
+
+<h2>Windows API setup</h2>
+
+<p>
+   Windows has a system API that handles the display manipulations
+   that the DisplaySwitch command performs.  We can call this through
+   PinballY's <a href="DllImport.html">dllImport</a> mechanism, which
+   lets us call just about any Windows API.
+</p>
+<p>
+   This chapter isn't a tutorial for either the Windows API or
+   the PinballY dllImport system, so we won't bore you with all of
+   those details here.  But we do want to provide a complete
+   example, so here's the code you need to "bind" the API calls
+   we're going to make.  This code only needs to run once during
+   the program session, so place it at the top level of the source
+   file, outside of any functions.
+</p>
+<div class="code">
+let User32 = dllImport.bind("User32.dll", `
+    LONG WINAPI SetDisplayConfig(
+        UINT32 numPathArrayElements,
+        void *pathArray,
+        UINT32 numModeInfoArrayElements,
+        void *modeInfoArray,
+        UINT32 flags);
+`);
+
+const SDC_TOPOLOGY_CLONE  = 0x00000002;
+const SDC_TOPOLOGY_EXTEND = 0x00000004;
+const SDC_APPLY           = 0x00000080;
+</div>
+
+<h2>Cloning the display when a game is launched</h2>
+
+<p>
+   The goal is to switch the Windows desktop to "cloned" mode each
+   time we launch a game that can't cope with the extended desktop.
+   To do this, we listen for the <a href="LaunchEvent.html"><b>gamestarted</b></a> event, which fires
+   when PinballY detects that a launched game has just started
+   running.
+</p>
+<div class="code">
+mainWindow.on("gamestarted", ev => {
+    if (isClonedSystem(ev.game.system) {
+        // switch the desktop to "clone" mode
+        User32.SetDisplayConfig(0, null, 0, null, SDC_TOPOLOGY_CLONE | SDC_APPLY);
+    }
+});
+
+function isClonedSystem(system)
+{
+    return system.displayName == "Jukebox";
+}
+</div>
+
+<p>
+   Note that "if" test at the start of the event listener: this checks
+   to see if the game is one of the types that requires desktop cloning.
+   We do this because we don't want to clone the
+   desktop for <i>every</i> game launch; we only want to clone it when
+   launching the particular types of games that look better in cloned
+   mode.
+</p>
+<p>
+   We wrote the test for "is this a system that requires cloning?"
+   as a separate function, so that can easily do
+   the same test when we get around to restoring the regular extended
+   desktop, which we'll come to shortly.  For the purposes of this
+   example, we're going to clone the desktop if the system name is
+   "Jukebox".  "Jukebox" is just something
+   we made up for this example; if you want to use this in your own
+   system, change "Jukebox" to the name of the actual system you want
+   to use cloning with.  If you want to clone the desktop for two
+   or more different systems, just add OR conditions to the test.
+</p>
+
+<h2>Restoring "extend" mode when the game exits</h2>
+
+<p>
+   Switching back to "extend" mode is very similar.  We do this in another
+   event listener, this time for the <a href="LaunchEvent.html"><b>gameover</b></a>
+   event, which fires when PinballY has detected that the launched game
+   process has exited.
+</p>
+<div class="code">
+mainWindow.on("gameover", ev => {
+    if (isClonedSystem(ev.game.system)) {
+        // switch the desktop back to "extend" mode
+        User32.SetDisplayConfig(0, null, 0, null, SDC_TOPOLOGY_EXTEND | SDC_APPLY);
+    }
+});
+</div>
+
+</body>
+</html>
