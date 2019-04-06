@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 10)
+04-06-2019 (1.0.0 Beta 10)
 
 * In the Game Details dialog, the title box now lets you search for
 matching titles, simply by typing into the box.  The drop list will
