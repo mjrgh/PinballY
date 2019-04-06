@@ -98,7 +98,8 @@ public:
 	// Mute audio
 	virtual void Mute(bool f) override;
 
-	// Set audio volume
+	// Get/set audio volume
+	virtual int GetVolume() const override { return volume; }
 	virtual void SetVolume(int pctVol) override;
 
 	// Render the current video frame onto a mesh

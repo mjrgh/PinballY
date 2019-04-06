@@ -15,6 +15,10 @@ click on it, or use the cursor arrow keys and Enter to select it.  As
 usual, that will populate the rest of the dialog fields with the IPDB
 details for the selected title.
 
+* You can now cancel the startup video by pressing any of the main
+buttons (Start, Exit, Next, Previous, Launch).  (Issue #52 on
+github.)
+
 * A couple of new substitution variables have been added for use in
 game system command lines, to give you more precise control over
 the construction of game launch commands:
@@ -45,6 +49,13 @@ the command line syntax in such a way that tables won't launch if
 the full filename with .pxp suffix is supplied.  (Addresses issue
 #51 on github.)
 
+* The new DOF event $PBYLaunchGame is fired when a game is
+launched.  This fires at the very start of the launch process.
+Note that any device effects you associated with this event via the
+DOF config might only fire briefly, because PinballY has to
+disconnect from DOF shortly after firing this event to allow the
+launched game to take control of the feedback devices.  (Issue #54
+on github.)
 
 
 03-23-2019 (1.0.0 Beta 9)

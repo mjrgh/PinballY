@@ -3062,6 +3062,9 @@ void PlayfieldView::OnIdleEvent()
 		ShowInitialUI(true);
 	}
 
+	// note that a startup video is playing
+	startupVideoPlaying = true;
+
 	// set the DOF context to startup video mode
 	dof.SetUIContext(L"PBYStartupVideo");
 
@@ -3097,6 +3100,37 @@ void PlayfieldView::OnIdleEvent()
 	}
 }
 
+bool PlayfieldView::CancelStartupVideo()
+{
+	// if the startup video isn't playing, there's nothing to do
+	if (!startupVideoPlaying)
+		return false;
+
+	// start the fade-out timer
+	SetTimer(hWnd, startupVideoFadeTimerID, 20, NULL);
+
+	// indicate that a startup video was playing and is being canceled
+	return true;
+}
+
+void PlayfieldView::UpdateStartupVideoFade()
+{
+	// fade the video in all windows
+	auto Fade = [](BaseView *view)
+	{
+		if (view != nullptr)
+			view->FadeStartupVideo(.1f);
+	};
+	auto app = Application::Get();
+	Fade(this);
+	Fade(app->GetBackglassView());
+	Fade(app->GetDMDView());
+	Fade(app->GetTopperView());
+	Fade(app->GetInstCardView());
+	if (realDMD != nullptr)
+		realDMD->FadeStartupVideo(.1f);
+}
+
 void PlayfieldView::OnEndExtStartupVideo()
 {
 	// The startup video in one of the windows has finished.
@@ -3113,9 +3147,14 @@ void PlayfieldView::OnEndExtStartupVideo()
 		&& IsDone(app->GetInstCardView())
 		&& (realDMD == nullptr || !realDMD->IsStartupVideoPlaying()))
 	{
-		// All startup videos are done.   Show the initial wheel UI.
-		// Skip the about box splash, since the intro video serves the
-		// purpose of the transition into the UI.
+		// All startup videos are done - flag it.
+		startupVideoPlaying = false;
+
+		// kill any fade timer
+		KillTimer(hWnd, startupVideoFadeTimerID);
+		
+		// Show the initial wheel UI.  Skip the about box splash, since the
+		// intro video serves the purpose of the transition into the UI.
 		ShowInitialUI(false);
 	}
 }
@@ -3193,6 +3232,10 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 
 	case audioFadeoutTimerID:
 		UpdateAudioFadeout();
+		return true;
+
+	case startupVideoFadeTimerID:
+		UpdateStartupVideoFade();
 		return true;
 
 	case pfTimerID:
@@ -7398,6 +7441,9 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game)
 	// remember the running game's ID
 	runningGameID = game != nullptr ? game->internalID : 0;
 
+	// fire a DOF Launch Game event
+	QueueDOFPulse(L"PBYLaunchGame");
+
 	// show the initial blank screen
 	runningGameMode = RunningGameMode::Starting;
 	ShowRunningGameMessage(nullptr);
@@ -10685,7 +10731,11 @@ void PlayfieldView::CmdSelect(const QueuedKey &key)
 void PlayfieldView::DoSelect(bool usingExitKey)
 {
 	// check what's showing
-	if (curMenu != nullptr)
+	if (CancelStartupVideo())
+	{
+		// a startup video was playing - don't do anything else until it stops
+	}
+	else if (curMenu != nullptr)
 	{
 		// activate the current selection on the menu
 		if (curMenu->selected != curMenu->items.end())
@@ -11019,12 +11069,17 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 	{
 		// Check what's showing:
 		//
+		// * Startup video -> cancel it
 		// * Menu -> close it, or activate item on an Exit menu
 		// * Popup -> close it
 		// * Instruction card -> close it
 		// * Nothing -> show exit menu
 		//
-		if (curMenu != nullptr)
+		if (CancelStartupVideo())
+		{
+			// a startup video was playing - don't do anything else until it stops
+		}
+		else if (curMenu != nullptr)
 		{
 			// A menu is showing.  For an Exit menu, the Exit button can
 			// selects menu items, if the configuration says so; for others,
@@ -11172,7 +11227,11 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 void PlayfieldView::DoCmdNext(bool fast)
 {
 	// check what's showing
-	if (curMenu != 0)
+	if (CancelStartupVideo())
+	{
+		// a startup video was playing - don't do anything else until it stops
+	}
+	else if (curMenu != 0)
 	{
 		// a menu is active - go to the next item
 		QueueDOFPulse(L"PBYMenuDown");
@@ -11274,7 +11333,11 @@ void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 void PlayfieldView::DoCmdPrev(bool fast)
 {
 	// check what's showing
-	if (curMenu != 0)
+	if (CancelStartupVideo())
+	{
+		// a startup video was playing - don't do anything else until it stops
+	}
+	else if (curMenu != 0)
 	{
 		// a menu is active - move to the prior item
 		QueueDOFPulse(L"PBYMenuUp");
@@ -11354,12 +11417,19 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 		// play the sound
 		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
 
-		// If there's a menu, and it has a page-down item, treat the
+		// Check the current UI state.
+		// 
+		// If there's a startup video, cancel it.  Otherwise, if a
+		// menu is showing, and it has a page-down item, treat the
 		// Next Page button as a shortcut for the page-down command.
 		// Otherwise, if there's a menu or popup showing, treat the
 		// button as equivalent to the Right/Down button. Otherwise,
 		// go to the next letter group in the game list. 
-		if (curMenu != nullptr && curMenu->paged)
+		if (CancelStartupVideo())
+		{
+			// startup video is playing - don't do anything else until it stops
+		}
+		else if (curMenu != nullptr && curMenu->paged)
 		{
 			// there's a Page Down item - send the command
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_DOWN);
@@ -11408,11 +11478,16 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		// play the sound
 		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
 
+		// If a startup video is playing, cancel it.
 		// If there's an active menu, and it has a Page Up command, treat 
 		// this as a shortcut for that command.  Otherwise, if there's a
 		// menu or popup showing, treat this as equivalent to Left/Up.
 		// Otherwise, back up by a letter group in the game list.
-		if (curMenu != nullptr && curMenu->paged)
+		if (CancelStartupVideo())
+		{
+			// a startup video was playing - don't do anything else until it stops
+		}
+		else if (curMenu != nullptr && curMenu->paged)
 		{
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_UP);
 		}
@@ -11459,7 +11534,11 @@ void PlayfieldView::CmdLaunch(const QueuedKey &key)
 	// launch the current game (bypassing the menu)
 	if ((key.mode & KeyDown) != 0)
 	{
-		if (curMenu != nullptr || popupSprite != nullptr || runningGamePopup != nullptr)
+		if (CancelStartupVideo())
+		{
+			// a startup video was playing - don't do anything else until it stops
+		}
+		else if (curMenu != nullptr || popupSprite != nullptr || runningGamePopup != nullptr)
 		{
 			// Menu, popup, or running game popup is showing.  Treat Launch
 			// as Select.

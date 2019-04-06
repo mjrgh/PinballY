@@ -115,8 +115,9 @@ public:
 	// Mute audio
 	virtual void Mute(bool f) = 0;
 
-	// Set the current audio volume of playback for this track, as
+	// Get/set the current audio volume of playback for this track, as
 	// a percentage (0..100) of the nominal recorded volume.
+	virtual int GetVolume() const = 0;
 	virtual void SetVolume(int volPct) = 0;
 
 	// Render the video onto the given sprite

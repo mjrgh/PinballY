@@ -330,6 +330,16 @@ protected:
 	// name of my startup video
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video"); }
 
+	// is a startup video playing?
+	bool startupVideoPlaying = false;
+
+	// If a startup video is playing, cancel it and return true.
+	// Returns false if no startup video is playing.
+	bool CancelStartupVideo();
+
+	// Timer handler for the startup video fadeout
+	void UpdateStartupVideoFade();
+
 	// Figure the pixel width of the window layout in terms of the normalized
 	// height of 1920 pixels.
 	int NormalizedWidth()
@@ -432,6 +442,7 @@ protected:
 	static const int fullRefreshTimerID = 123;    // full UI refresh (filters, selection, status text)
 	static const int overlayFadeoutTimerID = 124; // fading out the video overlay for removal
 	static const int audioFadeoutTimerID = 125;   // fading out audio tracks
+	static const int startupVideoFadeTimerID = 126; // fading out the startup video
 
 	// update the selection to match the game list
 	void UpdateSelection();

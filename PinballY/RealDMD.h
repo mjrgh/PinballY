@@ -80,6 +80,7 @@ public:
 	bool LoadStartupVideo();
 	bool PlayStartupVideo();
 	void EndStartupVideo();
+	void FadeStartupVideo(float amount);
 	bool IsStartupVideoPlaying() const;
 
 	// initialize gamma from the settings

@@ -45,6 +45,7 @@ public:
 	bool LoadStartupVideo();
 	bool PlayStartupVideo();
 	void EndStartupVideo();
+	void FadeStartupVideo(float amount);
 	bool IsStartupVideoPlaying() const;
 
 	// Startup video name for this window.  This is the base filename,

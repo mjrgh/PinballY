@@ -141,6 +141,12 @@ void DShowAudioPlayer::Mute(bool mute)
 	muted = mute;
 }
 
+int DShowAudioPlayer::GetVolume() const
+{
+	// reverse the log calculation we do in SetVolume
+	return static_cast<int>(100.0f * powf(10.0f, static_cast<float>(vol) / 2000.0f));
+}
+
 void DShowAudioPlayer::SetVolume(int pct)
 {
 	// override muting

@@ -41,7 +41,8 @@ public:
 	// mute
 	virtual void Mute(bool mute) override;
 
-	// set the volume
+	// get/set the volume
+	virtual int GetVolume() const override;
 	virtual void SetVolume(int volPct) override;
 
 	// Render the video onto the given sprite.  As we're an audio-only

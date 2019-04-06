@@ -778,6 +778,26 @@ void BaseView::EndStartupVideo()
 	}
 }
 
+void BaseView::FadeStartupVideo(float amount)
+{
+	if (videoOverlay != nullptr && videoOverlayID == _T("Startup"))
+	{
+		// adjust the alpha
+		videoOverlay->alpha = max(videoOverlay->alpha - amount, 0.0f);
+
+		// adjust the audio volume
+		if (auto player = videoOverlay->GetVideoPlayer(); player != nullptr)
+		{
+			int v = player->GetVolume() - static_cast<int>(amount * 100.0f);
+			player->SetVolume(max(v, 0));
+		}
+
+		// if we've reached zero opacity, end the video
+		if (videoOverlay->alpha <= 0.0f)
+			EndStartupVideo();
+	}
+}
+
 void BaseView::OnEndStartupVideo()
 {
 	// make sure we haven't already cleaned up

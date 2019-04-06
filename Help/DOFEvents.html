@@ -174,6 +174,14 @@
    <li><b>PBYInstructions:</b> The Instructions command was selected, to
        display the current game's instruction card as a popup window
 
+   <li><b>PBYLaunchGame:</b> A game is being launched.  This fires at the
+   start of the launch process, just after the user selects the launch
+   command, before the new game program has been loaded.  Note that any
+   device effects associated with this event might be cut off after a
+   short time, because PinballY has to disconnect from DOF before the
+   new game starts, to allow the game to take over the feedback devices.
+   DOF turns off all devices when the program disconnects.
+
    <li><b>PBYMagnaRight:</b> The right MagnaSave button (or whichever key
        is assigned as the Next Page button) was pressed
 

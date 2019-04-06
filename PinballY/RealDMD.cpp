@@ -1873,8 +1873,27 @@ void RealDMD::EndStartupVideo()
 	// end the startup video
 	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
 	{
+		// forget the current game and media
 		curGame = nullptr;
 		ClearMedia();
+
+		// notify the playfield view that the startup video has ended
+		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			pfv->OnEndExtStartupVideo();
+	}
+}
+
+void RealDMD::FadeStartupVideo(float amount)
+{
+	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
+	{
+		// fade the audio volume
+		int v = videoPlayer->GetVolume() - static_cast<int>(amount);
+		videoPlayer->SetVolume(max(v, 0));
+
+		// if we've reached zero, end the playback
+		if (v <= 0)
+			EndStartupVideo();
 	}
 }
 
