@@ -3056,14 +3056,16 @@ void PlayfieldView::OnIdleEvent()
 	D3DView::UnsubscribeIdleEvents(this);
 
 	// check for startup videos
-	if (!Application::Get()->LoadStartupVideos())
+	if (Application::Get()->LoadStartupVideos())
+	{
+		// note that a startup video is playing
+		startupVideoPlaying = true;
+	}
+	else
 	{
 		// No startup videos found.  Go to the normal wheel UI.
 		ShowInitialUI(true);
 	}
-
-	// note that a startup video is playing
-	startupVideoPlaying = true;
 
 	// set the DOF context to startup video mode
 	dof.SetUIContext(L"PBYStartupVideo");

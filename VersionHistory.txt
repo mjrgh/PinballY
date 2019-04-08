@@ -1,5 +1,12 @@
 PinballY Update History
 
+04-08-2019 (1.0.0 Beta 11)
+
+* The Beta 10 release had a bug that disabled the main buttons
+(Start, Next, Previous, Exit) if no startup video was played.
+This has been fixed.
+
+
 04-06-2019 (1.0.0 Beta 10)
 
 * In the Game Details dialog, the title box now lets you search for
