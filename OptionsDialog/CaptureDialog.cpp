@@ -61,6 +61,8 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
 
 	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
+	
+	varMap.emplace_back(new ManualStartButtonMap(_T("Capture.ManualStartStopButton"), IDC_CB_MANUAL_START_BUTTON));
 }
 
 afx_msg void CaptureDialog::OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult)
@@ -124,3 +126,57 @@ void CaptureDialog::AudioDeviceMap::InitControl()
 		combo.SelectString(1, cv);
 }
 
+const TCHAR *CaptureDialog::ManualStartButtonMap::buttonNames[] = {
+	_T("flippers"),
+	_T("magnasave"),
+	_T("launch"),
+	_T("info"),
+	_T("instructions")
+};
+
+void CaptureDialog::ManualStartButtonMap::LoadConfigVar()
+{
+	// get the config setting, in lower-case
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("flippers"));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totlower);
+
+	// find it in list of valid values to get the popup list index;
+	// use the default value at index 0 if we don't find a match
+	intVar = 0;
+	for (int i = 0; i < countof(buttonNames); ++i)
+	{
+		if (cfgval == buttonNames[i])
+		{
+			intVar = i;
+			break;
+		}
+	}
+}
+
+void CaptureDialog::ManualStartButtonMap::SaveConfigVar()
+{
+	// get the current combo selection index
+	int i = combo.GetCurSel();
+
+	// force it into range; use the first item as the default if it's out of range
+	if (i < 0 || i >= countof(buttonNames))
+		i = 0;
+
+	// svae it
+	ConfigManager::GetInstance()->Set(configVar, buttonNames[i]);
+}
+
+bool CaptureDialog::ManualStartButtonMap::IsModifiedFromConfig()
+{
+	// get the current combo selection index and force it into the valid range
+	int i = combo.GetCurSel();
+	if (i < 0 || i >= countof(buttonNames))
+		i = 0;
+
+	// get the button name from the config
+	TSTRING cfgval = ConfigManager::GetInstance()->Get(configVar, _T("flippers"));
+	std::transform(cfgval.begin(), cfgval.end(), cfgval.begin(), ::_totlower);
+
+	// check for a match
+	return cfgval != buttonNames[i];
+}

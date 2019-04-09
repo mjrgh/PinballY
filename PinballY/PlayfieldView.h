@@ -257,6 +257,11 @@ public:
 		int nMediaItemsOk;
 	};
 
+	// Get the string resource ID for the name of the Manual Go button
+	// for capture.  This returns one of the IDS_CAPSTAT_BTN_xxx resource
+	// identifiers, according to the current setting.
+	int GetCaptureManualGoButtonNameResId() const;
+
 	// The startup video has ended in one of the windows.  Check for overall
 	// startup video completion.
 	void OnEndExtStartupVideo();
@@ -2214,12 +2219,34 @@ protected:
 	// Keyboard command dispatch table
 	std::unordered_map<int, std::list<const KeyCommand*>> vkeyToCommand;
 
-	// "Manual Go" button state for capture.  To proceed with a capture
-	// operation (manual start or manual stop), we use a two-button
-	// gesture, with both flipper buttons pressed at the same time.
-	// These bits keep track of the up/down states of the buttons.
-	bool prevButtonDown;
-	bool nextButtonDown;
+	// Capture "Manual Go" button mode.
+	enum CaptureManualGoButton
+	{
+		Flippers,     // both flipper buttons
+		MagnaSave,    // both Magna Save buttons
+		Launch,       // launch button
+		Info,         // information button
+		Instructions  // instructions button
+	};
+	CaptureManualGoButton captureManualGoButton = CaptureManualGoButton::Flippers;
+
+	// mapping array - config names/internal IDs/resource string IDs
+	struct CaptureManualGoButtonMap
+	{
+		const TCHAR *configName;   // name in the configuration file
+		CaptureManualGoButton id;  // internal ID
+		int nameStrResId;          // resource ID for name string
+	};
+	static const CaptureManualGoButtonMap captureManualGoButtonMap[];
+
+	// "Manual Go" button state for capture.  These bits keep track
+	// of the states of the buttons assigned above for manually
+	// starting and stopping capture operations.  For two-button
+	// gestures, both buttons must be down to trigger the start or
+	// stop; for single-button gestures, only the "left" button is
+	// needed.
+	bool manualGoLeftDown = false;
+	bool manualGoRightDown = false;
 
 	// Check for a "Manual Go" gesture.  This is called whenever one
 	// of the Next/Prev buttons changes state.

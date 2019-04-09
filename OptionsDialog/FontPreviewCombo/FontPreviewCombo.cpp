@@ -1,7 +1,10 @@
 /*********************************************************************
 
-   Note: this is a customized version of the font combo for PinballY's
-   options dialogs.
+   This is a customized version Font Preview Combo by Chris Losinger 
+   and Dave Schumann.  This is a modified version tailored to
+   PinballY's font options dialog.
+
+   The original copyright notice for Font Preview Combo follows.
 
    Copyright (C) 2002 Smaller Animals Software, Inc.
 

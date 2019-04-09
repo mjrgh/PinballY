@@ -877,6 +877,24 @@ Capture.AudioDevice =
 # given in seconds.
 Capture.StartupDelay = 10
 
+# Manual start/stop buttons.  For media items set to manual
+# start or manual stop, the capture starts when you press this
+# button or button combination.  This can be one of the following:
+#
+#   flippers      press both flipper buttons (the buttons 
+                  assigned to the "Next" + "Previous" commands)
+#
+#   magnasave     press both Magna Save buttons ("Next Page" +
+#                 "Previous Page")
+#
+#   launch        the button assigned to the Launch command
+#
+#   info          the button assigned to the Info command
+#
+#   instructions  the button assigned to the Instructions command
+#
+Capture.ManualStartStopButton = flippers
+
 # Each time a capture is started, we show a message by default
 # explaining how the PinballY window layout determines the screen
 # capture area.  The message offers an option to skip the message

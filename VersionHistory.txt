@@ -1,5 +1,34 @@
 PinballY Update History
 
+? (1.0.0 Beta 12)
+
+* A new Media Capture option lets you select the buttons used to
+manually start or stop a capture operation.  (Manual start or stop
+mode applies to media types that you specifically set to start or
+stop manually, via the Media Capture options.)  In the past, you
+triggered a manual start or stop by pressing both flipper buttons
+at once.  This gesture is still the default, but you can now change
+it.  The new options are: pressing both Magna Save buttons
+together; or pressing the Launch button, the Information button, or
+the Instructions button by itself.  The flipper buttons were
+originally chosen (and are still the default) because they don't
+usually have any effect on a table that's in "game over"/"attract"
+mode, which is what most people want to capture for a table video.
+But if you prefer to capture videos with the ball already in play,
+you might want to use the flipper buttons to actually play the game
+during a capture, in which case you wouldn't want the flippers as
+the manual start/stop trigger.  This new option lets you move the
+trigger to another button or buttons.
+
+Note that by "flipper buttons", we really mean the keys you've
+assigned to the Next and Previous commands.  We casually refer to
+these as the "flipper buttons", because those are the buttons you'd
+normally map to these commands on a full pin cab, but you might be
+using other key assignments if you're on a desktop machine.
+Similarly, the "Magna Save buttons" are really the keys assigned to
+the Next Page and Previous Page buttons.
+
+
 04-08-2019 (1.0.0 Beta 11)
 
 * The Beta 10 release had a bug that disabled the main buttons

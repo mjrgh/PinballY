@@ -10,27 +10,19 @@
 #include "PlayfieldView.h"
 
 
-CaptureStatusWin::CaptureStatusWin() :
-	BaseWin(0),
-	rotation(0),
-	mirrorHorz(false),
-	mirrorVert(false),
-	batchCancelPrompt(false),
-	cancelled(false),
-	manualStartMode(false),
-	manualStopMode(false),
-	nGames(1),
-	nCurGame(1),
-	isBatch(false),
-	blinkState(1)
+CaptureStatusWin::CaptureStatusWin() : BaseWin(0)
 {
 	// set the initial rotation and mirroring to match the playfield
 	// window, since we'll be displayed there initially
 	if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
 	{
+		// get the playfield view layout
 		rotation = (float)pfv->GetRotation();
 		mirrorHorz = pfv->IsMirrorHorz();
 		mirrorVert = pfv->IsMirrorVert();
+
+		// while we're at it, note the manual capture gesture name
+		manualGoResId = pfv->GetCaptureManualGoButtonNameResId();
 	}
 
 	// load the initial status string
@@ -367,10 +359,17 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 			// get the text for the bottom control area
 			TSTRINGEx ctls;
 			std::unique_ptr<Gdiplus::Font> ctlFont(CreateGPFont(_T("Tahoma"), 16, 700));
-			if (manualStartMode)
+			if (manualStartMode || manualStopMode)
 			{
-				// show the manual start prompt
-				ctls.Load(IDS_CAPSTAT_MANUAL_START_PROMPT);
+				// figure the main prompt
+				int prompt = manualStartMode ? IDS_CAPSTAT_MANUAL_START_PROMPT : IDS_CAPSTAT_MANUAL_STOP_PROMPT;
+
+				// get the string for the button gesture
+				TSTRINGEx gesture;
+				gesture.Load(manualGoResId);
+
+				// format the prompt message
+				ctls.Format(LoadStringT(prompt), gesture.c_str());
 			}
 			else if (manualStopMode)
 			{

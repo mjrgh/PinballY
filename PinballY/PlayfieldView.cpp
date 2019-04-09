@@ -148,6 +148,7 @@ namespace ConfigVars
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
 
 	static const TCHAR *CaptureSkipLayoutMessage = _T("Capture.SkipLayoutMessage");
+	static const TCHAR *CaptureManualStartStopButtons = _T("Capture.ManualStartStopButton");
 };
 
 // include the capture-related variables
@@ -180,7 +181,6 @@ PlayfieldView::PlayfieldView() :
 	lastInputEventTime = GetTickCount();
 	settingsDialogOpen = false;
 	mediaDropTargetGame = nullptr;
-	nextButtonDown = prevButtonDown = false;
 	runningGameMode = RunningGameMode::None;
 	
 	// note the exit key mode
@@ -10201,6 +10201,28 @@ void PlayfieldView::OnConfigPostSave(bool succeeded)
 	FireConfigEvent(jsSettingsPostSaveEvent, succeeded);
 }
 
+// Manual start/stop button list
+const PlayfieldView::CaptureManualGoButtonMap PlayfieldView::captureManualGoButtonMap[] = {
+	{ _T("flippers"), CaptureManualGoButton::Flippers, IDS_CAPSTAT_BTN_FLIPPERS },
+	{ _T("magnasave"), CaptureManualGoButton::MagnaSave, IDS_CAPSTAT_BTN_MAGNASAVE },
+	{ _T("launch"), CaptureManualGoButton::Launch, IDS_CAPSTAT_BTN_LAUNCH },
+	{ _T("info"), CaptureManualGoButton::Info, IDS_CAPSTAT_BTN_INFO },
+	{ _T("instructions"), CaptureManualGoButton::Instructions, IDS_CAPSTAT_BTN_INSTR },
+};
+
+int PlayfieldView::GetCaptureManualGoButtonNameResId() const
+{
+	// search for the current capture button
+	for (size_t i = 0; i < countof(captureManualGoButtonMap); ++i)
+	{
+		if (captureManualGoButton == captureManualGoButtonMap[i].id)
+			return captureManualGoButtonMap[i].nameStrResId;
+	}
+	
+	// not found - use the flippers by default
+	return IDS_CAPSTAT_BTN_FLIPPERS;
+}
+
 void PlayfieldView::OnConfigChange()
 {
 	ConfigManager *cfg = ConfigManager::GetInstance();
@@ -10279,6 +10301,36 @@ void PlayfieldView::OnConfigChange()
 	// load the button mute and volume settings
 	muteButtons = cfg->GetBool(ConfigVars::MuteButtons, false);
 	buttonVolume = cfg->GetInt(ConfigVars::ButtonVolume, 100);
+
+	// load the capture Manual Go button setting
+	const TCHAR *capbtns = cfg->Get(ConfigVars::CaptureManualStartStopButtons, _T("flippers"));
+	captureManualGoButton = CaptureManualGoButton::Flippers;
+	for (size_t i = 0; i < countof(captureManualGoButtonMap); ++i)
+	{
+		if (_tcsicmp(captureManualGoButtonMap[i].configName, capbtns) == 0)
+		{
+			captureManualGoButton = captureManualGoButtonMap[i].id;
+			break;
+		}
+	}
+
+	// if the manual start/stop gesture uses a single button, count
+	// the "right" button as always down
+	manualGoLeftDown = manualGoRightDown = false;
+	switch (captureManualGoButton)
+	{
+	case CaptureManualGoButton::Flippers:
+	case CaptureManualGoButton::MagnaSave:
+		// these are two-button gestures - use both variables
+		break;
+
+	default:
+		// others are single-button gestures - count the "right" button as
+		// always down, so that the single "left" button will act as the
+		// trigger by itself
+		manualGoRightDown = true;
+		break;
+	}
 
 	// load the instruction card location; lower-case it for case-insensitive comparisons
 	instCardLoc = cfg->Get(ConfigVars::InstCardLoc, _T(""));
@@ -11223,7 +11275,8 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 	}
 
 	// check for a media capture "Manual Go" gesture (next + prev keys down)
-	CheckManualGo(nextButtonDown, key);
+	if (captureManualGoButton == CaptureManualGoButton::Flippers)
+		CheckManualGo(manualGoRightDown, key);
 }
 
 void PlayfieldView::DoCmdNext(bool fast)
@@ -11233,7 +11286,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 	{
 		// a startup video was playing - don't do anything else until it stops
 	}
-	else if (curMenu != 0)
+	else if (curMenu != nullptr)
 	{
 		// a menu is active - go to the next item
 		QueueDOFPulse(L"PBYMenuDown");
@@ -11293,7 +11346,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGamePopup != 0)
+	else if (runningGamePopup != nullptr)
 	{
 		// don't change games while a game is running
 	}
@@ -11317,7 +11370,8 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 	}
 
 	// check for a media capture "Manual Go" gesture (next + prev keys down)
-	CheckManualGo(prevButtonDown, key);
+	if (captureManualGoButton == CaptureManualGoButton::Flippers)
+		CheckManualGo(manualGoLeftDown, key);
 }
 
 void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
@@ -11325,10 +11379,9 @@ void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 	// update this button's status
 	thisButtonDown = ((key.mode & (KeyDown | KeyBgDown)) != 0);
 
-	// if we're pressing the button (it's not an auto-repeat), and
-	// the other flipper button is down, count it as a "Manual Go"
-	// for capture mode
-	if (nextButtonDown && prevButtonDown && key.mode == KeyBgDown)
+	// if we're pressing the button (it's not an auto-repeat), and the
+	// other button is down, count it as a "Manual Go" for capture mode
+	if (manualGoLeftDown && manualGoRightDown && key.mode == KeyBgDown)
 		Application::Get()->ManualCaptureGo();
 }
 
@@ -11339,7 +11392,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 	{
 		// a startup video was playing - don't do anything else until it stops
 	}
-	else if (curMenu != 0)
+	else if (curMenu != nullptr)
 	{
 		// a menu is active - move to the prior item
 		QueueDOFPulse(L"PBYMenuUp");
@@ -11400,7 +11453,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGamePopup != 0)
+	else if (runningGamePopup != nullptr)
 	{
 		// don't change games while a game is running
 	}
@@ -11471,6 +11524,10 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyRepeat, true);
 		}
 	}
+
+	// check for a media capture "Manual Go" gesture
+	if (captureManualGoButton == CaptureManualGoButton::MagnaSave)
+		CheckManualGo(manualGoRightDown, key);
 }
 
 void PlayfieldView::CmdPrevPage(const QueuedKey &key)
@@ -11529,6 +11586,10 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 			QueueDOFPulse(L"PBYWheelPrevPage");
 		}
 	}
+
+	// check for a media capture "Manual Go" gesture
+	if (captureManualGoButton == CaptureManualGoButton::MagnaSave)
+		CheckManualGo(manualGoLeftDown, key);
 }
 
 void PlayfieldView::CmdLaunch(const QueuedKey &key)
@@ -11553,6 +11614,10 @@ void PlayfieldView::CmdLaunch(const QueuedKey &key)
 			SendMessage(WM_COMMAND, ID_PLAY_GAME);
 		}
 	}
+
+	// check for a media capture "Manual Go" gesture
+	if (captureManualGoButton == CaptureManualGoButton::Launch)
+		CheckManualGo(manualGoLeftDown, key);
 }
 
 void PlayfieldView::CmdExitGame(const QueuedKey &key)
@@ -16236,6 +16301,10 @@ void PlayfieldView::CmdGameInfo(const QueuedKey &key)
 		ShowGameInfo();
 		PlayButtonSound(_T("Select"));
 	}
+
+	// check for a media capture "Manual Go" gesture
+	if (captureManualGoButton == CaptureManualGoButton::Info)
+		CheckManualGo(manualGoLeftDown, key);
 }
 
 void PlayfieldView::CmdInstCard(const QueuedKey &key)
@@ -16245,6 +16314,10 @@ void PlayfieldView::CmdInstCard(const QueuedKey &key)
 		ShowInstructionCard();
 		PlayButtonSound(_T("Select"));
 	}
+
+	// check for a media capture "Manual Go" gesture
+	if (captureManualGoButton == CaptureManualGoButton::Instructions)
+		CheckManualGo(manualGoLeftDown, key);
 }
 
 // -----------------------------------------------------------------------

@@ -86,14 +86,17 @@ protected:
 	TSTRING status;
 
 	// is the batch capture prompt showing?
-	bool batchCancelPrompt;
+	bool batchCancelPrompt = false;
 
 	// capture has been cancelled
-	bool cancelled;
+	bool cancelled = false;
 
 	// manual start/stop mode
-	bool manualStartMode;
-	bool manualStopMode;
+	bool manualStartMode = false;
+	bool manualStopMode = false;
+
+	// For manual start/stop mode, the resource ID for the trigger buttons
+	int manualGoResId = IDS_CAPSTAT_BTN_FLIPPERS;
 
 	// Update blinking modes.  Call this after changing one of
 	// the modes that involves blinking prompt text.
@@ -105,7 +108,7 @@ protected:
 	// Blinking text on/off state.  This is used for blinking text
 	// in the capture prompts when user action is required (Manual
 	// Start, Manual Stop)
-	bool blinkState;
+	bool blinkState = 1;
 
 	// Time progress.  All times are in milliseconds.
 	struct OpTime
@@ -138,14 +141,14 @@ protected:
 	// batch UI still makes it count as a batch even if it only
 	// includes one game, since we use a slightly different UI
 	// for a batch to reflect the overall batch progress.
-	bool isBatch;
+	bool isBatch = false;
 
 	// Number of games in the overall batch.  For a single-game
 	// capture, nGames is 1 and nCurGame is 1; that's the same for
 	// a batch capture with a single game, but we can distinguish
 	// it via isBatch.
-	int nGames;
-	int nCurGame;
+	int nGames = 1;
+	int nCurGame = 1;
 
 	// Time for the whole operation.  For a batch, this is the total
 	// time for all games in the batch.  For a single game, this is
@@ -163,11 +166,11 @@ protected:
 	DWORD lastTicks;
 
 	// current drawing rotation
-	float rotation;
+	float rotation = 0;
 
 	// mirroring
-	bool mirrorHorz;
-	bool mirrorVert;
+	bool mirrorHorz = false;
+	bool mirrorVert = false;
 
 	// lock for thread access
 	CriticalSection lock;
