@@ -65,5 +65,5 @@ typedef double DOUBLE;
 #include "../Utilities/LogError.h"
 #include "../Utilities/WinUtil.h"
 #include "../Utilities/FileUtil.h"
-#include "GraphicsUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "BaseWin.h"

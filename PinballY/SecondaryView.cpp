@@ -8,11 +8,11 @@
 #include <gdiplus.h>
 #include <DirectXMath.h>
 #include "../Utilities/Config.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "SecondaryView.h"
 #include "Resource.h"
 #include "D3D.h"
 #include "D3DWin.h"
-#include "GraphicsUtil.h"
 #include "Camera.h"
 #include "TextDraw.h"
 #include "VideoSprite.h"
@@ -227,7 +227,8 @@ void SecondaryView::SyncCurrentGame()
 		// but only if the game is specifically designated for
 		// media display in this window.
 		game = gl->GetByInternalID(Application::Get()->GetRunningGameId());
-		if (!ShowMediaWhenRunning(game))
+		auto system = gl->GetSystem(Application::Get()->GetRunningGameSystem());
+		if (!ShowMediaWhenRunning(game, system))
 			game = nullptr;
 	}
 	else
@@ -416,11 +417,11 @@ void SecondaryView::ClearMedia()
 	UpdateDrawingList();
 }
 
-void SecondaryView::BeginRunningGameMode(GameListItem *game)
+void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 {
 	// Check if we're set to continue showing this window's media
 	// while this game is running.
-	if (ShowMediaWhenRunning(game))
+	if (ShowMediaWhenRunning(game, system))
 	{
 		// We're showing this window's media while this game is
 		// running.  Bring this window into the topmost layer so
@@ -439,44 +440,73 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game)
 	}
 }
 
-bool SecondaryView::ShowMediaWhenRunning(GameListItem *game) const
+bool SecondaryView::ShowMediaWhenRunning(GameListItem *game, GameSystem *system) const
 {
-	// make sure there's a game
-	if (game != nullptr)
+	// my window ID
+	const TCHAR *id = ShowWhenRunningWindowId();
+	size_t idLen = _tcslen(id);
+
+	// Test a space-delimited Show When Running list.  If the window ID
+	// was found in the list, sets 'show' to true if the ID was found
+	// positively or false if the ID was negated with a hyphen prefix,
+	// and returns true.  Returns false if the window wasn't found, in
+	// which case the next setting in the hierarchy (game, system,
+	// global) should be used.
+	bool show = false;
+	auto Test = [id, idLen, &show](const TCHAR *p)
 	{
-		// get the Show When Running data
-		if (const TCHAR *s = GameList::Get()->GetShowWhenRunning(game); s != nullptr)
+		// scan the list
+		if (p != nullptr)
 		{
 			// scan the list for our window ID
-			const TCHAR * id = ShowWhenRunningWindowId();
-			size_t idLen = _tcslen(id);
-			while (*s != 0)
+			while (*p != 0)
 			{
 				// find the end of the current token
-				const TCHAR *nxt = s;
-				for (; *nxt != 0 && *nxt != ' '; ++nxt);
+				const TCHAR *nxt = p;
+				for (; *nxt != 0 && !_istspace(*nxt); ++nxt);
 
 				// check for a "negative" token, with a "-" prefix: e.g., "-dmd" means
 				// that the DMD is explicitly not shown in this game
 				bool tokSense = true;
-				if (*s == '-')
+				if (*p == '-')
 				{
 					tokSense = false;
-					++s;
+					++p;
 				}
 
 				// compare this token - if it's a match, this window is indeed in the
 				// Show When Running list, so keep showing the media
-				if (_tcsnicmp(s, id, idLen) == 0)
-					return tokSense;
+				if (_tcsnicmp(p, id, idLen) == 0)
+				{
+					// it's a match - use the token sense and return success
+					show = tokSense;
+					return true;
+				}
 
 				// advance to the start of the next token
-				for (s = nxt; *s == ' '; ++s);
+				for (p = nxt; _istspace(*p); ++p);
 			}
 		}
-	}
 
-	// we didn't find this window in the Show When Running, so the default is "no"
+		// not found
+		return false;
+	};
+
+	// Start with the individual setting for the game
+	if (game != nullptr && Test(GameList::Get()->GetShowWhenRunning(game)))
+		return show;
+
+	// The game doesn't have an individual setting, so test the system's 
+	// Keep Open list
+	if (system != nullptr && Test(system->keepOpen.c_str()))
+		return show;
+
+	// There's no per-game or per-system setting, so use the global setting
+	if (Test(ConfigManager::GetInstance()->Get(_T("ShowWindowsWhileRunning"))))
+		return show;
+
+	// there's no setting for this window at any level; the default is to 
+	// blank the window
 	return false;
 }
 

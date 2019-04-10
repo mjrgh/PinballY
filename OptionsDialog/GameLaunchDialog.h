@@ -14,5 +14,7 @@ public:
 	virtual ~GameLaunchDialog();
 
 	virtual void InitVarMap() override;
+	
+	virtual BOOL OnApply() override;
 };
 

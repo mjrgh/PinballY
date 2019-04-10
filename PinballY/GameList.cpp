@@ -11,7 +11,7 @@
 #include "../Utilities/PBXUtil.h"
 #include "../Utilities/GlobalConstants.h"
 #include "../Utilities/DateUtil.h"
-#include "GraphicsUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "GameList.h"
 #include "Application.h"
 #include "LogFile.h"
@@ -1462,6 +1462,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->runAfterPost = cfg->Get(MsgFmt(_T("%s.RunAfterPost"), sysvar.Get()), _T(""));
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
+			system->keepOpen = cfg->Get(MsgFmt(_T("%s.ShowWindowsWhileRunning"), sysvar.Get()), _T(""));
 			
 			// set the SW_SHOW mode for the launched app, using SW_SHOWMINIMIZED as the default
 			system->swShow = SW_SHOWMINIMIZED;

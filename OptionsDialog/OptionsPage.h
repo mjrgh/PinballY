@@ -32,7 +32,7 @@ protected:
 	virtual void DoDataExchange(CDataExchange *pDX) override;
 
 	// apply changes
-	BOOL OnApply();
+	virtual BOOL OnApply() override;
 
 	// Handle OnApply failure.  OnApply overrides can call this before
 	// returning to re-mark the page as dirty and try to select it in
@@ -96,6 +96,15 @@ protected:
 		// test if the control value differs from the config value
 		virtual bool IsModifiedFromConfig() = 0;
 	};
+
+	// config variable map
+	std::list<std::unique_ptr<VarMap>> varMap;
+	
+
+
+	// 
+	// Specialized control mappings
+	//
 
 	// Checkbox <-> bool
 	struct CkBoxMap : VarMap
@@ -208,9 +217,6 @@ protected:
 		CSpinButtonCtrl spinBtn;
 	};
 
-	// config variable map
-	std::list<std::unique_ptr<VarMap>> varMap;
-
 	// Radio button group <-> string
 	struct RadioStrMap : VarMap
 	{
@@ -231,5 +237,52 @@ protected:
 		// The "default default" is the first button, but subclasses can
 		// override as needed.
 		virtual void SetDefault(const TCHAR *configVal) { intVar = 0; }
+	};
+
+	// Checkbox variable mapping for "Keep Window Open" checkboxes.
+	// These are peculiar in that we use a group of checkboxes to
+	// represent the value of a single config variable.  The config
+	// variable value contains keywords with the checkbox states:
+	//
+	//    ShowWindowsWhileRunning = bg -dmd instcard
+	//
+	// The containing dialog must call our static OnApply() from its
+	// OnApply() method.  We'll scan its var map for our instances,
+	// and update the corresponding config variable.
+	//
+	// For the tri-state checkbox, we can customize the drawing to
+	// show the states using our special graphics that help clarify
+	// the On/Off/Default settings.  To use this, the containing 
+	// dialog must intercept WM_NOTIFY messages of type NM_CUSTOMDRAW
+	// and pass them to our OnCustomDraw() handler.
+	//
+	struct KeepWindowCkMap : CkBoxMap
+	{
+		KeepWindowCkMap(const TCHAR *configVar, const TCHAR *windowID, int controlID, bool triState);
+		~KeepWindowCkMap();
+
+		// apply changes - the containing dialog must call this from
+		// its OnApply()
+		static void OnApply(std::list<std::unique_ptr<VarMap>> &varMap);
+
+		// handle custom drawing for a tri-state checkbox
+		static LRESULT OnCustomDraw(CWnd *dlg, NMHDR *pnmhdr);
+
+		// ID string for the window ("bg", "dmd", "topper", "instcard")
+		TSTRING windowID;
+
+		// is this a tri-state checkbox (on, off, indeterminate = "inherit default")
+		bool triState;
+
+		// bitmap for tri-state checkbox
+		static Gdiplus::Bitmap *bmpKeepWinCkbox;
+		static int bmpRefs;
+
+		virtual void LoadConfigVar() override;
+		virtual void SaveConfigVar() override;
+		virtual bool IsModifiedFromConfig() override;
+
+		void InitConfigVal();
+		int configVal;
 	};
 };

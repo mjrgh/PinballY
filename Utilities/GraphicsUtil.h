@@ -5,6 +5,7 @@
 
 #pragma once
 #include <functional>
+#include "PngUtil.h"
 
 // GDI+ initializer.  Instantiate one of these objects in the
 // main entrypoint function to initialize the GDI+ subsystem.
@@ -33,14 +34,6 @@ protected:
 	// initialization token
 	ULONG_PTR token;
 };
-
-// Load a PNG resource into an HBITMAP object.  Note that the
-// caller must initialize GDI+ prior to calling this.
-HBITMAP LoadPNG(int resid);
-
-// Load a PNG resource into a GDI+ Bitmap object.  The caller
-// must initialize GDI+ prior to calling this.
-Gdiplus::Bitmap *GPBitmapFromPNG(int resid);
 
 // Get the dimension and type of an image.  This parses the file 
 // header for known image types (JPG, PNG, GIF, SWF) and fills in

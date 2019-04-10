@@ -246,7 +246,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="FlashClient\FlashClient.cpp" />
     <ClCompile Include="FrameWin.cpp" />
     <ClCompile Include="GameList.cpp" />
-    <ClCompile Include="GraphicsUtil.cpp" />
     <ClCompile Include="HighScores.cpp">
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Disabled</Optimization>
       <Optimization Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Disabled</Optimization>
@@ -313,7 +312,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="FlashClient\FlashClient.h" />
     <ClInclude Include="FrameWin.h" />
     <ClInclude Include="GameList.h" />
-    <ClInclude Include="GraphicsUtil.h" />
     <ClInclude Include="I420Shader.h" />
     <ClInclude Include="HighScores.h" />
     <ClInclude Include="JavascriptEngine.h" />

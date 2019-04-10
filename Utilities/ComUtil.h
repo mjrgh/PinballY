@@ -1,5 +1,6 @@
 #pragma once
 #include <propvarutil.h>
+#include "Pointers.h"
 
 // EXCEPINFO subclass with auto initialization and cleanup
 struct EXCEPINFOEx : EXCEPINFO

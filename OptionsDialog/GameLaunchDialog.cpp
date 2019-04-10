@@ -17,9 +17,27 @@ GameLaunchDialog::~GameLaunchDialog()
 {
 }
 
+static const TCHAR *showWindowsVar = _T("ShowWindowsWhileRunning");
+
 void GameLaunchDialog::InitVarMap()
 {
 	varMap.emplace_back(new SpinIntMap(_T("GameTimeout"), IDC_EDIT_GAME_IDLE_TIME, 300, IDC_SPIN_GAME_IDLE_TIME, 0, 3600));
 	varMap.emplace_back(new CkBoxMap(_T("HideTaskbarDuringGame"), IDC_CK_HIDE_TASKBAR, true));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("bg"), IDC_CK_SHOW_WHEN_RUNNING_BG, false));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("dmd"), IDC_CK_SHOW_WHEN_RUNNING_DMD, false));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("topper"), IDC_CK_SHOW_WHEN_RUNNING_TOPPER, false));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("instcard"), IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, false));
+}
+
+BOOL GameLaunchDialog::OnApply()
+{
+	// do the base class work
+	__super::OnApply();
+
+	// update the ShowWindowsWhileRunning config value
+	KeepWindowCkMap::OnApply(varMap);
+
+	// changes accepted
+	return TRUE;
 }
 

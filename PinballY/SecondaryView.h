@@ -30,7 +30,7 @@ public:
 	virtual void ClearMedia();
 
 	// Begin/end running game mode
-	virtual void BeginRunningGameMode(GameListItem *game);
+	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	virtual void EndRunningGameMode();
 
 	// frame window is being shown/hidden
@@ -65,7 +65,7 @@ protected:
 	// in the backglass for every FX3 game.  But it can also vary
 	// per game, especially in VP, where some games provide
 	// backglass and DMD graphics and some don't.
-	bool ShowMediaWhenRunning(GameListItem *game) const;
+	bool ShowMediaWhenRunning(GameListItem *game, GameSystem *system) const;
 
 	// window ID for "Show When Running" column in the game stats
 	virtual const TCHAR *ShowWhenRunningWindowId() const = 0;

@@ -5,6 +5,9 @@
 #include <gdiplus.h>
 #include <ObjIdl.h>
 #include "GraphicsUtil.h"
+#include "ComUtil.h"
+#include "StringUtil.h"
+#include "WinUtil.h"
 #include "../zlib/zlib.h"
 #include "../LZMA/CPP/7zip/Compress/LzmaDecoder.h"
 
@@ -92,23 +95,6 @@ GdiplusIniter::~GdiplusIniter()
 	Gdiplus::GdiplusShutdown(token);
 }
 
-// Load a PNG resource into a GDI+ Bitmap
-Gdiplus::Bitmap *GPBitmapFromPNG(int resid)
-{
-	// load and lock the PNG resource
-	ResourceLocker res(resid, _T("PNG"));
-	if (res.GetData() == nullptr)
-		return nullptr;
-
-	// create a stream on the HGLOBAL
-	RefPtr<IStream> pstr(SHCreateMemStream(static_cast<const BYTE*>(res.GetData()), res.GetSize()));
-	if (pstr == nullptr)
-		return nullptr;
-
-	// create the bitmap
-	return Gdiplus::Bitmap::FromStream(pstr);
-}
-
 static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight)
 {
 	// figure the style
@@ -121,7 +107,7 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 		for (auto &s : StrSplit<TSTRING>(faceName, ','))
 		{
 			// try this item
-			Gdiplus::FontFamily family(StrTrim<TSTRING>(s.c_str()).c_str());
+			Gdiplus::FontFamily family(TrimString<TSTRING>(s.c_str()).c_str());
 			std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
 			if (font->IsAvailable())
 				return font.release();
@@ -276,26 +262,6 @@ void GPDrawString::DrawString(
 	{
 		curOrigin.X += newBounds.Width;
 	}
-}
-
-// -----------------------------------------------------------------------
-//
-// Load a PNG resource
-//
-
-HBITMAP LoadPNG(int resid)
-{
-	// load the PNG into a GDI+ bitmap
-    std::unique_ptr<Gdiplus::Bitmap> bmp(GPBitmapFromPNG(resid));
-	if (bmp == nullptr)
-		return NULL;
-
-	// get its HBITMAP
-	HBITMAP hbitmap;
-	bmp->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hbitmap);
-
-	// return the HBITMAP
-	return hbitmap;
 }
 
 // -----------------------------------------------------------------------

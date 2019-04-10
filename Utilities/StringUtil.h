@@ -153,7 +153,7 @@ std::list<S> StrSplit(const typename S::value_type *str, typename S::value_type 
 }
 
 // Trim a string of leading and trailing spaces
-template<class S> S StrTrim(const typename S::value_type *str)
+template<class S> S TrimString(const typename S::value_type *str)
 {
 	// find the first non-space character
 	auto start = str;

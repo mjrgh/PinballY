@@ -21,6 +21,9 @@
     <ClInclude Include="targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GraphicsUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="LogError.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -90,9 +93,15 @@
     <ClInclude Include="AudioCapture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="PngUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GraphicsUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="StringUtil.cpp">
@@ -147,6 +156,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="AudioCapture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PngUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

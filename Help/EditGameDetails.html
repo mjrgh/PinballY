@@ -324,13 +324,17 @@
    window during play.
 </p>
 <p>
-   PinballY also forces each selected window into the "topmost"
-   window layer during game execution, in an attempt to keep the
-   PinballY window in front of any window the game displays
-   in the same area.  This lets you not just use the PinballY
-   windows to fill in for missing graphics, but also to replace
-   any graphics the game would normally display that you don't
-   like.  For example, some systems make a half-hearted attempt
+   When you set a window to continue showing graphics while
+   running, PinballY also forces that window into the "topmost"
+   window layer on the monitor while the game is executing,
+   so that the PinballY window stays in front of any window
+   the game itself displays in the same screen area.
+   This is an attempt to ensure that the PinballY window
+   not only fills in for missing game graphics, but actually
+   replaces any graphics the game tries to display in that
+   screen area.  The idea is to let you replace any game
+   graphics that you don't like with your own custom images
+   or videos.  For example, some systems make a half-hearted attempt
    at backglass graphics by displaying a static image with
    no animation.  You might prefer to show the PinballY backglass
    video throughout play instead in such cases.  The automatic
@@ -343,7 +347,57 @@
    You might need to resort to tweaking the game's settings in
    such a case to tell the game not to show the unwanted window.)
 </p>
+<p>
+   These checkboxes are a little unusual in that they have <i>three</i>
+   possible states:
+</p>
+<style type="text/css">
+ul.ckboxNotes img {
+    vertical-align: middle;
+    margin-right: 1ex;
+}
+img.ckbox {
+    vertical-align: middle;
+}
+</style>
+<ul class="ckboxNotes">
+   <li><img src="CkBoxChecked.png"> Show this window's graphics while running
+   <li><img src="CkBoxBarred.png"> Blank this window while running
+   <li><img src="CkBoxEmpty.png"> Use the default setting for this game's system
+</ul>
 
+<p>
+   The first two settings, <img src="CkBoxChecked.png" class="ckbox"> (always show)
+   and <img src="CkBoxBarred.png" class="ckbox"> (always blank), let you specify
+   exactly what to do for this particular game, overriding the system settings
+   and the global settings.  If you select one of these options, it doesn't
+   matter what options are set for the game's system; the window will always
+   do what you specify here for this game.  The third setting,
+   <img src="CkBoxEmpty.png" class="ckbox"> (use defaults), lets you leave it
+   up to the system or global settings to decide what to do.  If you choose
+   this option, the system or global settings will be consulted each time the
+   game is run, so whatever system or global settings are in effect then
+   will be used.
+</p>
+<p>
+   Note that you can <b>also</b> select which windows to show on a per-system
+   basis, using the controls in the <a href="SystemOptions.html">player system options</a>
+   page of the main settings dialog, as well as globally (for all games and all
+   systems), using the <a href="GameLaunchOptions.html">Game Launch</a> page
+   of the settings dialog.  In some cases, you might want to enable a
+   particular window for all games, in which case it's more convenient
+   to use the global Game Launch options.  For example, since none of the
+   current player systems feature a dedicated instruction card window,
+   you might want to enable PinballY's instruction card window across
+   the board.  In other cases, you might want to enable a particular
+   window for all games that run under a particular player system, in
+   which case you can configure it in that system's settings page, so
+   that the setting applies to all games using that system.  For example,
+   some player systems don't show anything in the backglass window,
+   so you might want to keep the PinballY backglass active for all games
+   using that system.
+</p>
+   
 
 <h2>Where are the details stored on my disk?</h2>
 
@@ -363,6 +417,7 @@
    PinballY install folder.  See <a href="DirectoryInfo.html#gameStatsCsv">Table Statistics</a>
    for details.
 </ul>
+
    
 
 </body>

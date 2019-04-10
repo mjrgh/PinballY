@@ -19,6 +19,12 @@ public:
 	int GetSysNum() const { return sysNum; }
 
 protected:
+	DECLARE_MESSAGE_MAP()
+	afx_msg void OnCustomDraw(NMHDR *pnmhdr, LRESULT *plResult);
+
+	// custom tri-state image for the "keep window open" checkboxes
+	std::unique_ptr<Gdiplus::Bitmap> bmpKeepWinCkbox;
+
 	// initialize
 	virtual BOOL OnInitDialog() override;
 

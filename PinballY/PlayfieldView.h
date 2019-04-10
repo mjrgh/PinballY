@@ -12,7 +12,7 @@
 #include "../Utilities/Joystick.h"
 #include "../Utilities/KeyInput.h"
 #include "../Utilities/InputManager.h"
-#include "GraphicsUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "D3D.h"
 #include "D3DWin.h"
 #include "Camera.h"
@@ -124,7 +124,7 @@ public:
 		const TCHAR *groupMsg, const ErrorList *list = 0);
 
 	// enter/leave running game mode
-	void BeginRunningGameMode(GameListItem *game);
+	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
 
 	// Show the pause menu, used as the main menu when a game is running
@@ -189,22 +189,25 @@ public:
 	// Game launch report, for the PFVMsgXxx messages for game launch steps
 	struct LaunchReport
 	{
-		LaunchReport(int launchCmd, DWORD launchFlags, LONG gameInternalID) :
+		LaunchReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex) :
 			launchCmd(launchCmd),
 			launchFlags(launchFlags),
-			gameInternalID(gameInternalID)
+			gameInternalID(gameInternalID),
+			systemConfigIndex(systemConfigIndex)
 		{ }
 
 		int launchCmd;
 		DWORD launchFlags;
 		LONG gameInternalID;
+		int systemConfigIndex;
 	};
 
 	// Game launch error report, for PFVMsgGameLaunchError
 	struct LaunchErrorReport : LaunchReport
 	{
-		LaunchErrorReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, const TCHAR *errorMessage) :
-			LaunchReport(launchCmd, launchFlags, gameInternalID),
+		LaunchErrorReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex,
+			const TCHAR *errorMessage) :
+			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex),
 			errorMessage(errorMessage)
 		{}
 
@@ -214,8 +217,8 @@ public:
 	// Game Over report, for PFVMsgGameOver
 	struct GameOverReport : LaunchReport
 	{
-		GameOverReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, INT64 runTime_ms) :
-			LaunchReport(launchCmd, launchFlags, gameInternalID),
+		GameOverReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex, INT64 runTime_ms) :
+			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex),
 			runTime_ms(runTime_ms)
 		{}
 

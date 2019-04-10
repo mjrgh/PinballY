@@ -5,11 +5,11 @@
 
 #include "stdafx.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "DMDView.h"
 #include "Resource.h"
 #include "D3D.h"
 #include "D3DWin.h"
-#include "GraphicsUtil.h"
 #include "Camera.h"
 #include "TextDraw.h"
 #include "VersionInfo.h"
@@ -1011,10 +1011,10 @@ void DMDView::ScaleSprites()
 		ScaleSprite(i.sprite, 1.0f, false);
 }
 
-void DMDView::BeginRunningGameMode(GameListItem *game)
+void DMDView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 {
 	// do the base class work
-	__super::BeginRunningGameMode(game);
+	__super::BeginRunningGameMode(game, system);
 
 	// if we're showing high score images, return to the base image and 
 	// cancel the high score rotation

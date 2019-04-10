@@ -263,8 +263,9 @@ public:
 	// The contents of the queue aren't affected.
 	struct QueuedGameInfo
 	{
-		int cmd;          // launch command (ID_PLAY_GAME, ID_CAPTURE_GO)
-		LONG gameId;      // internal ID of the game
+		int cmd;             // launch command (ID_PLAY_GAME, ID_CAPTURE_GO)
+		LONG gameId;         // internal ID of the game
+		int sysConfigIndex;  // config index of the system
 	};
 	bool GetNextQueuedGame(QueuedGameInfo &info) const;
 
@@ -298,6 +299,10 @@ public:
 	LONG GetRunningGameId() const
 		{ return gameMonitor != nullptr && gameMonitor->IsGameRunning() ? gameMonitor->gameId : 0; }
 
+	// get the system config index of the running game
+	int GetRunningGameSystem() const
+		{ return gameMonitor != nullptr && gameMonitor->IsGameRunning() ? gameMonitor->gameSys.configIndex : -1; }
+
 	// Try to steal focus from the runing game and set it to our window
 	void StealFocusFromGame();
 
@@ -320,7 +325,7 @@ public:
 	// Begin/end running game mode.  The playfield view calls these
 	// when games start and stop.  We manage the visibility of the
 	// other windows accordingly.
-	void BeginRunningGameMode(GameListItem *game);
+	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
 
 	// Clean up the game monitor thread

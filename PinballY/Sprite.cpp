@@ -4,7 +4,7 @@
 #include "stdafx.h"
 #include <d3d11_1.h>
 #include <DirectXMath.h>
-#include "GraphicsUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "DDSTextureLoader.h"
 #include "WICTextureLoader.h"
 #include "D3D.h"

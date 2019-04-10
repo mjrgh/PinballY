@@ -243,6 +243,9 @@
     <Image Include="FontPreviewCombo\res\ttf_glyph.bmp">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="res\KeepWindowCheckbox.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="OptionsResources.rc">

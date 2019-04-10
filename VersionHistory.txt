@@ -2,6 +2,51 @@ PinballY Update History
 
 ? (1.0.0 Beta 12)
 
+* You can now specify which windows should continue to display
+graphics during game play on a global and per-system basis, in
+addition to per-game.  Up until now, the Game Details dialog was
+the only place you could select windows to keep open during play,
+so you had to specify this for each game individually.  In many
+cases, though, you might want to specify the same setting for every
+game that uses a particular system, or simply for all games across
+the board.  For example, since none of the existing player systems
+(that I know of) offer dedicated instruction card windows, you
+might want to keep the PinballY instruction card window showing for
+all games.  Similarly, if one of your player systems doesn't show
+anything in the backglass window, you might want to keep the
+PinballY backglass window active for all of that system's games.
+
+The new options can be found in three places:
+
+ * First, the Game Launch page of the Options dialog lets you 
+   select a "global" setting for each window.  The global setting
+   applies to all games and all systems.  If you check the 
+   Instruction Card box here, for example, the instruction card
+   window will be kept active for all games.  These settings can
+   be overridden by each system and game, as we'll see next.
+
+ * Second, each player system page in the Options dialog has a
+   similar set of checkboxes, which control the window status for
+   all games launched with that system.  Each checkbox here has 
+   three possible settings: a green checkmark means that the 
+   window is kept active for this system; a red slashed circle 
+   means that the window is disabled for this system, EVEN IF the
+   window is set to active in the global settings; and an empty
+   box means that the system uses the current global setting for 
+   that window
+
+ * Finally, the Game Details dialog for each game continues to
+   provide its own set of these checkboxes, where you can set
+   each window's status on a game-by-game basis.  As with the
+   system-specific controls, these checkboxes have three options:
+   a green checkmark means that the window is kept active for 
+   this game, even if it's disabled globally or in the game's
+   system's settings; a red slashed circle means that the window
+   is disabled for this game, even if the window is marked as
+   active in the system settings or global settings; and an
+   empty box means that the game "inherits" the system or global
+   settings.
+
 * A new Media Capture option lets you select the buttons used to
 manually start or stop a capture operation.  (Manual start or stop
 mode applies to media types that you specifically set to start or
@@ -18,7 +63,8 @@ But if you prefer to capture videos with the ball already in play,
 you might want to use the flipper buttons to actually play the game
 during a capture, in which case you wouldn't want the flippers as
 the manual start/stop trigger.  This new option lets you move the
-trigger to another button or buttons.
+trigger to another button or buttons.  (Addresses issue #59 on
+github.)
 
 Note that by "flipper buttons", we really mean the keys you've
 assigned to the Next and Previous commands.  We casually refer to

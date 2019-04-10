@@ -16,6 +16,13 @@ namespace fs = std::experimental::filesystem;
 
 IMPLEMENT_DYNAMIC(SystemDialog, OptionsPage)
 
+BEGIN_MESSAGE_MAP(SystemDialog, OptionsPage)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_BG, OnCustomDraw)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_DMD, OnCustomDraw)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_TOPPER, OnCustomDraw)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, OnCustomDraw)
+END_MESSAGE_MAP()
+
 // System class IDs, as stored in the config file for SystemN.Class
 //
 // IMPORTANT: The prepopulated list data for the System Class combo
@@ -296,6 +303,13 @@ void SystemDialog::InitVarMap()
 	varMap.emplace_back(new EditStrMap(cv(".RunBefore"), IDC_EDIT_RUN_BEFORE2, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".RunAfter"), IDC_EDIT_RUN_AFTER1, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".RunAfterPost"), IDC_EDIT_RUN_AFTER2, _T("")));
+
+	// set up the Keep Window Open controls
+	TSTRING showWindowsVar = cv(".ShowWindowsWhileRunning");
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("bg"), IDC_CK_SHOW_WHEN_RUNNING_BG, true));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("dmd"), IDC_CK_SHOW_WHEN_RUNNING_DMD, true));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("topper"), IDC_CK_SHOW_WHEN_RUNNING_TOPPER, true));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("instcard"), IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, true));
 }
 
 BOOL SystemDialog::OnInitDialog()
@@ -388,10 +402,18 @@ BOOL SystemDialog::OnApply()
 	{
 		// success - we're no longer "new", since we're in the config now
 		isNew = false;
+
+		// apply changes to Keep Window Open checkboxes
+		KeepWindowCkMap::OnApply(varMap);
+
+		// success
 		return true;
 	}
 	else
+	{
+		// failed/rejected
 		return false;
+	}
 }
 
 BOOL SystemDialog::OnCommand(WPARAM wParam, LPARAM lParam)
@@ -1076,3 +1098,7 @@ bool SystemDialog::IsModFromConfig()
 	return isNew || __super::IsModFromConfig();
 }
 
+void SystemDialog::OnCustomDraw(NMHDR *pnmhdr, LRESULT *plResult)
+{
+	*plResult = KeepWindowCkMap::OnCustomDraw(this, pnmhdr);
+}

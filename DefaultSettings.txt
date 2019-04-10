@@ -1096,6 +1096,22 @@ CreditBalance = 0
 # brief appearances.
 HideTaskbarDuringGame = 1
 
+# Keep selected windows open while running games.  The windows
+# listed here will continue showing videos or graphics while games
+# are running.  Windows NOT listed here will be blanked to a simple
+# black background while games are running, on the assumption that
+# the game will want to take over the corresponding display area.
+# 
+# List the windows to keep open here, separated by spaces.  The
+# window IDs are:
+#
+#   bg       = backglass
+#   dmd      = DMD score area
+#   topper   = topper window
+#   instcard = instruction card window
+#
+ShowWindowsWhileRunning = 
+
 
 #
 # Pinball systems.  Each system is specified via a set of "System<n>" 
@@ -1346,6 +1362,16 @@ HideTaskbarDuringGame = 1
 # As with RunBeforePre, this command is executed with a blank, black
 # screen shown in the playfield window, so it's a good place to put any
 # command that changes the system-wide monitor layout.
+#
+# SystemN.ShowWindowsWhileRunning = a list of windows to keep open
+# while games using this system are running.  This is a space-delimited
+# list with the following window IDs: bg, dmd, topper, instcard.  An
+# ID can be marked as explicitly NOT shown while running by preceding
+# it with a hypen, so "-bg dmd" means that we hide the backglass and
+# show the DMD.  Any windows not mentioned inherit the default settings
+# from the global ShowWindowsWhileRunning setting, and individual games
+# can override the system settings in their game details settings.
+#
 
 
 # VP 9

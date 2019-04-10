@@ -2,8 +2,8 @@
 // Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 #include "stdafx.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "D3DView.h"
-#include "GraphicsUtil.h"
 #include "TextureShader.h"
 #include "Camera.h"
 #include "MouseButtons.h"

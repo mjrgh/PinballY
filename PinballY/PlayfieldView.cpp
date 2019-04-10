@@ -13,10 +13,13 @@
 #include <VersionHelpers.h>
 #include <Shellapi.h>
 #include <Shlobj.h>
+#include <Vsstyle.h>
+#include <Vssym32.h>
 #include "../Utilities/Config.h"
 #include "../Utilities/FileVersionInfo.h"
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/FileUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "PlayfieldView.h"
 #include "Resource.h"
 #include "DialogResource.h"
@@ -26,7 +29,6 @@
 #include "DMDView.h"
 #include "TopperView.h"
 #include "InstCardView.h"
-#include "GraphicsUtil.h"
 #include "Camera.h"
 #include "TextDraw.h"
 #include "VersionInfo.h"
@@ -4497,6 +4499,7 @@ void PlayfieldView::LaunchQueuedGame()
 	// Find the next launchable game in the queue.  Keep going until we
 	// find a game we can launch, or we exhaust the queue.
 	GameListItem *game = nullptr;
+	GameSystem *sys = nullptr;
 	for (;;)
 	{
 		// Get the next queued game.  If the queue is empty, we're done.
@@ -4509,6 +4512,7 @@ void PlayfieldView::LaunchQueuedGame()
 		// (that is, FireLaunchEvent returns true), we can proceed with
 		// the launch.
 		game = GameList::Get()->GetByInternalID(info.gameId);
+		sys = GameList::Get()->GetSystem(info.sysConfigIndex);
 		JavascriptEngine::JsObj overrides(JS_INVALID_REFERENCE);
 		if (game != nullptr && FireLaunchEvent(&overrides, jsPreLaunchEvent, game, info.cmd))
 		{
@@ -4561,7 +4565,7 @@ void PlayfieldView::LaunchQueuedGame()
 	if (Application::Get()->LaunchNextQueuedGame(eh))
 	{
 		// show the "game running" popup in the main window
-		BeginRunningGameMode(game);
+		BeginRunningGameMode(game, sys);
 
 		// check for an audio clip to play on launching the game
 		TSTRING audio;
@@ -7438,7 +7442,7 @@ void PlayfieldView::OnNewFilesAdded()
 }
 
 // Show the "game running" popup
-void PlayfieldView::BeginRunningGameMode(GameListItem *game)
+void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 {
 	// remember the running game's ID
 	runningGameID = game != nullptr ? game->internalID : 0;
@@ -7656,6 +7660,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 			// get the game we're launching
 			auto game = GameList::Get()->GetByInternalID(report->gameInternalID);
+			auto system = GameList::Get()->GetSystem(report->systemConfigIndex);
 
 			// Reset the game inactivity timer now that the game has actually
 			// started running.  This effectively removes however long the game
@@ -7666,7 +7671,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			ResetGameTimeout();
 
 			// set running game mode in the other windows
-			Application::Get()->BeginRunningGameMode(game);
+			Application::Get()->BeginRunningGameMode(game, system);
 
 			// Fire the Javascript "gamestarted" event
 			FireLaunchEvent(jsGameStartedEvent, report->gameInternalID, report->launchCmd);
@@ -12090,7 +12095,13 @@ void PlayfieldView::EditGameInfo()
 			TCHAR path[MAX_PATH];
 			PathCombine(path, game->tableFileSet->tablePath.c_str(), game->filename.c_str());
 			gamePath = path;
+
+			// load the custom checkbox bitmap
+			bmpKeepWinCkbox.reset(GPBitmapFromPNG(IDB_KEEP_WIN_CKBOX));
 		}
+
+		// the "keep window open" custom tri-state checkbox background PNG
+		std::unique_ptr<Gdiplus::Bitmap> bmpKeepWinCkbox;
 
 		// Did we save changes?  This is set if the user dismisses
 		// the dialog with the Save button, in which case the caller
@@ -12204,6 +12215,11 @@ void PlayfieldView::EditGameInfo()
 				break;
 
 			case WM_NOTIFY:
+				if (reinterpret_cast<NMHDR*>(lParam)->code == NM_CUSTOMDRAW)
+				{
+					SetWindowLongPtr(hDlg, DWLP_MSGRESULT, CustomDraw(static_cast<int>(wParam), reinterpret_cast<NMCUSTOMDRAW*>(lParam)));
+					return TRUE;
+				}
 				break;
 
 			case MsgFixTitle:
@@ -12213,6 +12229,68 @@ void PlayfieldView::EditGameInfo()
 
 			// do the base class work
 			return __super::Proc(message, wParam, lParam);
+		}
+
+		LRESULT CustomDraw(int ctlId, NMCUSTOMDRAW *nm)
+		{
+			switch (ctlId)
+			{
+			case IDC_CK_SHOW_WHEN_RUNNING_BG:
+			case IDC_CK_SHOW_WHEN_RUNNING_DMD:
+			case IDC_CK_SHOW_WHEN_RUNNING_TOPPER:
+			case IDC_CK_SHOW_WHEN_RUNNING_INSTCARD:
+				// custom-draw the "show when running" checkboxes
+				return CustomDrawCheckbox(ctlId, nm);
+			}
+
+			// use the default drawing behavior
+			return CDRF_DODEFAULT;
+		}
+
+		LRESULT CustomDrawCheckbox(int ctlId, NMCUSTOMDRAW *nm)
+		{
+			switch (nm->dwDrawStage)
+			{
+			case CDDS_PREPAINT:
+				return CDRF_NOTIFYPOSTPAINT;
+
+			case CDDS_POSTPAINT:
+				if (HWND hwndCtl = GetDlgItem(ctlId); hwndCtl != NULL)
+				{
+					// get the square at the left of the checkbox area
+					RECT rc = nm->rc;
+					rc.right = rc.left + rc.bottom - rc.top;
+
+					// erase it by filling it with the parent background color
+					DrawThemeParentBackground(hwndCtl, nm->hdc, &rc);
+
+					// figure the current state
+					UINT state = IsDlgButtonChecked(hDlg, ctlId);
+					bool checked = state == BST_CHECKED;
+					bool indet = state == BST_INDETERMINATE;
+					bool hot = (nm->uItemState & CDIS_HOT) != 0;
+					bool clicked = hot && (GetKeyState(VK_LBUTTON) < 0);
+
+					// Figure the offset based on the state.  Each cell in the source
+					// image is 32x32 pixels.  The cells are arranged horizontally,
+					// in groups of Normal/Hot/Clicked, in order, Checked, Default,
+					// Unchecked.
+					int xSrc = (checked ? 0 : indet ? 96 : 192) + (clicked ? 64 : hot ? 32 : 0);
+
+					// draw the bitmap
+					Gdiplus::Graphics g(nm->hdc);
+					g.DrawImage(bmpKeepWinCkbox.get(), 
+						Gdiplus::Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top),
+						xSrc, 0, 32, 32, Gdiplus::UnitPixel);
+				}
+				break;
+
+			default:
+				break;
+			}
+
+			// use the default drawing behavior
+			return CDRF_DODEFAULT;
 		}
 
 		// subclass the title combo control, for auto-complete actions
@@ -12602,9 +12680,16 @@ void PlayfieldView::EditGameInfo()
 			TSTRING showWhenRunning;
 			auto TestShowWhenRunning = [&showWhenRunning, this](int buttonId, const TCHAR *windowId)
 			{
-				if (IsDlgButtonChecked(hDlg, buttonId) == BST_CHECKED)
+				int ck = IsDlgButtonChecked(hDlg, buttonId);
+				if (ck == BST_CHECKED)
 				{
 					if (showWhenRunning.length() != 0) showWhenRunning += _T(" ");
+					showWhenRunning += windowId;
+				}
+				else if (ck == BST_UNCHECKED)
+				{
+					if (showWhenRunning.length() != 0) showWhenRunning += _T(" ");
+					showWhenRunning += _T("-");
 					showWhenRunning += windowId;
 				}
 			};
@@ -12977,11 +13062,19 @@ void PlayfieldView::EditGameInfo()
 						for (; *p == ' '; ++p);
 						for (nxt = p; *nxt != 0 && *nxt != ' '; ++nxt);
 
+						// check for negation
+						bool negate = false;
+						if (*p == '-')
+						{
+							negate = true;
+							++p;
+						}
+
 						// check this token
 						if (len == nxt - p && _tcsnicmp(p, which, len) == 0)
 						{
 							// it's a match - check the box and stop looking
-							CheckDlgButton(hDlg, controlId, BST_CHECKED);
+							CheckDlgButton(hDlg, controlId, negate ? BST_UNCHECKED : BST_CHECKED);
 							return;
 						}
 
@@ -12989,8 +13082,8 @@ void PlayfieldView::EditGameInfo()
 						p = nxt;
 					}
 
-					// not found - uncheck the box
-					CheckDlgButton(hDlg, controlId, BST_UNCHECKED);
+					// not found - set to the "indeterminate" state for "inherit default"
+					CheckDlgButton(hDlg, controlId, BST_INDETERMINATE);
 				};
 				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
 				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));

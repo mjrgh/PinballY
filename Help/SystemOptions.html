@@ -110,6 +110,11 @@
       page.
    </p>
 
+   <li><b>Keep these PinballY windows open:</b>  These checkboxes let
+   you tell PinballY to continue displaying graphics and videos in
+   the selected windows while games based on this system are running.
+   See <a href="#keepWindowsOpen">below</a> for more details.
+
 </ul>
 
 <h2>Recipes for the common systems</h2>
@@ -1221,6 +1226,82 @@ taskkill /im PinUpDisplay.exe</div>
    should help ensure that your commands will always have a chance to
    undo any system-wide setting changes made during the launch process
    so that everything is returned to normal after each game session.
+</p>
+
+<a name="keepWindowsOpen"></a>
+<h3>Keep these PinballY windows open</h3>
+
+<p>
+   These checkboxes let you tell PinballY to continue displaying graphics
+   and videos in the selected windows while games based on this system are
+   running.
+</p>
+<p>
+   The controls here apply to all games using this system.  These settings
+   override the "global" settings in the
+   <a href="GameLaunchOptions.html">Game Launch</a> page.  You can in
+   turn override the system settings individually for each game,
+   using the <a href="EditGameDetails.html">Game Details</a> dialog.
+   These three locations for the settings form a hierarchy:
+</p>
+<ul>
+   <li>The global settings in the Game Launch options act as defaults for all systems and all games
+   <li>Each system's settings act as defaults for all games for that system, and
+   override any conflicting global Game Launch settings
+   <li>Each game's individual settings override any conflicting global
+   or system-specific settings
+</ul>
+<p>
+   You'll notice that these checkboxes are a little unusual, in that
+   they have <i>three</i> possible states:
+</p>
+<style type="text/css">
+ul.ckboxNotes img {
+    vertical-align: middle;
+    margin-right: 1ex;
+}
+img.ckbox {
+    vertical-align: middle;
+}
+</style>
+<ul class="ckboxNotes">
+   <li><img src="CkBoxChecked.png"> Show this window's graphics while running
+   <li><img src="CkBoxBarred.png"> Blank this window while running
+   <li><img src="CkBoxEmpty.png"> Use the default global setting
+</ul>
+<p>
+   The first two settings, "show" and "blank", override the global
+   setting for the window from the Game Launch options.
+   The third option, "use defaults", means that the global setting is used.
+   In all cases, any conflicting settings made in the Game Details dialog for a
+   particular game override the settings here, but only for that individual game.
+</p>
+<p>
+   Why would you want to continue showing PinballY window graphics during
+   game play?  In most cases, you wouldn't, which is why the initial
+   default settings (globally, per-system, and per-game) are all set
+   to blank out PinballY's graphics during play.  This reduces PinballY's
+   memory and CPU usage while the game is running, giving more system
+   resources to the game so that it can run faster and more smoothly.
+   However, if you have a pin cab setup with multiple monitors, you
+   might find that some games can't take advantage of all of your
+   display area.  For example, some commercial PC pinball games
+   don't display anything at all in the DMD or backglass area, or
+   can only display boring still graphics.  In those cases, you
+   might prefer to let PinballY continue to display its graphics
+   in those areas during play.
+</p>
+<p>
+   The checkboxes here apply to all games running under the selected
+   player system, so you can use these controls in cases where all
+   games for a system have the same handling for the various windows.
+   For example, if a system never displays anything in the DMD
+   area, you can use the checkbox here to tell PinballY to continue
+   displaying DMD graphics for all games using that system.  In
+   cases where a system is inconsistent - some of the system's games
+   make use of the DMD, say, while others don't - you might prefer
+   to make the selection on a game-by-game basis using the
+   <a href="EditGameDetails.html">Game Details</a> dialog.
 </p>
 
 </body>

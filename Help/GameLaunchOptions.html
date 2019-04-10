@@ -53,5 +53,72 @@
    for a long time.
 </p>
 
+
+<p>
+   <b>"Keep the following windows open...":</b>  These checkboxes
+   let you tell PinballY to continue showing one or more of the
+   PinballY windows when any game is running.  The selected windows
+   will remain in the foreground and will continue to show their
+   background graphics or videos throughout each game.
+</p>
+<p>
+   Normally, PinballY blanks all of its windows while a game is running,
+   and allows the running game to place its windows in front of the
+   PinballY windows (to the extent they're situated in the same
+   display area).  The assumption is that you want the game to take
+   over the entire display while it's running, and that you don't
+   want PinballY wasting CPU time and video memory by continuing to
+   play back videos in windows that are covered up by the running game.
+</p>
+<p>
+   However, you might want to keep some of the PinballY windows open
+   while playing some or all games.  For example, none of the current
+   player systems provide their own dedicated instruction card window,
+   so if you have a physical monitor area that's suitable for an
+   instruction card display, you can tell PinballY to keep its
+   instruction card window active during play, by checking the
+   Instruction Card box here.
+</p>
+<p>
+   When you set a window to continue showing graphics while
+   running, PinballY also forces that window into the "topmost"
+   window layer on the monitor while the game is executing,
+   so that the PinballY window stays in front of any window
+   the game itself displays in the same screen area.
+   This is an attempt to ensure that the PinballY window
+   not only fills in for missing game graphics, but actually
+   replaces any graphics the game tries to display in that
+   screen area.  The idea is to let you replace any game
+   graphics that you don't like with your own custom images
+   or videos.  For example, some systems make a half-hearted attempt
+   at backglass graphics by displaying a static image with
+   no animation.  You might prefer to show the PinballY backglass
+   video throughout play instead in such cases.  The automatic
+   "topmost" layering helps ensure that the PinballY window
+   will appear in front of the game system's window, effectively
+   replacing it on the screen.  (This isn't absolutely guaranteed
+   to keep the PinballY window in front, because the game could
+   also lay claim to the "topmost" layer, in which case it will
+   usually have precedence because it's the foreground application.
+   You might need to resort to tweaking the game's settings in
+   such a case to tell the game not to show the unwanted window.)
+</p>
+<p>
+   The settings here are "global", meaning they apply as the
+   defaults to all games.  You can also control which PinballY
+   windows remain active on a per-system and per-game basis.
+   If you want to select a set of windows that will remain
+   active during play only for games of a particular system,
+   you can do that using the <a href="SystemOptions.html">player
+   system options</a> page for that system.  Each system's
+   settings page has its own set of the checkboxes shown
+   here where you can make the same selections for that
+   individual system.  The settings for a system override
+   the global settings here.  Similarly, the
+   <a href="EditGameDetails.html">Game Details</a> dialog
+   has its own set of these checkboxes, where you can
+   override both the global settings and the system settings.
+</p>
+
 </body>
 </html>

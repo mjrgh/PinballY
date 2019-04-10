@@ -5,11 +5,11 @@
 
 #include "stdafx.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "BackglassView.h"
 #include "Resource.h"
 #include "D3D.h"
 #include "D3DWin.h"
-#include "GraphicsUtil.h"
 #include "Camera.h"
 #include "TextDraw.h"
 #include "VersionInfo.h"

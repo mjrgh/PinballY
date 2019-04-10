@@ -4,7 +4,10 @@
 #include "stdafx.h"
 #include "OptionsPage.h"
 #include "OptionsDialog.h"
+#include "resource.h"
 #include "../Utilities/Config.h"
+#include "../Utilities/PngUtil.h"
+
 
 IMPLEMENT_DYNAMIC(OptionsPage, CPropertyPageEx)
 
@@ -351,3 +354,187 @@ TSTRING OptionsPage::StatusMessageMap::ToConfig(const TCHAR *str)
 	return std::regex_replace(tmp, std::basic_regex<TCHAR>(_T("\r\n|\n")), _T("|")).c_str();
 }
 
+
+// -----------------------------------------------------------------------
+//
+// Special checkbox mapper for the "Keep Windows Open" checkboxes
+//
+
+Gdiplus::Bitmap *OptionsPage::KeepWindowCkMap::bmpKeepWinCkbox = nullptr;
+int OptionsPage::KeepWindowCkMap::bmpRefs = 0;
+
+OptionsPage::KeepWindowCkMap::KeepWindowCkMap(const TCHAR *configVar, const TCHAR *windowID, int controlID, bool triState) :
+	CkBoxMap(configVar, controlID, false), windowID(windowID), triState(triState)
+{
+	// load the config variable value
+	InitConfigVal();
+
+	// if we're a tri-state checkbox, make sure the custom image is loaded
+	if (triState)
+	{
+		++bmpRefs;
+		if (bmpKeepWinCkbox == nullptr)
+			bmpKeepWinCkbox = GPBitmapFromPNG(IDB_KEEP_WIN_CKBOX);
+	}
+}
+
+OptionsPage::KeepWindowCkMap::~KeepWindowCkMap()
+{
+	// if we're a tri-state checkbox, release the custom image 
+	if (triState)
+	{
+		if (--bmpRefs == 0)
+		{
+			delete bmpKeepWinCkbox;
+			bmpKeepWinCkbox = nullptr;
+		}
+	}
+}
+
+void OptionsPage::KeepWindowCkMap::InitConfigVal()
+{
+	// presume 'unchecked' for a regular checkbox, or 'indeterminate' for
+	// a tri-state checkbox
+	configVal = triState ? BST_INDETERMINATE : BST_UNCHECKED;
+
+	// get the config var and scan its space-delimited tokens
+	const TCHAR *p = ConfigManager::GetInstance()->Get(configVar, _T(""));
+	size_t idLen = windowID.length();
+	while (*p != 0)
+	{
+		// skip leading spaces
+		for (; _istspace(*p); ++p);
+
+		// find the end of the token
+		const TCHAR *tok = p;
+		for (; *p != 0 && !_istspace(*p); ++p);
+
+		// if this term is found, the value will be BST_CHECKED or BST_UNCHECKED,
+		// according to the presence or absence of a '-' negation marker
+		int val = BST_CHECKED;
+		if (*tok == '-')
+			val = (++tok, BST_UNCHECKED);
+
+		// check for a match to our token
+		if (p - tok == idLen && _tcsnicmp(tok, windowID.c_str(), idLen) == 0)
+		{
+			// it's our token - the value is BST_CHECKED or BST_UNCHECKED, according
+			// to the negation status
+			configVal = val;
+			break;
+		}
+	}
+}
+
+void OptionsPage::KeepWindowCkMap::LoadConfigVar()
+{
+	intVar = configVal;
+}
+
+void OptionsPage::KeepWindowCkMap::SaveConfigVar()
+{
+	configVal = intVar;
+}
+
+bool OptionsPage::KeepWindowCkMap::IsModifiedFromConfig()
+{
+	return ckbox.GetCheck() != configVal;
+}
+
+LRESULT OptionsPage::KeepWindowCkMap::OnCustomDraw(CWnd *dlg, NMHDR *pnmhdr)
+{
+	// check the custom draw stage
+	auto nm = reinterpret_cast<NMCUSTOMDRAW*>(pnmhdr);
+	switch (nm->dwDrawStage)
+	{
+	case CDDS_PREPAINT:
+		return CDRF_NOTIFYPOSTPAINT;
+
+	case CDDS_POSTPAINT:
+		if (auto ctl = pnmhdr->hwndFrom; ctl != nullptr)
+		{
+			// get the square at the left of the checkbox area
+			RECT rc = nm->rc;
+			rc.right = rc.left + rc.bottom - rc.top;
+
+			// erase it by filling it with the parent background color
+			DrawThemeParentBackground(ctl, nm->hdc, &rc);
+
+			// figure the current state
+			UINT state = dlg->IsDlgButtonChecked(static_cast<int>(pnmhdr->idFrom));
+			bool checked = state == BST_CHECKED;
+			bool indet = state == BST_INDETERMINATE;
+			bool hot = (nm->uItemState & CDIS_HOT) != 0;
+			bool clicked = hot && (GetKeyState(VK_LBUTTON) < 0);
+
+			// Figure the offset based on the state.  Each cell in the source
+			// image is 32x32 pixels.  The cells are arranged horizontally,
+			// in groups of Normal/Hot/Clicked, in order, Checked, Default,
+			// Unchecked.
+			int xSrc = (checked ? 0 : indet ? 96 : 192) + (clicked ? 64 : hot ? 32 : 0);
+
+			// draw the bitmap
+			Gdiplus::Graphics g(nm->hdc);
+			g.DrawImage(bmpKeepWinCkbox,
+				Gdiplus::Rect(rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top),
+				xSrc, 0, 32, 32, Gdiplus::UnitPixel);
+		}
+	}
+
+	// use the default handling
+	return CDRF_DODEFAULT;
+}
+
+void OptionsPage::KeepWindowCkMap::OnApply(std::list<std::unique_ptr<VarMap>> &varMap)
+{
+	// Scan the control map list for our instances.  Note that
+	// we assume that any given dialog has only one set of these
+	// controls.  In particular, we assume there's only a single
+	// variable name shared by all of the controls.  If we wanted
+	// to add multiple sets to a single dialog, we'd have to 
+	// partition the results by variable name.
+	TSTRING val;
+	const TCHAR *configVar = nullptr;
+	for (auto &v : varMap)
+	{
+		// check if this is one of ours
+		if (auto w = dynamic_cast<KeepWindowCkMap*>(v.get()); w != nullptr)
+		{
+			// Assert that the variable name isn't changing.  This
+			// enforces our assumption that we only have one set of
+			// controls based on a single config variable.  If that
+			// assumption is ever broken, this will catch it quickly
+			// so that no one has to puzzle over it too long.
+			assert(configVar == nullptr || configVar == w->configVar);
+
+			// If we didn't know the config variable name yet, we do now
+			configVar = w->configVar;
+
+			// Figure the value to add to the list
+			TSTRING ele;
+			if (w->configVal == BST_CHECKED)
+			{
+				// it's checked - add the window keyword as a positive term
+				ele = w->windowID;
+			}
+			else if (w->configVal == BST_UNCHECKED && w->triState)
+			{
+				// it's unchecked, and this is a tri-state checkbox, so this
+				// explicitly disables the window; add the window keyword as
+				// a negative term ("-dmd")
+				ele = _T("-");
+				ele += w->windowID;
+			}
+
+			// if the term is non-empty, add it
+			if (ele.length() != 0)
+			{
+				if (val.length() != 0) val += _T(" ");
+				val += ele;
+			}
+		}
+	}
+
+	// save the final value
+	ConfigManager::GetInstance()->Set(configVar, val.c_str());
+}

@@ -3,7 +3,7 @@
 //
 #include "stdafx.h"
 #include <dwmapi.h>
-#include "GraphicsUtil.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "BaseWin.h"
 #include "Resource.h"
 #include "MouseButtons.h"

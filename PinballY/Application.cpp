@@ -22,8 +22,8 @@
 #include "../Utilities/ProcUtil.h"
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/AudioCapture.h"
+#include "../Utilities/GraphicsUtil.h"
 #include "Application.h"
-#include "GraphicsUtil.h"
 #include "Resource.h"
 #include "D3D.h"
 #include "GameList.h"
@@ -1285,20 +1285,20 @@ void Application::ClearMedia()
 		ic->ClearMedia();
 }
 
-void Application::BeginRunningGameMode(GameListItem *game)
+void Application::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 {
 	// Put the backglass, DMD, and topper windows into running-game mode.  
 	// Note that it's not necessary to notify the playfield window, since 
 	// it initiates this process.
 	auto bgv = GetBackglassView();
 	if (bgv != nullptr)
-		bgv->BeginRunningGameMode(game);
+		bgv->BeginRunningGameMode(game, system);
 	if (auto dmv = GetDMDView(); dmv != nullptr)
-		dmv->BeginRunningGameMode(game);
+		dmv->BeginRunningGameMode(game, system);
 	if (auto tpv = GetTopperView(); tpv != nullptr)
-		tpv->BeginRunningGameMode(game);
+		tpv->BeginRunningGameMode(game, system);
 	if (auto ic = GetInstCardView(); ic != nullptr)
-		ic->BeginRunningGameMode(game);
+		ic->BeginRunningGameMode(game, system);
 
 	// Now start the media sync process for the secondary windows, by
 	// syncing the backglass window.  Each window will forward the
@@ -1400,7 +1400,7 @@ bool Application::GetNextQueuedGame(QueuedGameInfo &info) const
 	auto &q = queuedLaunches.front();
 
 	// return the info struct
-	info = { q->cmd, q->gameId };
+	info = { q->cmd, q->gameId, q->gameSys.configIndex };
 	return true;
 }
 
@@ -2137,7 +2137,7 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// monitor thread is exiting.
 	if (self->playfieldView != 0)
 	{
-		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId);
+		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId, self->gameSys.configIndex);
 		self->playfieldView->SendMessage(PFVMsgLaunchThreadExit, 0, reinterpret_cast<LPARAM>(&report));
 	}
 
@@ -2733,7 +2733,7 @@ DWORD Application::GameMonitorThread::Main()
 	// Javascript scripts.  Stop if the Javascript handlers cancel the launch.
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
 		if (!playfieldView->SendMessage(PFVMsgGameRunBefore, 0, reinterpret_cast<LPARAM>(&report)))
 			return 0;
 	}
@@ -2952,7 +2952,7 @@ DWORD Application::GameMonitorThread::Main()
 				// send the error to the playfield view for display
 				if (playfieldView != nullptr)
 				{
-					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, errDetails.c_str());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, gameSys.configIndex, errDetails.c_str());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -2986,7 +2986,7 @@ DWORD Application::GameMonitorThread::Main()
 				default:
 					// use the generic error message for anything else
 					{
-						PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, sysErr.Get());
+						PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, gameSys.configIndex, sysErr.Get());
 						playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 					}
 					break;
@@ -3054,7 +3054,7 @@ DWORD Application::GameMonitorThread::Main()
 				if (playfieldView != nullptr)
 				{
 					MsgFmt msg(_T("Error getting process snapshot: %s"), sysErr.Get());
-					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, msg.Get());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, gameSys.configIndex, msg.Get());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -3152,7 +3152,7 @@ DWORD Application::GameMonitorThread::Main()
 				if (playfieldView != nullptr)
 				{
 					MsgFmt msg(_T("Launcher process exited, target process %s hasn't started"), secondaryProcessName.c_str());
-					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, msg.Get());
+					PlayfieldView::LaunchErrorReport report(cmd, launchFlags, gameId, gameSys.configIndex, msg.Get());
 					playfieldView->SendMessage(PFVMsgGameLaunchError, 0, reinterpret_cast<LPARAM>(&report));
 				}
 
@@ -3190,7 +3190,7 @@ DWORD Application::GameMonitorThread::Main()
 	// switch the playfield view to Running mode
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
 		playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
 	}
 
@@ -4395,7 +4395,7 @@ DWORD Application::GameMonitorThread::Main()
 	// let the main window know that the game child process has exited
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::GameOverReport report(cmd, launchFlags, gameId, exitTime - launchTime);
+		PlayfieldView::GameOverReport report(cmd, launchFlags, gameId, gameSys.configIndex, exitTime - launchTime);
 		playfieldView->SendMessage(PFVMsgGameOver, 0, reinterpret_cast<LPARAM>(&report));
 	}
 
@@ -4406,7 +4406,7 @@ DWORD Application::GameMonitorThread::Main()
 	// remove the "game exiting" message
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
 		playfieldView->SendMessage(PFVMsgGameRunAfter, 0, reinterpret_cast<LPARAM>(&report));
 	}
 

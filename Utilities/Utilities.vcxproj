@@ -72,15 +72,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
+    <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <LibraryPath>$(OutDir);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -175,6 +179,7 @@
     <ClInclude Include="FileUtil.h" />
     <ClInclude Include="FileVersionInfo.h" />
     <ClInclude Include="GlobalConstants.h" />
+    <ClInclude Include="GraphicsUtil.h" />
     <ClInclude Include="InputManager.h" />
     <ClInclude Include="InputManagerWithConfig.h" />
     <ClInclude Include="InstanceHandle.h" />
@@ -182,6 +187,7 @@
     <ClInclude Include="KeyInput.h" />
     <ClInclude Include="LogError.h" />
     <ClInclude Include="PBXUtil.h" />
+    <ClInclude Include="PngUtil.h" />
     <ClInclude Include="Pointers.h" />
     <ClInclude Include="ProcUtil.h" />
     <ClInclude Include="stdafx.h" />
@@ -199,6 +205,7 @@
     <ClCompile Include="Dialog.cpp" />
     <ClCompile Include="FileUtil.cpp" />
     <ClCompile Include="FileVersionInfo.cpp" />
+    <ClCompile Include="GraphicsUtil.cpp" />
     <ClCompile Include="InputManager.cpp" />
     <ClCompile Include="InputManagerWithConfig.cpp" />
     <ClCompile Include="InstanceHandle.cpp" />
@@ -206,6 +213,7 @@
     <ClCompile Include="KeyInput.cpp" />
     <ClCompile Include="LogError.cpp" />
     <ClCompile Include="PBXUtil.cpp" />
+    <ClCompile Include="PngUtil.cpp" />
     <ClCompile Include="Pointers.cpp" />
     <ClCompile Include="ProcUtil.cpp" />
     <ClCompile Include="stdafx.cpp">

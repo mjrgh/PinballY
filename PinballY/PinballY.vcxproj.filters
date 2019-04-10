@@ -33,9 +33,6 @@
     <ClCompile Include="D3DWin.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GraphicsUtil.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="HiResTimer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -195,9 +192,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="D3DWin.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="GraphicsUtil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HiResTimer.h">

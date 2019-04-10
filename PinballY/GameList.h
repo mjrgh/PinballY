@@ -928,6 +928,7 @@ public:
 	TSTRING envVars;			// environment variables to add when launching the program
 	WORD swShow;                // SW_SHOW flag for launching the table
 	TSTRING terminateBy;        // how to terminate running games (CloseWindow, KillProcess)
+	TSTRING keepOpen;           // windows to keep open - space-delimited list (bg dmd topper instcard)
 
 	// DOF config tool title prefix.  This is a prefix string that
 	// the DOF table mapping list uses for some systems to distinguish
