@@ -803,7 +803,7 @@ void RealDMD::ClearMedia()
 	slideShowPos = slideShow.end();
 
 	// kill any slide show timer
-	if (slideShowTimerID != 0)
+	if (slideShowTimerRunning)
 	{
 		KillTimer(NULL, slideShowTimerID);
 		slideShowTimerID = 0;
@@ -999,52 +999,54 @@ void RealDMD::UpdateGame()
 					if (cx != dmdWidth || cy != dmdHeight || mirrorVert || mirrorHorz)
 					{
 						// create a 128x32 bitmap to hold the rescaled image
-						std::unique_ptr<Gdiplus::Bitmap> bmp2(new Gdiplus::Bitmap(dmdWidth, dmdHeight));
+						std::unique_ptr<Gdiplus::Bitmap> bmp2(new Gdiplus::Bitmap(dmdWidth, dmdHeight, PixelFormat24bppRGB));
 
 						// set up a GDI+ context on the bitmap
 						Gdiplus::Graphics g2(bmp2.get());
 
-						// appply the scaling transform if needed
+						// apply the scaling transform if needed
 						if (cx != dmdWidth || cy != dmdHeight)
-							g2.ScaleTransform(float(dmdWidth) / cx, float(dmdHeight) / cy);
+						{
+							g2.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+							g2.ScaleTransform(
+								static_cast<float>(dmdWidth) / static_cast<float>(cx),
+								static_cast<float>(dmdHeight) / static_cast<float>(cy));
+						}
 
 						// set up mirror transforms as needed
 						if (mirrorHorz)
 						{
-							Gdiplus::Matrix hz(-1, 0, 0, 1, (float)dmdWidth, 0);
+							Gdiplus::Matrix hz(-1, 0, 0, 1, static_cast<float>(dmdWidth), 0);
 							g2.MultiplyTransform(&hz);
 						}
 						if (mirrorVert)
 						{
-							Gdiplus::Matrix vt(1, 0, 0, -1, 0, (float)dmdHeight);
+							Gdiplus::Matrix vt(1, 0, 0, -1, 0, static_cast<float>(dmdHeight));
 							g2.MultiplyTransform(&vt);
 						}
 
-						// draw it with the selected transforms
-						g2.DrawImage(bmp.get(), 0, 0);
-
-						// replace the original image with the new image
-						bmp.reset(bmp2.release());
-
-						// flush the GDI+ context
+						// draw it into the in-memory bitmap with the selected transforms
+						g2.DrawImage(bmp.get(), Gdiplus::Rect(0, 0, cx, cy), 0, 0, cx, cy, Gdiplus::UnitPixel);
 						g2.Flush();
+
+						// replace the original loaded image with the transformed in-memory bitmap
+						bmp.reset(bmp2.release());
 					}
 
-					// Set up a pixel descriptor to fetch the bits in 24-bit RGB mode,
-					// with packed rows (that is, the stride is exactly the pixel width
-					// of a row, at 24 bits == 3 bytes per pixel).
+					// Set up a pixel descriptor to fetch the bits
+					const int bytesPerPixel = 3;
 					Gdiplus::BitmapData bits;
 					bits.Height = bmp->GetHeight();
 					bits.Width = bmp->GetWidth();
 					bits.PixelFormat = PixelFormat24bppRGB;
 					bits.Reserved = 0;
-					bits.Stride = bits.Width * 3;
+					bits.Stride = bits.Width * bytesPerPixel;
 
 					// set up our 24bpp pixel buffer
-					std::unique_ptr<BYTE> buf(new BYTE[bits.Height * bits.Width * 3]);
+					std::unique_ptr<BYTE> buf(new BYTE[bits.Height * bits.Stride]);
 					bits.Scan0 = buf.get();
 
-					// lock the bits
+					// lock the bits to copy the RGB pixels into our buffer
 					bmp->LockBits(nullptr,
 						Gdiplus::ImageLockMode::ImageLockModeRead | Gdiplus::ImageLockMode::ImageLockModeUserInputBuf,
 						PixelFormat24bppRGB, &bits);
@@ -1064,7 +1066,7 @@ void RealDMD::UpdateGame()
 							// copy bits
 							const BYTE *src = buf.get();
 							UINT8 *dst = gray.get();
-							for (int i = 0; i < dmdBytes; ++i, src += 3, ++dst)
+							for (int i = 0; i < dmdBytes; ++i, src += bytesPerPixel, ++dst)
 							{
 								// Figure luma = 0.3R + 0.59G + 0.11B.
 								//
@@ -1079,7 +1081,11 @@ void RealDMD::UpdateGame()
 								// then want to further convert that to a 4-bit value, which
 								// is a simple matter of shifting right by another 4 bits. 
 								// So that gives us a total final shift of 20 bits.
-								*dst = (UINT8)((src[0] * 19660 + src[1] * 38666 + src[2] * 7209) >> 20);
+								//
+								// Note that Windows RGB format is actually arranged in memory
+								// in BGR format, so for any given pixel, src[0] is Blue, src[1]
+								// is Green, and sr[2] is Red.
+								*dst = (UINT8)((src[2]*19660 + src[1]*38666 + src[0]*7209) >> 20);
 							}
 
 							// add it to the slide show, and start playback
@@ -1090,11 +1096,24 @@ void RealDMD::UpdateGame()
 						break;
 
 					case DMD_COLOR_RGB:
-						// RGB mode - we have the bits in exactly the right format.
-						// Add the 24bpp buffer to the slide show.
-						slideShow.emplace_back(new Slide(imageColorSpace, buf.release(),
-							imageDisplayTime, Slide::MediaSlide));
-						StartSlideShow();
+						// RGB mode.  Reformat the Windows GBR format to DmdDevice rgb24.
+						{
+							std::unique_ptr<rgb24> buf2(new rgb24[dmdWidth * dmdHeight]);
+							BYTE *src = buf.get();
+							rgb24 *dst = buf2.get();
+							UINT npix = bits.Height * bits.Width;
+							for (UINT i = 0; i < npix; ++i, ++dst)
+							{
+								dst->blue = *src++;
+								dst->green = *src++;
+								dst->red = *src++;
+							}
+
+							// add the image to the slide show
+							slideShow.emplace_back(new Slide(imageColorSpace, reinterpret_cast<BYTE*>(buf2.release()),
+								imageDisplayTime, Slide::MediaSlide));
+							StartSlideShow();
+						}
 						break;
 					}
 
@@ -1414,7 +1433,18 @@ DWORD RealDMD::WriterThreadMain()
 					break;
 
 				case DMD_COLOR_RGB:
-					Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<DMDDevice::rgb24*>(frame->pix.get()));
+					// Okay, this is truly bizarre.  Dmd-extensions seems to drop an
+					// RGB frame if it happens to match the data in the last RGB
+					// frame, EVEN IF there was a different, intervening frame in
+					// another format.  This happens erratically, but with fairly
+					// high probability.  It seems to fix it if we change at least
+					// one byte of data from frame to frame.  We can accomplish
+					// that without any visible effect by flipping the low bit of 
+					// a pixel RGB component on each consecutive frame - that won't
+					// be enough of a change to be visible, but it's apparently
+					// enough to defeat whatever's wrong in dmd-ext.
+					frame->pix.get()[0] ^= 0x01;
+					Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<rgb24*>(frame->pix.get()));
 					break;
 				}
 			}

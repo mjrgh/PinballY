@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Troubleshooting Tips</h1>
+
+<p>
+   If you're running into any problems getting PinballY to work the way
+   you want it to, here are some tips that might help.
+</p>
+
+<h2>PinballY isn't finding my tables</h2>
+
+<p>
+   The easiest way to figure out what's wrong when PinballY can't
+   find some or all of your tables is to look at the <b>log file</b>.
+   PinballY creates this file each time it runs, writing lots of extra
+   technical details on what it's doing during the session.  This can
+   usually pinpoint what's going wrong during table searches.
+</p>
+<p>
+   To get detailed information on table searches:
+</p>
+<ul>
+   <li>Open the Settings dialog
+   <li>Go to the Log File page
+   <li>Make sure that the checkbox <b>Player system setup and table searches</b> is ticked
+   <li>Save settings and exit the program
+   <li>Run PinballY again, let it finish starting up, then exit
+   <li>Use Notepad to view the file <b>PinballY.log</b> (in your main PinballY install folder)
+</ul>
+<p>
+   Now read through the file for an account of where the program is
+   looking for table files and what it's finding.
+</p>
+<p>
+   For a detailed explanation of exactly where PinballY looks for tables,
+   see <a href="DirectoryInfo.html">Files &amp; Folders</a>.
+</p>
+
+
+<h2>PinballY isn't showing media for my tables</h2>
+
+<p>
+   As with table search problems, the log file is the first place
+   to look when PinballY isn't finding your media files.
+   If you're having trouble getting most or all of your media
+   files displayed, try this:
+</p>
+<ul>
+   <li>Open the Settings dialog
+   <li>Go to the Log File page
+   <li>Make sure that the checkbox <b>Media file searches</b> is ticked
+   <li>Save settings
+   <li>Navigate to a game that isn't showing the right media files
+   <li>Exit the program
+   <li>Use Notepad to view the file <b>PinballY.log</b> (in your main PinballY install folder)
+</ul>
+<p>
+   Now read through the file for an account of where the program is
+   looking for media files and what it's finding.
+</p>
+<p>
+   If you're having trouble with media for just a few specific games,
+   try the built-in media list viewer:
+</p>
+<ul>
+   <li>Navigate to the game in question
+   <li>Bring up the Operator Menu (press the digit zero "0" key, or whichever other key you've assigned)
+   <li>Select <b>Show Media Files</b>
+</ul>
+<p>
+   That will display details on where the system is looking for
+   the game's media, the filename(s) it's looking for, and the
+   full names and locations for all of the matching files.  You
+   can check the file names that PinballY expects to find against
+   the actual files on your disk, and likewise check the directory
+   paths to make sure that you're placing the files where the
+   program is looking for them.
+</p>
+<p>
+   For a detailed explanation of exactly where PinballY looks for media,
+   see <a href="DirectoryInfo.html">Files &amp; Folders</a>.
+</p>
+
+
+
+
+<h2>The Windows taskbar pops up every time a VP X game finishes</h2>
+
+<p>Try this:</p>
+<ul>
+   <li>Open the VP X editor (without a game running)
+   <li>Select <b>Video/Graphics Options</b> from the Preferences menu
+   <li><b>Un-check</b> the box for <b>Disable Desktop Composition</b>
+   (in the Fullscreen section)
+</ul>
+<p>
+   What's going on: this checkbox makes VP ask Windows to turn off
+   the feature inside Windows that lets it draw partially transparent
+   transparent window frames and elements.  VP lets you disable this
+   because it can slow down your video card slightly; if you have a
+   low-end video card, disabling composition might let VP run more
+   smoothly.  If VP turns composition off, though, Windows will always
+   turn it back on when VP exits.  That makes the Windows desktop want
+   to redraw everything, which can cause the taskbar to pop to the
+   foreground.
+</p>
+<p>
+   If you really need to disable desktop composition:  If you have
+   low-end video card that won't perform well enough with composition
+   enabled, it's better to disable it <b>globally</b> across your whole system,
+   so that Windows and VP aren't constantly fighting over whether it's
+   on or off.  In the Windows control panel, select System and Security,
+   then System, then Advanced System Settings.  Select the Advanced
+   tab.  Click the Settings button.  In the Performance section, find
+   "Enable desktop composition", and un-check the box.
+</p>
+
+<p>
+   Note that Microsoft doesn't let applications disable Aero on
+   any Windows version after Windows 7, so the checkbox doesn't
+   actually accomplish anything on Windows 8 or later.
+</p>
+
+
+</body>
+</html>
