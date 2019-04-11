@@ -33,7 +33,7 @@ public:
 	// last game record.  This should be called before launching a
 	// game program, to make sure we're not trying to send updates
 	// to the display while the game might be using it.
-	void ClearMedia();
+	void ClearMedia(bool forgetGame = true);
 
 	// apply a working audio level to playing media
 	void ApplyWorkingAudioVolume(int volPct);

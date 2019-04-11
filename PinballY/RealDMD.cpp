@@ -767,7 +767,6 @@ void RealDMD::BeginRunningGameMode()
 {
 	// clear media while running
 	ClearMedia();
-	curGame = nullptr;
 
 	// close the session
 	CloseSession();
@@ -788,8 +787,12 @@ void RealDMD::ReloadGame()
 	UpdateGame();
 }
 
-void RealDMD::ClearMedia()
+void RealDMD::ClearMedia(bool forgetGame)
 {
+	// if desired, forget the current game
+	if (forgetGame)
+		curGame = nullptr;
+
 	// discard any playing video
 	if (videoPlayer != nullptr)
 	{
@@ -978,7 +981,7 @@ void RealDMD::UpdateGame()
 		if (reload)
 		{
 			// clear any previous media
-			ClearMedia();
+			ClearMedia(false);
 
 			// try loading the video first, if we found one
 			bool ok = false;
@@ -1836,7 +1839,6 @@ void RealDMD::VideoEndOfPresentation(WPARAM cookie)
 		case VideoMode::Startup:
 			// startup video - clear the media and notify the main window 
 			// that our startup video has finished
-			curGame = nullptr;
 			ClearMedia();
 			if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
 				pfv->OnEndExtStartupVideo();
@@ -1891,7 +1893,6 @@ bool RealDMD::LoadStartupVideo()
 		if (gl != nullptr && gl->FindGlobalVideoFile(startupVideo, _T("Startup Videos"), name))
 		{
 			// Got it.  Clear any previous media and set the default color scheme.
-			curGame = nullptr;
 			ClearMedia();
 			SetColorScheme(nullptr);
 
@@ -1943,7 +1944,6 @@ void RealDMD::EndStartupVideo()
 	if (videoPlayer != nullptr && videoMode == VideoMode::Startup)
 	{
 		// forget the current game and media
-		curGame = nullptr;
 		ClearMedia();
 
 		// notify the playfield view that the startup video has ended
