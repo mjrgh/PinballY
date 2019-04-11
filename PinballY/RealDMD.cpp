@@ -1433,6 +1433,8 @@ DWORD RealDMD::WriterThreadMain()
 					break;
 
 				case DMD_COLOR_RGB:
+					// *** Dmd-Extensions bug #176 workaround ***
+					//
 					// There's a bug in dmd-extensions that makes it drop an RGB
 					// frame if the last RGB frame contained the same pixels, EVEN
 					// IF an intervening frame of a different format was displayed.
@@ -1444,7 +1446,7 @@ DWORD RealDMD::WriterThreadMain()
 					// game alternating with generated high-score images.  In this
 					// case, the PNG/JPEG media slide has the same pixels on each
 					// iteration, which makes dmd-ext drop it.  To work around this,
-					// we can very slightly randomize the pixel data in the source
+					// we can very slightly change the pixel data in the source
 					// buffer on each iteration to defeat the buggy "same pixels"
 					// check in dmd-ext.  Flipping the low-order bit of an RGB
 					// component of one pixel won't have any visible effect -
@@ -1455,16 +1457,26 @@ DWORD RealDMD::WriterThreadMain()
 					// can't resolve color well enough in any component to be able
 					// to distinguish this degree of change.
 					//
-					// Note that this workaround won't necessarily force every frame
-					// through in cases where frames from different sources happen
-					// to have identical pixels.  It's really designed for the 
-					// special case that we're showing the same frame from the same
-					// source in alternation with other frames.  But I'm going to
-					// assume that accidental collisions like that are vanishingly
-					// rare, and that even if they're not, freezy will eventually
-					// just fix the dmd-ext bug and eliminate the need for a 
-					// workaround of any kind.
-					frame->pix.get()[2] ^= 0x01;
+					// To ensure that every consecutive RGB frame is different, no
+					// matter the source, we'll simply replace the low bit in the B
+					// component of the top left pixel in each frame with a bit value
+					// that reverses on every successive frame.
+					//
+					// If this is fixed in a future dmd-extensions, we can do a
+					// version/feature test on the DLL we're attached to and make
+					// the workaround conditional on it:
+					// if (workaround_required)
+					{
+						// invert the low bit in the static counter
+						static BYTE b = 0x00;
+						b ^= 0x01;
+
+						// replace the low bit in pixel #0's blue component
+						BYTE *p = frame->pix.get() + 2;
+						*p = (*p & 0xFE) | b;
+					}
+
+					// Render the frame
 					Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<rgb24*>(frame->pix.get()));
 					break;
 				}
@@ -1757,6 +1769,9 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 			}
 
 			// display it
+			// NB: we don't worry about the dmd-extensions bug (search for #176 above)
+			// for video, as a video will typically present a new frame so quickly that
+			// a single dropped frame shouldn't be noticed.
 			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_RGB24_(dmdWidth, dmdHeight, rgb);
 		}
@@ -1799,7 +1814,10 @@ void RealDMD::PresentVideoFrame(int width, int height, const BYTE *y, const BYTE
 				}
 			}
 
-			// display it
+			// Display the frame.
+			// NB: we don't worry about the dmd-extensions bug (search for #176 above)
+			// for video, as a video will typically present a new frame so quickly that
+			// a single dropped frame shouldn't be noticed.
 			CriticalSectionLocker dmdLocker(dmdLock);
 			Render_RGB24_(dmdWidth, dmdHeight, rgb);
 		}
