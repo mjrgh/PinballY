@@ -1076,12 +1076,12 @@ L_done:
 	ret
 _inflate_fast endp
 
-	; dummy SEH handler for compatibility with C++ linkage
-	.safeseh SEH_handler
-	SEH_handler   proc
-	;handler
-		ret
-	SEH_handler   endp
+;	; dummy SEH handler for compatibility with C++ linkage
+;	.safeseh SEH_handler
+;	SEH_handler   proc
+;	;handler
+;		ret
+;	SEH_handler   endp
 
 _TEXT	ends
 end

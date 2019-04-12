@@ -1,20 +1,20 @@
 PinballY Update History
 
-? (1.0.0 Beta 12)
+04-11-2019 (1.0.0 Beta 12)
 
-* You can now specify which windows should continue to display
-graphics during game play on a global and per-system basis, in
-addition to per-game.  Up until now, the Game Details dialog was
-the only place you could select windows to keep open during play,
-so you had to specify this for each game individually.  In many
-cases, though, you might want to specify the same setting for every
-game that uses a particular system, or simply for all games across
-the board.  For example, since none of the existing player systems
-(that I know of) offer dedicated instruction card windows, you
-might want to keep the PinballY instruction card window showing for
-all games.  Similarly, if one of your player systems doesn't show
-anything in the backglass window, you might want to keep the
-PinballY backglass window active for all of that system's games.
+* You can now set the "keep windows open while playing" options on
+a global and per-system basis, in addition to per-game.  Up until
+now, the Game Details dialog was the only place you could select
+windows to keep open during play, so you had to set this up for
+each game individually.  In some cases, you might want to specify
+the same setting at a system level ("keep the topper window open
+for all FX2 games", say), or simply for all games across the board.
+For example, since none of the existing player systems feature a
+dedicated instruction card window, you might want to always keep
+the PinballY instruction card window showing.  Similarly, if one of
+your player systems never shows anything in the backglass window,
+you might want to keep the PinballY backglass window active for all
+of that system's games.
 
 The new options can be found in three places:
 

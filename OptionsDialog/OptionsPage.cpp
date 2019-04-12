@@ -505,7 +505,7 @@ void OptionsPage::KeepWindowCkMap::OnApply(std::list<std::unique_ptr<VarMap>> &v
 			// controls based on a single config variable.  If that
 			// assumption is ever broken, this will catch it quickly
 			// so that no one has to puzzle over it too long.
-			assert(configVar == nullptr || configVar == w->configVar);
+			ASSERT(configVar == nullptr || configVar == w->configVar);
 
 			// If we didn't know the config variable name yet, we do now
 			configVar = w->configVar;

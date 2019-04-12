@@ -168,7 +168,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)\Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>

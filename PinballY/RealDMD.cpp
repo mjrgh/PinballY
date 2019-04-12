@@ -1019,12 +1019,12 @@ void RealDMD::UpdateGame()
 						// set up mirror transforms as needed
 						if (mirrorHorz)
 						{
-							Gdiplus::Matrix hz(-1, 0, 0, 1, static_cast<float>(dmdWidth), 0);
+							Gdiplus::Matrix hz(-1, 0, 0, 1, static_cast<float>(cx), 0);
 							g2.MultiplyTransform(&hz);
 						}
 						if (mirrorVert)
 						{
-							Gdiplus::Matrix vt(1, 0, 0, -1, 0, static_cast<float>(dmdHeight));
+							Gdiplus::Matrix vt(1, 0, 0, -1, 0, static_cast<float>(cy));
 							g2.MultiplyTransform(&vt);
 						}
 
