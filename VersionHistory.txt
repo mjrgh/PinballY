@@ -79,6 +79,22 @@ DMD devices that caused incorrect scaling if the image wasn't
 already 128x32 pixels, and incorrect color rendition for RGB
 images.  This has been corrected.  (Issues #62 and #65 on github.)
 
+* When changing the auto-launch setting in the Startup options
+dialog, the program will now try elevating the operation (that is,
+performing it in Admin mode) if Windows so requires.  In most
+cases, this is only required when selecting the "Launch in Admin
+Mode" option, but it appears that Windows requires elevation for
+all task scheduler updates for some user configurations.  In the
+past, if you had such a configuration, you would have seen an
+"access denied" error on making any change to the startup setting.
+You should now instead see a UAC dialog asking for permission to
+perform the operation in Admin mode.  (This of course requires that
+your user account has Admin access to start with and that UAC is
+enabled in your Windows settings.  The UAC dialog will only appear
+if Windows actually requires the elevation, so nothing will change
+if you haven't had a problem with task scheduler access errors in
+the past.)
+
 
 
 04-08-2019 (1.0.0 Beta 11)

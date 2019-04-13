@@ -74,20 +74,34 @@ static bool CleanUpRunKey(const TCHAR *desc, ErrorHandler &eh)
 
 // Set up Auto Run using Task Scheduler
 bool SetUpAutoRun(bool add, const TCHAR *desc, const TCHAR *exe, const TCHAR *params, 
-	bool adminMode, DWORD delay, ErrorHandler &eh)
+	bool adminMode, DWORD delay, ErrorHandler &eh, HRESULT *phresult)
 {
+	// clear the caller's hresult holder, if they provided one
+	if (phresult != nullptr)
+		*phresult = S_OK;
+
 	// error handler - log an error and return false
 	LONG err;
 	HRESULT hr;
-	auto ReturnError = [&err, &eh](const TCHAR *where)
+	auto ReturnError = [&err, phresult, &eh](const TCHAR *where)
 	{
+		// windows error - pass back as an HRESULT if desired
+		if (phresult != nullptr)
+			*phresult = HRESULT_FROM_WIN32(err);
+
+		// log the error
 		WindowsErrorMessage sysErr(err);
 		eh.SysError(LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
 			MsgFmt(_T("%s: system error %d: %s"), where, err, sysErr.Get()));
 		return false;
 	};
-	auto ReturnCOMError = [&hr, &eh](const TCHAR *where)
+	auto ReturnCOMError = [&hr, phresult, &eh](const TCHAR *where)
 	{
+		// COM error - pass back the HRESULT if desired
+		if (phresult != nullptr)
+			*phresult = hr;
+
+		// log the error
 		WindowsErrorMessage sysErr(hr);
 		eh.SysError(LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
 			MsgFmt(_T("%s: HRESULT %lx, %s"), where, (long)hr, sysErr.Get()));

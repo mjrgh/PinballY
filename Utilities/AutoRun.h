@@ -17,9 +17,12 @@ class ErrorHandler;
 //
 // 'delay' is the delay time in seconds after logon.
 //
+// If the caller provides a phresult, we'll fill it in with the error code
+// on error.
+//
 bool SetUpAutoRun(bool add, const TCHAR *desc, 
 	const TCHAR *exe, const TCHAR *params, bool adminMode, DWORD delay,
-	ErrorHandler &eh);
+	ErrorHandler &eh, HRESULT *phresult = nullptr);
 
 // Get the auto-launch state in Task Scheduler.  Returns true on success,
 // false on failure.

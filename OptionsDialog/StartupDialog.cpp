@@ -142,7 +142,7 @@ int StartupDialog::AutoLaunchMap::ConfigToRadio()
 		if (std::regex_match(val, std::basic_regex<TCHAR>(_T("1|true|t|yes|y|on"), std::regex_constants::icase)))
 			return 1;
 
-		// auto -> 2
+		// admin mode -> 2
 		if (std::regex_match(val, std::basic_regex<TCHAR>(_T("admin"), std::regex_constants::icase)))
 			return 2;
 	}
@@ -208,25 +208,47 @@ BOOL StartupDialog::OnApply()
 		// get the delay time
 		DWORD delay = autoLaunchDelay->intVar;
 
-		// see what we have for the new mode
+		// Try without elevation first, if possible.  We normally only need
+		// elevation if we're trying to set up an Admin launch.  However, it
+		// seems that on some machines, Windows requires elevation for any
+		// task scheduler update.
+		bool needElevation = true;
 		if (newAutoLaunch == 0 || newAutoLaunch == 1)
 		{
-			// Manual (0) or regular user-mode Auto (1).  We can make this 
-			// change in normal user mode (without UAC elevation).  Get the 
-			// program name, and add or remove the Task Scheduler task.
-			if (!SetUpAutoRun(newAutoLaunch == 1, _T("PinballY"), exe, nullptr, false, delay, InteractiveErrorHandler()))
+			// try setting up the new task, capturing errors 
+			HRESULT hr;
+			CapturingErrorHandler ceh;
+			if (SetUpAutoRun(newAutoLaunch == 1, _T("PinballY"), exe, nullptr, false, delay, ceh, &hr))
+			{
+				// success - elevation isn't required
+				needElevation = false;
+			}
+			else if (hr == E_ACCESSDENIED)
+			{
+				// access denied - try again with elevation
+				needElevation = true;
+			}
+			else
+			{
+				// failed with another error - log the error and abort
+				InteractiveErrorHandler ieh;
+				ieh.GroupError(EIT_Error, nullptr, ceh);
 				return OnApplyFail();
+			}
 		}
-		else
+		
+		// check if we need to try (or try again) with elevation
+		if (needElevation)
 		{
-			// Admin Mode Auto Launch.  This change requires elevation, so we
-			// can't do it from within this process directly; instead, we have
-			// to launch a separate Admin mode program to do it.  If the Admin
-			// Host is running, we can launch it through that without triggering
-			// a UAC prompt.  Otherwise, we're in plain user mode, so we'll have
-			// to do the launch via ShellExec() to trigger UAC elevation.  We
-			// should have already warned the user that this will happen, so 
-			// it shouldn't come as a surprise.
+			// We're either setting up a new Admin Mode auto launch, or we got an
+			// "access denied" error trying to set up an Auto of Manual launch.
+			// In either case we need elevation.
+			//
+			// If the Admin Host is running, we can pass the request to the Admin
+			// Host without triggering a UAC prompt.  Otherwise, we'll have to do
+			// the launch via ShellExec() to trigger UAC elevation.  We should have
+			// already warned the user that this will happen, so it shouldn't come 
+			// as a surprise.
 			if (mainDlg != nullptr && mainDlg->IsAdminHostRunning())
 			{
 				// The Admin Host is running, so it can launch the task
@@ -258,7 +280,7 @@ BOOL StartupDialog::OnApply()
 				ex.lpDirectory = NULL;
 				ex.nShow = SW_HIDE;
 				ex.hInstApp = NULL;
-				if (!ShellExecuteEx(&ex)) 
+				if (!ShellExecuteEx(&ex))
 				{
 					// get the error code
 					WindowsErrorMessage err;
