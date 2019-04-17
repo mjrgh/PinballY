@@ -183,6 +183,7 @@ BOOL StartupDialog::OnApply()
 {
 	// get the old config settings
 	int oldAutoLaunch = autoLaunchButtons->ConfigToRadio();
+	int oldDelay = ConfigManager::GetInstance()->GetInt(autoLaunchDelay->configVar, 0);
 
 	// do the base class work first
 	if (!__super::OnApply())
@@ -190,7 +191,8 @@ BOOL StartupDialog::OnApply()
 
 	// if the auto-launch settings have changed, update the Task Scheduler entry
 	int newAutoLaunch = autoLaunchButtons->intVar;
-	if (newAutoLaunch != oldAutoLaunch || autoLaunchDelay->IsModifiedFromConfig())
+	DWORD newDelay = autoLaunchDelay->intVar;
+	if (newAutoLaunch != oldAutoLaunch || newDelay != oldDelay)
 	{
 		// get the main dialog
 		auto mainDlg = dynamic_cast<MainOptionsDialog*>(GetParent()); 
@@ -205,9 +207,6 @@ BOOL StartupDialog::OnApply()
 			return OnApplyFail();
 		}
 
-		// get the delay time
-		DWORD delay = autoLaunchDelay->intVar;
-
 		// Try without elevation first, if possible.  We normally only need
 		// elevation if we're trying to set up an Admin launch.  However, it
 		// seems that on some machines, Windows requires elevation for any
@@ -218,7 +217,7 @@ BOOL StartupDialog::OnApply()
 			// try setting up the new task, capturing errors 
 			HRESULT hr;
 			CapturingErrorHandler ceh;
-			if (SetUpAutoRun(newAutoLaunch == 1, _T("PinballY"), exe, nullptr, false, delay, ceh, &hr))
+			if (SetUpAutoRun(newAutoLaunch == 1, _T("PinballY"), exe, nullptr, false, newDelay, ceh, &hr))
 			{
 				// success - elevation isn't required
 				needElevation = false;
@@ -254,7 +253,7 @@ BOOL StartupDialog::OnApply()
 				// The Admin Host is running, so it can launch the task
 				// setup program in elevated mode on for us without any
 				// UAC intervention.
-				if (!mainDlg->setUpAdminAutoRunCallback(delay))
+				if (!mainDlg->setUpAdminAutoRunCallback(newDelay))
 					return OnApplyFail();
 			}
 			else
@@ -275,7 +274,7 @@ BOOL StartupDialog::OnApply()
 				ex.lpVerb = _T("runas");
 				ex.lpFile = exe;
 				TSTRINGEx params;
-				params.Format(_T(" /AutoLaunch=AdminMode,delay=%d"), delay);
+				params.Format(_T(" /AutoLaunch=AdminMode,delay=%d"), newDelay);
 				ex.lpParameters = params.c_str();
 				ex.lpDirectory = NULL;
 				ex.nShow = SW_HIDE;

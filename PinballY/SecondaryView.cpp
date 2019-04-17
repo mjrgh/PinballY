@@ -437,6 +437,20 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 		// Explicitly clear any media currently being displayed, to
 		// free up video memory and reduce CPU load.
 		ClearMedia();
+
+		// force a final update before we freeze background rendering, to
+		// blank the window
+		InvalidateRect(hWnd, NULL, false);
+
+		// Since we're not showing any live graphics during the game session,
+		// freeze idle-time rendering when the application is in the background.
+		// We're just showing a blank black background anyway, so there's no
+		// need to hit the GPU with even infrequent updates.  The render loop
+		// already greatly reduces the redraw rate when we're in the background,
+		// but even a low redraw rate places *some* load on the GPU, and even a
+		// small background GPU load can have a visible impact on a foreground
+		// game if the game very nearly saturates the GPU all by itself.
+		freezeBackgroundRendering = true;
 	}
 }
 
@@ -521,6 +535,9 @@ void SecondaryView::EndRunningGameMode()
 		SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, -1, -1, -1, -1,
 			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 	}
+
+	// restore idle-time background updates
+	freezeBackgroundRendering = false;
 }
 
 bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)

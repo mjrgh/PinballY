@@ -597,7 +597,7 @@ int D3DView::MessageLoop()
 	// idle processing
 	DWORD lastIdleTime = GetTickCount();
 	int curRenderWinIndex = 0;
-	auto DoIdle = [&lastIdleTime, audioManager, &curRenderWinIndex]()
+	auto DoIdle = [&lastIdleTime, audioManager, &curRenderWinIndex](bool inForeground)
 	{
 		// Do graphics rendering in one D3D view when the message queue is idle.
 		// We work through the windows round-robin on each idle pass.  We only
@@ -610,7 +610,12 @@ int D3DView::MessageLoop()
 		{
 			if (n++ == curRenderWinIndex)
 			{
-				it->RenderFrame();
+				// Render the frame, unless the application is in the background
+				// and this window has background rendering frozen.
+				if (inForeground || !it->freezeBackgroundRendering)
+					it->RenderFrame();
+
+				// only render one window per idle pass
 				break;
 			}
 		}
@@ -648,7 +653,7 @@ int D3DView::MessageLoop()
 	{
 		// Force a render pass if it's been too long
 		if (GetTickCount() > lastIdleTime + 100)
-			DoIdle();
+			DoIdle(Application::IsInForeground());
 
 		// Check for Windows messages.  If the application is in the foreground,
 		// use PeekMessage() so that we do D3D rendering on idle.  If not, we can
@@ -681,14 +686,14 @@ int D3DView::MessageLoop()
 			else
 			{
 				// Do idle processing
-				DoIdle();
+				DoIdle(true);
 			}
 		}
 		else
 		{
 			// if an event isn't immediately available, do idle processing
 			if (!PeekMessage(&msg, nullptr, 0, 0, PM_NOREMOVE))
-				DoIdle();
+				DoIdle(false);
 
 			// We're in the background - wait for a message.  This will
 			// freeze D3D updates, which is fine when we're in the background,

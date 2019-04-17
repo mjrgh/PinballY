@@ -74,6 +74,13 @@ using other key assignments if you're on a desktop machine.
 Similarly, the "Magna Save buttons" are really the keys assigned to
 the Next Page and Previous Page buttons.
 
+* When a game is running, and PinballY is in the background,
+PinballY now freezes video updates to any windows that aren't set
+to continue showing media during the game session.  This is meant
+to further minimize any impact on game performance while PinballY
+is running in the background.  Windows that are set to show media
+during play will continue to be updated, of course.
+
 * Fixed a problem with rendering still images (PNG/JPEG) on real
 DMD devices that caused incorrect scaling if the image wasn't
 already 128x32 pixels, and incorrect color rendition for RGB
@@ -94,6 +101,12 @@ enabled in your Windows settings.  The UAC dialog will only appear
 if Windows actually requires the elevation, so nothing will change
 if you haven't had a problem with task scheduler access errors in
 the past.)
+
+* In the Startup section of the Settings dialog, if you made a
+change to the startup delay time without also changing the startup
+mode selection, the delay time change wasn't saved when you clicked
+OK or Apply.  This has been fixed; changes to just the delay time
+should now be properly saved.
 
 
 

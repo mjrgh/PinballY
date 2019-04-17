@@ -191,6 +191,12 @@ protected:
 	// Direct3D window interface
 	D3DWin *d3dwin;
 
+	// Freeze background rendering.  When a game is running, and this 
+	// window isn't set to continue showing graphics during the game,
+	// we'll stop doing any idle rendering while the application is
+	// in the background.
+	bool freezeBackgroundRendering = false;
+
 	// D3D camera
 	Camera *camera;
 

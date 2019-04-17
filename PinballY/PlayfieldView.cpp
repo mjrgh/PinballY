@@ -7528,6 +7528,9 @@ void PlayfieldView::EndRunningGameMode()
 	// clear the running game mode flag
 	runningGameMode = RunningGameMode::None;
 
+	// resume background updates
+	freezeBackgroundRendering = false;
+
 	// Only proceed if we're in running game mode
 	if (runningGamePopup == nullptr)
 		return;
@@ -7684,6 +7687,10 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			// as long as the game is running, so we won't need further manual
 			// updates, but we at least need one now for the initial display.
 			InvalidateRect(hWnd, 0, false);
+
+			// freeze idle-time rendering while we're in the background, to
+			// minimize GPU usage
+			freezeBackgroundRendering = true;
 		}
 		return true;
 
