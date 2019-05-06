@@ -29,7 +29,7 @@ If applicable, add any test files (images, videos, configuration files) needed t
 **Screenshots**
 If applicable, add screenshots to help explain your problem. 
 
-**Windows version:**
+**Windows version**
 Which version of Windows you're using.  Also include any other information about your system configuration (video card, other software, etc) you think might be relevant.
 
 **Additional context**
