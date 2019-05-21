@@ -658,6 +658,7 @@ protected:
 	// if all renames succeed, false on error.  Any errors are logged to the 
 	// provided error handler.
 	bool ApplyGameChangesRenameMediaFiles(
+		GameListItem *game,
 		const std::list<std::pair<TSTRING, TSTRING>> &mediaRenameList,
 		ErrorHandler &eh);
 
@@ -2703,7 +2704,10 @@ protected:
 	JsValueRef JsGameInfoRenameMediaFiles(JsValueRef self, JsValueRef renameArray);
 
 	// GameInfo.update() and GameInfo.renameMediaFiles() helper
-	void JsRenameMediaHelper(const std::list<std::pair<TSTRING, TSTRING>> &renameList, JavascriptEngine::JsObj &retobj);
+	void JsRenameMediaHelper(
+		GameListItem *game,
+		const std::list<std::pair<TSTRING, TSTRING>> &renameList, 
+		JavascriptEngine::JsObj &retobj);
 
 	// delete a game's metadata
 	void JsGameInfoErase(JsValueRef);

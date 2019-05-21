@@ -247,12 +247,20 @@ public:
 		using exception::exception;
 		CallException(const char *msg, JsErrorCode err) : exception(Format(msg, err).c_str()), jsErrorCode(err) { }
 
+		// Log the error to the log file and to an optional error
+		// handler.  The error handler can be null if the log file
+		// record is all that's needed.
+		void Log(const TCHAR *logFileDesc = nullptr, ErrorHandler *eh = nullptr);
+
+		// format the error to a string
 		static CSTRING Format(const char *msg, JsErrorCode err)
 		{
 			CSTRINGEx m;
 			m.Format("%hs: %ws", msg, JsErrorToString(err));
 			return m;
 		}
+
+		// the engine error code
 		JsErrorCode jsErrorCode;
 	};
 

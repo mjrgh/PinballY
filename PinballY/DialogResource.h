@@ -24,6 +24,8 @@
 #define IDC_TXT_ARCHENTRY               3016
 #define IDC_TXT_IPDB_ID                 3016
 #define IDC_ST_GRIDPOS                  3017
+#define IDC_TXT_DATE_ADDED2             3018
+#define IDC_TXT_MEDIA_NAME              3018
 #define IDC_BTN_PINBALLX                3019
 #define IDC_BTN_PINBALLY                3020
 #define IDC_TXT_PBX_PROMPT              3021
@@ -32,7 +34,6 @@
 #define IDC_CK_SHOW_WHEN_RUNNING_DMD    3024
 #define IDC_CK_SHOW_WHEN_RUNNING_TOPPER 3025
 #define IDC_CK_SHOW_WHEN_RUNNING_INSTCARD 3026
-#define IDC_BUTTON1                     3027
 #define IDC_BTN_FILL_FROM_IPDBID        3027
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001

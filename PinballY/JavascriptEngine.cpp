@@ -542,6 +542,17 @@ JsErrorCode JavascriptEngine::LogAndClearException(ErrorHandler *eh, int msgid)
 	return JsNoError;
 }
 
+void JavascriptEngine::CallException::Log(const TCHAR *logFileDesc, ErrorHandler *eh)
+{
+	// log the CallException details
+	LogFile::Get()->Write(LogFile::JSLogging, _T("%s: %hs\n"), logFileDesc != nullptr ? logFileDesc : _T("Javascript error"), what());
+
+	// log the Javascript exception details, if available
+	auto js = JavascriptEngine::Get();
+	if (js->HasException())
+		js->LogAndClearException(eh);
+}
+
 bool JavascriptEngine::IsFalsy(JsValueRef val) const
 {
 	JsValueRef boolval;
@@ -1650,9 +1661,34 @@ bool JavascriptEngine::ModuleParseTask::Execute()
 
 	// check for errors
 	if (exc != JS_INVALID_REFERENCE)
+	{
+		// We have an exception object.  Log the error.
 		JsSetException(exc);
+		inst->LogAndClearException();
+
+		// Logging the exception clears it, so set it again for the benefit
+		// of the engine.
+		JsSetException(exc);
+	}
+	else if (err == JsErrorScriptException || err == JsErrorScriptCompile)
+	{
+		// Script compile or execution error - these generally set an
+		// exception in the Javascript context.
+		LogFile::Get()->Write(LogFile::JSLogging, 
+			_T("[Javascript] Error loading module %ws\n"), this->path.c_str());
+		inst->LogAndClearException();
+	}
 	else if (err != JsNoError)
+	{
+		// There's an engine error code with no exception object.  Log it
+		// and throw the engine error code.
+		LogFile::Get()->Write(LogFile::JSLogging, 
+			_T("[Javascript] Error loading module %ws: %s\n"), 
+			this->path.c_str(), JsErrorToString(err));
+
+		// throw the engine error code
 		inst->Throw(err, _T("ModuleParseTask"));
+	}
 
 	// this is a one shot - don't reschedule
 	return false;
@@ -1690,7 +1726,9 @@ bool JavascriptEngine::ModuleEvalTask::Execute()
 		inst->LogAndClearException();
 	}
 	else if (err != JsNoError)
+	{
 		LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Module evaluation failed for %s: %s\n"), path.c_str(), JsErrorToString(err));
+	}
 
 	// this is a one shot - don't reschedule
 	return false;

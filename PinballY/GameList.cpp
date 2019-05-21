@@ -3269,7 +3269,7 @@ void GameList::DeleteXml(GameListItem *game)
 
 		// reset to a filename-based title and media file base name
 		game->SetTitleFromFilename();
-		game->UpdateMediaName(nullptr);
+		game->UpdateMediaName(nullptr, nullptr);
 		
 		// commit the change to the game ID
 		FlushGameIdChange(game);
@@ -3948,17 +3948,28 @@ void GameListItem::ResolveFile(ResolvedFile &rf)
 	rf.exists = FileExists(rf.path.c_str());
 }
 
-bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList)
+TSTRING GameListItem::GetDefaultMediaName() const
 {
 	// By convention, we use the display name ("Title (Manufacturer Year)")
 	// as the root media name, so get the display name.
 	TSTRING newMediaName = GetDisplayName();
 
 	// clean up the name to remove invalid filename characters
-	newMediaName = CleanMediaName(newMediaName.c_str());
+	return CleanMediaName(newMediaName.c_str());
+}
 
-	// If the name has changed (ignoring case), apply the change
-	if (_tcsicmp(mediaName.c_str(), newMediaName.c_str()) != 0)
+bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *mediaRenameList, const TCHAR *newMediaName)
+{
+	// if the caller didn't provide a new name, use the default
+	TSTRING defaultName;
+	if (newMediaName == nullptr || newMediaName[0] == 0)
+	{
+		defaultName = GetDefaultMediaName();
+		newMediaName = defaultName.c_str();
+	}
+
+	// if the name has changed (ignoring case), apply the change
+	if (_tcsicmp(mediaName.c_str(), newMediaName) != 0)
 	{
 		// find existing media items if desired
 		if (mediaRenameList != nullptr)

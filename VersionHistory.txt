@@ -74,10 +74,38 @@ using other key assignments if you're on a desktop machine.
 Similarly, the "Magna Save buttons" are really the keys assigned to
 the Next Page and Previous Page buttons.
 
+* You can now override the default media naming pattern ("Title
+(Manufacturer Year)") that the Edit Game Details dialog normally
+applies.  The dialog has a new edit box for the Media Name, where
+you can enter a custom media name if you wish.  Each time you open
+the dialog, this field will show "[Default]" if the game's current
+media name in the game database matches the default naming pattern,
+or the actual media name if not.  When you click OK, if the Media
+Name box contains "[Default]" or is empty, the dialog will
+automatically update the media name in the database to match the
+"Title (Manufacturer Year)" pattern.  Otherwise the dialog will
+retain the exact text entered in the Media Name box.  Note that the
+media name must be a valid filename, and must not contain any path
+portion.
+
+* The Javascript GameInfo.update() method no longer changes the
+media name automatically based on changes to the game's title,
+manufacturer, and/or year.  Instead, you can explicitly set the
+media name using the new mediaName property of the 'desc' object
+parameter.  By default, the method simply leaves the media name
+unchanged, regardless of what else is updated.  If you wish to
+change the media name as part of the update, set desc.mediaName to
+a string giving the new name.  The special value "" (an empty
+string) can be used to explicitly set the media name to the default
+pattern, "Title (Manufacturer Year)", which is the same pattern
+that the method unconditionally used in the past to form a new
+media name any time any of the constituent elements were changed.
+See the help section on the GameInfo class.
+
 * When a game is running, and PinballY is in the background,
-PinballY now freezes video updates to any windows that aren't set
-to continue showing media during the game session.  This is meant
-to further minimize any impact on game performance while PinballY
+PinballY now completely freezes video updates to any windows that
+aren't set to continue showing media during the game session.  This
+is meant to minimize any impact on game performance while PinballY
 is running in the background.  Windows that are set to show media
 during play will continue to be updated, of course.
 
@@ -101,6 +129,34 @@ enabled in your Windows settings.  The UAC dialog will only appear
 if Windows actually requires the elevation, so nothing will change
 if you haven't had a problem with task scheduler access errors in
 the past.)
+
+* In Javascript menuopen events for system menus, any "page up"
+and "page down" commands in the menu item list will have titles
+"\u2191" (Unicode up arrow) and "\2193" (Unicode down arrow),
+respectively.  In the past, these commands used empty strings
+as titles.  This made it a little more work to distinguish
+these from separator bars, which can be identified by their
+empty title strings and command ID -1.  With this change,
+separator bars are now the only things in a system menu with
+an empty title string.
+
+* New Javascript convenience functions: MenuEvent.addMenuItem(),
+MenuEvent.deleteMenuItem(), MenuEvent.tidyMenu().  See MenuEvent in
+the help for details.
+
+* Javascript errors that occurred within events weren't always
+logged to the log file; many were just silently ignored, making it
+harder to track down script errors.  Event errors are more reliably
+logged now.
+
+* Two new pre-defined IDs, command.UserFilterGroupFirst and
+command.UserFilterGroupLast, have been added to the list of
+built-in command IDs.  These identify the range of IDs assigned to
+custom filter groups created through Javascript code.  This doesn't
+change anything about the way custom filter groups work or are
+identified; the system already had an internal range that it used
+for this purpose.  It was just an oversight that the limits of the
+range weren't exposed via command constants.
 
 * In the Startup section of the Settings dialog, if you made a
 change to the startup delay time without also changing the startup

@@ -318,16 +318,28 @@ public:
 	// Get the formatted display name, "Title (Manufacturer Year)".
 	TSTRING GetDisplayName() const;
 
-	// Update the media name.  This builds the root name for the media
-	// files, using the PinballX convention: "Title (Manufacturer Year)".
-	// Returns true if this yields a new name, false if not.
+	// Get the default media file name.  This is the same as the
+	// display name, but cleaned up for use as a filename (with any
+	// invalid filename characters replaced with a valid character
+	// or removed).
+	TSTRING GetDefaultMediaName() const;
+
+	// Update the media name.
 	//
-	// If fileRenameList is non-null, and the media name actually is
-	// changed by the call, we'll populate the list with the names of
-	// the existing media files for the game under the old name, and
-	// the corresponding new names (as <new,old> pairs).  The caller
-	// can use this to effect file renaming as needed.
-	bool UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *fileRenameList);
+	// If newName is null or an empty string, we use the default 
+	// media name, "Title (Manufacturer Year)" (or the game file's
+	// root name, if the game has no database entry).
+	//
+	// If the new name (default or explicit) is different from the
+	// old name, and fileRenameList is non-null, we'll populate the
+	// list with the names of the existing media files for the game
+	// under the old name, and the corresponding new names, as
+	// <new,old> pairs.  The caller can use this to rename the media
+	// files to account for the name update in the game record.
+	//
+	// Returns true if the new name is different from the old name,
+	// false if not.
+	bool UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *fileRenameList, const TCHAR *newName);
 
 	// Media types
 	static const MediaType playfieldImageType;

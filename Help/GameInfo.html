@@ -676,13 +676,17 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
 <ul>
    <li><b>renameMedia:</b> a boolean specifying whether or not any media files
    currently associated with the game should be renamed to match the new media
-   name implied by changes to the title, manufacturer, and/or year.  The default
-   option is <b>true</b>, which means that the function performs any necessary
-   renaming.  If this is false, the function doesn't rename any files, so media
-   files that were previously displayed for the game will no longer be displayed,
-   as they'll no longer match the media name.  You can carry out the renaming
-   operations yourself via <i>gameInfo</i>.renameMedia() if desired, using the
-   file renaming list returned in the results object.
+   name.  This only matters if the <b>mediaName</b> property is set in the
+   <i>desc</i> object, since otherwise the media name won't be affected by
+   the update.
+   <p>
+   The default option is <b>true</b>, which means that the function performs any
+   necessary renaming.  If it's <b>false</b>, the function doesn't rename any files,
+   so media files that were previously displayed for the game will no longer be
+   displayed when the game is selected, as they'll no longer match the game's media
+   name.  You can carry out the renaming operations yourself via
+   <i>gameInfo</i>.renameMedia() if desired, using the file renaming list returned
+   in the results object.
 </ul>
 
 <p>
@@ -690,18 +694,19 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    about the operation.  This contains the following properties:
 </p>
 <ul>
-   <li><b>renamedMediaFiles:</b> If the changed properties affect the game's
-   media file base name, and the game has any existing media files associated
-   with it, this property will be set to an array with the list of files that
-   needs to be renamed to maintain the association with the game.  The property
+   <li><b>renamedMediaFiles:</b> If the media name is changed by the update,
+   and the game has any existing media files associated with the old media name,
+   this property will be set to an array containing the list of files that
+   need to be renamed to maintain the association with the game.  The property
    will be undefined if no files need to be renamed (either because the media
    name didn't change, or because there were no existing files with the old
    media name).  This will be set to the list of affected files whether or not
    update() carries out the renaming itself, which depends on the <b>renameMedia</b>
    property in the options object argument.  If you pass <b>false</b> for the
    <b>renameMedia</b> option, and you wish to rename the files yourself, you
-   can do so by passing the <b>renamedMediaFiles</b> array to the <a href="#renameMediaFiles">renameMediaFiles()</a>
-   method of the GameInfo object.
+   can do so by passing the <b>renamedMediaFiles</b> array to the
+   <a href="#renameMediaFiles">renameMediaFiles()</a> method of the GameInfo
+   object.
    <p>
       The elements of the <b>renamedMediaFiles</b> array are objects, with
       properties {<b>oldName:</b> <i>string</i>, <b>newName:</b> <i>string</i>}, giving the
@@ -746,6 +751,7 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    <li>isMarkedForCapture (boolean)
    <li>lastPlayed (Date)
    <li>manufacturer (string)
+   <li>mediaName (string)
    <li>playCount (integer)
    <li>playTime (integer, total play time in seconds)
    <li>rating (number, 0 to 5 in increments of 0.5 for half stars; -1 for "unrated")
@@ -780,6 +786,20 @@ game.update({
    than ones listed above are ignored.
 </p>
 <p>
+   If you set the <b>mediaName</b> property to an empty string (""), it has
+   the special effect of changing the game's media name to the default pattern,
+   "Title (Manufacturer Year)".  This is different from omitting the
+   <b>mediaName</b> property entirely, or setting it to <b>undefined</b>,
+   since either of those will simply leave the media name unchanged from
+   its previous value.  If you set it to any non-empty string, the media
+   name will be changed to match that string.  Since the media name is used
+   to form filenames for the game's media files, it's an error to use any
+   characters in this string that are invalid in a Windows filename.  You
+   also can't use any path separator characters ("\", "/", or ":"), since
+   the folder path is determined by the player system's media path setting.
+</p>
+
+<p>
    The <b>system</b> property is restricted.  If the game record is associated
    with an existing game file, the system can only be changed to another system
    that keeps its table files in the same folder.  A game record that's tied to
@@ -794,18 +814,26 @@ game.update({
 <h2>Renaming media files</h2>
 
 <p>
-   Changing a game's metadata sometimes has the side effect of changing the
-   base filename template for the game's associated media files, since the
-   media name template is based on the game's title, manufacturer, and year.
-   Changing any of these properties will change the implied media base name.
+   You can change the game's media name via the <b>mediaName</b> property in
+   the <i>desc</i> object.  As described above, setting this to an empty
+   string ("") has the special effect of applying the default media name
+   pattern, "Title (Manufacturer Year)".  Any other string value simply
+   sets the media name to that string.  Omitting the <b>mediaName</b>
+   property from the <i>desc</i> object, or setting it to <b>undefined</b>,
+   leaves the game's existing media name as it is.
 </p>
 <p>
-   By default, <a href="#update"><i>gameInfo</i>.update()</a> automatically
-   renames any existing media files to the new implied name as needed.
-   This is desirable in most cases, since it lets you update the metadata
-   elements without breaking any file associations.  You don't have to do
-   anything if you want to let the function rename affected files
-   automatically.
+   If you change the media name, you might also want to rename any existing
+   files using the old media name, so that they continue to be associated
+   with the game and continue to be displayed when the game is selected
+   in the UI.  The update() method can do this for you automatically, but
+   you can also tell it not to.
+</p>
+<p>
+   By default, update() automatically renames any existing media files
+   that match the old media name so that they use the the new media name
+   instead.  You don't have to do anything if you want to let
+   the function rename affected files automatically.
 </p>
 <p>
    If you prefer, though, you can tell update() <i>not</i> to rename affected

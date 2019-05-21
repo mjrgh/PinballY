@@ -842,6 +842,243 @@ this.MenuEvent = class MenuEvent extends Event
         super(type, options);
         this.id = id;
     }
+
+    // Add a menu item or items.
+    //
+    // 'where' says where the new item(s) go.  This can be a simple
+    // command ID, in which case the new menu item or items are
+    // inserted just before the existing item with the given ID,
+    // or a string, which searches for a match to an item's title.
+    // Alternatively, 'where' can be an object with a 'before' or
+    // 'after' property, specifying the target location.  If a
+    // 'before' property is present, the new item(s) are inserted
+    // before the matching existing item, and if an 'after' property
+    // is present, the new item(s) are inserted after the matching
+    // item.  'before' and 'after' are mutually exclusive.  Either
+    // property can be a command ID, or it can be a function.  If
+    // it's a function, the function is called on each item in the
+    // menu (with the item as the function parameter) until the
+    // function returns true to indicate a match, at which point
+    // that item is used as the insertion point (before or after).
+    // If no match is found, the new item(s) are inserted at the
+    // beginning of the existing menu for a 'before' or at the end
+    // of the menu for an 'after'.
+    //
+    // 'newItem' is the new item to insert, or an array of new
+    // items to insert.  Each item is an object iwth properties
+    // title, cmd, etc, the same as for mainWindow.showMenu();
+    //
+    // If 'itemsArg' is present, this gives the array of menu items
+    // to be edited.  This array will be edited in place and
+    // returned as the result value.  If 'itemsArg' is missing, the
+    // event object's this.items array will be edited instead.  In
+    // that case, this.menuUpdated will be set to true in the event
+    // object to reflect the change.
+    addMenuItem(where, newItem, itemsArg)
+    {
+        // if no items array was specified, operate on this.items
+        let arr = itemsArg || this.items;
+
+        // translate the 'where' value to a match function
+        let isBefore, matchFunc;
+        function makeMatchFunc(w)
+        {
+            switch (typeof w)
+            {
+            case "number":
+                return m => m.cmd == w;
+
+            case "string":
+                return m => m.title == w;
+
+            case "undefined":
+                return m => false;
+
+            case "function":
+                return w;
+
+            case "object":
+                if (RegExp.prototype.isPrototypeOf(w))
+                    return m => w.test(m.title);
+                break;
+            }
+
+            return m => false;
+        }
+        if (typeof where === "object" && !RegExp.prototype.isPrototypeOf(where))
+        {
+            if (where.before)
+            {
+                matchFunc = makeMatchFunc(where.before);
+                isBefore = true;
+            }
+            else
+            {
+                matchFunc = makeMatchFunc(where.after);
+                isBefore = false;
+            }
+        }
+        else
+        {
+            matchFunc = makeMatchFunc(where);
+            isBefore = true;
+        }
+
+        // find the insertion location
+        let idx = this.items.findIndex(matchFunc);
+
+        // If we didn't find the insertion location, insert at the beginning
+        // or end, according to the before/after status.  If we did find a
+        // match, and it's an "after" insertion location, bump the index by
+        // one position so that we splice after the matching item.
+        if (idx < 0)
+            idx = isBefore ? 0 : arr.length;
+        else if (!isBefore)
+            idx += 1;
+
+        // splice the item(s)
+        if (Array.isArray(newItem))
+            this.items.splice(idx, 0, ...newItem);
+        else
+            this.items.splice(idx, 0, newItem);
+
+        // if no items array was specified, update the event object
+        if (!itemsArg)
+        {
+            this.items = arr;
+            this.menuUpdated = true;
+        }
+
+        // return the updated items array
+        return arr;
+    }
+
+    // Delete a menu item or items.  'which' specifies the item or
+    // items to delete.  This can be a command ID to delete an item
+    // with a specific command, a string or regular expression to
+    // delete an item or items with a matching title, or a function
+    // (taking a menu item descriptor as its parameter and returning
+    // true or false) to delete all items matching the function's
+    // critera.
+    //
+    // If you call this with an 'items' array argument, the given
+    // array is modified (by splicing out the matching items) and
+    // returned as the result.  If no 'items' argument is given,
+    // the array in the 'items' property of the event object itself
+    // is modified.  In this case, the event object's menuUpdated
+    // property is also set to true to reflect the change.
+    deleteMenuItem(which, itemsArg)
+    {
+        // if an argument was passed, edit that array; otherwise
+        // edit the 'items' array stored in the event
+        let arr = itemsArg || this.items;
+
+        // Translate the match value to a function.  Note that we
+        // really want an inverse match function: we're going to
+        // use this with arr.filter(), so we want it to return
+        // true for items we wish to *keep*, which is all of the
+        // items that don't match the condition.
+        let keepFunc = m => true;
+        switch (typeof which)
+        {
+        case "number":
+            keepFunc = m => m.cmd != which;
+            break;
+
+        case "string":
+            keepFunc = m => m.title != which;
+            break;
+
+        case "function":
+            keepFunc = m => !which(m);
+            break;
+
+        case "object":
+            if (RegExp.prototype.isPrototypeOf(w))
+                keepFunc = m => !which.test(m.title);
+            break;
+        }
+
+        // remove all matching items: that is, keep only the items
+        // that *don't* match
+        arr = arr.filter(keepFunc);
+
+        // if no argument was passed, store the result back in the
+        // event object, and mark the menu as updated
+        if (!itemsArg)
+        {
+            this.items = arr;
+            this.menuUpdated = true;
+        }
+
+        // return the result array
+        return arr;
+    }
+    
+
+    // Tidy a menu by removing any consecutive separator bars.  This
+    // is a convenience method for situations where you're modifying
+    // a system menu, and you might want to remove all of the menu
+    // items that happen to be placed between two separator bars.
+    // That would leave the menu with two separator bars right next
+    // to each other, which looks sloppy.  This cleans that up.
+    //
+    // If you call this with no argument, it'll clean up the 'items'
+    // array stored in the event object, and update that array in
+    // place.  If you pass in an array argument, it'll clean up that
+    // array and return the result, without affecting the 'items'
+    // array stored in the event.
+    tidyMenu(itemsArg)
+    {
+        // if an argument was passed, tidy that array; otherwise tidy
+        // the 'items' array stored in the event
+        let arr = itemsArg || this.items;
+
+        // test a menu item to see if it's a separator bar
+        function isSeparator(m) { return m.cmd < 0 && m.title == ""; }
+
+        // scan the array
+        for (let i = 0; i+1 < arr.length; ++i)
+        {
+            // If it's a separator followed by a separator, remove it.
+            // Otherwise, if it's a separator followed by page up, then
+            // page down, then another separator, remove that group.
+            if (isSeparator(arr[i]) && isSeparator(arr[i+1]))
+            {
+                // separator + separator - splice out the extra one
+                arr.splice(i, 1);
+
+                // revisit the current item, in case there's yet another
+                // redundant separator after the one we just removed
+                --i;
+            }
+            else if (i+3 < arr.length
+                     && isSeparator(arr[i])
+                     && arr[i+1].cmd == command.MenuPageUp
+                     && arr[i+2].cmd == command.MenuPageDown
+                     && isSeparator(arr[i+3]))
+            {
+                // splice out separator + page up + page down, leaving just
+                // the next separator
+                arr.splice(i, 3);
+
+                // revisit the surviving item, in case another empty group
+                // follow it
+                --i;
+            }
+        }
+
+        // if no argument was passed, store the result back in the
+        // event object, and mark the menu as updated
+        if (!itemsArg)
+        {
+            this.items = arr;
+            this.menuUpdated = true;
+        }
+
+        // return the result array
+        return arr;
+    }
 };
 this.MenuOpenEvent = class MenuOpenEvent extends MenuEvent
 {

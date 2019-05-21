@@ -63,14 +63,54 @@
    prevent the Exit menu from ever showing:
 </p>
 <div class="code">
-mainWindow.on("menuopen", (ev) => {
+mainWindow.on("menuopen", ev => {
     if (ev.id == "exit")
         ev.preventDefault();
 });
 </div>
 
 <p>
-   <b>To modify a system menu:</b>  You can modify any system menu,
+   <b>To add new items to a system menu:</b>  The most common sort of change
+   that you'll probably want to make to a system menu is to add a
+   new custom item or items.  You can do this by directly manipulating
+   the array in the <b>items</b> property of the event object, but the
+   MenuEvent object provides a convenience method that makes this
+   a little bit easier: <a href="#addMenuItem"><i>event</i>.addMenuItem()</a>.
+   You can read the full details on that below.  Here's how you could
+   add a "Quit PinballY" command to the main menu, just before the
+   Cancel item at the bottom of the normal menu.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "main")
+        ev.addMenuItem(command.MenuReturn, { title: "Quit", cmd: command.Quit });
+});
+</div>
+
+<p>
+   <b>To delete an item in a system menu:</b> There's also a convenience
+   method to delete items from a menu, <a href="#deleteMenuItem"><i>event</i>.deleteMenuItem()</a>.
+   For example, here's how you could delete the Play command from the main
+   menu (not that you'd ever really want to do that!):
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "main") {
+        ev.deleteMenuItem(command.PlayGame);
+        ev.tidyMenu();
+    }
+});
+</div>
+<p>
+   Note that it's a good idea to call  <a href="#tidyMenu"><i>event</i>.tidyMenu()</a>
+   after deleting items, since a deletion could potentially leave an empty "group"
+   in the menu, where two separator bars are shown with no commands in between.
+   There's no real harm in that, but it looks awkward, so it's nice to clean
+   those up, which is what tidyMenu() does.
+</p>
+
+<p>
+   <b>To modify items in a system menu:</b>  You can modify any system menu,
    by taking advantage of the <b>items</b> property of the <b>menuopen</b>
    event object, which gives you the complete contents of the menu
    that the system is about to display.  The <b>items</b> array uses
@@ -219,6 +259,125 @@ mainWindow.on("menuopen", (ev) =&gt; {
    but you can cancel the event to prevent this menu from showing,
    and call showMenu() with your own options instead.
    This property isn't present for <b>menuclose</b> events.
+
+</ul>
+
+<h3>Methods</h3>
+
+<ul>
+   <a name="addMenuItem"></a>
+   <li><b>addMenuItem(<i>where</i>, <i>newItem</i>, <i>items</i>):</b>
+   Adds a new item or items to a menu.  This is a convenience function
+   that makes it a little easier to add items to a menu array.
+   <i>where</i> says where the new item(s) should be inserted; this
+   can be one of the following:
+   <ul>
+      <li>A command ID, in which case the new item(s) are inserted
+      before the first existing item with that ID.
+
+      <li>A string, in which case the new item(s) are inserted before
+      the first existing item with that title.  The string must
+      match exactly, including upper/lower case.
+
+      <li>A regular expression, in which case the new item(s) are
+      inserted before the first existing item whose title matches
+      the regular expression pattern (using the test() method)
+
+      <li>A function taking a menu item object as a parameter, and
+      returning true or false.  This is called for each item on the
+      existing menu, and the new item(s) are inserted before the
+      first existing item for which the function returns true.  This
+      can be used for more complex conditions than just searching
+      for a command ID or title.
+
+      <li><b>undefined</b>, in which case the new items are inserted
+      at the default position.  This usually means the top of the
+      menu, before the first existing item.  If you use an object
+      with an "after" property, though, this is the very end of the
+      menu, after the last existing item.
+
+      <li>An object containing a "before" or "after" property (only
+      one or the other: they're mutually exclusive), whose value is
+      one of the above types.  This works just like the types above,
+      except that it lets you say explicitly whether the new item will
+      be inserted before or after the first matching item.  Since
+      the default is to insert before the match, an object with a
+      "before" property is the same as just passing the property
+      value directly, but this lets you be a little more explicit
+      about your intentions, if you like your code to be a little
+      clearer.  
+   </ul>
+   <p>
+      <i>newItem</i> can be a single menu item descriptor
+      object, of the same sort that you can use with
+      <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>,
+      or it can be an array of such objects if you wish to insert
+      several items in one go.  The new item or items are inserted
+      at the location specified by the <i>where</i>.  If no match
+      is found for the <i>where</i> argument, the new items are
+      inserted at the default location, meaning at the very top
+      of the menu (before the first existing item) for a "before"
+      condition, or the very end of the menu (after the last existing
+      item) for an "after" condition.
+   </p>
+   <p>
+      If you pass an <i>items</i> array as an argument, the method
+      edits that array and returns it as the result.  If you don't
+      pass an argument, the method edits the <b>items</b> property
+      of the event object itself, and also sets the <b>menuUpdated</b>
+      of the event property to <b>true</b> to reflect the change.
+   </p>
+   
+   <a name="deleteMenuItem"></a>
+   <li><b>deleteMenuItem(<i>which</i>, <i>items</i>):</b>
+   Deletes one or more items from a menu.  <i>which</i> specifies
+   the item or items to delete; it can be one of the following:
+   <ul>
+      <li>A command ID, in which case the menu item(s) matching
+      that command ID will be removed.
+
+      <li>A string, in which case the item(s) with that title
+      are removed.  The title must match the string exactly,
+      including upper/lower case.
+
+      <li>A regular expression, in which case the item(s) whose
+      title(s) match the pattern (using the RegExp test() method)
+      are removed.
+
+      <li>A function, taking a menu item descriptor object as its
+      argument and returning true or false.  The function is
+      called for each item in the menu, and each item for which
+      the function returns true is removed.  This lets you remove
+      items according to more complex conditions than you can
+      express as a command ID or title.
+   </ul>
+
+   <p>
+      If you pass an <i>items</i> array as an argument, the method
+      edits that array and returns it as the result.  If you don't
+      pass an argument, the method edits the <b>items</b> property
+      of the event object itself, and also sets the <b>menuUpdated</b>
+      of the event property to <b>true</b> to reflect the change.
+   </p>
+
+   <a name="tidyMenu"></a>
+   <li><b>tidyMenu(<i>items</i>)</b>:  tidies up the given menu item
+   array, by removing any redundant separator bars.  If your event
+   listener removes one or more items from a system menu, there's a
+   chance that you might have removed all of the items between a
+   pair of separator bars that the system menu used to group related
+   items, leaving behind sloppy-looking empty group.  This method
+   looks for empty groups and removes them, replacing each run of
+   consecutive separator bars with a single separator bar so that
+   the menu looks tidy again.
+   <p>
+      If you pass an <i>items</i> array
+      as an argument, the method tidies up that array and returns the
+      result.  If you don't pass an argument at all, the method tidies
+      up the array in the <b>items</b> property of the event object
+      itself, and also sets the <b>menuUpdated</b> property of the
+      event to <b>true</b> to reflect the change.
+   </p>
 </ul>
 
 </body>

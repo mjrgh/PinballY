@@ -962,6 +962,8 @@ void PlayfieldView::InitJavascript()
 				C(AdjustCaptureDelay, ID_CAPTURE_ADJUSTDELAY);
 				C(FilterFirst, ID_FILTER_FIRST);
 				C(FilterLast, ID_FILTER_LAST);
+				C(UserFilterGroupFirst, ID_USER_FILTER_GROUP_FIRST);
+				C(UserFilterGroupLast, ID_USER_FILTER_GROUP_LAST);
 				C(PickSysFirst, ID_PICKSYS_FIRST);
 				C(PickSysLast, ID_PICKSYS_LAST);
 				C(CaptureFirst, ID_CAPTURE_FIRST);
@@ -1022,9 +1024,7 @@ void PlayfieldView::InitJavascript()
 		}
 		catch (JavascriptEngine::CallException exc)
 		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing javascript: %hs\n"), exc.what());
-			if (js->HasException())
-				js->LogAndClearException(&eh);
+			exc.Log(_T(". error initializing Javascript"), &eh);
 		}
 	}
 }
@@ -1909,9 +1909,9 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 						e.Set("source", source);
 						promise->Reject(e.jsobj);
 					}
-					catch (JavascriptEngine::CallException)
+					catch (JavascriptEngine::CallException exc)
 					{
-						// ignore errors
+						exc.Log(_T("GameInfo.getHighScores()"));
 					}
 				}
 			}
@@ -2303,6 +2303,24 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		Prop(int, playCount);
 		Prop(TSTRING, ipdbId);
 		Prop(int, audioVolume);
+		Prop(JsValueRef, mediaName);
+
+		// if a mediaName is specified, validate it
+		bool useMediaName = false;
+		TSTRING mediaNameStr;
+		if (mediaName.isDefined && !js->IsUndefinedOrNull(mediaName.value))
+		{
+			// get the string
+			GameInfoDescItem<TSTRING> s(desc, "mediaName");
+			mediaNameStr = s.value;
+			useMediaName = true;
+
+			// make sure the name pattern is valid
+			static const std::basic_regex<TCHAR> invalMediaNamePat(
+				_T(".*[\\\\/:<>\"|?*].*|con|prn|aux|nul|com\\d|lpt\\d"), std::regex_constants::icase);
+			if (std::regex_match(mediaNameStr, invalMediaNamePat))
+				return js->Throw(_T("mediaName must be a valid filename string, with no path portion"));
+		}
 
 		// if gridPos is specified, get its components {row, column}
 		GameInfoDescItem<int> gridPosRow, gridPosColumn;
@@ -2514,15 +2532,22 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		if (categories.isDefined)
 			gl->SetCategories(game, catList);
 
-		// Apply the changes to the game database if necessary
-		if (rebuildDb)
+		// if a mediaName property was specified, update the media name
+		if (useMediaName)
 		{
-			// determine if any rename media files need to be renamed
+			// Update the name.  If the media name property was specified
+			// as an empty string, it has the special meaning of using the
+			// default media name format, "Title (Manufacturer Year)".
+			// Otherwise use the string exactly as given.
 			std::list<std::pair<TSTRING, TSTRING>> mediaRenameList;
-			if (game->UpdateMediaName(&mediaRenameList) && mediaRenameList.size() != 0)
+			bool nameChanged = game->UpdateMediaName(&mediaRenameList, mediaNameStr.c_str());
+			bool renamedFiles = false;
+			if (nameChanged && mediaRenameList.size() != 0)
 			{
-				// Media renaming is needed.  Whether or not we're going to rename
-				// them here, return the rename list in the results object.
+				// The name changed, and there are existing files matching
+				// the old media name, so we might need to rename them. 
+				// Whether or not we're going to rename them here, return
+				// the rename list in the results object.
 				try
 				{
 					auto renameArr = JavascriptEngine::JsObj::CreateArray();
@@ -2535,25 +2560,36 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 					}
 					retobj.Set("renamedMediaFiles", renameArr.jsobj);
 				}
-				catch (JavascriptEngine::CallException)
+				catch (JavascriptEngine::CallException exc)
 				{
-					// ignore javascript errors and continue with the db updates
+					exc.Log(_T("GameInfo.update()"));
 				}
 
-				// if desired, rename the files 
+				// if desired, rename the files here
 				if (renameMediaOption)
 				{
 					try
 					{
-						JsRenameMediaHelper(mediaRenameList, retobj);
+						renamedFiles = true;
+						JsRenameMediaHelper(game, mediaRenameList, retobj);
 					}
-					catch (JavascriptEngine::CallException)
+					catch (JavascriptEngine::CallException exc)
 					{
-						// ignore javascript errors and continue with the db updates
+						exc.Log(_T("GameInfo.update()"));
 					}
 				}
 			}
-				
+
+			// If the media name changed, but we didn't rename files, and
+			// this game is current, clear the current playing media to
+			// ensure that we immediately reflect the change in the UI.
+			if (nameChanged && !renamedFiles && game == gl->GetNthGame(0))
+				Application::Get()->ClearMedia();
+		}
+
+		// Apply the changes to the game database if necessary
+		if (rebuildDb)
+		{
 			// apply the XML changes
 			ApplyGameChangesToDatabase(game);
 		}
@@ -2599,12 +2635,19 @@ void PlayfieldView::JsGameInfoErase(JsValueRef self)
 	}
 }
 
-JsValueRef PlayfieldView::JsGameInfoRenameMediaFiles(JsValueRef /*self*/, JsValueRef renameArrayVal)
+JsValueRef PlayfieldView::JsGameInfoRenameMediaFiles(JsValueRef self, JsValueRef renameArrayVal)
 {
 	auto js = JavascriptEngine::Get();
 	auto gl = GameList::Get();
 	try
 	{
+		// get the game from the ID in self.id
+		JavascriptEngine::JsObj selfobj(self);
+		auto id = selfobj.Get<int>("id");
+		auto game = gl->GetByInternalID(id);
+		if (game == nullptr)
+			return js->Throw(_T("Invalid game ID"));
+
 		// get the renamed items array
 		JavascriptEngine::JsObj renameArray(renameArrayVal);
 
@@ -2620,7 +2663,7 @@ JsValueRef PlayfieldView::JsGameInfoRenameMediaFiles(JsValueRef /*self*/, JsValu
 		auto retobj = JavascriptEngine::JsObj::CreateObject();
 
 		// do the renaming
-		JsRenameMediaHelper(renameList, retobj);
+		JsRenameMediaHelper(game, renameList, retobj);
 
 		// return the results object
 		return retobj.jsobj;
@@ -2631,10 +2674,13 @@ JsValueRef PlayfieldView::JsGameInfoRenameMediaFiles(JsValueRef /*self*/, JsValu
 	}
 }
 
-void PlayfieldView::JsRenameMediaHelper(const std::list<std::pair<TSTRING, TSTRING>> &renameList, JavascriptEngine::JsObj &retobj)
+void PlayfieldView::JsRenameMediaHelper(
+	GameListItem *game,
+	const std::list<std::pair<TSTRING, TSTRING>> &renameList, 
+	JavascriptEngine::JsObj &retobj)
 {
 	CapturingErrorHandler ceh;
-	if (!ApplyGameChangesRenameMediaFiles(renameList, ceh))
+	if (!ApplyGameChangesRenameMediaFiles(game, renameList, ceh))
 	{
 		// renaming errors occurred - report them in the results object
 		auto errorArr = JavascriptEngine::JsObj::CreateArray();
@@ -2906,6 +2952,7 @@ void PlayfieldView::JavascriptFilter::BeforeScan()
 		}
 		catch (JavascriptEngine::CallException exc)
 		{
+			exc.Log(_T("User-defined filter before()"));
 		}
 	}
 }
@@ -2921,6 +2968,7 @@ void PlayfieldView::JavascriptFilter::AfterScan()
 		}
 		catch (JavascriptEngine::CallException exc)
 		{
+			exc.Log(_T("User-defined filter after()"));
 		}
 	}
 }
@@ -2947,6 +2995,7 @@ bool PlayfieldView::JavascriptFilter::Include(GameListItem *game)
 	catch (JavascriptEngine::CallException exc)
 	{
 		// on error, simply filter out the game
+		exc.Log(_T("User-defined filter select()"));
 		return false;
 	}
 }
@@ -4527,9 +4576,9 @@ void PlayfieldView::LaunchQueuedGame()
 							Application::Get()->SetNextQueuedGameOverride(p, overrides.Get<TSTRING>(p));
 					}
 				}
-				catch (JavascriptEngine::CallException)
+				catch (JavascriptEngine::CallException exc)
 				{
-					// ignore errors
+					exc.Log(_T("Applying game launch overrides"));
 				}
 			}
 			
@@ -4643,9 +4692,9 @@ bool PlayfieldView::FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueR
 				JavascriptEngine::JsObj event(eventObj);
 				overrides->jsobj = event.Get<JsValueRef>("overrides");
 			}
-			catch (JavascriptEngine::CallException)
+			catch (JavascriptEngine::CallException exc)
 			{
-				// ignore errors
+				exc.Log(_T("Game launch event"));
 			}
 		}
 	}
@@ -6460,9 +6509,9 @@ void PlayfieldView::FireHighScoresReadyEvent(GameListItem *game, bool success, c
 			// fire the event
 			js->FireEvent(jsGameList, jsHighScoresReadyEvent, BuildJsGameInfo(game), success, arr, source);
 		}
-		catch (JavascriptEngine::CallException)
+		catch (JavascriptEngine::CallException exc)
 		{
-			// ignore errors
+			exc.Log(_T("High scores ready event"));
 		}
 	}
 }
@@ -8317,6 +8366,18 @@ void PlayfieldView::JsShowMenu(WSTRING name, std::vector<JsValueRef> items, Java
 	}
 }
 
+// To make it easier for Javascript scripts to distinguish Page Up and
+// Page Down menu items from separators, we use Unicode up/down arrows
+// as the title strings for the page commands.  These aren't actually 
+// displayed, as we substitute other arrow glyphs when actually drawing
+// the menu items.  We use them in the menu command purely so that
+// Javascript won't find empty strings for any items other than
+// separator bars, so that it only has to test for an empty title.
+static const TCHAR *PageUpTitle = _T("\u2191");
+static const TCHAR *PageDownTitle = _T("\u2193");
+
+
+// Show a menu
 void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *id, DWORD flags, int pageno)
 {
 	// create the new menu container
@@ -10949,7 +11010,7 @@ void PlayfieldView::ShowMainMenu()
 
 	// Start a pagination group for the filters, in case the user adds
 	// a large number of custom filters.
-	md.emplace_back(_T(""), ID_MENU_PAGE_UP);
+	md.emplace_back(PageUpTitle, ID_MENU_PAGE_UP);
 
 	// Create a vector of top-level filters.  Start with the All Games
 	// and Favorites filters.
@@ -10998,7 +11059,7 @@ void PlayfieldView::ShowMainMenu()
 		md.emplace_back(u.name.c_str(), u.command, MenuHasSubmenu);
 
 	// that's it for the paged filter area
-	md.emplace_back(_T(""), ID_MENU_PAGE_DOWN);
+	md.emplace_back(PageDownTitle, ID_MENU_PAGE_DOWN);
 
 	// add the "Return" item to exit the menu
 	md.emplace_back(_T(""), -1);
@@ -11059,7 +11120,7 @@ void PlayfieldView::ShowFilterSubMenu(int cmd, const TCHAR *group, const WCHAR *
 	};
 
 	// add a Page Up item at the start of the filter list, in case pagination is needed
-	md.emplace_back(_T(""), ID_MENU_PAGE_UP);
+	md.emplace_back(PageUpTitle, ID_MENU_PAGE_UP);
 
 	// traverse the master filter list, adding each filter that matches the
 	// filter group
@@ -11070,7 +11131,7 @@ void PlayfieldView::ShowFilterSubMenu(int cmd, const TCHAR *group, const WCHAR *
 	}
 
 	// add a Page Down item to end the pagination area
-	md.emplace_back(_T(""), ID_MENU_PAGE_DOWN);
+	md.emplace_back(PageDownTitle, ID_MENU_PAGE_DOWN);
 
 	// add a Cancel item at the end
 	md.emplace_back(_T(""), -1);
@@ -11942,7 +12003,7 @@ void PlayfieldView::ShowOperatorMenu()
 	md.emplace_back(_T(""), -1);
 
 	// paginate the filter section, in case the user adds a bunch of custom filters
-	md.emplace_back(_T(""), ID_MENU_PAGE_UP);
+	md.emplace_back(PageUpTitle, ID_MENU_PAGE_UP);
 
 	// build a vector of filters, starting with the special system filters
 	std::vector<GameListFilter*> topFilters;
@@ -11982,7 +12043,7 @@ void PlayfieldView::ShowOperatorMenu()
 	};
 
 	// end the special filters section
-	md.emplace_back(_T(""), ID_MENU_PAGE_DOWN);
+	md.emplace_back(PageDownTitle, ID_MENU_PAGE_DOWN);
 	md.emplace_back(_T(""), -1);
 
 	// add the miscellaneous setup options
@@ -12323,8 +12384,9 @@ void PlayfieldView::EditGameInfo()
 				if (wParam == VK_TAB)
 					return FALSE;
 
-				// if it's Escape, and the drop list is closed, let the dialog handle it
-				if (wParam == VK_ESCAPE && !ComboBox_GetDroppedState(GetParent(hwnd)))
+				// if it's Escape or Enter, and the drop list is closed, let the dialog handle it
+				if ((wParam == VK_ESCAPE || wParam == VK_RETURN)
+					&& !ComboBox_GetDroppedState(GetParent(hwnd)))
 					return FALSE;
 
 				// intercept all other keys
@@ -12446,6 +12508,9 @@ void PlayfieldView::EditGameInfo()
 			// get the combo
 			HWND combo = GetDlgItem(IDC_CB_TITLE);
 
+			// note if the combo list is dropped down
+			bool dropped = ComboBox_GetDroppedState(combo);
+
 			// the wparam is the character code
 			WCHAR ch = static_cast<WCHAR>(wParam);
 
@@ -12458,14 +12523,36 @@ void PlayfieldView::EditGameInfo()
 
 			// on Enter, accept the current selection and close the combo
 			if (ch == 10 || ch == 13)
+			{
+				// if it's open, and no list item is currently selected,
+				// close the list and keep the current text
+				if (dropped && ComboBox_GetCurSel(combo) < 0)
+				{
+					// retrieve the current text and selection
+					TCHAR txt[256];
+					GetWindowText(combo, txt, countof(txt));
+					DWORD sel = ComboBox_GetEditSel(combo);
+					DWORD start = LOWORD(sel), end = HIWORD(sel);
+
+					// close the combo
+					ComboBox_ShowDropdown(combo, FALSE);
+
+					// restore the text and selection
+					SetWindowText(combo, txt);
+					ComboBox_SetEditSel(combo, start, end);
+
+					// bypass the normal behavior
+					lResult = 0;
+					return true;
+				}
+
+				// use the default behavior
 				return false;
+			}
 
 			// ignore control characters except backspace
 			if (iswcntrl(ch) && ch != 8)
 				return true;
-
-			// note if the combo list is dropped down
-			bool dropped = ComboBox_GetDroppedState(combo);
 
 			// Backspace is a bit of a special case for auto-complete.  If
 			// the current selection range extends to the end of the string,
@@ -12609,7 +12696,7 @@ void PlayfieldView::EditGameInfo()
 				return false;
 			}
 
-			// update the basic metadata items
+			// get a text field into a TSTRING
 			auto gl = GameList::Get();
 			auto GetText = [this](int controlId, TSTRING &item)
 			{
@@ -12618,6 +12705,22 @@ void PlayfieldView::EditGameInfo()
 				if (GetDlgItemText(hDlg, controlId, buf, countof(buf)) != 0)
 					item = buf;
 			};
+
+			// Validate the media name.  It must be a valid filename, with
+			// no path portion.
+			TSTRING newMediaName;
+			GetText(IDC_TXT_MEDIA_NAME, newMediaName);
+			static const std::basic_regex<TCHAR> invalMediaNamePat(
+				_T(".*[\\\\/:<>\"|?*].*|con|prn|aux|nul|com\\d|lpt\\d"), std::regex_constants::icase);
+			if (std::regex_match(newMediaName, invalMediaNamePat))
+			{
+				MessageBox(hDlg, LoadStringT(IDS_ERR_INVAL_MEDIA_NAME),
+					LoadStringT(IDS_APP_TITLE), MB_OK | MB_ICONERROR);
+				SetFocus(GetDlgItem(IDC_TXT_MEDIA_NAME));
+				return false;
+			}
+
+			// update the basic metadata items
 			GetText(IDC_CB_TITLE, game->title);
 			GetText(IDC_CB_ROM, game->rom);
 			GetText(IDC_TXT_IPDB_ID, game->ipdbId);
@@ -12711,17 +12814,28 @@ void PlayfieldView::EditGameInfo()
 			// or creating a whole new entry.
 			gl->ChangeSystem(game, reinterpret_cast<GameSystem*>(ComboBox_GetItemData(cbSys, sysIdx)));
 
+			// If the new media name is empty or "[Default]", apply the default 
+			// media name pattern.  Note that this has to wait until we've updated
+			// the other fields, since the default name is derived from the other
+			// fields.
+			static const std::basic_regex<TCHAR> defaultMediaNamePat(_T("\\s*(\\[Default\\])?\\s*"), std::regex_constants::icase);
+			if (std::regex_match(newMediaName, defaultMediaNamePat))
+				newMediaName = game->GetDefaultMediaName();
+
 			// Check for media item renaming
 			std::list<std::pair<TSTRING, TSTRING>> mediaRenameList;
-			if (game->UpdateMediaName(&mediaRenameList) && mediaRenameList.size() != 0)
+			bool mediaNameChanged = game->UpdateMediaName(&mediaRenameList, newMediaName.c_str());
+			bool mediaFilesRenamed = false;
+			if (mediaNameChanged && mediaRenameList.size() != 0)
 			{
 				// ask the user what to do
 				if (MessageBox(hDlg, LoadStringT(IDS_RENAME_MEDIA_PROMPT).c_str(),
 					LoadStringT(IDS_APP_TITLE), MB_YESNO | MB_ICONQUESTION) == IDYES)
 				{
 					// yes - do the renaming
+					mediaFilesRenamed = true;
 					CapturingErrorHandler ceh;
-					if (!pfv->ApplyGameChangesRenameMediaFiles(mediaRenameList, ceh))
+					if (!pfv->ApplyGameChangesRenameMediaFiles(game, mediaRenameList, ceh))
 					{
 						// one or more renaming errors occurred - report them as a group
 						InteractiveErrorHandler ieh;
@@ -12729,6 +12843,14 @@ void PlayfieldView::EditGameInfo()
 					}
 				}
 			}
+
+			// If the media name changed, and we didn't rename any files,
+			// explicitly clear media, so that we switch the display to
+			// media files under the new names (if any).  This isn't
+			// necessary if we renamed the files, since that will have
+			// cleared the media already as a side effect.
+			if (mediaNameChanged && !mediaFilesRenamed)
+				Application::Get()->ClearMedia();
 
 			// apply changes to the XML database file
 			pfv->ApplyGameChangesToDatabase(game);
@@ -13056,11 +13178,12 @@ void PlayfieldView::EditGameInfo()
 			SetDlgItemText(hDlg, IDC_CB_ROM, game->rom.c_str());
 
 			// populate the "Show when running" checkboxes
-			if (const TCHAR *showWhenRunning = GameList::Get()->GetShowWhenRunning(game); showWhenRunning != nullptr)
+			const TCHAR *showWhenRunning = GameList::Get()->GetShowWhenRunning(game);
+			auto SetShowWhenRunningCheckbox = [this, showWhenRunning](int controlId, const TCHAR *which)
 			{
-				auto SetShowWhenRunningCheckbox = [this, showWhenRunning](int controlId, const TCHAR *which)
+				// search for the 'which' token in the showWhenRunning string
+				if (showWhenRunning != nullptr)
 				{
-					// search for the 'which' token in the showWhenRunning string
 					size_t len = _tcslen(which);
 					for (const TCHAR *p = showWhenRunning; *p != 0; )
 					{
@@ -13088,20 +13211,20 @@ void PlayfieldView::EditGameInfo()
 						// advance to the next token
 						p = nxt;
 					}
+				}
 
-					// not found - set to the "indeterminate" state for "inherit default"
-					CheckDlgButton(hDlg, controlId, BST_INDETERMINATE);
-				};
-				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
-				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
-				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
-				SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
-			}
+				// not found - set to the "indeterminate" state for "inherit default"
+				CheckDlgButton(hDlg, controlId, BST_INDETERMINATE);
+			};
+			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
+			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
+			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
+			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
 
 			// initialize the ROM combo list
 			PopulateROMCombo();
 
-			// update dependent items for the initial system selecstion
+			// update dependent items for the initial system selection
 			OnSelectSystem();
 
 			// populate the table type combo
@@ -13136,6 +13259,14 @@ void PlayfieldView::EditGameInfo()
 			// "Auto".
 			if (hiScoreStyle == nullptr || hiScoreStyle[0] == 0)
 				ComboBox_SetText(cbHiScoreStyle, hiScoreStrings.front().c_str());
+
+			// If the game's current media name matches the default media name,
+			// fill in the media name field with "[Default]", otherwise fill it
+			// in with the actual media name.
+			TSTRING defMediaName = game->GetDefaultMediaName();
+			TSTRING &curMediaName = game->mediaName;
+			SetDlgItemText(hDlg, IDC_TXT_MEDIA_NAME,
+				defMediaName == curMediaName ? _T("[Default]") : curMediaName.c_str());
 
 			// Thread entrypoint for populating the title drop list.  This
 			// can take a few seconds, since we have to scan the whole
@@ -13265,14 +13396,17 @@ void PlayfieldView::EditGameInfo()
 }
 
 bool PlayfieldView::ApplyGameChangesRenameMediaFiles(
+	GameListItem *game,
 	const std::list<std::pair<TSTRING, TSTRING>> &mediaRenameList, ErrorHandler &eh)
 {
 	// presume success
 	bool ok = true;
 
-	// clear table media from all windows, to minimize the chances
-	// of a sharing conflict that would prevent renaming
-	Application::Get()->ClearMedia();
+	// If we're updating files for the current game, clear table 
+	// media from all windows, to minimize the chances of a sharing
+	// conflict that would prevent renaming.
+	if (game == GameList::Get()->GetNthGame(0))
+		Application::Get()->ClearMedia();
 
 	// Set up a unique pointer to the caller's rename list.  Since
 	// the caller owns this memory, our deleter for this pointer does
@@ -13441,7 +13575,7 @@ void PlayfieldView::ShowGameCategoriesMenu(GameCategory *curSelection, bool resh
 	std::list<MenuItemDesc> md;
 
 	// add a "page up" item at the top
-	md.emplace_back(_T(""), ID_MENU_PAGE_UP, MenuStayOpen);
+	md.emplace_back(PageUpTitle, ID_MENU_PAGE_UP, MenuStayOpen);
 
 	// add the category items within the page range
 	for (auto cat : allCats)
@@ -13463,7 +13597,7 @@ void PlayfieldView::ShowGameCategoriesMenu(GameCategory *curSelection, bool resh
 	}
 
 	// add the Page Down item at the end of the category section
-	md.emplace_back(_T(""), ID_MENU_PAGE_DOWN, MenuStayOpen);
+	md.emplace_back(PageDownTitle, ID_MENU_PAGE_DOWN, MenuStayOpen);
 
 	// add a spacer if there were any categories at all
 	if (allCats.size() != 0)

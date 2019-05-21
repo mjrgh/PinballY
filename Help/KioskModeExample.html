@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Kiosk Mode</h1>
+
+<p>
+   I was asked recently if there was a way to get rid of all of
+   the filter options on the main menu, so that the system was
+   locked in "All Games" mode.  The person asking was getting
+   ready to take his pin cab to a pinball expo to put on the
+   show floor, so he wanted to lock things down a bit so that
+   random users at the show wouldn't mess things up or confuse
+   themselves by hiding a bunch of the games behind a filter.
+</p>
+<p>
+   PinballY doesn't have a specific option setting for this kind
+   of "kiosk mode" restriction, but it's the sort of thing that's
+   easy to implement in Javascript, since Javascript lets you
+   modify any of the system menus to your exact liking.  In this
+   case, you can use this capability to remove a bunch of the
+   standard menu options to restrict the functions that users
+   can access.
+</p>
+
+<h2>Enabling kiosk mode</h2>
+<p>
+   Removing menu items is pretty simple by itself, so for the
+   sake of a more complete example, let's throw in one more
+   feature: let's add a menu item that lets you switch in and
+   out of Kiosk mode through the UI.
+</p>
+<p>
+   Obviously, we can't let ordinary users access this special
+   new Kiosk Mode command, as that would defeat the whole
+   purpose.  Fortunately, there's an obvious place to put any
+   menu commands that we want to restrict to the pin cab
+   priesthood, namely the Operator Menu.  In a real pin cab
+   setup, the Operator Menu is normally accessed from the
+   service panel buttons inside the coin door.  That was
+   intentionally designed for exactly this situation, since
+   it naturally restricts access to the Operator Menu to those
+   who have the key to the coin door.  Perfect for an expo
+   setup.
+</p>
+<p>
+   If you've looked at the other worked examples, you know
+   the process for adding a new command to a menu by now:
+</p>
+<ul>
+   <li>Create a command ID to represent the new action
+   <li>Set up a menu event listener to add the custom command
+   to the desired menu (in this case, the Operator Menu)
+   <li>Write a command event listener to carry out the command
+</ul>
+
+<p>
+   Here's the code to do all of that.
+</p>
+
+<div class="code">
+// create our custom command ID
+let kioskModeCommand = command.allocate("ToggleKioskMode");
+
+// our custom option name for the settings file
+let kioskModeKey = "custom.kioskMode";
+
+// are we currently in Kiosk Mode?
+let inKioskMode = optionSettings.getBool(kioskModeKey, false);
+
+// add the command to the Operator Menu each time it's displayed
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "operator") {
+        ev.addMenuItem(command.Options, {
+            title: "Kiosk Mode",
+            cmd: kioskModeCommand,
+            checked: inKioskMode
+        });
+    }
+});
+
+// Handle the command when it's selected
+mainWindow.on("command", ev => {
+    if (ev.id == kioskModeCommand) {
+        // update the global variable that remembers the mode
+        inKioskMode = !inKioskMode;
+
+        // save it in the settings file, so that it'll persist across sessions
+        optionSettings.set(kioskModeKey, inKioskMode);
+
+        // if we're entering Kiosk Mode, make sure the All Games
+        // filter is selected, since we won't be able to change
+        // filters while this mode is active
+        if (inKioskMode)
+            gameList.setCurFilter("All");
+    }
+});
+</div>
+
+<p>
+   That should mostly look familiar if you've gone over the other
+   examples that set up custom menu commands.  There are a couple
+   of special extra things we're doing in this example, though:
+</p>
+<ul>
+   <li>First, we're use the settings
+   file to remember the Kiosk Mode setting.  This is pretty easy,
+   since all we have to do is remember a boolean (true/false) value
+   that answers the question "are we in Kiosk Mode?".  To do this
+   we use the <a href="OptionSettingsObject.html">optionSettings</a>
+   system object.  The name of the settings variable is nothing
+   special; we used the "custom" prefix purely to reduce the chances
+   that it'll ever conflict with a variable name that the system
+   uses.
+
+   <li>Second, we're using the gameList.setCurFilter() method to
+   switch to the All Games filter whenever we enter Kiosk Mode.
+   That seems important given that Kiosk Mode will prevent us
+   from accessing any filter commands from the UI, meaning we
+   won't be able to switch back to All Games mode manually once
+   Kiosk Mode is active.  On the other hand, you might actually
+   want the option to lock the system into whichever filter
+   was already selected - that could be useful for setting
+   up something like a parental filter.   In that case, you
+   can just remove the setCurFilter() call.
+
+</ul>
+
+<h2>Remove the filter menus</h2>
+
+<p>
+   Now we come to the original question, which is how to get rid
+   of the filter menu command in the main menu.
+</p>
+<p>
+   In most cases, removing a command from a menu works like this:
+</p>
+<ul>
+   <li>Listen for the "menuopen" event
+   <li>Check the menu ID being opened, and if it's the menu we want to modify, then
+   add our new command
+</ul>
+<p>
+   This case is a little different, in that the filters don't have
+   pre-determined IDs.  The system assigns command IDs to the filters
+   at the start of each session instead.
+</p>
+<p>
+   All of that makes it seem a little trickier to find the filter
+   commands.  But the system helps us out here by grouping the
+   filter commands into a range of commands,
+   <a href="Commands.html#FilterFirst">command.FilterFirst</a> to
+   <a href="Commands.html#FilterLast">command.FilterLast</a>.
+   For the sake of completeness, we should also remove any custom
+   user filters you've added through other Javascript modules;
+   those will be in the range
+   <a href="Commands.html#UserFilterFirst">command.UserFilterFirst</a> to
+   <a href="Commands.html#UserFilterLast">command.UserFilterLast</a>.
+</p>
+<p>
+  There's also the matter of
+  "filter groups", where the command in the main menu takes you
+  to a sub-menu with the individual filters.  For example,
+  "Filter by Manufacturer" takes you to a separate menu showing
+  the manufacturer filters.  For these, the system does give us
+  a set of fixed constants:
+  <a href="Commands.html#FilterByAdded">command.FilterByAdded</a>,
+  <a href="Commands.html#FilterByCategory">command.FilterByCategory</a>,
+  and so on.  It's a little brittle to rely on a fixed set like
+  that, though, since we'd have to remember to change our
+  Javascript code every time PinballY gets a new built-in
+  filter group.  So the better way to do this is to take
+  advantage of the ability to get a list of all of the filters
+  via <a href="GameList.html#getAllFilters">gameList.getAllFilters()</a>,
+  and use that to come up with a set of all of the group IDs.
+</p>
+<p>
+   We can actually simplify things a bit by using the group
+   command approach for the filter commands as well, so that
+   we just have to look in one place to see if a given command
+   is any sort of filter command.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    // restrict the main menu when we're in Kiosk Mode
+    if (inKioskMode && ev.id == "main") {
+        // compile a map of all of the filter commands and group commands
+        let filterCommands = new Map();
+        gameList.getAllFilters().forEach(f => {
+            filterCommands.set(f.cmd, true);
+            if (f.groupCmd)
+                filterCommands.set(f.groupCmd, true);
+        });
+
+        // remove all commands that relate to filters or filter groups
+        ev.items = ev.items.filter(m => !filterCommands.get(m.cmd));
+
+        // tidy up the menu by removing any empty groups left over
+        ev.tidyMenu();
+    }
+});
+</div>
+<p>
+   Note that it's just a happy (or perhaps confusing) coincidence
+   that we're using the Javascript array method named "filter()" to
+   remove the filter menu items!  That's a standard Javascript method
+   that takes a subset of an array according to a test condition -
+   in this case, keeping only commands that aren't in the list of
+   filter commands.
+</p>
+<p>
+   The call to <a href="MenuEvent.html#tidyMenu">tidyMenu()</a>
+   is there to handle the likely situation that we'll remove all
+   of the items between a pair of separator bars that the system
+   used to group the filter commands visually in the menu.  The
+   tidyMenu() method looks for adjacent separator bars, which we
+   can identify by their empty title string, and removes the first
+   one when it finds a pair of them packed together with nothing
+   in between.  This gets rid of any unsightly empty groups that
+   are left over after we edit the menu, making it look presentable
+   again.
+</p>
+   
+
+<h2>Disable the Exit menu</h2>
+
+<p>
+   There's one more little detail we'll want to take care of.
+   When in Kiosk Mode, we'll also want to disable the Exit menu,
+   so that users won't be able to quit out of PinballY and mess
+   around with your Windows desktop.  To do that, we can intercept
+   the menu event that occurs when the Exit menu is about to be
+   opened, and cancel the whole thing.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (inKioskMode && ev.id == "exit")
+        ev.preventDefault();
+});
+</div>
+<p>
+   Note that you can also disable the Exit menu manually
+   from the <a href="MenuOptions.html">Menu Options</a> page
+   of the Settings dialog.  But I think it's a little tidier
+   to include it in the Kiosk Mode option like this, since
+   this way, you won't have to remember to change
+   that separate setting each time you switch modes.  The
+   custom Kiosk Mode command we placed on the operator menu
+   takes care of it automatically.
+</p>
+<p>
+   And one more thing!  Now that we've disabled the normal
+   Exit menu, it would be nice to have a way for the operator
+   to exit the program, by adding a command to the Operator
+   Menu.  We just need to add an item that activates the
+   built-in Quit command.  Let's add it to the end of the
+   menu, just before the standard "Cancel" item at the bottom.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (inKioskMode && ev.id == "operator") {
+        ev.addMenuItem(command.MenuReturn, { title: "Exit PinballY", cmd: command.Quit });
+    }
+});
+</div>
+   
+
+</body>
+</html>

@@ -138,6 +138,19 @@ if (i >= 0) {
    save the new command ID we assigned earlier.
 </p>
 <p>
+   There's actually a slightly easier way to add a menu item, thanks
+   to a method in the event object itself called <a href="MenuEvent.html#addMenuItem">addMenuItem()</a>.
+   This method does exactly the same thing we just did to the items array
+   manually, but without having to write quite so much code on our
+   part.  We could use it to replace the lines above with a
+   somewhat simpler and clearer version:
+</p>
+<div class="code">
+ev.addMenuItem({ after: command.FindMediaGo },
+    { title: "Open Downloads Folder", cmd: openDownloadsCommand });
+</div>
+
+<p>
    As long as we're messing with the menu, let's make a couple of small
    cosmetic changes to the existing text.  That big explanatory
    paragraph at the top isn't quite right now that there's another
@@ -190,7 +203,9 @@ mainWindow.on("menuopen", ev => {
         // Find the "Search" command in the menu
         let i = ev.items.findIndex(item => item.cmd == command.FindMediaGo);
         if (i >= 0) {
-            // since we're adding more items, make the title more explicit
+            // since we're adding a new command alongside "Search", change
+            // its title to make it clearer what it does in contrast to the
+            // new command we're adding
             ev.items[i].title = "Search the Web";
 
             // insert our Downloads folder command immediately after Search
@@ -205,7 +220,7 @@ mainWindow.on("menuopen", ev => {
 
 <p>
    Note that it might have been a little easier in this case to just
-   replace the menu outright, by supplying a whole new array for "items".
+   replace the whole menu outright, by supplying a whole new array for "items".
    That would eliminate the need to search for the "Search" item.  But
    I think it's always better to use the modification approach we
    chose here, because that adapts more readily to

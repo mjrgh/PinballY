@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Running an External Program</h1>
+
+<p>
+   For some types of customizations, you might want to launch an
+   external program in response to some event in PinballY.  The
+   most obvious case would be to launch a program when the user
+   selects a custom menu command.   This is
+   one of the simpler but more versatile approaches to customizing,
+   since it lets you take some existing function that's already
+   available via a separate program, and integrate it more or
+   less seamlessly into the PinballY user interface.
+</p>
+
+<h2>Setting up the custom menu</h2>
+
+<p>
+   We'll start by setting up a custom menu command, which we'll
+   add to the main menu.  We can do this by setting up a listener
+   for the <a href="MenuEvent.html"><b>menuopen</b></a> event.
+   When the listener recognizes that the main menu is being
+   opened, it inserts our new custom command into the menu, and
+   then lets the system show the modified menu as normal.  This
+   technique is explained in full in
+   <a href="MenuEvent.html#overrideSysMenu">Overriding a system menu</a>.
+</p>
+<p>
+   Whenever we want to add a new custom command, we have to do one
+   little bit of preparatory work, which is to allocate an ID for
+   our command.  This just requires one line of code in the "global"
+   part of the Javascript file (outside of any functions).
+</p>
+<div class="code">
+let runCustomProgCommand = command.allocate("RunCustomProgram");
+</div>
+<p>
+   Once we have the command ID, we can create the <b>menuopen</b>
+   listener that modifies the main menu, placing our new command
+   after the exiting "Rate Table" command.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "main") {
+        ev.addMenuItem({after: command.RateGame},
+            { title: "Run Custom Program", cmd: runCustomProgCommand });
+    }
+});
+</div>
+
+<p>
+   You can use this same technique to add
+   commands to any of the other standard menus, such as the Operator
+   menu or Exit menu.  The only things you have to change to use
+   a different menu are the menu ID string that you check
+   (see <a href="Menus.html#systemMenus">System Menus</a> for
+   a list of these) and the command ID you search for to determine the
+   insertion location (see <a href="Commands.html#systemCommandIDs">System Command IDs</a>
+   for those).
+</p>
+
+<h2>Launching the command</h2>
+
+<p>
+   Now that we have the menu item in place, we can write the code that
+   responds to our new command by actually carrying out the custom program
+   launch.  Processing a custom menu command requires writing a listener
+   for the <a href="CommandEvent.html">command</a> event, and responding
+   when the command ID in the event matches the custom command ID we
+   created earlier.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == runCustomProgCommand) {
+        // TO DO - carry out the command
+    }
+});
+</div>
+
+<p>
+   Javascript doesn't have any built-in way of launching an external
+   program, so we'll use the <a href="DllImport.html">native DLL interface</a>
+   to call a Windows system function that runs a command.  There are several
+   Windows APIs for launching a program; the main ones are ShellExecute(),
+   ShellExecuteEx(), and CreateProcess().  ShellExecute() is the easiest to
+   use, so it's the one I'd recommend for simple cases where you just want
+   to launch a command and don't need to interact with the new process
+   after it's started.  ShellExecuteEx() and CreateProcess() give you more
+   options, including the ability to monitor the process for completion, but
+   they're more complex to use.  
+</p>
+<p>
+   You can read all about the DLL import system in the chapter on
+   <a href="DllImport.html">calling native DLLs</a>, so we won't repeat
+   all of that here.  We'll just show the code needed for this specific
+   situation.
+</p>
+<p>
+   The first step is to "bind" the native Windows DLL function we need.
+   Binding sets up a bridge from Javascript to the DLL so that we can
+   call the function.
+   We'll use the simple ShellExecute() API for this example.  Note that
+   we have to call the function by its "full" name, ShellExecuteW().
+   The added "W", as explained in the DLL import chapter, stands for
+   "Wide characters", meaning the Unicode version.  We always have to
+   use the "W" version in Javascript calls.
+</p>
+<div class="code">
+let Shell32 = dllImport.bind("Shell32.dll", `
+    HINSTANCE ShellExecuteW(
+        HWND    hwnd,
+        LPCWSTR lpOperation,
+        LPCWSTR lpFile,
+        LPCWSTR lpParameters,
+        LPCWSTR lpDirectory,
+        INT     nShowCmd
+    );
+`);
+</div>
+
+<p>
+   Now that we have our DLL import defined, we can flesh out the
+   "TO DO" code in the event handler prototype we wrote earlier.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == runCustomProgCommand) {
+        // run the command
+        let result = Shell32.ShellExecuteW(null, "open",
+            "c:\\Path\\MyProgram.exe", " /option1 /option2",
+            "c:\\Path", SW_SHOW);
+
+        // The result of ShellExecute() is a fake handle value that we
+        // have to interpret as an integer to make sense of.  A value
+        // higher than 32 indicates success; a value 32 or lower is an
+        // error code.  See the Windows SDK documentation for details.
+        if (result.toNumber() > 32)
+        {
+            // success!  do any follow-up here
+        }
+        else
+        {
+            // launch failed
+            mainWindow.message("Program launch failed (code " + result.toNumber() + ")", "error");
+        }
+    }
+});
+</div>
+
+<h2>Using CreateProcess()</h2>
+
+<p>
+   For the sake of completeness, let's look at how you'd do
+   the same thing using CreateProcess() instead of ShellExecute().
+   You can skip all of this if ShellExecute() meets your
+   needs, but I wanted to provide the details on how to use
+   CreateProcess() just in case you need its extra power.
+</p>
+<p>
+   As before, the first step is to bind the DLL function:
+</p>
+<div class="code">
+let Kernel32 = dllImport.bind("Kernel32.dll", `
+    typedef struct _STARTUPINFO {
+        DWORD  cb;
+        LPWSTR lpReserved;
+        LPWSTR lpDesktop;
+        LPWSTR lpTitle;
+        DWORD  dwX;
+        DWORD  dwY;
+        DWORD  dwXSize;
+        DWORD  dwYSize;
+        DWORD  dwXCountChars;
+        DWORD  dwYCountChars;
+        DWORD  dwFillAttribute;
+        DWORD  dwFlags;
+        WORD   wShowWindow;
+        WORD   cbReserved2;
+        BYTE  *lpReserved2;
+        HANDLE hStdInput;
+        HANDLE hStdOutput;
+        HANDLE hStdError;
+    } STARTUPINFO, *LPSTARTUPINFO;
+    
+    typedef struct _PROCESS_INFORMATION {
+        HANDLE hProcess;
+        HANDLE hThread;
+        DWORD  dwProcessId;
+        DWORD  dwThreadId;
+    } PROCESS_INFORMATION, *PPROCESS_INFORMATION, *LPPROCESS_INFORMATION;
+
+    typedef struct _SECURITY_ATTRIBUTES {
+        DWORD  nLength;
+        LPVOID lpSecurityDescriptor;
+        BOOL   bInheritHandle;
+    } SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
+
+    BOOL WINAPI CreateProcessW(
+      LPCWSTR               lpApplicationName,
+      LPWSTR                lpCommandLine,
+      LPSECURITY_ATTRIBUTES lpProcessAttributes,
+      LPSECURITY_ATTRIBUTES lpThreadAttributes,
+      BOOL                  bInheritHandles,
+      DWORD                 dwCreationFlags,
+      LPVOID                lpEnvironment,
+      LPCWSTR               lpCurrentDirectory,
+      LPSTARTUPINFO         lpStartupInfo,
+      LPPROCESS_INFORMATION lpProcessInformation
+    );
+
+    BOOL WINAPI CloseHandle(HANDLE hObject);
+`);
+</div>
+<p>
+   As you can see, CreateProcess() has a bunch of additional arguments you
+   have to provide (including several structure definitions).  That's
+   where its extra power comes from, as well as the extra headaches
+   using it.
+</p>
+<p>
+   Now let's change the command handler to use CreateProcess() to
+   do the launch.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == runCustomProgCommand) {
+        // create our STARTUPINFOW and PROCESS_INFORMATION structs
+        let processInfo = dllImport.create("PROCESS_INFORMATION");
+        let startupInfo = dllImport.create("STARTUPINFO");
+
+        // We have to fill in the STARTUPINFO struct with some minimal
+        // information.  You can also populate the other fields if you
+        // want to set specific options.  By default, Javascript will
+        // set everything to zeros and nulls, so you'll get the default
+        // options without filling in anything else here.
+        startupInfo.cb = dllImport.sizeof("STARTUPINFO");
+
+        // Launch the process.  Fortunately, we can provide "null"
+        // parameters to get the defaults for some of the more
+        // obscure items, such as the "security attributes".  If
+        // you need to set any of the options we've defaulted, you'd
+        // just change the corresponding nulls or zeroes to supply
+        // the specific options you want to set.
+        if (Kernel32.CreateProcessW(
+            null, "\"c:\\Path\\MyProgram.exe\" /option1 /option2",
+            null, null, false, 0, null, "c:\\Path", startupInfo, processInfo);
+        {
+            // Success!
+            //
+            // CreateProcess() will have filled in our PROCESS_INFORMATION
+            // struct with handles for the new process and thread.  It's
+            // VERY important to close these handles (or ANY handles that
+            // Windows creates for us) when we're done with them, because
+            // otherwise we'd "leak" these system resources, which could
+            // eventually make the program crash if we did if often
+            // enough.  Javascript can't close native Windows handles
+            // for us automatically, because it doesn't have enough
+            // information to know where else they might be used.  So
+            // we MUST do this explicitly.
+            //
+            // If we wanted to interact with the new process later (for
+            // example, to monitor it for completion), we could hang onto
+            // the process and/or thread handle in a global variable
+            // instead of closing them immediately here.  That would let
+            // us access the handles later.  But that makes things a bit
+            // trickier, because it's still important that we *eventually*
+            // close the handles.  In cases where you don't need them
+            // later, it's best to close them immediately, so that you
+            // don't have to worry about losing track of them.
+            Kernel32.CloseHandle(processInfo.hProcess);
+            Kernel32.CloseHandle(processInfo.hThread);
+        }
+        else
+        {
+            // something went wrong
+            mainWin.message("Something went wrong launching the program!", "error");
+        }
+    }
+});
+</div>
+
+</body>
+</html>

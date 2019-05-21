@@ -3011,7 +3011,10 @@ DWORD Application::GameMonitorThread::Main()
 
 	// wait for the process to start up
 	if (!WaitForStartup(hProcFirstStage))
+	{
+		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: an error occurred waiting for the process to start; aborting launch\n"));
 		return 0;
+	}
 
 	// Some games, such as Steam-based systems or Future Pinball + BAM,
 	// are set up where the program we launch is actually just another
@@ -3097,7 +3100,11 @@ DWORD Application::GameMonitorThread::Main()
 
 							// make sure this process has finished starting up
 							if (!WaitForStartup(hGameProc))
+							{
+								LogFile::Get()->Write(LogFile::TableLaunchLogging,
+									_T("+ table launch: error waiting for secondary process to start up; aborting launch\n"));
 								return false;
+							}
 
 							// Find the thread with the UI window(s) for the new process.
 							// As with waiting for startup, it might take a while for the
@@ -4464,7 +4471,8 @@ bool Application::GameMonitorThread::WaitForStartup(HANDLE hProc)
 	}
 
 	// too many retries - fail
-	return false;
+	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: error waiting for the new process to start up (WaitForInputIdle failed)\n"));
+	return true;
 }
 
 

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Play Modes</h1>
+
+<p>
+   Some of the popular pinball player programs have multiple ways
+   of playing the same game.  For example, Future Pinball has an
+   add-on that lets you use a head-tracking camera to create a
+   3D effect.  Pinball FX3 has options for multi-player modes and
+   different physics modes.
+</p>
+<p>
+   For most people, it's enough to be able to set the specific
+   command-line options you want when launching each type of game
+   in the <a href="SystemOptions.html">system options</a>.
+   If you like playing FX3 with its classic physics mode, just put
+   that option in the FX3 command line setup.  But what if you want
+   to play in different modes at different times?  You don't want
+   to have to edit the option settings every time you launch a
+   game.  For this, you want a way to say "Play in classic mode"
+   or "Play in remastered mode" instead of just "Play".  In other
+   words, new menu commands for the different modes.
+</p>
+<p>
+   This is actually the original use case that motivated adding
+   the Javascript engine to PinballY.  I heard from someone who
+   suggested adding special options for Future Pinball's different
+   modes; later on I got a request to add special modes for FX3.
+   I didn't like the idea of adding special cases for these
+   particular systems, since that would be so inflexible as the
+   different game makers came up with new options, and as new
+   games came onto the scene.  But when I tried to think of ways
+   to generalize it across systems, it looked like a very complex
+   problem: some games might need different executables for
+   different modes, others might have changing command line
+   options, others might launch with different game files.
+   And the user interface options you'd need to select all of
+   the different possibilities seemed equally hard to boil down.
+   It seemed like what you needed to capture all of the different
+   possibilities amounted to a programming language.  Rather
+   than inventing a special programming language for this
+   one task, it seemed better to incorporate a real language
+   that's well known and widely used.  That led to Javascript.
+</p>
+<p>
+   The only problem with saying "use Javascript" whenever anyone
+   asks how to set up custom launch options is that there's so
+   much to Javascript that it might not be obvious where to
+   begin.  So this section offers some working examples for
+   exactly how to do it.
+</p>
+
+<h2>Selecting a user interface</h2>
+
+<p>
+   The great thing about using Javascript for this customization
+   is that it gives you control over the user interface.  You can
+   choose an approach that you find convenient, and that works
+   well for the particular range of options you want to present.
+   What works well for one game system might not be ideal for
+   every system, so this flexibility is important.
+</p>
+<p>
+   I can think of at least a few different shapes that the
+   user interface might take:
+</p>
+<p>
+   <b>Multiple Play commands:</b>
+   The simplest UI is to replace the Play command in the main menu
+   with two or more commands for the different available modes.
+   Rather than just Play, for example, you might have
+   "Play (Classic Physics)" and "Play (New Physics)".  Each
+   time you launch, you select a mode simply by selecting the
+   corresponding Play command.  This makes each launch into a
+   two-step process, but it keeps the main menu uncluttered.
+</p>
+<p>
+   <b>Use a submenu:</b>
+   If you need more than two or three modes for a given game, it
+   might make the main menu look too cluttered if you added them
+   all there.  You might instead want to break up the process by
+   leaving the regular Play command in the main menu, but then
+   rather than having it launch the game directly, have it bring
+   up a new menu listing the various mode options.
+</p>
+<p>
+   <b>Use a separate mode setting:</b>  If you tend to play
+   repeatedly in the same mode, and only switch modes rarely,
+   you might prefer to have a way to set the mode as an option
+   that the system remembers and reuses each time you launch
+   a game.  You'd add a new menu item below Play -
+   "Select Play Mode", say - which would bring up a menu with
+   the various mode options.  This would look just like the
+   submenu approach, but the submenu would only remember the
+   mode for later, so that the regular Play command would use
+   that mode until further notice.
+</p>
+
+<p>
+   We'll go over the process for implementing each of these
+   approaches.
+</p>
+
+<h2>Multiple Play commands</h2>
+
+<p>
+   Let's start with the simple approach of replacing the Play
+   command in the main menu with several play-with-a-mode
+   commands.
+</p>
+<p>
+   Here's the basic approach to modifying any of the system menus:
+</p>
+<ul>
+   <li>Listen for the <a href="MenuEvent.html">menuopen</a> event
+   <li>Check the <b>id</b> property in the event object
+   <li>If it matches the ID of menu you want to modify, make the
+   desired changes to the <b>items</b> array in the event object
+</ul>
+<p>
+   In this case, we want to make two changes to the menu: we want
+   to add our new menu items, and then we want to delete the
+   original Play command, so that our new commands replace it.
+</p>
+<p>
+   There's another little wrinkle.  We don't necessarily want to
+   modify the Play command across the board.  We only want to
+   modify it when the selected game uses the system that has the
+   special modes we want to offer.  So we'll have to figure out
+   which game is selected, and which system it's using, and
+   use that to decide whether or not to change the menu.
+</p>
+<p>
+   Here's how you determine the system for the current game:
+</p>
+<div class="code">
+let game = gameList.getWheelGame(0) || { };
+let sys = game.system || { };
+if (sys.displayName == "Future Pinball") {
+   /* it's the display name for Future Pinball */
+}
+</div>
+
+<p>
+   Those funny bits with the empty brackets are there to substitute
+   an empty object if either the game or system object is missing entirely,
+   so that we don't run into Javascript errors from trying to take properties
+   of a missing object.  It's possible for there to be no game selection,
+   since the user could have selected a filter that doesn't have any matching
+   game.
+</p>
+
+<p>
+   Note that there are several approaches we can use to identify a system.
+   The easiest is to use its display name.  But that's not
+   perfectly reliable, since the display name doesn't really mean anything
+   special; it's just there for use in message displays, and the user could
+   change it in the settings to something else at any time.  A more reliable
+   way might be to use the system's executable name, and look to see if it
+   ends with the expected program name:
+</p>
+<div class="code">
+if (/\\future pinball\.exe$/i.test(sys.exe)) {
+   /* it's the EXE file for Future Pinball */
+}
+</div>
+<p>
+   In the case of a Steam-based system like Pinball FX3, though, the "exe" isn't
+   all that helpful, since it's always the generic Steam program.  For these
+   games, we have to look at the process name setting instead:
+</p>
+<div class="code">
+if (/pinball fx3\.exe$/i.test(sys.processName)) {
+   /* it's the EXE file for Pinball FX2 */
+}
+</div>
+
+
+<p>
+   Before we add our new custom menu commands (to replace the regular Play command),
+   there's one more administrative detail we have to get out of the way.  Each
+   time we want to create a custom command, we have to allocate a
+   <a href="Commands.html#userCommandIDs">user command ID</a>.  That lets us
+   identify the command in custom menus, and in the event that fires when the
+   user selects the command.  For this example, let's allocate two IDs, one for
+   "play in classic physics mode" and one for "play in new physics mode".
+</p>
+<div class="code">
+let playClassicPhysicsModeCommand = command.allocate("PlayClassicPhysicsMode");
+let playNewPhysicsModeCommand = command.allocate("PlayNewPhysicsMode");
+</div>
+
+<p>
+   Now we can write our menu event handler.  When the main menu opens, we'll
+   if the current game is a Pinball FX3 game, we'll replace the Play command
+   with the Classic and New custom commands.
+</p>
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "main") {
+        // it's the main menu - check the current game's system
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+        if (/pinball fx3\.exe$/i.test(sys.processName)) {
+            // it's FX3 - add our new commands just before the existing Play command
+            ev.addMenuItem(command.PlayGame, [
+                { title: "Play - Classic Physics", cmd: playClassicPhysicsModeCommand },
+                { title: "Play - New Physics", cmd: playNewPhysicsModeCommand }
+            ]);
+
+            // now delete the boring old regular Play command
+            ev.deleteMenuItem(command.PlayGame);
+        }
+    }
+});
+</div>
+
+<p>
+   Okay, we have our menu UI set up.  The only remaining work is to implement the
+   handlers for our new custom commands.  We do this via a
+   <a href="CommandEvent.html"><b>command</b></a> event listener:
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == playClassicPhysicsModeCommand) {
+        // launch in classic physics mode!
+    }
+    else if (ev.id == playNewPhysicsModeCommand) {
+        // launch in new physics mode!
+    }
+});
+</div>
+
+<p>
+   That just leaves the question of how we carry out these game launches.
+   Fortunately, that's pretty easy: we use the
+   <a href="MainWindowObject.html#playGame">mainWindow.playGame()</a>
+   method.  By default, that method does exactly what the regular Play
+   command would do: it launches the game using the options in the
+   system settings for the game's associated player system.  But the
+   method also lets you specify extra options that you can use to
+   supplement or change the system settings.  
+</p>
+<p>
+   In this case, the only thing we need to change is the command line
+   parameters used to launch the game.  To do this, we use the
+   <i>options</i> parameter to playGame() (the second argument) to
+   specify an <b>overrides</b> property, which is an object containing
+   a <b>params</b> property that specifies the special command line.
+   It's a few levels of indirection to keep track of, so you might
+   want to read through the description of playGame() if you want to
+   understand how it all fits together, but it makes for a fairly
+   simple and compact recipe:
+</p>
+<div class="code">
+mainWindow.playGame(game, {
+    overrides: {
+        params: "custom command line options"
+    }
+});
+</div>
+
+<p>
+   I'm going to assume that you've already set up your system settings
+   with some "universal" options that apply to all games, so we'll want
+   to preserve those and add the new ones special to each mode.  To get
+   the standard command-line parameters, we simply retrieve the
+   <b>params</b> property from the "sys" object we got earlier, which,
+   you'll recall, is the descriptor for the game's system.  So we'll
+   combine the original parameters with our added options, concatenating
+   the two strings together into the final parameter string that we
+   provide in the overrides list.
+</p>
+
+<div class="code">
+mainWindow.playGame(game, {
+    overrides: {
+        params: "-class " + sys.params  // extra option for "classic" mode
+    }
+});
+</div>
+
+<p>
+   This technique isn't limited to just adding a new option
+   to the command line.  You can change any part of the launch: the
+   executable name or path, the Windows environment variables passed
+   to the program, the working folder to use, the "show window" mode
+   and process termination mode, the extra commands run before and
+   after the main game program.  In most cases, though, you'll
+   just need to modify the command parameters.  Note that the
+   simple change we've made here, of adding a new option at the
+   beginning of the command line, isn't the only thing you can do.
+   You could just as well use a regular expression replacement to
+   substitute something in the middle of the standard parameters,
+   or ignore the standard parameters entirely and provide a whole
+   new string.
+</p>
+   
+<p>
+   Putting it all together, here's our full command handler:
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    // check for a launch command
+    let extra = undefined;
+    if (ev.id == playClassicPhysicsModeCommand) {
+        extra = "-class ";  // add the classic physics option code
+    }
+    else if (ev.id == playNewPhysicsModeCommand) {
+        extra = ""; // this is the default, so there's nothing new to add
+    }
+
+    // if we found a launch command, do the launch!
+    if (extra !== undefined) {
+        // get the game and system information
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+
+        // launch it with the extra options
+        mainWindow.playGame(game, {
+            command: ev.id,
+            overrides: { params: extra + sys.params }
+        });
+    }
+});
+</div>
+
+<p>
+   We did sneak in one more little detail that we haven't mentioned
+   up to this point: the <b>command</b> property in the playGame()
+   options object.  This is optional, so we didn't really have to include
+   it, but we added it for the sake of completeness.  Its function is to
+   let you see which command was used to launch the game in your own
+   event handlers, if you end up using other scripts that monitor the
+   launch event.  PinballY itself doesn't use this information, but
+   you might find it useful in your own future scripts to know that
+   the game is being launched with one of your custom commands.
+   This will appear as the <b>command</b> property in the event object
+   for the <a href="LaunchEvent.html">launch events</a> related
+   to this launch.
+</p>
+
+<h2>Using a submenu</h2>
+
+<p>
+   If you have more than two or three special modes for a given
+   system, you might prefer going through a separate submenu
+   on each launch, rather than over-stuffing the main menu with
+   all of the different mode commands.
+</p>
+<p>
+   For the sake of this example, we'll just continue working
+   with the two commands we used for the main menu version above.
+   It should be fairly obvious how to extend this with as many
+   additional mode commands as you need - just repeat the process
+   that we used for each of the commands we've defined so far.
+</p>
+<p>
+   The first step in this new UI design is to show the submenu
+   when the user selects Play from the main menu.  Unlike the
+   first way we did this, where we modified the main menu to
+   remove the Play, we can leave the main menu alone.  In this
+   case we still want the plain old Play command.  We just want
+   to change its meaning.  Rather than directly launching
+   the game, the Play command will bring up our new custom
+   submenu.
+</p>
+<p>
+   The way to change the meaning of any system command is to
+   listen for the <a href="CommandEvent.html"><b>command</b></a>
+   event, and check the <b>id</b> in the event object to see
+   if it's the command we want to change.  When it is, we carry
+   out our special action, and then use
+   <a href="Event.html#preventDefault">preventDefault()</a> to
+   tell the system not to perform the normal command action.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == command.PlayGame {
+        // do our special custom work
+
+        // tell the system NOT to do its normal work for the command
+        ev.preventDefault();
+    }
+});
+</div>
+
+<p>
+   In this case, the special custom work is that we want to show
+   a menu.  This is quite easy: we use
+   <a href="MainWindowObject.html#showMenu">mainWindow.showMenu()</a>.
+   This method takes an array of menu item descriptors that lay out
+   the contents of the menu we wish to show.  These are exactly like
+   the menu item descriptors that we inserted into the main menu in
+   our first approach above.  But since we're showing an entire menu
+   this time, we should flesh it out by adding a Cancel item at the
+   bottom, with a separator bar setting it off.  (A separator bar is
+   just an item with an empty title string and a command ID of -1.)
+</p>
+<p>
+   Here's the full command handler that shows our new submenu
+   whenever the user selects the Play command from the main menu.
+   As with the original version of the example, we only want to
+   do this when the current game uses the particular system that
+   has offers the extra options.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == command.PlayGame {
+        // it's the Play command - check the current game's system
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+        if (/pinball fx3\.exe$/i.test(sys.processName)) {
+            // it's FX3 - show our custom submenu
+            mainWindow.showMenu("custom.play.fx3", [
+                { title: "Play - Classic Physics", cmd: playClassicPhysicsModeCommand },
+                { title: "Play - New Physics", cmd: playNewPhysicsModeCommand },
+                { cmd: -1 },  // separator
+                { title: "Cancel", cmd: command.MenuReturn }
+            ]);
+
+            // tell the system not to launch the game yet
+            ev.preventDefault();
+        }
+    }
+});
+</div>
+
+<p>
+   We're pretty much done!  We can just reuse the same command event
+   handler from the first version of the example, since the events work the
+   same way whether they're coming from the main menu or a submenu.  So
+   just copy that same command handler into your code for this version.
+   You'll also, of course, need those introductory lines from the first
+   example that allocated the command IDs via command.allocate().
+</p>
+
+<h2>Mode selections</h2>
+
+<p>
+   The third way we could approach this is to use settings that stick,
+   rather than forcing the user to go through a mode selection on every
+   Play command.  You might prefer this approach if you tend to stay
+   in one mode most of the time, since it simplifies each individual
+   game launch action: there's no need to go through a list of Play
+   commands or a submenu every time.
+</p>
+<p>
+   The plan here is as follows.  First, we'll leave the Play command
+   on the main menu as it is, but we'll change its meaning slightly,
+   so that it launches the game using the current mode setting, whatever
+   that is.  Second, we'll add a new "Set Play Mode" option to the main
+   menu, under the existing Play command.  This new command will bring
+   up a submenu that lets you select the mode to use from that point
+   forward.  This new menu will look just like the submenu we created
+   in the second iteration above, with a list of mode options, but
+   we'll modify it slightly by adding a radio button marker next to
+   the mode that's currently selected.  That'll show the user which
+   mode is active at a glance each time they open the menu.
+</p>
+<p>
+   The code to implement the submenu is very much like the submenu
+   code in the second iteration above.  The only change we need to
+   make is to add the radio button.  We'll also have to remember
+   which setting is currently active.  We'll do that using a
+   global variable.  As with the earlier examples, we're going
+   to stick with our two physics mode options, leaving it to
+   you to add any additional (or different) options you want
+   for your custom setup.
+</p>
+<p>
+   The final step is to override the regular Play command.
+   We intercept the command just like we did in the second
+   iteration, but this time we go directly to the game launch,
+   using the current mode setting, rather than bringing up
+   a submenu.  
+</p>
+<p>
+   The assembled code is mostly a combination and rearrangement
+   of the first two versions, so it shouldn't require too much
+   more explanation now that we've laid out the pieces.  Here's
+   what the finished version looks like.
+</p>
+
+<div class="code">
+// Global variable for keeping track of the current FX3 play
+// mode.  We'll use the strings "classic" and "new" to represent
+// the modes.  Initially, we'll restore the saved value from the
+// settings file.
+let currentFX3ModeKey = "custom.fx3.playMode";
+let currentFX3Mode = optionSettings.get(currentFX3ModeKey, "classic");
+
+// in the main menu, add our new Set Play Mode command after the
+// Play command
+let setPlayModeCommand = command.allocate("SetPlayMode");
+mainWindow.on("showmenu", ev => {
+    if (ev.id == "main") {
+        // main menu - check the current game's system
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+        if (/pinball fx3\.exe$/i.test(sys.processName)) {
+            // it's FX3 - add the Set Play Mode command
+            ev.addMenuItem({ after: command.PlayGame },
+                { title: "Set Play Mode", cmd: setPlayModeCommand });
+        }
+    }
+});
+
+// Show the mode selection menu when the Set Play Mode command
+// is used, and process the commands in that menu.
+let classicPhysicsModeCommand = command.allocate("ClassicPhysicsMode");
+let newPhysicsModeCommand = command.allocate("NewPhysicsMode");
+mainWindow.on("command", ev => {
+    if (ev.id == setPlayModeCommand) {
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+        if (/pinball fx3\.exe$/i.test(sys.processName)) {
+            mainWindow.showMenu("custom.playmode.fx3", [
+                {
+                    title: "Classic Physics Mode",
+                    cmd: classicPhysicsModeCommand,
+                    radio: currentFX3Mode == "classic"
+                },
+                {
+                    title: "New Physics Mode",
+                    cmd: newPhysicsModeCommand,
+                    radio: currentFX3Mode == "new"
+                },
+                { cmd: -1 },  // separator
+                { title: "Cancel", cmd: command.MenuReturn }
+            ]);
+
+            // tell the system not to launch the game yet
+            ev.preventDefault();
+        }
+    }
+    else if (ev.id == classicPhysicsModeCommand) {
+        // set the new mode and save to the settings
+        optionSettings.set(currentFX3ModeKey, currentFX3Mode = "classic");
+    }
+    else if (ev.id == newPhysicsModeCommand) {
+        // set the new mode and save to the settings
+        optionSettings.set(currentFX3ModeKey, currentFX3Mode = "new");
+    }
+    else if (ev.id == command.PlayGame) {
+        let game = gameList.getWheelGame(0) || { };
+        let sys = game.system || { };
+        if (/pinball fx3\.exe$/i.test(sys.processName)) {
+            // figure out the extra options based on the current mode
+            let extra = "";
+            if (currentFX3Mode == "classic")
+                extra = "-class ";
+            else if (currentFX3Mode == "new")
+                extra = "";
+
+            // launch it with the extra options
+            mainWindow.playGame(game, {
+                overrides: { params: extra + sys.params }
+            });
+
+            // skip the default action, since we did the launch here instead
+            ev.preventDefault();
+        }
+    }
+});
+</div>
+   
+
+</body>
+</html>
