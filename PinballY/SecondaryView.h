@@ -30,7 +30,7 @@ public:
 	virtual void ClearMedia();
 
 	// Begin/end running game mode
-	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system);
+	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideo);
 	virtual void EndRunningGameMode();
 
 	// frame window is being shown/hidden

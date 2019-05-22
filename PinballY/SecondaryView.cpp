@@ -417,8 +417,15 @@ void SecondaryView::ClearMedia()
 	UpdateDrawingList();
 }
 
-void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
+void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideo)
 {
+	// assume we're going to freeze updates in the window while 
+	// the game is running
+	bool freeze = true;
+
+	// presume we don't have a video to play in the background
+	hasVideo = false;
+
 	// Check if we're set to continue showing this window's media
 	// while this game is running.
 	if (ShowMediaWhenRunning(game, system))
@@ -430,6 +437,18 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 		// game shows.
 		SetWindowPos(GetParent(hWnd), HWND_TOPMOST, -1, -1, -1, -1,
 			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+
+		// Determine if we're showing (or are about to show) a video
+		// as the background.  If so, we'll want full-speed frame
+		// updates.  For static images, we can freeze the background.
+		if (incomingBackground.sprite != nullptr)
+			hasVideo = incomingBackground.sprite->IsVideo();
+		else if (currentBackground.sprite != nullptr)
+			hasVideo = currentBackground.sprite->IsVideo();
+
+		// don't freze playback if we have a video
+		if (hasVideo)
+			freeze = false;
 	}
 	else
 	{
@@ -437,19 +456,16 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 		// Explicitly clear any media currently being displayed, to
 		// free up video memory and reduce CPU load.
 		ClearMedia();
+	}
 
+	// check if we decided to freeze the background
+	if (freeze)
+	{
 		// force a final update before we freeze background rendering, to
 		// blank the window
 		InvalidateRect(hWnd, NULL, false);
 
-		// Since we're not showing any live graphics during the game session,
-		// freeze idle-time rendering when the application is in the background.
-		// We're just showing a blank black background anyway, so there's no
-		// need to hit the GPU with even infrequent updates.  The render loop
-		// already greatly reduces the redraw rate when we're in the background,
-		// but even a low redraw rate places *some* load on the GPU, and even a
-		// small background GPU load can have a visible impact on a foreground
-		// game if the game very nearly saturates the GPU all by itself.
+		// freeze updates
 		freezeBackgroundRendering = true;
 	}
 }

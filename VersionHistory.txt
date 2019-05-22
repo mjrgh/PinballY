@@ -1,6 +1,61 @@
 PinballY Update History
 
+
 04-11-2019 (1.0.0 Beta 12)
+
+* A new Media Capture option lets you select the buttons used to
+manually start or stop a capture operation.  (Manual start or stop
+mode applies to media types that you specifically set to start or
+stop manually, via the Media Capture options.)  In the past, you
+triggered a manual start or stop by pressing both flipper buttons
+at once.  This gesture is still the default, but you can now change
+it.  The new options are: pressing both Magna Save buttons
+together; or pressing the Launch button, the Information button, or
+the Instructions button by itself.  The flipper buttons were
+originally chosen (and are still the default) because they don't
+usually have any effect on a table that's in "game over"/"attract"
+mode, which is what most people want to capture for a table video.
+But if you prefer to capture videos of a game in progress, you
+might want to use the flipper buttons to play the game during the
+capture, in which case you wouldn't want the flippers as the manual
+start/stop trigger.  This new option lets you move the trigger to
+another button or buttons.  (Addresses issue #59 on github.)
+
+Note that by "flipper buttons", we really mean the keys you've
+assigned to the Next and Previous commands.  We casually refer to
+these as the "flipper buttons", because those are the buttons you'd
+normally map to these commands on a full pin cab, but you might be
+using other key assignments if you're on a desktop machine.
+Similarly, the "Magna Save buttons" are really the keys assigned to
+the Next Page and Previous Page buttons.
+
+* You can now override the default media naming pattern ("Title
+(Manufacturer Year)") that the Edit Game Details dialog normally
+applies.  The dialog has a new edit box for the Media Name, where
+you can enter a custom media name if you wish.  Each time you open
+the dialog, this field will show "[Default]" if the game's current
+media name in the game database matches the default naming pattern,
+or the actual media name if not.  When you click OK, if the Media
+Name box contains "[Default]" or is empty, the dialog will
+automatically update the media name in the database to match the
+"Title (Manufacturer Year)" pattern.  Otherwise the dialog will
+retain the exact text entered in the Media Name box.  Note that the
+media name must be a valid filename, and must not contain any path
+portion.
+
+* The Javascript GameInfo.update() method no longer changes the
+media name automatically based on changes to the game's title,
+manufacturer, and/or year.  Instead, you can explicitly set the
+media name using the new mediaName property of the 'desc' object
+parameter.  By default, the method simply leaves the media name
+unchanged, regardless of what else is updated.  If you wish to
+change the media name as part of the update, set desc.mediaName to
+a string giving the new name.  The special value "" (an empty
+string) can be used to explicitly set the media name to the default
+pattern, "Title (Manufacturer Year)", which is the same pattern
+that the method unconditionally used in the past to form a new
+media name any time any of the constituent elements were changed.
+See the help section on the GameInfo class.
 
 * You can now set the "keep windows open while playing" options on
 a global and per-system basis, in addition to per-game.  Up until
@@ -47,67 +102,39 @@ The new options can be found in three places:
    empty box means that the game "inherits" the system or global
    settings.
 
-* A new Media Capture option lets you select the buttons used to
-manually start or stop a capture operation.  (Manual start or stop
-mode applies to media types that you specifically set to start or
-stop manually, via the Media Capture options.)  In the past, you
-triggered a manual start or stop by pressing both flipper buttons
-at once.  This gesture is still the default, but you can now change
-it.  The new options are: pressing both Magna Save buttons
-together; or pressing the Launch button, the Information button, or
-the Instructions button by itself.  The flipper buttons were
-originally chosen (and are still the default) because they don't
-usually have any effect on a table that's in "game over"/"attract"
-mode, which is what most people want to capture for a table video.
-But if you prefer to capture videos with the ball already in play,
-you might want to use the flipper buttons to actually play the game
-during a capture, in which case you wouldn't want the flippers as
-the manual start/stop trigger.  This new option lets you move the
-trigger to another button or buttons.  (Addresses issue #59 on
-github.)
-
-Note that by "flipper buttons", we really mean the keys you've
-assigned to the Next and Previous commands.  We casually refer to
-these as the "flipper buttons", because those are the buttons you'd
-normally map to these commands on a full pin cab, but you might be
-using other key assignments if you're on a desktop machine.
-Similarly, the "Magna Save buttons" are really the keys assigned to
-the Next Page and Previous Page buttons.
-
-* You can now override the default media naming pattern ("Title
-(Manufacturer Year)") that the Edit Game Details dialog normally
-applies.  The dialog has a new edit box for the Media Name, where
-you can enter a custom media name if you wish.  Each time you open
-the dialog, this field will show "[Default]" if the game's current
-media name in the game database matches the default naming pattern,
-or the actual media name if not.  When you click OK, if the Media
-Name box contains "[Default]" or is empty, the dialog will
-automatically update the media name in the database to match the
-"Title (Manufacturer Year)" pattern.  Otherwise the dialog will
-retain the exact text entered in the Media Name box.  Note that the
-media name must be a valid filename, and must not contain any path
-portion.
-
-* The Javascript GameInfo.update() method no longer changes the
-media name automatically based on changes to the game's title,
-manufacturer, and/or year.  Instead, you can explicitly set the
-media name using the new mediaName property of the 'desc' object
-parameter.  By default, the method simply leaves the media name
-unchanged, regardless of what else is updated.  If you wish to
-change the media name as part of the update, set desc.mediaName to
-a string giving the new name.  The special value "" (an empty
-string) can be used to explicitly set the media name to the default
-pattern, "Title (Manufacturer Year)", which is the same pattern
-that the method unconditionally used in the past to form a new
-media name any time any of the constituent elements were changed.
-See the help section on the GameInfo class.
+* Console-mode games should now work better.  The relevant changes
+shouldn't affect Windows GUI programs, but should make older
+console-mode programs work better with PinballY.  (Technical
+details: First, when PinballY calls CreateProcess(), it passes a
+single combined command line string rather than passing the .exe
+name separately; some console-mode programs built with older
+compilers depend upon this format to parse their parameters
+correctly.  Second, when PinballY detects that the launched process
+uses console mode, it no longer waits for the process's event loop
+to start up, since that's not meaningful with a console program.
+Third, when "Resume Game" is used to switch back to a paused game,
+PinballY can now find and switch back to the game's console window
+if it uses one as its sole UI; in the past, these windows didn't
+show up in the window search technique that was being used.)
 
 * When a game is running, and PinballY is in the background,
 PinballY now completely freezes video updates to any windows that
-aren't set to continue showing media during the game session.  This
-is meant to minimize any impact on game performance while PinballY
-is running in the background.  Windows that are set to show media
-during play will continue to be updated, of course.
+aren't set to continue showing media during the game session.  In
+the past, windows were still updated, just at a slower rate.  The
+complete freeze is designed to minimize any impact on game
+performance (particularly video performance) while PinballY is
+running in the background.  
+
+In addition, for any windows that *are* set to continue showing
+media while the game is running, videos they contain are now
+updated at full speed.  In the past, the program slowed down the
+frame update rate even in windows showing videos.  This was
+intended to reduce performance impact, but took it a step too far
+when video content was involved, since the slow update rate made
+videos look jumpy.  The program now assumes that if you're
+intentionally showing videos during game play, you want them to
+play back normally, and you're willing to accept any impact on the
+running game's performance.
 
 * Fixed a problem with rendering still images (PNG/JPEG) on real
 DMD devices that caused incorrect scaling if the image wasn't
@@ -130,15 +157,14 @@ if Windows actually requires the elevation, so nothing will change
 if you haven't had a problem with task scheduler access errors in
 the past.)
 
-* In Javascript menuopen events for system menus, any "page up"
-and "page down" commands in the menu item list will have titles
+* In Javascript menuopen events for system menus, any "page up" and
+"page down" commands in the menu item list will have titles
 "\u2191" (Unicode up arrow) and "\2193" (Unicode down arrow),
-respectively.  In the past, these commands used empty strings
-as titles.  This made it a little more work to distinguish
-these from separator bars, which can be identified by their
-empty title strings and command ID -1.  With this change,
-separator bars are now the only things in a system menu with
-an empty title string.
+respectively.  In the past, these commands used empty strings as
+titles.  This made it a little more work to distinguish these from
+separator bars, which can be identified by their empty title
+strings and command ID -1.  With this change, separator bars are
+now the only things in a system menu with an empty title string.
 
 * New Javascript convenience functions: MenuEvent.addMenuItem(),
 MenuEvent.deleteMenuItem(), MenuEvent.tidyMenu().  See MenuEvent in
@@ -163,20 +189,6 @@ change to the startup delay time without also changing the startup
 mode selection, the delay time change wasn't saved when you clicked
 OK or Apply.  This has been fixed; changes to just the delay time
 should now be properly saved.
-
-* Some changes have been made to the program launch procedure to
-make it more compatible with console-mode applications.  The
-changes shouldn't affect Windows GUI programs, but should make
-older console-mode programs work better with PinballY.  (Technical
-details: First, when PinballY calls CreateProcess(), it passes a
-single combined command line string rather than passing the .exe
-name separately; some console-mode programs built with older
-compilers depend upon this format to parse their parameters
-correctly.  Second, when PinballY detects that the launched process
-uses console mode, it no longer waits for the process's event loop
-to start up, since that's not meaningful with console program;
-Windows reports an error if you try, which PinballY was taking to
-mean that the launch had failed, which it hadn't.)
 
 
 04-08-2019 (1.0.0 Beta 11)

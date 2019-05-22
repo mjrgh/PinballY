@@ -1663,6 +1663,12 @@ protected:
 	// close any open menus and popups
 	void CloseMenusAndPopups();
 
+	// Immediately complete the current "menu closing" animation, if
+	// one is in progress.  This is used when switching into the
+	// background while a game is running, to ensure that the menu
+	// is removed before display updates are frozen.
+	void AccelerateCloseMenu();
+
 	// wheel animation mode
 	enum WheelAnimMode
 	{

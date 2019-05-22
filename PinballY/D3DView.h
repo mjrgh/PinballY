@@ -192,9 +192,11 @@ protected:
 	D3DWin *d3dwin;
 
 	// Freeze background rendering.  When a game is running, and this 
-	// window isn't set to continue showing graphics during the game,
-	// we'll stop doing any idle rendering while the application is
-	// in the background.
+	// window is showing a blank background or a static image, we can
+	// freeze updates when we're in the background to minimize the
+	// performance impact on the running game.  We can't do this when
+	// a video is running, as we need to continue to update the video
+	// frames as usual.
 	bool freezeBackgroundRendering = false;
 
 	// D3D camera

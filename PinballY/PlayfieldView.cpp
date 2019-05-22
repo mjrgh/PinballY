@@ -3739,6 +3739,11 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_RESUME_GAME:
+		// immediately complete any menu animation, since we'll freeze
+		// screen updates once we're back in the background
+		AccelerateCloseMenu();
+		InvalidateRect(hWnd, 0, false);
+
 		// bring the game to the foreground
 		Application::Get()->ResumeGame();
 		return true;
@@ -7724,6 +7729,18 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ?
 				IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING));
 
+			// If a menu is closing, remove it immediately.  Most games take
+			// a couple of seconds to launch, so the menu that launches the
+			// game is usually already gone by the time we get here, the
+			// closing animation having started when the user selected Play.  
+			// But in some cases we won't have much of a delay, such as when
+			// launching a small console-mode program, so the animation might
+			// still be in progress, in which case it'll never finish by
+			// itself since we're about to freeze the display.  So finish the
+			// animation by fiat now, so that we leave the screen with just
+			// the running game message.
+			AccelerateCloseMenu();
+
 			// get the game we're launching
 			auto game = GameList::Get()->GetByInternalID(report->gameInternalID);
 			auto system = GameList::Get()->GetSystem(report->systemConfigIndex);
@@ -8846,6 +8863,17 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	dof.SetUIContext(L"PBYMenu");
 }
 
+void PlayfieldView::AccelerateCloseMenu()
+{
+	if (curMenu != nullptr && newMenu == nullptr && menuAnimMode == MenuAnimClose)
+	{
+		OnCloseMenu(nullptr);
+		curMenu = nullptr;
+		menuAnimMode = MenuAnimNone;
+		UpdateDrawingList();
+	}
+}
+
 void PlayfieldView::OnCloseMenu(const std::list<MenuItemDesc> *incomingMenu)
 {
 	// Fire the Javascript Menu Close event.  This isn't cancelable, so
@@ -9902,7 +9930,7 @@ void PlayfieldView::UpdateAnimation()
 		if (menuAnimMode == MenuAnimOpen)
 		{
 			// opening a menu
-			if (curMenu != 0)
+			if (curMenu != nullptr)
 			{
 				if (dt < menuOpenTime)
 				{
@@ -9950,7 +9978,8 @@ void PlayfieldView::UpdateAnimation()
 				OnCloseMenu(nullptr);
 				curMenu = nullptr;
 				updateDrawingList = true;
-				
+				menuAnimMode = MenuAnimNone;
+
 				// return to wheel mode in DOF
 				dof.SetUIContext(L"PBYWheel");
 			}

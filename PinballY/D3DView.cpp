@@ -656,11 +656,17 @@ int D3DView::MessageLoop()
 			DoIdle(Application::IsInForeground());
 
 		// Check for Windows messages.  If the application is in the foreground,
-		// use PeekMessage() so that we do D3D rendering on idle.  If not, we can
-		// wait for messages with GetMessage() so that we don't use a lot of CPU
-		// while in the background.
+		// or we're playing videos at full-speed while in the background, do D3D
+		// rendering any time the message loop is idle, so that we continuously
+		// update animations and videos.  If we're in the background and we don't
+		// need full-speed video updates, reduce our CPU and GPU load by waiting
+		// for messages between updates.  Windows never lets you go more than a
+		// few hundred milliseconds between messages, even if you're not doing
+		// anything at the application level, so this won't freeze updates
+		// completely, but it will greatly reduce the rate and thereby greatly
+		// reduce our performance impact when in the background.
 		MSG msg;
-		if (Application::IsInForeground())
+		if (Application::IsInForeground() || Application::PlayVideosInBackground())
 		{
 			// we're in the foreground - use the non-blocking PeekMessage,
 			// so that we can immediately do another D3D rendering update

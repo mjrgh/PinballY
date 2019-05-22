@@ -123,6 +123,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 //
 Application *Application::inst;
 bool Application::isInForeground = true;
+bool Application::playVideosInBackground = false;
 HCURSOR Application::emptyCursor;
 
 
@@ -1289,18 +1290,26 @@ void Application::ClearMedia()
 
 void Application::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 {
+	// Assume we won't continue to play videos in the background
+	playVideosInBackground = false;
+
 	// Put the backglass, DMD, and topper windows into running-game mode.  
 	// Note that it's not necessary to notify the playfield window, since 
 	// it initiates this process.
 	auto bgv = GetBackglassView();
+	bool bgvideo = false, dmvideo = false, fpvideo = false, icvideo = false;
 	if (bgv != nullptr)
-		bgv->BeginRunningGameMode(game, system);
+		bgv->BeginRunningGameMode(game, system, bgvideo);
 	if (auto dmv = GetDMDView(); dmv != nullptr)
-		dmv->BeginRunningGameMode(game, system);
+		dmv->BeginRunningGameMode(game, system, dmvideo);
 	if (auto tpv = GetTopperView(); tpv != nullptr)
-		tpv->BeginRunningGameMode(game, system);
+		tpv->BeginRunningGameMode(game, system, fpvideo);
 	if (auto ic = GetInstCardView(); ic != nullptr)
-		ic->BeginRunningGameMode(game, system);
+		ic->BeginRunningGameMode(game, system, icvideo);
+
+	// note if any of the windows shows video in the background, so
+	// that the message loop will know that we need full-speed updates
+	playVideosInBackground = bgvideo || dmvideo || fpvideo || icvideo;
 
 	// Now start the media sync process for the secondary windows, by
 	// syncing the backglass window.  Each window will forward the
@@ -1323,6 +1332,10 @@ void Application::EndRunningGameMode()
 		tpv->EndRunningGameMode();
 	if (auto ic = GetInstCardView(); ic != nullptr)
 		ic->EndRunningGameMode();
+
+	// clear the videos-in-background flag, as we're no longer 
+	// running a game
+	playVideosInBackground = false;
 
 	// Restore the saved pre-game window positions, in case Windows
 	// repositioned any of our windows in response to monitor layout
@@ -1874,21 +1887,66 @@ void Application::GameMonitorThread::BringToForeground()
 	if (IsGameRunning())
 	{
 		// find the other app's first window
-		EnumThreadWindows(tidMainGameThread, [](HWND hWnd, LPARAM lparam)
+		struct context {
+			context(DWORD pid, DWORD tid) : pid(pid), tid(tid) { }
+			DWORD pid, tid;
+			HWND hwnd = NULL;
+		} ctx(pid, tidMainGameThread);
+		EnumThreadWindows(tidMainGameThread, [](HWND hwnd, LPARAM lparam)
 		{
 			// only consider visible windows with no owner
-			if (IsWindowVisible(hWnd) && GetWindowOwner(hWnd) == 0)
+			if (IsWindowVisible(hwnd) && GetWindowOwner(hwnd) == NULL)
 			{
-				// bring it to the front
-				BringWindowToTop(hWnd);
-
-				// stop the enumeration
+				// remember this window and stop the enumeration
+				reinterpret_cast<context*>(lparam)->hwnd = hwnd;
 				return FALSE;
 			}
 
 			// continue the enumeration otherwise
 			return TRUE;
-		}, (LPARAM)0);
+		}, reinterpret_cast<LPARAM>(&ctx));
+
+		// If we didn't find a window for the main thread, try again,
+		// looking for any top-level window belonging to the process.  
+		// EnumThreadWindows() won't find the console window for a
+		// console-mode application, for example.
+		if (ctx.hwnd == NULL)
+		{
+			EnumWindows([](HWND hwnd, LPARAM lparam)
+			{
+				// only consider visible windows with no owner
+				if (IsWindowVisible(hwnd) && GetWindowOwner(hwnd) == NULL)
+				{
+					// get the process information for the window
+					DWORD tid, pid;
+					tid = GetWindowThreadProcessId(hwnd, &pid);
+
+					// check if it matches our process and/or thread ID
+					auto ctx = reinterpret_cast<context*>(lparam);
+					if (pid == ctx->pid)
+					{
+						// provisionally set this window as a match
+						ctx->hwnd = hwnd;
+
+						// If it's on the process's main thread, accept it as
+						// as the winner and stop the enumeration.  If it's 
+						// not on the main thread, continue the enumeration,
+						// in case we find a more likely window.  In most
+						// applications, the UI is on the main thread, so
+						// this is usually the best bet for the main window.
+						if (tid == ctx->tid)
+							return FALSE;
+					}
+				}
+
+				// continue the enumeration otherwise
+				return TRUE;
+			}, reinterpret_cast<LPARAM>(&ctx));
+		}
+
+		// if we found a window, bring it to the front
+		if (ctx.hwnd != NULL)
+			BringWindowToTop(ctx.hwnd);
 	}
 }
 
@@ -3010,7 +3068,8 @@ DWORD Application::GameMonitorThread::Main()
 	if (procInfo.hThread != NULL)
 		CloseHandle(procInfo.hThread);
 
-	// remember main thread ID for the new process
+	// remember the process ID and main thread ID for the new process
+	pid = procInfo.dwProcessId;
 	tidMainGameThread = procInfo.dwThreadId;
 
 	// remember the first-stage process handle

@@ -340,6 +340,9 @@ public:
 	// Is the application in the foreground?
 	static inline bool IsInForeground() { return isInForeground; }
 
+	// Play videos at full speed while in the background?
+	static inline bool PlayVideosInBackground() { return playVideosInBackground; }
+
 	// Get the first run time
 	DateTime GetFirstRunTime() const { return firstRunTime; }
 
@@ -818,16 +821,19 @@ protected:
 		// handle to game process
 		HandleHolder hGameProc;
 
-		// Have we tried closing the game process in response to 
-		// an Exit Game command?
-		bool closedGameProc;
+		// game process ID
+		DWORD pid;
 
-		// main thread of the game process
+		// thread ID of the game process's main thread
 		DWORD tidMainGameThread;
 
 		// Start/stop a manual capture.  The application calls this when
 		// the user presses the "proceed" button combination.
 		void ManualCaptureGo();
+
+		// Have we tried closing the game process in response to 
+		// an Exit Game command?
+		bool closedGameProc;
 
 		// Manual start/stop event.  The main UI uses this to let us know
 		// when the user has pressed the button sequence to un-pause the
@@ -1074,6 +1080,9 @@ protected:
 
 	// Is the application the foreground?
 	static bool isInForeground;
+
+	// Continue playing videos at full speed in the background?
+	static bool playVideosInBackground;
 
 	// Pinscape device list
 	std::list<PinscapeDevice> pinscapeDevices;

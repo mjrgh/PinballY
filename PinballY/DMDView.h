@@ -41,7 +41,7 @@ public:
 	void WaitForHighScoreThreads(DWORD timeout = INFINITE);
 
 	// enter/exit running game mode
-	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system) override;
+	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideo) override;
 	virtual void EndRunningGameMode() override;
 
 protected:

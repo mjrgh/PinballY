@@ -1011,10 +1011,10 @@ void DMDView::ScaleSprites()
 		ScaleSprite(i.sprite, 1.0f, false);
 }
 
-void DMDView::BeginRunningGameMode(GameListItem *game, GameSystem *system)
+void DMDView::BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideos)
 {
 	// do the base class work
-	__super::BeginRunningGameMode(game, system);
+	__super::BeginRunningGameMode(game, system, hasVideos);
 
 	// if we're showing high score images, return to the base image and 
 	// cancel the high score rotation
