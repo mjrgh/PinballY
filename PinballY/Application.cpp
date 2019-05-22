@@ -8,6 +8,7 @@
 #include <winsafer.h>
 #include <shellapi.h>
 #include <TlHelp32.h>
+#include <psapi.h>
 #include <dshow.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2784,11 +2785,17 @@ DWORD Application::GameMonitorThread::Main()
 
 	// Replace substitution variables in the command-line parameters
 	const TSTRING &rawParams = GetLaunchParam("params", gameSys.params);
-	TSTRING cmdline = SubstituteVars(rawParams);
+	TSTRING expandedParams = SubstituteVars(rawParams);
 	LogFile::Get()->Write(LogFile::TableLaunchLogging,
 		_T("+ table launch: executable: %s\n")
 		_T("+ table launch: applying command line variable substitutions:\n+ Original> %s\n+ Final   > %s\n"),
-		exe.c_str(), rawParams.c_str(), cmdline.c_str());
+		exe.c_str(), rawParams.c_str(), expandedParams.c_str());
+
+	// Build the full command line: "exe" params
+	TSTRING cmdline = _T("\"");
+	cmdline += exe;
+	cmdline += _T("\" ");
+	cmdline += expandedParams;
 
 	// set up the startup information struct
 	STARTUPINFO startupInfo;
@@ -2819,7 +2826,7 @@ DWORD Application::GameMonitorThread::Main()
 	const TSTRING &workingPath = GetLaunchParam("workingPath", gameSys.workingPath);
 	PROCESS_INFORMATION procInfo;
 	ZeroMemory(&procInfo, sizeof(procInfo));
-	if (!CreateProcess(exe.c_str(), cmdline.data(), NULL, NULL, false, createFlags,
+	if (!CreateProcess(NULL, cmdline.data(), NULL, NULL, false, createFlags,
 		lpEnvironment, workingPath.c_str(), &startupInfo, &procInfo))
 	{
 		// failed - get the error
@@ -2928,7 +2935,7 @@ DWORD Application::GameMonitorThread::Main()
 				// new process is elevated; a non-elevated process is 
 				// allowed to open a handle to an elevated process, with
 				// restrictions on what types of access we can request. 
-				// SYNCHRONIZE (to waitfor the process to exit) is one of
+				// SYNCHRONIZE (to wait for the process to exit) is one of
 				// the allowed access rights, as is "query limited 
 				// information".
 				// 
@@ -3010,11 +3017,7 @@ DWORD Application::GameMonitorThread::Main()
 	HANDLE hProcFirstStage = procInfo.hProcess;
 
 	// wait for the process to start up
-	if (!WaitForStartup(hProcFirstStage))
-	{
-		LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: an error occurred waiting for the process to start; aborting launch\n"));
-		return 0;
-	}
+	WaitForStartup(exe.c_str(), hProcFirstStage);
 
 	// Some games, such as Steam-based systems or Future Pinball + BAM,
 	// are set up where the program we launch is actually just another
@@ -3098,13 +3101,10 @@ DWORD Application::GameMonitorThread::Main()
 							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ using this process\n"));
 							hGameProc = newProc.Detach();
 
-							// make sure this process has finished starting up
-							if (!WaitForStartup(hGameProc))
-							{
-								LogFile::Get()->Write(LogFile::TableLaunchLogging,
-									_T("+ table launch: error waiting for secondary process to start up; aborting launch\n"));
-								return false;
-							}
+							// wait for the program to enter its event loop
+							TCHAR exepath[MAX_PATH];
+							GetModuleFileNameEx(hGameProc, NULL, exepath, countof(exepath));
+							WaitForStartup(exepath, hGameProc);
 
 							// Find the thread with the UI window(s) for the new process.
 							// As with waiting for startup, it might take a while for the
@@ -4442,8 +4442,28 @@ void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 	SetForegroundWindow(hwnd);
 }
 
-bool Application::GameMonitorThread::WaitForStartup(HANDLE hProc)
+bool Application::GameMonitorThread::WaitForStartup(const TCHAR *exepath, HANDLE hProc)
 {
+	// Determine the executable type
+	DWORD_PTR exeinfo;
+	SHFILEINFO shinfo;
+	if ((exeinfo = SHGetFileInfo(exepath, 0, &shinfo, sizeof(shinfo), SHGFI_EXETYPE)) != 0)
+	{
+		// If it's a console-mode program, WaitForInputIdle will always
+		// fail, so there's no point in calling it.  There's no conceptual
+		// equivalent for console-mode programs, either; they don't have
+		// a message loop, so there's no way in general to tell when
+		// they're ready.  All we can do is return success.
+		if (HIWORD(exeinfo) == 0 
+			&& (LOWORD(exeinfo) == 0x5a4d // 'MZ' -> MS-DOS .exe or .com file
+				|| LOWORD(exeinfo) == 0x4550)) // 'PE' -> Console application or .bat file
+		{
+			LogFile::Get()->Write(LogFile::TableLaunchLogging, 
+				_T("+ table launch: note: this is a DOS/console-mode program; skipping the usual startup wait\n"));
+			return true;
+		}
+	}
+
 	// keep trying until the process is ready, or we run into a problem
 	for (int tries = 0; tries < 20; ++tries)
 	{
@@ -4472,7 +4492,7 @@ bool Application::GameMonitorThread::WaitForStartup(HANDLE hProc)
 
 	// too many retries - fail
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: error waiting for the new process to start up (WaitForInputIdle failed)\n"));
-	return true;
+	return false;
 }
 
 

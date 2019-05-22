@@ -1664,7 +1664,7 @@ void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 			// check for overrides
 			if (options.Has(L"overrides"))
 			{
-				JavascriptEngine::JsObj ov(options.Get<JsValueRef>("options"));
+				JavascriptEngine::JsObj ov(options.Get<JsValueRef>("overrides"));
 				for (auto p : launchOverrideProps)
 				{
 					if (ov.Has(p))
@@ -3077,9 +3077,23 @@ void PlayfieldView::OnAppActivationChange(bool foreground)
 	if (runningGameMode == RunningGameMode::Running)
 	{
 		if (foreground)
-			ShowPauseMenu(false);
+		{
+			// We're activating.  If the game is still running, show the
+			// pause menu.  Skip this if the game has already exited: Windows
+			// will usually activate us by default (as the next application in
+			// the desktop Z order) when the game exits, and this might occur
+			// before our monitor thread wakes up and detects that the child
+			// has exited.  If the child is in fact no longer running, there's
+			// no need for the pause menu, as we're just returning to normal
+			// operation.
+			if (Application::Get()->IsGameRunning())
+				ShowPauseMenu(false);
+		}
 		else
+		{
+			// We're deactivating - remove any active UI elements
 			CloseMenusAndPopups();
+		}
 	}
 }
 

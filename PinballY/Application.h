@@ -659,7 +659,7 @@ protected:
 
 		// wait for the process to start up; returns true on success,
 		// false if an error occurs or we get a shutdown signal
-		bool WaitForStartup(HANDLE pProc);
+		bool WaitForStartup(const TCHAR *exepath, HANDLE pProc);
 
 		// thread main
 		static DWORD WINAPI SMain(LPVOID lpParam);

@@ -603,7 +603,7 @@ int D3DView::MessageLoop()
 		// We work through the windows round-robin on each idle pass.  We only
 		// render one window per idle pass so that we can get right back to the
 		// event loop, to minimize event processing latency.  We don't want key
-		// inputs to feel laggy by forcing them to wait for every window to
+		// presses to feel laggy by forcing them to wait for every window to
 		// render.
 		int n = 0;
 		for (auto it : activeD3DViews)

@@ -164,6 +164,19 @@ mode selection, the delay time change wasn't saved when you clicked
 OK or Apply.  This has been fixed; changes to just the delay time
 should now be properly saved.
 
+* Some changes have been made to the program launch procedure to
+make it more compatible with console-mode applications.  The
+changes shouldn't affect Windows GUI programs, but should make
+older console-mode programs work better with PinballY.  (Technical
+details: First, when PinballY calls CreateProcess(), it passes a
+single combined command line string rather than passing the .exe
+name separately; some console-mode programs built with older
+compilers depend upon this format to parse their parameters
+correctly.  Second, when PinballY detects that the launched process
+uses console mode, it no longer waits for the process's event loop
+to start up, since that's not meaningful with console program;
+Windows reports an error if you try, which PinballY was taking to
+mean that the launch had failed, which it hadn't.)
 
 
 04-08-2019 (1.0.0 Beta 11)

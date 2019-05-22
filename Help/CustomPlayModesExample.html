@@ -386,7 +386,7 @@ mainWindow.on("command", ev => {
 </p>
 <div class="code">
 mainWindow.on("command", ev => {
-    if (ev.id == command.PlayGame {
+    if (ev.id == command.PlayGame) {
         // do our special custom work
 
         // tell the system NOT to do its normal work for the command
@@ -503,7 +503,7 @@ let currentFX3Mode = optionSettings.get(currentFX3ModeKey, "classic");
 // in the main menu, add our new Set Play Mode command after the
 // Play command
 let setPlayModeCommand = command.allocate("SetPlayMode");
-mainWindow.on("showmenu", ev => {
+mainWindow.on("menuopen", ev => {
     if (ev.id == "main") {
         // main menu - check the current game's system
         let game = gameList.getWheelGame(0) || { };
