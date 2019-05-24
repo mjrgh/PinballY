@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Family Filter</h1>
+
+<p>
+  A couple of people have asked for a way to hide the racier
+  games in their collections when their kids are using the
+  machine.  I'm sure this idea appeals to a few people, but
+  it struck me as a good candidate for a Javascript
+  customization rather than a built-in feature, since
+  there are lots of ways you might want to implement it.
+</p>
+<p>
+  This example shows how to create a "Family Filter" mode,
+  which lets you show or hide your adult-themed games using
+  a command in the Operator Menu.  The Operator Menu is
+  a good place to put a command like this, since you can
+  limit access to it in a pin cab by physically locking the
+  button behind the coin door.  As long as you keep the
+  coin door key safely away from the kids, they won't be
+  able to access the menu to switch to adult mode.
+</p>
+
+<h2>Category tags</h2>
+
+<p>
+   A key PinballY feature that we'll use to implement
+   our Family Filter mode is <a href="UsageTips.html#categories">category tags</a>.
+   A category tag is a short text string that you can associate with
+   each game.  You can tag each game with as many categories as
+   you want, so you can use these tags to represent any set of
+   miscellaneous attributes.
+</p>
+<p>
+   For this example, we'll use the category tag "Adult" to indicate
+   that a game should be excluded from view when in Family Filter
+   mode.  Before you can tag any games with this tag, you have to
+   add the tag to the list that PinballY knows about.  Category
+   tags are up to you to define - there's no pre-set list that
+   you're forced to use - so you have to go through this initial
+   step to add a new tag to the available list:
+</p>
+<ul>
+   <li>Bring up the Operator Menu (press the digit zero "0")
+   <li>Select Game Setup
+   <li>Select "Select Categories"
+   <li>Select Edit Category Names
+   <li>Click the New button
+   <li>Type the new category name (Adult) and click OK
+</ul>
+
+<p>
+   Now you can add the Adult category tag to each game that you want
+   to hide while in Family Filter mode:
+</p>
+<ul>
+   <li>Bring up the Operator Menu (press the digit zero "0")
+   <li>Select Game Setup
+   <li>Select "Select Categories"
+   <li>Checkmark "Adult"
+   <li>Select Save
+</ul>
+
+<h2>Metafilters</h2>
+
+<p>
+   The second main ingredient to implementing our family mode is the
+   <a href="MetaFilters.html">metafilter</a>.  A metafilter
+   is a Javascript filter that sits on top of the "regular"
+   filter (such as the era filters and manufacturer filters)
+   to supervise the selection.  Metafilters can override
+   the regular filter's decisions about which games to
+   include and which to exclude.  This makes it easy to
+   implement a Family Filter that excludes all games that
+   have been tagged as "adult", regardless of which regular
+   filter is currently selected.  That lets users use the
+   normal set of filters to slice and dice the game collection
+   as they please, while still filtering out all of the
+   adult-themed games.
+</p>
+<p>
+   The code for the family mode filter is pretty simple.
+   When family filtering is in effect, all we need to do is
+   exclude games that include the "Adult" category tag.
+   Here's how you create the filter.
+</p>
+<div class="code">
+let familyFilterId;
+function enableFamilyFilter()
+{
+    // create the filter
+    familyFilterId = gameList.createMetaFilter({
+        priority: 1000,
+        select: function(game, include) {
+            return game.categories.indexOf("Adult") < 0;
+        }
+    });
+}
+</div>
+
+<p>
+   The <b>select</b> function is the place where we write the
+   selection rule for the metafilter.  In this case, we only
+   want to include games that <b>don't</b> have the "Adult"
+   tag among their category tags.  To determine whether or
+   not the tag is assigned to the current game, we start by
+   retrieving the <a href="GameInfo.html#categories"><b>categories</b></a>
+   property from the <a href="GameInfo.html">GameInfo</a> object
+   that the system passes us on each call to the <b>select</b>
+   function.  The <b>categories</b> property gives us an array
+   of strings for all of the tags associated with the game, so
+   we can use the Javascript array indexOf() function to search
+   for the string of interest, "Adult".  If it's there, indexOf()
+   will return the non-negative index of the position in the array
+   where the string was found.  If it's <i>not</i> there, indexOf()
+   returns -1.  We want to include the game in the selection if
+   "Adult" isn't anywhere in the array, so we return true (meaning
+   "yes, include this game") if indexOf() returns a
+   negative value.
+</p>
+
+<p>
+   Creating a filter immediately puts it into effect, so family
+   mode is active as soon as we call enableFamilyFilter().  Now,
+   we obviously want to be able to switch back to grown-up mode
+   when the kids are away, so we also need a way to disable the
+   filter after it's been created and placed into effect.
+   That's also pretty straightforward:
+</p>
+<div class="code">
+function disableFamilyFilter()
+{
+    // remove the filter
+    gameList.removeMetaFilter(familyFilterId);
+}
+</div>
+
+<p>
+   When we want to remove the filter, we can simply call
+   disableFamilyFilter().  Removing a metafilter immediately
+   takes it out of effect, so removing the family filter will
+   make the system stop excluding the "Adult"-tagged games.
+</p>
+<p>
+   Note that the enable and disable
+   functions both refer to a global variable that we snuck
+   in before the enable function, <b>familyFilterId</b>.
+   We use that to remember the ID of the filter that
+   <a href="GameList.html#createMetaFilter">gameList.createMetaFilter()</a>
+   returns, so that we can later pass that same ID to
+   <a href="GameList.html#removeMetaFilter">gameList.removeMetaFilter()</a>
+   when it's time to get rid of the filter.  It's crucial that
+   we keep track of that ID, since it's the only way to tell
+   the system to remove the filter later.
+</p>
+   
+
+
+<h2>Adding the Operator Menu command</h2>
+
+<p>
+   Our filter is ready to go.  Now we just need to add the user
+   interface to enable and disable it.
+   Recall that our UI for the Family Filter is going to involve a new
+   custom command in the Operator Menu.  Let's look at how to add that.
+</p>
+<p>
+   The first step in adding any custom menu command is to create a
+   command ID for the new command.  This ID connects the menu item we
+   create to the command handler that will actually carry out the
+   command when the user selects it.  When we create a command ID, we
+   need to save it somewhere, usually a simple global Javascript variable.
+</p>
+<div class="code">
+let familyFilterCommand = command.allocate("FamilyFilter");
+</div>
+
+<p>
+   Once we have the ID, we can add the command to the desired menu.
+   To do this, we write a handler for the Javascript "menuopen" event,
+   which PinballY fires each time a menu is about to be displayed.
+   This handler simply needs to insert the menu item at a desired
+   position in the menu.  You can choose whatever location you like,
+   but it seems sensible to me to group this command with the other
+   filter-like commands, "Show Hidden Games" and "Show Unconfigured Games".
+   So let's add it just before the "Show Hidden Games" command.
+</p>
+<div class="code">
+let showHiddenCommand = gameList.getFilterInfo("Hidden").cmd;
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "operator") {
+        ev.addMenuItem(showHiddenCommand, {
+            title: "Family Filter",
+            cmd: familyFilterCommand,
+            checked: familyFilterOn
+        });
+    }
+});
+</div>
+
+<p>
+   Note that we had to work a little harder than usual to figure out
+   the command ID for the "Show Hidden Games" command.  That's because
+   this is technically a filter command, and filter commands don't
+   have fixed <a href="Commands.html#commandIDs"</a>command IDs</a>
+   the way most other menu commands do.  To get the command ID for
+   a filter command, we have to ask the filter.  Fortunately, that's
+   pretty easy: just a matter of calling <a href="GameList.html#getFilterInfo">gameList.getFilterInfo()</a>
+   with the ID of the filter, and grabbing the <b>cmd</b> property
+   from the <a href="FilterInfo.html">FilterInfo</a> object it
+   returns.
+</p>
+
+<p>
+   Now we just have write the command handler for our new menu
+   item.  We've already written the hard parts, where we do the real
+   work of enabling and disabling the metafilter.  We just have to
+   call those functions in response to the menu selection.
+</p>
+<div class="code">
+// always start with the family filter activated
+let familyFilterOn = true;
+enableFamilyFilter();
+
+// handle the Family Filter menu command
+mainWindow.on("command", ev => {
+    if (ev.id == familyFilterCommand) {
+        // toggle the current status
+        familyFilterOn = !familyFilterOn;
+
+        // enable or disable the filter according to the new status
+        if (familyFilterOn)
+            enableFamilyFilter();
+        else
+            disableFamilyFilter();
+    }
+});
+</div>
+
+<p>
+   We've written this so that the family filter is automatically
+   activated each time you start the program.  This strikes me as
+   the way most people with children would probably want it, so
+   that you can be assured that it always starts up in the "safe"
+   mode by default.  No one will be able to get it into "adult"
+   mode until someone with access to the coin door key shows up.
+</p>
+<p>
+   Some people might prefer to save and restore the setting.
+   That is, if it's in adult mode when you quit a session, 
+   it should start up
+   again in adult mode the next time you run the program, rather
+   than always returning to family mode.
+   I personally think the original version above, where it's
+   always in family mode at the start of a new session, is the
+   right approach for this particular feature.  I wouldn't want to have to
+   remember to always set the mode back to "safe" before shutting down.
+   But the nice thing about Javascript customizations is that
+   you don't have to agree with me on every little detail - you
+   can make it work the way you want it to.
+   So here's how we could rewrite the section above
+   to save and restore the setting rather than always starting
+   in family mode.
+</p>
+
+
+<div class="code">
+// restore the saved setting
+let familyFilterKey = "custom.FamilyFilterMode";
+let familyFilterOn = optionSettings.getBool(familyFilterKey);
+
+// if the saved setting is On, enable the filter immediately
+if (familyFilterOn)
+    enableFamilyFilter();
+
+mainWindow.on("command", ev => {
+    if (ev.id == familyFilterCommand) {
+        // toggle the current setting, and save it in the options
+        optionSettings.set(familyFilterKey, familyFilterOn = !familyFilterOn);
+
+        // enable or disable the filter in the game list
+        if (familyFilterOn)
+            enableFamilyFilter();
+        else
+            disableFamilyFilter();
+    }
+});
+</div>
+
+
+</body>
+</html>

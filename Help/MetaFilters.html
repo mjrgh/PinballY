@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Metafilters</h1>
+
+<p>
+   A "metafilter" is a global filter that's always active <i>in addition
+   to</i> the current "regular" user-selected filter (e.g., an era
+   or ratings filter).  This allows a metafilter to
+   further narrow the list of games selected by the current regular filter,
+   or even to override the regular filter's decisions by ruling in
+   some of the games that the regular filter ruled out.
+</p>
+<p>
+   Metafilters are useful for additional layers of filtering that you
+   want to keep in effect at all times while still letting the user
+   select games with the regular filters.  For example, a metafilter
+   could be used for a "family mode" setting that excludes games that
+   you've marked as having adult themes.  While this family metafilter
+   is in effect, the user can still filter games normally (by era,
+   by rating, etc), but adult-themed games will be excluded no matter
+   what other filter is selected.  For a worked example of how to
+   create this type of filter, see <a href="FamilyFilterExample.html">Family Filter</a>.
+</p>
+
+<p>
+   Currently, there are no built-in metafilters, so any metafilters
+   in effect will always be Javascript add-ons.
+</p>
+
+<h2>Creating a metafilter</h2>
+
+<p>
+   To create a metafilter, you call <a href="GameList.html#createMetaFilter">gameList.createMetaFilter(<i>desc</i>)</a>.
+   The argument <i>desc</i> is an object the describes the new metafilter
+   via its properties.  The properties of this object are:
+</p>
+<ul>
+   <li><b>after:</b>  An optional function that's called at the end of
+   a selection cycle, after the last call to <b>select</b> for the cycle.
+   This lets the metafilter do any desired clean-up (such as forgetting
+   any large cached objects, to free up memory that's no longer needed).
+   This can be omitted if no clean-up work is required
+   
+   <li><b>before:</b>  An optional function that's called at the start of
+   a selection cycle, before the first call to <b>select</b> on each
+   cycle.  This lets the metafilter do any preparation, such
+   as caching information that applies to this selection run.  This can
+   be omitted if no prep work is required on each cycle.
+
+   <li><b>includeExcluded:</b>  An optional boolean specifying whether
+   or not the <b>select</b> function should be called for games that
+   are excluded by the regular filter or the previous metafilter.  This
+   is false by default, meaning that the <b>select</b> function <i>won't</i>
+   see games excluded by the other filters, and hence can only narrow
+   the selection list decided upon by the other filters.  If you set
+   this to true, the <b>select</b> function will be called for every
+   game in the collection, even for games that were excluded by the
+   other current filters, which allows it to rule games back in even
+   after they've been ruled out by the other filters.  You can tell
+   that a game was excluded by the other filters by checking the
+   <i>included</i> argument to the <b>select</b> function.
+
+   <li><b>priority:</b>  An optional number value giving the execution
+   order for this metafilter relative to any other metafilters that are
+   also in effect at the same time.  This lets you control which metafilter
+   gets the final say on each game.  See <a href="#priority">Multiple
+   metafilters and the priority order</a> below.
+
+   <li><b>select:</b>  Required.  A function that's called once for each
+   game, to test to see if the game should be included in the final
+   selection set.  This function is called like this:
+   <p class="indented">
+      select(<i>game</i>, <i>included</i>)
+   </p>
+   <p>
+      <i>game</i> is a <a href="GameInfo.html">GameInfo</a> object
+      describing the game to be tested for inclusion.  <i>included</i>
+      is a boolean value indicating whether or not the game is in the
+      selection set for the current "regular" filter and for the
+      previous metafilter (if other metafilters are in effect).
+      The function returns true if the game should be included in
+      the final selection set, false if the game should be excluded.
+   </p>
+
+</ul>
+<p>
+   The return value from gameList.createMetaFilter() is an opaque
+   identifier that you can use to later remove the filter via
+   <a href="GameList.html#removeMetaFilter">gameList.removeMetaFilter()</a>.
+</p>
+
+<h2>Removing a metafilter</h2>
+
+<p>
+   Once created, a metafilter stays in effect until it's explicitly
+   removed.  Changes to the current main filter selection don't affect it,
+   and the creation or removal or other metafilters don't affect it.
+</p>
+<p>
+   To remove a metafilter, call <a href="GameList.html#removeMetaFilter">gameList.removeMetaFilter()</a>,
+   passing the identifier returned from the call to gameList.createMetaFilter() that
+   originally created the filter.
+</p>
+
+<a name="priority"></a>
+<h2>Multiple metafilters and the priority order</h2>
+
+<p>
+   Metafilters always have the last say on the filtered game list,
+   because the metafilters are called after the current regular
+   filter has been called.  The metafilters therefore override
+   the regular filter: if the regular filter rules a game in,
+   but a metafilter then rules it out, the game is out.
+</p>
+<p>
+   But what if there are multiple metafilters in effect?  This is
+   specifically allowed, so we have to consider how they negotiate
+   for control over the final decision.
+</p>
+<p>
+   The main point of negotiation is the <b>priority</b> setting for
+   each filter.
+   When multiple metafilters are simultaneously active, PinballY calls them
+   in ascending numeric order of their priorities.  For example,
+   if metafilter A has priority 1000, and metafilter B has priority 2000,
+   A's <b>select</b> function will be called first for each game (because
+   it has the lower numeric value for the priority), and then B's
+   <b>select</b> function will be called after that.
+</p>
+<p>
+   In most situations, going first is the privileged position.  In
+   this case, though, going <i>last</i> is where all the power lies.
+   This is because each metafilter's decision replaces the prior
+   filter's decision.  There's no concept of voting or combining
+   the decisions; the last filter called simply has the last say.
+</p>
+
+<h2>Narrowing vs. widening metafilters</h2>
+
+<p>
+   Most metafilters are "narrowing" filters, meaning that they exclude
+   games that the other filters would have included if left to their
+   own devices.  For example, a "family filter" that excludes adult-themed
+   games is only interested in removing games that match its adult-content
+   test.
+</p>
+<p>
+   A metafilter can also act as a "widening" filter, though.  A widening
+   filter is one that selects some of the games that the other active
+   filters would have rejected.  For example, if you wanted to make
+   sure that a certain core set of games was always available in the
+   wheel UI, no matter what filter was selected, you could do that with
+   a widening filter.
+</p>
+<p>
+   To create a filter that can widen the selection, you must set the
+   <b>includeExcluded</b> property in the filter description to true
+   when creating the filter.  This allows its <b>select</b> function
+   to be called with every game in the collection, even games that
+   were excluded by other active filters.  In the <b>select</b>
+   function, you can tell whether or not a game was accepted by the
+   other filters via the <i>included</i> argument.
+</p>
+<p>
+   Here's an example
+   that keeps the other current filters' decisions intact, but also
+   adds games marked with the "Core" category tag, even if they
+   were excluded by other filters.
+</p>
+<div class="code">
+gameList.createMetaFilter({
+    includeExcluded: true,   // consider all games, even if excluded by other filters
+    priority: 100000,        // high priority so that get the last say
+    select: function(game, included) {
+        // keep it if it's included by the other filters, OR if
+        // it has the "Core" category tag
+        return included || game.categories.indexOf("Core") >= 0;
+    }
+});
+   
+
+</body>
+</html>
+
