@@ -1,25 +1,26 @@
 PinballY Update History
 
 
-04-11-2019 (1.0.0 Beta 12)
+05-23-2019 (1.0.0 Beta 12)
 
-* A new Media Capture option lets you select the buttons used to
-manually start or stop a capture operation.  (Manual start or stop
-mode applies to media types that you specifically set to start or
-stop manually, via the Media Capture options.)  In the past, you
-triggered a manual start or stop by pressing both flipper buttons
-at once.  This gesture is still the default, but you can now change
-it.  The new options are: pressing both Magna Save buttons
-together; or pressing the Launch button, the Information button, or
-the Instructions button by itself.  The flipper buttons were
-originally chosen (and are still the default) because they don't
-usually have any effect on a table that's in "game over"/"attract"
-mode, which is what most people want to capture for a table video.
-But if you prefer to capture videos of a game in progress, you
-might want to use the flipper buttons to play the game during the
-capture, in which case you wouldn't want the flippers as the manual
-start/stop trigger.  This new option lets you move the trigger to
-another button or buttons.  (Addresses issue #59 on github.)
+* A new option in the Media Capture settings lets you select which
+buttons you use to start and stop a manual capture.  ("Manual mode"
+is a separate option that you can select for each media type, also
+via the Media Capture settings.)  In the past, the flipper buttons
+(pressing both at the same time) were always used to trigger a
+manual start or stop.  That's still the default, but you can now
+select other buttons instead.  The new options are: pressing both
+Magna Save buttons together; or pressing the Launch button, the
+Information button, or the Instructions button by itself.  The
+flipper buttons were originally chosen (and are still the default)
+because they don't usually have any effect on a table that's in
+"game over"/"attract" mode, which is what most people want to
+capture for a table video.  But if you prefer to capture videos of
+a game in progress, you might want to use the flipper buttons to
+play the game during the capture, in which case you wouldn't want
+the flippers as the manual start/stop trigger.  This new option
+lets you move the trigger to another button or buttons.  (Addresses
+issue #59 on github.)
 
 Note that by "flipper buttons", we really mean the keys you've
 assigned to the Next and Previous commands.  We casually refer to
@@ -165,6 +166,10 @@ titles.  This made it a little more work to distinguish these from
 separator bars, which can be identified by their empty title
 strings and command ID -1.  With this change, separator bars are
 now the only things in a system menu with an empty title string.
+
+* A new "metafilter" feature allows Javascript to add more layers
+of custom filtering when selecting games to show in the wheel.  See
+the help section on Metafilters for details.
 
 * New Javascript convenience functions: MenuEvent.addMenuItem(),
 MenuEvent.deleteMenuItem(), MenuEvent.tidyMenu().  See MenuEvent in

@@ -3087,9 +3087,11 @@ int PlayfieldView::JsCreateMetaFilter(JavascriptEngine::JsObj desc)
 		mf->id = nextMetaFilterId++;
 
 		// add it to the active metafilter list in the game list
-		GameList::Get()->AddMetaFilter(mf.get());
+		auto gl = GameList::Get();
+		gl->AddMetaFilter(mf.get());
 
 		// update the selection and status text for the filter change
+		gl->RefreshFilter();
 		UpdateSelection();
 		UpdateAllStatusText();
 
@@ -3111,12 +3113,14 @@ void PlayfieldView::JsRemoveMetaFilter(int id)
 		if (it->id == id)
 		{
 			// got it - remove it from the active metafilter list
-			GameList::Get()->RemoveMetaFilter(it.get());
+			auto gl = GameList::Get();
+			gl->RemoveMetaFilter(it.get());
 
 			// delete it from our storage list
 			javascriptMetaFilters.remove(it);
 
 			// update the selection and status text for the filter change
+			gl->RefreshFilter();
 			UpdateSelection();
 			UpdateAllStatusText();
 			
