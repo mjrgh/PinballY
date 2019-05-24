@@ -37,6 +37,10 @@
    That function returns a FilterInfo object populated with details about
    the filter you specified.
 </p>
+<p>
+   If you want to create a custom filter, see <a href="#custom">Custom
+   filters</a> below.
+</p>
 
 <h2>Properties and methods</h2>
 
@@ -221,7 +225,7 @@
    the current filter in the wheel UI), this function is called
    once for each game in the game database, to determine which
    games are selected by the filter and which are excluded.
-   The function that takes one argument, a <a href="GameInfo.html">GameInfo</a>
+   The function takes one argument, a <a href="GameInfo.html">GameInfo</a>
    object describing a game to test for inclusion.  The function
    returns true if the game is included in the filter's selection,
    false if not.
@@ -528,7 +532,18 @@ gameList.createFilter({
     sortKey: "C"
 });
 </div>
+
+<p>
+   <b>Top-rated games:</b>  For a more extensive example, see
+   <a href="TopGamesExample.html">A "Top 10" Filter</a> in the
+   <a href="WorkedExamples.html">Worked Examples</a> section.  That
+   shows how to create several variations on a Top 10 filter that
+   selects the current top-rated games in your collection.
+</p>
    
+
+</p>
+ 
 
 </body>
 </html>

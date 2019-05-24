@@ -13,10 +13,46 @@
 <h1>Javascript Debugging</h1>
 
 <p>
-   A good interactive debugger is essential for any non-trivial
-   software project.  PinballY doesn't have its own built-in debugger
-   window, but it has something better: it lets you connect a <i>real</i>
-   debugger.  It currently works with the following:
+   The first and simplest step in debugging your Javascript
+   code is to check for error messages in the log file.  Make
+   sure that Javascript-related messages are enabled in the
+   <a href="LogFileOptions.html">Log File</a> page in the
+   settings dialog.  As long as that's enabled, basic problems
+   in your scripts, like syntax errors and run-time errors,
+   will be reported in the log file.  If your scripts don't
+   do what you expect during the session, quit out of
+   PinballY and check the log file for error messages.
+   Javascript-related errors will not, for the most part,
+   be reported interactively (they won't show up as pop-up
+   messages or dialogs), since they're of such a technical
+   nature and because there's not generally anything you
+   can do about them at the UI level anyway.  But they are
+   recorded in the log file.  Most logged Javascript errors
+   include details on the script file location where the
+   problem occurred, to help you pinpoint and fix the
+   underlying problem.
+</p>
+<p>
+   Error messages in a log file are helpful for fixing simple
+   problems like syntax errors, but if you've done any
+   programming before - even simple scripting work - you
+   know that a log file isn't enough for diagnosing more
+   complex problems with a program's logic.  For that,
+   you need an interactive debugger.  A
+   debugger is a tool that lets you get inside your program
+   and watch it as it runs, step by step, observing the
+   values of variables and which branches are taken.
+</p>
+<p>
+   PinballY doesn't have its own built-in debugger
+   window, but it has something better: it lets you connect an
+   external debugger.  That's better because it lets you use
+   a full-fledged Javascript debugger that a professional
+   team designed, not just some half-hearted afterthought
+   that I came up with and bolted onto PinballY.
+</p>
+<p>
+   PinballY currently works with the following third-party debuggers:
 </p>
 <ul>
    <li>Visual Studio Code, Microsoft's free, open-source code
@@ -43,7 +79,7 @@
    with VS Code and the Chrome debugger.  You <i>might</i> be
    able to get it working with other Javascript debuggers, if
    there's something else you prefer, but it might be a bit
-   shaky.
+   shaky. 
 </p>
 <p>
    If you run into any problems with debugging, feel free to
@@ -60,7 +96,8 @@
    information by instrumenting your code with debugging messages.
    One way to do that is to display messages through the user
    interface, such as via the <a href="SystemFunctions.html#message">message()</a>
-   function.  Another way that's less intrusive in the UI is to
+   and <a href="SystemFunctions.html#alert">alert()</a>
+   functions.  Another way that's less intrusive in the UI is to
    use <a href="LogfileObject.html#log">logfile.log()</a>, which
    writes messages to the log file for review after the session
    ends.

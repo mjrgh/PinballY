@@ -1162,6 +1162,45 @@ public:
 	GameManufacturer dummyManufacturer;
 };
 
+// Metafilter.  This is a user-defined filter that's applied after
+// the current game list filter.  Metafilters are for Javascript use
+// and aren't automatically visible in the UI the way regular filters
+// are; it's up to Javascript to provide any desired UI.  Multiple
+// metafilters can be active at the same time.
+class MetaFilter
+{
+public:
+	MetaFilter(int priority, bool includeExcluded) :
+		priority(priority),
+		includeExcluded(includeExcluded)
+		{ }
+
+	virtual ~MetaFilter() { }
+
+	// Priority order.  This is used to sort the metafilter list
+	// each time a new filter is added.  The list is sorted in
+	// ascending order of priority.
+	int priority;
+
+	// Initialize the filter for a selection run
+	virtual void Before() = 0;
+
+	// Test a game for inclusion.  'included' indicates whether
+	// the game has been filtered in or out by the main filter
+	// and the other metafilters called so far.
+	virtual bool Include(GameListItem *game, bool included) = 0;
+
+	// Finish a selection run
+	virtual void After() = 0;
+
+	// Should we include games that were excluded by the main
+	// filter or by earlier metafilters when calling select()?
+	// If this is true, we call this filter for all games, 
+	// whether or not they were accepted by the other filters.
+	bool includeExcluded;
+};
+
+
 // Master list.  This is the list of all games.
 class GameList
 {
@@ -1538,6 +1577,13 @@ public:
 	// group can be a user-defined group or one of the system groups.
 	int GetFilterGroupCommand(const TCHAR *group);
 
+	// Add/remove a metafilter.  The caller is responsible for managing
+	// the object lifetime: that is, ensuring that the object remains
+	// valid for as long as it's in the metafilter list, and deleting
+	// the object once it's no longer needed.
+	void AddMetaFilter(MetaFilter *mf);
+	void RemoveMetaFilter(MetaFilter *mf);
+
 protected:
 	GameList();
 	~GameList();
@@ -1728,6 +1774,9 @@ protected:
 
 	// User-defined filters, keyed by ID
 	std::unique_ptr<std::unordered_map<TSTRING, GameListFilter*>> userDefinedFilters;
+
+	// Metafilters, in execution order
+	std::unique_ptr<std::vector<MetaFilter*>> metaFilters;
 
 	// Pending user-defined filter to restore from the configuration.
 	// The game list configuration is loaded before Javascript is 

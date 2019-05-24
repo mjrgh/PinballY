@@ -748,9 +748,12 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getWheelCount", &PlayfieldView::JsGetWheelCount, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getCurFilter", &PlayfieldView::JsGetCurFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setCurFilter", &PlayfieldView::JsSetCurFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "refreshFilter", &PlayfieldView::JsRefreshFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getFilterInfo", &PlayfieldView::JsGetFilterInfo, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllFilters", &PlayfieldView::JsGetAllFilters, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createFilter", &PlayfieldView::JsCreateFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createMetaFilter", &PlayfieldView::JsCreateMetaFilter, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "removeMetaFilter", &PlayfieldView::JsRemoveMetaFilter, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllCategories", &PlayfieldView::JsGetAllCategories, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createCategory", &PlayfieldView::JsCreateCategory, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "renameCategory", &PlayfieldView::JsRenameCategory, this, eh)
@@ -1725,7 +1728,7 @@ bool PlayfieldView::AddGameInfoGetter(const CHAR *propName, T (*func)(GameListIt
 }
 
 template<typename T>
-JsValueRef PlayfieldView::JsGameInfoStatsGetter(T(*func)(GameListItem*), JsValueRef self)
+JsValueRef PlayfieldView::JsGameInfoStatsGetter(T (*func)(GameListItem*), JsValueRef self)
 {
 	// Look up the game object by self.id
 	auto js = JavascriptEngine::Get();
@@ -1737,9 +1740,6 @@ JsValueRef PlayfieldView::JsGameInfoStatsGetter(T(*func)(GameListItem*), JsValue
 		auto game = gl->GetByInternalID(selfobj.Get<int>("id"));
 		if (game == nullptr)
 			return js->Throw(_T("GameInfo object is no longer valid"));
-
-		if (gl->GetStatsDbRow(game, false) < 0)
-			return js->GetUndefVal();
 
 		// retrieve and return the result
 		return JavascriptEngine::NativeToJs(func(game));
@@ -2877,6 +2877,16 @@ void PlayfieldView::JsSetCurFilter(WSTRING id)
 	}
 }
 
+void PlayfieldView::JsRefreshFilter()
+{
+	// refresh the current filter
+	GameList::Get()->RefreshFilter();
+
+	// update the selection and status text
+	UpdateSelection();
+	UpdateAllStatusText();
+}
+
 int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
 {
 	auto js = JavascriptEngine::Get();
@@ -3057,6 +3067,105 @@ bool PlayfieldView::JsFilterInfoTestGame(JsValueRef self, JsValueRef game)
 	catch (JavascriptEngine::CallException exc)
 	{
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+int PlayfieldView::JsCreateMetaFilter(JavascriptEngine::JsObj desc)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// create the new filter object from the descriptor
+		auto &mf = javascriptMetaFilters.emplace_back(new JavascriptMetafilter(
+			desc.Get<JsValueRef>("before"),
+			desc.Get<JsValueRef>("select"),
+			desc.Get<JsValueRef>("after"),
+			desc.Get<int>("priority"),
+			desc.Get<bool>("includeExcluded")));
+
+		// assign an ID 
+		mf->id = nextMetaFilterId++;
+
+		// add it to the active metafilter list in the game list
+		GameList::Get()->AddMetaFilter(mf.get());
+
+		// update the selection and status text for the filter change
+		UpdateSelection();
+		UpdateAllStatusText();
+
+		// return the new filter ID
+		return mf->id;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return 0;
+	}
+}
+
+void PlayfieldView::JsRemoveMetaFilter(int id)
+{
+	// find the filter in the list
+	for (auto &it : javascriptMetaFilters)
+	{
+		if (it->id == id)
+		{
+			// got it - remove it from the active metafilter list
+			GameList::Get()->RemoveMetaFilter(it.get());
+
+			// delete it from our storage list
+			javascriptMetaFilters.remove(it);
+
+			// update the selection and status text for the filter change
+			UpdateSelection();
+			UpdateAllStatusText();
+			
+			// stop searching
+			break;
+		}
+	}
+}
+
+void PlayfieldView::JavascriptMetafilter::Before()
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		if (!js->IsUndefinedOrNull(before))
+			js->CallFunc<void>(before);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("User-defined metafilter before()"));
+	}
+}
+
+void PlayfieldView::JavascriptMetafilter::After()
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		if (!js->IsUndefinedOrNull(after))
+			js->CallFunc<void>(after);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("User-defined metafilter after()"));
+	}
+}
+
+bool PlayfieldView::JavascriptMetafilter::Include(GameListItem *game, bool include)
+{
+	auto js = JavascriptEngine::Get();
+	auto pfv = Application::Get()->GetPlayfieldView();
+	try
+	{
+		return js->CallFunc<bool>(select, pfv->BuildJsGameInfo(game), include);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("User-defined metafilter select()"));
+		return false;
 	}
 }
 

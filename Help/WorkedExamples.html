@@ -64,7 +64,7 @@
    I'd recommend a different approach.  Rather than
    putting everything in that single file Main.js, I'd use a
    separate file for each "feature", and then use the Javascript
-   <b>import()</b> command to load each file from Main.js.  By
+   <b>import</b> statement to load each file from Main.js.  By
    "feature", I just mean a body of related Javascript code
    that works as a unit.  Keeping each feature in its own
    separate file will make it easier to keep track of which
@@ -77,7 +77,7 @@
    <li>Copy the desired code from the Top 10 Filter chapter to a new file
       in your PinballY Scripts folder - let's call it <b>TopGames.js</b>
 
-   <li>In Main.js, add this code: <b>import("TopGames.js");</b>
+   <li>In Main.js, add this code: <b>import "TopGames.js";</b>
 </ul>
 
 

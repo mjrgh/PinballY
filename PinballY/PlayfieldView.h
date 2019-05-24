@@ -2766,9 +2766,10 @@ protected:
 	JsValueRef JsGetWheelGame(int n);
 	JsValueRef JsGetAllWheelGames();
 
-	// get/set the current game list filter
+	// get/set/refresh the current game list filter
 	JsValueRef JsGetCurFilter();
 	void JsSetCurFilter(WSTRING id);
+	void JsRefreshFilter();
 
 	// get all filters
 	JsValueRef JsGetAllFilters();
@@ -2786,6 +2787,10 @@ protected:
 	// FilterInfo methods
 	JsValueRef JsFilterInfoGetGames(JsValueRef self);
 	bool JsFilterInfoTestGame(JsValueRef self, JsValueRef game);
+
+	// create/remove a metafilter
+	int JsCreateMetaFilter(JavascriptEngine::JsObj desc);
+	void JsRemoveMetaFilter(int id);
 
 	// play a button sound
 	void JsPlayButtonSound(WSTRING name);
@@ -2868,6 +2873,49 @@ protected:
 
 	// all user-defined filters, by ID
 	std::unordered_map<TSTRING, JavascriptFilter> javascriptFilters;
+
+	// Javascript metafilter
+	class JavascriptMetafilter : public MetaFilter
+	{
+	public:
+		JavascriptMetafilter(JsValueRef before, JsValueRef select, JsValueRef after,
+			int priority, bool includeExcluded) :
+			MetaFilter(priority, includeExcluded),
+			before(before),
+			select(select),
+			after(after)
+		{
+			JsAddRef(before, nullptr);
+			JsAddRef(select, nullptr);
+			JsAddRef(after, nullptr);
+		}
+
+		virtual ~JavascriptMetafilter()
+		{
+			JsRelease(before, nullptr);
+			JsRelease(select, nullptr);
+			JsRelease(after, nullptr);
+		}
+
+		// implementation of the virtual interface
+		virtual void Before() override;
+		virtual void After() override;
+		virtual bool Include(GameListItem *game, bool include) override;
+
+		// before/select/after Javascript functions
+		JsValueRef before;
+		JsValueRef select;
+		JsValueRef after;
+
+		// ID, for Javascript code to address the filter (e.g., for deletion)
+		int id;
+	};
+
+	// all currently active user-defined metafilters
+	std::list<std::unique_ptr<JavascriptMetafilter>> javascriptMetaFilters;
+
+	// next available Javascript metafilter ID
+	int nextMetaFilterId = 1;
 
 	//
 	// Button command handlers

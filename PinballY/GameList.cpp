@@ -65,8 +65,10 @@ void GameList::ReCreate()
 	for (auto &g : inst->games)
 		idMap->emplace(g.GetGameId(), g.internalID);
 
-	// save the user-defined filter list
+	// take ownership of the user-defined filter list and metafilter list,
+	// so that we can transfer them to the new game list instance
 	decltype(inst->userDefinedFilters) udf(inst->userDefinedFilters.release());
+	decltype(inst->metaFilters) mf(inst->metaFilters.release());
 
 	// delete the existing instance
 	Shutdown();
@@ -77,8 +79,9 @@ void GameList::ReCreate()
 	// store the ID map in the new instance
 	inst->reloadIDMap.reset(idMap.release());
 	
-	// pass the user-defined filter list to the new game list
+	// pass the user-defined filter list and metafilter list to the new game list
 	inst->userDefinedFilters.reset(udf.release());
+	inst->metaFilters.reset(mf.release());
 }
 
 int GameList::GetReloadID(GameListItem *game)
@@ -103,8 +106,9 @@ GameList::GameList()
 	// create the dummy "no game" game
 	noGame.reset(new NoGame());
 
-	// create the user-defined filters list
+	// create the user-defined filters list and metafilter list
 	userDefinedFilters.reset(new decltype(userDefinedFilters)::element_type);
+	metaFilters.reset(new decltype(metaFilters)::element_type);
 
 	// start with the All Games filter
 	curFilter = &allGamesFilter;
@@ -640,18 +644,39 @@ void GameList::RefreshFilter()
 	// initialize the filter
 	curFilter->BeforeScan();
 
+	// initialize all metafilters
+	for (auto &mf : *metaFilters.get())
+		mf->Before();
+
 	// note if the "Hide Unconfigured Games" option is set
 	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
 
 	// Construct the new list of games that pass the filter
-	for (auto g : byTitle)
+	auto pfv = Application::Get()->GetPlayfieldView();
+	for (auto game : byTitle)
 	{
+		// Test the game against the current filter
+		bool include = FilterIncludes(curFilter, game, hideUnconfigured);
+
+		// Invoke the metafilters
+		for (auto &mf : *metaFilters.get())
+		{
+			// Call the filter if the game has passed the other filters
+			// so far, OR the metafilter reconsiders excluded games.
+			if (include || mf->includeExcluded)
+			{
+				// The result from this metafilter overrides the prior
+				// inclusion status.
+				include = mf->Include(game, include);
+			}
+		}
+
 		// If this game is included, add it to the list
-		if (FilterIncludes(curFilter, g, hideUnconfigured))
+		if (include)
 		{
 			// note its new index, and add it to the list
-			int idx = (int)byTitleFiltered.size();
-			byTitleFiltered.push_back(g);
+			int idx = static_cast<int>(byTitleFiltered.size());
+			byTitleFiltered.push_back(game);
 
 			auto IsLexicallyCloser = [](const TSTRING &newName, const TSTRING &oldName, const TSTRING &refName)
 			{
@@ -703,13 +728,17 @@ void GameList::RefreshFilter()
 			// game we encounter, so as long the new filter matches at least
 			// one game, we'll end up with something selected.
 			if (oldSel != nullptr
-				&& (curGame == -1 || IsLexicallyCloser(g->title, byTitleFiltered[curGame]->title, oldSel->title)))
+				&& (curGame == -1 || IsLexicallyCloser(game->title, byTitleFiltered[curGame]->title, oldSel->title)))
 				curGame = idx;
 		}
 	}
 
-	// end the scan
+	// end the scan in the main filter
 	curFilter->AfterScan();
+
+	// end the scan in the metafilters
+	for (auto &mf : *metaFilters.get())
+		mf->After();
 }
 
 bool GameList::FilterIncludes(GameListFilter *filter, GameListItem *game)
@@ -1733,6 +1762,22 @@ void GameList::AssignFilterCommand(GameListFilter *f)
 
 	// add it to the filter list
 	filters.push_back(f);
+}
+
+void GameList::AddMetaFilter(MetaFilter *mf)
+{
+	// add it to the vector
+	metaFilters->emplace_back(mf);
+
+	// sort the vector by priority
+	std::sort(metaFilters->begin(), metaFilters->end(), 
+		[](MetaFilter* const &a, MetaFilter* const &b) { return a->priority < b->priority; });
+}
+
+void GameList::RemoveMetaFilter(MetaFilter *mf)
+{
+	if (auto it = std::find(metaFilters->begin(), metaFilters->end(), mf); it != metaFilters->end())
+		metaFilters->erase(it);
 }
 
 void GameList::BuildTitleIndex() 

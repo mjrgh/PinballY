@@ -180,7 +180,7 @@ gameList.createFilter({
    write this somewhere:
 </p>
 <div class="code">
-import("ThreePlusRating.js");
+import "ThreePlusRating.js";
 </div>
 
 <h2>Top N Games</h2>
@@ -220,7 +220,7 @@ import("ThreePlusRating.js");
 // get all of the games
 let topGames = gameList.getAllGames();
 
-// sort it by rating
+// sort in descending order by rating
 topGames.sort((a, b) => b.rating - a.rating);
 
 // get the first (highest rated) N games
@@ -272,10 +272,16 @@ select: function(game) { return topGames.get(game.id); }
    a companion function that's called once per filter invocation.
    That is, whenever the user selects a filter in the UI, PinballY
    first makes one call to the filter's "before" function, then calls
-   the "select" function for each game.  (It also then calls an
-   "after" function at the very end of the process, in case there's
-   any extra clean-up work you have to do after the filter is
-   applied, but we don't need that for this example.)
+   the "select" function for each game.
+</p>
+<p>
+   There's also an optional "after" function, which PinballY
+   calls at the very end of the process.  This lets you do any
+   final clean-up work after the filter is applied.
+   In this case, we can use it to "forget" the map
+   of games we create.  That isn't necessary, but it's good
+   practice, because it frees up the memory used by an object
+   we no longer need.
 </p>
 <p>
    Putting this all together, here's our "Top N" filter.
@@ -283,7 +289,7 @@ select: function(game) { return topGames.get(game.id); }
 <div class="code">
 function createTopFilter(n)
 {
-    let topGames = { };
+    let topGames;
     gameList.createFilter({
         id: "Top" + n,
         title: "Top " + n + " Rated",
@@ -302,6 +308,12 @@ function createTopFilter(n)
         // filter for games in our current hash of the top N games
         select: function(game) {
             return topGames.get(game.id);
+        },
+
+        // after each cycle, free up the memory in the Top N map by
+        // forgetting our reference to the map object
+        after: function() {
+            topGames = undefined;
         }
     });
 }

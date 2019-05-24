@@ -25,39 +25,45 @@
    in the <a href="SystemOptions.html">system options</a>.
    If you like playing FX3 with its classic physics mode, just put
    that option in the FX3 command line setup.  But what if you want
-   to play in different modes at different times?  You don't want
-   to have to edit the option settings every time you launch a
-   game.  For this, you want a way to say "Play in classic mode"
-   or "Play in remastered mode" instead of just "Play".  In other
-   words, new menu commands for the different modes.
+   to pick the mode each time you start a game?  You don't want
+   to have to go into the option settings and edit the command
+   line before every launch.  You want something easier and
+   quicker - perhaps some extra options on the main menu
+   in place of the usual "Play" command, such as
+    "Play in classic mode" and "Play in remastered mode".
 </p>
 <p>
    This is actually the original use case that motivated adding
-   the Javascript engine to PinballY.  I heard from someone who
-   suggested adding special options for Future Pinball's different
-   modes; later on I got a request to add special modes for FX3.
+   the Javascript engine to PinballY.  I heard from on person who
+   suggested adding some special options for Future Pinball's different
+   modes; and someone else suggested adding some special modes for FX3.
    I didn't like the idea of adding special cases for these
-   particular systems, since that would be so inflexible as the
+   particular systems, since that would be so inflexible.
+   The special cases would have keep changing and expanding, as the
    different game makers came up with new options, and as new
    games came onto the scene.  But when I tried to think of ways
-   to generalize it across systems, it looked like a very complex
+   to generalize it across systems, it looked like a fairly complex
    problem: some games might need different executables for
    different modes, others might have changing command line
    options, others might launch with different game files.
    And the user interface options you'd need to select all of
    the different possibilities seemed equally hard to boil down.
-   It seemed like what you needed to capture all of the different
-   possibilities amounted to a programming language.  Rather
-   than inventing a special programming language for this
-   one task, it seemed better to incorporate a real language
-   that's well known and widely used.  That led to Javascript.
+   This looked like one of those complex configuration
+   problems that could practically turn into its own programming
+   language.  With that realization, I thought it would be
+   better to use a real programming language rather than
+   accidentally inventing one just for this job.  That led to Javascript.
 </p>
 <p>
-   The only problem with saying "use Javascript" whenever anyone
-   asks how to set up custom launch options is that there's so
-   much to Javascript that it might not be obvious where to
-   begin.  So this section offers some working examples for
-   exactly how to do it.
+   The only problem with answering the question "how do I set up
+   different play modes?" with "just use Javascript" is that
+   it leaves a lot to the imagination.  It doesn't give you a
+   box to check in an options dialog; it gives you a blank
+   canvas, with so many possibilities that it's hard to know
+   where to begin.  So this section offers some working examples
+   for exactly how to do it, with a few different approaches
+   to the user interface.  You can clip the code snippets
+   to set things up the way you like.
 </p>
 
 <h2>Selecting a user interface</h2>
@@ -67,8 +73,8 @@
    is that it gives you control over the user interface.  You can
    choose an approach that you find convenient, and that works
    well for the particular range of options you want to present.
-   What works well for one game system might not be ideal for
-   every system, so this flexibility is important.
+   What works well for one type of game might not be ideal for
+   every game, so this flexibility is important.
 </p>
 <p>
    I can think of at least a few different shapes that the

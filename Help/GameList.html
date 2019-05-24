@@ -55,6 +55,29 @@
 </p>
 
 <p>
+   <a name="createMetaFilter"></a>
+   <b>gameList.createMetaFilter(<i>desc</i>):</b>  Creates and installs
+   a custom <a href="MetaFilters.html">metafilter</a>.  <i>desc</i> is
+   an object describing the new filter.  See <a href="MetaFilters.html">Metafilters</a>
+   for more details.  The return value is an opaque
+   identifier that uniquely identifies the filter, which can be used
+   to later remove the filter via <a href="#removeMetaFilter">removeMetaFilter()</a>.
+</p>
+<p>
+   The new metafilter is placed into effect immediately, and the current
+   game selection list in the wheel UI is refreshed so that the new filter
+   is taken into account.
+</p>
+<p>
+   A metafilter is a "global" filter that's always active <i>in addition to</i>
+   the current user-selected filter, allowing it to further narrow the games
+   selected by the regular filter, or even completely override the decisions
+   of the regular filter.  More than one metafilter may be active at
+   once, so creating a new one doesn't replace or remove any others
+   that are already in effect.
+</p>
+
+<p>
    <a name="deleteCategory"></a>
    <b>gameList.deleteCategory(<i>name</i>):</b>  Deletes the given
    category.  The category tag is removed from any games tagged with
@@ -170,12 +193,31 @@
 </p>
 
 <p>
+   <a name="refreshFilter"></a>
+   <b>gameList.refreshFilter():</b>  Refreshes the filtered game list, as
+   though switching to the current filter anew.  This can be used after
+   making any changes to game metadata or other factors that might affect
+   which games are selected by the current filter, to ensure that the
+   updated selections are immediately reflected in the wheel UI.
+</p>
+
+<p>
    <a name="renameCategory"></a>
    <b>gameList.renameCategory(<i>oldName</i>, <i>newName</i>):</b>  Renames
    the given category.  An error occurs if the category referenced by <i>oldName</i>
    doesn't exist, or if there's already an existing category with the new name.
    The category tag is renamed globally, so any games tagged with the old category
    name are updated to the new name.
+</p>
+
+<p>
+   <a name="removeMetaFilter"></a>
+   <b>gameList.removeMetaFilter(<i>id</i>):</b>  Removes the metafilter
+   identified by <i>id</i>, which is an identifier returned from a previous
+   call to <a href="#createMetaFilter">createMetaFilter()</a>.  This cancels
+   the specified metafilter and removes its effect on the game selection list.
+   The current wheel selection list is updated as a side effect, as though
+   you refreshed the current filter.
 </p>
 
 <p>
