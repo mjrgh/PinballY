@@ -1,5 +1,12 @@
 PinballY Update History
 
+05-26-2019 (1.0.0 Beta 13)
+
+* Fixed a problem saving customized media file names in the XML
+database.  (The system was still setting the media name back to the
+default "Title (Manufacturer Year)" pattern in some cases when
+making updates.)
+
 
 05-23-2019 (1.0.0 Beta 12)
 

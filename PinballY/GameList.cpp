@@ -3395,15 +3395,11 @@ void GameList::FlushToXml(GameListItem *game)
 		UpdateChildA(name, TCHARToAnsi(val).c_str());
 	};
 
-	// Use the display name ("Title (Manufacturer Year)" as the XML
-	// "description" attribute.
-	TSTRING desc = game->GetDisplayName();
-
 	// store the IPDB ID, if known
 	UpdateChildT("ipdbid", game->ipdbId.c_str());
 
-	// store the description
-	UpdateChildT("description", desc.c_str());
+	// store the description (what we call the media name)
+	UpdateChildT("description", game->mediaName.c_str());
 
 	// store the table type
 	UpdateChildT("type", game->tableType.c_str());

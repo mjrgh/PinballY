@@ -36,6 +36,10 @@
    <li><b>DON'T</b> use the Windows Explorer "Run as Administrator" menu command to launch PinballY.exe
 
    <li><b>DON'T</b> set the "Run as Administrator" checkbox in PinballY.exe's file properties
+
+   <li><b>DON'T</b> disable UAC (User Account Control).  That doesn't just remove the
+   warning prompts.  It also changes some low-level Windows functions that can affect
+   application behavior.
 </ul>
 
 <h2>What is PinballY Admin Mode.exe?</h2>
@@ -92,8 +96,8 @@
 <h2>Should I use the Admin mode version?</h2>
 
 <p>
-   Not unless necessary.  It's only necessary if one of the games you
-   want to launch with PinballY needs to run in Admin mode, or one of the
+   Not unless it's truly necessary.  It's only necessary if one of the games
+   you want to launch with PinballY needs to run in Admin mode, or one of the
    Run Before/After commands needs to run in Admin mode.
 </p>
 <p>
@@ -117,6 +121,9 @@
    the regular PinballY.exe for you.  You don't have to launch the
    regular PinballY.exe separately.
 </p>
+<p>
+   <b>Don't</b> right-click PinballY.exe and select Run as Adminstrator
+   from the menu.
 <p>
    <b>Don't</b> check-mark the "Run as Administrator" option in the
    PinballY.exe file properties dialog.  That will prevent PinballY
@@ -148,11 +155,17 @@
    system instability or operating system corruption is increased.
 </p>
 
+<h2>Can't I just right-click and select Run as Administrator?</h2>
+
+<p>
+   No!  Please re-read the section above for why this doesn't work.
+</p>
+
 
 <h2>What is Admin mode anyway?</h2>
 
 <p>
-   Admin mode is a special program execution mode that gives a program
+   Admin mode is a special Windows security mode that gives a program
    full, unrestricted access to nearly all Windows system resources, such
    as operating system files, OS registry keys, and protected memory areas.
    Windows blocks ordinary "user mode" programs from accessing these
@@ -180,10 +193,13 @@
    entries.  In the worst case, such changes can damage the system and
    force you to reinstall Windows.
 </p>
+
+<h2>I don't have to worry, I never download malware!</h2>
 <p>
-   Most people think of this sort of danger as being primarily from malware.
-   That's certainly a factor, and if you download a lot of random
-   Internet software, a major factor indeed.  But Microsoft created
+   Most people think of the Windows security restrictions as being
+   all about malware, so they think they don't have to worry about
+   "regular" software.  Malware is certainly an important factor.
+   But Microsoft created
    the system protections as much to prevent <i>accidental</i>
    damage as to prevent malware attacks.  Back in its earliest days,
    Windows had a terrible reputation for instability,
@@ -192,11 +208,14 @@
    application software that could trash the system accidentally,
    just because the system was so wide-open.  Microsoft put 
    the Admin mode barriers in place in large part to limit the
-   collateral damage that could be  done by buggy applications.
+   collateral damage that could be done by buggy applications.
+   A lot of the stability improvements of modern Windows versions
+   come from the protections that prevent the Windows core from
+   being damaged by buggy application software.
 </p>
 <p>
    When you run a program in Admin mode, you take down all of those
-   barriers. When you routinely run all application software in Admin
+   barriers. When you turn off UAC and/or run everything in Admin
    mode, you return to those Stone Age days of Windows where any
    program can trash the whole system.
 </p>

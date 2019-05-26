@@ -33,6 +33,7 @@ PinballY Release Checklist
     Builds\PinballY-64bit-xxxxxx.msi
     VersionHistory.txt
     License.txt
+    Third Party Licenses.txt
     Help\*
 
   Note: the "Min" versions are deprecated, since it was too difficult
