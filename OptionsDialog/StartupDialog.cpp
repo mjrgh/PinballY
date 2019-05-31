@@ -75,6 +75,7 @@ void StartupDialog::InitVarMap()
 		IDC_EDIT_NUM_MONITORS, IDC_SPIN_NUM_MONITORS,
 		IDC_EDIT_MON_WAIT_TIME, IDC_SPIN_MON_WAIT_TIME,
 		IDC_EDIT_MON_ADDED_WAIT, IDC_SPIN_MON_ADDED_WAIT));
+	varMap.emplace_back(new CkBoxMap(_T("Startup.ForceWindowsIntoView"), IDC_CK_FORCE_WINDOWS_INTO_VIEW, true));
 }
 
 void StartupDialog::MonVars::Val::LoadFromConfig()

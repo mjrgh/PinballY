@@ -159,49 +159,33 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 	bool borderless = ConfigManager::GetInstance()->GetBool(configVarBorderless);
 
 	// get the stored window location
-	RECT rc = ConfigManager::GetInstance()->GetRect(configVarPos, pos);
+	auto cfg = ConfigManager::GetInstance();
+	RECT rc = cfg->GetRect(configVarPos, pos);
 
 	// get the maximized and minimized states
-	if (ConfigManager::GetInstance()->GetInt(configVarMaximized, 0))
+	if (cfg->GetInt(configVarMaximized, 0))
 		nCmdShow = SW_MAXIMIZE;
-	else if (ConfigManager::GetInstance()->GetInt(configVarMinimized, 0))
+	else if (cfg->GetInt(configVarMinimized, 0))
 		nCmdShow = SW_MINIMIZE;
 
-	// see if we read a non-default location
-	if (rc.left != CW_USEDEFAULT || rc.right != CW_USEDEFAULT || rc.right != 0 || rc.bottom != 0)
+	// check if we read a non-default position
+	if (rc.left != CW_USEDEFAULT && rc.right != CW_USEDEFAULT)
 	{
-		// make sure it's within the virtual screen bounds
-		RECT vsrc;
-		vsrc.left = GetSystemMetrics(SM_XVIRTUALSCREEN);
-		vsrc.top = GetSystemMetrics(SM_YVIRTUALSCREEN);
-		vsrc.right = vsrc.left + GetSystemMetrics(SM_CXVIRTUALSCREEN);
-		vsrc.bottom = vsrc.top + GetSystemMetrics(SM_CYVIRTUALSCREEN);
-		if (rc.right < rc.left + 50)
-			rc.right = rc.left + 50;						// minimum width
-		if (rc.bottom < rc.top + 50)
-			rc.bottom = rc.top + 50;						// minimum height
-		if (rc.left != CW_USEDEFAULT && rc.left < vsrc.left)
+		// if desired, make sure it's within the visible desktop area
+		if (cfg->GetBool(_T("Startup.ForceWindowsIntoView"), true)
+			&& !IsWindowPosUsable(rc, 50, 50))
 		{
-			rc.right = vsrc.left + (rc.right - rc.left);    // maintain the current width
-			rc.left = vsrc.left;							// force to the left edge of the virtual screen
-		}
-		if (rc.top != CW_USEDEFAULT && rc.top < vsrc.top)
-		{
-			rc.bottom = vsrc.top + (rc.bottom - rc.top);	// maintain the current height
-			rc.top = vsrc.top;								// force to the top edge of the virtual screen
-		}
-		if (rc.left != CW_USEDEFAULT && rc.right != 0 && rc.right > vsrc.right)
-		{
-			rc.left = vsrc.right - (rc.right - rc.left);	// maintain the current width
-			rc.right = vsrc.right;							// force to the right edge of the virtual screen
-		}
-		if (rc.top != CW_USEDEFAULT && rc.bottom != 0 && rc.bottom > vsrc.bottom)
-		{
-			rc.top = vsrc.bottom - (rc.bottom - rc.top);	// maintain the current height
-			rc.bottom = vsrc.bottom;						// force to the bottom edge of the virtual screen
+			// set a minimum usable size
+			if (rc.right < rc.left + 50)
+				rc.right = rc.left + 50;
+			if (rc.bottom < rc.top + 50)
+				rc.bottom = rc.top + 50;
+
+			// force it into the desktop work area
+			ForceRectIntoWorkArea(rc, false);
 		}
 
-		// apply the new size
+		// apply the saved position
 		pos = rc;
 	}
 

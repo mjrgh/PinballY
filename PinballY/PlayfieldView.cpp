@@ -4748,6 +4748,9 @@ void PlayfieldView::LaunchQueuedGame()
 		// show the "game running" popup in the main window
 		BeginRunningGameMode(game, sys);
 
+		// play the generic Launch button sound
+		PlayButtonSound(_T("Launch"));
+
 		// check for an audio clip to play on launching the game
 		TSTRING audio;
 		if (game->GetMediaItem(audio, GameListItem::launchAudioType))

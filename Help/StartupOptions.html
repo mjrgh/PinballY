@@ -133,6 +133,92 @@
 </ul>
 
 
+<h2>Initial window positioning</h2>
+
+<p>
+   The checkbox <b>Make sure all windows are positioned within the
+   visible desktop area</b> lets you control the way PinballY
+   sets up the initial window locations during program startup.
+</p>
+<p>
+   PinballY always saves and restores the positions of all of
+   your open windows between session.  That lets it restore the
+   same window layout each time you start a new session.  This
+   box tells PinballY what to do when a saved window position
+   is outside of the bounds of the current display area.
+</p>
+<p>
+   If this box is checked (which is the default), PinballY
+   checks the position for each saved window to make sure that
+   it's within the visible area of your desktop, meaning it's
+   within the bounds of one of your display monitors.  If so,
+   great, PinballY just restores the saved window position,
+   so you get the same layout as during the last session.
+   If the window <i>isn't</i> within the bounds of any active
+   monitor, though, PinballY repositions the window to place
+   it within the monitor that's closest to the saved location.
+</p>
+<p>
+   If this box is un-checked, PinballY skips the extra scrutiny
+   and simply restores the window at the exact saved position.
+   If the window is outside the visible display area, so be it.
+</p>
+<p>
+   Why you might want to leave this option enabled:  This option
+   is enabled by default because it compensates for any changes
+   you've made to your desktop layout since the last PinballY
+   session.  Changes to the desktop layout can result in a
+   saved window position placing the window outside of the
+   visible screen area.  It's difficult to work with a window
+   that's outside of the desktop bounds, because you can't move
+   the mouse there to grab the window's title bar and
+   reposition it.
+</p>
+<p>
+   Why you might want to <i>disable</i> this option:  The
+   automatic window fixup at startup can be problematic if you
+   have to make special changes to your desktop layout when running
+   other programs.  For example, some games don't work correctly unless
+   you rotate a monitor, change the display resolution, or change the
+   ordering of the monitors on the desktop before running it.  As a
+   result, some people use tools that change the desktop layout each
+   time they run a certain program.  In that situation, if the
+   layout change happens at the wrong time, it can make PinballY think
+   it needs to rearrange its windows even though that's not actually
+   necessary, leaving your PinballY windows in the wrong locations.
+   This can also happen if you use a remote-access program, since
+   those programs often create a virtual monitor area while
+   running, which has the side effect of changing the screen
+   layout. 
+</p>
+<p>
+   Note that disabling this option only works with windows that
+   aren't in Full Screen mode.  Full-screen windows are always
+   set up so that they fill the nearest monitor to the saved
+   position, so they'll end up within a visible monitor in any
+   case.  If you have problems with full-screen windows moving
+   to unwanted monitors at startup, try taking them out of
+   full-screen mode and instead using "borderless" mode (which
+   you can select via the right-click menu within the window),
+   simply sizing the window to the screen area you want it to
+   take.
+</p>
+<p>
+   How to find a window that's fallen off the edge of the world:
+   As long as the main playfield window is still visible, you can
+   easily bring any of the other windows back into view by
+   right-clicking on the playfield window and selecting "Show
+   <i>whichever window</i>" from the context menu.  If that window
+   is off in some unreachable location, PinballY will move it back
+   into the visible area.  If the playfield window itself is missing,
+   and any other window is visible, right-click in one of the other
+   windows and select "Show Main Window" from the menu.  If none
+   of the windows are visible, your best bet is probably to quit
+   out of PinballY, open the options file (Settings.txt) in
+   Notepad, and delete the line that starts with
+   <b>PlayfieldWindow.Position =</b>.  That will remove the 
+</p>
+
 <h2>Splash screen</h2>
 
 <p>

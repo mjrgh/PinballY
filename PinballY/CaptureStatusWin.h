@@ -53,7 +53,7 @@ public:
 	// Show/hide the batch capture cancellation prompt
 	void BatchCaptureCancelPrompt(bool show);
 
-	// Show a "canellation in progress" message
+	// Show a "cancellation in progress" message
 	void ShowCaptureCancel();
 
 protected:

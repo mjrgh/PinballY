@@ -197,6 +197,12 @@ void CaptureStatusWin::PositionOver(FrameWin *win)
 
 	// reposition it
 	SetWindowPos(hWnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+	// now make sure it's in front of any other topmost windows by also
+	// bringing it to the TOP; it's already in the TOPMOST layer, but
+	// there seem to be times when other TOPMOST windows can stay ahead
+	// of it on that step
+	SetWindowPos(hWnd, HWND_TOP, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 }
 
 bool CaptureStatusWin::OnCreate(CREATESTRUCT *lpcs)

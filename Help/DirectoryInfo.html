@@ -146,22 +146,38 @@
 </p>
 <p>
    Within those folders, all of the files for a given game have the same
-   name, based on this pattern:
+   name, based on the game's "Media Name" setting.  By default, when you
+   first set up a new game, the Media Name is set based on this pattern:
 </p>
 <div style="margin-left: 2em;">
-   Game Title (Manufacturer Year).ext
+   Game Title (Manufacturer Year)
 </div>
 
 <p>
-   For example, the playfield image for Funhouse might be called
-   <b>Funhouse (Williams 1990).jpg</b>.  The backglass and DMD images
-   for Funhouse could have <i>exactly the same name</i>, since
-   the naming pattern is based purely on the game, not the file
-   function.  The only way you can tell which file is which is
-   by their folder locations.
+   For example, for <i>Funhouse</i>, the media name might be set
+   by default to <b>Funhouse (Williams 1990)</b>.
+   PinballY uses that default pattern for the Media Name because it's
+   the pattern used by HyperPin and PinballX.
 </p>
 <p>
-   To display the exact base filename used for a game's media files,
+   You can also override the Media Name for each game, by setting
+   a different setting in the <a href="EditGameDetails.html">Game
+   Details</a> dialog.
+</p>
+<p>
+   Once you know the Media Name for the game, you can easily figure
+   out the names for all of the game's media files.  They all use
+   the base Media Name plus an appropriate file type suffix
+   (extension).  For example, for a JPEG file, you'd take the
+   base Media Name and add <b>.jpg</b>, the standard suffix for
+   any JPEG file.  So if the Media Name is <b>Funhouse (Williams 1990)</b>,
+   a JPEG playfield image would be called <b>Funhouse (Williams 1990).jpg</b>.
+   The backglass and DMD images for Funhouse could have <i>exactly the same name</i>,
+   since the naming pattern is based purely on the Media Name.  The
+   way you tell these files apart is by their folder location.
+</p>
+<p>
+   To display the exact Media Name used for a game's media files,
    select the "Information" command in the main menu to bring up the
    game info box.  The base media filename is displayed in the box.
    You can also get a full list of the specific media files that

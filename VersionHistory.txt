@@ -1,5 +1,60 @@
 PinballY Update History
 
+
+05-31-2019 (1.0.0 Beta 14)
+
+* Added a new optional button sound for launching a game.  The
+default is silence, so it won't change your existing setup, but
+this lets you add a custom sound of your choosing by adding a WAV
+file called Launch.wav to the Media\Button Sounds folder within
+your PinballY install folder.  This is played in addition to any
+table-specific Launch Audio track.
+
+* A new option lets you tell PinballY *not* to reposition windows
+at startup to force them into the visible desktop area.  When
+PinballY starts up, it tries to restore the same window layout that
+was in effect at the end of the last session, with the same set of
+windows open at the same locations on the screen.  By default, as
+part of this restoration process, PinballY checks each window to
+make sure the location is still valid - meaning that it's still
+within the display area of a physical monitor.  Any window that's
+not in a valid area is automatically repositioned to bring it back
+within the viewable area.  
+
+The new option lets you disable that automatic repositioning, so
+that windows are restored to their exact locations from the last
+session, even if that would leave them out of the bounds of the
+current desktop area.  To disable the automatic repositioning, go
+to the Startup page in the settings dialog, and un-check the box
+for "Make sure all windows are positioned within the visible
+desktop area".  
+
+Why does PinballY do this repositioning in the first place?  It's
+for situations where you've changed your desktop layout (for
+example, by adding a new monitor, or rearranging the monitor
+geometry in the Windows display settings).  The saved window
+positions are relative to the coordinate system of the Windows
+desktop, so if the new desktop layout isn't the same as the last
+time you ran, the old coordinates can be screwy, placing windows
+off in the boonies outside of the current visible display area.
+The automatic repositioning senses this situation and tries to
+compensate by moving any misplaced windows back into the viewable
+area.  It's a convenience to make sure that you can reach all of
+the open windows with the mouse.
+
+Why wouldn't you want this?  It might be a problem if you routinely
+change your desktop layout when running different programs.  In
+particular, if you use an external tool to set a different desktop
+layout for each program, the new layout when starting PinballY
+might not go into effect until after PinballY has already decided
+that it needs to rearrange your windows.  That can make PinballY
+unnecessarily rearrange your windows - even though the saved
+locations would have been fine if PinballY had waited a few moments
+for the new desktop layout to come into effect.  In these
+situations, you can disable the automatic repositioning to ensure
+that your window layout is preserved.  (Issue #73 on github.)
+
+
 05-26-2019 (1.0.0 Beta 13)
 
 * Fixed a problem saving customized media file names in the XML

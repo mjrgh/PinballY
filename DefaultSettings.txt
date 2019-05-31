@@ -205,6 +205,33 @@ WaitForMonitors = 1 monitor, 10 seconds
 # doesn't try to open any windows during that connection interval.
 WaitForMonitors.ExtraDelay = 0
 
+# Force windows into the valid desktop area at startup?  If this is
+# true, PinballY will check the saved position for each window that's
+# initially displayed to make sure that it's within the visible area
+# of the desktop.  Any window that's entirely off the screen will be
+# repositioned so that it's within the visible area of the nearest
+# monitor to the saved location.
+#
+# This is enabled by default to ensure that windows don't fall off
+# the edge of the visible area after a change to the desktop layout.
+# If you rearrange your desktop layout or change monitor resolutions
+# between PinballY sessions, the saved positions from the last session
+# might place some windows in parts of the screen that aren't visible
+# in the new session.  That can be confusing because it'll look like
+# the window has disappeared, when it's actually there, just beyond
+# the bounds of the visible desktop area.
+#
+# You might want to disable this option if you change your desktop
+# layout dynamically for different applications using an external
+# tool.  In that case, it can appear to PinballY during program
+# startup that the saved window positions are invalid, so if this
+# option is enabled, PinballY can think it needs to reposition some
+# of your windows into the apparently valid desktop area.  Disabling
+# this option tells PinballY to restore the old window positions
+# unconditionally, preserving your old layout.
+#
+Startup.ForceWindowsIntoView = 1
+
 
 # Splash screen.  If true (1), the program displays a "splash screen"
 # briefly at program startup, showing the program name and version.
