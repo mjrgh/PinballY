@@ -47,6 +47,7 @@ var contents = [
             "++RunProgramExample.html Running a Program",
             "++FamilyFilterExample.html Family Filter",
             "++KioskModeExample.html Kiosk Mode",
+            "++ReverseMenuKeysExample.html Reversed Menu Keys",
         "+Commands.html Commands",
         "+Events.html Events",
             "++EventTypes.html Event Types",

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Reversed Menu Buttons</h1>
+
+<p>
+   PinballY lets you reassign all of the standard keyboard and joystick
+   command assignments via the <a href="Options.html">Options</a> dialog,
+   so it's straightforward to customize the button settings for your
+   pin cab layout.
+</p>
+<p>
+   But there are certain button commands that PinballY "overloads", meaning
+   that the same button has multiple functions, which depend on the context.
+   For example, the Next and Previous keys are used to navigate through
+   the game wheel UI, and they're also used to navigate through menus.
+   One person on the forums pointed out that his personal sense of what
+   "Next" and "Previous" should mean is reversed between the wheel UI and
+   menus, which makes the way PinballY conflates the two functions feel
+   wrong to him.
+</p>
+<p>
+   Fortunately, Javascript gives us the power to change the meanings of
+   button commands <i>according to context</i>.  Let's look at how we can
+   reverse the meanings of the "Next" and "Previous" keys when we're in
+   a menu, and leave them unchanged everywhere else.
+</p>
+<p>
+   To make this work, we'll take advantage of three Javascript features:
+</p>
+<ul>
+   <li>The <a href="CommandButtonEvent.html">CommandButtonEvent</a>, which
+   fires when the user presses a button assigned to a command function.
+   This event represents an abstract command function rather than a raw
+   keystroke, so it's perfect for our purposes here, since it'll adapt
+   automatically to whatever physical keyboard keys are assigned to the
+   Next and Previous functions.
+
+   <li>The <a href="MainWindowObject.html#getUIMode">mainWindow.getUIMode()</a>
+   method, which lets us determine if a menu is currently in progress.  This
+   is how we can reverse the Next and Previous commands when we're in a menu,
+   and leave them unchanged everywhere else.
+
+   <li>The <a href="MainWindowObject.html#doButtonCommand">mainWindow.doButtonCommand()</a>
+   method, which lets us simulate a button press from Javascript.  We'll
+   use this to carry out the new, reversed menu command we want to execute
+   when we detect that the user has pressed a menu navigation button.
+</ul>
+
+<p>
+   The code needed is pretty simple.  We set up an event listener for the
+   <b>commandbuttondown</b> event and check the UI mode to see if we're in
+   a menu.  If so, we check the command being executed to see if it's a
+   Next or Previous command.  If all of these things are true, execute
+   the <i>opposite</i> command (if it's Next, we execute Previous, and
+   if it's Previous, we execute Next), and finally cancel the event, so
+   that the original Next or Previous is skipped in favor of our reversed
+   version.  In any other case, we just return from the handler without
+   doing anything more, letting the system go ahead with its
+   normal handling.
+</p>
+<div class="code">
+let reverseMenuMap = { "Next": "Prev", "Prev": "Next" };
+mainWindow.on("commandbuttondown", ev => {
+    if (mainWindow.getUIMode().mode == "menu") {
+        let reverseCmd = reverseMenuMap[ev.command];
+        if (reverseCmd) {
+            mainWindow.doButtonCommand(reverseCmd, true, ev.repeat);
+            ev.preventDefault();
+        }
+    }
+});
+</div>
+
+
+</body>
+</html>

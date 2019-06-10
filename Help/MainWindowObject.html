@@ -42,15 +42,6 @@
 </p>
 
 <p>
-   <a name="doCommand"></a>
-   <b>mainWindow.doCommand(<i>id</i>):</b>  Executes the command specified by
-   <i>id</i>, which is one of the integer command codes in the
-   <a href="Commands.html">Commands</a> set.  This function carries out a
-   menu-level command, as opposed to a button-level command; for the latter,
-   use doButtonCommand().
-</p>
-
-<p>
    <a name="doButtonCommand"></a>
    <b>mainWindow.doButtonCommand(<i>command</i>, <i>down</i>, <i>repeat</i>):</b>
    Simulates a key press, or more precisely, simulates a processed key event
@@ -65,6 +56,15 @@
    reasons.  Because the simulated key press is coming from Javascript already,
    it doesn't generate any of the usual Javascript events for actual key presses;
    it just carries out the effect of the key command.
+</p>
+
+<p>
+   <a name="doCommand"></a>
+   <b>mainWindow.doCommand(<i>id</i>):</b>  Executes the command specified by
+   <i>id</i>, which is one of the integer command codes in the
+   <a href="Commands.html">Commands</a> set.  This function carries out a
+   menu-level command, as opposed to a button-level command; for the latter,
+   use doButtonCommand().
 </p>
 
 <p>
