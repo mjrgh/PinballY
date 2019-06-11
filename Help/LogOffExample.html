@@ -10,7 +10,7 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>Log Off Windows</h1>
+<h1>Log Off at Shutdown</h1>
 
 <p>
    One of the standard commands in PinballY is "Power Off" (you can
@@ -95,6 +95,36 @@ mainWindow.on("command", ev => {
         mainWindow.doCommand(command.Quit);
         ev.preventDefault();
     }
+});
+</div>
+
+<p>
+   Note that we only took over the execution of the command, without
+   changing the way the command appears on menus in the UI.  If you
+   wanted to fix up the UI to change the command to match its new
+   function, that's fairly straightforward.  We just have to listen
+   for the <a href="MenuEvent.html"><b>menuopen</b> event</a> and
+   make some edits:
+</p>
+<ul>
+   <li>Change the label of the command.PowerOff command item, if any, to "Log Off"
+
+   <li>Change the label of the command.PowerOffConfirm item, if any,j to "Confirm Log Off"
+</ul>
+
+
+<div class="code">
+mainWindow.on("menuopen", ev => {
+    ev.items.forEach(ele => {
+        if (ele.cmd == command.PowerOff) {
+            ele.title = "Log Off";
+            ev.menuUpdated = true;
+        }
+        else if (ele.cmd == command.PowerOffConfirm) {
+            ele.title = "Confirm Log Off";
+            ev.menuUpdated = true;
+        }
+    });
 });
 </div>
    
