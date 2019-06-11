@@ -48,6 +48,7 @@ var contents = [
             "++FamilyFilterExample.html Family Filter",
             "++KioskModeExample.html Kiosk Mode",
             "++ReverseMenuKeysExample.html Reversed Menu Keys",
+            "++LogOffExample.html Log Off at Shutdown",
         "+Commands.html Commands",
         "+Events.html Events",
             "++EventTypes.html Event Types",

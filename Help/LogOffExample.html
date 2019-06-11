@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Log Off Windows</h1>
+
+<p>
+   One of the standard commands in PinballY is "Power Off" (you can
+   find this command on the Exit menu), which sends a request to Windows
+   to shut down the system and turn off power.  This makes it possible
+   to go through a complete session (power on, play some games, power off)
+   without having to interact with the Windows desktop at any point, which
+   is nice for pin cab users, since it helps maintain the illusion that the
+   pin cab is an arcade machine instead of a Windows PC.
+</p>
+<p>
+   But Windows being Windows, everyone has a unique system configuration
+   with unique operating requirements, and this can sometimes affect the
+   process you have to use to shut down your system.  Indeed, someone
+   raised this very point on the forums, reporting that his system is set
+   up in such a way that he has to explicitly log off before shutting down.
+   That makes the "Power Off" command problematic for him.
+</p>
+<p>
+   Using Javascript, we can change the way the "Power Off" command works
+   to make it friendlier to this special situation.  In particular, we can
+   change it so that the "Power Off" command doesn't actually execute the
+   shutdown, but simply logs off the current user.  That will leave it
+   to the user to press the power button to complete the shutdown after
+   the logoff succeeds.
+</p>
+<p>
+   If you've read through any of the other examples, you've seen the
+   basic approach for changing the way any command works: we write
+   a listener for the <a href="CommandEvent.html"><b>command</b> event</a>,
+   check the ID in the event object to see if it's the
+   <a href="Commands.html#commandIDs">Command ID</a> we want to
+   override, and if so, carry out our special function.  We can then
+   call the <a href="Event.html#preventDefault">preventDefault()</a>
+   method of the event object to cancel the normal system processing.
+</p>
+<p>
+   We should mention a couple of special features of our custom "log off"
+   command before we get into the coding.
+</p>
+<p>
+   The first is that the standard Power Off command has a two-step
+   process in the UI.  The nominal "Power Off" command
+   (<a href="Commands.html#PowerOff">command.PowerOff</a>) doesn't
+   actually carry out the operation: its only function is to bring
+   up a second menu to confirm that the user really wants to shut
+   down.  I like the two-step process because I really hate it when
+   I accidentally trigger this command - it takes so long to get the
+   system back up and running if you do.  So the <i>real</i> shutdown
+   action doesn't happen on the initial PowerOff command, but on
+   the confirming command from the second menu,
+   <a href="Commands.html#PowerOffConfirm">command.PowerOffConfirm</a>.
+   That's the command we actually need to override in our event handler.
+</p>
+<p>
+   The second special feature of this customization is that we'll
+   need to talk directly to Windows to carry out the logoff command.
+   PinballY doesn't have its own built-in version of this command
+   that we can call, so we have to negotiate this directly through
+   the Windows APIs.  Fortunately, PinballY's Javascript has a
+   provision for this, which you can read all about in
+   <a href="DllImport.html">Calling Native DLLs</a>.  Even
+   more fortunately, the Windows API for logging off is very
+   simple, just a single function call.
+</p>
+<p>
+   Here's the code to override the Power Off command and make
+   it perform a Log Off command instead.
+</p>
+
+<div class="code">
+// To log off, we just need to call ExitWindowsEx(0, 0) in the Windows API
+let User32 = dllImport.bind("User32.dll", `
+    BOOL WINAPI ExitWindowsEx(UINT uFlags, DWORD dwReason);
+`);
+
+// Take over the Power Off Confirm command
+mainWindow.on("command", ev => {
+    if (ev.id == command.PowerOffConfirm) {
+        const EWX_LOGOFF = 0;
+        User32.ExitWindowsEx(EWX_LOGOFF, 0);
+        mainWindow.doCommand(command.Quit);
+        ev.preventDefault();
+    }
+});
+</div>
+   
+   
+
+</body>
+</html>
