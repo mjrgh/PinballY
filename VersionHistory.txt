@@ -1,5 +1,28 @@
 PinballY Update History
 
+? (1.0.0)
+
+* A new option in the Status Lines section of the options dialog lets
+you disable all status line displays.  Un-check the "Enable status
+line display" box to prevent status line displays.
+
+* Some new status line substitution variables have been added:
+
+  - [Game.Rating] for the star rating ("1 star", etc)
+  - [Game.TypeCode] for the IPDB table type code (SS, EM, ME)
+  - [Game.TypeName] for the full table type name (Solid State, etc)
+  - [Game.PlayCount] for the number of plays
+  - [Game.PlayTime] for the play time ("15 minutes", "1:23 hours", etc)
+  - [Game.LastPlayed] for the last play date
+  - [Game.TableFileName] for the game's table file name
+
+(Issue #75 on github.)
+
+* In the past, still image files that us the sRGB color space were
+displayed with inaccurate colors on-screen.  In most cases, the
+rendered colors were far too dark, and sometimes looked strangely
+tinted.  This has been corrected.
+
 
 05-31-2019 (1.0.0 Beta 14)
 

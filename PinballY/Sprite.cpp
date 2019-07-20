@@ -96,7 +96,8 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 	}
 
 	// It's not an SWF, and it's not rotated, so translate the image to a texture via WIC.
-	HRESULT hr = CreateWICTextureFromFile(D3D::Get()->GetDevice(), filename, &texture, &rv);
+	HRESULT hr = CreateWICTextureFromFileEx(D3D::Get()->GetDevice(), filename, 
+		0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, WIC_LOADER_IGNORE_SRGB, &texture, &rv);
 	if (FAILED(hr))
 	{
 		WindowsErrorMessage winMsg(hr);

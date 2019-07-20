@@ -784,6 +784,10 @@ RememberJSButtonSource = 0
 UpperStatus.Messages = Welcome to PinballY!|[Filter.Title] ([Filter.Count] [Filter.Count:Match:Matches])
 LowerStatus.Messages = Free Play|Press Start|[Game.Title] ([Game.Manuf], [Game.Year])
 
+# Status line enable/disable.  Setting this to 0 disables the
+# status line display entirely.
+StatusLine.Enable = 1
+
 # Status line update times, in millseconds.  These set the time
 # intervals for rotating messages in the status lines.  Using
 # slightly different intervals will make the two messages switch

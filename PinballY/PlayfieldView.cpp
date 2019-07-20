@@ -151,6 +151,8 @@ namespace ConfigVars
 
 	static const TCHAR *CaptureSkipLayoutMessage = _T("Capture.SkipLayoutMessage");
 	static const TCHAR *CaptureManualStartStopButtons = _T("Capture.ManualStartStopButton");
+
+	static const TCHAR *StatusLineEnable = _T("StatusLine.Enable");
 };
 
 // include the capture-related variables
@@ -3387,6 +3389,9 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 
 void PlayfieldView::InitStatusLines()
 {
+	// get the enabled/disabled setting
+	statusLineEnabled = ConfigManager::GetInstance()->GetBool(ConfigVars::StatusLineEnable, true);
+
 	// initialize the status lines from the config
 	upperStatus.Init(this, 75, 0, 6, _T("UpperStatus"), IDS_DEFAULT_STATUS_UPPER);
 	lowerStatus.Init(this, 0, 0, 6, _T("LowerStatus"), IDS_DEFAULT_STATUS_LOWER);
@@ -5173,7 +5178,7 @@ void PlayfieldView::UpdateRateGameDialog()
 		// show the current rating as text
 		Gdiplus::RectF rcStars(0.f, (float)height / 2.0f + (float)cyStar, (float)width, (float)cyStar);
 		FontPref &starsFont = popupDetailFont;
-		g.DrawString(StarsAsText(workingRating).c_str(), -1, starsFont, rcStars, &centerFmt, &textBr);
+		g.DrawString(MsgFmt(_T("(%s)"), StarsAsText(workingRating).c_str()), -1, starsFont, rcStars, &centerFmt, &textBr);
 
 		// draw the prompt text
 		FontPref &promptFont = popupFont;
@@ -5214,6 +5219,25 @@ TSTRING PlayfieldView::StarsAsText(float rating)
 		wholeStars == 0 && fracStars > 0.25f ? LoadStringT(IDS_RATE_GAME_HALFSTAR) :
 		rating == 1 ? LoadStringT(IDS_RATE_GAME_1STAR) :
 		MsgFmt(IDS_RATE_GAME_STARS, num);
+}
+
+TSTRING PlayfieldView::PlayTimeAsText(int seconds)
+{
+	int minutes = seconds / 60;
+	seconds %= 60;
+	int hours = minutes / 60;
+	minutes %= 60;
+
+	if (hours > 1 || (hours == 1 && minutes > 0))
+		return MsgFmt(IDS_N_HOURS, hours, minutes).Get();
+	else if (hours == 1 && minutes == 0)
+		return LoadStringT(IDS_1_HOUR);
+	else if (minutes > 1)
+		return MsgFmt(IDS_N_MINUTES, minutes).Get();
+	else if (minutes == 1)
+		return LoadStringT(IDS_1_MINUTE);
+	else
+		return MsgFmt(IDS_N_MINUTES, 0).Get();
 }
 
 void PlayfieldView::DrawStars(Gdiplus::Graphics &g, float x, float y, float rating)
@@ -6319,7 +6343,7 @@ void PlayfieldView::ShowGameInfo()
 			// taller than the font, advance by the difference, so that the text
 			// baseline matches the star graphics baseline.
 			gds.curOrigin.Y += fmaxf(0.0f, -dh);
-			gds.DrawString(StarsAsText(rating).c_str(), detailsFont, &textBr, true);
+			gds.DrawString(MsgFmt(_T("(%s)"), StarsAsText(rating).c_str()), detailsFont, &textBr, true);
 
 			// make sure we moved past the stars vertically
 			gds.curOrigin.Y = fmaxf(y0 + starHt, gds.curOrigin.Y);
@@ -6348,24 +6372,7 @@ void PlayfieldView::ShowGameInfo()
 			gds.DrawString(MsgFmt(IDS_TIMES_PLAYED, playCount), detailsFont, &textBr);
 
 			// add the total play time
-			int seconds = gl->GetPlayTime(game);
-			int minutes = seconds / 60;
-			seconds %= 60;
-			int hours = minutes / 60;
-			minutes %= 60;
-
-			TSTRING time;
-			if (hours > 1 || (hours == 1 && minutes > 0))
-				time = MsgFmt(IDS_N_HOURS, hours, minutes);
-			else if (hours == 1 && minutes == 0)
-				time = LoadStringT(IDS_1_HOUR);
-			else if (minutes > 1)
-				time = MsgFmt(IDS_N_MINUTES, minutes);
-			else if (minutes == 1)
-				time = LoadStringT(IDS_1_MINUTE);
-			else
-				time = MsgFmt(IDS_N_MINUTES, 0);
-			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, time.c_str()), detailsFont, &textBr);
+			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, PlayTimeAsText(gl->GetPlayTime(game)).c_str()), detailsFont, &textBr);
 		}
 		else
 		{
@@ -16847,6 +16854,19 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 	if (items.size() == 0)
 		return;
 
+	// if the status line display is disabled, do nothing
+	if (!pfv->statusLineEnabled)
+	{
+		if (curItem != items.end())
+		{
+			if (curItem->sprite != nullptr)
+				curItem->sprite->alpha = 0.0;
+
+			curItem = items.end();
+		}
+		return;
+	}
+
 	// get the time so far in this phase
 	DWORD dt = GetTickCount() - startTime;
 	const float fadeTime = 350.0f;
@@ -16968,7 +16988,7 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 void PlayfieldView::StatusLine::AddSprites(std::list<Sprite*> &sprites)
 {
 	// add the current item
-	if (curItem != items.end() && curItem->sprite != 0)
+	if (curItem != items.end() && curItem->sprite != nullptr)
 		sprites.push_back(curItem->sprite);
 }
 
@@ -16995,36 +17015,100 @@ std::list<PlayfieldView::StatusItem>::iterator PlayfieldView::StatusLine::NextIt
 TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 {
 	// Get the current game list selection and filter, for macro expansion
-	const GameListItem *game = GameList::Get()->GetNthGame(0);
-	const GameListFilter *filter = GameList::Get()->GetCurFilter();
+	GameList *gl = GameList::Get();
+	GameListItem *game = gl->GetNthGame(0);
+	const GameListFilter *filter = gl->GetCurFilter();
 
 	// Get my new message text, expanding macros
-	std::basic_regex<TCHAR> pat(_T("\\[([\\w.]+)(:[^\\]:]*)?(:[^\\]:]*)?(:[^\\]]*)?\\]"));
-	return regex_replace(srcText, pat, [game, filter, pfv](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+	std::basic_regex<TCHAR> pat(_T("\\[([\\w.]+)((:[^\\]:]*)?(:[^\\]:]*)?(:[^\\]]*)?)\\]"));
+	return regex_replace(srcText, pat, [gl, game, filter, pfv](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
 	{
 		// pull out the variable name, in lower-case for matching
 		TSTRING v = m[1].str().c_str();
 		std::transform(v.begin(), v.end(), v.begin(), ::_totlower);
 
-		// if we have a plural form, check for the count variables
-		if (m[2].matched)
+		// Check for ":" suffix strings.  These are used for the singular/plural
+		// forms for count variables, and for date format pictures for date variables.
+		if (m[2].length() != 0)
 		{
-			// it's a variant plural form - look for a count variable
-			float n = 0.0f;
-			if (v == _T("filter.count"))
-				n = (float)GameList::Get()->GetCurFilterCount();
-			else if (v == _T("credits"))
-				n = pfv->GetEffectiveCredits();
-			else
-				return m[0].str();  // no match - return the full original text
+			// Check for count variables.  For these, we must match at least
+			// two ":" sections.
+			if (m[3].matched && m[4].matched)
+			{
+				auto PluralFormat = [&m](float n)
+				{
+					// substitute the appropriate section
+					if (n == 0.0f && m[5].matched)
+						return m[5].str().substr(1);
+					else if (n > 0.0f && n <= 1.0f)
+						return m[3].str().substr(1);
+					else
+						return m[4].str().substr(1);
+				};
 
-			// substitute the appropriate section
-			if (n == 0.0f && m[4].matched)
-				return m[4].str().substr(1);
-			else if (n > 0.0f && n <= 1.0f)
-				return m[2].str().substr(1);
-			else
-				return m[3].str().substr(1);
+				if (v == _T("filter.count"))
+					return PluralFormat(static_cast<float>(GameList::Get()->GetCurFilterCount()));
+				else if (v == _T("credits"))
+					return PluralFormat(pfv->GetEffectiveCredits());
+				else if (v == _T("game.playcount"))
+					return PluralFormat(IsGameValid(game) ? static_cast<float>(gl->GetPlayCount(game)) : 0.0f);
+			}
+
+			// Check for date variables
+			auto XlatLitChars = [](TSTRING &s, bool xlatPct) {
+				const static std::basic_regex<TCHAR> litCharPat(_T("%[()/%]"));
+				return regex_replace(s, litCharPat, [xlatPct](const std::match_results<TSTRING::const_iterator>& m) -> TSTRING {
+					TCHAR c = m[0].str()[1];
+					return c == '(' ? _T("[") :
+						c == ')' ? _T("]") :
+						c == '/' ? _T("|") :
+						c == '%' ? (xlatPct ? _T("%") : _T("%%")) :
+						TSTRING(c, 1);
+				});
+			};
+			auto DateFormat = [&m, &XlatLitChars](const TCHAR *str) -> TSTRING
+			{
+				// separate the format string into <date mask>|<never> sections
+				TSTRING format = m[2].str().substr(1);
+				TSTRING never;
+				const TCHAR *bar = _tcschr(format.c_str(), '|');
+				if (bar != nullptr)
+				{
+					never = bar + 1;
+					format = format.substr(0, bar - format.c_str());
+				}
+
+				// convert to a DateTime and check if it's valid
+				DateTime d(str);
+				if (d.IsValid())
+				{
+					// it's a valid date value - convert to a struct tm
+					tm tm;
+					d.ToStructTm(tm);
+
+					// Apply the string format.  Substitute our additional literal
+					// character sequences first, but leave %% sequences intact, since
+					// they'll be handled by _tcsftime().
+					TCHAR dbuf[512];
+					_tcsftime(dbuf, countof(dbuf), XlatLitChars(format, false).c_str(), &tm);
+
+					// return the formatted string
+					return dbuf;
+				}
+				else if (bar != nullptr)
+				{
+					// Invalid date, and there's a custom "never" string - use it, 
+					// applying literal character substitutions.
+					return XlatLitChars(never, true);
+				}
+				else
+				{
+					// invalid date and no custom "never" string - use the default "never"
+					return LoadStringT(IDS_LAST_PLAYED_NEVER);
+				}
+			};
+			if (v == _T("game.lastplayed") && IsGameValid(game))
+				return DateFormat(gl->GetLastPlayed(game));
 		}
 
 		// it's an ordinary substitution
@@ -17036,6 +17120,44 @@ TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 			return IsGameValid(game) && game->year != 0 ? MsgFmt(_T("%d"), game->year).Get() : LoadStringT(IDS_NO_YEAR);
 		else if (v == _T("game.system"))
 			return IsGameValid(game) && game->system != nullptr ? game->system->displayName : LoadStringT(IDS_NO_SYSTEM);
+		else if (v == _T("game.rating"))
+			return pfv->StarsAsText(IsGameValid(game) ? gl->GetRating(game) : -1);
+		else if (v == _T("game.typecode"))
+			return IsGameValid(game) ? game->tableType : LoadStringT(IDS_NO_TABLE_TYPE);
+		else if (v == _T("game.typename"))
+		{
+			if (IsGameValid(game))
+			{
+				if (auto it = pfv->tableTypeNameMap.find(game->tableType); it != pfv->tableTypeNameMap.end())
+					return WSTRINGToTSTRING(it->second);
+			}
+			return LoadStringT(IDS_NO_TABLE_TYPE);
+		}
+		else if (v == _T("game.playcount"))
+		{
+			if (IsGameValid(game))
+			{
+				TCHAR buf[20];
+				_stprintf_s(buf, _T("%d"), gl->GetPlayCount(game));
+				return buf;
+			}
+			return LoadStringT(IDS_NO_PLAY_COUNT);
+		}
+		else if (v == _T("game.playtime"))
+			return IsGameValid(game) ? pfv->PlayTimeAsText(gl->GetPlayTime(game)) : LoadStringT(IDS_NO_PLAY_TIME);
+		else if (v == _T("game.lastplayed"))
+		{
+			if (IsGameValid(game))
+			{
+				DateTime d(gl->GetLastPlayed(game));
+				if (d.IsValid())
+					return d.FormatLocalDateTime(DATE_LONGDATE, TIME_NOSECONDS);
+				return LoadStringT(IDS_LAST_PLAYED_NEVER);
+			}
+			return LoadStringT(IDS_NO_LAST_PLAYED);
+		}
+		else if (v == _T("game.tablefilename"))
+			return IsGameValid(game) ? game->filename : LoadStringT(IDS_NO_TABLE_FILE);
 		else if (v == _T("filter.title"))
 			return filter->GetFilterTitle();
 		else if (v == _T("filter.count"))

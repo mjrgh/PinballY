@@ -4,6 +4,7 @@
 // Date utility functions
 
 #pragma once
+#include <ctime>
 
 class DateTime
 {
@@ -53,6 +54,9 @@ public:
 		SystemTimeToVariantTime(&st, &d);
 		return d;
 	}
+
+	// get the value as a C sys/time.h struct tm
+	void ToStructTm(tm& tm);
 
 	// Get the value in human-readable Date-and-time format, in the local
 	// time zone, using the Windows localization.  

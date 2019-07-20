@@ -600,6 +600,9 @@ protected:
 	// Get a text message with the number of stars
 	TSTRING StarsAsText(float rating);
 
+	// Get a play time as text
+	TSTRING PlayTimeAsText(int seconds);
+
 	// adjust the current game rating - used for the Next/Previous
 	// keys when the Rate Game dialog is showing
 	void AdjustRating(float delta);
@@ -1247,6 +1250,9 @@ protected:
 		// Horizontal slide distance while fading
 		float fadeSlide;
 	};
+
+	// Are the status line messages enabled?
+	bool statusLineEnabled = true;
 
 	// Upper and lower status lines
 	StatusLine upperStatus;

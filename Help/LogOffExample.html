@@ -77,12 +77,32 @@
    simple, just a single function call.
 </p>
 <p>
-   Here's the code to override the Power Off command and make
+   One extra step that we should perform is to save any changes to
+   the settings before initiating the Windows log-off.  When we call
+   the Windows log-off API, Windows immediately starts shutting down
+   the current user session, which requires terminating all of the
+   programs running under that session.  Windows is supposed to give
+   running programs a chance to shut down cleanly, but in practice
+   this doesn't always happen; Windows sometimes just kills all of
+   the running programs without any warning.  In PinballY's case,
+   this can be problematic, because it can interrupt PinballY
+   in the middle of writing out any unsaved changes to the settings
+   file.  That can leave the settings file only partially written
+   to disk, which is obviously bad.  To avoid this risk, we can
+   explicitly save settings updates before we even start the
+   log-off procedure.  That'll write everything safely to disk,
+   and then mark the in-memory copy as in sync with the disk copy,
+   so that PinballY won't try to write it again at program exit.
+</p>
+<p>
+   Here's the full code to override the Power Off command and make
    it perform a Log Off command instead.
 </p>
 
 <div class="code">
-// To log off, we just need to call ExitWindowsEx(0, 0) in the Windows API
+// To log off, we just need to call ExitWindowsEx(0, 0) in the Windows API.
+// Bind the DLL function so that we can call it from Javascript when the
+// time arrives.
 let User32 = dllImport.bind("User32.dll", `
     BOOL WINAPI ExitWindowsEx(UINT uFlags, DWORD dwReason);
 `);
@@ -90,9 +110,19 @@ let User32 = dllImport.bind("User32.dll", `
 // Take over the Power Off Confirm command
 mainWindow.on("command", ev => {
     if (ev.id == command.PowerOffConfirm) {
+        // save any settings changes
+        if (optionSettings.isDirty())
+            optionSettings.save();
+
+        // log off Windows
         const EWX_LOGOFF = 0;
-        User32.ExitWindowsEx(EWX_LOGOFF, 0);
+        const SHTDN_REASON_FLAG_PLANNED = 0x80000000;
+        User32.ExitWindowsEx(EWX_LOGOFF, SHTDN_REASON_FLAG_PLANNED);
+
+        // quit out of PinballY
         mainWindow.doCommand(command.Quit);
+
+        // skip the normal Power Off command processing
         ev.preventDefault();
     }
 });
@@ -101,7 +131,7 @@ mainWindow.on("command", ev => {
 <p>
    Note that we only took over the execution of the command, without
    changing the way the command appears on menus in the UI.  If you
-   wanted to fix up the UI to change the command to match its new
+   wanted to fix up the menu labels to match the new
    function, that's fairly straightforward.  We just have to listen
    for the <a href="MenuEvent.html"><b>menuopen</b> event</a> and
    make some edits:

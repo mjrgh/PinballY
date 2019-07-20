@@ -62,6 +62,11 @@
 #define IDS_NO_MANUFACTURER             221
 #define IDS_NO_YEAR                     222
 #define IDS_NO_SYSTEM                   223
+#define IDS_NO_TABLE_TYPE               224
+#define IDS_NO_PLAY_COUNT               225
+#define IDS_NO_PLAY_TIME                226
+#define IDS_NO_LAST_PLAYED              227
+#define IDS_NO_TABLE_FILE               228
 
 #define IDS_CAPTURE_DELAYTIME1          240
 #define IDS_CAPTURE_DELAYTIME2          241

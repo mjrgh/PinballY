@@ -386,7 +386,7 @@ bool ConfigManager::GetBool(const TCHAR *name, bool defval) const
 bool ConfigManager::ToBool(const TCHAR *val)
 {
 	// treat "1", "true", "t", "yes", and "y" as true, others as false
-	std::basic_regex<TCHAR> pat(_T("^\\s*(true|t|yes|y|1)"), std::regex_constants::icase);
+	static const std::basic_regex<TCHAR> pat(_T("^\\s*(true|t|yes|y|1)"), std::regex_constants::icase);
 	return std::regex_match(val, pat);
 }
 

@@ -35,6 +35,18 @@ TSTRING DateTime::ToString() const
 	return buf;
 }
 
+void DateTime::ToStructTm(tm& tm)
+{
+	// convert the internal FILETIME to a time_t
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	time_t t = ull.QuadPart / 10000000ULL - 11644473600ULL;
+
+	// convert the time_t to struct tm
+	localtime_s(&tm, &t);
+}
+
 TSTRING DateTime::FormatLocalDateTime(DWORD dateFlags, DWORD timeFlags) const
 {
 	// Convert the internal UTC timestamp to a SYSTEMTIME struct

@@ -43,17 +43,27 @@
    <tr><td>[Game.Manuf]</td><td>The current game's manufacturer (Williams, Gottlieb, etc)</td></tr>
    <tr><td>[Game.Year]</td><td>Year of release of the original arcade version current game</td></tr>
    <tr><td>[Game.System]</td><td>Name of the current game's player system (Visual Pinball, etc)</td></tr>
+   <tr><td>[Game.Rating]</td><td>Star rating of the game (No Rating, 3, 4&frac12;, etc)</td><tr>
+   <tr><td>[Game.TypeCode]</td><td>The game's IPDB type code (SS, EM, ME)</td></tr>
+   <tr><td>[Game.TypeName]</td><td>The game's IPDB type, spelled out (Solid State, Electromechanical, Pure Mechanical)</td></tr>
+   <tr><td>[Game.PlayCount]</td><td>The number of times the game has been played</td></tr>
+   <tr><td>[Game.PlayCount:A:B:C]</td><td>Displays "A" if the play count is 1, "B" is it's greater than 1, or "C" if it's zero</td></tr>
+   <tr><td>[Game.PlayTime]</td><td>The total play time for the game (15 minutes, 1:23 hours, etc)</td></tr>
+   <tr><td>[Game.LastPlayed]</td><td>The date the game was last played, in the default local date format, or "Never"</td></tr>
+   <tr><td>[Game.LastPlayed:xxxx]</td><td>The date the game was last played, in a custom format (see below)</td></tr>
+   <tr><td>[Game.TableFileName]</td><td>The name of the game's table file (e.g., for a VP 10 game, its .vpx file)</td></tr>
    <tr><td>[Filter.Title]</td><td>Name of the current game filter (All Tables, 70s Tables, etc)</td></tr>
    <tr><td>[Filter.Count]</td><td>Number of games matching the current filter</td></tr>
    <tr><td>[Filter.Count:A:B:C]</td><td>Displays "A" if the filter count is 1, "B" if it's greater than 1, or "C" if it's zero</td></tr>
    <tr><td>[Credits]</td><td>Current number of credits from inserted coins</td></tr>
-   <tr><td>[Credits.Count:A:B:C]</td><td>Displays "A" if the credit count is 1, "B" if it's greater than 1, or "C" if it's zero</td></tr>
+   <tr><td>[Credits:A:B:C]</td><td>Displays "A" if the credit count is 1, "B" if it's greater than 1, or "C" if it's zero</td></tr>
    <tr><td>[lb]</td><td>A literal left square bracket ("[")</td></tr>
    <tr><td>[rb]</td><td>A literal right square bracket ("]")</td></tr>
 </table>
 
+<h4>Singular/plural formats</h4>
 <p>
-   The special ".Count:A:B:C" formats can be used to construct singular
+   The special "xxx:A:B:C" formats can be used to construct singular
    or plural forms to match one of the counters.  For example:
 </p>
 <pre>
@@ -62,22 +72,113 @@
 <p>
    The second element translates to "Game" or "Games" as needed to
    match the count, so the overall messages would translate to
-   "1 Game Selected", "2 Games Selected", and so on.  The point is
-   simply to make the wording more human-friendly by matching the
-   singular and plural form to the actual number.
+   "1 Game Selected", "2 Games Selected", and so on.  This lets
+   you get the wording right to match singular and plural words to
+   the live number, to avoid sloppy phrasing like "1 Games Selected"
+   or the standard lazy hedge "1 Game(s) Selected".
 </p>
 <p>
-   Note that we only specified two ":" alternatives in the example,
-   not three.  The third alternative is for the "zero" case, but in
-   English, you can simply use the plural form with zero
-   ("0 Games Selected" sounds right to most English speakers).
-   If you omit the third ":" alternative, the system uses the plural
-   form for zero.  That saves you a little typing, but you could
-   equally well have spelled it out in full:
+   You can specify either two or three ":" alternatives.
+   The third alternative, if present, is a special case for 0 (zero).
+   If you only provide two alternatives, the second (plural) form
+   is used for zero by default.  That's because English usually
+   uses the plural for for zero, as in "0 Games Selected".
+   If you want to specify a different form for zero, or you
+   just want to make it explicit, you can add a third ":" case:
 </p>
 <pre>
     [Filter.Count] [Filter.Count:Game:Games:Games] Selected
 </pre>
+
+<h4>Date/time formats</h4>
+<p>
+   For date variables ([Game.LastPlayed]), you can specify a custom
+   format for the display by adding a format string following a ":".
+   The format string uses the C strftime() codes, where elements of
+   the date and time are represented by % codes in the string.  The
+   codes are listed in the table below.  Any other text (apart from
+   the % codes) is left unchanged, so you can mix in punctuation
+   (such as commas or slashes) or other fixed text without any special
+   codes.  You can find more complete documentation for strftime() in
+   the Microsoft Visual C++ reference materials online.
+</p>
+<p>
+   For example, [Game.LastPlayed:%A, %B %#e, %Y] might translate to
+   "Thursday, May 2, 2019".
+</p>
+<p>
+   Note that if you want to use a vertical bar or right square bracket
+   in the format string, you must write it "%/" (for a bar) or
+   "%)" (for a right square bracket), because otherwise PinballY will
+   interpret it as the end of the format string.
+<p>
+   In addition to the date format string, you can specify custom text
+   to display when there's no date at all, such as when using
+   [Game.LastPlayed] with a game that's never been played.  Specify
+   this using a vertical bar, "|", followed by the custom text.
+   The only special format codes in this section are %) for a right
+   square bracket and %% for a single percent sign; otherwise, the text
+   is displayed exactly as written.  To extend our example above
+   to add the custom text "Never Played" for a game with no "last played"
+   date, we could write [Game.LastPlayed:%A, %B %#e, %Y|Never Played].
+   If you omit this extra custom text, the system provides default text
+   (such as "Never").
+</p>
+
+<table>
+   <tr><th>Code</th><th>Description</th><th>Example</th></tr>
+   <tr><td>%a</td><td>Abbreviated weekday name</td><td>Thu</td></tr>
+   <tr><td>%A</td><td>Full weekday name</td><td>Thursday</td></tr>
+   <tr><td>%b</td><td>Abbreviated month name</td><td>Aug</td></tr>
+   <tr><td>%B</td><td>Full month name</td><td>August</td></tr>
+   <tr><td>%c</td><td>Full date and time representation for the locale</td><td>Thu Aug 23 14:55:02 2001</td></tr>
+   <tr><td>%#c</td><td>Long date and time representation for the locale</td><td>Thursday, August 23, 2001, 14:55:02</td></tr>
+   <tr><td>%C</td><td>Year divided by 100 and truncated to integer (00-99)</td><td>20</td></tr>
+   <tr><td>%d</td><td>Day of the month, zero-padded (01-31)</td><td>23</td></tr>
+   <tr><td>%D</td><td>Short MM/DD/YY date, equivalent to %m/%d/%y</td><td>08/23/01</td></tr>
+   <tr><td>%e</td><td>Day of the month, space-padded ( 1-31)</td><td>23</td></tr>
+   <tr><td>%F</td><td>Short YYYY-MM-DD date, equivalent to %Y-%m-%d</td><td>2001-08-23</td></tr>
+   <tr><td>%g</td><td>Week-based year, last two digits (00-99)</td><td>01</td></tr>
+   <tr><td>%G</td><td>Week-based year</td><td>2001</td></tr>
+   <tr><td>%h</td><td>Abbreviated month name (same as %b)</td><td>Aug</td></tr>
+   <tr><td>%H</td><td>Hour in 24h format (00-23)</td><td>14</td></tr>
+   <tr><td>%I</td><td>Hour in 12h format (01-12)</td><td>02</td></tr>
+   <tr><td>%j</td><td>Day of the year (001-366)</td><td>235</td></tr>
+   <tr><td>%m</td><td>Month as a decimal number (01-12)</td><td>08</td></tr>
+   <tr><td>%M</td><td>Minute (00-59)</td><td>55</td></tr>
+   <tr><td>%n</td><td>New-line character ('\n')</td><td></td></tr>
+   <tr><td>%p</td><td>AM or PM designation</td><td>PM</td></tr>
+   <tr><td>%r</td><td>12-hour clock time</td><td>02:55:02 pm</td></tr>
+   <tr><td>%R</td><td>24-hour HH:MM time, equivalent to %H:%M</td><td>14:55</td></tr>
+   <tr><td>%S</td><td>Second (00-61)</td><td>02</td></tr>
+   <tr><td>%t</td><td>Horizontal-tab character ('\t')</td><td></td></tr>
+   <tr><td>%T</td><td>ISO 8601 time format (HH:MM:SS), equivalent to %H:%M:%S</td><td>14:55:02</td></tr>
+   <tr><td>%u</td><td>ISO 8601 weekday as number with Monday as 1 (1-7)</td><td>4</td></tr>
+   <tr><td>%U</td><td>Week number with the first Sunday as the first day of week one (00-53)</td><td>33</td></tr>
+   <tr><td>%V</td><td>ISO 8601 week number (01-53)</td><td>34</td></tr>
+   <tr><td>%w</td><td>Weekday as a decimal number with Sunday as 0 (0-6)</td><td>4</td></tr>
+   <tr><td>%W</td><td>Week number with the first Monday as the first day of week one (00-53)</td><td>34</td></tr>
+   <tr><td>%x</td><td>The default local date representation</td><td>08/23/01</td></tr>
+   <tr><td>%#x</td><td>The default long-form local time representation</td><td>August 23, 2001</td></tr>
+   <tr><td>%X</td><td>The default local time representation</td><td>14:55:02</td></tr>
+   <tr><td>%y</td><td>Year, last two digits (00-99)</td><td>01</td></tr>
+   <tr><td>%Y</td><td>Year</td><td>2001</td></tr>
+   <tr><td>%z</td><td>ISO 8601 offset from UTC in timezone (1 minute=1, 1 hour=100)
+   If timezone cannot be determined, no characters</td><td>+100</td></tr>
+   <tr><td>%Z</td><td>The local timezone name or abbreviation</td><td>Central Daylight Time</td></tr>
+   <tr><td>%%</td><td>A percent sign</td><td>%</td></tr>
+   <tr><td>%(</td><td>A left square bracket</td><td>[</td></tr>
+   <tr><td>%)</td><td>A right square bracket</td><td>]</td></tr>
+   <tr><td>%;</td><td>A colon</td><td>:</td></tr>
+</table>
+
+<p>
+   Removing leading spaces or zeroes:  you can add a # character between
+   the % and the format character to remove any leading space or zero
+   character, if present.  For example, %#e yields the day of the month
+   with no leading space if it's a single-digit day.
+</p>
+
 
 <h2>Message switch time</h2>
 <p>
@@ -86,7 +187,7 @@
    in milliseconds.  A millisecond is 1/1000 of a second; 1000
    milliseconds equals one second.
 </p>
-<p>
-   
+
+
 </body>
 </html>
