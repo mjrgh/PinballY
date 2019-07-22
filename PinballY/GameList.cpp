@@ -3813,71 +3813,71 @@ static const TCHAR *flyerPages[] = {
 // are explicitly not localized, since they're internal names defined by
 // the HyperPin/PinballX media database structure.
 const MediaType GameListItem::wheelImageType = {
-	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, L"wheel image",
+	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, _T("WheelImage"), L"wheel image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::instructionCardImageType = {
-	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, L"inst card image",
+	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, _T("InstCardImage"), L"inst card image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, true };
 const MediaType GameListItem::flyerImageType = {
-	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, L"flyer image",
+	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, _T("FlyerImage"), L"flyer image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, false, flyerPages };
 const MediaType GameListItem::launchAudioType = {
-	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, L"launch audio",
+	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, _T("LaunchAudio"), L"launch audio",
 	nullptr, nullptr, nullptr,
 	MediaType::Audio, 0 };
 const MediaType GameListItem::playfieldImageType = {
-	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, L"table image",
+	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, _T("PlayfieldImage"), L"table image",
 	ConfigVars::CapturePFImageStart, nullptr, nullptr,
 	MediaType::Image, 270 };
 const MediaType GameListItem::playfieldVideoType = {
-	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, L"table video",
+	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, _T("PlayfieldVideo"), L"table video",
 	ConfigVars::CapturePFVideoStart, ConfigVars::CapturePFVideoStop, ConfigVars::CapturePFVideoTime,
 	MediaType::VideoWithAudio, 270 };
 const MediaType GameListItem::playfieldAudioType = {
-	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, L"table audio",
+	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, _T("PlayfieldAudio"), L"table audio",
 	ConfigVars::CapturePFAudioStart, ConfigVars::CapturePFAudioStop, ConfigVars::CapturePFAudioTime,
 	MediaType::Audio, 270 };
 const MediaType GameListItem::backglassImageType = {
-	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, L"bg image",
+	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, _T("BackglassImage"), L"bg image",
 	ConfigVars::CaptureBGImageStart, nullptr, nullptr, 
 	MediaType::Image, 0 };
 const MediaType GameListItem::backglassVideoType = {
-	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, L"bg video",
+	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, _T("BackglassVideo"), L"bg video",
 	ConfigVars::CaptureBGVideoStart, ConfigVars::CaptureBGVideoStop, ConfigVars::CaptureBGVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::dmdImageType = {
-	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, L"dmd image",
+	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, _T("DMDImage"), L"dmd image",
 	ConfigVars::CaptureDMImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::dmdVideoType = {
-	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, L"dmd video",
+	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, _T("DMDVideo"), L"dmd video",
 	ConfigVars::CaptureDMVideoStart, ConfigVars::CaptureDMVideoStop, ConfigVars::CaptureDMVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::topperImageType = {
-	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, L"topper image",
+	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, _T("TopperImage"), L"topper image",
 	ConfigVars::CaptureTPImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::topperVideoType = {
-	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, L"topper video",
+	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, _T("TopperVideo"), L"topper video",
 	ConfigVars::CaptureTPVideoStart, ConfigVars::CaptureTPVideoStop, ConfigVars::CaptureTPVideoTime,
 	MediaType::SilentVideo, 0 };
 const MediaType GameListItem::realDMDImageType = {
-	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, L"real dmd image",
+	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, _T("RealDMDImage"), L"real dmd image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorImageType = {
-	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, L"real dmd color image",
+	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, _T("RealDMDColorImage"), L"real dmd color image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDVideoType = {
-	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, L"real dmd video",
+	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, _T("RealDMDVideo"), L"real dmd video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::realDMDColorVideoType = {
-	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, L"real dmd color video",
+	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, _T("RealDMDColorVideo"), L"real dmd color video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 

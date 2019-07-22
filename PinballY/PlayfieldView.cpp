@@ -10481,7 +10481,7 @@ void PlayfieldView::OnConfigChange()
 	else
 		defaultFontFamily = _T("Tahoma");
 
-	// now load the individual task-specific font preferences
+	// load the individual task-specific font preferences
 	popupFont.ParseConfig(ConfigVars::PopupFont);
 	popupTitleFont.ParseConfig(ConfigVars::PopupTitleFont);
 	popupSmallerFont.ParseConfig(ConfigVars::PopupSmallerFont);
@@ -10496,6 +10496,9 @@ void PlayfieldView::OnConfigChange()
 	infoBoxFont.ParseConfig(ConfigVars::InfoBoxFont);
 	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont);
 	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont);
+
+	// load the media capture mode defaults
+	RestoreLastCaptureModes();
 
 	// reload the status lines
 	InitStatusLines();
@@ -14663,6 +14666,81 @@ void PlayfieldView::CaptureMediaSetup()
 	DisplayCaptureMenu(false, -1, CaptureMenuMode::Single);
 }
 
+// Mapping between last capture mode string ID and external config file name.
+// Note that the config file names aren't externalized in the resource file,
+// because they're for persistent storage, not for presentation to the user.
+// These are ID keys, not names, so they need to be permanent and independent 
+// of localization.  Note that we don't identify them in external (config)
+// files by the IDS_xxx value for two reasons: first, because the IDS_xxx 
+// values aren't guaranteed to be permanent (as they're just resource IDs,
+// which could change across program versions), and second, because the ID
+// values have no mneomonic value in the config file, which is meant to be
+// human-readable as well as program-readable.
+static const struct {
+	int mode;
+	const TCHAR *name;
+} lastCaptureModeMap[] = {
+	{ IDS_CAPTURE_KEEP, _T("keep") },
+	{ IDS_CAPTURE_SKIP, _T("skip") },
+	{ IDS_CAPTURE_CAPTURE, _T("capture") },
+	{ IDS_CAPTURE_SILENT, _T("silent") },
+	{ IDS_CAPTURE_WITH_AUDIO, _T("with_audio") },
+};
+
+void PlayfieldView::SaveLastCaptureModes()
+{
+	// save the last capture modes
+	auto config = ConfigManager::GetInstance();
+	for (auto &c : lastCaptureModes)
+	{
+		// translate the mode ID to a string for storing in the config file
+		const TCHAR *mode = nullptr;
+		for (size_t i = 0; i < countof(lastCaptureModeMap); ++i)
+		{
+			if (lastCaptureModeMap[i].mode == c.second)
+			{
+				// got it - save it as Capture.<MediaTypeId>.LastMode = <mode>
+				config->Set(MsgFmt(_T("Capture.%s.LastMode"), c.first->configId), lastCaptureModeMap[i].name);
+				break;
+			}
+		}
+	}
+
+	// save the last batch capture replace modes
+	for (auto &c : lastBatchCaptureReplace)
+	{
+		// save it as Capture.<MediaTypeId>.LastBatchReplace = <bool>
+		config->SetBool(MsgFmt(_T("Capture.%s.LastBatchReplace"), c.first->configId), c.second);
+	}
+}
+
+void PlayfieldView::RestoreLastCaptureModes()
+{
+	// traverse the media types
+	auto config = ConfigManager::GetInstance();
+	for (auto &m : GameListItem::allMediaTypes)
+	{
+		// look up the last capture mode
+		if (auto v = config->Get(MsgFmt(_T("Capture.%s.LastMode"), m->configId)); v != nullptr)
+		{
+			// translate the mode name to an IDS_xxx value
+			for (size_t i = 0; i < countof(lastCaptureModeMap); ++i)
+			{
+				if (_tcsicmp(v, lastCaptureModeMap[i].name) == 0)
+				{
+					lastCaptureModes[m] = lastCaptureModeMap[i].mode;
+					break;
+				}
+			}
+		}
+
+		// look up the last batch capture replace mode
+		MsgFmt bcrKey(_T("Capture.%s.LastBatchReplace"), m->configId);
+		if (auto v = config->Get(bcrKey); v != nullptr)
+			lastBatchCaptureReplace[m] = config->ToBool(v);
+	}
+}
+
 void PlayfieldView::InitCaptureList(const GameListItem *game)
 {
 	// set the default capture time to the configured delay time
@@ -15124,6 +15202,9 @@ void PlayfieldView::CaptureMediaGo()
 	// Save the media type modes for the next capture
 	for (auto &c : captureList)
 		lastCaptureModes.emplace(&c.mediaType, c.mode);
+
+	// Save the mode updates to the settings
+	SaveLastCaptureModes();
 
 	// Run the game in media capture mode
 	PlayGame(ID_CAPTURE_GO, Application::LaunchFlags::StdCaptureFlags);
@@ -16300,6 +16381,9 @@ void PlayfieldView::BatchCaptureGo()
 		lastBatchCaptureReplace.emplace(&c.mediaType, c.batchReplace);
 	}
 
+	// update the saved capture modes in the settings
+	SaveLastCaptureModes();
+
 	// Add up the total time for the whole batch
 	int totalTime = 0;
 	int nGames = 0;
@@ -17056,12 +17140,12 @@ TSTRING PlayfieldView::StatusItem::ExpandText(PlayfieldView *pfv)
 
 			// Check for date variables
 			auto XlatLitChars = [](TSTRING &s, bool xlatPct) {
-				const static std::basic_regex<TCHAR> litCharPat(_T("%[()/%]"));
+				const static std::basic_regex<TCHAR> litCharPat(_T("%[()!%]"));
 				return regex_replace(s, litCharPat, [xlatPct](const std::match_results<TSTRING::const_iterator>& m) -> TSTRING {
 					TCHAR c = m[0].str()[1];
 					return c == '(' ? _T("[") :
 						c == ')' ? _T("]") :
-						c == '/' ? _T("|") :
+						c == '!' ? _T("|") :
 						c == '%' ? (xlatPct ? _T("%") : _T("%%")) :
 						TSTRING(c, 1);
 				});

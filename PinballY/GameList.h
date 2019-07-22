@@ -181,7 +181,15 @@ struct MediaType
 	// Name string resource ID (IDS_MEDIATYPE_xxx)
 	int nameStrId;
 
-	// Javascript ID
+	// Config file ID.  This is used to refer to the media type in
+	// the saved settings file.  The ID for each type must be
+	// permanent (it should never change across program versions),
+	// so that config files can be used across versions.
+	const TCHAR *configId;
+
+	// Javascript ID.  This is used to refer to the media type in
+	// events and native methods exposed to Javascript.  As with the
+	// config ID, this must be permanent for a given media type.
 	const WCHAR *javascriptId;
 
 	// Config variable names for capture parameters for this type.

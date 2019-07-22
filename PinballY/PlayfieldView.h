@@ -763,6 +763,10 @@ protected:
 	// Prior batch capture 'replace' mode
 	std::unordered_map<const MediaType*, bool> lastBatchCaptureReplace;
 
+	// Save/restore the last capture mode information
+	void SaveLastCaptureModes();
+	void RestoreLastCaptureModes();
+
 	// Startup delay time for the current item, in seconds
 	int captureStartupDelay;
 
