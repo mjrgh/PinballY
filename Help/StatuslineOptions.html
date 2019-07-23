@@ -75,7 +75,7 @@
    "1 Game Selected", "2 Games Selected", and so on.  This lets
    you get the wording right to match singular and plural words to
    the live number, to avoid sloppy phrasing like "1 Games Selected"
-   or the standard lazy hedge "1 Game(s) Selected".
+   or the standard lazy-programmer hedge "1 Game(s) Selected".
 </p>
 <p>
    You can specify either two or three ":" alternatives.
@@ -99,7 +99,7 @@
    codes are listed in the table below.  Any other text (apart from
    the % codes) is left unchanged, so you can mix in punctuation
    (such as commas or slashes) or other fixed text without any special
-   codes.  You can find more complete documentation for strftime() in
+   codes.  You can find full details on strftime() in
    the Microsoft Visual C++ reference materials online.
 </p>
 <p>
@@ -113,16 +113,16 @@
    interpret it as the end of the format string.
 <p>
    In addition to the date format string, you can specify custom text
-   to display when there's no date at all, such as when using
-   [Game.LastPlayed] with a game that's never been played.  Specify
+   to display when the variable doesn't have a stored value, such as when
+   using [Game.LastPlayed] with a game that's never been played.  Specify
    this using a vertical bar, "|", followed by the custom text.
    The only special format codes in this section are %) for a right
    square bracket and %% for a single percent sign; otherwise, the text
    is displayed exactly as written.  To extend our example above
    to add the custom text "Never Played" for a game with no "last played"
    date, we could write [Game.LastPlayed:%A, %B %#e, %Y|Never Played].
-   If you omit this extra custom text, the system provides default text
-   (such as "Never").
+   If you omit this extra custom text, the system provides a suitable
+   default ("Never").
 </p>
 
 <table>
@@ -131,8 +131,8 @@
    <tr><td>%A</td><td>Full weekday name</td><td>Thursday</td></tr>
    <tr><td>%b</td><td>Abbreviated month name</td><td>Aug</td></tr>
    <tr><td>%B</td><td>Full month name</td><td>August</td></tr>
-   <tr><td>%c</td><td>Full date and time representation for the locale</td><td>Thu Aug 23 14:55:02 2001</td></tr>
-   <tr><td>%#c</td><td>Long date and time representation for the locale</td><td>Thursday, August 23, 2001, 14:55:02</td></tr>
+   <tr><td>%c</td><td>Full date and time representation, in locale-specific format</td><td>Thu Aug 23 14:55:02 2001</td></tr>
+   <tr><td>%#c</td><td>Long date and time representation, in locale-specific format</td><td>Thursday, August 23, 2001, 14:55:02</td></tr>
    <tr><td>%C</td><td>Year divided by 100 and truncated to integer (00-99)</td><td>20</td></tr>
    <tr><td>%d</td><td>Day of the month, zero-padded (01-31)</td><td>23</td></tr>
    <tr><td>%D</td><td>Short MM/DD/YY date, equivalent to %m/%d/%y</td><td>08/23/01</td></tr>
@@ -158,8 +158,8 @@
    <tr><td>%V</td><td>ISO 8601 week number (01-53)</td><td>34</td></tr>
    <tr><td>%w</td><td>Weekday as a decimal number with Sunday as 0 (0-6)</td><td>4</td></tr>
    <tr><td>%W</td><td>Week number with the first Monday as the first day of week one (00-53)</td><td>34</td></tr>
-   <tr><td>%x</td><td>The default local date representation</td><td>08/23/01</td></tr>
-   <tr><td>%#x</td><td>The default long-form local time representation</td><td>August 23, 2001</td></tr>
+   <tr><td>%x</td><td>The default short-form local date representation</td><td>08/23/01</td></tr>
+   <tr><td>%#x</td><td>The default long-form local date representation</td><td>August 23, 2001</td></tr>
    <tr><td>%X</td><td>The default local time representation</td><td>14:55:02</td></tr>
    <tr><td>%y</td><td>Year, last two digits (00-99)</td><td>01</td></tr>
    <tr><td>%Y</td><td>Year</td><td>2001</td></tr>

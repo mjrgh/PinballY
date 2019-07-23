@@ -148,16 +148,17 @@
 <h2>Narrowing vs. widening metafilters</h2>
 
 <p>
-   Most metafilters are "narrowing" filters, meaning that they exclude
-   games that the other filters would have included if left to their
-   own devices.  For example, a "family filter" that excludes adult-themed
-   games is only interested in removing games that match its adult-content
-   test.
+   Most metafilters are "narrowing" filters, meaning that their function
+   is to further narrow the selection that the regular filter produces
+   by excluding some of the games it selects. For example, a "family filter"
+   that excludes adult-themed games is only interested in removing games
+   that match its adult-content test.
 </p>
 <p>
-   A metafilter can also act as a "widening" filter, though.  A widening
-   filter is one that selects some of the games that the other active
-   filters would have rejected.  For example, if you wanted to make
+   A metafilter can also act as a "widening" filter.  A widening
+   filter is one that adds games to the regular filter's selections,
+   including games in the final results that the regular filter would
+   have normally excluded.  For example, if you wanted to make
    sure that a certain core set of games was always available in the
    wheel UI, no matter what filter was selected, you could do that with
    a widening filter.
