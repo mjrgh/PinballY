@@ -1295,7 +1295,7 @@ protected:
 		RefPtr<SpriteType> sprite;
 		RefPtr<AudioVideoPlayer> audio;
 	};
-	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield;
+	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield, wheelUnderlay;
 	
 	// Should we maintain the playfield image aspect ratio or stretch
 	// it to fit the window?

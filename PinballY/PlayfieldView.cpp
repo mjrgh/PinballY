@@ -7192,6 +7192,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 				// load the image into a new sprite
 				return sprite->Load(path, normSize, pixSize, eh);
 			};
+
 			if (!ok && image.length() != 0)
 				ok = LoadImage(image.c_str());
 
@@ -7221,6 +7222,49 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 		// Kick off the asynchronous load
 		playfieldLoader.AsyncLoad(false, load, done);
+
+		if (wheelUnderlay.sprite == nullptr)
+		{
+			auto loadUnderlay = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
+			{
+				// nothing loaded yet
+				bool ok = false;
+
+				Application::AsyncErrorHandler eh;
+
+				// If there's no video, try a static image
+				auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
+				{
+					// Get the image's native size, and figure the aspect
+					// ratio.  Playfield images are always stored "sideways",
+					// so the nominal width is the display height.  We display
+					// playfield images at 1.0 times the viewport height, so
+					// we just need to figure the relative width.
+					ImageFileDesc imageDesc;
+					GetImageFileInfo(path, imageDesc, true);
+					float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
+					POINTF normSize = { 1.0f, cx };
+
+					// figure the corresponding pixel size
+					SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
+
+					// load the image into a new sprite
+					return sprite->Load(path, normSize, pixSize, eh);
+				};
+
+				TCHAR defaultUnderlay[MAX_PATH];
+				if (GameList::Get()->FindGlobalImageFile(defaultUnderlay, _T("Images"), _T("Underlay")))
+					ok = LoadImage(defaultUnderlay);
+
+				//sprite->rotation.z = XM_PI / 2.0f;
+				sprite->offset.y = -0.48f;
+				sprite->UpdateWorld();
+			};
+
+			auto doneUnderlay = [this](VideoSprite *sprite) { wheelUnderlay.sprite = sprite; };
+
+			playfieldLoader.AsyncLoad(false, loadUnderlay, doneUnderlay);
+		}
 	}
 
 	// update the status line text, in case it mentions the current game selection
@@ -9153,6 +9197,10 @@ void PlayfieldView::UpdateDrawingList()
 		sprites.push_back(currentPlayfield.sprite);
 	if (incomingPlayfield.sprite != nullptr)
 		sprites.push_back(incomingPlayfield.sprite);
+
+	// add the underlay
+	if (wheelUnderlay.sprite != nullptr)
+		sprites.push_back(wheelUnderlay.sprite);
 
 	// add the status lines
 	if (statusLineBkg != nullptr)
@@ -11270,7 +11318,10 @@ void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 
 	// exit/shutdown/cancel
 	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
-	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
+	// TODO - DSX - replace with option
+	//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(IDS_MENU_GAMERETURN), ID_MENU_RETURN, usingExitKey ? MenuSelected : 0);
 
@@ -11439,7 +11490,9 @@ void PlayfieldView::ShowExitMenu()
 {
 	std::list<MenuItemDesc> md;
 	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
-	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
+	// TODO - DSX - replace with option
+	//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
 
 	// add the Operator Meu command if desired
 	if (ConfigManager::GetInstance()->GetBool(ConfigVars::ShowOpMenuInExitMenu, false))
@@ -12246,7 +12299,10 @@ void PlayfieldView::ShowOperatorMenu()
 	if (!ConfigManager::GetInstance()->GetBool(ConfigVars::ExitMenuEnabled, true))
 	{
 		md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
-		md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
+		// TODO - DSX - replace with option
+		//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+
 		md.emplace_back(_T(""), -1);
 	}
 
