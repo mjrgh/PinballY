@@ -3346,6 +3346,9 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 	// initialize the status lines
 	InitStatusLines();
 
+	// load the wheel underlay image
+	LoadUnderlay();
+
 	// load the initial selection
 	UpdateSelection();
 
@@ -7046,6 +7049,56 @@ void PlayfieldView::UpdateSelection()
 	UpdateDrawingList();
 }
 
+void PlayfieldView::LoadUnderlay()
+{
+	if (wheelUnderlay.sprite == nullptr)
+	{
+		HWND hWnd = this->hWnd;
+		SIZE szLayout = this->szLayout;
+
+		auto loadUnderlay = [hWnd, szLayout](VideoSprite *sprite)
+		{
+			// nothing loaded yet
+			bool ok = false;
+
+			Application::AsyncErrorHandler eh;
+
+			// If there's no video, try a static image
+			auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path, float *height)
+			{
+				// Get the image's native size, and figure the aspect
+				// ratio.  Playfield images are always stored "sideways",
+				ImageFileDesc imageDesc;
+				GetImageFileInfo(path, imageDesc, true);
+
+				float aspect = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 1.0f;
+				float width = (float)szLayout.cx / (float)szLayout.cy;
+				width += 0.001f; // Hack to prevent scaling artifacts
+				*height = width * aspect;
+				POINTF normSize = { width, *height };
+
+				// figure the corresponding pixel size
+				SIZE pixSize = { (int)(width * szLayout.cx), (int)(*height * szLayout.cy) };
+
+				return sprite->Load(path, normSize, pixSize, eh);
+			};
+
+			TCHAR defaultUnderlay[MAX_PATH];
+			float height = 0.0f;
+			if (GameList::Get()->FindGlobalImageFile(defaultUnderlay, _T("Images"), _T("Underlay")))
+				ok = LoadImage(defaultUnderlay, &height);
+
+			sprite->offset.y = -0.5f + (height * 0.5f);
+			sprite->offset.y = -0.42f;
+			sprite->UpdateWorld();
+		};
+
+		auto doneUnderlay = [this](VideoSprite *sprite) { wheelUnderlay.sprite = sprite; };
+
+		playfieldLoader.AsyncLoad(false, loadUnderlay, doneUnderlay);
+	}
+}
+
 void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 {
 	// If this game is already loaded in the incoming playfield,
@@ -7222,49 +7275,6 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 		// Kick off the asynchronous load
 		playfieldLoader.AsyncLoad(false, load, done);
-
-		if (wheelUnderlay.sprite == nullptr)
-		{
-			auto loadUnderlay = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
-			{
-				// nothing loaded yet
-				bool ok = false;
-
-				Application::AsyncErrorHandler eh;
-
-				// If there's no video, try a static image
-				auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
-				{
-					// Get the image's native size, and figure the aspect
-					// ratio.  Playfield images are always stored "sideways",
-					// so the nominal width is the display height.  We display
-					// playfield images at 1.0 times the viewport height, so
-					// we just need to figure the relative width.
-					ImageFileDesc imageDesc;
-					GetImageFileInfo(path, imageDesc, true);
-					float cx = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 0.5f;
-					POINTF normSize = { 1.0f, cx };
-
-					// figure the corresponding pixel size
-					SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
-
-					// load the image into a new sprite
-					return sprite->Load(path, normSize, pixSize, eh);
-				};
-
-				TCHAR defaultUnderlay[MAX_PATH];
-				if (GameList::Get()->FindGlobalImageFile(defaultUnderlay, _T("Images"), _T("Underlay")))
-					ok = LoadImage(defaultUnderlay);
-
-				//sprite->rotation.z = XM_PI / 2.0f;
-				sprite->offset.y = -0.48f;
-				sprite->UpdateWorld();
-			};
-
-			auto doneUnderlay = [this](VideoSprite *sprite) { wheelUnderlay.sprite = sprite; };
-
-			playfieldLoader.AsyncLoad(false, loadUnderlay, doneUnderlay);
-		}
 	}
 
 	// update the status line text, in case it mentions the current game selection

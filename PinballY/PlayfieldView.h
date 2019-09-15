@@ -459,6 +459,9 @@ protected:
 	// non-null and isn't the special "No Game" entry in the game list.
 	static bool IsGameValid(const GameListItem *game);
 
+	// Load the wheel underlay image
+	void LoadUnderlay();
+
 	// Load the incoming playfield media.  This starts an asynchronous
 	// thread that loads the new sprite.
 	void LoadIncomingPlayfieldMedia(GameListItem *game);
