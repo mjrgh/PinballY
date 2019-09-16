@@ -153,6 +153,8 @@ namespace ConfigVars
 	static const TCHAR *CaptureManualStartStopButtons = _T("Capture.ManualStartStopButton");
 
 	static const TCHAR *StatusLineEnable = _T("StatusLine.Enable");
+
+	static const TCHAR *UnderlayHeightOffset = _T("UnderlayHeightOffset");
 };
 
 // include the capture-related variables
@@ -186,6 +188,7 @@ PlayfieldView::PlayfieldView() :
 	settingsDialogOpen = false;
 	mediaDropTargetGame = nullptr;
 	runningGameMode = RunningGameMode::None;
+	underlayHeightOffset = 0.0f;
 	
 	// note the exit key mode
 	TSTRING exitMode = ConfigManager::GetInstance()->Get(ConfigVars::ExitKeyMode, _T("select"));
@@ -7051,51 +7054,64 @@ void PlayfieldView::UpdateSelection()
 
 void PlayfieldView::LoadUnderlay()
 {
-	if (wheelUnderlay.sprite == nullptr)
+	HWND hWnd = this->hWnd;
+	SIZE szLayout = this->szLayout;
+
+	auto loadUnderlay = [hWnd, szLayout, this](VideoSprite *sprite)
 	{
-		HWND hWnd = this->hWnd;
-		SIZE szLayout = this->szLayout;
+		// nothing loaded yet
+		bool ok = false;
 
-		auto loadUnderlay = [hWnd, szLayout](VideoSprite *sprite)
+		Application::AsyncErrorHandler eh;
+
+		// If there's no video, try a static image
+		auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path, float *height)
 		{
-			// nothing loaded yet
-			bool ok = false;
+			// Get the image's native size, and figure the aspect ratio
+			// Return the height of the image for positioning
 
-			Application::AsyncErrorHandler eh;
+			ImageFileDesc imageDesc;
+			GetImageFileInfo(path, imageDesc, true);
 
-			// If there's no video, try a static image
-			auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path, float *height)
-			{
-				// Get the image's native size, and figure the aspect
-				// ratio.  Playfield images are always stored "sideways",
-				ImageFileDesc imageDesc;
-				GetImageFileInfo(path, imageDesc, true);
+			float aspect = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 1.0f;
+			float width = (float)szLayout.cx / (float)szLayout.cy;
+			*height = width * aspect;
+			POINTF normSize = { width, *height };
 
-				float aspect = imageDesc.dispSize.cx != 0 ? float(imageDesc.dispSize.cy) / float(imageDesc.dispSize.cx) : 1.0f;
-				float width = (float)szLayout.cx / (float)szLayout.cy;
-				width += 0.001f; // Hack to prevent scaling artifacts
-				*height = width * aspect;
-				POINTF normSize = { width, *height };
+			// figure the corresponding pixel size
+			SIZE pixSize = { (int)(width * szLayout.cx), (int)(*height * szLayout.cy) };
 
-				// figure the corresponding pixel size
-				SIZE pixSize = { (int)(width * szLayout.cx), (int)(*height * szLayout.cy) };
-
-				return sprite->Load(path, normSize, pixSize, eh);
-			};
-
-			TCHAR defaultUnderlay[MAX_PATH];
-			float height = 0.0f;
-			if (GameList::Get()->FindGlobalImageFile(defaultUnderlay, _T("Images"), _T("Underlay")))
-				ok = LoadImage(defaultUnderlay, &height);
-
-			sprite->offset.y = -0.5f + (height * 0.5f);
-			sprite->offset.y = -0.42f;
-			sprite->UpdateWorld();
+			return sprite->Load(path, normSize, pixSize, eh);
 		};
 
-		auto doneUnderlay = [this](VideoSprite *sprite) { wheelUnderlay.sprite = sprite; };
+		TCHAR defaultUnderlay[MAX_PATH];
+		float height = 0.0f;
+		if (GameList::Get()->FindGlobalImageFile(defaultUnderlay, _T("Images"), _T("Underlay")))
+			ok = LoadImage(defaultUnderlay, &height);
 
-		playfieldLoader.AsyncLoad(false, loadUnderlay, doneUnderlay);
+		// Position the underlay so that it's at the bottom of our screen
+		sprite->offset.y = -0.5f + (height * 0.5f);
+
+		// Save the original Y position for later modification
+		this->underlayOriginalYPos = sprite->offset.y;
+
+		// Apply any stored height offset
+		sprite->offset.y += this->underlayHeightOffset;
+
+		sprite->UpdateWorld();
+	};
+
+	auto doneUnderlay = [this](VideoSprite *sprite) { wheelUnderlay.sprite = sprite; };
+
+	playfieldLoader.AsyncLoad(false, loadUnderlay, doneUnderlay);
+}
+
+void PlayfieldView::ApplyUnderlayOffset()
+{
+	if (wheelUnderlay.sprite != nullptr)
+	{
+		wheelUnderlay.sprite->offset.y = underlayOriginalYPos + underlayHeightOffset;
+		wheelUnderlay.sprite->UpdateWorld();
 	}
 }
 
@@ -10752,6 +10768,9 @@ void PlayfieldView::OnConfigChange()
 	HMENU parentWindowMenu = parent != 0 ? GetSystemMenu(parent, FALSE) : 0;
 	if (parentWindowMenu != 0)
 		UpdateMenuKeys(parentWindowMenu);
+
+	underlayHeightOffset = cfg->GetFloat(ConfigVars::UnderlayHeightOffset, 0.0f);
+	ApplyUnderlayOffset();
 
 	// update the Admin Host with the new EXIT GAME key mappings
 	Application::Get()->SendKeysToAdminHost(adminHostKeys);

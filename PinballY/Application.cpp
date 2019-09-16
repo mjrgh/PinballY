@@ -95,6 +95,7 @@ namespace ConfigVars
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
 	static const TCHAR *MouseHideByMoving = _T("Mouse.HideByMoving");
 	static const TCHAR *MouseHideCoors = _T("Mouse.HideCoords");
+	static const TCHAR *UnderlayHeightOffset = _T("UnderlayHeightOffset");
 }
 
 // include the capture-related variables

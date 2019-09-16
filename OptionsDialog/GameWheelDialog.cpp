@@ -20,4 +20,5 @@ GameWheelDialog::~GameWheelDialog()
 void GameWheelDialog::InitVarMap()
 {
 	varMap.emplace_back(new CkBoxMap(_T("GameList.HideUnconfigured"), IDC_CK_HIDE_UNCONFIG, false));
+	varMap.emplace_back(new EditFloatMap(_T("UnderlayHeightOffset"), IDC_EDIT_UNDERLAY_HEIGHT, 0.0f));
 }

@@ -462,6 +462,9 @@ protected:
 	// Load the wheel underlay image
 	void LoadUnderlay();
 
+	// Apply the height offset to the existing wheel underlay sprite
+	void ApplyUnderlayOffset();
+
 	// Load the incoming playfield media.  This starts an asynchronous
 	// thread that loads the new sprite.
 	void LoadIncomingPlayfieldMedia(GameListItem *game);
@@ -2454,6 +2457,12 @@ protected:
 		float credits;	// credits awarded at this level; can be fractional (1/2, 1/4, 3/4)
 	};
 	std::list<PricePoint> pricePoints;
+
+	// A configurable height offset for the wheel underlay
+	float underlayHeightOffset;
+
+	// The stored original Y pos of the underlay sprite
+	float underlayOriginalYPos;
 
 	// Real DMD interface
 	std::unique_ptr<RealDMD> realDMD;
