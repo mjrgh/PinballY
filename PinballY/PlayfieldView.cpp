@@ -11349,7 +11349,7 @@ void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
 
 	// TODO - DSX - replace with option
-	//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
 
 	md.emplace_back(_T(""), -1);
 	md.emplace_back(LoadStringT(IDS_MENU_GAMERETURN), ID_MENU_RETURN, usingExitKey ? MenuSelected : 0);
@@ -11521,7 +11521,7 @@ void PlayfieldView::ShowExitMenu()
 	md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
 
 	// TODO - DSX - replace with option
-	//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+	md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
 
 	// add the Operator Meu command if desired
 	if (ConfigManager::GetInstance()->GetBool(ConfigVars::ShowOpMenuInExitMenu, false))
@@ -12330,7 +12330,7 @@ void PlayfieldView::ShowOperatorMenu()
 		md.emplace_back(LoadStringT(IDS_MENU_EXIT), ID_EXIT);
 
 		// TODO - DSX - replace with option
-		//md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
+		md.emplace_back(LoadStringT(IDS_MENU_SHUTDOWN), ID_SHUTDOWN);
 
 		md.emplace_back(_T(""), -1);
 	}
