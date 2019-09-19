@@ -102,6 +102,7 @@ namespace ConfigVars
 	static const TCHAR *ExitMenuEnabled = _T("ExitMenu.Enabled");
 	static const TCHAR *ShowOpMenuInExitMenu = _T("ExitMenu.ShowOperatorMenu");
 	static const TCHAR *MuteButtons = _T("Buttons.Mute");
+	static const TCHAR *MuteRepeatButtons = _T("Buttons.MuteRepeat");
 	static const TCHAR *ButtonVolume = _T("Buttons.Volume");
 	static const TCHAR *InstCardLoc = _T("InstructionCardLocation");
 	static const TCHAR *InstCardEnableFlash = _T("InstructionCards.EnableFlash");
@@ -177,6 +178,7 @@ PlayfieldView::PlayfieldView() :
 	wheelAnimMode = WheelAnimNone;
 	menuAnimMode = MenuAnimNone;
 	muteButtons = false;
+	muteRepeatButtons = false;
 	buttonVolume = 100;
 	lastDOFEventTime = 0;
 	coinBalance = 0.0f;
@@ -910,6 +912,7 @@ void PlayfieldView::InitJavascript()
 				C(MuteVideos, ID_MUTE_VIDEOS);
 				C(MuteTableAudio, ID_MUTE_TABLE_AUDIO);
 				C(MuteButtons, ID_MUTE_BUTTONS);
+				C(MuteRepeatButtons, ID_MUTE_REPEAT_BUTTONS);
 				C(MuteAttractMode, ID_MUTE_ATTRACTMODE);
 				C(PinscapeNightMode, ID_PINSCAPE_NIGHT_MODE);
 				C(Options, ID_OPTIONS);
@@ -3772,6 +3775,11 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 	case ID_MUTE_BUTTONS:
 		muteButtons = !muteButtons;
 		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteButtons, muteButtons);
+		return true;
+
+	case ID_MUTE_REPEAT_BUTTONS:
+		muteRepeatButtons = !muteRepeatButtons;
+		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteRepeatButtons, muteRepeatButtons);
 		return true;
 
 	case ID_MUTE_ATTRACTMODE:
@@ -10542,6 +10550,7 @@ void PlayfieldView::OnConfigChange()
 
 	// load the button mute and volume settings
 	muteButtons = cfg->GetBool(ConfigVars::MuteButtons, false);
+	muteRepeatButtons = cfg->GetBool(ConfigVars::MuteRepeatButtons, false);
 	buttonVolume = cfg->GetInt(ConfigVars::ButtonVolume, 100);
 
 	// load the capture Manual Go button setting
@@ -11507,10 +11516,23 @@ float PlayfieldView::GetContextSensitiveButtonVolume(const QueuedKey &) const
 
 void PlayfieldView::CmdNext(const QueuedKey &key)
 {
+	static bool soundRepeated = FALSE;
+
 	if ((key.mode & KeyDown) != 0)
 	{
-		// play the audio effect
-		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+
+		if ((key.mode & KeyRepeat) != KeyRepeat)
+		{
+			// for normal keypress, always play the audio effect
+			PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = FALSE;
+		}
+		else if (!muteRepeatButtons || !soundRepeated)
+		{
+			// for auto-repeat, play audio effect only one additional time
+			PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = TRUE;
+		}
 
 		// do the basic Next processing
 		DoCmdNext(key.mode == KeyRepeat);
@@ -11602,10 +11624,23 @@ void PlayfieldView::DoCmdNext(bool fast)
 
 void PlayfieldView::CmdPrev(const QueuedKey &key)
 {
+	static bool soundRepeated = FALSE;
+
 	if ((key.mode & KeyDown) != 0)
 	{
-		// play the sound
-		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+
+		if ((key.mode & KeyRepeat) != KeyRepeat)
+		{
+			// for normal keypress, always play the audio effect
+			PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = FALSE;
+		}
+		else if (!muteRepeatButtons || !soundRepeated)
+		{
+			// for auto-repeat, play audio effect only one additional time
+			PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = TRUE;
+		}
 
 		// carry out the basic command action
 		DoCmdPrev(key.mode == KeyRepeat);
@@ -11709,10 +11744,23 @@ void PlayfieldView::DoCmdPrev(bool fast)
 
 void PlayfieldView::CmdNextPage(const QueuedKey &key)
 {
+	static bool soundRepeated = FALSE;
+
 	if ((key.mode & KeyDown) != 0)
 	{
-		// play the sound
-		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+
+		if ((key.mode & KeyRepeat) != KeyRepeat)
+		{
+			// for normal keypress, always play the audio effect
+			PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = FALSE;
+		}
+		else if (!muteRepeatButtons || !soundRepeated)
+		{
+			// for auto-repeat, play audio effect only one additional time
+			PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = TRUE;
+		}
 
 		// Check the current UI state.
 		// 
@@ -11774,10 +11822,24 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 
 void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 {
+	static bool soundRepeated = FALSE;
+
 	if ((key.mode & KeyDown) != 0)
 	{
-		// play the sound
-		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+
+		if ((key.mode & KeyRepeat) != KeyRepeat)
+		{
+			// for normal keypress, always play the audio effect
+			PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = FALSE;
+		}
+		else if (!muteRepeatButtons || !soundRepeated)
+		{
+			// for auto-repeat, play audio effect only one additional time
+			PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+			soundRepeated = TRUE;
+		}
+
 
 		// If a startup video is playing, cancel it.
 		// If there's an active menu, and it has a Page Up command, treat 
@@ -12229,6 +12291,8 @@ void PlayfieldView::ShowOperatorMenu()
 		ID_MUTE_TABLE_AUDIO, Application::Get()->IsMuteTableAudio() ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_MUTEBUTTONS), ID_MUTE_BUTTONS,
 		muteButtons ? MenuChecked : 0);
+	md.emplace_back(LoadStringT(IDS_MENU_MUTEREPEATBUTTONS), ID_MUTE_REPEAT_BUTTONS,
+		muteRepeatButtons ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_MUTEATTRACTMODE), ID_MUTE_ATTRACTMODE,
 		Application::Get()->IsMuteAttractMode() ? MenuChecked : 0);
 

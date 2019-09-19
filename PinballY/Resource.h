@@ -185,6 +185,8 @@
 #define IDS_MENU_MUTEBUTTONS            425
 #define IDS_MENU_MUTEATTRACTMODE        426
 #define IDS_MENU_PINSCAPENIGHTMODE      427
+#define IDS_MENU_MUTEREPEATBUTTONS      428
+
 #define IDS_MENU_OPERATOR               429
 
 #define IDS_MENU_SHUTDOWN_CONFIRM       430
@@ -585,7 +587,7 @@
 #define ID_SWF_ERROR_DISABLE            32873
 #define ID_SWF_ERROR_SUPPRESS           32874
 #define ID_SWF_ERROR_HELP               32875
-
+#define ID_MUTE_REPEAT_BUTTONS          32876
 
 // Next default values for new objects
 // 

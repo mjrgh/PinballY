@@ -1916,6 +1916,9 @@ protected:
 	// Are button/event sound effects muted?
 	bool muteButtons;
 
+	// Are auto-repeat button/event sound effects muted?
+	bool muteRepeatButtons;
+
 	// DOF pulsed effect queue.  Some of the signals we send to DOF are
 	// states, where we turn a named DOF item ON for as long as we're in
 	// a particular UI state (e.g., showing a menu).  Other signals are
