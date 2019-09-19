@@ -7111,7 +7111,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			incomingPlayfield.audio->SetVolume(volumePct);
 
 			// set the muting mode to match playfield video
-			if (Application::Get()->IsMuteVideos())
+			if (Application::Get()->IsMuteTableAudio())
 				incomingPlayfield.audio->Mute(true);
 
 			// start playback
