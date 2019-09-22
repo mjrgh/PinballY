@@ -529,6 +529,7 @@
 #define ID_FILTER_BY_CATEGORY           32816
 #define ID_MUTE_ATTRACTMODE             32817
 #define ID_PINSCAPE_NIGHT_MODE          32818
+#define ID_SYNC_ALL_VIEWS               32819
 #define ID_HIGH_SCORES                  32820
 #define ID_CLEAR_CREDITS                32821
 #define ID_GAME_SETUP                   32822

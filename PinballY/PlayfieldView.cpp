@@ -3595,6 +3595,30 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 	// some commands are more of the nature of internal events; these bypass javascript
 	switch (cmd)
 	{
+	case ID_SYNC_ALL_VIEWS:
+
+		// sync the backglass, and do a deferred sync on the DMD
+		if (auto bg = Application::Get()->GetBackglassView(); bg != nullptr)
+			bg->SyncCurrentGame();
+
+		// sync the simulated DMD window
+		if (auto dmd = Application::Get()->GetDMDView(); dmd != nullptr)
+			dmd->SyncCurrentGame();
+
+		// while we're at it, sync the real DMD, if we're using one
+		if (realDMD != nullptr)
+			realDMD->UpdateGame();
+
+		// sync the topper
+		if (auto topper = Application::Get()->GetTopperView(); topper != nullptr)
+			topper->SyncCurrentGame();
+
+		// sync the instruction card
+		if (auto inst = Application::Get()->GetInstCardView(); inst != nullptr)
+			inst->SyncCurrentGame();
+
+		return true;
+
 	case ID_SYNC_BACKGLASS:
 		// sync the backglass, and do a deferred sync on the DMD
 		if (auto bg = Application::Get()->GetBackglassView(); bg != nullptr)
@@ -9262,8 +9286,12 @@ void PlayfieldView::StartPlayfieldCrossfade()
 	StartAnimTimer();
 
 	// start the fade in the sprite
-	static const DWORD playfieldCrossFadeTime = 120;
+	DWORD playfieldCrossFadeTime = ConfigManager::GetInstance()->GetInt(_T("PlayfieldCrossfadeTime"), 120);
+
 	incomingPlayfield.sprite->StartFade(1, playfieldCrossFadeTime);
+	
+	if (ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel")))
+		PostMessage(WM_COMMAND, ID_SYNC_ALL_VIEWS);
 }
 
 // Start the animation timer if it's not already running
@@ -9889,8 +9917,9 @@ void PlayfieldView::UpdateAnimation()
 			// files in the same message loop cycle.  The backglass sync
 			// handler will in turn fire off a deferred sync to the DMD,
 			// which will fire off a deferred sync to the topper.
-			PostMessage(WM_COMMAND, ID_SYNC_BACKGLASS);
-	
+			if (!ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel")))
+				PostMessage(WM_COMMAND, ID_SYNC_BACKGLASS);
+
 			// update DOF for the new game
 			QueueDOFPulse(L"PBYGameSelect");
 
