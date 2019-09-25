@@ -1809,7 +1809,15 @@ void Application::GameMonitorThread::CloseGame()
 			{
 				// KillProcess mode.  Don't try to close windows; just terminate
 				// the process by fiat.
+
 				TerminateProcess(hGameProc, 0);
+
+			}
+			else if (_tcsicmp(GetLaunchParam("terminateBy", gameSys.terminateBy).c_str(), _T("KillProcessByName")) == 0)
+			{
+				// KillProcessByName mode.  Don't try to close windows; just terminate
+				// the process using the executable name.
+				TerminateProcessByName(gameSys.process.c_str());
 			}
 			else
 			{

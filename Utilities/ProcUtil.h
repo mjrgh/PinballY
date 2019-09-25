@@ -33,6 +33,16 @@ HWND FindMainWindowForProcess(DWORD pid, DWORD *pThreadId);
 // because of the potential system instability that API can cause.
 void SaferTerminateProcess(HANDLE hProcess);
 
+// -----------------------------------------------------------------------
+//
+// Terminate a process via it's process name rather than via the
+// process HANDLE.  This should have the same effect as the built-in
+// TerminateProcess() call, however terminating the process by name
+// seems to work in cases where terminating the process via it's
+// HANDLE does not.  This is provided as an alternative for those
+// cases where niether SaferTerminateProcess nor TerminateProcess
+// manage to kill the process.
+void TerminateProcessByName(const WCHAR *filename);
 
 // -----------------------------------------------------------------------
 //
