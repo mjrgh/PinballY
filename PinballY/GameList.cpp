@@ -727,8 +727,12 @@ void GameList::RefreshFilter()
 			// far - this also has the side effect of selecting the first
 			// game we encounter, so as long the new filter matches at least
 			// one game, we'll end up with something selected.
-			if (oldSel != nullptr
-				&& (curGame == -1 || IsLexicallyCloser(game->title, byTitleFiltered[curGame]->title, oldSel->title)))
+			const std::vector<GameListItem*> bTF = byTitleFiltered;
+			if (oldSel != nullptr && 
+				(curGame == -1 ||
+					IsLexicallyCloser(game->title + _T(".") + (game->system != nullptr ? game->system->displayName : _T("")), 
+						bTF[curGame]->title + _T(".") + (bTF[curGame]->system != NULL ? bTF[curGame]->system->displayName : _T("")),
+						oldSel->title + _T(".") + (oldSel->system != NULL ? oldSel->system->displayName : _T("")))))
 				curGame = idx;
 		}
 	}
