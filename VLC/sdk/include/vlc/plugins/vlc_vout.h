@@ -2,7 +2,7 @@
  * vlc_vout.h: common video definitions
  *****************************************************************************
  * Copyright (C) 1999 - 2008 VLC authors and VideoLAN
- * $Id: 99874040228af46fb9cd17e6644b832b652cb2c3 $
+ * $Id: 627f6cec2e3b96eea04f9566ef799ed5b3a93b2a $
  *
  * Authors: Vincent Seguin <seguin@via.ecp.fr>
  *          Samuel Hocevar <sam@via.ecp.fr>
@@ -153,6 +153,7 @@ VLC_API picture_t * vout_GetPicture( vout_thread_t * );
 VLC_API void vout_PutPicture( vout_thread_t *, picture_t * );
 
 /* Subpictures channels ID */
+#define VOUT_SPU_CHANNEL_INVALID      (-1) /* Always fails in comparison */
 #define VOUT_SPU_CHANNEL_OSD            1 /* OSD channel is automatically cleared */
 #define VOUT_SPU_CHANNEL_AVAIL_FIRST    8 /* Registerable channels from this offset */
 

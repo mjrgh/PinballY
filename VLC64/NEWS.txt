@@ -1,3 +1,128 @@
+Changes between 3.0.7.1 and 3.0.8:
+----------------------------------
+
+Core:
+ * Fix stuttering for low framerate videos
+
+Demux:
+ * Fix channel ordering in some MP4 files
+ * Fix glitches in TS over HLS
+ * Add real probing of HLS streams
+ * Fix HLS MIME type fallback
+
+Decoder:
+ * Fix WebVTT subtitles rendering
+
+Stream filter:
+ * Improve network buffering
+
+Misc:
+ * Update Youtube script
+
+Audio Output:
+ * macOS/iOS: Fix stuttering or blank audio when starting or seeking when using
+   external audio devices (bluetooth for example)
+ * macOS: Fix AV synchronization when using external audio devices
+
+Video Output:
+ * Direct3D11: Fix hardware acceleration for some AMD drivers
+
+Stream output:
+ * Fix transcoding when the decoder does not set the chroma
+
+Security:
+ * Fix a buffer overflow in the MKV demuxer (CVE-2019-14970)
+ * Fix a read buffer overflow in the avcodec decoder (CVE-2019-13962)
+ * Fix a read buffer overflow in the FAAD decoder
+ * Fix a read buffer overflow in the OGG demuxer (CVE-2019-14437, CVE-2019-14438)
+ * Fix a read buffer overflow in the ASF demuxer (CVE-2019-14776)
+ * Fix a use after free in the MKV demuxer (CVE-2019-14777, CVE-2019-14778)
+ * Fix a use after free in the ASF demuxer (CVE-2019-14533)
+ * Fix a couple of integer underflows in the MP4 demuxer (CVE-2019-13602)
+ * Fix a null dereference in the dvdnav demuxer
+ * Fix a null dereference in the ASF demuxer (CVE-2019-14534)
+ * Fix a null dereference in the AVI demuxer
+ * Fix a division by zero in the CAF demuxer (CVE-2019-14498)
+ * Fix a division by zero in the ASF demuxer (CVE-2019-14535)
+
+Contribs:
+ * Update to a newer libmodplug version (0.8.9.0)
+
+Changes between 3.0.7 and 3.0.7.1:
+----------------------------------
+
+Access:
+ * Update libbluray to 1.1.2
+
+macOS:
+ * Fix bluray java menu playback regression in 3.0.7
+
+Video Output:
+ * Fix hardware acceleration with some AMD drivers
+ * Improve direct3d11 HDR support
+
+Changes between 3.0.6 and 3.0.7:
+--------------------------------
+
+Access:
+ * Improve Blu-ray support
+ * Fix sftp module build with libssh >= 1.8.1
+
+Audio output:
+ * Fix pass-through on Android-23
+ * Fix DirectSound drain
+
+Demux:
+ * Improve MP4 support
+
+Video Output:
+ * Fix 12 bits sources playback with Direct3D11
+ * Fix crash on iOS
+ * Fix midstream aspect-ratio changes when Windows hardware decoding is on
+ * Fix HLG display with Direct3D11
+
+Stream Output:
+ * Improve Chromecast support with new ChromeCast apps
+
+macOS:
+ * Fix UPNP service discovery, services are discovered on the highest priority
+   active network interface now
+ * Fix video distortion on macOS Mojave
+
+Misc:
+ * Update Youtube, Dailymotion, Vimeo, Soundcloud scripts
+ * Work around busy looping when playing an invalid item with loop enabled
+
+Translations:
+ * Update of most translations
+
+Security:
+ * Fix multiple buffer overflows in the ps demuxer
+ * Fix a buffer overflow when copying a biplanar YUV image
+ * Fix multiple buffer overflows in the faad decoder
+ * Fix buffer overflow in the svcdsub decoder
+ * Fix buffer overflows in the ogg muxer & demuxer
+ * Fix buffer overflows in libavformat demuxer
+ * Fix multiple buffer overflows in the MKV demuxer
+ * Fix a buffer overflow in the MP4 demuxer
+ * Fix a buffer overflow in the textst decoder
+ * Fix a buffer overflow in the webvtt decoder
+ * Fix a buffer overflow in the ASF demux
+ * Fix a buffer overflow in the UPNP SD
+ * Fix use after free in the ogg demuxer
+ * Fix multiple use after free in the MKV demuxer
+ * Fix multiple use after free in the DMO decoder
+ * Fix integer underflow in the MKV demuxer
+ * Fix an updater NULL pointer dereference on invalid signing keys
+ * Fix NULL pointer dereference in the MKV demuxer
+ * Fix an integer overflow in the spudec decoder
+ * Fix an integer overflow in the nsc demuxer
+ * Fix an integer overflow in the avi demuxer
+ * Fix reads of uninitialized pointers in the MKV demuxer
+ * Fix a floating point exception in the MKV demuxer
+ * Fix an infinite loop in the flac packetizer
+ 
+
 Changes between 3.0.5 and 3.0.6:
 --------------------------------
 
@@ -7,6 +132,7 @@ Core:
 Codec:
  * Add support for 12 bits decoding of AV1
  * Fix HDR support in AV1 when the container provides the metadata
+
 
 Changes between 3.0.4 and 3.0.5:
 --------------------------------
