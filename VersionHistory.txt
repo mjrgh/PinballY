@@ -2,6 +2,18 @@ PinballY Update History
 
 ? (1.0.0)
 
+* A new option in the Startup section of the options dialog lets you
+tell PinballY to (try to) force keyboard focus into its window at
+program startup, after an optional delay.  Enable this if desired via
+new checkbox "Force keyboard focus to PinballY at startup".  You can
+also specify the delay time for the focus change.  If this is enabled,
+PinballY simulates a mouse click in its main window shortly after
+program startup (and after the specified delay), to try to force the
+window to the foreground and force it to take keyboard focus.  Windows
+doesn't always give focus to auto-launched programs at system startup,
+particularly on Windows 10, so you can use this to force a focus
+change without having to use the mouse manually.
+
 * A new option in the Status Lines section of the options dialog lets
 you disable all status line displays.  Un-check the "Enable status
 line display" box to prevent status line displays.
@@ -18,17 +30,22 @@ line display" box to prevent status line displays.
 
 (Issue #75 on github.)
 
-* The last capture modes (Capture with Audio, Capture Silent, Skip,
-etc) for the various media types are now saved in the settings file,
-so that they'll be remembered across sessions.  These were previously
-only saved for the duration of the current session.  This makes it a
-little more convenient if you tend to use the same settings for most
-captures, since it lets you immediately click through the step where
-you select the dispositions for the various types.  You still get the
-chance to review and change the selections each time, but it makes it
-quicker when you want to reuse the same settings, since the defaults
-will be set according to the most recent capture, even if it was in a
-prior program session.
+* The most recently used capture settings for the various media types
+are now saved in the settings file, so that they'll be remembered
+across sessions.  (Capture with Audio, Capture Silent, Skip, etc.)
+These were previously only saved for the duration of the current
+session, and reset to defaults each time you launched the program.
+Saving them makes it a little more convenient if you tend to use the
+same capture options all the time, since it lets you immediately click
+through the step where you select the dispositions for the various
+types.  You still get the chance to review and change the selections
+each time, but it makes it quicker when you want to reuse the same
+settings, since the defaults will be set according to the most recent
+capture, even if the most recent capture was in a prior program
+session.
+
+* Logging has been added for high score retrieval, to help
+troubleshoot any problems you run into with that.
 
 * In the past, still image files that us the sRGB color space were
 displayed with inaccurate colors on-screen.  In most cases, the

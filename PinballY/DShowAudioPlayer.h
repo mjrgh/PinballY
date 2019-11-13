@@ -50,8 +50,8 @@ public:
 	virtual bool Render(Camera*, Sprite*) override { return true; }
 
 	// Process events.  BaseWin::OnAppMessage() calls this when our event
-	// window receives a DMsgOnEvent message.
-	void OnEvent();
+	// window receives a DSMsgOnEvent message.
+	static void OnEvent(LPARAM lparam);
 
 protected:
 	virtual ~DShowAudioPlayer();
@@ -79,5 +79,25 @@ protected:
 
 	// looping mode
 	bool looping = false;
+
+	// Event callback identifier.  DShow sends us events via
+	// window messages, so we need a process-lifetime ID to use
+	// in those messages to refer back to DShowAudioPlayer()
+	// objects.  We can't use the actual C++ object pointer
+	// because the target object of a message might be destroyed
+	// before the message is delivered.  So instead, we assign
+	// each object a unique ID at creation time, and then use
+	// a map to connect these to C++ objects.
+	UINT64 callbackID;
+
+	// map of live objects, indexed by callback ID
+	static std::unordered_map<LONG_PTR, DShowAudioPlayer*> callbackIDMap;
+
+	// locker for our static resources
+	static CriticalSection lock;
+
+	// Next available event callback ID
+	static LONG_PTR nextCallbackID;
+
 };
 

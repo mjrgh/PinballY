@@ -68,6 +68,8 @@ void StartupDialog::InitVarMap()
 	varMap.emplace_back(autoLaunchButtons = new AutoLaunchMap(
 		_T("AutoLaunch"), IDC_RB_START_MANUAL, _T("off"), startupVals, countof(startupVals)));
 	varMap.emplace_back(autoLaunchDelay = new SpinIntMap(_T("AutoLaunch.Delay"), IDC_EDIT_LOGON_DELAY, 0, IDC_SPIN_LOGON_DELAY, 0, 3600));
+	varMap.emplace_back(new CkBoxMap(_T("LaunchFocus.Enabled"), IDC_CK_FORCE_FOCUS, false));
+	varMap.emplace_back(new SpinIntMap(_T("LaunchFocus.Delay"), IDC_EDIT_FOCUS_DELAY, 0, IDC_SPIN_FOCUS_DELAY, 0, 3600));
 	varMap.emplace_back(new CkBoxMap(_T("SplashScreen"), IDC_CK_SPLASH_SCREEN, true));
 	varMap.emplace_back(new EditStrMap(_T("RunAtStartup"), IDC_EDIT_RUN_AT_STARTUP, _T("")));
 	varMap.emplace_back(new EditStrMap(_T("RunAtExit"), IDC_EDIT_RUN_AT_EXIT, _T("")));

@@ -28,6 +28,7 @@ void LogFileDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("Log.DOF"), IDC_CK_LOG_DOF, true));
 	varMap.emplace_back(new CkBoxMap(_T("Log.Javascript"), IDC_CK_LOG_JAVASCRIPT, true));
 	varMap.emplace_back(new CkBoxMap(_T("Log.MediaDrop"), IDC_CK_LOG_MEDIA_DROP, true));
+	varMap.emplace_back(new CkBoxMap(_T("Log.HighScoreRetrieval"), IDC_CK_LOG_HIGHSCORES, true));
 }
 
 BOOL LogFileDialog::OnInitDialog()

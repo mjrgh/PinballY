@@ -78,6 +78,41 @@
    keyboard focus.
 </ul>
 
+<h2>Force keyboard focus to PinballY at startup</h2>
+
+<p>
+   If this box is checked, PinballY will try to force focus into its
+   main window after the program starts up by simulating a mouse click,
+   as though you were manually clicking the mouse in its main window.
+   This should ensure that PinballY has keyboard focus, so that it
+   responds properly to key presses.
+</p>
+<p>
+   In some cases, PinballY doesn't get keyboard focus when you launch
+   it automatically at Windows startup time.  This seems to be particularly
+   problematic on Windows 10 because of intentional changes Microsoft made
+   to Task Scheduler to prevent auto-launched programs from receiving
+   keyboard focus.  It can be a problem on other systems as well, since
+   other programs (or Windows itself) can "steal" focus away from PinballY.
+   Focus is a global resource that different programs are always fighting
+   over, so it's inherently a bit tricky to get everyone to agree where
+   it should end up when a bunch of things are happening at once, such
+   as during the Windows boot process.  This option is designed to
+   work around any conflicts with other programs by forcing focus to
+   the PinballY window in the most heavy-handed fashion possible, by
+   simulating a mouse click to make it look like you manually clicked
+   on the PinballY window to make it the active window.
+</p>
+<p>
+   You can enter a delay time in the next line under the checkbox if
+   desired.  In some cases, the focus change might not "stick" if it
+   happens too early, since another program that starts up around the
+   same time might try to do the same kind of thing to steal focus
+   away.  The delay time lets you adjust the timing of the simulated
+   mouse click so that it always happens after any other programs
+   have also finished starting up.
+</p>
+
 
 <h2>Wait for monitors</h2>
 
@@ -213,10 +248,20 @@
    into the visible area.  If the playfield window itself is missing,
    and any other window is visible, right-click in one of the other
    windows and select "Show Main Window" from the menu.  If none
-   of the windows are visible, your best bet is probably to quit
-   out of PinballY, open the options file (Settings.txt) in
-   Notepad, and delete the line that starts with
-   <b>PlayfieldWindow.Position =</b>.  That will remove the 
+   of the windows are visible, your best bet is probably to delete
+   the saved window position from the settings file manually:
+</p>
+<ul>
+   <li>Quit out of PinballY
+   <li>Open the options file (Settings.txt) in Notepad
+   <li>Find the line that starts with <b>PlayfieldWindow.Position =</b>
+   <li>Delete that whole line
+</ul>
+<p>
+   That will remove the problematic saved window position.  PinballY
+   will open the window at a default position the next time you run,
+   which should be somewhere within the main monitor.  You can then
+   reposition it where you want it.
 </p>
 
 <h2>Splash screen</h2>

@@ -57,6 +57,8 @@ FirstRunTime =
 #
 # Log.Javascript - Javascript scripting
 #
+# Log.HighScoreRetrieval - high score retrieval via PinEMHi
+#
 Log.MediaFiles = 0
 Log.MediaDrop = 1
 Log.SystemSetup = 0 
@@ -65,6 +67,7 @@ Log.TableLaunch = 0
 Log.RealDMD = 1
 Log.DOF = 1
 Log.Javascript = 1
+Log.HighScoreRetrieval = 1
 
 # Vertical Sync Lock.  If this is enabled (1), the graphics rendering
 # rate is throttled to the monitor's physical refresh rate.  If disabled
@@ -162,6 +165,21 @@ AutoLaunch = off
 # PinballY's startup until after other programs have finished loading
 # can make sure that PinballY has the initial keyboard focus.
 AutoLaunch.Delay = 0
+
+
+# Should we force keyboard focus into the PinballY window at program
+# startup?  On some systems (particularly Windows 10), Windows doesn't
+# give PinballY keyboard focus when launching it at system startup, so
+# it won't accept keyboard input until you use the mouse to click in
+# the window.  We can try to work around that by simulating a mouse
+# click in our window automatically.  This option enables a simulated
+# mouse click at the given delay after the program starts.  The delay
+# might be necessary to wait for other activity at system startup to
+# settle down, since other programs that are starting up at the same
+# time might try to "steal" focus away from us the same way we're
+# trying to grab it here.  The delay is given in seconds.
+LaunchFocus.Enabled = 1
+LaunchFocus.Delay = 5
 
 
 # Should we wait for monitors to come online at startup?  Most pin cabs

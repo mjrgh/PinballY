@@ -569,7 +569,7 @@ bool BaseWin::OnAppMessage(UINT message, WPARAM wParam, LPARAM lParam)
 	case DSMsgOnEvent:
 		// DirectShow event ready.  Call the DirectShow object to process
 		// the event.
-		reinterpret_cast<DShowAudioPlayer*>(lParam)->OnEvent();
+		DShowAudioPlayer::OnEvent(lParam);
 		return true;
 	}
 

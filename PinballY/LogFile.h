@@ -34,6 +34,7 @@ public:
 	static const DWORD DofLogging         = 0x00000040;   // DOF
 	static const DWORD JSLogging          = 0x00000080;   // Javascript
 	static const DWORD MediaDropLogging   = 0x00000100;   // media file drag-and-drop operations
+	static const DWORD HiScoreLogging     = 0x00000200;   // high score retrieval
 
 	// Is a feature enabled?
 	bool IsFeatureEnabled(DWORD feature) { return ((enabledFeatures | tempFeatures) & feature) != 0; }

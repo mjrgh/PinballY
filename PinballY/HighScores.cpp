@@ -9,6 +9,7 @@
 #include "Application.h"
 #include "PlayfieldView.h"
 #include "DOFClient.h"
+#include "LogFile.h"
 
 #include <filesystem>
 namespace fs = std::experimental::filesystem;
@@ -60,6 +61,15 @@ bool HighScores::Init()
 			if (RegQueryValueEx(hkey, _T("nvram_directory"), 0, &typ, (BYTE*)val, &len) == ERROR_SUCCESS
 				&& typ == REG_SZ)
 				self->vpmNvramPath = val;
+
+			// log it
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("High score retrieval (init): VPinMAME NVRAM path is %s\n"), val);
+		}
+		else
+		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("High score retrieval (init): VPinMAME registry entry not found\n"));
 		}
 
 		// find the PINemHi.ini file path
@@ -67,14 +77,22 @@ bool HighScores::Init()
 		GetDeployedFilePath(pehIniFile, _T("PINemHi\\PINemHi.ini"), _T(""));
 		self->iniFileName = pehIniFile;
 
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("High score retrieval (init): PinEMHi .ini file path is %s\n"), pehIniFile);
+
 		// Load the file, ignoring errors, and normalizing it with a newline
 		// at the end of the last line.
 		long len;
-		self->iniData.reset(ReadFileAsStr(pehIniFile, SilentErrorHandler(), len,
+		CapturingErrorHandler iniErr;
+		self->iniData.reset(ReadFileAsStr(pehIniFile, iniErr, len,
 			ReadFileAsStr_NullTerm | ReadFileAsStr_NewlineTerm));
 
+		// if we found the file, process it
 		if (self->iniData != nullptr)
 		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging, 
+				_T("High score retrieval (init): PinEMHi ini data loaded successfully\n"));
+
 			// build the line index
 			BYTE *start = self->iniData.get();
 			for (BYTE *p = start; *p != 0; )
@@ -174,9 +192,25 @@ bool HighScores::Init()
 							self->vpPath.Set("VP", val, i);
 						else if (name == "FP")
 							self->fpPath.Set("FP", val, i);
+
+						LogFile::Get()->Write(LogFile::HiScoreLogging,
+							_T("High score retrieval (init): path for %hs is %hs\n"),
+							name.c_str(), val.c_str());
 					}
 				}
 			}
+		}
+		else
+		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging, 
+				_T("High score retrieval (init): PinEMHi ini data not loaded\n"));
+			iniErr.EnumErrors([](const ErrorList::Item &err) {
+				LogFile::Get()->Write(LogFile::HiScoreLogging,
+					_T("+ %s%s%s\n"),
+					err.message.c_str(),
+					err.details.length() != 0 ? _T(": ") : _T(""),
+					err.details.c_str());
+			});
 		}
 
 		// initialization is complete
@@ -233,6 +267,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 	if (game == nullptr || game->system == nullptr)
 		return false;
 
+	LogFile::Get()->Write(LogFile::HiScoreLogging,
+		_T("High score retrieval: determining NVRAM path for %s\n"), game->title.c_str());
+
 	// check if the current file is populated and the file exists
 	auto Valid = [&nvramPath, &nvramFile]()
 	{
@@ -250,6 +287,8 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
     const TSTRING &sysClass = game->system->systemClass;
     if (sysClass == _T("VP") || sysClass == _T("VPX"))
 	{
+		LogFile::Get()->Write(LogFile::HiScoreLogging, _T("+ Game is VP/VPX\n"));
+
 		// Visual Pinball uses VPinMAME NVRAM files.  These are normally
 		// located in the global VPinMAME NVRAM folder, which we can find
 		// via the VPM config keys in the registry.  However, the system
@@ -262,6 +301,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		{
 			// no explicit path is specified - use the VPM NVRAM path
 			nvramPath = vpmNvramPath;
+
+			LogFile::Get()->Write(LogFile::HiScoreLogging, 
+				_T("+ No explicit NVRAM setting in game; using VPinMAME NVRAM path = %s\n"), nvramPath.c_str());
 		}
 		else if (PathIsRelative(game->system->nvramPath.c_str()))
 		{
@@ -269,11 +311,18 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 			TCHAR buf[MAX_PATH];
 			PathCombine(buf, game->system->workingPath.c_str(), game->system->nvramPath.c_str());
 			nvramPath = buf;
+
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ Game has relative NVRAM path; expanding to full path = %s\n"), nvramPath.c_str());
 		}
 		else
 		{
 			// it's an absolute path - use it exactly as given
 			nvramPath = game->system->nvramPath;
+
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ Game has absolute NVRAM path; using path specified = %s\n"), nvramPath.c_str());
+
 		}
 
 		// Start with the explicit ROM setting in the game database 
@@ -282,6 +331,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		// any other heuristics we come up with.
 		if (game->rom.length() != 0)
 		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ Game has ROM explicitly specified in database = %ws\n"), game->rom.c_str());
+
 			// We found an explicit ROM setting in the game database.
 			nvramFile = game->rom;
 
@@ -295,6 +347,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				std::transform(key.begin(), key.end(), key.begin(), ::_tolower);
 				if (auto it = romFind.find(key); it != romFind.end())
 					nvramFile = CSTRINGToTSTRING(it->second);
+
+				LogFile::Get()->Write(LogFile::HiScoreLogging,
+					_T("+ Specified ROM file doesn't exist; substituting .nv file = %s\n"), nvramFile.c_str());
 			}
 		}
 
@@ -302,6 +357,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		// that we matched for the table from the DOF config, if available.
 		if (!Valid() && DOFClient::Get() != nullptr)
 		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ No ROM file found that way; looking in DOF config\n"));
+
 			if (const TCHAR *rom = DOFClient::Get()->GetRomForTable(game); rom != nullptr && rom[0] != 0)
 			{
 				// We found a DOF ROM.  But this isn't quite good enough to
@@ -323,17 +381,25 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				nvramFile = rom;
 				TSTRING fileFound;
 				int nFound = 0;
-				std::basic_regex<TCHAR> dofNamePat(
-					MsgFmt(_T("%s(_([a-z0-9]+))?\\.nv"), nvramFile.c_str()),
-					std::regex_constants::icase);
+				static const std::basic_regex<TCHAR> dofNamePat(
+					_T("(.+)(_([a-z0-9]+))?\\.nv$"), std::regex_constants::icase);
+
+				LogFile::Get()->Write(LogFile::HiScoreLogging,
+					_T("+ Guessing based on DOF ROM name = %s; scanning for matching files\n"), nvramFile.c_str());
+
 				for (auto &file : fs::directory_iterator(nvramPath))
 				{
 					// if it matches the pattern, stash it and count it
 					TSTRING fname = file.path().filename();
-					if (std::regex_match(fname, dofNamePat))
+					std::match_results<TSTRING::const_iterator> m;
+					if (std::regex_match(fname, m, dofNamePat)
+						&& _tcsicmp(m[1].str().c_str(), nvramFile.c_str()) == 0)
 					{
 						fileFound = fname;
 						++nFound;
+
+						LogFile::Get()->Write(LogFile::HiScoreLogging,
+							_T("++ Found %s as possible NVRAM match\n"), fname.c_str());
 					}
 				}
 
@@ -344,7 +410,22 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				// we have no way to guess which ROM version goes with which
 				// table (and thus which ROM version goes with this table).
 				if (nFound == 1)
+				{
 					nvramFile = fileFound;
+
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("++ Exactly one match found - using it (%s)\n"), nvramFile.c_str());
+				}
+				else if (nFound == 0)
+				{
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("++ Zero matches found, keeping %s\n"), nvramFile.c_str());
+				}
+				else
+				{
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("Multiple matches found - this is ambiguous, so keeping %s\n"), nvramFile.c_str());
+				}
 			}
 		}
 
@@ -364,6 +445,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		// that the one matching file is the right one.
 		if (!Valid())
 		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ Still no match; trying a fuzzy match on the friendly ROM names\n"));
+
 			// Retrieve the list of .nv files for the best matching
 			// title in the [romfind] section.  Each [romfind] table
 			// is typically associated with multiple ROM versions, so
@@ -389,6 +473,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 					{
 						fileFound = nv.c_str();
 						++n;
+
+						LogFile::Get()->Write(LogFile::HiScoreLogging,
+							_T("++ Found a fuzzy match: %s\n"), nv.c_str());
 					}
 				}
 
@@ -404,7 +491,22 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				// resolve the conflict by setting the ROM name
 				// explicitly in the database entry for the table.
 				if (n == 1)
+				{
 					nvramFile = fileFound;
+
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("++ Found exactly one match - using it (%s)\n"), nvramFile.c_str());
+				}
+				else if (n == 0)
+				{
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("++ No fuzzy matches found\n"));
+				}
+				else
+				{
+					LogFile::Get()->Write(LogFile::HiScoreLogging,
+						_T("++ Multiple fuzzy matches found; this is ambiguous, so we can't use any of them\n"));
+				}
 			}
 		}
 
@@ -416,15 +518,25 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 
 		// if the name isn't empty and doesn't end in .nv, add the .nv suffix
 		if (nvramFile.length() != 0 && !tstriEndsWith(nvramFile.c_str(), _T(".nv")))
+		{
 			nvramFile += _T(".nv");
+
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ The name so far doesn't end in .nv, so we're adding that -> %s\n"), nvramFile.c_str());
+		}
 	}
 	else if (sysClass == _T("FP"))
 	{
+		LogFile::Get()->Write(LogFile::HiScoreLogging, _T("+ Game is FP\n"));
+	
 		// Future Pinball normally places its NVRAM files in the fpRAM
 		// subfolder of the install directory.  Use that unless a path
 		// is explicitly specified in the system config.
 		if (game->system->nvramPath.length() != 0)
 		{
+			LogFile::Get()->Write(LogFile::HiScoreLogging, 
+				_T("+ Explicit NVRAM path found for system = %s\n"), game->system->nvramPath.c_str());
+
 			// There's an explicit config file setting - use it.  If it's
 			// relative, combine it with the system's working path; otherwise
 			// just use it exactly as given.
@@ -433,11 +545,17 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				TCHAR buf[MAX_PATH];
 				PathCombine(buf, game->system->workingPath.c_str(), game->system->nvramPath.c_str());
 				nvramPath = buf;
+
+				LogFile::Get()->Write(LogFile::HiScoreLogging, 
+					_T("+ Relative path specified; expanded to %s\n"), nvramPath.c_str());
 			}
 			else
 			{
 				// it's absolute - use it as-is
 				nvramPath = game->system->nvramPath;
+
+				LogFile::Get()->Write(LogFile::HiScoreLogging, 
+					_T("+ Path is abolute, using as is, %s\n"), nvramPath.c_str());
 			}
 		}
 		else
@@ -447,6 +565,9 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 			TCHAR buf[MAX_PATH];
 			PathCombine(buf, game->system->workingPath.c_str(), _T("fpRAM"));
 			nvramPath = buf;
+
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ No path specified in system config; using default = %s\n"), nvramPath.c_str());
 		}
 
 		// The .fpram file is just the name of the game's .fp file with 
@@ -456,6 +577,10 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		std::basic_regex<TCHAR> extPat(_T("\\.fp$"), std::regex_constants::icase);
 		nvramFile = std::regex_replace(game->filename, extPat, _T(""));
 		nvramFile += _T(".fpram");
+
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("+ Final NVRAM file is %s\n"), nvramFile.c_str());
+
 	}
 
 	// the result is only valid if the file exists

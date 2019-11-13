@@ -11,13 +11,29 @@
 #pragma comment(lib, "strmiids.lib") 
 
 
+// statics
+CriticalSection DShowAudioPlayer::lock;
+LONG_PTR DShowAudioPlayer::nextCallbackID = 1;
+std::unordered_map<LONG_PTR, DShowAudioPlayer*> DShowAudioPlayer::callbackIDMap;
+
 DShowAudioPlayer::DShowAudioPlayer(HWND hwndEvent) : 
 	AudioVideoPlayer(NULL, hwndEvent, true)
 {
+	// lock the static resources while working
+	CriticalSectionLocker locker(lock);
+
+	// assign an event callback identifier
+	callbackID = nextCallbackID++;
+
+	// add our callback ID to the live object map
+	callbackIDMap.emplace(callbackID, this);
 }
 
 DShowAudioPlayer::~DShowAudioPlayer()
 {
+	// remove myself from the live object map
+	CriticalSectionLocker locker(lock);
+	callbackIDMap.erase(callbackID);
 }
 
 void DShowAudioPlayer::SetLooping(bool looping)
@@ -55,7 +71,7 @@ bool DShowAudioPlayer::Open(const WCHAR *path, ErrorHandler &eh)
 		return Error(hr, eh, _T("Querying seek interface"));
 
 	// set up the event callback
-	pEventEx->SetNotifyWindow(reinterpret_cast<OAHWND>(hwndEvent), DSMsgOnEvent, reinterpret_cast<LONG_PTR>(this));
+	pEventEx->SetNotifyWindow(reinterpret_cast<OAHWND>(hwndEvent), DSMsgOnEvent, callbackID);
 
 	// render the file
 	if (!SUCCEEDED(hr = pGraph->RenderFile(path, NULL)))
@@ -69,24 +85,47 @@ bool DShowAudioPlayer::Open(const WCHAR *path, ErrorHandler &eh)
 	return true;
 }
 
-void DShowAudioPlayer::OnEvent()
+void DShowAudioPlayer::OnEvent(LPARAM lParam)
 {
+	// target object, which we'll look up from the lParam
+	RefPtr<DShowAudioPlayer> self;
+
+	{
+		// Lock static resources while accessing the live object table
+		CriticalSectionLocker locker(lock);
+
+		// The LPARAM is the callback ID of the target object.  Look it
+		// up in the live object table.
+		if (auto it = callbackIDMap.find(static_cast<UINT64>(lParam)); it != callbackIDMap.end())
+		{
+			// got it - the object is live
+			self = it->second;
+		}
+		else
+		{
+			// not found - the object has already been deleted; ignore
+			// any remaining event messages targeting it
+			return;
+		}
+	}
+
 	// process events until the queue is empty
 	long eventCode;
 	LONG_PTR lParam1, lParam2;
-	while (SUCCEEDED(pEventEx->GetEvent(&eventCode, &lParam1, &lParam2, 0)))
+	while (SUCCEEDED(self->pEventEx->GetEvent(&eventCode, &lParam1, &lParam2, 0)))
 	{
 		// check what we have
 		switch (eventCode)
 		{
 		case EC_COMPLETE:
 			// notify the event window that playback is finished
-			PostMessage(hwndEvent, looping ? AVPMsgLoopNeeded : AVPMsgEndOfPresentation, static_cast<WPARAM>(cookie), 0);
+			PostMessage(self->hwndEvent, self->looping ? AVPMsgLoopNeeded : AVPMsgEndOfPresentation, 
+				static_cast<WPARAM>(self->cookie), 0);
 			break;
 		}
 
 		// clean up the event parameters
-		pEventEx->FreeEventParams(eventCode, lParam1, lParam2);
+		self->pEventEx->FreeEventParams(eventCode, lParam1, lParam2);
 	}
 }
 

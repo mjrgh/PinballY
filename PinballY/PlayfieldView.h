@@ -374,6 +374,10 @@ protected:
 	// idle event handler
 	virtual void OnIdleEvent() override;
 
+	// Force focus to this window, by synthesizing a mouse click event
+	// on the window
+	void ForceTakeFocus();
+
 	// Show the initial UI.  This sets up the status lines, loads
 	// media for the initially selected game, sets up timers for
 	// dynamic UI elements, and optionally brings up the about box.
@@ -451,6 +455,8 @@ protected:
 	static const int overlayFadeoutTimerID = 124; // fading out the video overlay for removal
 	static const int audioFadeoutTimerID = 125;   // fading out audio tracks
 	static const int startupVideoFadeTimerID = 126; // fading out the startup video
+	static const int launchFocusTimerID = 127;    // launch focus grab
+	static const int hideCursorTimerID = 128;     // hide the cursor after a delay
 
 	// update the selection to match the game list
 	void UpdateSelection();

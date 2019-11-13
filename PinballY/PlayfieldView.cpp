@@ -115,6 +115,8 @@ namespace ConfigVars
 	static const TCHAR *CatNameDialogPos = _T("CategoryNameDialog.Position");
 	static const TCHAR *OptsDialogPos = _T("OptionsDialog.Position");
 	static const TCHAR *SplashScreen = _T("SplashScreen");
+	static const TCHAR *LaunchFocusEnabled = _T("LaunchFocus.Enabled");
+	static const TCHAR *LaunchFocusDelay = _T("LaunchFocus.Delay");
 
 	static const TCHAR *PlayfieldStretch = _T("Playfield.Stretch");
 
@@ -3235,20 +3237,28 @@ void PlayfieldView::OnIdleEvent()
 	// our idle event subscription.
 	D3DView::UnsubscribeIdleEvents(this);
 
+	// Schedule the initial keyboard focus grab, if desired
+	auto cfg = ConfigManager::GetInstance();
+	if (cfg->GetBool(ConfigVars::LaunchFocusEnabled))
+	{
+		auto delay = static_cast<DWORD>(_tcstod(cfg->Get(ConfigVars::LaunchFocusDelay, _T("0")), nullptr) * 1000.0);
+		SetTimer(hWnd, launchFocusTimerID, delay, NULL);
+	}
+
 	// check for startup videos
 	if (Application::Get()->LoadStartupVideos())
 	{
 		// note that a startup video is playing
 		startupVideoPlaying = true;
+
+		// set the DOF context to startup video mode
+		dof.SetUIContext(L"PBYStartupVideo");
 	}
 	else
 	{
 		// No startup videos found.  Go to the normal wheel UI.
 		ShowInitialUI(true);
 	}
-
-	// set the DOF context to startup video mode
-	dof.SetUIContext(L"PBYStartupVideo");
 
 	// Hide the cursor while playing the startup videos
 	Application::HideCursor();
@@ -3280,6 +3290,51 @@ void PlayfieldView::OnIdleEvent()
 			}
 		}
 	}
+}
+
+void PlayfieldView::ForceTakeFocus()
+{
+	// remember the starting cursor position
+	POINT oldCursorPos;
+	GetCursorPos(&oldCursorPos);
+
+	// get our window rect
+	RECT rcWin;
+	GetWindowRect(hWnd, &rcWin);
+
+	// get the normalized virtual desktop area
+	int dtx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+	int dty = GetSystemMetrics(SM_YVIRTUALSCREEN);
+	int dtwid = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+	int dtht = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+	// oigure our window location in normalized virtual desktop coordinates
+	int x = static_cast<int>(round((rcWin.left - dtx) * 65535.0) / dtwid);
+	int y = static_cast<int>(round((rcWin.top - dty) * 65535.0) / dtht);
+
+	// Move the mouse over our window, inset one pixel in each dimension,
+	// and perform a left-click.  Windows should interpret this as bringing
+	// the window to the foreground with the mouse.
+	INPUT inp;
+	inp.type = INPUT_MOUSE;
+	inp.mi.dx = x + 1;
+	inp.mi.dy = y + 1;
+	inp.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN;
+	SendInput(1, &inp, sizeof(INPUT));
+
+	// send a left-button-up event to end the mouse click
+	inp.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+	SendInput(1, &inp, sizeof(INPUT));
+
+	// restore the original cursor position
+	SetCursorPos(oldCursorPos.x, oldCursorPos.y);
+
+	// Set a short timer to re-hide the mouse cursor.  Moving the
+	// mouse over our window will queue events to set the cursor.
+	// These will be processed asynchronously, so hiding the cursor
+	// here won't help; we need to hide it again after a delay to
+	// give the queued messages a chance to be processed first.
+	SetTimer(hWnd, hideCursorTimerID, 10, NULL);
 }
 
 bool PlayfieldView::CancelStartupVideo()
@@ -3408,6 +3463,18 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case startupTimerID:
 		// done with the startup timer
 		KillTimer(hWnd, timer);
+		return true;
+
+	case launchFocusTimerID:
+		// startup focus grabber (this is a one shot)
+		KillTimer(hWnd, timer);
+		ForceTakeFocus();
+		return true;
+
+	case hideCursorTimerID:
+		// hide the cursor on a timer (this is a one shot)
+		KillTimer(hWnd, timer);
+		Application::HideCursor();
 		return true;
 
 	case animTimerID:
