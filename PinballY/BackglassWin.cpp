@@ -15,7 +15,7 @@ namespace ConfigVars
 }
 
 // construction
-BackglassWin::BackglassWin() : FrameWin(ConfigVars::BackglassWinVarPrefix, IDI_MAINICON, IDI_MAINICON_GRAY)
+BackglassWin::BackglassWin() : FrameWin(ConfigVars::BackglassWinVarPrefix, _T("Backglass"), IDI_MAINICON, IDI_MAINICON_GRAY)
 {
 }
 

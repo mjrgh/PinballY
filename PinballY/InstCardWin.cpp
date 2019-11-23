@@ -19,7 +19,7 @@ namespace ConfigVars
 }
 
 // construction
-InstCardWin::InstCardWin() : FrameWin(ConfigVars::InstCardWinVarPrefix, IDI_MAINICON, IDI_MAINICON_GRAY)
+InstCardWin::InstCardWin() : FrameWin(ConfigVars::InstCardWinVarPrefix, _T("Instruction Card"), IDI_MAINICON, IDI_MAINICON_GRAY)
 {
 }
 

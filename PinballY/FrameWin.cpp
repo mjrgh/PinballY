@@ -11,6 +11,7 @@
 #include "PlayfieldWin.h"
 #include "Application.h"
 #include "MouseButtons.h"
+#include "LogFile.h"
 
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Uxtheme.lib")
@@ -52,10 +53,12 @@ namespace ConfigVars
 {
 	static const TCHAR *FullScreen = _T("FullScreen");
 	static const TCHAR *WindowPos = _T("Position");
+	static const TCHAR *FSWindowPos = _T("FullScreenPosition");
 	static const TCHAR *WindowMaximized = _T("Maximized");
 	static const TCHAR *WindowMinimized = _T("Minimized");
 	static const TCHAR *WindowVisible = _T("Visible");
 	static const TCHAR *WindowBorderless = _T("Borderless");
+	static const TCHAR *FullScreenRestoreMethod = _T("Startup.FullScreenRestoreMethod");
 }
 
 // statics
@@ -63,10 +66,14 @@ bool FrameWin::frameWinClassRegistered = false;
 const TCHAR *FrameWin::frameWinClassName = _T("PinballY.FrameWinClass");
 ATOM FrameWin::frameWinClassAtom = 0;
 
-FrameWin::FrameWin(const TCHAR *configVarPrefix, int iconId, int grayIconId) : BaseWin(0)
+FrameWin::FrameWin(const TCHAR *configVarPrefix, const TCHAR *logDesc, int iconId, int grayIconId) : BaseWin(0)
 {
+	// remember the name for the log file
+	this->logDesc = logDesc;
+
 	// generate the config var names
 	configVarPos = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowPos);
+	configVarFSPos = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::FSWindowPos);
 	configVarFullScreen = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::FullScreen);
 	configVarMinimized = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowMinimized);
 	configVarMaximized = MsgFmt(_T("%s.%s"), configVarPrefix, ConfigVars::WindowMaximized);
@@ -168,6 +175,29 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 	else if (cfg->GetInt(configVarMinimized, 0))
 		nCmdShow = SW_MINIMIZE;
 
+	// log the restored settings
+	LogFile::Get()->Group(LogFile::WindowLayoutLogging);
+	LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+		_T("Window layout setup: initializing %s window\n")
+		_T("  Normal position (when not maximized or full-screen): Left,top = %d, %d; Right,bottom = %d, %d; Size = %d x %d\n")
+		_T("  Full screen mode = %hs\n")
+		_T("  Borderless = %hs\n")
+		_T("  Show Mode = %d (%hs)\n"),
+		logDesc.c_str(),
+		rc.left, rc.top, rc.right, rc.bottom, rc.right - rc.left, rc.bottom - rc.top,
+		fullScreenMode ? "Yes" : "No",
+		borderless ? "Yes" : "No",
+		nCmdShow,
+		nCmdShow == SW_SHOW ? "SW_SHOW" :
+		nCmdShow == SW_SHOWNORMAL ? "SW_SHOWNORMAL" :
+		nCmdShow == SW_SHOWDEFAULT ? "SW_SHOWDEFAULT" :
+		nCmdShow == SW_MAXIMIZE ? "SW_MAXIMIZE" :
+		nCmdShow == SW_SHOWMAXIMIZED ? "SW_SHOWMAXIMIZED" :
+		nCmdShow == SW_MINIMIZE ? "SW_MINIMIZE" :
+		nCmdShow == SW_SHOWMINIMIZED ? "SW_SHOWMINIMIZED" :
+		nCmdShow == SW_HIDE ? "SW_HIDE" :
+		"SW_other");
+
 	// check if we read a non-default position
 	if (rc.left != CW_USEDEFAULT && rc.right != CW_USEDEFAULT)
 	{
@@ -177,20 +207,43 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 		{
 			// set a minimum usable size
 			if (rc.right < rc.left + 50)
+			{
 				rc.right = rc.left + 50;
+				LogFile::Get()->Write(LogFile::WindowLayoutLogging, _T("  ! Width too small, adjusting to %d\n"), rc.right - rc.left);
+			}
 			if (rc.bottom < rc.top + 50)
+			{
 				rc.bottom = rc.top + 50;
+				LogFile::Get()->Write(LogFile::WindowLayoutLogging, _T("  ! Height too small, adjusting to %d\n"), rc.bottom - rc.top);
+			}
 
 			// force it into the desktop work area
+			RECT origRc = rc;
 			ForceRectIntoWorkArea(rc, false);
+
+			// log any change
+			if (rc.left != origRc.left || rc.right != origRc.right || rc.top != origRc.top || rc.bottom != origRc.bottom)
+			{
+				LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+					_T("  ! Position is outside usable window area, forcing into view; new area = %d, %d, %d, %d (size %d x %d)\n"),
+					rc.left, rc.top, rc.right, rc.bottom, rc.right - rc.left, rc.bottom - rc.top);
+			}
 		}
 
 		// apply the saved position
 		pos = rc;
 	}
+	else
+	{
+		LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+			_T("  Note: left/top = %d = CW_USEDEFAULT means Windows chooses the position\n"), CW_USEDEFAULT);
+	}
 
 	// If the saved window setup is borderless or full-screen, create a
-	// "vanity shield" window covering the creation area.
+	// "vanity shield" window covering the creation area, to hide the
+	// window caption and border structure that Windows will draw during
+	// the creation process, until we change the frame properties.  The
+	// momentary appearance of the borders is 
 	if ((borderless || fullScreenMode) 
 		&& (nCmdShow != SW_MINIMIZE && nCmdShow != SW_SHOWMINIMIZED && nCmdShow != SW_SHOWMINNOACTIVE && nCmdShow != SW_HIDE))
 	{
@@ -199,12 +252,7 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 
 		// get the full-screen area, if desired
 		if (fullScreenMode)
-		{
-			// use the full display area of the monitor containing the normal window rect
-			MONITORINFO mi = { sizeof(mi) };
-			if (GetMonitorInfo(MonitorFromRect(&pos, MONITOR_DEFAULTTONEAREST), &mi))
-				rcVanity = mi.rcMonitor;
-		}
+			GetFullScreenRestorePosition(&rcVanity, &pos);
 
 		// create the window
 		vanityShield.Attach(new VanityShieldWindow(rcVanity));
@@ -213,6 +261,92 @@ RECT FrameWin::GetCreateWindowPos(int &nCmdShow)
 
 	// return the position
 	return pos;
+}
+
+// Get the full-screen restore position
+bool FrameWin::GetFullScreenRestorePosition(RECT *fullScreenPos, const RECT *preFullScreenPos)
+{
+	// get the full-screen restore method from the settings
+	auto cfg = ConfigManager::GetInstance();
+	const TCHAR *method = cfg->Get(ConfigVars::FullScreenRestoreMethod);
+
+	LogFile::Get()->Group(LogFile::WindowLayoutLogging);
+	LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+		_T("Window layout setup: getting full-screen restore position for %s\n"),
+		logDesc.c_str());
+		
+	// parse the method string
+	static const std::basic_regex<TCHAR> pixPat(_T("(pix(el)?\\s+)?coord(inate)?s?"), std::regex_constants::icase);
+	if (std::regex_match(method, pixPat))
+	{
+		// Pixel Coordinates method.  This restores the exact full-screen
+		// position last saved, without trying to map to a monitor.
+
+		// get the stored full-screen location
+		RECT fsrc = cfg->GetRect(configVarFSPos);
+		LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+			_T(". using Pixel Coordinates method per settings; %s = %d, %d, %d, %d (%d x %d)\n"),
+			configVarFSPos.c_str(), fsrc.left, fsrc.top, fsrc.right, fsrc.bottom,
+			fsrc.right - fsrc.left, fsrc.bottom - fsrc.top);
+
+		// if a position was stored, use it
+		if (fsrc.left != fsrc.right && fsrc.bottom != fsrc.top)
+		{
+			*fullScreenPos = fsrc;
+			return true;
+		}
+
+		// missing or empty position - log it and fall through to the
+		// Nearest Monitor method
+		LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+			_T(". note: saved full-screen position is missing; falling back on Nearest Monitor method\n"));
+	}
+
+	// If we didn't choose a different position already, fall back
+	// on the Nearest Monitor method.
+	//
+	// Nearest Monitor uses the full display area of the monitor 
+	// containing the PRE-full-screen position of the window (that is,
+	// the position of the window as it was when the user applied the
+	// FULL SCREEN command).  This essentially simulates the effect
+	// of the user performing a new FULL SCREEN command on the restored
+	// (pre-full-screen) position.  This is the default because it
+	// adapts automatically to changes in desktop layout and screen
+	// resolution.  Whatever the desktop looks like right now, we'll
+	// pick the full area of a monitor as the new window area.
+	RECT logrc;
+	if (preFullScreenPos != nullptr)
+		logrc = *preFullScreenPos;
+	else
+		GetWindowRect(hWnd, &logrc);
+	LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+		_T(". using Nearest Monitor method, based on %hs (%d, %d, %d, %d)\n"),
+		preFullScreenPos != nullptr ? "stored pre-full-screen position" : "current live window position",
+		logrc.left, logrc.top, logrc.right, logrc.bottom);
+
+	// find the monitor containing the rectangle or window, as applicable
+	MONITORINFO mi = { sizeof(mi) };
+	HMONITOR hMonitor = preFullScreenPos != nullptr ?
+		MonitorFromRect(preFullScreenPos, MONITOR_DEFAULTTONEAREST) :
+		MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+
+	// get the monitor descriptor
+	if (GetMonitorInfo(hMonitor, &mi))
+	{
+		// got it 
+		LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+			_T(". monitor area is %d, %d, %d, %d (%d x %d)\n"),
+			mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right, mi.rcMonitor.bottom,
+			mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top);
+
+		// use the full monitor screen area from the descriptor
+		*fullScreenPos = mi.rcMonitor;
+		return true;
+	}
+
+	// no full-screen position is available
+	LogFile::Get()->Write(LogFile::WindowLayoutLogging, _T(". failed - unable to determine full-screen position\n"));
+	return false;
 }
 
 // initialize the window
@@ -257,7 +391,7 @@ bool FrameWin::InitWin()
 	if (fullScreenMode)
 	{
 		fullScreenMode = false;
-		PostMessage(WM_COMMAND, ID_FULL_SCREEN);
+		PostMessage(WM_COMMAND, ID_FULL_SCREEN_INIT);
 	}
 
 	// For the same reason as full-screen mode, it doesn't seem to work
@@ -272,7 +406,7 @@ bool FrameWin::InitWin()
 	// we know that a subclass is making it permanently borderless.
 	borderless = false;
 	if (!IsBorderless() && ConfigManager::GetInstance()->GetBool(configVarBorderless))
-		PostMessage(WM_COMMAND, ID_WINDOW_BORDERS);
+		PostMessage(WM_COMMAND, ID_WINDOW_BORDERS_INIT);
 
 	// If there's a vanity shield, remove it as soon as we finish with
 	// the FULL SCREEN and TOGGLE BORDERS commands.  The vanity shield is 
@@ -480,7 +614,7 @@ void FrameWin::SetBorderless(bool borderless)
 		ToggleBorderless();
 }
 
-void FrameWin::ToggleBorderless()
+void FrameWin::ToggleBorderless(bool initing)
 {
 	// invert the state
 	borderless = !borderless;
@@ -505,7 +639,7 @@ void FrameWin::SetFullScreen(bool fullScreen)
 		ToggleFullScreen();
 }
 
-void FrameWin::ToggleFullScreen()
+void FrameWin::ToggleFullScreen(bool initing)
 {
 	// get our current window style
 	DWORD style = GetWindowLong(hWnd, GWL_STYLE);
@@ -513,9 +647,8 @@ void FrameWin::ToggleFullScreen()
 	// check the current mode
 	if (!fullScreenMode)
 	{
-		// We're currently in windowed mode - switch to full screen.  Remember
-		// the windowed position, so that we can restore the same position if
-		// we switch back to windowed mode later.
+		// remember the original windowed position, so that we can restore the 
+		// same position if we switch back to windowed mode later.
 		normalWindowStyle = style;
 		normalWindowPlacement.length = sizeof(normalWindowPlacement);
 		if (!GetWindowPlacement(hWnd, &normalWindowPlacement))
@@ -523,16 +656,43 @@ void FrameWin::ToggleFullScreen()
 			// that failed - flag that the placement is invalid by zeroing
 			// the length field
 			normalWindowPlacement.length = 0;
+
+			// log the error
+			LogFile::Get()->Group();
+			LogFile::Get()->Write(
+				_T("Setting full-screen mode for %s: ")
+				_T("no Window Placement information is available to save as the original position;\n")
+				_T("the window might be at a different position when exiting full-screen mode\n\n"),
+				logDesc.c_str());
 		}
 
-		// Determine which monitor the window currently occupies, using the 
-		// primary monitor by default.
-		MONITORINFO mi = { sizeof(mi) };
-		if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+		// Figure the full-screen position.  If we're initializing,
+		// use the saved position information; otherwise expand the
+		// window to fill the current monitor it occupies.xs
+		RECT rcFull;
+		bool fsok = true;
+		if (initing)
 		{
-			// got it - take over the whole viewing area of the selected monitor
-			RECT rcFull = mi.rcMonitor;
+			// startup mode - figure the full-screen position based
+			// on the option settings
+			fsok = GetFullScreenRestorePosition(&rcFull, nullptr);
+		}
+		else
+		{
+			// regular interactive switch to full-screen mode - use the
+			// current window position
+			MONITORINFO mi = { sizeof(mi) };
+			if (GetMonitorInfo(MonitorFromWindow(hWnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+			{
+				// got it - take over the whole viewing area of the selected monitor
+				rcFull = mi.rcMonitor;
+				fsok = true;
+			}
+		}
 
+		// if we successfully retrieved a full-screen position, apply it
+		if (fsok)
+		{
 			// we're now in full-screen mode
 			fullScreenMode = true;
 
@@ -546,8 +706,33 @@ void FrameWin::ToggleFullScreen()
 				rcFull.right - rcFull.left, rcFull.bottom - rcFull.top,
 				SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 
-			// update the config
+			// update the config with the new full-screen status
 			ConfigManager::GetInstance()->SetBool(configVarFullScreen, true);
+
+			// save the pixel coordinates of the new full-screen position, 
+			// in case we want to restore this in the next session based 
+			// on the exact coordinates
+			ConfigManager::GetInstance()->Set(configVarFSPos, rcFull);
+
+			// log it if in setup mode
+			if (initing)
+			{
+				LogFile::Get()->Group(LogFile::WindowLayoutLogging);
+				LogFile::Get()->Write(LogFile::WindowLayoutLogging,
+					_T("Window setup: %s: Setting window to full-screen mode at %d, %d, %d, %d (size %d x %d)\n"),
+					logDesc.c_str(),
+					rcFull.left, rcFull.top, rcFull.right, rcFull.bottom,
+					rcFull.right - rcFull.left, rcFull.bottom - rcFull.top);
+			}
+		}
+		else
+		{
+			// unable to get monitor info - log an error
+			LogFile::Get()->Group();
+			LogFile::Get()->Write(
+				_T("Setting full-screen mode for %s window: ")
+				_T("unable to determine full-screen position\n"),
+				logDesc.c_str());
 		}
 	}
 	else
@@ -567,6 +752,9 @@ void FrameWin::ToggleFullScreen()
 		}
 		else
 		{
+			// no saved window placement is available; keep at the current
+			// position with a slight inset on each side so that it's clear
+			// that it's no longer in full-screen mode
 			RECT rc;
 			GetWindowRect(hWnd, &rc);
 			InsetRect(&rc, 32, 64);
@@ -786,8 +974,16 @@ bool FrameWin::DoCommand(int cmd)
 		ToggleFullScreen();
 		return true;
 
+	case ID_FULL_SCREEN_INIT:
+		ToggleFullScreen(true);
+		return true;
+
 	case ID_WINDOW_BORDERS:
 		ToggleBorderless();
+		return true;
+
+	case ID_WINDOW_BORDERS_INIT:
+		ToggleBorderless(true);
 		return true;
 
 	case ID_VIEW_BACKGLASS:

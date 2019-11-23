@@ -495,6 +495,7 @@
 #define ID_FPS                          32781
 #define ID_ROTATE_CW                    32782
 #define ID_ROTATE_CCW                   32783
+#define ID_FULL_SCREEN_INIT             32784
 #define ID_GAMEINFO                     32785
 #define ID_FLYER                        32786
 #define ID_INSTRUCTIONS                 32787
@@ -529,6 +530,7 @@
 #define ID_FILTER_BY_CATEGORY           32816
 #define ID_MUTE_ATTRACTMODE             32817
 #define ID_PINSCAPE_NIGHT_MODE          32818
+#define ID_WINDOW_BORDERS_INIT          32819
 #define ID_HIGH_SCORES                  32820
 #define ID_CLEAR_CREDITS                32821
 #define ID_GAME_SETUP                   32822

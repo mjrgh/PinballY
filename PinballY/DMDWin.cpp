@@ -15,7 +15,7 @@ namespace ConfigVars
 }
 
 // construction
-DMDWin::DMDWin() : FrameWin(ConfigVars::DMDWinVarPrefix, IDI_MAINICON, IDI_MAINICON_GRAY)
+DMDWin::DMDWin() : FrameWin(ConfigVars::DMDWinVarPrefix, _T("DMD"), IDI_MAINICON, IDI_MAINICON_GRAY)
 {
 }
 

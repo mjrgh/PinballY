@@ -14,7 +14,7 @@ namespace ConfigVars
 }
 
 // construction
-PlayfieldWin::PlayfieldWin() : FrameWin(ConfigVars::PlayfieldWinVarPrefix, IDI_MAINICON, IDI_MAINICON_GRAY)
+PlayfieldWin::PlayfieldWin() : FrameWin(ConfigVars::PlayfieldWinVarPrefix, _T("Playfield"), IDI_MAINICON, IDI_MAINICON_GRAY)
 {
 }
 

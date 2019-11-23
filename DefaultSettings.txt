@@ -59,6 +59,8 @@ FirstRunTime =
 #
 # Log.HighScoreRetrieval - high score retrieval via PinEMHi
 #
+# Log.WindowLayoutSetup - initial window layout setup
+#
 Log.MediaFiles = 0
 Log.MediaDrop = 1
 Log.SystemSetup = 0 
@@ -68,6 +70,7 @@ Log.RealDMD = 1
 Log.DOF = 1
 Log.Javascript = 1
 Log.HighScoreRetrieval = 1
+Log.WindowLayoutSetup = 0
 
 # Vertical Sync Lock.  If this is enabled (1), the graphics rendering
 # rate is throttled to the monitor's physical refresh rate.  If disabled
@@ -249,6 +252,40 @@ WaitForMonitors.ExtraDelay = 0
 # unconditionally, preserving your old layout.
 #
 Startup.ForceWindowsIntoView = 1
+
+# Method for restoring full-screen windows at program startup.
+# When PinballY starts up, it restores window positions saved in the
+# settings file.  For windows that were set to full-screen mode, there
+# are two ways to restore the saved position, which can be selected
+# via this setting:
+#
+# "Nearest Monitor": this is the default.  This means that PinballY
+# saves the PRE-full-screen position of the window - that is, the
+# position of the original window just before you switched it into
+# full-screen mode.  PinballY restores the full-screen window by
+# first restoring that PRE-full-screen position, then finding the
+# monitor that most completely contains the window (the "nearest"
+# monitor), and expanding the window to fill that monitor.
+#
+# "Pixel Coordinates": In this mode, PinballY simply saves the pixel
+# coordinates of the full-screen window itself, and restores those
+# exact coordinates when the program starts.  It doesn't try to fit
+# the position to a monitor.
+#
+# The "Nearest Monitor" method is more flexible, because it
+# automatically adapts to any changes you make to the resolution
+# settings or layout of your monitors.  When the program starts,
+# PinballY looks at the CURRENT monitor layout, and finds a 
+# suitable monitor to use as the full-screen monitor.  However,
+# this might not be ideal for you if you routinely make TEMPORARY
+# changes to your monitor setup, because it might move your windows
+# around in the different resolution modes.  One case in particular
+# where this can happen is if you use remote desktop access software
+# to log into your PC remotely, since remote access software tends
+# to virtualize the monitor layout.  If you have problems with 
+# saving and restoring the positions of full-screen windows, try 
+# the "Pixel Coordinates" method.
+Startup.FullScreenRestoreMethod = Nearest Monitor
 
 
 # Splash screen.  If true (1), the program displays a "splash screen"

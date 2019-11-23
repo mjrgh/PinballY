@@ -45,7 +45,7 @@
 <h2>What is PinballY Admin Mode.exe?</h2>
 
 <p>
-   <b>PinballY Admin Mode.exe</b> is a separate version of PinballY that
+   <b>PinballY Admin Mode.exe</b> is a separate PinballY component that
    you can use if you require Admin mode to run any of the games that
    PinballY launches.  If you require Admin mode, launch PinballY
    via the <b>PinballY Admin Mode.exe</b> program file <i>instead of</i> the
@@ -55,14 +55,15 @@
    It might sound from the name like <b>PinballY Admin Mode.exe</b>
    simply runs PinballY in Admin mode.  Not quite.
    What <b>PinballY Admin Mode.exe</b> actually does is a bit more
-   involved:
+   complex:
 </p>
 <ul>
-   <li><b>Pinbally Admin Mode.exe</b> launches <b>PinballY.exe</b> in
-      <i>regular user mode</i>
+   <li><b>PinballY Admin Mode.exe</b> itself is a small program that
+   runs in administrator mode
+   
+   <li>That program launches <b>PinballY.exe</b> in <i>regular user mode</i>
 
-   <li><b>PinballY Admin Mode.exe</b> then remains in memory as a
-   separate program, running in Admin mode
+   <li>It also then remains in memory as a separate program, running in Admin mode
 
 </ul>
 
@@ -201,23 +202,23 @@
    "regular" software.  Malware is certainly an important factor.
    But Microsoft created
    the system protections as much to prevent <i>accidental</i>
-   damage as to prevent malware attacks.  Back in its earliest days,
-   Windows had a terrible reputation for instability,
-   insecurity, and general bugginess.  Some of that was deserved,
+   damage as to prevent malware attacks.  Back in the early days of
+   Windows, the OS had a bad reputation for crashing a lot.
+   Some of that reputation was deserved,
    but a lot of the mess actually came from buggy third-party
    application software that could trash the system accidentally,
    just because the system was so wide-open.  Microsoft put 
-   the Admin mode barriers in place in large part to limit the
-   collateral damage that could be done by buggy applications.
+   the Admin mode barriers in place in large part to prevent
+   application program bugs from crashing the whole system.
    A lot of the stability improvements of modern Windows versions
    come from the protections that prevent the Windows core from
-   being damaged by buggy application software.
+   being damaged by application bugs.
 </p>
 <p>
    When you run a program in Admin mode, you take down all of those
    barriers. When you turn off UAC and/or run everything in Admin
-   mode, you return to those Stone Age days of Windows where any
-   program can trash the whole system.
+   mode, you increase the chances that one bad application
+   program can trash your whole system.
 </p>
 
 

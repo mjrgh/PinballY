@@ -13,11 +13,16 @@
 <h1>Troubleshooting Tips</h1>
 
 <p>
-   This section is a collection of tips for dealing with some of the
-   problems that other people have run into.  
+   This section is a collection of tips for troubleshooting any
+   problems you run into with PinballY.
 </p>
 
-<h2>Asking for help/reporting bugs</h2>
+<h2>General troubleshooting advice</h2>
+
+Here are a couple of items of general advice that should apply to just
+about any issue you run into.
+
+<h3>Asking for help/reporting bugs</h3>
 <p>
    If you can't find what you're looking for in this Troubleshooting section
    or elsewhere in the help files, try asking on the
@@ -35,48 +40,17 @@
    find and fix the problem.
 </p>
 
-<h2>I'm running PinballY in Admin mode, and...</h2>
+<h3>Check the log file</h3>
 
 <p>
-   ...and something's going wrong.
-</p>
-<p>
-  Simple answer: Don't run PinballY in Admin mode.
-</p>
-<p>
-   There are two main reasons that people try to run PinballY in Admin mode:
-</p>
-<ul>
-   <li>Because you read some advice on the forums or in a tutorial saying
-   you should run everything in Admin mode all the time.  That's just bad advice; see
-   <a href="http://mjrnet.org/pinscape/BuildGuideV2/BuildGuide.php?sid=software#AdminModeAllTheTime">
-      Should I use "Run as Administrator" for everything?</a> in the
-   <a href=http://mjrnet.org/pinscape/BuildGuideV2/">Pinscape Build Guide</a>.
-   If you're only running PinballY in Admin mode because someone told you
-   to, rather than in an attempt to solve a specific problem, simply stop doing so.
-
-   <li>Because some program you're launching from PinballY can only run in Admin mode.  In
-   the first place, I'd consider such a requirement in the other program
-   to be a bug; see the Build Guide section linked above for why.
-   But if you really can't live without the other program, and it really
-   can't run any other way, go read the help section on <a href="AdminMode.html">Administrator Mode</a>.
-   PinballY has the capability to launch Admin mode programs <i>without running
-   in Admin mode itself</i>.  Take advantage of that to give the other program
-   its Admin mode launch, without infecting the whole rest of your system
-   with the problems of running everything in Admin mode all the time.
-</ul>
-
-
-<h2>Log File</h2>
-
-<p>
-   Many problems can be solved by checking the log file.  PinballY
-   creates a log file called <b>PinballY.log</b>, in the main program
-   folder, each time it runs.  This file contains reports about
-   what the program is trying to do, and details about any errors.
-   The point of the log file is to stash away details that might
+   Many problems can be solved by checking PinballY's log file.  Every
+   time you run PinballY, it creates a log file called <b>PinballY.log</b>
+   in its main program folder.  As the program runs, it writes a bunch
+   of miscellaneous status reports to the log file about what it's
+   trying to do.  It also record technical details about many sorts
+   of system errors here.   The point is to save extra details that might
    be important in case of problems, without barraging you with
-   minute technical details in the graphical UI.
+   technical status messages in the graphical UI.
 </p>
 <p>
    You've probably experienced situations where too much information
@@ -88,11 +62,61 @@
    actions that PinballY reports in the log.  So before you consult
    the log file, you should go to the Log File options page and
    make sure that reporting is enabled for the subsystem that
-   you're trying to troubleshoot.
+   you're trying to troubleshoot.  You might also want to turn off
+   logging for unrelated areas, to minimize the amount of other
+   reports that you have to sift through.
 </p>
 
+<h2>Some common problems (and suggested solutions)</h2>
 
-<h2>PinballY isn't finding my tables</h2>
+The topics below list some of the more common problems that I've heard
+about, with suggestions for fixes or ways to gather more information.
+Scan through the list to see if you can find anything that sounds
+similar to any problems you're having.
+
+<h3>I'm running PinballY in Admin mode, and...</h3>
+
+<p>
+   ...something's going wrong.
+</p>
+<p>
+  Simple answer: Don't run PinballY in Admin mode.  If you're running
+  PinballY by right-clicking the program file and selecting "Run as Administrator",
+  please see the help section on <a href="AdminMode.html">Administrator Mode</a>
+  for instructions on what you should be doing instead.
+</p>
+<p>
+   But more importantly, you ideally shouldn't need to use Admin
+   Mode at all with PinballY.  There are two main reasons that most
+   people think they need to use Admin Mode:
+</p>
+<ul>
+   <li>Because you read some advice on the forums or in a tutorial saying
+   you should just run <i>everything</i> in Admin mode all the time.
+   People mean well when they say that, but it's generally bad advice.
+   See <a href="http://mjrnet.org/pinscape/BuildGuideV2/BuildGuide.php?sid=software#AdminModeAllTheTime">
+         Should I use "Run as Administrator" for everything?</a> in the
+      <a href=http://mjrnet.org/pinscape/BuildGuideV2/">Pinscape Build Guide</a>
+      for an explanation.
+   </p>
+   <p>
+      If this kind of blanket advice is the only reason you're using Admin Mode
+      with PinballY (rather than an attempt to solve a specific problem), you should
+      try undoing it and running everything without Admin Mode instead.
+   </p>
+
+   <li>Because some program you're launching from PinballY can only run in Admin Mode.  In
+   the first place, I'd consider such a requirement in the other program
+   to be a bug; see the Build Guide section linked above for why.
+   But if you really can't live without the other program, and it really
+   can't run any other way, go read the help section on <a href="AdminMode.html">Administrator Mode</a>.
+   PinballY has the capability to launch Admin mode programs <i>without running
+   in Admin Mode itself</i>.  Take advantage of that to give the other program
+   its Admin Mode launch, without forcing everything else to run in Admin Mode too.
+</ul>
+
+
+<h3>PinballY isn't finding my tables</h3>
 
 <p>
    The easiest way to figure out what's wrong when PinballY can't
@@ -122,7 +146,7 @@
 </p>
 
 
-<h2>PinballY isn't showing media for my tables</h2>
+<h3>PinballY isn't showing media for my tables</h3>
 
 <p>
    As with table search problems, the log file is the first place
@@ -166,7 +190,7 @@
    see <a href="DirectoryInfo.html">Files &amp; Folders</a>.
 </p>
 
-<h2>I have a VP X game, but I can only select VP 9 in the Edit Game Details box (not VP X!)</h2>
+<h3>I have a VP X game, but I can only select VP 9 in the Edit Game Details box (not VP X!)</h3>
 
 <p>
    Here's the situation:
@@ -184,7 +208,7 @@
    below.
 </p>
 
-<h2>PinballY thinks my Visual Pinball <u>X</u> tables are Visual Pinball <u>9</u> tables</h2>
+<h3>PinballY thinks my Visual Pinball <u>X</u> tables are Visual Pinball <u>9</u> tables</h3>
 
 <p>
    Did you just migrate to PinballY from PinballX?  And did you tell
@@ -238,7 +262,7 @@
 </p>
 
 
-<h2>PinballY doesn't have keyboard focus at system startup</h2>
+<h3>PinballY doesn't have keyboard focus at system startup</h3>
 
 <p>
    Symptom: You've set up PinballY to start up automatically with
@@ -278,7 +302,68 @@
 </p>
 
 
-<h2>The Windows taskbar pops up every time a VP X game finishes</h2>
+<h3>PinballY won't save/restore my backglass window position</h3>
+
+<p>
+   Symptom:  Each time you start a new PinballY session, the backglass
+   window (or one of the other windows) opens at the wrong position.
+   It won't stay where you left it at the end of the last session.
+</p>
+<p>
+   The usual cause of this problem is that you're running some other
+   program that's changing the screen resolution or monitor layout
+   between sessions.  For example, you might be using a program that
+   rotates your monitors or changes the desktop resolution each time
+   you run certain programs, or you might be using a remote access
+   program that changes the screen resolution during remote sessions.
+</p>
+<p>
+   The reason PinballY moves the windows around in these situations
+   is that it normally checks all of the restored window positions to
+   make sure they're in the visible desktop area at program startup.
+   If any windows are outside of the visible area, PinballY moves
+   them into the visible area.  This is intended to help with rare
+   cases where you <i>permanently</i> change the desktop layout at
+   the hardware level, such as when you add a new monitor or replace an
+   old one with a new one of a different size.  But it can be a nuisance
+   if you <i>routinely</i> change your desktop layout at the software level,
+   such as if you need to change the layout every time you run a
+   certain application.
+</p>
+<p>
+   The easy fix that usually works is to tell PinballY to stop
+   forcing windows into the visible desktop area at the start of
+   every session:
+</p>
+<ul>
+   <li>Open the Settings dialog in PinballY
+   <li>Go to the <b>Startup</b> section
+   <li><b>Un-check</b> the box <b>Make sure all windows are positioned within the
+      visible desktop area</b>
+</ul>
+
+<p>
+   If that still doesn't help, and the window that's not "sticking"
+   to its proper position is in full-screen mode, there's a second
+   option setting that might help:
+</p>
+<ul>
+   <li>Open the Settings dialog in PinballY
+   <li>Go to the <b>Startup</b> section
+   <li>Under <b>Restore full-screen windows based on:</b>, select
+   <b>Exact saved pixel coordinates</b>
+</ul>
+<p>
+   If none of that helps, try turning on logging for <b>Window layout setup</b>
+   (in the Log File section of the settings dialog).  The next time you
+   encounter the problem with a saved window position, exit PinballY and
+   check the log file for details about window layout setup.  That should
+   explain why PinballY is making the decisions it's making about window
+   placement, which hopefully will suggest an appropriate solution.
+</p>
+
+
+<h3>The Windows taskbar pops up every time a VP X game finishes</h3>
 
 <p>Try this:</p>
 <ul>

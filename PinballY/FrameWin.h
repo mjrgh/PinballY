@@ -16,7 +16,7 @@ class VanityShieldWindow;
 class FrameWin : public BaseWin
 {
 public:
-	FrameWin(const TCHAR *configVarPrefix, int iconId, int grayIconId);
+	FrameWin(const TCHAR *configVarPrefix, const TCHAR *logDesc, int iconId, int grayIconId);
 
 	// is the window activated?
 	bool IsActivated() const { return isActivated; }
@@ -34,13 +34,13 @@ public:
 	void SetFullScreen(bool fullScreen);
 
 	// toggle between regular and full-screen mode
-	void ToggleFullScreen();
+	void ToggleFullScreen(bool initing = false);
 
 	// set borderless mode
 	void SetBorderless(bool borderless);
 
 	// toggle between regular and borderless mode
-	void ToggleBorderless();
+	void ToggleBorderless(bool initing = false);
 
 	// Show/hide the frame window.  This updates the window's UI
 	// visibility and saves the config change.
@@ -70,6 +70,21 @@ public:
 
 protected:
 	virtual ~FrameWin();
+
+	// Figure the full-screen restore position, based on the
+	// settings.  This takes into account the restore method
+	// (by nearest monitor or by pixel coordinates) set in the
+	// options.
+	//
+	// If preFullScreenPos is provided, we use that as the basis
+	// for the Nearest Monitor method, if applicable.  Otherwise
+	// we use the current window location for our window handle.
+	//
+	// Returns true on success, false on failure.  We do not
+	// update *fullScreenPos on failure, so the caller can fill
+	// this in with a default before calling if desired, and
+	// then ignore the return value.
+	bool GetFullScreenRestorePosition(RECT *fullScreenPos, const RECT *preFullScreenPos);
 
 	// Is this a hideable window?  If true, we'll hide the window on
 	// a Minimize or Close command, instead of actually minimizing or
@@ -274,11 +289,15 @@ protected:
 
 	// configuration variables
 	TSTRINGEx configVarPos;
+	TSTRINGEx configVarFSPos;
 	TSTRINGEx configVarMaximized;
 	TSTRINGEx configVarMinimized;
 	TSTRINGEx configVarFullScreen;
 	TSTRINGEx configVarVisible;
 	TSTRINGEx configVarBorderless;
+
+	// window description for the log file
+	TSTRINGEx logDesc;
 
 	// window subclass registration
 	static const TCHAR *frameWinClassName;

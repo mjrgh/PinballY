@@ -34,7 +34,7 @@
 </p>
 <p>
    This is actually the original use case that motivated adding
-   the Javascript engine to PinballY.  I heard from on person who
+   the Javascript engine to PinballY.  I heard from one person who
    suggested adding some special options for Future Pinball's different
    modes; and someone else suggested adding some special modes for FX3.
    I didn't like the idea of adding special cases for these
@@ -87,8 +87,7 @@
    Rather than just Play, for example, you might have
    "Play (Classic Physics)" and "Play (New Physics)".  Each
    time you launch, you select a mode simply by selecting the
-   corresponding Play command.  This makes each launch into a
-   two-step process, but it keeps the main menu uncluttered.
+   corresponding Play command.
 </p>
 <p>
    <b>Use a submenu:</b>
@@ -97,7 +96,9 @@
    all there.  You might instead want to break up the process by
    leaving the regular Play command in the main menu, but then
    rather than having it launch the game directly, have it bring
-   up a new menu listing the various mode options.
+   up a second menu listing the various mode options.
+   This makes each launch into a
+   two-step process, but it keeps the main menu uncluttered.
 </p>
 <p>
    <b>Use a separate mode setting:</b>  If you tend to play
@@ -158,12 +159,13 @@ if (sys.displayName == "Future Pinball") {
 </div>
 
 <p>
-   Those funny bits with the empty brackets are there to substitute
+   Those funny bits with the empty braces are there to substitute
    an empty object if either the game or system object is missing entirely,
    so that we don't run into Javascript errors from trying to take properties
    of a missing object.  It's possible for there to be no game selection,
    since the user could have selected a filter that doesn't have any matching
-   game.
+   game.  (This "|| default" syntax is a really common Javascript idiom that
+   you'll see all the time if you start working with Javascript regularly.)
 </p>
 
 <p>
@@ -208,7 +210,7 @@ let playNewPhysicsModeCommand = command.allocate("PlayNewPhysicsMode");
 
 <p>
    Now we can write our menu event handler.  When the main menu opens, we'll
-   if the current game is a Pinball FX3 game, we'll replace the Play command
+   check if the current game is a Pinball FX3 game, and if so, we'll replace the Play command
    with the Classic and New custom commands.
 </p>
 <div class="code">

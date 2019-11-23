@@ -15,7 +15,7 @@ namespace ConfigVars
 }
 
 // construction
-TopperWin::TopperWin() : FrameWin(ConfigVars::TopperWinVarPrefix, IDI_MAINICON, IDI_MAINICON_GRAY)
+TopperWin::TopperWin() : FrameWin(ConfigVars::TopperWinVarPrefix, _T("Topper"), IDI_MAINICON, IDI_MAINICON_GRAY)
 {
 }
 

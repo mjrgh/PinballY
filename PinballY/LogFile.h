@@ -25,16 +25,17 @@ public:
 
 	// Feature flags.  These allow messages to be conditionally
 	// displayed according to which features are enabled.
-	static const DWORD BaseLogging        = 0x00000001;   // basic logging; always enabled
-	static const DWORD MediaFileLogging   = 0x00000002;   // media file setup
-	static const DWORD SystemSetupLogging = 0x00000004;   // system setup and table search
-	static const DWORD CaptureLogging     = 0x00000008;   // media capture
-	static const DWORD TableLaunchLogging = 0x00000010;   // table launch
-	static const DWORD DmdLogging         = 0x00000020;   // DMD setup
-	static const DWORD DofLogging         = 0x00000040;   // DOF
-	static const DWORD JSLogging          = 0x00000080;   // Javascript
-	static const DWORD MediaDropLogging   = 0x00000100;   // media file drag-and-drop operations
-	static const DWORD HiScoreLogging     = 0x00000200;   // high score retrieval
+	static const DWORD BaseLogging         = 0x00000001;   // basic logging; always enabled
+	static const DWORD MediaFileLogging    = 0x00000002;   // media file setup
+	static const DWORD SystemSetupLogging  = 0x00000004;   // system setup and table search
+	static const DWORD CaptureLogging      = 0x00000008;   // media capture
+	static const DWORD TableLaunchLogging  = 0x00000010;   // table launch
+	static const DWORD DmdLogging          = 0x00000020;   // DMD setup
+	static const DWORD DofLogging          = 0x00000040;   // DOF
+	static const DWORD JSLogging           = 0x00000080;   // Javascript
+	static const DWORD MediaDropLogging    = 0x00000100;   // media file drag-and-drop operations
+	static const DWORD HiScoreLogging      = 0x00000200;   // high score retrieval
+	static const DWORD WindowLayoutLogging = 0x00000400;   // window layout setup
 
 	// Is a feature enabled?
 	bool IsFeatureEnabled(DWORD feature) { return ((enabledFeatures | tempFeatures) & feature) != 0; }

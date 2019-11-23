@@ -91,6 +91,7 @@ void LogFile::OnConfigReload()
 		{ _T("Log.Javascript"),   JSLogging, true },
 		{ _T("Log.MediaDrop"),    MediaDropLogging, true },
 	    { _T("Log.HighScoreRetrieval"), HiScoreLogging, true },
+		{ _T("Log.WindowLayoutSetup"), WindowLayoutLogging, false },
 	};
 	for (auto &v : vars)
 	{

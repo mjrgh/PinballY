@@ -168,11 +168,58 @@
 </ul>
 
 
-<h2>Initial window positioning</h2>
+<h2>"Restore full-screen windows based on:"</h2>
 
 <p>
-   The checkbox <b>Make sure all windows are positioned within the
-   visible desktop area</b> lets you control the way PinballY
+   These buttons let you select how PinballY restores the saved
+   positions of full-screen windows at program startup.  There
+   are two ways it can do this:
+</p>
+<ul>
+   <li><b>Nearest monitor:</b>  This is the default method.
+   When this is selected, PinballY saves the <b>pre-</b>full-screen
+   position of each full-screen window, rather than saving the
+   actual full-screen position.  When the program starts, PinballY
+   finds the nearest monitor containing that saved pre-full-screen
+   position, and then positions the window so that it exactly
+   covers that monitor.
+
+   <li><b>Exact pixel coordinates:</b>  This is an alternative
+   method that doesn't pay any attention to the monitor layout,
+   but simply restores the exact coordinates of each full-screen
+   window, as they were at the end of the last program session.
+</ul>
+<p>
+   The "Nearest Monitor" method is the more flexible of the two,
+   because it automatically adjusts for any changes to the desktop
+   layout or screen resolution that you've made since the last
+   time you ran the program.  That's why it's the default.  However,
+   that also might make it a nuisance if you routinely make temporary
+   changes to the screen layout, since it can cause full-screen
+   windows to move around when you run PinballY while temporary
+   changes are in effect.  One case where you might see this happen
+   is if you use regularly use remote desktop software to access
+   your PC.  Remote desktop software tends to set up a virtual
+   desktop area while it's running, which can change the way
+   that Windows calculates the available monitor positions.
+   If you read the description of the "Nearest Monitor" method
+   above, you can see that this method depends on how Windows
+   reports the available monitor positions, which in turn affects
+   where full-screen windows are positioned.  If you find that
+   your full-screen windows are restored to the wrong positions
+   while you're running a remote desktop program or some other
+   software, try the "Pixel Coordinates" method instead.  As
+   long as you also un-check the "visible desktop area" checkbox
+   described below, that will make your restored full-screen
+   window positions completely independent of any changes to
+   the monitor layout or resolution.
+</p>
+
+
+<h2>"Make sure restored window positions are within the visible desktop area"</h2>
+
+<p>
+   This checkbox lets you control the way PinballY
    sets up the initial window locations during program startup.
 </p>
 <p>
@@ -227,19 +274,19 @@
    layout. 
 </p>
 <p>
-   Note that disabling this option only works with windows that
-   aren't in Full Screen mode.  Full-screen windows are always
-   set up so that they fill the nearest monitor to the saved
-   position, so they'll end up within a visible monitor in any
-   case.  If you have problems with full-screen windows moving
-   to unwanted monitors at startup, try taking them out of
-   full-screen mode and instead using "borderless" mode (which
-   you can select via the right-click menu within the window),
-   simply sizing the window to the screen area you want it to
-   take.
+   Note that you might also want to change the full-screen window
+   restoration method to the "Pixel Coordinates" method - see
+   "Restore full-screen windows based on" above.
 </p>
 <p>
-   How to find a window that's fallen off the edge of the world:
+   <b>How to find a window that's fallen off the edge of the world:</b>
+   If you disable the "make sure they're in the visible desktop area"
+   option, there's a risk that some windows might be outside the
+   bounds of the screen when the program starts up.  The whole point of the option, after all,
+   is to prevent that confusing situation.  But if this happens,
+   you can still get the windows back into the usable area.
+</p>
+<p>   
    As long as the main playfield window is still visible, you can
    easily bring any of the other windows back into view by
    right-clicking on the playfield window and selecting "Show

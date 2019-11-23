@@ -14,6 +14,32 @@ doesn't always give focus to auto-launched programs at system startup,
 particularly on Windows 10, so you can use this to force a focus
 change without having to use the mouse manually.
 
+* You can now select the method that PinballY uses to restore the
+saved positions of full-screen windows.  In the Startup section of the
+options dialog, there's a new option, "Restore full-screen window
+positions based on:", with two radio-button options:
+
+  * Nearest monitor to saved position
+  * Exact saved pixel coordinates of full-screen window
+
+The "Nearest Monitor" method is the default, and it's the method that
+was always used in the past.  This method uses the original position
+of the window BEFORE it was switched to full-screen mode to find the
+nearest containing monitor, positioning the window to exactly fill
+that nearest monitor.  The new "Pixel Coordinates" method is more
+literal: it simply restores the full-screen window to the same pixel
+coordinates the window used in full-screen mode in the last session.
+This is less flexible than "Nearest Monitor", because it doesn't adapt
+to any changes to the desktop layout or screen resolution that you
+might have made since the last session.  However, by the same token,
+it might be better NOT to adapt in cases where you routinely make
+temporary changes to the screen layout, since the "Nearest Monitor"
+method might undesirably move your windows around (because it's
+"adapting") every time you change modes.  If you have problems with
+full-screen window positions not sticking properly across sessions,
+and you're doing something that frequently changes the desktop layout,
+the "Pixel Coordinates" method might fix it for you.
+
 * A new option in the Status Lines section of the options dialog lets
 you disable all status line displays.  Un-check the "Enable status
 line display" box to prevent status line displays.
@@ -46,6 +72,10 @@ session.
 
 * Logging has been added for high score retrieval, to help
 troubleshoot any problems you run into with that.
+
+* Logging has been added for the initial window layout setup, to help
+troubleshoot any situations where the saved window positions aren't
+restored properly at program startup.
 
 * In the past, still image files that us the sRGB color space were
 displayed with inaccurate colors on-screen.  In most cases, the
