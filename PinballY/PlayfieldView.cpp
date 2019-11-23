@@ -3915,11 +3915,10 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		// ignore this unless a game is running
 		if (Application::Get()->IsGameRunning())
 		{
-			// try to grab focus from the running game
+			// Try to grab focus from the running game.  Assuming we're
+			// successful, the Pause menu will automatically be displayed
+			// once we're in the foreground.
 			Application::Get()->StealFocusFromGame();
-
-			// process a Select command
-			DoSelect(false);
 		}
 		return true;
 

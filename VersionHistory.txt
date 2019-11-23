@@ -107,6 +107,9 @@ creating an excessive number of extra files.  The backup files include
 the date in the name ("Settings backup 2019-11-02.txt", etc) to help
 keep track of the versions.
 
+* Fixed a bug that prevented the Pause Game command from taking
+control properly.  (Issue #92 on github.)
+
 
 05-31-2019 (1.0.0 Beta 14)
 
