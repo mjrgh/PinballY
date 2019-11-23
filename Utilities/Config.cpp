@@ -283,10 +283,21 @@ bool ConfigManager::Save(bool silent)
 	GetTimeFormatEx(LOCALE_NAME_INVARIANT, 0, 0, _T("HH:mm:ss"), time, _countof(time));
 	Set(_T("UpdateTime"), ConfigLine::FormatString(_T("%s %s")), date, time);
 
-	// open the file
+	// Open a temporary output file.  (Not the actual file.  This way,
+	// if anything goes wrong during the write process, the old settings
+	// file won't be affected, so the old settings will be fully intact
+	// for the next session.)
+	TSTRING tmpFileName = filename + _T("~");
 	FILE *fp;
-	const char *errSrc = 0;
-	int err = _tfopen_s(&fp, filename.c_str(), _T("w, ccs=UTF-8"));
+	TSTRING errSrc;
+	int err = _tfopen_s(&fp, tmpFileName.c_str(), _T("w, ccs=UTF-8"));
+	if (err != 0)
+	{
+		// flag that fopen failed
+		errSrc = _T("_tfopen(write mode) failed");
+	}
+
+	// if we're good so far, write the contents
 	if (err == 0)
 	{
 		// write all lines
@@ -302,23 +313,67 @@ bool ConfigManager::Save(bool silent)
 			if (_fputts(it->text.c_str(), fp) < 0
 				|| _fputts(_T("\n"), fp) < 0)
 			{
-				errSrc = "_fputts() failed";
+				errSrc = _T("_fputts() failed");
 				err = errno;
 				break;
 			}
 		}
-	}
-	else
-	{
-		// flag that fopen failed
-		errSrc = "_tfopen(write mode) failed";
+
+		// done - close the file
+		if (fclose(fp) < 0)
+		{
+			if (err == 0)
+			{
+				errSrc = _T("fclose() failed");
+				err = errno;
+			}
+		}
 	}
 
-	// done - close the file
-	if (fclose(fp) < 0)
+	// If we successfully wrote the temp file, put the new file into 
+	// effect by renaming it from the temporary name to the real name.
+	if (err == 0)
 	{
-		errSrc = "fclose() failed";
-		err = errno;
+		// If there's an existing settings file, save it as a daily backup
+		// copy.  This provides some insurance in case we corrupt the
+		// file at some point due to a program fault, and also gives
+		// the user a handy automatic point-in-time snapshot that they
+		// can use to restore old settings in case they should make an
+		// unwanted manual settings change that they can't figure out
+		// how to undo through the UI.
+		if (FileExists(filename.c_str()))
+		{
+			// generate the name of the daily snapshot
+			TCHAR snapDate[20];
+			GetDateFormatEx(LOCALE_NAME_INVARIANT, 0, 0, _T("yyyy-MM-dd"), snapDate, _countof(snapDate), 0);
+			static const std::basic_regex<TCHAR> snapPat(_T("(\\.[^.]+)$"));
+			TSTRING snapshot = std::regex_replace(filename, snapPat, TSTRING(_T(" backup ")) + snapDate + _T("$1"));
+
+			// If there's not already a snapshot for this day, rename the
+			// current file to use the snapshot name, effectively making the
+			// current file into the backup.  Skip this if there's already a
+			// snapshot for this date; we only want to make one snapshot per
+			// day, using the first version of the file we discover that day.
+			if (FileExists(snapshot.c_str()))
+			{
+				// Snapshot already exists.  Don't save another copy; just
+				// delete the active file to make way for the new copy.
+				if ((err = _tremove(filename.c_str())) != 0)
+					errSrc = MsgFmt(_T("removing the old settings file (%s)"), filename.c_str());
+			}
+			else
+			{
+				// no snapshot yet - create it by renaming the active file
+				if ((err = _trename(filename.c_str(), snapshot.c_str())) != 0)
+					errSrc = MsgFmt(_T("renaming %s to %s"), filename.c_str(), snapshot.c_str());
+			}
+		}
+
+		// If we're okay so far, rename the temp file to make it the
+		// new active settings file.
+		if (err == 0
+			&& (err = _trename(tmpFileName.c_str(), filename.c_str())) != 0)
+			errSrc = MsgFmt(_T("renaming temporary file %s to %s"), tmpFileName.c_str(), filename.c_str());
 	}
 
 	// notify subscribers

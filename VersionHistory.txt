@@ -19,8 +19,8 @@ saved positions of full-screen windows.  In the Startup section of the
 options dialog, there's a new option, "Restore full-screen window
 positions based on:", with two radio-button options:
 
-  * Nearest monitor to saved position
-  * Exact saved pixel coordinates of full-screen window
+  - Nearest monitor to saved position
+  - Exact saved pixel coordinates of full-screen window
 
 The "Nearest Monitor" method is the default, and it's the method that
 was always used in the past.  This method uses the original position
@@ -70,17 +70,42 @@ settings, since the defaults will be set according to the most recent
 capture, even if the most recent capture was in a prior program
 session.
 
-* Logging has been added for high score retrieval, to help
-troubleshoot any problems you run into with that.
+* Logging has been added for:
 
-* Logging has been added for the initial window layout setup, to help
-troubleshoot any situations where the saved window positions aren't
-restored properly at program startup.
+  - High score retrieval
+  - Initial window layout setup
+
+As always, the additional logging is designed to help troubleshoot
+problems in those area.  The new logging can be enabled via the
+Log File page in the options dialog.
 
 * In the past, still image files that us the sRGB color space were
 displayed with inaccurate colors on-screen.  In most cases, the
 rendered colors were far too dark, and sometimes looked strangely
 tinted.  This has been corrected.
+
+* When PinballY updates the settings file (Settings.txt), it now
+writes the updates to a temporary file rather than directly
+overwriting the old settings file.  The temp file then replaces the
+original file only on successful completion.  This ensures that the
+original settings file is left intact if the PinballY process is
+abruptly terminated in the middle of the update, which can happen if
+PinballY crashes due to a bug, or if Windows forces the process to
+terminate as part of system shutdown, or if you simply cut power to
+the PC.  In the past, it was possible for the settings file to be
+partially overwritten in these abrupt shutdown situations, which
+aren't entirely uncommon, since some pin cab builders use "hard" power
+switching that cuts power to the PC at the outlet when shutting down.
+The new approach ensures that the settings updates are "all or
+nothing": if an update is interrupted, the old settings are left
+intact.  
+
+To further protect the settings file, PinballY now automatically saves
+a backup copy of the old settings file on update rather than outright
+replacing it.  This is limited to one backup copy per day, to avoid
+creating an excessive number of extra files.  The backup files include
+the date in the name ("Settings backup 2019-11-02.txt", etc) to help
+keep track of the versions.
 
 
 05-31-2019 (1.0.0 Beta 14)
