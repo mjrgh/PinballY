@@ -3144,7 +3144,7 @@ DWORD Application::GameMonitorThread::Main()
 						// want to match old instances that were already running.
 						FILETIME createTime, exitTime, kernelTime, userTime;
 						HandleHolder newProc = OpenProcess(
-							PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, 
+							PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE | PROCESS_TERMINATE,
 							false, procInfo.th32ProcessID);
 						if (newProc != 0
 							&& GetProcessTimes(newProc, &createTime, &exitTime, &kernelTime, &userTime)

@@ -110,6 +110,18 @@ keep track of the versions.
 * Fixed a bug that prevented the Pause Game command from taking
 control properly.  (Issue #92 on github.)
 
+* Updated libvlc to 3.0.8 (thanks to byancey).
+
+* When selecting a new filter, the program will now always preserve
+the current game selection if the game is still included by the new
+filter.  In the past, there were some situations where the game
+selection could be changed to another game with the same title, even
+if the old selection was still included by the new filter.  (Addresses
+pull request #87 on github.)
+
+* Fixed a problem in the audio player that caused crashes under
+certain obscure conditions.  (Addresses issue #86 on github.)
+
 
 05-31-2019 (1.0.0 Beta 14)
 

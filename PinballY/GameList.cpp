@@ -651,6 +651,9 @@ void GameList::RefreshFilter()
 	// note if the "Hide Unconfigured Games" option is set
 	bool hideUnconfigured = Application::Get()->IsHideUnconfiguredGames();
 
+	// presume we won't find the old selection in the new filter subset
+	int newIndexOfOldSel = -1;
+
 	// Construct the new list of games that pass the filter
 	auto pfv = Application::Get()->GetPlayfieldView();
 	for (auto game : byTitle)
@@ -720,18 +723,22 @@ void GameList::RefreshFilter()
 			// against the closest matching game so far, and keep the one
 			// that's closest to the old name.  This will give us a selection
 			// after the filter update that's at least alphabetically close
-			// to the old selection.  This will leave the same game selected
-			// if it's present in the new list, since it will obviously have
-			// the shortest distance (zero) from its own name.  If we don't
-			// have a candidate yet, this game is inherently the closest so
-			// far - this also has the side effect of selecting the first
-			// game we encounter, so as long the new filter matches at least
-			// one game, we'll end up with something selected.
+			// to the old selection.
 			if (oldSel != nullptr
 				&& (curGame == -1 || IsLexicallyCloser(game->title, byTitleFiltered[curGame]->title, oldSel->title)))
 				curGame = idx;
+
+			// If we've found the EXACT old selection, remember it specially.
+			// This will override any fuzzy matches we find, since it's always
+			// best to keep the exact same game selected if possible.
+			if (game == oldSel)
+				newIndexOfOldSel = idx;
 		}
 	}
+
+	// if the old game was in the list, keep it as the new selection
+	if (newIndexOfOldSel != -1)
+		curGame = newIndexOfOldSel;
 
 	// end the scan in the main filter
 	curFilter->AfterScan();
