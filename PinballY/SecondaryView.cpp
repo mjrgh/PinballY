@@ -169,6 +169,11 @@ bool SecondaryView::UpdateAnimation()
 
 void SecondaryView::SyncNextWindow()
 {
+
+	// Skip sync of Secondary Windows if parallel loading is enabled
+	if (ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel"), false))
+		return;
+
 	if (UINT cmd = GetNextWindowSyncCommand(); cmd != 0)
 	{
 		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
@@ -360,7 +365,7 @@ void SecondaryView::SyncCurrentGame()
 void SecondaryView::StartBackgroundCrossfade()
 {
 	// set up the crossfade
-	DWORD crossFadeTime = 120;
+	DWORD crossFadeTime = ConfigManager::GetInstance()->GetInt(_T("SecondaryCrossfadeTime"), 120);
 	SetTimer(hWnd, animTimerID, animTimerInterval, 0);
 	incomingBackground.sprite->StartFade(1, crossFadeTime);
 }
