@@ -488,6 +488,12 @@
 #define IDS_SWF_ERROR_HELP              994
 #define IDS_SWF_DISABLED                995
 
+#define IDS_WINTTL_PLAYFIELD            1000
+#define IDS_WINTTL_BACKGLASS            1001
+#define IDS_WINTTL_DMD                  1002
+#define IDS_WINTTL_TOPPER               1003
+#define IDS_WINTTL_INSTCARD             1004
+
 #define ID_EXIT                         32777
 #define ID_OPTIONS                      32778
 #define ID_ABOUT                        32779

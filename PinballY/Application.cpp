@@ -378,35 +378,35 @@ int Application::EventLoop(int nCmdShow)
 
 	// open the UI windows
 	bool ok = true;
-	if (!playfieldWin->CreateWin(NULL, nCmdShow, _T("PinballY")))
+	if (!playfieldWin->CreateWin(NULL, nCmdShow, LoadStringT(IDS_WINTTL_PLAYFIELD)))
 	{
 		ok = false;
 		PostQuitMessage(1);
 	}
 
 	// set up the backglass window
-	if (ok && !backglassWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, _T("PinballY Backglass")))
+	if (ok && !backglassWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, LoadStringT(IDS_WINTTL_BACKGLASS)))
 	{
 		ok = false;
 		PostQuitMessage(1);
 	}
 
 	// set up the DMD window
-	if (ok && !dmdWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, _T("PinballY DMD")))
+	if (ok && !dmdWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, LoadStringT(IDS_WINTTL_DMD)))
 	{
 		ok = false;
 		PostQuitMessage(1);
 	}
 
 	// set up the topper window
-	if (ok && !topperWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, _T("PinballY Topper")))
+	if (ok && !topperWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, LoadStringT(IDS_WINTTL_TOPPER)))
 	{
 		ok = false;
 		PostQuitMessage(1);
 	}
 
 	// set up the instruction card window
-	if (ok && !instCardWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, _T("PinballY Instruction Card")))
+	if (ok && !instCardWin->CreateWin(playfieldWin->GetHWnd(), nCmdShow, LoadStringT(IDS_WINTTL_INSTCARD)))
 	{
 		ok = false;
 		PostQuitMessage(1);
@@ -4488,7 +4488,7 @@ DWORD Application::GameMonitorThread::Main()
 
 void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 {
-	// inject a call to the child process to set our window
+	// inject a call in to the child process to set our window
 	// as the foreground
 	DWORD tid;
 	HandleHolder hRemoteThread = CreateRemoteThread(
