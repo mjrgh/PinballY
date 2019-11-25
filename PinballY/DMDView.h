@@ -66,6 +66,8 @@ protected:
 	virtual const MediaType *GetBackgroundVideoType() const override;
 	virtual const TCHAR *GetDefaultBackgroundImage() const override { return _T("Default DMD"); }
 	virtual const TCHAR *GetDefaultBackgroundVideo() const override { return _T("Default DMD"); }
+	virtual const TCHAR *GetDefaultSystemImage() const override { return _T("Default Images\\No DMD"); }
+	virtual const TCHAR *GetDefaultSystemVideo() const override { return _T("Default Videos\\No DMD"); }
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video (dmd)"); }
 
 	// "show when running" window ID

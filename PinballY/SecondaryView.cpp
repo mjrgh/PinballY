@@ -45,10 +45,17 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 	if (auto gl = GameList::Get(); gl != nullptr)
 	{
 		TCHAR buf[MAX_PATH];
-		if (gl->FindGlobalVideoFile(buf, _T("Videos"), GetDefaultBackgroundVideo()))
+
+		const TCHAR * systemMediaDir = (system != nullptr ? game->system->mediaDir.c_str() : nullptr);
+
+		if (systemMediaDir && gl->FindGlobalVideoFile(buf, systemMediaDir, GetDefaultSystemVideo()))
+				defaultVideo = buf;
+		else if (gl->FindGlobalVideoFile(buf, _T("Videos"), GetDefaultBackgroundVideo()))
 			defaultVideo = buf;
-		
-		if (gl->FindGlobalImageFile(buf, _T("Images"), GetDefaultBackgroundImage()))
+
+		if (systemMediaDir && gl->FindGlobalImageFile(buf, systemMediaDir, GetDefaultSystemImage()))
+			defaultImage = buf;
+		else if (gl->FindGlobalImageFile(buf, _T("Images"), GetDefaultBackgroundImage()))
 			defaultImage = buf;
 	}
 }
