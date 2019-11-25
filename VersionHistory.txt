@@ -56,6 +56,34 @@ line display" box to prevent status line displays.
 
 (Issue #75 on github.)
 
+* A new option in the Audio/Video section of the settings lets you
+change the way images and videos are loaded into the various windows
+when you switch games.  By default, the program "staggers" the
+process, changing to the new image/video in one window at a time.
+This is designed to make the load process smoother by spreading out
+the work of loading the new media rather than doing it all at once.
+But some people don't like the visual effect of the windows updating
+one at a time.  The new option lets you get rid of the delay and load
+all windows at the same time.  To activate this, go to the Audio/Video
+settings, and check the box "When a new game is selected, update all
+windows simultaneously".
+
+* Another new option in the Audio/Video section lets you change the
+crossfade time when loading new images and videos.  The crossfade
+effect is used to transition between media in each window when a new
+game is selected.  The default crossfade time is 120ms, but you can
+now change it to a different duration of your choosing via the new
+option.
+
+* Another new option in the Audio/Video section lets you control how
+button sound effects are played for auto-repeated button presses.  By
+default, when you hold down a button, the sound effect for the button
+is played repeatedly as long as you keep pressing the button.  The new
+option, "Mute button sounds when auto-repeating", changes this so that
+the sound effect is played once when you first press a button and then
+once again when it starts repeating, but stops after that.
+(Addresses pull request #82 on github.)
+
 * The most recently used capture settings for the various media types
 are now saved in the settings file, so that they'll be remembered
 across sessions.  (Capture with Audio, Capture Silent, Skip, etc.)
@@ -121,6 +149,29 @@ pull request #87 on github.)
 
 * Fixed a problem in the audio player that caused crashes under
 certain obscure conditions.  (Addresses issue #86 on github.)
+
+* The Javascript events for key presses and joystick button presses
+now provide information on the "repeat count" for the key press.  In
+the "keydown", "keybgdown", "joystickbuttondown", and
+"joystickbuttonbgdown" events, the new repeatCount member of the event
+object is set to 0 for the initial key/button press, 1 for the first
+auto-repeat event, 2 for the second auto-repeat event, and so on.
+
+* The Javascript mainWindow.doButtonCommand() method now takes an
+integer repeat count argument in place of the boolean repeat-or-not
+argument in past versions.  This corresponds to the addition of the
+repeat count information to the keydown event and related events.  You
+can still pass a true/false value for the repeat count argument, in
+which case it'll be interpreted as 0 for false or 1 for true; this
+represents almost the same information about the repetition (just with
+a little less detail), so existing code should continue to work as
+before.  New code should of course use the new format.  The repeat
+count information is used internally by the system to make certain
+subtle decisions about how to handle the simulated keystroke, so
+providing an appropriate value gives you more control over the
+handling.  For example, the system uses the repeat count to decide
+whether or not to play button sound effects on auto-repeated keys,
+according to the option setting for "mute auto-repeat buttons".
 
 
 05-31-2019 (1.0.0 Beta 14)

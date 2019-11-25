@@ -269,6 +269,15 @@ public:
 	// startup video completion.
 	void OnEndExtStartupVideo();
 
+	// Are we in simultaenous sync mode?  True means that all windows
+	// are synced at once; false means that we use a daisy-chain of
+	// events from one window to the next, so that we don't try to
+	// load multiple videos at once.
+	bool IsSimultaneousSync() const { return simultaneousSync; }
+
+	// Get the configured crossfade time (in milliseconds)
+	DWORD GetCrossfadeTime() const { return crossfadeTime; }
+
 protected:
 	// destruction - called internally when the reference count reaches zero
 	~PlayfieldView();
@@ -361,6 +370,13 @@ protected:
 
 	// InputManager::RawInputReceiver implementation
 	virtual bool OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize) override;
+
+	// Raw input key auto-repeat tracker
+	struct
+	{
+		USHORT vkey = 0;       // last vkey
+		int repeatCount = 0;   // repeat count
+	} rawInputRepeat;
 
 	// initialize the window
 	virtual bool InitWin() override;
@@ -1793,6 +1809,12 @@ protected:
 	int animFirstInWheel;
 	int animAddedToWheel;
 
+	// Simultaneous sync mode
+	bool simultaneousSync = false;
+
+	// Crossfade time, in milliseconds
+	DWORD crossfadeTime = 120;
+
 	// Attract mode.  When there's no user input for a certain
 	// length of time, we enter attract mode.  In attract mode,
 	// we automatically change games every few seconds.  This
@@ -1907,6 +1929,10 @@ protected:
 	// Play a button or event sound effect
 	void PlayButtonSound(const TCHAR *effectName, float volume = 1.0f);
 
+	// Play a button or event sound effect, respecting the auto-repeat-mute
+	// option if this is a repeated key.
+	void PlayButtonSoundRpt(const TCHAR *effectName, int repeatCount, float volume = 1.0f);
+
 	// Get the context-sensitive button volume.  A few buttons use a
 	// modified volume level in certain contexts.  In particular, the
 	// next/prev buttons reflect the working audio volume when the
@@ -1920,7 +1946,10 @@ protected:
 	int buttonVolume;
 
 	// Are button/event sound effects muted?
-	bool muteButtons;
+	bool muteButtons = false;
+
+	// Are button/event sound effects muted on auto-repeat?
+	bool muteAutoRepeatButtons = false;
 
 	// DOF pulsed effect queue.  Some of the signals we send to DOF are
 	// states, where we turn a named DOF item ON for as long as we're in
@@ -2286,11 +2315,12 @@ protected:
 	{
 		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand), scripted(false) { }
 
-		QueuedKey(HWND hWndSrc, KeyPressType mode, bool bg, bool scripted, const KeyCommand *cmd)
-			: hWndSrc(hWndSrc), mode(mode), bg(bg), cmd(cmd), scripted(scripted) { }
+		QueuedKey(HWND hWndSrc, KeyPressType mode, int repeatCount, bool bg, bool scripted, const KeyCommand *cmd)
+			: hWndSrc(hWndSrc), mode(mode), repeatCount(repeatCount), bg(bg), cmd(cmd), scripted(scripted) { }
 
 		HWND hWndSrc;           // source window
 		KeyPressType mode;      // key press mode
+		int repeatCount;        // repeat count - 0 for the initial key press, 1 for the first auto-repeat, etc
 		bool bg;                // background mode
 		bool scripted;          // originated from a script
 		const KeyCommand *cmd;  // command
@@ -2298,7 +2328,8 @@ protected:
 	std::list<QueuedKey> keyQueue;
 
 	// Add a key press to the queue and process it
-	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, bool scripted, std::list<const KeyCommand*> cmds);
+	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatCount,
+		bool bg, bool scripted, std::list<const KeyCommand*> cmds);
 
 	// Process the key queue.  On a keyboard event, we add the key
 	// to the queue and call this routine; we also call it whenever
@@ -2332,6 +2363,7 @@ protected:
 		int vkey;					// virtual key code we're repeating
 		int vkeyOrig;               // vkey from original message, before extended key translation
 		KeyPressType repeatMode;	// key press mode for repeats
+		int repeatCount;            // 0 for the initial key press, 1 for the first auto-repeat, then 2, 3...
 	} kbAutoRepeat;
 
 	// Joystick auto-repeat button.  This simulates the keyboard 
@@ -2346,6 +2378,7 @@ protected:
 		int unit;					// logical joystick unit number
 		int button;					// button number
 		KeyPressType repeatMode;	// key press mode for repeats
+		int repeatCount;            // 0 for the initial button press, 1 for the first auto-repeat, then 2, 3...
 	} jsAutoRepeat;
 
 	// Start joystick auto repeat mode
@@ -2542,8 +2575,8 @@ protected:
 	// is always to proceed with system handling; this applies if 
 	// javscript isn't being used, or if anything fails trying to run
 	// the script.
-	bool FireKeyEvent(int vkey, bool down, bool repeat, bool bg);
-	bool FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg);
+	bool FireKeyEvent(int vkey, bool down, int repeatCount, bool bg);
+	bool FireJoystickEvent(int unit, int button, bool down, int repeatCount, bool bg);
 	bool FireCommandButtonEvent(const QueuedKey &key);
 	bool FireCommandEvent(int cmd);
 	bool FireMenuEvent(bool open, Menu *menu, int pageno);
@@ -2624,7 +2657,7 @@ protected:
 	bool JsDoCommand(int cmd);
 
 	// Carry out a button command
-	void JsDoButtonCommand(WSTRING cmd, bool down, bool repeat);
+	void JsDoButtonCommand(WSTRING cmd, bool down, int repeatCount);
 	
 	// Show a menu
 	void JsShowMenu(WSTRING name, std::vector<JsValueRef> items, JavascriptEngine::JsObj options);

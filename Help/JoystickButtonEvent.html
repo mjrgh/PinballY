@@ -80,6 +80,16 @@
    simulate auto-repeat events for joysticks with the same timing as
    for keyboard keys.)
 
+   <li><b>repeatCount:</b>  Indicates the number of times this button
+   press has been auto-repeated so far while the user is holding the
+   button down.  This is 0 (zero) on the initial button press, 1 on
+   the first auto-repeat event, 2 on the second auto-repeat, etc.
+   Note that <b>repeatCount</b> is always 0 when <b>repeat</b> is
+   false, and non-zero when <b>repeatCount</b> is true, so in a way
+   this contains the same information as <b>repeat</b>, just with
+   the added detail of the number of repeats so far during the
+   current button press.
+
    <li><b>unit:</b> The "logical unit number" of the joystick that
    generated the event, representing which joystick the button belongs to.
    If multiple joysticks are attached to the system, this allows the

@@ -102,6 +102,7 @@ namespace ConfigVars
 	static const TCHAR *ExitMenuEnabled = _T("ExitMenu.Enabled");
 	static const TCHAR *ShowOpMenuInExitMenu = _T("ExitMenu.ShowOperatorMenu");
 	static const TCHAR *MuteButtons = _T("Buttons.Mute");
+	static const TCHAR *MuteAutoRepeatButtons = _T("Buttons.MuteAutoRepeat");
 	static const TCHAR *ButtonVolume = _T("Buttons.Volume");
 	static const TCHAR *InstCardLoc = _T("InstructionCardLocation");
 	static const TCHAR *InstCardEnableFlash = _T("InstructionCards.EnableFlash");
@@ -149,6 +150,9 @@ namespace ConfigVars
 	static const TCHAR *StatusFont = _T("StatusFont");
 	static const TCHAR *CreditsFont = _T("CreditsFont");
 
+	static const TCHAR *SimultaneousSync = _T("SimultaneousWindowUpdate");
+	static const TCHAR *CrossfadeTime = _T("CrossfadeTime");
+
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
 
 	static const TCHAR *CaptureSkipLayoutMessage = _T("Capture.SkipLayoutMessage");
@@ -178,7 +182,6 @@ PlayfieldView::PlayfieldView() :
 	popupAnimMode = PopupAnimNone;
 	wheelAnimMode = WheelAnimNone;
 	menuAnimMode = MenuAnimNone;
-	muteButtons = false;
 	buttonVolume = 100;
 	lastDOFEventTime = 0;
 	coinBalance = 0.0f;
@@ -1147,7 +1150,7 @@ bool PlayfieldView::FireCommandButtonEvent(const QueuedKey &key)
 	return ret;
 }
 
-bool PlayfieldView::FireKeyEvent(int vkey, bool down, bool repeat, bool bg)
+bool PlayfieldView::FireKeyEvent(int vkey, bool down, int repeatCount, bool bg)
 {
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
@@ -1213,12 +1216,12 @@ bool PlayfieldView::FireKeyEvent(int vkey, bool down, bool repeat, bool bg)
 		// dispatch the javsacript event
 		ret = js->FireEvent(jsMainWindow, eventType, vkey,
 			TSTRING(jsKey, jsKeyLen).c_str(), label.jsEventCode, label.jsEventLocation, 
-			repeat, bg);
+			repeatCount, bg);
 	}
 	return ret;
 }
 
-bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, bool repeat, bool bg)
+bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, int repeatCount, bool bg)
 {
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
@@ -1227,7 +1230,7 @@ bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, bool repe
 			(down ? jsJoystickButtonBgDownEvent : jsJoystickButtonBgUpEvent) :
 			(down ? jsJoystickButtonDownEvent : jsJoystickButtonUpEvent);
 
-		ret = js->FireEvent(jsMainWindow, eventType, unit, button, repeat, bg);
+		ret = js->FireEvent(jsMainWindow, eventType, unit, button, repeatCount, bg);
 	}
 	return ret;
 }
@@ -3663,7 +3666,6 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 	switch (cmd)
 	{
 	case ID_SYNC_ALL_VIEWS:
-
 		// sync the backglass, and do a deferred sync on the DMD
 		if (auto bg = Application::Get()->GetBackglassView(); bg != nullptr)
 			bg->SyncCurrentGame();
@@ -3774,7 +3776,7 @@ bool PlayfieldView::JsDoCommand(int cmd)
 	return OnCommandImpl(cmd, 0, NULL);
 }
 
-void PlayfieldView::JsDoButtonCommand(WSTRING cmd, bool down, bool repeat)
+void PlayfieldView::JsDoButtonCommand(WSTRING cmd, bool down, int repeatCount)
 {
 	// look up the command
 	if (auto it = commandsByName.find(cmd); it != commandsByName.end())
@@ -3784,15 +3786,15 @@ void PlayfieldView::JsDoButtonCommand(WSTRING cmd, bool down, bool repeat)
 
 		// figure the key mode
 		KeyPressType mode = (bg ?
-			(down ? repeat ? KeyBgRepeat : KeyBgDown : KeyUp) :
-			(down ? repeat ? KeyRepeat : KeyDown : KeyUp));
+			(down ? repeatCount != 0 ? KeyBgRepeat : KeyBgDown : KeyUp) :
+			(down ? repeatCount != 0 ? KeyRepeat : KeyDown : KeyUp));
 
 		// make a single-element list with the command
 		std::list<const KeyCommand*> commands;
 		commands.emplace_back(&it->second);
 
 		// queue the key
-		ProcessKeyPress(hWnd, mode, bg, true, commands);
+		ProcessKeyPress(hWnd, mode, repeatCount, bg, true, commands);
 	}
 }
 
@@ -4390,14 +4392,14 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	}
 
 	// fire a javascript key event; if that says to ignore it, we're done
-	if (!FireKeyEvent(vkey, down, false, false))
+	if (!FireKeyEvent(vkey, down, 0, false))
 		return false;
 
 	// determine if we have a handler
 	if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 	{
 		// We found a handler for the key.  Process the key press.
-		ProcessKeyPress(win->GetHWnd(), mode, false, false, it->second);
+		ProcessKeyPress(win->GetHWnd(), mode, 0, false, false, it->second);
 
 		// the key event was handled
 		return true;
@@ -4408,13 +4410,14 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 }
 
 // Add a key press to the queue and process it
-void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, bool bg, bool scripted, std::list<const KeyCommand*> cmds)
+void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatCount, bool bg, bool scripted, 
+	std::list<const KeyCommand*> cmds)
 {
 	// add each command to the key queue
 	for (auto c : cmds)
 	{
 		// queue the command
-		keyQueue.emplace_back(hwndSrc, mode, bg, scripted, c);
+		keyQueue.emplace_back(hwndSrc, mode, repeatCount, bg, scripted, c);
 
 		// Immediately process any DOF effects associated with the key
 		if (c->func == &PlayfieldView::CmdNext)
@@ -9352,11 +9355,10 @@ void PlayfieldView::StartPlayfieldCrossfade()
 	StartAnimTimer();
 
 	// start the fade in the sprite
-	DWORD playfieldCrossFadeTime = ConfigManager::GetInstance()->GetInt(_T("PlayfieldCrossfadeTime"), 120);
-
-	incomingPlayfield.sprite->StartFade(1, playfieldCrossFadeTime);
+	incomingPlayfield.sprite->StartFade(1, crossfadeTime);
 	
-	if (ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel")))
+	// if we're in simultaneous sync mode, sync the other windows immediately
+	if (simultaneousSync)
 		PostMessage(WM_COMMAND, ID_SYNC_ALL_VIEWS);
 }
 
@@ -9982,8 +9984,9 @@ void PlayfieldView::UpdateAnimation()
 			// transitions smoother than if we loaded all of the media
 			// files in the same message loop cycle.  The backglass sync
 			// handler will in turn fire off a deferred sync to the DMD,
-			// which will fire off a deferred sync to the topper.
-			if (!ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel")))
+			// which will fire off a deferred sync to the topper.  (Skip
+			// this if we're in simultaneous sync mode.)
+			if (!simultaneousSync)
 				PostMessage(WM_COMMAND, ID_SYNC_BACKGLASS);
 
 			// update DOF for the new game
@@ -10293,14 +10296,22 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 			bool repeat = ((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0);
 			KeyPressType keyType = repeat ? KeyBgRepeat : down ? KeyBgDown : KeyUp;
 
+			// Check for auto-repeat.  If the repeat flag is set, and we're 
+			// repeating the same key as last time, count the repeat; otherwise
+			// set the repeat count to zero for the initial press of a new key.
+			if (down && repeat && rawInputRepeat.vkey == vkey)
+				rawInputRepeat.repeatCount += 1;
+			else
+				rawInputRepeat.repeatCount = 0;
+
 			// run it through any Javascript event handlers
-			if (FireKeyEvent(vkey, down, repeat, true))
+			if (FireKeyEvent(vkey, down, rawInputRepeat.repeatCount, true))
 			{
 				// look up the command; if we find a match, process the key press
 				if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 				{
 					// process the key press
-					ProcessKeyPress(hWnd, keyType, true, false, it->second);
+					ProcessKeyPress(hWnd, keyType, rawInputRepeat.repeatCount, true, false, it->second);
 				}
 			}
 		}
@@ -10328,14 +10339,14 @@ bool PlayfieldView::OnJoystickButtonChange(
 	KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
 
 	// fire a javascript joystick event; if that says to ignore it, we're done
-	if (!FireJoystickEvent(js->logjs->index, button, pressed, false, !foreground))
+	if (!FireJoystickEvent(js->logjs->index, button, pressed, 0, !foreground))
 		return false;
 
 	// look up the button in the command table
 	if (auto it = jsCommands.find(JsCommandKey(js->logjs->index, button)); it != jsCommands.end())
 	{
 		// process the key press
-		ProcessKeyPress(hWnd, mode, !foreground, false, it->second);
+		ProcessKeyPress(hWnd, mode, 0, !foreground, false, it->second);
 
 		// if it's a key-press event, start auto-repeat; otherwise cancel
 		// any existing auto-repeat
@@ -10356,6 +10367,7 @@ void PlayfieldView::KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repea
 	kbAutoRepeat.vkey = vkey;
 	kbAutoRepeat.vkeyOrig = vkeyOrig;
 	kbAutoRepeat.repeatMode = repeatMode;
+	kbAutoRepeat.repeatCount = 0;
 
 	// auto-repeat is now active
 	kbAutoRepeat.active = true;
@@ -10387,12 +10399,16 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 		// don't deliver auto-repeat events when a wheel animation is running
 		if (wheelAnimMode == WheelAnimNone)
 		{
+			// count the auto-repeat delivery
+			kbAutoRepeat.repeatCount += 1;
+
 			// fire a javascript key event; if that says to ignore it, we're done
-			if (FireKeyEvent(kbAutoRepeat.vkey, true, true, kbAutoRepeat.repeatMode == KeyBgRepeat))
+			if (FireKeyEvent(kbAutoRepeat.vkey, true, kbAutoRepeat.repeatCount, kbAutoRepeat.repeatMode == KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
-					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
+					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatCount, 
+						kbAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
 			}
 		}
 
@@ -10420,6 +10436,7 @@ void PlayfieldView::JsAutoRepeatStart(int unit, int button, KeyPressType repeatM
 	jsAutoRepeat.unit = unit;
 	jsAutoRepeat.button = button;
 	jsAutoRepeat.repeatMode = repeatMode;
+	jsAutoRepeat.repeatCount = 0;
 
 	// remember that we're in auto-repeat mode
 	jsAutoRepeat.active = true;
@@ -10441,15 +10458,21 @@ void PlayfieldView::OnJsAutoRepeatTimer()
 	// If a key is active, execute an auto-repeat
 	if (jsAutoRepeat.active)
 	{
-		// don't deliver auto-repeat events when a wheel animation is running
+		// only deliver auto-repeat events when there's no wheel 
+		// animation taking place
 		if (wheelAnimMode == WheelAnimNone)
 		{
+			// count the auto-repeat event 
+			jsAutoRepeat.repeatCount += 1;
+
 			// fire a joystick event
-			if (FireJoystickEvent(jsAutoRepeat.unit, jsAutoRepeat.button, true, true, jsAutoRepeat.repeatMode == KeyBgRepeat))
+			if (FireJoystickEvent(jsAutoRepeat.unit, jsAutoRepeat.button, true, 
+				jsAutoRepeat.repeatCount, jsAutoRepeat.repeatMode == KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
-					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
+					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatCount,
+						jsAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
 			}
 		}
 
@@ -10635,8 +10658,15 @@ void PlayfieldView::OnConfigChange()
 		p = endp + 1;
 	}
 
+	// load the simultaenous window sync option
+	simultaneousSync = cfg->GetBool(ConfigVars::SimultaneousSync, false);
+
+	// load the media crossfade time
+	crossfadeTime = cfg->GetInt(ConfigVars::CrossfadeTime, 120);
+
 	// load the button mute and volume settings
 	muteButtons = cfg->GetBool(ConfigVars::MuteButtons, false);
+	muteAutoRepeatButtons = cfg->GetBool(ConfigVars::MuteAutoRepeatButtons, false);
 	buttonVolume = cfg->GetInt(ConfigVars::ButtonVolume, 100);
 
 	// load the capture Manual Go button setting
@@ -11575,6 +11605,23 @@ void PlayfieldView::PlayButtonSound(const TCHAR *effectName, float volume)
 	}
 }
 
+void PlayfieldView::PlayButtonSoundRpt(const TCHAR *effectName, int repeatCount, float volume)
+{
+	// If the "mute auto repeat button sounds" option is in effect, 
+	// suppress the sound effect for the second and subsequent repeats.
+	// Repeat count 0 is the initial key press, so always play the sound
+	// for that.  We also want to play the sound on the first auto-repeat,
+	// which is when repeat count is 1.  After that, we suppress the
+	// effect.  The repeat count increases on each auto-repeat key event 
+	// as long as the key is held down continuously, so we can simply
+	// ignore events if the repeat count is 2 or higher.
+	if (muteAutoRepeatButtons && repeatCount >= 2)
+		return;
+
+	// play the effect normally
+	PlayButtonSound(effectName, volume);
+}
+
 void PlayfieldView::CloseMenusAndPopups()
 {
 	// remove menus
@@ -11605,7 +11652,7 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the audio effect
-		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+		PlayButtonSoundRpt(_T("Next"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// do the basic Next processing
 		DoCmdNext(key.mode == KeyRepeat);
@@ -11700,7 +11747,7 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+		PlayButtonSoundRpt(_T("Prev"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// carry out the basic command action
 		DoCmdPrev(key.mode == KeyRepeat);
@@ -11807,7 +11854,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Next"), GetContextSensitiveButtonVolume(key));
+		PlayButtonSoundRpt(_T("Next"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// Check the current UI state.
 		// 
@@ -11872,7 +11919,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
-		PlayButtonSound(_T("Prev"), GetContextSensitiveButtonVolume(key));
+		PlayButtonSoundRpt(_T("Prev"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// If a startup video is playing, cancel it.
 		// If there's an active menu, and it has a Page Up command, treat 

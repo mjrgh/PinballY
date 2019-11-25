@@ -26,11 +26,15 @@ void AudioVideoDialog::InitVarMap()
 	// set up the basic controls
 	varMap.emplace_back(new CkBoxMap(_T("Video.Enable"), IDC_CK_ENABLE_VIDEOS, true));
 	varMap.emplace_back(new CkBoxMap(_T("Video.Mute"), IDC_CK_MUTE_VIDEOS, false));
+	varMap.emplace_back(new CkBoxMap(_T("TableAudio.Mute"), IDC_CK_MUTE_TABLE_AUDIO, false));
 	varMap.emplace_back(new CkBoxMap(_T("Buttons.Mute"), IDC_CK_MUTE_BUTTONS, false));
+	varMap.emplace_back(new CkBoxMap(_T("Buttons.MuteAutoRepeat"), IDC_CK_MUTE_AUTOREPEAT_BUTTONS, false));
 	varMap.emplace_back(new CkBoxMap(_T("VSyncLock"), IDC_CK_VSYNC_LOCK, false));
 	varMap.emplace_back(new CkBoxMap(_T("Playfield.Stretch"), IDC_CK_STRETCH_PLAYFIELD, false));
 	varMap.emplace_back(videoVolumeSlider = new SliderMap(_T("Video.MasterVolume"), IDC_SLIDER_VIDEO_VOL, IDC_TXT_VIDEO_VOL, 0, 100, 100));
 	varMap.emplace_back(buttonVolumeSlider = new SliderMap(_T("Buttons.Volume"), IDC_SLIDER_BUTTON_VOL, IDC_TXT_BUTTON_VOL, 0, 100, 100));
+	varMap.emplace_back(new CkBoxMap(_T("SimultaneousWindowUpdate"), IDC_CK_SIMUL_SYNC, false));
+	varMap.emplace_back(new SpinIntMap(_T("CrossfadeTime"), IDC_EDIT_CROSSFADE, 120, IDC_SPIN_CROSSFADE, 0, 10000));
 }
 
 void AudioVideoDialog::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)

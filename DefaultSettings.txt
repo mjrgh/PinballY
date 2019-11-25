@@ -494,6 +494,34 @@ InstructionCards.EnableFlash = 1
 # Default font family for most UI elements.
 DefaultFontFamily = Tahoma
 
+
+# Timing for game selection updates in the different windows.  This
+# controls how new images and videos are loaded into the windows when
+# you select a new game in the wheel UI.  
+#
+# By default, PinballY loads new media into one window at a time.
+# It updates the playfield window immediately, and then after a
+# slight pause updates the backglass window, then the DMD window,
+# and so on.  The one-at-a-time loading is designed to make the video
+# loading process smoother, by only asking the video player system to
+# open one file at a time.
+# 
+# Alternatively, you can set this to "simultaneous" mode, which tells
+# PinballY to load all of the new images and videos into all of the 
+# windows at the same time, without any delay between them.  You
+# might prefer this if your system is fast enough to load and start
+# several videos at the same time without any hiccups.
+#
+# Set this variable to 0 for the default one-at-a-time video loading.
+# Set it to 1 for simultaneous loading in all windows.
+#
+SimultaneousWindowUpdate = 0
+
+# Media crossfade time, in milliseconds.  This is the length of the
+# crossfade effect in the various windows when switching to a new
+# game in the wheel UI.
+CrossfadeTime = 120
+
 # Fonts for UI elements.  Specify as <point size> <weight> <family>.
 #
 # <point size> is a number, with optional "pt" suffix.
@@ -549,8 +577,13 @@ CreditsFont = * * *
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 
 # backglass, DMD).  You can change this while the program is running,
-# using the "Exit" menu.
+# using the "Exit" menu.  Note: this doesn't affect Table Audio
+# tracks - use TableAudio.Mute to mute those.
 Video.Mute = 0
+
+# Mute Table Audio tracks.  Turns off sound playback of Table
+# Audio tracks.
+TableAudio.Mute = 0
 
 # Master volume control for videos.  This sets the volume level
 # for all video playback, relative to the Windows system volume.
@@ -581,6 +614,11 @@ AttractMode.Mute = 1
 # Mute the sound effects for all button presses.  You can also change
 # this from the "Exit" menu.
 Buttons.Mute = 0
+
+# Mute the sound effects for auto-repeat button presses.  This
+# prevents the button sound effects from playing repeatedly when
+# you're holding down a button.
+Buttons.MuteAutoRepeat = 0
 
 # Audio volume level for the button sound effects, relative to the
 # Windows system volume setting.  This is a percentage value, from

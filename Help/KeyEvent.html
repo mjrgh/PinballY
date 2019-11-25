@@ -94,8 +94,21 @@
       <li>KEY_LOCATION_RIGHT (2), the right key of a pair modifier key
       <li>KEY_LOCATION_NUMPAD (3), the numeric keypad
    </ul>
+
    <li><b>repeat:</b>  true if this is an auto-repeat key event from a key being held down, false if not
+
+   <li><b>repeatCount:</b>  Indicates the number of times this key
+   press has been auto-repeated so far while the user is holding the
+   key down.  This is 0 (zero) on the initial key press, 1 on
+   the first auto-repeat event, 2 on the second auto-repeat, etc.
+   Note that <b>repeatCount</b> is always 0 when <b>repeat</b> is
+   false, and non-zero when <b>repeatCount</b> is true, so in a way
+   this contains the same information as <b>repeat</b>, just with
+   the added detail of the number of repeats so far during the
+   current key press.
+
    <li><b>vkey:</b>  A number representing the Windows "virtual key code" value for the key
+
 </ul>
 
 <p>

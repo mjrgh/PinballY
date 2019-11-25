@@ -169,14 +169,11 @@ bool SecondaryView::UpdateAnimation()
 
 void SecondaryView::SyncNextWindow()
 {
-
-	// Skip sync of Secondary Windows if parallel loading is enabled
-	if (ConfigManager::GetInstance()->GetBool(_T("LoadViewsInParallel"), false))
-		return;
-
-	if (UINT cmd = GetNextWindowSyncCommand(); cmd != 0)
+	// if we're not in simultaneous sync mode, sync the next window
+	if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr && !pfv->IsSimultaneousSync())
 	{
-		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+		// the playfield view actually handles the command dispatch
+		if (UINT cmd = GetNextWindowSyncCommand(); cmd != 0)
 			pfv->PostMessage(WM_COMMAND, cmd);
 	}
 }
@@ -365,7 +362,8 @@ void SecondaryView::SyncCurrentGame()
 void SecondaryView::StartBackgroundCrossfade()
 {
 	// set up the crossfade
-	DWORD crossFadeTime = ConfigManager::GetInstance()->GetInt(_T("SecondaryCrossfadeTime"), 120);
+	auto pfv = Application::Get()->GetPlayfieldView();
+	DWORD crossFadeTime = pfv != nullptr ? pfv->GetCrossfadeTime() : 120;
 	SetTimer(hWnd, animTimerID, animTimerInterval, 0);
 	incomingBackground.sprite->StartFade(1, crossFadeTime);
 }

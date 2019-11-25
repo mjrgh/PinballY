@@ -195,6 +195,14 @@ protected:
 	};
 
 	// Edit box with spin button <-> int value
+	//
+	// Note: make sure the following properties are set in the spin control
+	// to attach it properly to its edit box:
+	//
+	//  Alignment = Right Align
+	//  Auto Buddy = True
+	//  Set Buddy Integer = True
+	//  
 	struct SpinIntMap : EditIntMap
 	{
 		SpinIntMap(const TCHAR *configVar, int editControlID, int defVal, int spinControlID, int minVal, int maxVal) :

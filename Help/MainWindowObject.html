@@ -43,7 +43,7 @@
 
 <p>
    <a name="doButtonCommand"></a>
-   <b>mainWindow.doButtonCommand(<i>command</i>, <i>down</i>, <i>repeat</i>):</b>
+   <b>mainWindow.doButtonCommand(<i>command</i>, <i>down</i>, <i>repeatCount</i>):</b>
    Simulates a key press, or more precisely, simulates a processed key event
    that corresponds to <a href="CommandButtonEvent.html">CommandButtonEvent</a>.
    This carries out the effect of a named button command, specified by the
@@ -51,9 +51,18 @@
    .command property of the <a href="CommandButtonEvent.html">CommandButtonEvent</a>
    object.  <i>down</i> is a boolean indicating if this simulates a key press
    (true) or a key-up event (false) representing the user releasing the key.
-   <i>repeat</i> is a boolean indicating if this should represent an auto-repeat
-   event.  <i>repeat</i> is only meaningful when <i>down</i> is true, for obvious
-   reasons.  Because the simulated key press is coming from Javascript already,
+</p>
+<p>
+   <i>repeatCount</i> is an integer indicating if the simulated event represents
+   an initial key press or an auto-repeated key press (that is, repeated key
+   events generated when the key is being held down).  0 represents an initial
+   key/button press (not yet auto-repeated), 1 represents the first auto-repeat,
+   2 is the second auto-repeat, and so on.
+   <i>repeatCount</i> is only meaningful when <i>down</i> is true, for obvious
+   reasons.
+</p>
+<p>
+   Because the simulated key press is coming from Javascript already,
    it doesn't generate any of the usual Javascript events for actual key presses;
    it just carries out the effect of the key command.
 </p>

@@ -551,14 +551,15 @@ let { Event, EventTarget } = (() =>
 // Base class for keyboard events
 this.KeyEvent = class KeyEvent extends Event
 {
-    constructor(type, vkey, key, code, location, repeat, background)
+    constructor(type, vkey, key, code, location, repeatCount, background)
     {
         super(type, { cancelable: true });
         this.vkey = vkey;
         this.key = key;
         this.code = code;
         this.location = location;
-        this.repeat = repeat;
+        this.repeat = repeatCount != 0;
+        this.repeatCount = repeatCount;
         this.background = background;
     }
 };
@@ -611,12 +612,13 @@ const DOM_KEY_LOCATION_NUMPAD = 3;
 // Joystick button events
 this.JoystickButtonEvent = class JoystickButtonEvent extends Event
 {
-    constructor(type, unit, button, repeat, background)
+    constructor(type, unit, button, repeatCount, background)
     {
         super(type, { cancelable: true });
         this.unit = unit;
         this.button = button;
-        this.repeat = repeat;
+        this.repeat = repeatCount != 0;
+        this.repeatCount = repeatCount;
         this.background = background;
     }
 };
