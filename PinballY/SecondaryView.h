@@ -80,6 +80,10 @@ protected:
 	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
 	virtual const TCHAR *GetDefaultBackgroundVideo() const = 0;
 
+	// get my default system image/video name
+	virtual const TCHAR *GetDefaultSystemImage() const = 0;
+	virtual const TCHAR *GetDefaultSystemVideo() const = 0;
+
 	// Get the media files for the background for the given game
 	virtual void GetMediaFiles(const GameListItem *game,
 		TSTRING &video, TSTRING &image, TSTRING &defaultVideo, TSTRING &defaultImage);

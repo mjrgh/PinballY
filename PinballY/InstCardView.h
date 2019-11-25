@@ -39,6 +39,8 @@ protected:
 	virtual void GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image) override;
 	virtual const TCHAR *GetDefaultBackgroundImage() const override { return _T("Default Instruction Card"); }
 	virtual const TCHAR *GetDefaultBackgroundVideo() const override { return _T("Default Instruction Card"); }
+	virtual const TCHAR *GetDefaultSystemImage() const override { return _T("Default Images\\No Instruction Card"); }
+	virtual const TCHAR *GetDefaultSystemVideo() const override { return _T("Default Videos\\No Instruction Card"); }
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video (instcard)"); }
 
 	// "show when running" window ID
