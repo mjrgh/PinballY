@@ -84,6 +84,13 @@ the sound effect is played once when you first press a button and then
 once again when it starts repeating, but stops after that.
 (Addresses pull request #82 on github.)
 
+* Another new option in the Audio/Video section lets you set muting
+for table audio tracks separately from table video tracks.  Note that
+this also changes the way "Mute videos" works slightly, in that the
+"Mute videos" setting no longer applies to table audio tracks.  To
+mute all audio/video playback for table media, check both muting
+boxes.  (Addresses pull request #83 on github.)
+
 * The most recently used capture settings for the various media types
 are now saved in the settings file, so that they'll be remembered
 across sessions.  (Capture with Audio, Capture Silent, Skip, etc.)

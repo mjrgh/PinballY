@@ -596,10 +596,6 @@ TableAudio.Mute = 0
 # games with individual level settings.
 Video.MasterVolume = 100
 
-# Mute table audio.  This controls playback on table audio media,
-# separately from the video muting.
-TableAudio.Mute = 0
-
 # Enable videos.  This allows using video media for the playfield,
 # backglass, etc when available.  If this is set to 0, still images
 # will be used instead.  You can change this within the program
