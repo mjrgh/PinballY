@@ -46,14 +46,14 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 	{
 		TCHAR buf[MAX_PATH];
 
-		const TCHAR * systemMediaDir = (system != nullptr ? game->system->mediaDir.c_str() : nullptr);
-
-		if (systemMediaDir && gl->FindGlobalVideoFile(buf, systemMediaDir, GetDefaultSystemVideo()))
-				defaultVideo = buf;
+		// look for a default video: system-specific first, then the global default
+		if (game->system != nullptr && gl->FindGlobalVideoFile(buf, game->system->mediaDir.c_str(), GetDefaultSystemVideo()))
+			defaultVideo = buf;
 		else if (gl->FindGlobalVideoFile(buf, _T("Videos"), GetDefaultBackgroundVideo()))
 			defaultVideo = buf;
 
-		if (systemMediaDir && gl->FindGlobalImageFile(buf, systemMediaDir, GetDefaultSystemImage()))
+		// look for a default still image: system-specific first, then global
+		if (game->system != nullptr && gl->FindGlobalImageFile(buf, game->system->mediaDir.c_str(), GetDefaultSystemImage()))
 			defaultImage = buf;
 		else if (gl->FindGlobalImageFile(buf, _T("Images"), GetDefaultBackgroundImage()))
 			defaultImage = buf;

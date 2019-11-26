@@ -56,6 +56,22 @@ line display" box to prevent status line displays.
 
 (Issue #75 on github.)
 
+* You can now provide default videos and images for the secondary
+windows on a per-system basis.  When you navigate to a table in the
+wheel UI, and the table doesn't have any media files of its own in one
+of the secondary windows (backglass, DMD, instruction card, topper),
+PinballY now looks for default media in a default folder in the game's
+system media path.  For example, a Visual Pinball game will look for
+default media in the Visual Pinball media folder.  To specify
+per-system default media, create folders within the system's media
+folder called Default Videos and Default Images, then place any of the
+following files there: No Back Glass, No DMD, No Instruction Card, No
+Topper.  In all cases, the files use the standard sets of extensions
+for images and videos.  So, for example a default video for Visual
+Pinball games in the backglass window might be called <your PinballY
+media folder>\Visual Pinball\Default Videos\No Back Glass.mp4.
+(Pull request #81 on github.)
+
 * A new option in the Audio/Video section of the settings lets you
 change the way images and videos are loaded into the various windows
 when you switch games.  By default, the program "staggers" the

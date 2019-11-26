@@ -76,13 +76,16 @@ protected:
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }
 
-	// get my default background image/video name
-	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
-	virtual const TCHAR *GetDefaultBackgroundVideo() const = 0;
-
-	// get my default system image/video name
+	// Get my default per-system image/video name.  These are the default
+	// media items to use for all games of this system.
 	virtual const TCHAR *GetDefaultSystemImage() const = 0;
 	virtual const TCHAR *GetDefaultSystemVideo() const = 0;
+
+	// Get my global default background image/video name.  These are the
+	// defaults for all games; these are used if the system doesn't provide
+	// its own default image.
+	virtual const TCHAR *GetDefaultBackgroundImage() const = 0;
+	virtual const TCHAR *GetDefaultBackgroundVideo() const = 0;
 
 	// Get the media files for the background for the given game
 	virtual void GetMediaFiles(const GameListItem *game,

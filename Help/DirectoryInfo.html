@@ -35,10 +35,24 @@
 <p>
    PinballY uses the same media folder structure that HyperPin and
    PinballX use, to make it easier to use existing files that
-   you already have installed from one of those programs.
+   you already have installed from one of those programs.  The
+   folder structure is hierarchical - folders within folders -
+   and each level of the folder path comes from a different
+   option setting that you can change.
 </p>
 <p>
-   <b>Main media folder location:</b>  All media files are stored within
+   The basic hierarchical path for a media file looks like this:
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\&lt;Per-system subfolder&gt;\&lt;Media type subfolder&gt;
+</div>
+<p>
+   Within those folders, each game has a media file named according
+   to the games title, manufacturer, and year.  Read on for where all
+   of these different pieces come from.
+</p>
+<p>
+   <b>Main media folder:</b>  All media files are stored within
    the main Media folder, which you can configure via your settings
    (see <a href="PathOptions.html">Folder Options</a>).  You
    can choose a specific folder location in the settings if you wish, but
@@ -53,14 +67,14 @@
 </ul>
 
 <p>
-   <b>System folders:</b>  Each "system" (that is, pinball player
+   <b>Per-system media folders:</b>  Each "system" (that is, pinball player
    program, like Visual Pinball 9 or Future Pinball) has its own
    subfolder under this main media folder.  By default, this folder has
    the same name as the system, but you can set it for each
    system individually using the options dialog.
 </p>
 <p>
-   So, for example, the system folder for Visual Pinball 9 might be
+   For example, Visual Pinball 9's system folder might be
    <b>&lt;PinballX install folder&gt;\Media\Visual Pinball 9</b>.
 </p>
 <p>
@@ -213,6 +227,126 @@
    for details on how to set up manufacturer logo files.
 </p>
 
+<h3>Default media files</h3>
+
+<p>
+   Okay, we've seen how PinballY looks for the media files for a
+   given game.  But what happens when there isn't a matching file?
+   In this case, PinballY displays a <b>default</b> media file,
+   which acts as a placeholder for missing game media.  PinballY
+   comes with a set of <i>default</i> default files, which you can
+   replace those with your own images and videos if you prefer.
+</p>
+<p>
+   There are actually two layers of default files: per-system
+   defaults, which apply to all games built with a given system
+   (for example, a default backglass for all Visual Pinball 9
+   tables); and global defaults, which serve as the last-resort
+   fallback for all games.  The per-system default media files
+   are always preferred when they're present, and the global
+   defaults are used when no system default files are available.
+</p>
+<p>
+   <b>Per-system default media:</b>  Default videos and images that
+   you want to supply for a particular system go in the following
+   folders:
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\&lt;System folder&gt;\Default Videos<br>
+   &lt;Main media folder&gt;\&lt;System folder&gt;\Default Images<br>
+</div>
+<p>
+   Within these folders, create any combination of the following files,
+   which are used in the respective windows:
+</p>
+<div class="indented">
+   <b>No Back Glass</b>.<i>ext</i><br>
+   <b>No DMD</b>.<i>ext</i><br>
+   <b>No Instruction Card</b>.<i>ext</i><br>
+   <b>No Topper</b>.<i>ext</i>
+</div>
+<p>
+   The extensions (<i>.ext</i>) are the usual set of supported format
+   extensions for images and video files: .png, .jpg, .mp4, etc.
+</p>
+<p>
+   For example, here's how you'd name a default video for the backglass
+   window for Visual Pinball 9 games (assuming that your VP9 media folder
+   is called "Visual Pinball 9"):
+</p>
+<div class="indented">
+   &lt;Main media folder&gt;\Visual Pinball 9\Default Videos\No Backglass.mp4
+</div>
+<p>
+   Note that the folder and file naming conventions for the per-system
+   default media files are the same that PinballX uses, so if you're
+   already set up these sorts of defaults for PinballX, they should
+   carry over without any changes.
+</p>
+
+<p>
+   <b>Global defaults:</b>  As a last resort, when a game doesn't
+   provide its own media files, and there aren't even any per-system
+   default files, PinballY displays a global default video or image.
+   PinballY comes with a set of default image files, but you can
+   supersede these with your own video or image files if you have
+   nicer-looking ones that you prefer.
+</p>
+<p>
+   The global default files go in the following folders:
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\&lt;Images&gt;\Default Videos<br>
+   &lt;Main media folder&gt;\&lt;Videos&gt;\Default Images<br>
+</div>
+<p>
+   Within those folders, the default files for the individual
+   windows have the following filenames:
+</p>
+<div class="indented">
+   <b>Default Backglass</b>.<i>ext</i><br>
+   <b>Default DMD</b>.<i>ext</i><br>
+   <b>Default Instruction Card</b>.<i>ext</i><br>
+   <b>Default Topper</b>.<i>ext</i>
+</div>
+
+<h3>Creating separate PinballY and PinballX default images</h3>
+
+<p>
+   This is an advanced topic that will only be interesting to you
+   if you're planning to run <i>both</i> PinballX <i>and</i> PinballY
+   on an ongoing basis, so that you can switch back and forth between
+   the two.
+</p>
+<p>
+   If you're planning to continue using both programs, you're probably
+   sharing the media files between both programs, by keeping everything
+   in PinballX's media folder tree, and telling PinballY to use the
+   media from PinballX's folder.  In this case, PinballY has a special
+   feature that lets you override just the default media files, while
+   keeping all of the other files shared.  That gives you the ability
+   to give PinballY a slightly different, custom look, at least when
+   default backgrounds are involved.
+</p>
+<p>
+   The trick is to place your default images and videos in the
+   <b>PinballY\Media</b> tree rather than in the PinballX media
+   tree.  In the sections above where we started a path with the
+   <b>&lt;Main media folder&gt;</b>, you'd just replace that portion of
+   the path with <b>&lt;PinballY install folder&gt;\Media</b>.
+   Everything else stays the same.  
+</p>
+<p>
+   Here's how this "override" feature works.  For the various default
+   media items, PinballY always searches in its own PinballY\Media folder
+   before checking your "Main" media folder from your settings.  If it
+   finds the file it's looking for in the PinballY\Media, it uses that
+   one; otherwise, it repeats the search in the main media folder.  So
+   if you're sharing media from the PinballX media folder tree, this
+   ensures that a PinballY "override" is found first and used instead.
+   If you don't want to overide anything, you don't have to, since
+   the files in your main media folder are still used by default.
+</p>
 
 <a name="tableDatabases"></a>
 <h2>Table Databases</h2>

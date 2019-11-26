@@ -19,27 +19,31 @@
 
 <h2>General troubleshooting advice</h2>
 
-Here are a couple of items of general advice that should apply to just
-about any issue you run into.
+In case your specific issue isn't listed elsewhere in this section,
+here are a few general tips you should be able to apply to just
+about any problem with the program.
 
-<h3>Asking for help/reporting bugs</h3>
+<h3>Declaring settings bankruptcy (resetting all options)</h3>
+
 <p>
-   If you can't find what you're looking for in this Troubleshooting section
-   or elsewhere in the help files, try asking on the
-   <a href="https://www.vpforums.org/index.php?showforum=29">vpforums pin cab forum</a>.
-   I regularly monitor that group, so I should be able to help if someone
-   else doesn't get to your question first.
+   If you feel like you've screwed up your settings beyond repair and
+   you just want to reset everything, it's usually <b>not</b> necessary
+   to go to the trouble of reinstalling the whole program.
 </p>
 <p>
-   For any problem that's pretty clearly a program bug, you can raise
-   it on the forum, or you can file a bug report using the PinballY
-   <a href="https://github.com/mjrgh/PinballY/issues">issue tracker</a>
-   on GitHub.  Before filing a report, please read
-   <a href="https://github.com/mjrgh/PinballY/wiki/How-to-write-a-good-bug-report">How to write a good bug report</a>.
-   Following that advice will improve the chances that I can 
-   find and fix the problem.
+   In most cases, all you have to do is delete the file <b>Settings.txt</b>,
+   found in your main PinballY install folder.
 </p>
-
+<p>
+   That file contains all of your option settings.  I've been careful to avoid the
+   unfortunately common practice in other Windows software of scattering settings
+   all over the registry and hidden files and so on.  PinballY keeps all user
+   settings in that file.  Deleting it is usually enough to
+   restore factory settings.  By the way, that file is a simple text file in
+   human-readable format - it even has lots of comments explaining what's going on.
+   Don't be afraid of opening it in Notepad if you want to see what's there.
+</p>
+   
 <h3>Check the log file</h3>
 
 <p>
@@ -66,6 +70,25 @@ about any issue you run into.
    logging for unrelated areas, to minimize the amount of other
    reports that you have to sift through.
 </p>
+
+<h3>Asking for help/reporting bugs</h3>
+<p>
+   If you can't find what you're looking for in this Troubleshooting section
+   or elsewhere in the help files, try asking on the
+   <a href="https://www.vpforums.org/index.php?showforum=29">vpforums pin cab forum</a>.
+   I regularly monitor that group, so I should be able to help if someone
+   else doesn't get to your question first.
+</p>
+<p>
+   For any problem that's pretty clearly a program bug, you can raise
+   it on the forum, or you can file a bug report using the PinballY
+   <a href="https://github.com/mjrgh/PinballY/issues">issue tracker</a>
+   on GitHub.  Before filing a report, please read
+   <a href="https://github.com/mjrgh/PinballY/wiki/How-to-write-a-good-bug-report">How to write a good bug report</a>.
+   Following that advice will improve the chances that I can 
+   find and fix the problem.
+</p>
+
 
 <h2>Some common problems (and suggested solutions)</h2>
 
