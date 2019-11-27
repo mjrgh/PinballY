@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Underlay</h1>
+
+<p>
+   The "underlay" is an image layer displayed at the bottom of
+   the screen, in the area where the "wheel" icons appear.  Its
+   only purpose is to serve as an extra decoration, and give you
+   another way to customize the program's appearance.
+</p>
+
+<h2>How PinballY finds the underlay file</h2>
+
+<p>
+   Whenever you select a game in the wheel UI, PinballY loos for 
+   a suitable underlay specific to the game.
+</p>
+<p>
+   First, PinballY tries to find a custom underlay for the game's
+   system (e.g., Visual Pinball X).  If the game hasn't been configured
+   yet, and its system is ambiguous, we skip this step.  Assuming
+   that the game has an associated system, PinballY looks for an
+   image file named according to the system's <b>media directory name</b>,
+   as defined in the settings, using the standard set of extensions
+   for acceptable image file formats (.png, .jpg, etc).  Note,
+   though, that you should really only use PNG files for underlays,
+   since it's the only format that supports transparency properly.
+   It then looks for this file in the following folder path:
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\System Underlays
+</div>
+<p>
+   For example, if your Visual Pinball X system's media folder is
+   set to "Visual Pinball X", the program looks for this file:
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\System Underlays\Visual Pinball X.png
+</div>
+<p>
+   If there's no such file, the system looks for a default media
+   file called <b>underlay.png</b>, searching in the usual places
+   for default images (see <a href="DirectoryInfo.html">Files &amp; Folders</a>):
+</p>
+<div class="indented" style="font-weight: bold;">
+   &lt;Main media folder&gt;\Images\underlay.png<br>
+   &lt;PinballY&gt;\Assets\Images\underlay.png
+</div>
+
+<p>
+   After determining which underlay file to use for the newly selected
+   game, PinballY checks to see if this is the same underlay file already
+   being displayed.  If so, nothing happens.  If the file is different,
+   PinballY switches the underlay to the new file.
+</p>
+
+<h2>How to customize the underlay files</h2>
+<p>
+   To provide your own custom underlay, create a transparent PNG
+   file, and place it as follows:
+</p>
+<ul>
+   <li>For a system-specific underlay, call it <b>&lt;System media folder name&gt;.png</b>,
+   and place it in <b>&lt;Main media folder&gt;\System Underlays</b>
+
+   <li>For the default underlay, call it <b>underlay.png</b> and place
+   it in <b>&lt;Main media folder&gt;\Images</b>
+</ul>
+
+
+<h2>How the underlay is displayed</h2>
+<p>
+   Here's an example of an underlay file.  This is a PNG file saved
+   with a transparent background, so that it can superimposed over the
+   playfield image or video background layer; the light checkerboard
+   pattern shows transparent areas.  Note that you can use the "alpha"
+   channel in a PNG image for partial transparency as well.
+</p>
+<img src="underlay-example.png" class="example">
+<p>
+   Here's how the underlay image above looks on the screen, when
+   superimposed over the playfield background.
+<img src="underlay-example-on-screen.png" class="example">
+<p>
+   Note how the original image has been stretched out to different
+   proportions when displayed as the underlay.  The display proportions
+   are determined as follows:
+</p>
+<ul>
+   <li>First, the image's height is scaled to a percentage of the
+   window's height, according to the <b>Underlay Height</b> setting
+   in the options.
+
+   <li>Second, the image's width is scaled so that it matches the
+   window's width.  However, if this exceeds the <b>Maximum Width</b>
+   setting in the options, the maximum width is used.
+   <p>
+      The Maximum Width  setting is expressed as a <b>percentage of the window height</b>.
+      That might seem a strange given that we're applying it to the
+      image width.  But if you think about it, expressing a maximum image width in
+      terms of the window width would be almost useless, since it would only
+      let you stretch the image to a fixed portion of the width - which is
+      what we're already doing by default when we stretch it to the full
+      window width.  What the maximum is really for is situations where the
+      window is wider than it is tall.  In those cases, we want to limit
+      the horizontal stretch, so that the image isn't stretched out to
+      ridiculously skinny proportions.  In other words, we want to limit
+      the width-to-height aspect ratio.  That's why the limit has to be
+      expressed as a percentage of the height - it's the <i>width</i>
+      portion of the <i>width-to-height</i> ratio.
+   </p>
+
+   <li>Finally, the image is positioned at the bottom of the screen,
+   then moved upwards by the <b>Distance from the bottom of the window</b>
+   setting in the options.  The default setting is 0%, meaning that the
+   image is positioned at the very bottom of the window.
+</ul>
+<p>
+   You can adjust all of these option settings in the <a href="GameWheelOptions.html">Game Wheel</a>
+   section of the settings dialog.
+</p>
+
+<h2>Javascript access</h2>
+<p>
+   PinballY fires the Javascript <a href="UnderlayEvent.html"><b>underlaychange</b></a> event
+   whenever it's about to change the underlay.  This lets scripting code
+   intervene, by canceling the change entirely or by substituting a
+   different image file.
+</p>
+<p>
+   Javascript can initiate an underlay change on
+   its own at any time, via the <a href="MainWindowObject.html">mainWindow</a>
+   object method <a href="MainWindowObject.html#setUnderlay">setUnderlay()</a>.
+   This gives you the ability to change the whole underlay selection scheme,
+   if you don't like the default scheme where the underlay is selected purely
+   on the basis of the selected game's system.
+</p>
+   
+
+
+</body>
+</html>

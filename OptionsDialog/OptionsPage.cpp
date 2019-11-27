@@ -283,6 +283,31 @@ void OptionsPage::EditFloatMap::doDDX(CDataExchange *pDX)
 	}
 }
 
+void OptionsPage::EditFloatPctMap::doDDX(CDataExchange *pDX)
+{
+	if (!pDX->m_bSaveAndValidate)
+	{
+		// loading - store the float value with a "%" added
+		DDX_Text(pDX, controlID, CString(GetAsStr().c_str()));
+	}
+	else
+	{
+		// use the default handling
+		__super::doDDX(pDX);
+	}
+}
+
+TSTRING OptionsPage::EditFloatPctMap::GetAsStr()
+{
+	// do the basic formatting with sprintf(%f)
+	TCHAR buf[40];
+	_stprintf_s(buf, _T("%f%%"), floatVar);
+
+	// %f tends to leave ugly trailing zeroes - trim them
+	static const std::basic_regex<TCHAR> tz(_T("\\.?0+%"));
+	return std::regex_replace(buf, tz, _T("%"));
+}
+
 bool OptionsPage::EditFloatMap::IsModifiedFromConfig()
 {
 	// get the new text

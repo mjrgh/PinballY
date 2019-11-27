@@ -285,19 +285,19 @@
 </p>
 
 <p>
-   <b>Global defaults:</b>  As a last resort, when a game doesn't
+   <b>Global default media:</b>  When a game doesn't
    provide its own media files, and there aren't even any per-system
-   default files, PinballY displays a global default video or image.
+   default files, PinballY looks for a global default video or image.
    PinballY comes with a set of default image files, but you can
    supersede these with your own video or image files if you have
    nicer-looking ones that you prefer.
 </p>
 <p>
-   The global default files go in the following folders:
+   The custom global default files go in the following folders:
 </p>
 <div class="indented" style="font-weight: bold;">
-   &lt;Main media folder&gt;\&lt;Images&gt;\Default Videos<br>
-   &lt;Main media folder&gt;\&lt;Videos&gt;\Default Images<br>
+   &lt;Main media folder&gt;\Images<br>
+   &lt;Main media folder&gt;\Videos<br>
 </div>
 <p>
    Within those folders, the default files for the individual
@@ -309,6 +309,20 @@
    <b>Default Instruction Card</b>.<i>ext</i><br>
    <b>Default Topper</b>.<i>ext</i>
 </div>
+<p>
+   <b>PinballY defaults:</b>  If you don't provide your own global default
+   media files as described above, PinballY falls back on its own
+   default images as a last resort.  These are stored the <b>Assets</b>
+   folder within your main PinballY install folder.  Within Assets,
+   the same subfolders and default image file names are used
+   as in the global default media folders (Images\Default Backglass.png, etc).
+</p>
+<p>
+   Note that you <b>shouldn't</b> customize by replacing the files in
+   the Assets folder, since PinballY thinks of those as its own, and
+   thus might feel free to modify them on future updates.  Always
+   use the Media folder locations above for your customizations instead.
+</p>
 
 <h3>Creating separate PinballY and PinballX default images</h3>
 

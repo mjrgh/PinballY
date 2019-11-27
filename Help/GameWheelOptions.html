@@ -48,5 +48,63 @@
    backup copies or testing copies.
 </p>
 
+<p>
+   <b>Underlay sizing:</b>  These settings control the layout of the
+   <a href="Underlay.html">underlay</a> image.  All of these sizes are
+   expressed as percentages of the window height.  You can enter the
+   values with "%" signs, and they're shown that way for clarity,
+   but the "%" signs aren't required; it doesn't affect the interpretation
+   if they're omitted.
+</p>
+<ul>
+   <li><b>Height:</b>  The height of the underlay image.  The underlay
+   typically is designed to cover only the bottom portion of the window,
+   roughly in the same area where the game wheel icons are displayed.
+
+   <li><b>Distance from bottom of window:</b>  This is normally zero,
+   which means that the bottom of the underlay image is exactly aligned
+   with the bottom of the window.  If you want to move the image up
+   or down to align it differently, you can enter a percentage value
+   here.  A positive value moves the image upwards on the screen, and
+   a negative value moves it downwards (which will of course cut off
+   some of the image at the bottom, since a portion will be below
+   the bottom of the window).
+
+   <li><b>Maximum width:</b>  The maximum width of the image.  The
+   underlay is normally stretched out to exactly match the width of
+   the window, but you can set a cap on how far it can be stretched
+   with this setting.  It won't be stretched out any wider than this.
+   <p>
+      As with the other values, this is a percentage of the <b>height</b>
+      of the window, so it effectively sets a maximum "aspect ratio"
+      for the image.  That is, it sets a limit on how far the image can
+      be distorted by horizontal stretching.
+   </p>
+   <p>
+      The default setting for this value is an extremely large value,
+      chosen to be large enough that it'll never be reached in practice.
+      That makes it effectively an "infinity" setting, which is to
+      say, no maximum cap at all.
+   </p>
+   <p>
+      Why would you want to use this?  It's mostly for people who are
+      running in "landscape" mode, like on a typical desktop PC, where
+      the main monitor is oriented so that it's wider than it is tall.
+      Pin cab users usually do the opposite - "portrait" mode, where
+      the main monitor is turned so that it's taller than it is wide.
+      In landscape mode, a normally proportioned playfield image only
+      fills a narrow area in the middle of the screen, so stretching
+      the underlay image to the full width would make it ridiculously
+      stretched out.  The maximum width lets you maintain a more
+      appropriate aspect ratio.  If you're using landscape mode,
+      you might want to try a setting around 56.25% (9/16), since that
+      will keep the image proportioned about the same as a typical
+      playfield image.
+   </p>
+</ul>
+<p>
+   See <a href="Underlay.html">Underlay</a> for more details on
+   the underlay feature.
+
 </body>
 </html>

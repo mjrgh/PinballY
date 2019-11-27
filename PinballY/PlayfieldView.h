@@ -473,6 +473,7 @@ protected:
 	static const int startupVideoFadeTimerID = 126; // fading out the startup video
 	static const int launchFocusTimerID = 127;    // launch focus grab
 	static const int hideCursorTimerID = 128;     // hide the cursor after a delay
+	static const int underlayFadeTimerID = 129;   // underlay crossfade timer
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1326,6 +1327,96 @@ protected:
 	// asynchronous loader for the playfield sprite
 	AsyncSpriteLoader playfieldLoader;
 
+	// Underlay layout settings 
+	struct UnderlayOptions
+	{
+		UnderlayOptions() { Clear(); }
+
+		// populate from a Javascript object
+		UnderlayOptions(JavascriptEngine::JsObj &options);
+
+		float height;
+		float yOffset;
+		float maxWidth;
+
+		void Clear() { height = yOffset = maxWidth = INFINITY; }
+
+		bool operator==(const UnderlayOptions &other) const
+		{
+			return this->height == other.height
+				&& this->yOffset == other.yOffset
+				&& this->maxWidth == other.maxWidth;
+		}
+
+		void ApplyDefaults(const UnderlayOptions &defaults)
+		{
+			// Substitute the default for each missing element (indicated
+			// by the magic value INFINITY)
+			if (height == INFINITY) height = defaults.height;
+			if (yOffset == INFINITY) yOffset = defaults.yOffset;
+			if (maxWidth == INFINITY) maxWidth = defaults.maxWidth;
+		}
+	} underlay;
+
+	// Current and incoming underlay image
+	struct UnderlayMedia
+	{
+		void Clear()
+		{
+			filename.clear();
+			sprite = nullptr;
+			options.Clear();
+		}
+
+		void Set(const UnderlayMedia &source)
+		{
+			filename = source.filename;
+			pixSize = source.pixSize;
+			sprite = source.sprite;
+			options = source.options;
+		}
+
+		// image file source
+		TSTRING filename;
+
+		// Layout options.  These are normally inherited from the
+		// settings, but Javascript-initiated underlays can override
+		// the settings on a per-image basis.
+		//
+		// Each element can be individually inherited from the config
+		// by setting it to INFINITY.  (We use that as a magic null
+		// value because it would never be meaningful as an actual
+		// setting value, and because [unlike the similar NAN] it
+		// compares equal to itself, which makes it easy to test two 
+		// structs for equivalence.)
+		UnderlayOptions options;
+
+		// image pixel size
+		SIZE pixSize;
+
+		// sprite
+		RefPtr<Sprite> sprite = nullptr;
+	} currentUnderlay, incomingUnderlay;
+
+	// loader for the underlay sprite
+	AsyncSpriteLoader underlayLoader;
+
+	// Load the underlay for the current game
+	void SyncUnderlay();
+
+	// Does a proposed new underlay file/options represent a change of
+	// underlay?
+	bool IsUnderlayChange(const TCHAR *filename, const UnderlayOptions *opts = nullptr);
+
+	// Load an underlay from the given file
+	bool LoadUnderlay(const TCHAR *filename, const UnderlayOptions *opts = nullptr);
+
+	// resize an underlay for a layout change
+	void SizeUnderlay(UnderlayMedia &underlay, POINTF *normSize = nullptr);
+
+	// animate the underlay crossfade
+	void AnimateUnderlayCrossfade();
+
 	// List of wheel sprites.  When idle, the wheel shows the current
 	// game's wheel image in the middle, and two wheel images on each
 	// side for the previous/next games in the list.  During game
@@ -2155,11 +2246,11 @@ protected:
 	// key while the keypad key is being pressed.  At the RAW INPUT
 	// level, though, there's no synthetic shift release, so this
 	// isn't coming from the keyboard hardware, BIOS, or the KB HID
-	// driver; it's coming from the/ Windows message translation.  
+	// driver; it's coming from the Windows message translation.  
 	//
 	// But wait, it gets even weirder!  If you use the RIGHT shift
 	// key, you get exactly the sequence above at the WM_KEYxxx 
-	// message level, but the Raw Input sequence gets truly bizarre:
+	// message level, but the Raw Input sequence becomes:
 	//
 	//    RSHIFT MAKE
 	//    RSHIFT BREAK       <--- synthetically releases rshift...
@@ -2171,7 +2262,7 @@ protected:
 	//    RSHIFT BREAK
 	//
 	// "WTF" doesn't begin to express it.  The synthetic left shifts
-	// makes it abundantly clear that this is intentional.  And it's
+	// make it abundantly clear that this is intentional.  And it's
 	// coming from some really low-level system inside Windows.
 	// There's clearly some kind of tortured logic at work here, but
 	// it's like everything in Lovecraft - unfathomable to the human
@@ -2203,7 +2294,7 @@ protected:
 	// consistent information: it will ALWAYS report that the
 	// Shift keys are un-pressed when a WM_KEYDOWN(VK_NUMPADx)
 	// occurs in NumLock mode.)  Thus these state bits.  We
-	// manage them in the raw input handler and consume them in
+	// produce them in the raw input handler and consume them in
 	// the Javascript key event generator.  Note that the right
 	// shift key will *still* have bad information about the 
 	// actual hardware key state when processing a numpad key,
@@ -2567,13 +2658,14 @@ protected:
 	JsValueRef jsStatusLineEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsHighScoresRequestEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsHighScoresReadyEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsUnderlayChangeEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
 	// event (via preventDefault() or similar).  Non-blockable events
 	// use void returns to clarify that they're not used.  The default
 	// is always to proceed with system handling; this applies if 
-	// javscript isn't being used, or if anything fails trying to run
+	// javascript isn't being used, or if anything fails trying to run
 	// the script.
 	bool FireKeyEvent(int vkey, bool down, int repeatCount, bool bg);
 	bool FireJoystickEvent(int unit, int button, bool down, int repeatCount, bool bg);
@@ -2796,7 +2888,7 @@ protected:
 	JsValueRef JsGetHighScores(JsValueRef self);
 	void JsSetHighScores(JsValueRef self, JsValueRef scores);
 	JsValueRef JsResolveGameFile(JsValueRef self);
-	JsValueRef JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist);
+	JsValueRef JsResolveGameMediaFile(JsValueRef self, WSTRING type, bool mustExist);
 	JsValueRef JsResolveROM(JsValueRef self);
 
 	// Javascript GameCategory access
@@ -2804,6 +2896,10 @@ protected:
 	void JsCreateCategory(WSTRING name);
 	void JsRenameCategory(WSTRING oldName, WSTRING newName);
 	void JsDeleteCategory(WSTRING name);
+
+	// get global media folder/file information (GameList methods)
+	WSTRING JsGetMediaDir();
+	JsValueRef JsResolveMediaFile(WSTRING folder, WSTRING file, WSTRING type);
 
 	// get the total number of games/nth game in the overall game list/array of games
 	int JsGetGameCount();
@@ -2846,6 +2942,9 @@ protected:
 
 	// get the command assigned to a key or joystick button
 	JsValueRef JsGetKeyCommand(JavascriptEngine::JsObj desc);
+
+	// set an underlay
+	bool JsSetUnderlay(WSTRING filename, JavascriptEngine::JsObj options);
 
 	// Javacript configuration access
 	template<typename T, T (*conv)(const TCHAR*)>

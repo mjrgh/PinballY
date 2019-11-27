@@ -194,6 +194,19 @@ protected:
 		virtual bool IsModifiedFromConfig() override;
 	};
 
+	// Edit box <-> percentage value with float
+	struct EditFloatPctMap : EditFloatMap
+	{
+		EditFloatPctMap(const TCHAR *configVar, int controlID, float defVal) :
+			EditFloatMap(configVar, controlID, defVal) { }
+
+		// get as a string, with the "%"
+		TSTRING GetAsStr();
+
+		virtual void SaveConfigVar() override { ConfigManager::GetInstance()->Set(configVar, GetAsStr().c_str()); }
+		virtual void doDDX(CDataExchange *pDX) override;
+	};
+
 	// Edit box with spin button <-> int value
 	//
 	// Note: make sure the following properties are set in the spin control

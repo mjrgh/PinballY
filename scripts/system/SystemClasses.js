@@ -1196,6 +1196,22 @@ this.HighScoresReadyEvent = class HighScoresFetchEvent extends HighScoresEvent
 };
 
 
+// Underlay events
+this.UnderlayEvent = class UnderlayEvent extends Event
+{
+    constructor(type, options) { super(type, options); }
+};
+this.UnderlayChangeEvent = class UnderlayChangeEvent extends UnderlayEvent
+{
+    constructor(game, filename)
+    {
+        super("underlaychange", { cancelable: true });
+        this.game = game;
+        this.filename = filename;
+        this.options = { };
+    }
+};
+
 // ------------------------------------------------------------------------
 //
 // This object represents the current program settings.  Properties and

@@ -3521,7 +3521,7 @@ bool GameList::FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder,
 	GetDeployedFilePath(localMediaPath, _T("Media"), _T(""));
 	PathAppend(localMediaPath, subfolder);
 	PathCombine(path, localMediaPath, file);
-	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, localMediaPath);
 	if (FindFileUsingExtensions(path, exts, numExts))
 		return true;
 
@@ -3534,7 +3534,7 @@ bool GameList::FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder,
 	PathCombine(path, baseMediaPath, file);
 	if (_tcsicmp(localMediaPath, baseMediaPath) != 0)
 	{
-		LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+		LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, baseMediaPath);
 		if (FindFileUsingExtensions(path, exts, numExts))
 			return true;
 	}
@@ -3544,8 +3544,8 @@ bool GameList::FindGlobalMediaFile(TCHAR path[MAX_PATH], const TCHAR *subfolder,
 	// resort, since it's the built-in program option.
 	GetDeployedFilePath(path, _T("Assets"), _T(""));
 	PathAppend(path, subfolder);
-	PathAppend(path, file);
 	LogFile::Get()->Write(LogFile::MediaFileLogging, _T("Searching for %s in %s.*\n"), file, path);
+	PathAppend(path, file);
 	if (FindFileUsingExtensions(path, exts, numExts))
 		return true;
 

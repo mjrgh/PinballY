@@ -34,14 +34,21 @@ message("The PinballY version number is " + systemInfo.version.display);
 </ul>
 
 <p>
-   As of this writing, Windows itself also is capable of running on ARM
-   CPUs, which are used in some Windows tablet computers.  PinballY doesn't
-   currently support the ARM versions of Windows, though, so you'll currently
-   only see the two Intel variants listed above.  However, to future-proof
-   your code, it's best not to assume that those are the only values
-   possible.  An ARM version of PinballY could come along at some point,
-   for example, plus it's entirely possible that Windows will one day
-   run on new CPU architectures that don't exist yet.
+   To future-proof your code, you shouldn't assume that those are the only
+   possible values, since other platforms could be added in the future.
+   For example, Windows itself runs on ARM CPUs in addition to Intel x86
+   and x64 platforms, so PinballY could potentially be ported to the ARM
+   version of Windows at some point.  Likewise, Windows could add support
+   in the future for new processors that don't even exist yet.
+</p>
+
+<p>
+   <b>programDir:</b> A string containing the full Windows file system path
+   to the PinballY install folder.
+</p>
+<p>
+   <b>programExe:</b> A string containing the full Windows file system path
+   to the PinballY program (.EXE) file.
 </p>
 
 <p>

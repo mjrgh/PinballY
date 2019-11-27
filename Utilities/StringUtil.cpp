@@ -280,6 +280,37 @@ CSTRING HtmlEscape(const CSTRING &str)
 	});
 }
 
+TSTRING JavascriptEscape(const TSTRING &str)
+{
+	std::basic_regex<TCHAR> pat(_T("[\"'\\\\\n\r\b]"));
+	return regex_replace(str, pat, [](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+	{
+		switch (m[0].first[0])
+		{
+		case '\'':
+			return _T("\\'");
+
+		case '"':
+			return _T("\\\"");
+
+		case '\\':
+			return _T("\\\\");
+
+		case '\n':
+			return _T("\\n");
+
+		case '\r':
+			return _T("\\r");
+
+		case '\b':
+			return _T("\\b");
+
+		default:
+			return _T("\\") + m[1].str();
+		}
+	});
+}
+
 // -----------------------------------------------------------------------
 //
 // MsgFmt - formatted message string

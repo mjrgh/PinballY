@@ -2,6 +2,27 @@ PinballY Update History
 
 ? (1.0.0)
 
+* "Underlay" graphics have been added.  The underlay is an image layer
+displayed at the bottom of the screen, in the area where the "wheel"
+icons appear.  It's just there as a little extra decoration.  If you
+think about the images as layers, the underlay is on top of the
+playfield background image, and under the game icons on the wheel
+(thus the name).  PinballY comes with a default underlay image, but
+you can substitute your own.  You can also supply a different underlay
+image for each game system, to provide more visual cuing about the
+nature of the selected game in the wheel.  See the section on the
+underlay in the help files for more details.
+
+* Several new settings controlling the layout of the underlay graphics
+have been added to the Game Wheel section of the options dialog.
+
+* The underlay is accessible from Javascript.  When the underlay is
+about to change, the system fires the new "underlaychange" event,
+which you can intercept to prevent the change or substitute a
+different image file.  You can also change the underlay yourself at
+any time via the new method mainWindow.setUnderlay().  See the
+relevant Javascript sections in the help for more details.
+
 * A new option in the Startup section of the options dialog lets you
 tell PinballY to (try to) force keyboard focus into its window at
 program startup, after an optional delay.  Enable this if desired via
@@ -195,6 +216,14 @@ providing an appropriate value gives you more control over the
 handling.  For example, the system uses the repeat count to decide
 whether or not to play button sound effects on auto-repeated keys,
 according to the option setting for "mute auto-repeat buttons".
+
+* The Javascript systemInfo object has new properties programDir (the
+file system path for the program install folder) and programExe (the
+full file system path of the PinballY executable).
+
+* The Javascript gameList object has new methods: getMediaDir(),
+resolveMedia(). See the gameList object's section in the help for
+details.
 
 
 05-31-2019 (1.0.0 Beta 14)

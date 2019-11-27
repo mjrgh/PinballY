@@ -887,6 +887,39 @@ UpperStatus.UpdateTime = 2513
 LowerStatus.UpdateTime = 2233
 
 
+# Wheel underlay sizing.  The underlay is an image that's displayed
+# displayed near the bottom of the screen, in the area where the
+# next/previous game icons are shown.  These variables let you
+# adjust the sizing to get the layout effect you prefer.
+#
+# The sizes are given as percentages of the window's height.  This
+# makes them adapt automatically to different window layouts.
+#
+# Height: the display height of the underlay image.  The image in 
+# the file is stretched or shrunk vertically to match this height.
+#
+# Y Offset: the distance from the bottom of the screen to the bottom
+# of the image.  The underlay is normally shown at the very bottom
+# of the window, so this is usually zero.
+#
+# Max Width: the maximum width of the image.  Normally, the image
+# is stretched horizontally to exactly fill the window's width.
+# This lets you limit the stretch.  Note that this is a percentage
+# of the window's HEIGHT, even though we're talking about limiting
+# the width.  The main reason you'd want to set a maximum width is
+# to prevent the image from getting stretched out to ridiculously
+# skinny proportions if your main monitor is oriented in the
+# "landscape" mode typically used for desktop PCs, rather than the
+# "portrait" mode that most pin cabs use.  The default is simply a
+# very high percentage that we won't ever reach in practice, so
+# it effectively means there's no maximum, equivalent to always
+# letting the default full-width scaling apply.
+#
+Underlay.Height = 20.7292%
+Underlay.YOffset = 0%
+Underlay.MaxWidth = 1000%
+
+
 # Attract mode enabled
 AttractMode.Enabled = true
 

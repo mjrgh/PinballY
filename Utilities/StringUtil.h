@@ -385,6 +385,9 @@ TSTRING FormatGuid(const GUID &guid);
 WSTRING HtmlEscape(const WSTRING &str);
 CSTRING HtmlEscape(const CSTRING &str);
 
+// Javascript escsapes.  Converts \, ", ', \n, \r, \b to \\ sequences.
+TSTRING JavascriptEscape(const TSTRING &str);
+
 // URL parameter encoding.  Converts special characters to %xx sequences,
 // and replaces spaces with '+'s.
 TSTRING UrlParamEncode(const TSTRING &str);

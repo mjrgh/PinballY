@@ -159,6 +159,10 @@ namespace ConfigVars
 	static const TCHAR *CaptureManualStartStopButtons = _T("Capture.ManualStartStopButton");
 
 	static const TCHAR *StatusLineEnable = _T("StatusLine.Enable");
+
+	static const TCHAR *UnderlayHeight = _T("Underlay.Height");
+	static const TCHAR *UnderlayYOffset = _T("Underlay.YOffset");
+	static const TCHAR *UnderlayMaxWidth = _T("Underlay.MaxWidth");
 };
 
 // include the capture-related variables
@@ -167,13 +171,25 @@ namespace ConfigVars
 // Wheel animation time
 static const DWORD wheelTime = 260;
 
+// Wheel layout parameters.  Coordinates are in D3D space, where
+// the middle of the window is (0,0) and the top left is (-.5,+.5).
+// The wheel is drawn as a circle with center (window horizontal 
+// center, WHEEL_Y).
+const float WHEEL_R = 914.0f / 1920.0f;          // wheel circle radius
+const float WHEEL_Y = -1543.0f / 1920.0f;        // vertical center of wheel circle
+const float WHEEL_DTHETA = 0.25f;                // angle between games
+const float WHEEL_Y0 = -0.07135f;                // center image y offset at idle
+const float WHEEL_IMAGE_WIDTH = 0.14f;           // target width of main icon image
+const float WHEEL_TOP = -562.0f / 1920.0f;       // top of wheel area, for underlay placement
+
 // "No Command" 
 const PlayfieldView::KeyCommand PlayfieldView::NoCommand(_T("NoOp"), &PlayfieldView::CmdNone);
 
 // construction
 PlayfieldView::PlayfieldView() : 
 	BaseView(IDR_PLAYFIELD_CONTEXT_MENU, ConfigVars::PlayfieldWinPrefix),
-	playfieldLoader(this)
+	playfieldLoader(this),
+	underlayLoader(this)
 {
 	// clear variables, reset modes
 	fpsDisplay = false;
@@ -268,7 +284,7 @@ PlayfieldView::~PlayfieldView()
 	// before we destroy the Javascript context they belong to.
 	highScoresReadyList.clear();
 
-	// The user-defined filter list also contains Javscript object references,
+	// The user-defined filter list also contains Javascript object references,
 	// so clear it explicitly.
 	javascriptFilters.clear();
 }
@@ -506,6 +522,11 @@ void PlayfieldView::InitJavascript()
 				return;
 			}
 
+			// get the program folder (for the systemInfo object)
+			TCHAR exeDir[MAX_PATH], exeFile[MAX_PATH];
+			GetModuleFileName(NULL, exeFile, countof(exeFile));
+			GetExeFilePath(exeDir, countof(exeDir));
+
 			// create a system info object with basic system details
 			MsgFmt sysInfo(_T("this.systemInfo = {")
 				_T("programName:\"PinballY\",")
@@ -516,14 +537,18 @@ void PlayfieldView::InitJavascript()
 				_T("basic:\"") _T(PINBALLY_VERSION) _T("\",")
 				_T("status:\"%hs\",")
 				_T("build:%d,")
-				_T("buildDate:new Date(%I64d)}")
+				_T("buildDate:new Date(%I64d)},")
+				_T("programDir:\"%s\",")
+				_T("programExe:\"%s\",")
 				_T("};"),
 
 				G_VersionInfo.fullVerWithStat,
 				G_VersionInfo.semVer,
 				G_VersionInfo.fullVer,
 				G_VersionInfo.buildNo,
-				G_VersionInfo.unix_date * 1000
+				G_VersionInfo.unix_date * 1000,
+				JavascriptEscape(exeDir).c_str(),
+				JavascriptEscape(exeFile).c_str()
 			);
 			js->EvalScript(sysInfo.Get(), _T("system:sysinfo"), nullptr, eh);
 
@@ -586,6 +611,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsStatusLineEvent, "StatusLineEvent")
 				|| !GetObj(jsHighScoresRequestEvent, "HighScoresRequestEvent")
 				|| !GetObj(jsHighScoresReadyEvent, "HighScoresReadyEvent")
+				|| !GetObj(jsUnderlayChangeEvent, "UnderlayChangeEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -669,7 +695,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "startAttractMode", &PlayfieldView::JsStartAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playButtonSound", &PlayfieldView::JsPlayButtonSound, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh))
 				return;
 
 			// Get the status lines
@@ -764,14 +791,16 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getAllCategories", &PlayfieldView::JsGetAllCategories, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createCategory", &PlayfieldView::JsCreateCategory, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "renameCategory", &PlayfieldView::JsRenameCategory, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gameList", "deleteCategory", &PlayfieldView::JsDeleteCategory, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "deleteCategory", &PlayfieldView::JsDeleteCategory, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getMediaDir", &PlayfieldView::JsGetMediaDir, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "resolveMedia", &PlayfieldView::JsResolveMediaFile, this, eh))
 				return;
 
 			// Set up the GameInfo methods
 			if (!js->DefineObjMethod(jsGameInfo, "GameInfo", "getHighScores", &PlayfieldView::JsGetHighScores, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "setHighScores", &PlayfieldView::JsSetHighScores, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveGameFile", &PlayfieldView::JsResolveGameFile, this, eh)
-				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveMedia, this, eh)
+				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveMedia", &PlayfieldView::JsResolveGameMediaFile, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "resolveROM", &PlayfieldView::JsResolveROM, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "update", &PlayfieldView::JsGameInfoUpdate, this, eh)
 				|| !js->DefineObjMethod(jsGameInfo, "GameInfo", "renameMediaFiles", &PlayfieldView::JsGameInfoRenameMediaFiles, this, eh)
@@ -1106,9 +1135,10 @@ bool PlayfieldView::FireMenuEvent(bool open, Menu *menu, int pageno)
 					return false;
 				}
 			}
-			catch (...)
+			catch (JavascriptEngine::CallException exc)
 			{
-				// ignore errors
+				// log any javascript errors
+				exc.Log(_T("Menu Event"));
 			}
 		}
 		else if (curMenu != nullptr)
@@ -2003,6 +2033,34 @@ void PlayfieldView::JsSetHighScores(JsValueRef self, JsValueRef scoresJsObj)
 	}
 }
 
+WSTRING PlayfieldView::JsGetMediaDir()
+{
+	return TSTRINGToWSTRING(GameList::Get()->GetMediaPath());
+}
+
+JsValueRef PlayfieldView::JsResolveMediaFile(WSTRING folder, WSTRING file, WSTRING type)
+{
+	TCHAR buf[MAX_PATH];
+	bool found = false;
+	auto gl = GameList::Get();
+	if (type.length() == 0)
+	{
+		static const TCHAR *const exts[] = { _T("") };
+		found = gl->FindGlobalMediaFile(buf, folder.c_str(), file.c_str(), exts, 1);
+	}
+	else if (_wcsicmp(type.c_str(), L"image") == 0)
+		found = gl->FindGlobalImageFile(buf, folder.c_str(), file.c_str());
+	else if (_wcsicmp(type.c_str(), L"video") == 0)
+		found = gl->FindGlobalVideoFile(buf, folder.c_str(), file.c_str());
+	else if (_wcsicmp(type.c_str(), L"audio") == 0)
+		found = gl->FindGlobalAudioFile(buf, folder.c_str(), file.c_str());
+	else if (_wcsicmp(type.c_str(), L"wave") == 0)
+		found = gl->FindGlobalWaveFile(buf, folder.c_str(), file.c_str());
+
+	auto js = JavascriptEngine::Get();
+	return found ? js->NativeToJs(buf) : js->GetUndefVal();
+}
+
 int PlayfieldView::JsGetGameCount()
 {
 	return GameList::Get()->GetAllGamesCount();
@@ -2123,7 +2181,7 @@ JsValueRef PlayfieldView::JsResolveGameFile(JsValueRef self)
 	}
 }
 
-JsValueRef PlayfieldView::JsResolveMedia(JsValueRef self, WSTRING type, bool mustExist)
+JsValueRef PlayfieldView::JsResolveGameMediaFile(JsValueRef self, WSTRING type, bool mustExist)
 {
 	auto js = JavascriptEngine::Get();
 	auto gl = GameList::Get();
@@ -3654,6 +3712,11 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// this is a one-shot
 		KillTimer(hWnd, timer);
 		break;
+
+	case underlayFadeTimerID:
+		// continue the underlay crossfade animation
+		AnimateUnderlayCrossfade();
+		break;
 	}
 
 	// use the default handling
@@ -4910,25 +4973,25 @@ bool PlayfieldView::FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueR
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
-		// pass the error message as a js string if provided, otherwise use 'undefined'
-		JsValueRef errorVal = errorMessage != nullptr ? js->NativeToJs(errorMessage) : js->GetUndefVal();
-
-		// fire the event
-		JsValueRef eventObj;
-		ret = js->FireAndReturnEvent(eventObj, jsMainWindow, type, BuildJsGameInfo(game), cmd, errorVal);
-
-		// if the caller wants the 'overrides' object, retrieve it
-		if (overrides != nullptr)
+		try
 		{
-			try
+			// pass the error message as a js string if provided, otherwise use 'undefined'
+			JsValueRef errorVal = errorMessage != nullptr ? js->NativeToJs(errorMessage) : js->GetUndefVal();
+
+			// fire the event
+			JsValueRef eventObj;
+			ret = js->FireAndReturnEvent(eventObj, jsMainWindow, type, BuildJsGameInfo(game), cmd, errorVal);
+
+			// if the caller wants the 'overrides' object, retrieve it
+			if (overrides != nullptr)
 			{
 				JavascriptEngine::JsObj event(eventObj);
 				overrides->jsobj = event.Get<JsValueRef>("overrides");
 			}
-			catch (JavascriptEngine::CallException exc)
-			{
-				exc.Log(_T("Game launch event"));
-			}
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("Game launch event"));
 		}
 	}
 
@@ -7141,6 +7204,9 @@ void PlayfieldView::UpdateSelection()
 
 void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 {
+	// Sync the underlay
+	SyncUnderlay();
+
 	// If this game is already loaded in the incoming playfield,
 	// do nothing.
 	if (game == incomingPlayfield.game)
@@ -7332,6 +7398,266 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	RequestHighScores(game, true);
 }
 
+void PlayfieldView::SyncUnderlay()
+{
+	// start with no image file found
+	TCHAR filename[MAX_PATH];
+	bool ok = false;
+
+	// If the game has a system, look for a system-specific underlay
+	auto gl = GameList::Get();
+	auto curGame = gl->GetNthGame(0);
+	if (curGame->system != nullptr)
+	{
+		// look for <media root>\System Underlays\<system folder name>.ext
+		ok = gl->FindGlobalImageFile(filename, _T("System Underlays"), curGame->system->mediaDir.c_str());
+	}
+
+	// If we didn't find a system-specific underlay, use the global default
+	if (!ok)
+		ok = gl->FindGlobalImageFile(filename, _T("Images"), _T("underlay"));
+
+	// Check to see if this represents a change from the current underlay.
+	// Assume that we'll use default options.
+	if (ok)
+		ok = IsUnderlayChange(filename);
+
+	// if we're still go for launch, apply the new underlay
+	if (ok)
+	{
+		// generate a Javasript event
+		try
+		{
+			auto js = JavascriptEngine::Get();
+			JsValueRef ev;
+			if (js->FireAndReturnEvent(ev, jsMainWindow, jsUnderlayChangeEvent, BuildJsGameInfo(curGame), filename))
+			{
+				// get the filename from the event, in case the event handler rewrote it
+				JavascriptEngine::JsObj eventObj(ev);
+				TSTRING s = eventObj.Get<TSTRING>("filename");
+
+				// set any override options in the event
+				UnderlayOptions options(eventObj.Get<JavascriptEngine::JsObj>("options"));
+
+				// load the underlay
+				LoadUnderlay(s.c_str(), &options);
+			}
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("Underlay change event"));
+		}
+	}
+}
+
+PlayfieldView::UnderlayOptions::UnderlayOptions(JavascriptEngine::JsObj &options)
+{
+	// set defaults
+	Clear();
+
+	// if the options object is not null, parse its properties
+	if (!options.IsNull())
+	{
+		if (options.Has("height"))
+			height = options.Get<float>("height") / 100.0f;
+		if (options.Has("yOffset"))
+			yOffset = options.Get<float>("yOffset") / 100.0f;
+		if (options.Has("maxWidth"))
+			maxWidth = options.Get<float>("maxWidth") / 100.0f;
+	}
+}
+
+// set the underlay from Javascript
+bool PlayfieldView::JsSetUnderlay(WSTRING filename, JavascriptEngine::JsObj options)
+{
+	// set up the options
+	UnderlayOptions uopts(options);
+
+	// load the underlay
+	return LoadUnderlay(WSTRINGToTSTRING(filename).c_str(), &uopts);
+}
+
+// check for a change of underlay
+bool PlayfieldView::IsUnderlayChange(const TCHAR *filename, const UnderlayOptions *options)
+{
+	// Use default options if the caller didn't provide them
+	UnderlayOptions defaultOptions;
+	if (options == nullptr)
+		options = &defaultOptions;
+
+	// if there's already an incoming underlay matching the new one, 
+	// the new one won't change anything
+	if (_tcsicmp(incomingUnderlay.filename.c_str(), filename) == 0 && *options == incomingUnderlay.options)
+		return false;
+
+	// if this is the current underlay, and there's not an incoming
+	// underlay in progress, there's no cahnge
+	if (incomingUnderlay.sprite == nullptr
+		&& _tcsicmp(currentUnderlay.filename.c_str(), filename) == 0 && *options == currentUnderlay.options)
+		return false;
+
+	// this doesn't match the existing new or incoming underlay, so it's
+	// a change
+	return true;
+}
+
+// underlay crossfade timer update interval (milliseconds)
+static const DWORD UnderlayFadeInterval = 60;
+
+bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *options)
+{
+	// Use default options if the caller didn't provide them
+	UnderlayOptions defaultOptions;
+	if (options == nullptr)
+		options = &defaultOptions;
+
+	// do nothing if this underlay is already in effect (or incoming)
+	if (!IsUnderlayChange(filename, options))
+		return false;
+
+	// get the image's native size; if that fails, it must not be a valid
+	// image file; assume that loading will also fail, and give up now
+	ImageFileDesc desc;
+	if (!GetImageFileInfo(filename, desc, true))
+		return false;
+
+	// If there's already an incoming underlay, and it's mostly done
+	// with the crossfade, advance it to the end of the fade and start
+	// a new fade.  Otherwise, if a crossfade is in progress, simply
+	// substitute the new image for the old image and stay at the
+	// current place in the fade.  If no fade is in progress, start
+	// a new one.
+	float alpha = 0.0f;
+	if (incomingUnderlay.sprite != nullptr)
+	{
+		// presume we'll just continue the current fade with the new image
+		alpha = incomingUnderlay.sprite->alpha;
+
+		// but check to see if we're far enough along to jump to the end
+		if (incomingUnderlay.sprite->alpha > 0.6f)
+		{
+			// mostly done - skip the rest of the fade and start a new one
+			currentUnderlay.Set(incomingUnderlay);
+			incomingUnderlay.Clear();
+			alpha = 0.0f;
+		}
+	}
+
+	// save the pixel size in the incoming underlay structure
+	incomingUnderlay.pixSize = desc.dispSize;
+
+	// save the options in the incoming underlay structure
+	incomingUnderlay.options = *options;
+
+	// create the sprite
+	incomingUnderlay.sprite.Attach(new Sprite());
+
+	// figure the normalized sprite size
+	POINTF normSize;
+	SizeUnderlay(incomingUnderlay, &normSize);
+
+	// remember the filename
+	incomingUnderlay.filename = filename;
+
+	// load the image at its native size
+	Application::InUiErrorHandler eh;
+	if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, eh))
+	{
+		incomingUnderlay.Clear();
+		return false;
+	}
+
+	// set the alpha for the start of the fade process
+	incomingUnderlay.sprite->alpha = alpha;
+
+	// set the outgoing alpha for the opposite end of the fade
+	if (currentUnderlay.sprite != nullptr)
+		currentUnderlay.sprite->alpha = 1.0f - alpha;
+
+	// start the crossfade timer
+	SetTimer(hWnd, underlayFadeTimerID, UnderlayFadeInterval, NULL);
+
+	// update the sprite list
+	UpdateDrawingList();
+
+	// success
+	return true;
+}
+
+void PlayfieldView::AnimateUnderlayCrossfade()
+{
+	// figure the alpha change per cycle
+	float dAlpha = static_cast<float>(UnderlayFadeInterval) / crossfadeTime;
+
+	// fade out the old image
+	if (currentUnderlay.sprite != nullptr)
+	{
+		// limit the fade-out to zero transparency
+		if ((currentUnderlay.sprite->alpha -= dAlpha) < 0.0f)
+			currentUnderlay.sprite->alpha = 0.0f;
+	}
+
+	// fade in the new image
+	if (incomingUnderlay.sprite != nullptr)
+	{
+		// check to see if we've reached the end of the fade
+		if ((incomingUnderlay.sprite->alpha += dAlpha) >= 1.0f)
+		{
+			// fully opaque - we're done
+			incomingUnderlay.sprite->alpha = 1.0f;
+			currentUnderlay.Set(incomingUnderlay);
+			incomingUnderlay.Clear();
+
+			// update the image list to reflect the sprite change
+			UpdateDrawingList();
+		}
+	}
+
+	// if we're done, cancel the timer
+	if (incomingUnderlay.sprite == nullptr)
+		KillTimer(hWnd, underlayFadeTimerID);
+}
+
+void PlayfieldView::SizeUnderlay(UnderlayMedia &media, POINTF *normSize)
+{
+	// figure the image's native aspect ratio
+	float aspect = media.pixSize.cx != 0 ? 
+		static_cast<float>(media.pixSize.cy) / static_cast<float>(media.pixSize.cx) : 
+		1.0f;
+
+	// if the caller doesn't want the normalized size back, use a local temp
+	POINTF tmpNormSize;
+	if (normSize == nullptr)
+		normSize = &tmpNormSize;
+
+	// figure the options - use the options specified in the media,
+	// substituting the config settings for any missing elements
+	UnderlayOptions options = media.options;
+	options.ApplyDefaults(underlay);
+
+	// Figure the normalize sprite size to maintain the native image
+	// aspect ratio.
+	normSize->x = 1.0f;
+	normSize->y = normSize->x * aspect;
+
+	// update the sprite, if it's loaded
+	if (media.sprite != nullptr)
+	{
+		// Scale the sprite so that it fills the window width horizontally,
+		// and fills the wheel area vertically.
+		media.sprite->scale.x = fminf(
+			static_cast<float>(szLayout.cx) / static_cast<float>(szLayout.cy), 
+			options.maxWidth);
+		media.sprite->scale.y = options.height / normSize->y;
+
+		// Align the sprite at the Y offset from the bottom
+		media.sprite->offset.y = (-0.5f + options.yOffset) + (normSize->y*0.5f*media.sprite->scale.y);
+
+		// update the sprite's world matrix for the new size and position
+		media.sprite->UpdateWorld();
+	}
+}
+
 void PlayfieldView::MuteTableAudio(bool mute)
 {
 	if (incomingPlayfield.audio != nullptr)
@@ -7494,26 +7820,19 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 // transition to the prior game to the left.
 void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 {
-	// wheel layout parameters
-	const float r = 943.0f / 1980.0f;			// wheel radius
-	const float y = -1580.0f / 1980.0f;		// vertical location of wheel 
-	const float dTheta = 0.25f;				// angle between games
-	const float y0 = -0.07135f;				// center image offset at idle
-	const float targetWidth = 0.14f;        // target width of wheel image
-
 	// set the scale so that the image width comes out to the target width
-	float ratio = image->loadSize.x == 0.0f ? 1.0f : 0.14f / image->loadSize.x;
+	float ratio = image->loadSize.x == 0.0f ? 1.0f : WHEEL_IMAGE_WIDTH / image->loadSize.x;
 	image->scale.x = image->scale.y = ratio;
 
 	// calculate the angle for this game
-	float theta = float(n) * dTheta;
+	float theta = float(n) * WHEEL_DTHETA;
 
 	// adjust for the travel distance
-	theta -= progress * dTheta * fabs(float(animWheelDistance));
+	theta -= progress * WHEEL_DTHETA * fabs(float(animWheelDistance));
 
 	// calculate the new position
-	image->offset.x = r * sinf(theta);
-	image->offset.y = y + r * cosf(theta);
+	image->offset.x = WHEEL_R * sinf(theta);
+	image->offset.y = WHEEL_Y + WHEEL_R * cosf(theta);
 
 	// For images at the center or transitioning to/from the center spot,
 	// adjust the position and scale.  The center image is shown at (0,y0)
@@ -7526,13 +7845,13 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 	{
 		// Outgoing center image
 		image->scale.x = image->scale.y = 1.0f - (1.0f - ratio)*ramp;
-		image->offset.y = y0 - (y0 - image->offset.y)*ramp;
+		image->offset.y = WHEEL_Y0 - (WHEEL_Y0 - image->offset.y)*ramp;
 	}
 	else if (n == animWheelDistance)
 	{
 		// Animation target - incoming center image
 		image->scale.x = image->scale.y = ratio + (1.0f - ratio)*ramp;
-		image->offset.y += (y0 - image->offset.y)*ramp;
+		image->offset.y += (WHEEL_Y0 - image->offset.y)*ramp;
 	}
 
 	// update the world transform for the image
@@ -9247,6 +9566,16 @@ void PlayfieldView::UpdateDrawingList()
 	if (incomingPlayfield.sprite != nullptr)
 		sprites.push_back(incomingPlayfield.sprite);
 
+	// the underlay goes next, but hide it in attract mode if
+	// we're hiding wheel images
+	if (!attractMode.active || !attractMode.hideWheelImages)
+	{
+		if (currentUnderlay.sprite != nullptr)
+			sprites.push_back(currentUnderlay.sprite);
+		if (incomingUnderlay.sprite != nullptr)
+			sprites.push_back(incomingUnderlay.sprite);
+	}
+
 	// add the status lines
 	if (statusLineBkg != nullptr)
 		sprites.push_back(statusLineBkg);
@@ -9330,6 +9659,10 @@ void PlayfieldView::ScaleSprites()
 	// make the drop target sprite as large as possible, maintaining
 	// aspect ratio
 	ScaleSprite(dropTargetSprite, 1.0f, true);
+
+	// resize the underlay sprites as needed
+	SizeUnderlay(currentUnderlay);
+	SizeUnderlay(incomingUnderlay);
 }
 
 // Start a menu animation
@@ -10663,6 +10996,11 @@ void PlayfieldView::OnConfigChange()
 
 	// load the media crossfade time
 	crossfadeTime = cfg->GetInt(ConfigVars::CrossfadeTime, 120);
+
+	// load the underlay sizing
+	underlay.height = cfg->GetFloat(ConfigVars::UnderlayHeight, (WHEEL_TOP + 0.5f)*100.0f) / 100.0f;
+	underlay.yOffset = cfg->GetFloat(ConfigVars::UnderlayYOffset, 0.0f) / 100.0f;
+	underlay.maxWidth = cfg->GetFloat(ConfigVars::UnderlayMaxWidth, 1000.0f) / 100.0f;
 
 	// load the button mute and volume settings
 	muteButtons = cfg->GetBool(ConfigVars::MuteButtons, false);
@@ -17403,22 +17741,21 @@ void PlayfieldView::FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING 
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 	{
-		// fire the event, retrieving the event object
-		JsValueRef eventObjVal;
-		js->FireAndReturnEvent(eventObjVal, statusLineObj, jsStatusLineEvent, srcText, expandedText);
-
 		try
 		{
+			// fire the event, retrieving the event object
+			JsValueRef eventObjVal;
+			js->FireAndReturnEvent(eventObjVal, statusLineObj, jsStatusLineEvent, srcText, expandedText);
+
 			// replace the expanded text with the text in the event object
 			JavascriptEngine::JsObj eventObj(eventObjVal);
 			if (eventObj.Has(L"expandedText"))
 				expandedText = eventObj.Get<TSTRING>("expandedText");
 		}
-		catch (...)
+		catch (JavascriptEngine::CallException exc)
 		{
-			// clear and ignore any Javascript exception
-			JsValueRef jsexc;
-			JsGetAndClearException(&jsexc);
+			// log the javascript error
+			exc.Log(_T("Status Line Event"));
 		}
 	}
 }

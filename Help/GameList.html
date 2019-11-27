@@ -172,6 +172,13 @@
 </p>
 
 <p>
+   <a name="getMediaDir"></a>
+   <b>gameList.getMediaDir():</b>  Returns a string giving the Windows file system
+   path of the media folder.  This is the root folder where game media are stored,
+   as configured in the option settings.
+</p>
+
+<p>
    <a name="getWheelGame"></a>
    <b>gameList.getWheelGame(<i>n</i>):</b>  Returns a <a href="GameInfo.html">GameInfo</a>
    object representing the game at offset <i>n</i> from the selected game in the wheel.  The
@@ -218,6 +225,39 @@
    the specified metafilter and removes its effect on the game selection list.
    The current wheel selection list is updated as a side effect, as though
    you refreshed the current filter.
+</p>
+
+<p>
+   <a name="resolveMedia"></a>
+   <b>gameList.resolveMedia(<i>subfolder</i>, <i>baseFileName</i>, <i>type</i>):</b>
+   Resolves a "global" media file.  Global media are unrelated to any particular
+   game; they're used for the default background images when a game has no media of its
+   own for a given window, startup audio and video, and for the underlay.  This method
+   uses the same search algorithm that the system uses for its own global media files,
+   so it ensures that you find the same file the system would for a given case.
+   <i>subfolder</i> is a folder name within the main media folder where
+   the file is located, such as "Images" or "Videos".  <i>baseFileName</i> is
+   the root part of the file name to find, without any path or extension.  <i>type</i>
+   is an optional string specifying the media type to search for, which
+   determines which filename extensions will be matched, using the same
+   file type extensions that the system would use when searching for the
+   corresponding media type.  The possible values for <i>type</i> are:
+</p>
+<ul>
+   <li>"audio" = audio files (MP3, WAV)
+   <li>"image" = still image files (PNG, JPEG)
+   <li>"video" = video files (MP4, etc)
+   <li>"wave" = WAVE-format audio files (WAV)
+</ul>
+<p>
+   If you omit <i>type</i> (or set it to an empty string), the method simply
+   searches for the exact file name you specify, which in this case must include
+   the desired extension.  This lets you limit the search to, say, a .PNG file,
+   excluding other image file types that the system would normally accept.
+</p>
+<p>
+   If a matching file is found, the full file name (with path and extension) is
+   returned as a string.  If no match is found, <b>undefined</b> is returned.
 </p>
 
 <p>

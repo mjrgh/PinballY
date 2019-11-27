@@ -1630,7 +1630,7 @@ bool JavascriptEngine::ModuleParseTask::Execute()
 		path += 8;
 
 	// load the script
-	LogFile::Get()->Write(LogFile::JSLogging, _T("[Javscript] Loading module from file %ws\n"), path);
+	LogFile::Get()->Write(LogFile::JSLogging, _T("[Javascript] Loading module from file %ws\n"), path);
 	long len;
 	LogFileErrorHandler eh(_T(". "));
 	std::unique_ptr<WCHAR> contents(ReadFileAsWStr(WCHARToTCHAR(path), eh, len, 0));
@@ -3059,7 +3059,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		// Retrieve the double value.  Javscript represents all numbers as
+		// Retrieve the double value.  Javascript represents all numbers as
 		// doubles internally, so no conversion is required to convert to a
 		// native C++ double and there's no need for range checking.
 		double d;
@@ -5459,7 +5459,7 @@ JsValueRef CALLBACK JavascriptEngine::NativePointerData::ToString(JsValueRef cal
 			return ToStringZ(callee, isConstructCall, argv, 1, ctx);
 
 		// It's not a string type.  Use a descriptive representation, a la
-		// Javscript's generic Object.toString() format of "[Object Class]"
+		// Javascript's generic Object.toString() format of "[Object Class]"
 		{
 			WCHAR buf[40];
 			swprintf_s(buf, L"0x%p[%Iu bytes]", self->ptr, self->size);
@@ -9359,7 +9359,7 @@ JsValueRef CALLBACK JavascriptEngine::VariantData::SetBSTR(JsValueRef callee, bo
 // --------------------------------------------------------------------------
 //
 // OLE Automation interface.  This implements access to scripting objects
-// through IDispatch interfaces.  We provide automatic mapping to Javscript
+// through IDispatch interfaces.  We provide automatic mapping to Javascript
 // types to allow calling automation methods directly from Javascript.
 //
 
@@ -10091,7 +10091,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 //
 // dispType = int, dispatch type (DISPATCH_METHOD, DISPATCH_PROPERTYGET, DISPATCH_PROPERTYPUT)
 //
-// ...args = the Javscript caller's arguments
+// ...args = the Javascript caller's arguments
 // 
 JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, bool isConstructCall,
 	JsValueRef *argv, unsigned short argc, void *ctx)

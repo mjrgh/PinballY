@@ -925,39 +925,37 @@ public:
 
 	// Fire an event, returning the event object to the caller.  This allows
 	// information to be returned in properties of the event object.  eventObj
-	// receives a reference to the newly created event object.
+	// receives a reference to the newly created event object.  Note that this
+	// throws any Javascript errors as CallExceptions.
 	template<typename... ArgTypes>
 	bool FireAndReturnEvent(JsValueRef &eventObj, JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
 	{
-		try
-		{
-			// create the object, providing the reference to the caller
-			eventObj = CallNew(eventType, args...);
+		// create the object, providing the reference to the caller
+		eventObj = CallNew(eventType, args...);
 
-			// call the event dispatch method and return the result
-			return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, eventObj);
-		}
-		catch (...)
-		{
-			// clear any Javascript exception
-			JsValueRef jsexc;
-			JsGetAndClearException(&jsexc);
-
-			// on any error, return true to indicate that system default processing
-			// for the event should proceed
-			return true;
-		}
+		// call the event dispatch method and return the result
+		return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, eventObj);
 	}
 
 	// Fire an event.  This calls <target>.dispatchEvent(new <eventType>(args)).
 	template<typename... ArgTypes>
 	bool FireEvent(JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
 	{
-		// call the event dispatch method, discarding the event object
-		JsValueRef eventObj;
-		return FireAndReturnEvent(eventObj, eventTarget, eventType, args...);
+		try
+		{
+			// call the event dispatch method, discarding the event object
+			JsValueRef eventObj;
+			return FireAndReturnEvent(eventObj, eventTarget, eventType, args...);
+		}
+		catch (...)
+		{
+			// Return true to indicate that system default processing for 
+			// the event should proceed.  Since the Javascript event handler
+			// seems to be faulty, we'll just act like there's no event
+			// handler in the first place.
+			return true;
+		}
 	}
-		
 		
 	// Type converters for the native functions
 	template<typename T> class ToNativeConverter { };
@@ -2831,7 +2829,7 @@ protected:
 		// type signature
 		WSTRING sig;
 
-		// is the Javscript Native Type Wrapper object alive?
+		// is the Javascript Native Type Wrapper object alive?
 		bool isWrapperAlive;
 
 		// is the object referenced on the current dead object scan pass?

@@ -271,6 +271,48 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
 </ul>
 
 <p>
+   <a name="setUnderlay"></a>
+   <b>mainWindow.setUnderlay(<i>filename</i>, <i>options</i>):</b>  Display a new underlay
+   in the main window's wheel UI.  This loads the image file specified by <i>filename</i>
+   and displays it as the new underlay.
+</p>
+<p>
+   <i>options</i> is an optional object that you can use to specify additional
+   layout details for the underlay.  This lets you override the normal layout
+   parameters for an individual underlay file, in case you want to customize
+   the size or position of each underlay file separately.  If the <i>options</i>
+   object is omitted entirely, all of the layout parameters use the settings
+   from the configuration.  If any of the properties listed below are missing,
+   the values are individually taken from the configuration.  Any values you
+   specify in the <i>options</i> object override the settings for duration of
+   this underlay display (so the overrides remain in effect even if the
+   user edits the option settings or resizes the window).  The options only
+   last for the duration of this underlay display - they aren't persistently
+   attached to the file or anything crazy like that.  The following properties
+   can be specified:
+</p>
+<ul>
+   <li><b>height:</b> The display height of the underlay in the window, as
+   a percentage of the total window height.  E.g., the value <b>20.5</b> specifies 20.5%
+   of the window height.
+
+   <li><b>maxWidth:</b> The maximum display width of the underlay, as a percentage
+   of the window height.  The underlay is normally stretched to the full width
+   of the window, but <b>maxWidth</b> can be used to limit the stretch, to set
+   a limit on how far the aspect ratio is distorted.  This can be useful to
+   prevent excessive distortion when the window
+   is much wider than it is tall (as in typical landscape mode displays).
+
+   <li><b>yOffset:</b> The distance from the bottom of the window to use to position
+   the underlay vertically, as a percentage of the window height.
+</ul>
+<p>
+   See also <a href="UnderlayEvent.html">UnderlayEvent</a>, which describe the event
+   fired when the system is about to initiate its own change to the underlay because
+   of a new game selection in the wheel UI.
+</p>
+
+<p>
    <a name="showMenu"></a>
    <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Display a custom
    menu in the main window, in the same style as the main menu, exit menu, etc.

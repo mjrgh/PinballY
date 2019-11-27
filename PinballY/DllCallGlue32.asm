@@ -17,7 +17,7 @@ DllImportCallbackGlue PROC
     mov   ebp, esp
 
     ; Set up params for the callee: 
-    ; JavscriptEngine_CallCallback(context_object_pointer, original_argv_base)
+    ; JavascriptEngine_CallCallback(context_object_pointer, original_argv_base)
 	;
 	; Note that our immediate caller is the thunk routine, which CALLed us,
 	; adding another return address to the stack.  So the original caller's

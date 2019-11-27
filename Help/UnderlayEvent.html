@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>UnderlayEvent</h1>
+
+<p>
+   This event type is fired when the program is about to change the
+   <a href="Underlay.html">underlay</a> - the image layer displayed
+   at the bottom of the screen, under the wheel icons.  PinballY
+   checks for a change of underlay image every time a new game is
+   selected in the wheel UI, since the underlay image for a game
+   depends on its system.  
+</p>
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+<p>
+   The UnderlayEvent class has only one subtype:
+</p>
+<ul>
+   <li><b>underlaychange:</b> Fires when the system is about to change
+   the underlay as a result of changing the selected game.
+   <p>
+      There are a couple of subtleties to this event.  First, 
+      it only fires when the <i>system</i> initiates an underlay change,
+      as part of changing the selected game in the wheel UI.  The event      
+      doesn't fire for Javascript-initiated changes.  Second, it only
+      fires when the underlay is actually about to change, so it doesn't
+      necessarily fire on every new game selection - only those when
+      the underlay for the game is different from the one currently
+      displayed.  The underlay is considered different if it's a
+      different image file, <i>or</i> if any of the display options
+      for the current underlay were overridden from the configuration
+      defaults.
+   </p>
+</ul>
+
+
+<p>
+   As with most event types, an UnderlayEvent fires before the system carries
+   out its normal handling for the command.  This allows you to block the
+   underlay change entirely by calling preventDefault() on the event object in your handler.
+   For example, if you simply want to prevent system-triggered underlay changes across the board
+   (which you might wish to do if you're creating your own custom way of selecting the
+   underlay to use on each game change), you could do this:
+</p>
+<div class="code">
+mainWindow.on("underlaychange", ev => {
+    ev.preventDefault();
+});
+</div>
+<p>
+   You can also change the image file that the system loads, if you allow the
+   event to proceed.  The <b>filename</b> property of the event object (passed
+   as a parameter to your event handler) contains the full filename (with
+   directory path and extension) of the image file that the system intends
+   to load, as a string.  You can change the property to a new string with
+   a different filename, in which case the system will load that file instead.
+   For example, this adds an alternating "-blue" or "-red" suffix to the name
+   of the file that the system was  planning to load.
+</p>
+<div class="code">
+let suffix = ["-blue$1", "-red$1"];
+mainWindow.on("underlaychange", ev => {
+    ev.filename = ev.filename.replace(/(\.\w+)$/, suffix[0]);
+    suffix.push(suffix.shift());
+});
+</div>
+
+
+<h2>Properties</h2>
+
+<ul>
+   <li><b>filename:</b>  A string giving the full Windows file name (with directory
+   path and extension) of the new underlay file that the system has selected for
+   the game.  If you change the value of this property, the system will load the
+   file you specify in the new value instead of the file it originally planned to load.
+
+   <li><b>game:</b> A <a href="GameInfo.html">GameInfo</a> object representing the
+   newly selected game that triggered the underlay change.
+
+   <li><b>options:</b>  An object containing overrides for the layout options from
+   the configuration.  This is simply set to an empty object when the event initially
+   fires.  Event handlers can populate this with properties to override the default
+   settings in the configuration, for the underlay display height, bottom offset,
+   and so on.  For a list of the properties you can set, see
+   <a href="MainWindowObject.html#setUnderlay">mainWindow.setUnderlay()</a>.  The
+   properties for this object are the same as the properties for the options
+   parameter to setUnderlay().
+   
+</ul>
+
+</body>
+</html>
