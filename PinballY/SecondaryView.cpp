@@ -230,7 +230,7 @@ void SecondaryView::SyncCurrentGame()
 	// Get the game to display, according to the current mode
 	auto gl = GameList::Get();
 	GameListItem *game = nullptr;
-	if (Application::Get()->IsGameRunning())
+	if (Application::Get()->IsGameProcessRunning())
 	{
 		// Running game mode.  Show media for the running game,
 		// but only if the game is specifically designated for

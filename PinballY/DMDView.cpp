@@ -876,7 +876,7 @@ bool DMDView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	// of going directly to a replay of the video.  If a game is
 	// currently running, skip the score display and just loop the
 	// video - we suppress score display while running.
-	if (msg == AVPMsgLoopNeeded && highScoreImages.size() != 0 && !Application::Get()->IsGameRunning())
+	if (msg == AVPMsgLoopNeeded && highScoreImages.size() != 0 && !Application::Get()->IsGameActive())
 	{
 		// stop the video
 		if (currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())

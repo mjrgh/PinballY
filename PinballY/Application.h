@@ -286,22 +286,44 @@ public:
 	// Kill the running game, if any
 	void KillGame();
 
+	// Has a Kill Game command been issued?
+	bool IsKillPending() const { return gameMonitor != nullptr && gameMonitor->closeCommandIssued; }
+
 	// Resume the running game, bringing it to the foreground
 	void ResumeGame();
 
+	// Get the game monitor state
+	enum GameMonitorState
+	{
+		NoGameMonitor,          // no game monitor thread is active
+		GameMonitorStarting,    // starting game process (or running Before steps)
+		GameMonitorRunning,     // game running
+		GameMonitorExiting,     // waiting for game or After steps to finish
+		GameMonitorDone         // game monitor thread exited
+	};
+	GameMonitorState GetGameState() const { return gameMonitor != nullptr ? gameMonitor->state : NoGameMonitor; }
+
+	// Is a game active?  This is true if we're anywhere in the game execution
+	// process, including Before and After processing steps.
+	bool IsGameActive() const 
+	{
+		auto state = GetGameState();
+		return !(state == NoGameMonitor || state == GameMonitorDone);
+	}
+
 	// Is a game running?
-	bool IsGameRunning() const { return gameMonitor != nullptr && gameMonitor->IsGameRunning(); }
+	bool IsGameProcessRunning() const { return gameMonitor != nullptr && gameMonitor->IsGameProcessRunning(); }
 
 	// Is the game running in Admin mode?
 	bool IsGameInAdminMode() const { return gameMonitor != nullptr && gameMonitor->IsAdminMode(); }
 
 	// Get the ID of the running game
 	LONG GetRunningGameId() const
-		{ return gameMonitor != nullptr && gameMonitor->IsGameRunning() ? gameMonitor->gameId : 0; }
+		{ return gameMonitor != nullptr && IsGameActive() ? gameMonitor->gameId : 0; }
 
 	// get the system config index of the running game
 	int GetRunningGameSystem() const
-		{ return gameMonitor != nullptr && gameMonitor->IsGameRunning() ? gameMonitor->gameSys.configIndex : -1; }
+		{ return gameMonitor != nullptr && IsGameActive() ? gameMonitor->gameSys.configIndex : -1; }
 
 	// Try to steal focus from the runing game and set it to our window
 	void StealFocusFromGame();
@@ -645,8 +667,8 @@ protected:
 		// is the thread still running?
 		bool IsThreadRunning();
 
-		// is the game still running?
-		bool IsGameRunning() const;
+		// is the game process running?
+		bool IsGameProcessRunning() const;
 
 		// is it running in Admin mode?
 		bool IsAdminMode() const { return isAdminMode; }
@@ -670,6 +692,9 @@ protected:
 
 		// apply variable substitution to a command line
 		TSTRING SubstituteVars(const TSTRING &str);
+
+		// Monitor state
+		GameMonitorState state = GameMonitorStarting;
 
 		// Command used to launch the game.  This can in principle be any
 		// command, since Javascript can specify an arbitrary command code
@@ -847,6 +872,21 @@ protected:
 		// Close Game event for this thread.  The application sets 
 		// this event when the user closes the game through the UI.
 		HandleHolder closeEvent;
+
+		// Flag: the Close command has been used during this game session.
+		// This is set to true when the user executes a Close command.
+		//
+		// This isn't *quite* the same thing as closeEvent.  The event
+		// is used to exit out of waits for child processes to finish,
+		// including the game process AND the before/after steps.  The
+		// event is therefore context-sensitive: it means "exit out of
+		// the current process", whereas this flag means "end the game".
+		// Once this flag is set, it stays set, to let us know that the
+		// user has requested closing the game.  The closeEvent, on the
+		// other hand, gets cleared before the After steps run, because
+		// it can be used *separately* to cancel the After steps if 
+		// they get stuck.
+		bool closeCommandIssued = false;
 
 		// Set the close event
 		void SetCloseEvent() { SetEvent(closeEvent); }

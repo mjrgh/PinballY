@@ -1448,9 +1448,16 @@ TSTRING Application::ExpandGameSysVars(TSTRING &str, GameSystem *system, GameLis
 
 void Application::KillGame()
 {
-	// make sure the process is still running
+	// if the game monitor is running, set the close event to signal it
+	// to terminate the game
 	if (gameMonitor != nullptr)
-		gameMonitor->CloseGame();
+	{
+		// flag that the game is exiting
+		gameMonitor->closeCommandIssued = true;
+
+		// set the event to break out of any wait the game monitor is doing
+		gameMonitor->SetCloseEvent();
+	}
 }
 
 void Application::ResumeGame()
@@ -1761,15 +1768,16 @@ bool Application::GameMonitorThread::IsThreadRunning()
 	return hThread != NULL && WaitForSingleObject(hThread, 0) == WAIT_TIMEOUT;
 }
 
-bool Application::GameMonitorThread::IsGameRunning() const
+bool Application::GameMonitorThread::IsGameProcessRunning() const
 {
-	return hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT;
+	bool retval = hGameProc != NULL && WaitForSingleObject(hGameProc, 0) == WAIT_TIMEOUT;
+	return retval;
 }
 
 void Application::GameMonitorThread::CloseGame()
 {
 	// if the game is running, close its windows
-	if (IsGameRunning())
+	if (IsGameProcessRunning())
 	{
 		// flag that we've tried closing the game
 		closedGameProc = true;
@@ -1877,14 +1885,11 @@ void Application::GameMonitorThread::CloseGame()
 				TerminateProcess(hGameProc, 0);
 		}
 	}
-
-	// signal the close-game event to the monitor thread
-	SetCloseEvent();
 }
 
 void Application::GameMonitorThread::BringToForeground()
 {
-	if (IsGameRunning())
+	if (IsGameProcessRunning())
 	{
 		// find the other app's first window
 		struct context {
@@ -2207,6 +2212,9 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// thread is just about to exit, release our reference.
 	self->Release();
 
+	// thread exiting - set the state to Done for observers
+	self->state = GameMonitorDone;
+
 	// return the exit code from the main thread handler
 	return result;
 }
@@ -2515,10 +2523,17 @@ DWORD Application::GameMonitorThread::Main()
 
 			// Reset the Close event.  The Close event can be used to terminate
 			// any step of the launch sequence, including Run Before and Run After
-			// commands.  But it only cancels the step in effect when it was used;
-			// it doesn't cancel any subsequent steps.  So count this as the start
-			// of the current step, and therefore clear any Close event that was
-			// previously signaled.
+			// commands.  But it only cancels that step.  It doesn't cancel the
+			// following steps, because we ALWAYS want to run through the Before
+			// and After commands.  Those commands can change the system state,
+			// so it's important to execute them in all cases.  
+			//
+			// The only reason Close even applies to the Before and After steps 
+			// is to give the user a last-resort way to un-stick stuck processes.
+			// In that respect, the Close command is context sensitive.  At all
+			// times, it means "Exit out of the game".  But if it occurs during
+			// a Before/After process, it also means "Cancel this step".
+			// Resetting the event now effectively establishes that context.
 			monitor->ResetCloseEvent();
 
 			// apply window rotations
@@ -2880,7 +2895,7 @@ DWORD Application::GameMonitorThread::Main()
 		createFlags |= CREATE_UNICODE_ENVIRONMENT;
 	}
 
-	// Try launching the new process
+	// Try launching the new process.
 	const TSTRING &workingPath = GetLaunchParam("workingPath", gameSys.workingPath);
 	PROCESS_INFORMATION procInfo;
 	ZeroMemory(&procInfo, sizeof(procInfo));
@@ -3254,8 +3269,8 @@ DWORD Application::GameMonitorThread::Main()
 	// Count this as the starting time for the actual game session
 	launchTime = GetTickCount64();
 
-	// switch the playfield view to Running mode
-	if (playfieldView != nullptr)
+	// switch the playfield view to Running mode (unless we've received a Close command already)
+	if (playfieldView != nullptr && !closeCommandIssued)
 	{
 		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
 		playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
@@ -3558,6 +3573,10 @@ DWORD Application::GameMonitorThread::Main()
 		}
 	}
 
+	// we've now finished all startup preliminaries, so we're officiall
+	// in Running mode
+	state = GameMonitorRunning;
+
 	// Reduce our process priority while the game is running, to minimize
 	// the amount of CPU time we take away from the game while we're in
 	// the background.  This should only be considered a secondary way of
@@ -3756,7 +3775,7 @@ DWORD Application::GameMonitorThread::Main()
 				case WAIT_OBJECT_0 + 1:
 				case WAIT_OBJECT_0 + 2:
 				case WAIT_OBJECT_0 + 3:
-					// The game process exited
+					// The game process exited, or the user canceled, or the program is exiting
 					captureOkay = false;
 					abortCapture = true;
 					LogFile::Get()->Write(LogFile::CaptureLogging, 
@@ -4458,6 +4477,9 @@ DWORD Application::GameMonitorThread::Main()
 
 	// note the exit time
 	exitTime = GetTickCount64();
+
+	// we're not in post-game state
+	state = GameMonitorExiting;
 
 	// let the main window know that the game child process has exited
 	if (playfieldView != nullptr)

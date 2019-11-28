@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0)
+? (1.0.0 Beta 15)
 
 * "Underlay" graphics have been added.  The underlay is an image layer
 displayed at the bottom of the screen, in the area where the "wheel"
@@ -224,6 +224,16 @@ full file system path of the PinballY executable).
 * The Javascript gameList object has new methods: getMediaDir(),
 resolveMedia(). See the gameList object's section in the help for
 details.
+
+* Pressing the EXIT button to terminate a game should work better if
+you happen to press it while the game is still starting up.  In the
+past, PinballY didn't always close the game application properly if
+you hit the EXIT button while Windows was still in middle of launching
+the new application.  Keyboard focus also sometimes ended up in the
+wrong window in these cases.  PinballY is now a little smarter about
+handling the EXIT button during the early stages of a game launch, so
+it should work more consistently now.  (Issue #79 on github.)
+
 
 
 05-31-2019 (1.0.0 Beta 14)

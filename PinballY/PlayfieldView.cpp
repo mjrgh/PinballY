@@ -1664,7 +1664,7 @@ void PlayfieldView::JsPlayGame(JsValueRef gameval, JsValueRef optsval)
 
 		// make sure conditions allow launching a game
 		if (Application::Get()->IsGameQueuedForLaunch()
-			|| Application::Get()->IsGameRunning()
+			|| Application::Get()->IsGameActive()
 			|| batchCaptureMode.active)
 			return js->Throw(_T("Can't launch now because a game is already running")), static_cast<void>(0);
 
@@ -3264,7 +3264,7 @@ void PlayfieldView::OnAppActivationChange(bool foreground)
 			// has exited.  If the child is in fact no longer running, there's
 			// no need for the pause menu, as we're just returning to normal
 			// operation.
-			if (Application::Get()->IsGameRunning())
+			if (Application::Get()->IsGameActive())
 				ShowPauseMenu(false);
 		}
 		else
@@ -3944,7 +3944,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 
 	case ID_KILL_GAME:
 		// check if a game is running
-		if (Application::Get()->IsGameRunning())
+		if (Application::Get()->IsGameActive())
 		{
 			// If we're in batch mode, require two cancel commands before we
 			// actually carry it out, to avoid accidental interruption of
@@ -4002,7 +4002,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 
 	case ID_PAUSE_GAME:
 		// ignore this unless a game is running
-		if (Application::Get()->IsGameRunning())
+		if (Application::Get()->IsGameActive())
 		{
 			// Try to grab focus from the running game.  Assuming we're
 			// successful, the Pause menu will automatically be displayed
@@ -11710,6 +11710,10 @@ void PlayfieldView::ShowMainMenu()
 // if we're back here while it's running.
 void PlayfieldView::ShowPauseMenu(bool usingExitKey)
 {
+	// skip this if game termination is pending
+	if (Application::Get()->IsKillPending())
+		return;
+
 	// set up a menu descriptor
 	std::list<MenuItemDesc> md;
 
