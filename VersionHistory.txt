@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 15)
+11-28-2019 (1.0.0 Beta 15)
 
 * "Underlay" graphics have been added.  The underlay is an image layer
 displayed at the bottom of the screen, in the area where the "wheel"
@@ -151,10 +151,15 @@ As always, the additional logging is designed to help troubleshoot
 problems in those area.  The new logging can be enabled via the
 Log File page in the options dialog.
 
-* In the past, still image files that us the sRGB color space were
-displayed with inaccurate colors on-screen.  In most cases, the
-rendered colors were far too dark, and sometimes looked strangely
-tinted.  This has been corrected.
+* Some image file formats can specify a "color space", which
+determines how the colors in the file are meant to be interpreted into
+an on-screen display.  Some graphics programs use this to store images
+in a color space known as sRGB.  In the past, PinballY didn't pay any
+attention to this metadata when present, so image files saved in sRGB
+color space were displayed with inaccurate colors on-screen.  This
+made them look a little off - in particular, the rendered colors were
+usually too dark, and sometimes looked tinted.  This has been
+corrected.  (Related to issue #67 on github.)
 
 * When PinballY updates the settings file (Settings.txt), it now
 writes the updates to a temporary file rather than directly

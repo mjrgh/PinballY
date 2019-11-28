@@ -88,7 +88,7 @@ protected:
 	// before the message is delivered.  So instead, we assign
 	// each object a unique ID at creation time, and then use
 	// a map to connect these to C++ objects.
-	UINT64 callbackID;
+	LONG_PTR callbackID;
 
 	// map of live objects, indexed by callback ID
 	static std::unordered_map<LONG_PTR, DShowAudioPlayer*> callbackIDMap;
