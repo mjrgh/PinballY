@@ -5,6 +5,9 @@ PinballY Update History
 * Underlays weren't loaded if Javascript wasn't active.  This has been
 fixed.
 
+* Fixed a crash at load if the new "full screen restore method"
+variable wasn't defined in the settings files.
+
 
 11-28-2019 (1.0.0 Beta 15)
 
