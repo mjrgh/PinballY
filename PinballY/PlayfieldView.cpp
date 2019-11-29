@@ -7425,28 +7425,36 @@ void PlayfieldView::SyncUnderlay()
 	// if we're still go for launch, apply the new underlay
 	if (ok)
 	{
+		// set up the default options
+		TSTRING s = filename;
+		UnderlayOptions options;
+
 		// generate a Javasript event
-		try
+		if (auto js = JavascriptEngine::Get(); js != nullptr)
 		{
-			auto js = JavascriptEngine::Get();
-			JsValueRef ev;
-			if (js->FireAndReturnEvent(ev, jsMainWindow, jsUnderlayChangeEvent, BuildJsGameInfo(curGame), filename))
+			try
 			{
-				// get the filename from the event, in case the event handler rewrote it
-				JavascriptEngine::JsObj eventObj(ev);
-				TSTRING s = eventObj.Get<TSTRING>("filename");
+				JsValueRef ev;
+				ok = js->FireAndReturnEvent(ev, jsMainWindow, jsUnderlayChangeEvent, BuildJsGameInfo(curGame), filename);
+				if (ok)
+				{
+					// get the filename from the event, in case the event handler rewrote it
+					JavascriptEngine::JsObj eventObj(ev);
+					s = eventObj.Get<TSTRING>("filename");
 
-				// set any override options in the event
-				UnderlayOptions options(eventObj.Get<JavascriptEngine::JsObj>("options"));
-
-				// load the underlay
-				LoadUnderlay(s.c_str(), &options);
+					// set any override options in the event
+					options = UnderlayOptions(eventObj.Get<JavascriptEngine::JsObj>("options"));
+				}
+			}
+			catch (JavascriptEngine::CallException exc)
+			{
+				exc.Log(_T("Underlay change event"));
 			}
 		}
-		catch (JavascriptEngine::CallException exc)
-		{
-			exc.Log(_T("Underlay change event"));
-		}
+
+		// if Javascript didn't cancel the event, load the underlay
+		if (ok)
+			LoadUnderlay(s.c_str(), &options);
 	}
 }
 

@@ -1,5 +1,11 @@
 PinballY Update History
 
+11-29-2019 (1.0.0 Beta 16)
+
+* Underlays weren't loaded if Javascript wasn't active.  This has been
+fixed.
+
+
 11-28-2019 (1.0.0 Beta 15)
 
 * "Underlay" graphics have been added.  The underlay is an image layer
