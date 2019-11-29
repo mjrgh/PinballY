@@ -268,7 +268,7 @@ bool FrameWin::GetFullScreenRestorePosition(RECT *fullScreenPos, const RECT *pre
 {
 	// get the full-screen restore method from the settings
 	auto cfg = ConfigManager::GetInstance();
-	const TCHAR *method = cfg->Get(ConfigVars::FullScreenRestoreMethod);
+	const TCHAR *method = cfg->Get(ConfigVars::FullScreenRestoreMethod, _T(""));
 
 	LogFile::Get()->Group(LogFile::WindowLayoutLogging);
 	LogFile::Get()->Write(LogFile::WindowLayoutLogging,
