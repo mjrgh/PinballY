@@ -482,8 +482,12 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system,
 
 bool SecondaryView::ShowMediaWhenRunning(GameListItem *game, GameSystem *system) const
 {
-	// my window ID
-	const TCHAR *id = ShowWhenRunningWindowId();
+	return TestShowMediaWhenRunning(game, system, ShowWhenRunningWindowId());
+}
+
+bool SecondaryView::TestShowMediaWhenRunning(GameListItem *game, GameSystem *system, const TCHAR *id)
+{
+	// note the length of the ID string
 	size_t idLen = _tcslen(id);
 
 	// Test a space-delimited Show When Running list.  If the window ID

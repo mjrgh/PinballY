@@ -12,6 +12,7 @@
 #include "DOFClient.h"
 #include "VLCAudioVideoPlayer.h"
 #include "PlayfieldView.h"
+#include "SecondaryView.h"
 #include "VPinMAMEIfc.h"
 #include "DMDView.h"
 #include "DMDFont.h"
@@ -669,18 +670,26 @@ void RealDMD::Shutdown()
 
 void RealDMD::OpenSession()
 {
-	// open the DLL session
-	if (Open_ != NULL)
+	// if the session isn't already open, open it
+	if (!sessionOpen)
 	{
-		CriticalSectionLocker dmdLocker(dmdLock);
-		Open_();
-	}
+		// open the DLL session
+		if (Open_ != NULL)
+		{
+			// lock DLL access while opening the session
+			CriticalSectionLocker dmdLocker(dmdLock);
+			Open_();
 
-	// Set a dummy ROM initially.  dmd-extensions will crash in some
-	// cases if we make other calls before setting a game, since it
-	// assumes from the VPM usage pattern that a ROM is always set
-	// exactly once per session as the second call.
-	SetGameSettings("PinballY", defaultOpts);
+			// the session is now open
+			sessionOpen = true;
+		}
+
+		// Set a dummy ROM initially.  dmd-extensions will crash in some
+		// cases if we make other calls before setting a game, since it
+		// assumes from the VPM usage pattern that a ROM is always set
+		// exactly once per session as the second call.
+		SetGameSettings("PinballY", defaultOpts);
+	}
 }
 
 void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
@@ -717,7 +726,7 @@ void RealDMD::SetGameSettings(const char *gameName, const tPMoptions &opts)
 
 void RealDMD::CloseSession()
 {
-	if (IsDllValid() && enabled && Close_ != NULL)
+	if (sessionOpen && IsDllValid() && enabled && Close_ != NULL)
 	{
 		// check what kind of DLL we're talking to
 		if (dmdExtInfo.matched && dmdExtInfo.virtualEnabled && !dmdExtInfo.virtualCloseFix)
@@ -733,6 +742,9 @@ void RealDMD::CloseSession()
 			// other processes to access the DMD
 			CriticalSectionLocker dmdLocker(dmdLock);
 			Close_();
+
+			// the session is no longer open
+			sessionOpen = false;
 		}
 	}
 }
@@ -763,13 +775,22 @@ void RealDMD::SetMirrorVert(bool f)
 	}
 }
 
-void RealDMD::BeginRunningGameMode()
+bool RealDMD::ShowMediaWhenRunning(GameListItem *game, GameSystem *system)
 {
-	// clear media while running
-	ClearMedia();
+	return SecondaryView::TestShowMediaWhenRunning(game, system, _T("realdmd"));
+}
 
-	// close the session
-	CloseSession();
+void RealDMD::BeginRunningGameMode(GameListItem *game, GameSystem *system)
+{
+	// check the options to see if we should stay attached
+	if (!ShowMediaWhenRunning(game, system))
+	{
+		// we're not staying open - clear media
+		ClearMedia();
+
+		// close the session
+		CloseSession();
+	}
 }
 
 void RealDMD::EndRunningGameMode()

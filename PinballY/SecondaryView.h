@@ -42,6 +42,14 @@ public:
 	// apply a working audio level to playing media
 	void ApplyWorkingAudioVolume(int volPct);
 
+	// Test the "Show When Running" option settings for a given
+	// game for a given window ID.  (This is public so that the
+	// real DMD interface can share this mechanism with the
+	// background window classes.  The real DMD isn't a true
+	// window, so it doesn't inherit from SecondaryView, but
+	// this aspect of its behavior is shared.)
+	static bool TestShowMediaWhenRunning(GameListItem *game, GameSystem *system, const TCHAR *windowID);
+
 protected:
 	// Get the next window to update during a game transition.
 	// We update the windows one at a time to spread out the extra 

@@ -3631,8 +3631,11 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// start polling for when DOF is ready
 		SetTimer(hWnd, dofReadyTimerID, 250, NULL);
 
-		// reinstate the real DMD
-		InitRealDMD(SilentErrorHandler());
+		// reinstate the real DMD, if we closed it
+		if (realDMD == nullptr)
+			InitRealDMD(SilentErrorHandler());
+
+		// exit running game mode in the DMD
 		if (realDMD != nullptr)
 			realDMD->EndRunningGameMode();
 
@@ -4892,10 +4895,11 @@ void PlayfieldView::LaunchQueuedGame()
 	dof.SetUIContext(L"");
 	DOFClient::Shutdown(false);
 
-	// Also shut down the real DMD, so that the game can take it over
-	if (realDMD != nullptr)
+	// Also shut down the real DMD, so that the game can take it over.
+	// Skip this if the real DMD is set to stay active during the game.
+	if (realDMD != nullptr && !realDMD->ShowMediaWhenRunning(game, sys))
 	{
-		realDMD->BeginRunningGameMode();
+		realDMD->BeginRunningGameMode(game, sys);
 		realDMD.reset(nullptr);
 	}
 
@@ -12966,6 +12970,7 @@ void PlayfieldView::EditGameInfo()
 			{
 			case IDC_CK_SHOW_WHEN_RUNNING_BG:
 			case IDC_CK_SHOW_WHEN_RUNNING_DMD:
+			case IDC_CK_SHOW_WHEN_RUNNING_REALDMD:
 			case IDC_CK_SHOW_WHEN_RUNNING_TOPPER:
 			case IDC_CK_SHOW_WHEN_RUNNING_INSTCARD:
 				// custom-draw the "show when running" checkboxes
@@ -13466,6 +13471,7 @@ void PlayfieldView::EditGameInfo()
 			};
 			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
 			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
+			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_REALDMD, _T("realdmd"));
 			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
 			TestShowWhenRunning(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
 			gl->SetShowWhenRunning(game, showWhenRunning.c_str());
@@ -13879,6 +13885,7 @@ void PlayfieldView::EditGameInfo()
 			};
 			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_BG, _T("bg"));
 			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_DMD, _T("dmd"));
+			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_REALDMD, _T("realdmd"));
 			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_TOPPER, _T("topper"));
 			SetShowWhenRunningCheckbox(IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, _T("instcard"));
 

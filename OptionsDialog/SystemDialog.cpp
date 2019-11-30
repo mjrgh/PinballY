@@ -19,6 +19,7 @@ IMPLEMENT_DYNAMIC(SystemDialog, OptionsPage)
 BEGIN_MESSAGE_MAP(SystemDialog, OptionsPage)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_BG, OnCustomDraw)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_DMD, OnCustomDraw)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_REALDMD, OnCustomDraw)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_TOPPER, OnCustomDraw)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, OnCustomDraw)
 END_MESSAGE_MAP()
@@ -308,6 +309,7 @@ void SystemDialog::InitVarMap()
 	TSTRING showWindowsVar = cv(".ShowWindowsWhileRunning");
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("bg"), IDC_CK_SHOW_WHEN_RUNNING_BG, true));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("dmd"), IDC_CK_SHOW_WHEN_RUNNING_DMD, true));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("realdmd"), IDC_CK_SHOW_WHEN_RUNNING_REALDMD, true));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("topper"), IDC_CK_SHOW_WHEN_RUNNING_TOPPER, true));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar.c_str(), _T("instcard"), IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, true));
 }

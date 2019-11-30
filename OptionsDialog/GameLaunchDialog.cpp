@@ -25,6 +25,7 @@ void GameLaunchDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("HideTaskbarDuringGame"), IDC_CK_HIDE_TASKBAR, true));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("bg"), IDC_CK_SHOW_WHEN_RUNNING_BG, false));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("dmd"), IDC_CK_SHOW_WHEN_RUNNING_DMD, false));
+	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("realdmd"), IDC_CK_SHOW_WHEN_RUNNING_REALDMD, false));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("topper"), IDC_CK_SHOW_WHEN_RUNNING_TOPPER, false));
 	varMap.emplace_back(new KeepWindowCkMap(showWindowsVar, _T("instcard"), IDC_CK_SHOW_WHEN_RUNNING_INSTCARD, false));
 }

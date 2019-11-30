@@ -1,5 +1,26 @@
 PinballY Update History
 
+? (1.0.0 Beta 17)
+
+* You can now continue to show PinballY media on the real DMD device
+while a game is running.  This works the same as the existing "Keep
+windows open when running" options for the regular windows, so you can
+enable or disable it globally, for all games using a given system, and
+for individual games.  To set the global defaults, use the Game Launch
+page in the settings dialog; to set the default for each system, use
+the system's settings page; and for individual games, use the Edit
+Game Details dialog.  In each of these dialogs, you'll see a new "Real
+DMD" checkbox alongside the existing checkboxes for the backglass
+window, instruction card window, and so on.
+
+Note that enabling real DMD media playback during a game will prevent
+the game itself from accessing the DMD device, since the devices only
+allow access from one program at a time.  So you'll probably only want
+to enable this option for games and systems that don't use the DMD
+device themselves.
+
+
+
 11-29-2019 (1.0.0 Beta 16)
 
 * Underlays weren't loaded if Javascript wasn't active.  This has been

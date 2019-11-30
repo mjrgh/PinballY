@@ -812,14 +812,18 @@ void HighScores::Thread::Main()
 	// of events.
 	//
 	// If there's no path entry, it means that we're running PINemHi
-	// for a generic query (to get the program verion number, for
+	// for a generic query (to get the program version number, for
 	// example), so there's no INI file entry to check or patch.
 	CSTRING nvramPathC;
 	if (pathEntry != nullptr && pathEntry->path != (nvramPathC = TSTRINGToCSTRING(nvramPath)))
 	{
+		// we need to update the INI file
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("High score retrieval: opening PinEMHi INI file for update\n"));
+
 		// open the INI file
 		FILE *fp;
-		if (_tfopen_s(&fp, hs->iniFileName.c_str(), _T("w")) == 0)
+		if (int err = _tfopen_s(&fp, hs->iniFileName.c_str(), _T("w")); err == 0)
 		{
 			// write the contents
 			for (size_t i = 0; i < hs->iniLines.size(); ++i)
@@ -845,6 +849,9 @@ void HighScores::Thread::Main()
 		else
 		{
 			// failure
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ error opening PinEMHi INI file for update: %s\n"),
+				FileErrorMessage(err).c_str());
 			SendResult(NotifyInfo::IniFileUpdateFailed);
 			return;
 		}
@@ -875,6 +882,10 @@ void HighScores::Thread::Main()
 	// don't let the child inherit our end of the stdout pipe
 	SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
 	SetHandleInformation(hWritePipe, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+
+	// log the command line
+	LogFile::Get()->Write(LogFile::HiScoreLogging, 
+		_T("PinEMHi command line: \"%s\" %s\n"), exe, cmdline.c_str());
 
 	// Launch the program.  Use CREATE_NO_WINDOW to run it invisibly,
 	// so that we don't get UI cruft from flashing a console window
@@ -925,13 +936,20 @@ void HighScores::Thread::Main()
 			ni.results.append(AnsiToTSTRING(buf));
 		}
 
+		// log the results
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("PinEMHi completed successfully; results:\n>>>\n%s\n>>>\n"), ni.results.c_str());
+
 		// Notify the callback window of the result
 		SendResult(NotifyInfo::Success);
 	}
 	else
 	{
-		// The process seems to be stuck.  Kill it so that we don't
-		// leave a zombie process hanging around.
+		// Timed out - the PinEMHi child process seems to be stuck
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("!! PinEMHi process wait timed out; killing process\n"));
+
+		// Kill it so that we don't leave a zombie process hanging around
 		SaferTerminateProcess(pinfo.hProcess);
 
 		// Notify the callback of the failure

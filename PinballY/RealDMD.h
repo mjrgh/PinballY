@@ -10,6 +10,8 @@
 class ErrorHandler;
 class GameListItem;
 class VLCAudioVideoPlayer;
+class GameListItem;
+class GameSystem;
 
 class RealDMD : public VLCAudioVideoPlayer::DMD
 {
@@ -41,8 +43,11 @@ public:
 	// Enter/exit running game mode.  If possible, we'll close our
 	// session with the DMD while a game is running, to avoid any
 	// contention with the game over access to the physical device.
-	void BeginRunningGameMode();
+	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
+
+	// Do we continue showing media during the given game launch?
+	bool ShowMediaWhenRunning(GameListItem *game, GameSystem *system);
 
 	// Receive notification that new high scores have been received
 	// for a given game.
@@ -107,6 +112,9 @@ protected:
 	// successfully loaded the DLL, such as when dmd-extensions is
 	// used and it's in virtual mode.
 	bool enabled;
+
+	// Is the session open?
+	bool sessionOpen = false;
 
 	// Color space for a stored image.  This specifies the type of
 	// pixel data stored in the image, and the render function we 

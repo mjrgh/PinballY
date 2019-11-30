@@ -1260,8 +1260,17 @@ HideTaskbarDuringGame = 1
 #
 #   bg       = backglass
 #   dmd      = DMD score area
+#   realdmd  = real DMD device
 #   topper   = topper window
 #   instcard = instruction card window
+#
+# Note that "realdmd" is a bit different from the others in that
+# it refers to the real DMD device rather than to a window.  But
+# the principle is the same: if the real DMD is included here,
+# we'll continue to show our image/video media on the real DMD
+# device while games are running.  That will normally prevent the
+# game from being able to access the device, since most of these
+# devices only allow one program to access them at a time.
 #
 ShowWindowsWhileRunning = 
 
