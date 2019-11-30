@@ -1327,6 +1327,9 @@ protected:
 	// asynchronous loader for the playfield sprite
 	AsyncSpriteLoader playfieldLoader;
 
+	// Underlay enabled
+	bool underlayEnabled = true;
+
 	// Underlay layout settings 
 	struct UnderlayOptions
 	{

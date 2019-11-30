@@ -887,10 +887,13 @@ UpperStatus.UpdateTime = 2513
 LowerStatus.UpdateTime = 2233
 
 
-# Wheel underlay sizing.  The underlay is an image that's displayed
-# displayed near the bottom of the screen, in the area where the
-# next/previous game icons are shown.  These variables let you
-# adjust the sizing to get the layout effect you prefer.
+# Enable the wheel underlay?  The underlay is an image that's 
+# displayed displayed near the bottom of the screen, in the area 
+# where the next/previous game icons are shown.  
+Underlay.Enable = 1
+
+# Wheel underlay sizing.  These variables let you adjust the 
+# sizing to get the layout effect you prefer.
 #
 # The sizes are given as percentages of the window's height.  This
 # makes them adapt automatically to different window layouts.

@@ -15,9 +15,12 @@ window, instruction card window, and so on.
 
 Note that enabling real DMD media playback during a game will prevent
 the game itself from accessing the DMD device, since the devices only
-allow access from one program at a time.  So you'll probably only want
-to enable this option for games and systems that don't use the DMD
-device themselves.
+allow access from one program at a time.
+
+* A new checkbox option in the Game Wheel section of the settings
+dialog lets you enable or disable the underlay display.  (This doesn't
+affect Javascript from displaying underlays; it only prevents the
+system from updating the underlay when selecting a new game.)
 
 
 

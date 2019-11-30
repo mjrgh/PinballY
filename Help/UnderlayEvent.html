@@ -85,6 +85,12 @@ mainWindow.on("underlaychange", ev => {
    path and extension) of the new underlay file that the system has selected for
    the game.  If you change the value of this property, the system will load the
    file you specify in the new value instead of the file it originally planned to load.
+   <p>
+      If the system passes an empty string as the filename, it means that it's
+      planning to remove any prior underlay image, effectively displaying no underlay.
+      By the same token, you can set the filename to an empty string to remove the
+      previous underlay image.
+   </p>
 
    <li><b>game:</b> A <a href="GameInfo.html">GameInfo</a> object representing the
    newly selected game that triggered the underlay change.

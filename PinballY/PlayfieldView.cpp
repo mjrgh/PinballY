@@ -160,6 +160,7 @@ namespace ConfigVars
 
 	static const TCHAR *StatusLineEnable = _T("StatusLine.Enable");
 
+	static const TCHAR *UnderlayEnable = _T("Underlay.Enable");
 	static const TCHAR *UnderlayHeight = _T("Underlay.Height");
 	static const TCHAR *UnderlayYOffset = _T("Underlay.YOffset");
 	static const TCHAR *UnderlayMaxWidth = _T("Underlay.MaxWidth");
@@ -7404,6 +7405,13 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 void PlayfieldView::SyncUnderlay()
 {
+	// if the underlay is disabled, set a null underlay (no file)
+	if (!underlayEnabled)
+	{
+		LoadUnderlay(_T(""));
+		return;
+	}
+
 	// start with no image file found
 	TCHAR filename[MAX_PATH];
 	bool ok = false;
@@ -7499,13 +7507,16 @@ bool PlayfieldView::IsUnderlayChange(const TCHAR *filename, const UnderlayOption
 
 	// if there's already an incoming underlay matching the new one, 
 	// the new one won't change anything
-	if (_tcsicmp(incomingUnderlay.filename.c_str(), filename) == 0 && *options == incomingUnderlay.options)
+	if (incomingUnderlay.sprite != nullptr
+		&& _tcsicmp(incomingUnderlay.filename.c_str(), filename) == 0 
+		&& *options == incomingUnderlay.options)
 		return false;
 
 	// if this is the current underlay, and there's not an incoming
 	// underlay in progress, there's no cahnge
 	if (incomingUnderlay.sprite == nullptr
-		&& _tcsicmp(currentUnderlay.filename.c_str(), filename) == 0 && *options == currentUnderlay.options)
+		&& _tcsicmp(currentUnderlay.filename.c_str(), filename) == 0 
+		&& *options == currentUnderlay.options)
 		return false;
 
 	// this doesn't match the existing new or incoming underlay, so it's
@@ -7527,10 +7538,13 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	if (!IsUnderlayChange(filename, options))
 		return false;
 
-	// get the image's native size; if that fails, it must not be a valid
-	// image file; assume that loading will also fail, and give up now
+	// Get the image's native size; if that fails, it must not be a valid
+	// image file; assume that loading will also fail, and give up now.
+	// Note that the filename is allowed to be empty, which means that 
+	// we're clearing any existing underlay; there's no need to check for
+	// a valid image file in this case.
 	ImageFileDesc desc;
-	if (!GetImageFileInfo(filename, desc, true))
+	if (filename[0] != 0 && !GetImageFileInfo(filename, desc, true))
 		return false;
 
 	// If there's already an incoming underlay, and it's mostly done
@@ -7563,6 +7577,7 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 
 	// create the sprite
 	incomingUnderlay.sprite.Attach(new Sprite());
+	UpdateDrawingList();
 
 	// figure the normalized sprite size
 	POINTF normSize;
@@ -7571,14 +7586,18 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	// remember the filename
 	incomingUnderlay.filename = filename;
 
-	// load the image at its native size
-	Application::InUiErrorHandler eh;
-	if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, eh))
+	// if there's a new file, load it
+	if (filename[0] != 0)
 	{
-		incomingUnderlay.Clear();
-		return false;
+		// load the image at its native size
+		Application::InUiErrorHandler eh;
+		if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, eh))
+		{
+			incomingUnderlay.Clear();
+			UpdateDrawingList();
+			return false;
+		}
 	}
-
 	// set the alpha for the start of the fade process
 	incomingUnderlay.sprite->alpha = alpha;
 
@@ -7589,9 +7608,6 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	// start the crossfade timer
 	SetTimer(hWnd, underlayFadeTimerID, UnderlayFadeInterval, NULL);
 
-	// update the sprite list
-	UpdateDrawingList();
-
 	// success
 	return true;
 }
@@ -7601,12 +7617,18 @@ void PlayfieldView::AnimateUnderlayCrossfade()
 	// figure the alpha change per cycle
 	float dAlpha = static_cast<float>(UnderlayFadeInterval) / crossfadeTime;
 
+	// we're done when one or the other sprite reaches the end of its fade
+	bool done = false;
+
 	// fade out the old image
 	if (currentUnderlay.sprite != nullptr)
 	{
 		// limit the fade-out to zero transparency
 		if ((currentUnderlay.sprite->alpha -= dAlpha) < 0.0f)
+		{
+			done = true;
 			currentUnderlay.sprite->alpha = 0.0f;
+		}
 	}
 
 	// fade in the new image
@@ -7616,6 +7638,7 @@ void PlayfieldView::AnimateUnderlayCrossfade()
 		if ((incomingUnderlay.sprite->alpha += dAlpha) >= 1.0f)
 		{
 			// fully opaque - we're done
+			done = true;
 			incomingUnderlay.sprite->alpha = 1.0f;
 			currentUnderlay.Set(incomingUnderlay);
 			incomingUnderlay.Clear();
@@ -7626,7 +7649,7 @@ void PlayfieldView::AnimateUnderlayCrossfade()
 	}
 
 	// if we're done, cancel the timer
-	if (incomingUnderlay.sprite == nullptr)
+	if (done)
 		KillTimer(hWnd, underlayFadeTimerID);
 }
 
@@ -11009,7 +11032,10 @@ void PlayfieldView::OnConfigChange()
 	// load the media crossfade time
 	crossfadeTime = cfg->GetInt(ConfigVars::CrossfadeTime, 120);
 
-	// load the underlay sizing
+	// load the underlay enabled status
+	underlayEnabled = cfg->GetBool(ConfigVars::UnderlayEnable, true);
+
+	// load the new underlay sizing
 	underlay.height = cfg->GetFloat(ConfigVars::UnderlayHeight, (WHEEL_TOP + 0.5f)*100.0f) / 100.0f;
 	underlay.yOffset = cfg->GetFloat(ConfigVars::UnderlayYOffset, 0.0f) / 100.0f;
 	underlay.maxWidth = cfg->GetFloat(ConfigVars::UnderlayMaxWidth, 1000.0f) / 100.0f;
