@@ -471,7 +471,7 @@ void TerminateProcessByName(const WCHAR *filename)
 				(DWORD)pEntry.th32ProcessID);
 			if (hProcess != NULL)
 			{
-				TerminateProcess(hProcess, 9);
+				TerminateProcess(hProcess, 0);
 				CloseHandle(hProcess);
 			}
 		}
