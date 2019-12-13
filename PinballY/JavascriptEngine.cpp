@@ -800,6 +800,10 @@ JsValueRef JavascriptEngine::Throw(JsErrorCode err)
 
 JsValueRef JavascriptEngine::Throw(JsErrorCode err, const TCHAR *cbName)
 {
+	// for script execution errors, log the error
+	if (err == JsErrorScriptException)
+		LogAndClearException();
+
 	// create an exception message
 	MsgFmt msg(IDS_ERR_JSCB, JsErrorToString(err), cbName);
 	JsValueRef str;
@@ -3080,7 +3084,7 @@ public:
 		double d = GetDouble(v);
 
 		// check the range
-		if (d < FLT_MIN || d > FLT_MAX)
+		if (d < -FLT_MAX || d > FLT_MAX)
 		{
 			Error(_T("dllImport: single-precision float argument value out of range"));
 			return NAN;

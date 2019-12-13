@@ -127,6 +127,18 @@ public:
 	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
 
+	// Enter "freeze" mode for a running game.  This stops the playfield
+	// video and freezes idle-time UI updates, to minimize our performance 
+	// footprint while the game is running.  We enter this mode on a timer,
+	// a few seconds after we see a launched game process start up.  (We
+	// don't freeze the UI immediately when the process starts, because
+	// most of the pinball player programs are pretty sluggish at loading,
+	// and take several seconds from the time the process starts to the
+	// time they display a UI.  So we want to leave our UI running for a
+	// few seconds while the game process is initializing, for a smoother
+	// visual transition.)
+	void EnterRunFreezeMode();
+
 	// Show the pause menu, used as the main menu when a game is running
 	void ShowPauseMenu(bool usingExitKey);
 
@@ -474,6 +486,7 @@ protected:
 	static const int launchFocusTimerID = 127;    // launch focus grab
 	static const int hideCursorTimerID = 128;     // hide the cursor after a delay
 	static const int underlayFadeTimerID = 129;   // underlay crossfade timer
+	static const int runFreezeTimerID = 130;      // freeze UI updates after a launched game starts
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1434,11 +1447,16 @@ protected:
 	GameMedia<Sprite> infoBox;
 
 	// show a message on the running game overlay
-	void ShowRunningGameMessage(const TCHAR *msg);
+	void ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg);
 
-	// Running game overlay.  This is a separate layer that we bring
-	// up in front of everything else when we launch a game.
-	RefPtr<Sprite> runningGamePopup;
+	// Running game overlays.  These form a separate layer that we bring
+	// up in front of everything else when we launch a game.   We split
+	// this into two layers for more flexible customization.  The 
+	// background layer is intended for an image or video; the message
+	// layer is a transparent layer on top of that where we display the
+	// current loading status message and game logo.
+	RefPtr<VideoSprite> runningGameMsgPopup;
+	RefPtr<VideoSprite> runningGameBkgPopup;
 
 	// Internal ID of current running game
 	LONG runningGameID;
@@ -1452,6 +1470,26 @@ protected:
 		Exiting		// game is exiting
 	};
 	RunningGameMode runningGameMode;
+
+	// Javascript access to the running game popups (which we refer to as
+	// the Launch Overlay in Javascript and user documentation).  These
+	// are all called with a Javsacript 'this' object specifying the
+	// layer in its "id" property.
+	bool JsLaunchOverlayLoadImage(JsValueRef self, WSTRING filename);
+	bool JsLaunchOverlayLoadVideo(JsValueRef self, WSTRING filename);
+	void JsLaunchOverlayDraw(JsValueRef self, JsValueRef drawFunc);
+	void JsLaunchOverlayClear(JsValueRef self, unsigned int argb);
+
+	// clear a launch overlay layer with the specified color
+	void LaunchOverlayClear(VideoSprite *sprite, unsigned int argb);
+
+	// For the JsLaunchOverlayXxx methods, get the VideoSprite object
+	// corresponding to the layer in the Javscript 'this' parameter.
+	// Note that this can return null if a valid 'this' isn't present,
+	// which is entirely possible with Javascript given the reflection
+	// mechanisms that let you make calls to arbitrary functions with
+	// arbitrary 'this' contexts.
+	VideoSprite *JsThisToOverlayLayer(JsValueRef self);
 
 	// boxes, dialogs, etc.
 	RefPtr<Sprite> popupSprite;
@@ -2662,6 +2700,9 @@ protected:
 	JsValueRef jsHighScoresRequestEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsHighScoresReadyEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsUnderlayChangeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsLaunchOverlayShowEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsLaunchOverlayHideEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsLaunchOverlayMessageEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2685,6 +2726,7 @@ protected:
 	bool FireLaunchEvent(JsValueRef type, GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
 	bool FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueRef type,
 		GameListItem *game, int cmd, const TCHAR *errorMessage = nullptr);
+	bool FireLaunchOverlayEvent(JsValueRef type, GameListItem *game);
 	void FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING &rawText, TSTRING &expandedText);
 	bool FireHighScoresRequestEvent(GameListItem *game);
 	void FireHighScoresReadyEvent(GameListItem *game, bool success, const TCHAR *source);
@@ -2782,15 +2824,8 @@ protected:
 	// only valid for the duration of the js drawing callback.
 	struct JsDrawingContext
 	{
-		JsDrawingContext(Gdiplus::Graphics &g, float width, float height, float borderWidth) :
-			g(g), 
-			width(width), 
-			height(height),
-			borderWidth(static_cast<float>(borderWidth)),
-			textOrigin(borderWidth, borderWidth),
-			textBounds(borderWidth, borderWidth, width - borderWidth*2.0f, height - borderWidth*2.0f)
-		{
-		}
+		JsDrawingContext(PlayfieldView *pfv, Gdiplus::Graphics &g, 
+			float width, float height, float borderWidth);
 
 		// graphics context
 		Gdiplus::Graphics &g;
@@ -2806,7 +2841,7 @@ protected:
 		float borderWidth;
 
 		// text color
-		Gdiplus::Color textColor{ 0xff, 0xff, 0xff };
+		Gdiplus::Color textColor{ 0xff, 0xff, 0xff, 0xff };
 
 		// Current font specs
 		TSTRING fontName = _T("Tahoma");
@@ -2829,6 +2864,22 @@ protected:
 		// current text alignment
 		Gdiplus::StringAlignment textAlignHorz = Gdiplus::StringAlignmentNear;
 		Gdiplus::StringAlignment textAlignVert = Gdiplus::StringAlignmentNear;
+
+		// The Javascript object representing the drawing context.  This is 
+		// just an object with prototype <jsDrawingContext>, which encapsulates 
+		// the drawing methods.  The context object doesn't *actually* capture 
+		// any host state, even though it represents the host drawing state 
+		// conceptually.  The real host state is managed by the jsDC static, 
+		// which is fine for our purposes here since it only has to exist for 
+		// the duration of the callback.  If in the future we wanted to create 
+		// multiple host drawing contexts for javascript use that could exist 
+		// simultaneously with overlapping lifetimes, we'd make the concept 
+		// match the reality by putting a reference to the true host state 
+		// object in the js object.  That would be fully transparent to the
+		// Javascript code, so it wouldn't affect compatibility if we ever
+		// needed to do it.  But for now we don't have any practical need 
+		// for that, so keep it simple by using the static.
+		JavascriptEngine::JsObj jsobj;
 	};
 	std::unique_ptr<JsDrawingContext> jsDC;
 
@@ -2836,8 +2887,9 @@ protected:
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
 
-	// Generic status line method handler.  Gets the target status line from
-	// the 'this' object and invokes the method M with the Javascript arguments.
+	// Generic status line method handler.  Gets the target status line's
+	// C++ object based on the ID in the Javascript 'this' object passed to 
+	// the method, and invokes the method M with the Javascript arguments.
 	template<typename MethodType, MethodType M, typename R, typename... Args>
 	R JsStatusLineMethod(JsValueRef self, Args... args);
 

@@ -185,3 +185,10 @@ table.dataTable, table.dataTable td, table.dataTable th {
 table.dataTable td, table.dataTable th {
     text-align: center;
 }
+
+.commandline {
+    font-family: Courier, monospace;
+    margin-top: 1em;
+    padding-left: 2em;
+    text-indent: -2em;
+}

@@ -334,8 +334,29 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 		// create the VLC instance if we haven't already
 		if (vlcInst == nullptr)
 		{
+			// Set some special options:
+			//
+			// --no-lua - disable LUA support.  LUA is a scripting language,
+			// which we have no use for.  Disabling it speeds up the DLL 
+			// loading.
+			//
+			// --deinterlace=0 - disable the de-interlacing filter.  It
+			// would be nicer if we could leave this enabled, but VLC's
+			// deinterlacing filter currently (as of 3.0.8) has a huge
+			// limitation, which is that it doesn't handle any formats with
+			// alpha channel (transparency) information.  Alpha support is
+			// necessary for video layering.  Interlacing is commonly used
+			// for broadcast media, but is rare for computer media, so I
+			// don't think it'll be a significant limitation to remove the
+			// filter.  If anyone runs into problems with unplayable videos
+			// that turns out to be due to interlacing, they could run them
+			// through ffmpeg to deinterlace them, or if that's a problem
+			// for some reason, we could add a global program option to
+			// enable this.
+			// 
 			static const char *args[] = {
-				"--no-lua"
+				"--no-lua",
+				"--deinterlace=0",
 			};
 			if ((vlcInst = libvlc_new_(countof(args), args)) == nullptr)
 			{
@@ -533,7 +554,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 
 	// plane descriptions, to be set according to the format
 	int nPlanes = 0;
-	FrameBuffer::Plane planes[3];
+	FrameBuffer::Plane planes[4];
 
 	// shader, to be chosen according to the format
 	Shader *shader = nullptr;
@@ -582,11 +603,11 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 	}
 	else
 	{
-		// For anything else, use I420 by default.
+		// For anything else, use YUV 4:2:0 (FOURCC code 'I420').
 		//
-		// I420 decodes to three separate planes, with 8 bits per pixel 
-		// in each plane.  The Y plane has one byte per image pixel, and
-		// the U and V planes are sub-sampled in 2x2 blocks, so they're
+		// YUV 4:2:0 decodes to three separate planes, with 8 bits per 
+		// pixel in each plane.  The Y plane has one byte per image pixel, 
+		// and the U and V planes are sub-sampled in 2x2 blocks, so they're
 		// half the width and height of the Y plane.
 		//
 		// Adjust the row pitches to multiples of 128.  Some alignments
@@ -597,25 +618,153 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 		// large power of 2 for our generic alignment should work well
 		// across a range of hardware.
 		nPlanes = 3;
-		pitches[0] = (*width + 127)/128 * 128;
-		pitches[1] = pitches[2] = ((*width + 1)/2 + 127)/128 * 128;
+		pitches[0] = (*width + 127) / 128 * 128;
+		pitches[1] = pitches[2] = ((*width + 1) / 2 + 127) / 128 * 128;
 		lines[0] = *height;
-		lines[1] = lines[2] = (*height + 1)/2;
+		lines[1] = lines[2] = (*height + 1) / 2;
 
 		// set up the plane texture descriptors
 		planes[0].textureDesc = CD3D11_TEXTURE2D_DESC(
 			DXGI_FORMAT_R8_UNORM, *width, lines[0], 1, 1,
 			D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE, 0, 1, 0, 0);
-		
+
 		planes[1].textureDesc = planes[2].textureDesc = CD3D11_TEXTURE2D_DESC(
-			DXGI_FORMAT_R8_UNORM, (*width+1)/2, lines[1], 1, 1,
+			DXGI_FORMAT_R8_UNORM, (*width + 1) / 2, lines[1], 1, 1,
 			D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE, 0, 1, 0, 0);
 
-		// use the I420/I444 shader
-		shader = Application::Get()->i420Shader.get();
+		// If the source format uses alpha transparency, use YUVA 4:2:0
+		// instead.  This format is exactly like YUV 4:2:0, but it adds 
+		// a fourth plane with the alpha channel, using the same 8-bit
+		// format as the Y channel.
+		if (memcmp(chroma, "RGBA", 4) == 0
+			|| memcmp(chroma, "ARGB", 4) == 0
+			|| memcmp(chroma, "BGRA", 4) == 0
+			|| memcmp(chroma, "RGA0", 4) == 0
+			|| memcmp(chroma, "RGA4", 4) == 0
+			|| memcmp(chroma, "YUVA", 4) == 0
+			|| memcmp(chroma, "I40A", 4) == 0
+			|| memcmp(chroma, "I42A", 4) == 0)
+		{
+			// Add the fourth plane for alpha.  This is identical to
+			// the first plane.
+			nPlanes = 4;
+			pitches[3] = pitches[0];
+			lines[3] = lines[0];
+			planes[3].textureDesc = planes[0].textureDesc;
 
-		// If it's not already I420, force it to I420
-		memcpy(chroma, "I420", 4);
+			// set the libvlc output format to YUVA 4:2:0
+			memcpy(chroma, "I40A", 4);
+
+			// use the YUVA 4:2:0:4 shader
+			shader = Application::Get()->i420AShader.get();
+		}
+		else if (memcmp(chroma, "YA0L", 4) == 0  // YUVA 4:4:4 10 bits per pixel, little-endian
+			|| memcmp(chroma, "YA0B", 4) == 0)   // YUVA 4:4:4 10 bits per pixel, big-endian
+		{
+			// YUVA 4:4:4:4, 10 bits per pixel per channel.  This requires
+			// special handling, because libvlc doesn't have a converter of
+			// its own that can translate between this and 420A.  If we ask
+			// for 420A output, libvlc will instead downgrade to 420, losing
+			// the alpha.  If we want the alpha, we have to let libvlc pass
+			// the yuva444p10le format straight through to our buffers.
+			//
+			// It's worth the extra trouble to support this format because 
+			// it's one of the few codec/format combinations that supports
+			// alpha at all, and might be the only one at the moment that
+			// supports it well.  The other alternatives all seem to be low-
+			// compression codecs like PNG and RLE, which work but make for
+			// gigantic files.  Apple's prores_ks might be the only extant
+			// video codec that handles alpha.  (If you read through Apple's
+			// whitepaper on prores, you can see why - integrating alpha
+			// into a video codec is extremely tricky because lapha has very 
+			// different compression characteristics from the chroma and 
+			// luma components.  You basically have to use a lossless
+			// compression algorithm for alpha to recover a usable signal.
+			// That's tricky in video because you still want to compress
+			// the other components using traditional lossy encodings, so
+			// you have to be able to mix lossy and lossless encoding in
+			// a single stream.)
+
+			// First off, this is a 4-plane format like regular YUVA
+			nPlanes = 4;
+
+			// It's a 4:4:4:4 format with 10 bits per pixel.  libvlc will
+			// unpack each 10-bit pixel into a byte pair, so we need two
+			// bytes per pixel.  All planes are the same size.
+			pitches[0] = pitches[1] = pitches[2] = pitches[3] = (*width * 2 + 127) / 128 * 128;
+
+			// one pixel per line in all planes
+			lines[0] = lines[1] = lines[2] = lines[3] = *height;
+
+			// Set up the texture descriptors.  All planes use the same 
+			// format, so we just copy the same descriptor to all planes.  
+			//
+			// Here's where things get a bit tricky.  The format we'd really
+			// like here is xxx_R10_UNORM, for a 10-bit normalized int format.
+			// DXGI dosen't have such a thing.  Its closest equivalent is
+			// xxx_R16_UNORM.  R16 is a good match because it also works with
+			// two bytes per pixel and interprets them as little-endian ints.
+			// It's not a perfect match, though, in that it normalizes to a
+			// 16-bit space when it passes the pixels to the shader.  The
+			// atcual pixels are all 10-bit values, though.  
+			// 
+			// There's nothing too magical about the normalization, though.
+			// All that really happens is that the shader will see each byte
+			// pair as a 16-bit "fixed point float" value, with the decimal
+			// point immediately before the most significant bit.  Another
+			// (easier) way to look at this is that each byte pair is
+			// interpreted as
+			//
+			//     static_cast<float>(byte_pair)/65535.0f
+			//
+			// What we WANT is to do a similar normalization based on the
+			// 10-bit pixels that libvlc will hand us, which means we want
+			//
+			//     static_cast<float>(byte_pair)/1023.0f
+			//
+			// Once you look at it that way, it becomes pretty easy to see
+			// how to deal with this.  One way would be to do a 6-bit left
+			// shift on all of the byte pairs before creating the DXGI
+			// texture.  But that would be extremely CPU-intensive.  A
+			// better way would be to do the adjustment in the shader, where
+			// we can take advantage of the high parallelism of the GPU to
+			// do the renormalization.  A little trivial arithmetic tells us
+			// that the shader just has to multiply each 'float' value that
+			// it receives by 64.0f.
+			//
+			// So: start by setting up the 16_UNORM texture descs...
+			planes[0].textureDesc = planes[1].textureDesc = planes[2].textureDesc = planes[3].textureDesc =
+				CD3D11_TEXTURE2D_DESC(
+				DXGI_FORMAT_R16_UNORM, *width, lines[0], 1, 1,
+				D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_IMMUTABLE, 0, 1, 0, 0);
+
+			// ...and then compensate for the wrong normalization by using
+			// our special shader that's aware of the 10-bit pixels.  Our
+			// I420A10 shader has the extra processing to renormalize all 
+			// of the pixel values at render time.
+			shader = Application::Get()->i444A10Shader.get();
+
+			// Finally, force the conversion to little-endian, if it isn't
+			// already.  YA0B is the big-endian version of this format, 
+			// which is identical except that it reverses the order of the
+			// bytes in the per-pixel byte pairs.  We could fix that up in 
+			// the shader (like the normalization), but in this case I'm
+			// going to ask libvlc to do it in the CPU, since I don't want
+			// to get into byte-order twiddling in the shader.  That could
+			// create some subtle hardware dependencies.  I've tested that
+			// libvlc can do YA0B -> YA0L without losing the alpha, so
+			// let's not add another shader for this.
+			memcpy(chroma, "YA0L", 4);
+		}
+		else
+		{
+			// Regular non-alpha format.  Force the output format to
+			// YUV 4:2:0.
+			memcpy(chroma, "I420", 4);
+
+			// use the YUV shader
+			shader = Application::Get()->i420Shader.get();
+		}
 	}
 
 	// calculate the buffer size
@@ -892,7 +1041,7 @@ bool VLCAudioVideoPlayer::Render(Camera *camera, Sprite *sprite)
 		return false;
 
 	// populate the resource view list to bind to the shader
-	ID3D11ShaderResourceView *rv[3];
+	ID3D11ShaderResourceView *rv[4];
 	int n = 0;
 	for (; n < nPlanes && n < countof(shaderResourceView) && shaderResourceView[n] != nullptr; ++n)
 		rv[n] = shaderResourceView[n];

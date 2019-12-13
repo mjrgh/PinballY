@@ -959,10 +959,14 @@ game.update({
    The game information object method <a href="#getHighScores">getHighScores()</a>
    lets you get the high score information for a game, if it's available.  This function
    works asynchronously: it doesn't directly return the high score information, but rather
-   returns a Javascript Promise object, which invokes a callback you provide when
-   the background operation completes.  Promises are a newer Javascript feature
-   that are now supported in all major browsers, so you can find plenty of
-   information about them on the Web if you're not familiar with the concept.
+   returns a Javascript "Promise" object, which invokes a callback you provide when
+   the background operation completes.  (Promises are relatively new to Javascript,
+   added in the ES6 version of the language standard, so you might not have run into
+   them before even if you know Javascript.  You can find lots of documentation
+   on the Web if you need to get up to speed on them.  The basic idea is that
+   they let you kick off a task that runs in the background without your code
+   having to wait for it, and then the system calls a completion function that
+   you provide when the task is done.)
 </p>
 <p>
    The reason that we have to use the asynchronous Promise scheme is that high
@@ -1245,7 +1249,7 @@ game.setHighScores([
    (only 128x32 dots) makes it too hard to render most of them.
    Most lower-case letters in your source text will be replaced
    with capitals when rendered.  But not all, so the final
-   display results tend to look bad if you mix case.  The
+   display results tend to look bad if you mix upper and lower case.  The
    exception is the "typewriter" style used for EM games, when
    displayed on a <b>video</b> DMD monitor.  That uses an ordinary
    Windows font, so mixed case will look fine there.  But

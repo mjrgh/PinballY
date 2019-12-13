@@ -11,6 +11,8 @@
 #include "Sprite.h"
 #include "shaders/I420ShaderVS.h"
 #include "shaders/I420ShaderPS.h"
+#include "shaders/I420AShaderPS.h"
+#include "shaders/I444A10ShaderPS.h"
 
 using namespace DirectX;
 
@@ -22,19 +24,19 @@ I420Shader::~I420Shader()
 {
 }
 
-bool I420Shader::Init()
+bool I420Shader::CommonInit(const BYTE *pixelShaderBytes, size_t pixelShaderBytesCnt, const char *idForErrorLog)
 {
 	D3D *d3d = D3D::Get();
 	HRESULT hr;
-	auto GenErr = [hr](const TCHAR *details) {
+	auto GenErr = [hr, idForErrorLog](const TCHAR *details) {
 		LogSysError(EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT),
-			MsgFmt(_T("%s, system error code %lx"), details, hr));
+			MsgFmt(_T("%hs -> %s, system error code %lx"), idForErrorLog, details, hr));
 		return false;
 	};
 
 	// Create the vertex shader
 	if (FAILED(hr = d3d->CreateVertexShader(g_vsI420Shader, sizeof(g_vsI420Shader), &vs)))
-		return GenErr(_T("I420 Shader -> CreateVertexShader"));
+		return GenErr(_T("CreateVertexShader"));
 
 	// create the input layout
 	D3D11_INPUT_ELEMENT_DESC layoutDesc[] =
@@ -47,8 +49,8 @@ bool I420Shader::Init()
 		return false;
 
 	// create the pixel shader
-	if (FAILED(hr = d3d->CreatePixelShader(g_psI420Shader, sizeof(g_psI420Shader), &ps)))
-		return GenErr(_T("I420 Shader -> CreatePixelShader"));
+	if (FAILED(hr = d3d->CreatePixelShader(pixelShaderBytes, pixelShaderBytesCnt, &ps)))
+		return GenErr(_T("CreatePixelShader"));
 
 	// create the pixel shader input buffer
 	D3D11_BUFFER_DESC desc;
@@ -59,13 +61,18 @@ bool I420Shader::Init()
 	desc.MiscFlags = 0;
 	desc.StructureByteStride = 0;
 	if (FAILED(hr = d3d->CreateBuffer(&desc, &cbAlpha, "I420Shader::cbAlpha")))
-		return GenErr(_T("Text Shader -> create color constant buffer"));
+		return GenErr(_T("create color constant buffer"));
 
-	// set the initial alpha to opaque
+	// set the initial global alpha to opaque
 	SetAlpha(1.0f);
 
 	// success
 	return true;
+}
+
+bool I420Shader::Init() 
+{
+	return CommonInit(g_psI420Shader, sizeof(g_psI420Shader), "I420Shader");
 }
 
 void I420Shader::SetAlpha(float alpha)
@@ -91,5 +98,17 @@ void I420Shader::SetShaderInputs(Camera *camera)
 	// Set the input layout
 	d3d->SetInputLayout(layout);
 	d3d->SetTriangleTopology();
+}
+
+// I420A variant
+bool I420AShader::Init()
+{
+	return CommonInit(g_psI420AShader, sizeof(g_psI420AShader), "I420AShader");
+}
+
+// I444A10 variant
+bool I444A10Shader::Init()
+{
+	return CommonInit(g_psI444A10Shader, sizeof(g_psI444A10Shader), "I444A10Shader");
 }
 

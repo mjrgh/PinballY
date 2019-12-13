@@ -19,6 +19,8 @@ struct ConfigFileDesc;
 class TextureShader;
 class DMDShader;
 class I420Shader;
+class I420AShader;
+class I444A10Shader;
 class PinscapeDevice;
 class HighScores;
 class RefTableList;
@@ -121,6 +123,8 @@ public:
 	std::unique_ptr<TextureShader> textureShader;
 	std::unique_ptr<DMDShader> dmdShader;
 	std::unique_ptr<I420Shader> i420Shader;
+	std::unique_ptr<I420AShader> i420AShader;
+	std::unique_ptr<I444A10Shader> i444A10Shader;
 
 	// Show one of our application windows.  If the window is currently
 	// hidden, we'll make it visible; if it's minimized, we'll restore it.
@@ -851,6 +855,17 @@ protected:
 
 		// thread ID of the game process's main thread
 		DWORD tidMainGameThread;
+
+		// Stolen focus window.  When we execute a PAUSE command to
+		// steal focus away from the game and put the PinballY UI back
+		// in front, we note the focus window and store it here.  This
+		// allows us to restore the same focus window when we resume
+		// the game.  This is useful for programs such as Visual Pinball
+		// that might have more than one top-level window open; it's
+		// impossible in such a case to determine which window to send
+		// focus back to without knowing which one had focus in the
+		// first place.
+		HWND stolenFocusWindow = NULL;
 
 		// Start/stop a manual capture.  The application calls this when
 		// the user presses the "proceed" button combination.

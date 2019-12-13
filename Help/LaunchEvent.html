@@ -26,9 +26,24 @@
    game has successfully started and opened a window.  The exact timing of
    the event isn't predictable, since the game program runs as a separate
    Windows process.  You can count on the event firing some time after
-   the game has opened a window, but you shouldn't assume that the event
-   fires before any particular point in the game's startup.  This event
-   can't be canceled, since it's fired after the fact.
+   the game has opened its first window, but be careful not to assume
+   that the game is actually ready to play, from the player's perspective.
+   The first window the program opens might not be the game's actual
+   "playfield" window.  Visual Pinball, for example, always
+   opens its editor window first, before displaying the game window,
+   so this event usually fires for VP well before the game is ready
+   to play.  There's unfortunately nothing we can do in general to
+   detect when the game is actually ready, since that's too dependent
+   on the inner workings of the pinball player system.  If you want to
+   wait until the game is truly ready to play, a simple heuristic
+   might be to use a timeout to add a short delay, which you can
+   gauge by trial and error for the games you play most frequently.
+   If you're
+   writing this event handler for a situation where you know you're
+   working with a particular player system, you could potentially
+   use low-level Windows APIs to communicate and coordinate with
+   the game process, but short of that, there's not much we can do.
+   This event can't be canceled, since it's fired after the fact.
 
    <li><b>gameover:</b>  Fired after PinballY detects that the child
    game process has terminated, and before any of the post-launch tasks

@@ -100,6 +100,41 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 	// figure the style
 	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
 
+	// Try loading a font by name.  Returns a Gdiplus::Font* on success,
+	// nullptr on failure.
+	auto TryFont = [emSize, style](const TCHAR *name) -> Gdiplus::Font*
+	{
+		// Try creating the font in the style requested
+		Gdiplus::FontFamily family(name);
+		std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
+		if (font->IsAvailable())
+			return font.release();
+
+		// Windows 7 GDI+ seems to be pickier about matching font.  If the
+		// installed font only has a "bold" or "italic" style, trying to load
+		// it with "regular" style will fail.  (Windows 8 and later, in 
+		// contrast, will load the font in any case.)  So try again with
+		// italic style.
+		font.reset(new Gdiplus::Font(&family, emSize, style | Gdiplus::FontStyleItalic, Gdiplus::UnitPixel));
+		if (font->IsAvailable())
+			return font.release();
+
+		// 'Regular' and 'italic' failed.  If we didn't ask for bold, try bold.
+		// If we DID ask for bold, try removing bold.
+		int newStyle = style ^ Gdiplus::FontStyleBold;
+		font.reset(new Gdiplus::Font(&family, emSize, newStyle, Gdiplus::UnitPixel));
+		if (font->IsAvailable())
+			return font.release();
+
+		// this is ridiculous, but just in case, try the new style plus Italic as a last resort
+		font.reset(new Gdiplus::Font(&family, emSize, newStyle | Gdiplus::FontStyleBoldItalic, Gdiplus::UnitPixel));
+		if (font->IsAvailable())
+			return font.release();
+
+		// nothing worked - the font must really not be here
+		return nullptr;
+	};
+
 	// if multiple comma-separated names were provided, try them in order
 	if (_tcschr(faceName, ',') != nullptr)
 	{
@@ -107,18 +142,14 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 		for (auto &s : StrSplit<TSTRING>(faceName, ','))
 		{
 			// try this item
-			Gdiplus::FontFamily family(TrimString<TSTRING>(s.c_str()).c_str());
-			std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
-			if (font->IsAvailable())
-				return font.release();
+			if (auto font = TryFont(TrimString<TSTRING>(s.c_str()).c_str()); font != nullptr)
+				return font;
 		}
 	}
 
-	// create the font
-	Gdiplus::FontFamily family(faceName);
-	std::unique_ptr<Gdiplus::Font> font(new Gdiplus::Font(&family, emSize, style, Gdiplus::UnitPixel));
-	if (font->IsAvailable())
-		return font.release();
+	// try the name string exactly as given
+	if (auto font = TryFont(faceName); font != nullptr)
+		return font;
 
 	// Failed - the requested font must not be installed.  Try using the
 	// generic sans serif font instead.
@@ -156,8 +187,8 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 			return fbFont.release();
 	}
 
-	// We're totally out of luck.  Go back to our original (bad) font.
-	return font.release();
+	// We're totally out of luck.  Use "Arial", since that's almost always present.
+	return new Gdiplus::Font(_T("Arial"), emSize, style, Gdiplus::UnitPixel);
 }
 
 Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc)

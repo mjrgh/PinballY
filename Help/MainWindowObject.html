@@ -183,19 +183,71 @@
 </p>
 
 <p>
-   <a name="message"></a>
-   <b>mainWindow.message(<i>message</i>, <i>style</i>):</b>  Shows a message
-   using a graphical popup box in the main window.  Unlike the global alert()
-   function, this doesn't pause the script until the user acknowledges the
-   message; it simply shows or queues the message and returns immediately.
-   This is a good option for showing error messages or status updates, since
-   it doesn't interrupt the flow of the user interface with a modal dialog.
-   If <i>style</i> is provided, it's a string value specifying the
-   visual style of the popup message.  This can be "info", "warning", or
-   "error", to show the message with green, orange, or red trim
-   (respectively), to visually signal the nature of the message.  The
-   regular "info" style is used if <i>style</i> is omitted.
+   <a name="launchOverlay"></a>
+   <b>mainWindow.launchOverlay:</b> This read-only property contains an object
+   representing the launch overlay, which displays graphics showing the status
+   during game launches.  This object lets you customize the graphics shown
+   during the launch process.  <b>launchOverlay</b> has two properties, giving
+   you access to the two drawing layers of the launch overlay:
 </p>
+<ul>
+   <li><bg>fg:</b> an object representing the foreground layer
+   <li><b>bg:</b> an object representing the background layer
+</ul>
+<p>
+   Each of those objects in turn has methods that let you show graphics in
+   its layer.  The foreground layer (<b>mainWindow.launchOverlay.fg</b>) is,
+   as the name suggests, the front layer; the background layer (<b>bg</b>) is
+   immediately behind it in the drawing order.  These are the topmost layers
+   overall, so they're draw in front of the wheel UI and the playfield
+   background.  If you draw an opaque background into either window, it'll
+   cover up everything else in the UI.
+</p>
+<p>
+   The reason we have two layers for this one overlay is that it lets the
+   system (or your Javascript code) draw some fixed graphics in the background
+   layer, and then update the message shown in the foreground layer each time
+   the status of the launch proceeds to the next stage.  Since the status
+   message is drawn in a separate layer, the background layer doesn't
+   have to be redrawn each time the status changes.  This is faster, and
+   it's also nice if you want to show a video, since videos can't be
+   directly combined in one layer with other graphics.  You can use the
+   background layer for a video that plays throughout the loading process,
+   for example, while status messages are drawn on top of the video via
+   the foreground layer.
+</p>
+<p>
+   The launch overlay is only displayed during game launches.  Accessing it at
+   other times will have no effect.  In most cases, you'd use this object in
+   listeners for the <a href="LaunchOverlayEvent.html">LaunchOverlayEvent</a>
+   group of events.
+</p>
+<p>
+   Here are the methods you can call on the <b>fg</b> and <b>bg</b> objects,
+   to draw into the respective layers:
+</p>
+<ul>
+   <li><b>draw(<i>func</i>):</b> Clears any prior video or graphics displayed
+   in the launch overlay, and calls the provided function to perform custom
+   drawing.  The function is called with a "drawing context" object as its
+   parameter.  See <a href="CustomDrawing.html">Custom Drawing</a>
+   for details on how this works.
+   
+   <li><b>loadImage(<i>filename</i>):</b>  Loads the given image file and displays
+   it in the launch overlay layer.  The filename must be a fully qualified Windows
+   path, with drive, directory, and extension.  The normal collection of image
+   file formats can be used (JPEG, PNG).  The image is stretched to fill
+   the window.  You can use the <b>draw()</b> method if you need more control
+   over the image layout, or if you want to use multiple images or mix an image
+   with text or other graphics.  The new image replaces any prior graphics and
+   any video that was playing.
+
+   <li><b>loadVideo(<i>filename</i>):</b> Loads and plays the given video in the
+   launch overlay layer.  The filename must be a fully qualified path, with drive,
+   directory, and extension.  The usual video formats are supported (MP4, MPG, etc).
+   The video is stretched to fill the window.  If any prior video was playing or
+   any prior graphics were displayed, this removes the existing video or graphics.
+</ul>
 
 <p>
    <a name="playButtonSound"></a>
@@ -213,6 +265,21 @@
    <li><b>Prev:</b> played when switching to the previous game, menu item, or popup page
    <li><b>Select:</b> played when showing a menu or selecting a menu item
 </ul>
+
+<p>
+   <a name="message"></a>
+   <b>mainWindow.message(<i>message</i>, <i>style</i>):</b>  Shows a message
+   using a graphical popup box in the main window.  Unlike the global alert()
+   function, this doesn't pause the script until the user acknowledges the
+   message; it simply shows or queues the message and returns immediately.
+   This is a good option for showing error messages or status updates, since
+   it doesn't interrupt the flow of the user interface with a modal dialog.
+   If <i>style</i> is provided, it's a string value specifying the
+   visual style of the popup message.  This can be "info", "warning", or
+   "error", to show the message with green, orange, or red trim
+   (respectively), to visually signal the nature of the message.  The
+   regular "info" style is used if <i>style</i> is omitted.
+</p>
 
 <p>
    <a name="playGame"></a>

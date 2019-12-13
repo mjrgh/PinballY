@@ -88,7 +88,7 @@ BOOL CreateSubDirectory(
 BYTE *ReadFileAsStr(const TCHAR *filename, class ErrorHandler &handler, long &len, UINT flags)
 {
 	// open the file and seek to the end (to get the size)
-	FILE *fp;
+	FILEPtrHolder fp;
 	int err;
 	if ((err = _tfopen_s(&fp, filename, _T("rb"))) != 0)
 	{
@@ -120,9 +120,6 @@ BYTE *ReadFileAsStr(const TCHAR *filename, class ErrorHandler &handler, long &le
 
 	// read the data into the buffer
 	bool ok = (fread(buf, 1, fileLen, fp) == fileLen);
-
-	// done with the file
-	fclose(fp);
 
 	// check for error
 	if (!ok)

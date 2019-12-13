@@ -324,6 +324,77 @@ similar to any problems you're having.
    before starting PinballY").
 </p>
 
+<h3>The capture screen location is wrong for the playfield/backglass/other window</h3>
+
+<p>
+   Symptom: When you use the "Capture" command to capture screenshots
+   or videos of the running game, the captured videos grab the wrong
+   screen area for one or more windows.  They're not aligned with
+   the actual Visual Pinball screen area, so they're clipped or
+   just the wrong areas entirely.
+</p>
+<p>
+   Cause: PinballY doesn't actually know where Visual Pinball's
+   windows are.  It doesn't want to make assumptions about which
+   windows go where, because that would require too much hard-coded
+   knowledge of particular pinball programs, which would make the
+   Capture feature less likely to work for new pinball programs
+   (and would also make it likely to stop working every time
+   the other programs are updated).
+</p>
+<p>
+   Instead, PinballY simply captures the screen area of the <b>PinballY windows</b>.
+   The assumption is that you have a particular monitor area that you <i>always</i>
+   use for your playfield, <i>in every player program</i>.  And another area
+   that you <i>always</i> use for your backglass, etc.  And since you're
+   using those areas in every pinball program, PinballY assumes you're going
+   to use those exact same areas for the corresponding PinballY windows.
+   That makes the Capture feature's choice of screen locations super easy:
+</p>
+<ul>
+   <li>The playfield video/image is captured from the screen area of the <b>PinballY playfield window</b>
+   <li>The backglass video/image is captured from the screen area of the <b>PinballY backglass window</b>
+   <li>And so on
+</ul>
+<p>
+   So if PinballY is capturing the wrong area for a particular player program,
+   simply move the corresponding PinballY window into the right area before
+   you run the capture.
+</p>
+<p>
+   We chose this scheme because the fixed screen locations are practically
+   a given on a pin cab.  A pin cab usually has a whole monitor devoted
+   to each function, so naturally you're going to set up both PinballY
+   and every pinball program the same way, to use those exact monitors.
+   This is less of a given for desktop users, though, so you might have
+   to juggle windows around a little bit during capture if you don't
+   always run every pinball program with the exact same window layout.
+</p>
+
+<h3>When I run capture, the backglass/topper/other window isn't offered as an option</h3>
+
+<p>
+   Symptom: When you run the capture command, the list of available media
+   types doesn't include the backglass window, or doesn't include some
+   other window you want to include.
+</p>
+<p>
+   Cause: The window you want to capture <b>must be open in PinballY</b> when
+   you run the capture command.  As described in the topic above about screen locations
+   for capture, PinballY figures the screen location for each window type
+   according to the corresponding <b>PinballY window's</b> location.
+   In order to have a location at all, the window has to be open!
+   So the list of available media types only includes the windows
+   that you currently have open.
+</p>
+<p>
+   To bring up any of the windows that you've hidden, simply right-click
+   in the main PinballY playfield window, and select <b>Show Backglass</b>
+   or <b>Show Topper</b>, etc., for whichever window you want to bring back
+   from the invisible.  Once you make the window visible, it should show
+   up in the list of available media types the next time you run a
+   capture.
+</p>
 
 <h3>PinballY won't save/restore my backglass window position</h3>
 

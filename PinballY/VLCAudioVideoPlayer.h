@@ -255,7 +255,7 @@ protected:
 			// row pitch of this plane
 			UINT rowPitch;
 		};
-		Plane planes[3];
+		Plane planes[4];
 
 		// number of planes in this format
 		int nPlanes;
@@ -273,7 +273,7 @@ protected:
 
 	// Shader resource views for the current frame we're rendering
 	int nPlanes;
-	RefPtr<ID3D11ShaderResourceView> shaderResourceView[3];
+	RefPtr<ID3D11ShaderResourceView> shaderResourceView[4];
 
 	// Critical section locker for the rendering pointers.  This
 	// controls access to presentedFrame and renderFrame.  We use

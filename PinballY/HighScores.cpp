@@ -730,6 +730,7 @@ void HighScores::LaunchNextThread(Thread *exitingThread)
 		::SendMessage(thread->hwndNotify, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
 
 		// failed - discard this thread and try the next one
+		delete threadQueue.front();
 		threadQueue.pop_front();
 	}
 }
@@ -753,11 +754,29 @@ HighScores::Thread::Thread(
 
 DWORD HighScores::Thread::SMain(LPVOID param)
 {
+	// For debugging purposes, make sure we're the only PinEMHi thread
+	// running.  We can't launch multiple instances of PinEMHi concurrently
+	// because we have to pass some information to it through its .ini 
+	// file, which is a global resource.  The thread queue mechanism
+	// *should* serialize PinEMHi launches naturally by its very design,
+	// so we don't have to do anything here to do that; but let's just
+	// verify that it's working as expected.
+	static ULONG threadCounter = 0;
+	InterlockedIncrement(&threadCounter);
+	if (threadCounter != 1)
+		OutputDebugString(_T("Warning! Multiple concurrent PinEMhi launches detected!\n"));
+
 	// get a unique pointer to the thread, so that we delete it on exit
 	std::unique_ptr<Thread> self(reinterpret_cast<Thread*>(param));
 
 	// run the thread main entrypoint
 	self->Main();
+
+	// we're now down with the PinEMHi launch portion of our job - un-count
+	// the concurrent process launcher
+	InterlockedDecrement(&threadCounter);
+	if (threadCounter != 0)
+		OutputDebugString(_T("Warning! PinEMHi thread counter is not zero at thread exit\n"));
 
 	// before exiting, launch the next thread
 	self->hs->LaunchNextThread(self.get());
@@ -822,7 +841,7 @@ void HighScores::Thread::Main()
 			_T("High score retrieval: opening PinEMHi INI file for update\n"));
 
 		// open the INI file
-		FILE *fp;
+		FILEPtrHolder fp;
 		if (int err = _tfopen_s(&fp, hs->iniFileName.c_str(), _T("w")); err == 0)
 		{
 			// write the contents
@@ -841,7 +860,7 @@ void HighScores::Thread::Main()
 				fprintf(fp, "[paths]\n%s=%s\n", pathEntry->name.c_str(), nvramPathC.c_str());
 
 			// done with the file
-			fclose(fp);
+			fp.fclose();
 
 			// remember the new path - this reflects the new file status
 			pathEntry->path = nvramPathC;
@@ -895,6 +914,11 @@ void HighScores::Thread::Main()
 	if (!CreateProcess(exe, cmdline.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW,
 		NULL, folder, &sinfo, &pinfo))
 	{
+		// log the error
+		WindowsErrorMessage errmsg;
+		LogFile::Get()->Write(_T("PinEMHi process launch failed: %s"), errmsg.Get());
+
+		// notify the caller and abort
 		SendResult(NotifyInfo::ProcessLaunchFailed);
 		return;
 	}

@@ -683,9 +683,19 @@ bool Application::Init()
 	if (!dmdShader->Init())
 		return false;
 
-	// create the I420 shader
+	// create the I420 shader (YUV format, for videos)
 	i420Shader.reset(new I420Shader());
 	if (!i420Shader->Init())
+		return false;
+
+	// create the I420A shader (YUVA, for videos with alpha transparency)
+	i420AShader.reset(new I420AShader());
+	if (!i420AShader->Init())
+		return false;
+
+	// create the I444A10 shader (YUVA 10 bits per pixel)
+	i444A10Shader.reset(new I444A10Shader());
+	if (!i444A10Shader->Init())
 		return false;
 
 	// initialize the audio manager
@@ -1891,23 +1901,22 @@ void Application::GameMonitorThread::BringToForeground()
 {
 	if (IsGameProcessRunning())
 	{
-		// find the other app's first window
+		// find the other app's windows
 		struct context {
 			context(DWORD pid, DWORD tid) : pid(pid), tid(tid) { }
 			DWORD pid, tid;
-			HWND hwnd = NULL;
+			std::list<HWND> hwnd;
 		} ctx(pid, tidMainGameThread);
 		EnumThreadWindows(tidMainGameThread, [](HWND hwnd, LPARAM lparam)
 		{
-			// only consider visible windows with no owner
-			if (IsWindowVisible(hwnd) && GetWindowOwner(hwnd) == NULL)
+			// only consider visible, non-minimized windows with no owner
+			if (IsWindowVisible(hwnd) && !IsIconic(hwnd) && GetWindowOwner(hwnd) == NULL)
 			{
-				// remember this window and stop the enumeration
-				reinterpret_cast<context*>(lparam)->hwnd = hwnd;
-				return FALSE;
+				// remember this window
+				reinterpret_cast<context*>(lparam)->hwnd.push_front(hwnd);
 			}
 
-			// continue the enumeration otherwise
+			// continue the enumeration
 			return TRUE;
 		}, reinterpret_cast<LPARAM>(&ctx));
 
@@ -1915,12 +1924,12 @@ void Application::GameMonitorThread::BringToForeground()
 		// looking for any top-level window belonging to the process.  
 		// EnumThreadWindows() won't find the console window for a
 		// console-mode application, for example.
-		if (ctx.hwnd == NULL)
+		if (ctx.hwnd.size() == 0)
 		{
 			EnumWindows([](HWND hwnd, LPARAM lparam)
 			{
 				// only consider visible windows with no owner
-				if (IsWindowVisible(hwnd) && GetWindowOwner(hwnd) == NULL)
+				if (IsWindowVisible(hwnd) && !IsIconic(hwnd) && GetWindowOwner(hwnd) == NULL)
 				{
 					// get the process information for the window
 					DWORD tid, pid;
@@ -1930,28 +1939,25 @@ void Application::GameMonitorThread::BringToForeground()
 					auto ctx = reinterpret_cast<context*>(lparam);
 					if (pid == ctx->pid)
 					{
-						// provisionally set this window as a match
-						ctx->hwnd = hwnd;
-
-						// If it's on the process's main thread, accept it as
-						// as the winner and stop the enumeration.  If it's 
-						// not on the main thread, continue the enumeration,
-						// in case we find a more likely window.  In most
-						// applications, the UI is on the main thread, so
-						// this is usually the best bet for the main window.
-						if (tid == ctx->tid)
-							return FALSE;
+						// add this window to the match list
+						ctx->hwnd.push_front(hwnd);
 					}
 				}
 
-				// continue the enumeration otherwise
+				// continue the enumeration
 				return TRUE;
 			}, reinterpret_cast<LPARAM>(&ctx));
 		}
 
-		// if we found a window, bring it to the front
-		if (ctx.hwnd != NULL)
-			BringWindowToTop(ctx.hwnd);
+		// bring each top-level window we found to the front
+		for (auto hwnd : ctx.hwnd)
+			BringWindowToTop(hwnd);
+
+		// If we noted the foreground window on pause, restore it as
+		// the foreground window.  Do this last to ensure that focus
+		// ends up here.
+		if (stolenFocusWindow != NULL)
+			SetForegroundWindow(stolenFocusWindow);
 	}
 }
 
@@ -4510,6 +4516,19 @@ DWORD Application::GameMonitorThread::Main()
 
 void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 {
+	// If the application currently has focus, remember its active
+	// window, so that we can restore the same active window when
+	// we resume the game.  This helps ensure that focus goes back
+	// to the right window on resuming.
+	stolenFocusWindow = NULL;
+	if (auto fgHwnd = GetForegroundWindow(); fgHwnd != NULL)
+	{
+		DWORD fgWinPid = 0;
+		GetWindowThreadProcessId(fgHwnd, &fgWinPid);
+		if (fgWinPid == pid)
+			stolenFocusWindow = fgHwnd;
+	}
+
 	// inject a call in to the child process to set our window
 	// as the foreground
 	DWORD tid;

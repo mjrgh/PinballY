@@ -89,14 +89,23 @@
    the popup.  If this is omitted, no border is shown.
    
    <li><b>draw:</b>  A Javascript function that draws the contents of the
-   popup.  See "drawing function" below.  If you only want to display a simple
-   image, you can specify the image via backgroundImage and omit the drawing
-   function.
+   popup programmatically.  This lets you create complex layouts that mix text
+   and graphics with precise positioning.  If you set the <b>draw</b> property
+   to a function, the mainWindow.showPopup() method will call this function
+   after setting up the initial popup area to let you fill in the display
+   graphics.  See <a href="CustomDrawing.html">Custom Drawing</a> for
+   details on how this works.
+   <p>
+      The <b>draw</b> function is optional.  You don't need to provide a
+      drawing function if you just want to fill the popup with a fixed
+      image, since you can do that by providing a <b>backgroundImage</b>
+      property naming the image file you want to load.
+   </p>
    
    <li><b>height:</b>  The height of the popup, as a percentage of the layout
    width of the window.  You can omit this if you want the system to use a
    suitable default or if you want to calculate the height dynamically based
-   on the popup's contents.  See "default sizing" and "calculated layout
+   on the popup's contents.  See "default sizing" and "dynamic layout
    height" below.
    
    <li><b>id:</b>  A string identifying the popup.  This is an arbitrary
@@ -166,44 +175,68 @@
    requires you to calculate a pixel height for the content area and return
    it from the <b>draw</b> function you provide in the popup descriptor.
    An error is thrown if you don't supply a <b>draw</b> function or it
-   doesn't return a height value.  See "calculated heights" below.
+   doesn't return a height value.  See "dynamic layout height" below.
 </ul>
 
-<h3>Calculated layout height</h3>
+<h3>Dynamic layout height</h3>
 <p>
    In some cases, you might want to adjust your popup's overall display
    height according to its contents, so that it's just tall enough to
-   display the contents.  You can do this as follows:
+   display the specific contents you draw into the popup.  The required
+   height might not be predictable in advance, so the popup system
+   gives you a way to calculate the height from your Javascript code,
+   on the fly as you do the drawing.  This lets you determine precisely
+   the needed height needed to contain the actual contents you display.
+</p>
+<p>   
+   To use a dynamically calculated height, you have to leave all of
+   the "pre-calculated" height elements in the popup descriptor blank.
+   Specifically:
 </p>
 <ul>
    <li>In the popup descriptor, specify the desired width via the
    <b>width</b> property, but omit the <b>height</b> property.
 
-   <li>Also, don't use a background image, as the background image
-   will determine the display height.  If you need to display
-   a background image with a flexible-height popup, you'll have to
-   draw it yourself within your <b>draw</b> function using the
-   drawing context's drawImage() method.
+   <li>Don't specify a <b>backgroundImage</b> property.  Doing so
+   implicitly sets a pre-calculated height based on the image's
+   natural size.  If you need to display
+   a background image with a flexible-height popup, draw it
+   within your <b>draw</b> function using the drawing context's
+   drawImage() method.
 
-   <li>In your <b>draw</b> function, keep track of the layout
+   <li>You must, of course, provide a custom drawing function
+   via the <b>draw</b> property of the popup descriptor.
+
+   <li>In your custom drawing function, keep track of the layout
    sizes of the items you're displaying.  You can use the
    drawing context's measureText() function to figure the size
-   of a text item.
+   of a text item, for example.
 
    <li>Return the final computed height as the return value
-   from your <b>draw</b> function.
+   from your custom drawing function.
 </ul>
 
 <p>
-   When the system has to use this "computed" method to determine
-   the height, it calls your drawing function <i>twice</i>.  The
+   The system can tell that it has to use the "dynamic" method to
+   determine the height when it sees that you haven't provided any
+   way for it to pre-calculate the height, either from an explicit
+   <b>height</b> property or from an implied height based on a
+   <b>backgroundImage</b> property.
+</p>
+<p>
+   When the dynamic height method is required, the system
+   calls your drawing function <i>twice</i>.  The
    first time, the call is only to figure out the height, and doesn't
-   do any actual on-screen drawing.  There are two important implications
-   of this two-pass process.  First, the actual layout height isn't
+   do any actual on-screen drawing.  There are three important implications
+   of this two-pass process:
+</p>
+<ul>
+   <li>First, the actual layout height isn't
    yet known on the first call, since the whole point of the first
    call is to determine that information.  So if you call getSize()
    on the drawing context, the height returned will be invalid.
-   Second, any drawing you do on this first pass is ignored and
+
+   <li>Second, any drawing you do on this first pass is ignored and
    won't actually appear on-screen, so it's okay if the exact
    drawing positions of objects are wrong on this first pass.
    For example, if you want to align something with the bottom
@@ -212,126 +245,37 @@
    at that point.  The actual drawing occurs on the second pass,
    at which point the final height is known, so your vertical
    position calculations will be valid.
-</p>
 
-<h3>Drawing function</h3>
-<p>
-   The <b>draw</b> property of the popup descriptor object passed to
-   mainWindow.showPopup() lets you specify a Javascript function where
-   you create your own custom internal graphics in the popup area.
-</p>
-<p>
-   The system calls this function after setting up the graphics
-   area for the drawing.  The argument to the function is a "drawing
-   context" object, which has methods that let you draw text and
-   graphics into the popup area.
-</p>
-<p>
-   The drawing context has the following methods:
-</p>
-<ul>
-   <li><b>drawImage(<i>file</i>, <i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>):</b>
-   Draw an image.  <i>file</i> is the name of the image file (JPEG and PNG formats are supported);
-   this can be an absolute path, or can be a path relative to the PinballY program folder.
-   <i>x</i> and <i>y</i> give the top left coordinates in pixels within the popup drawing area.
-      
-   <li><b>drawText(<i>string</i>):</b>  Draws the text in <i>string</i>, starting at
-   the current text origin, within the current text area boundaries, using the
-   current text font and color.  This automatically moves the text origin so that
-   the next drawText() call will place its text after this text.  If <i>string</i>
-   ends in a newline character ("\n"), the text origin is advanced to the start
-   of the next "line", vertically just below the drawn text and at the left edge
-   of the text area.  If <i>string</i> doesn't end in a newline, the text origin
-   is positioned immediately to the right of the drawn text.
-   <p>
-      This function automatically word-wraps the text if it exceeds the width of
-      the current text area.  However, this accesses a low-level Windows drawing
-      function with a primitive line-wrapping algorithm that wraps each line to
-      the horizontal position of the current <i>origin</i>, not the current
-      text area bounds.  This means that you can't use drawText() to draw a mixture
-      of styles with word wrapping, since each segment will wrap from its own
-      origin.  If you need to use word-wrapping with styled text, you'll have
-      to implement a higher level layout algorithm in Javascript.
-   </p>
-   
-   <li><b>getTextOrigin():</b>  Returns an object with properties {x: <i>integer</i>, y: <i>integer</i>}
-   giving the current text origin, in pixel coordinates within the popup drawing
-   area.  This reflects the updates to the origin made by any drawText() calls, so
-   it's helpful when calculating the content height dynamically (see "calculated layout
-   height" above).
-
-   <li><b>measureText(<i>string</i>):</b>  Figures the pixel area required to display
-   the given text.  Returns an object with properties {left: <i>integer</i>, top: <i>integer</i>,
-   right: <i>integer</i>, bottom: <i>integer</i>, width: <i>integer</i>, height: <i>integer</i>},
-   giving the pixel positions and dimensions of the bounding box the text would occupy
-   if drawn at the current text origin.  Note that this <i>doesn't</i> take into
-   account line wrapping; it measures the text as though it were going to be laid
-   out in an infinitely widely boundary area.
-   
-   <li><b>fillRect(<i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>, <i>color</i>):</b>  Fills
-   a rectangle at the given position and dimensions with the given color.  The color is
-   given as an HTML-style 0xRRGGBB value, just like the backgroundColor in the popup
-   descriptor.  The coordinates are in pixels relative to the popup drawing area,
-   and the dimensions are in pixels.
-   
-   <li><b>frameRect(<i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>, <i>frameWidth</i>, <i>color</i>):</b>
-   Draws an outline of the given width in pixels around the specified rectangle.  The color
-   is an HTML-style 0xRRGGBB value.  The frame is drawn such that each frame line is
-   centered on the edge of the specified rectangle.  For example, if you draw a 4-pixel
-   frame, two of the pixels of each edge will be drawn outside the given rectangle
-   area and two of the pixels will be inside the rectangle area.
-   
-   <li><b>getImageSize(<i>filename</i>):</b>  Returns an object with properties {width: <i>integer</i>, height: <i>integer</i>}
-   giving the dimensions in pixels of the given image file.
-
-   <li><b>getSize():</b>  Returns an object with properties {width: <i>integer</i>, height: <i>integer</i>}
-   giving the dimensions in pixels of the popup drawing area.  Note that the height will be invalid
-   on the first call to your draw function if the two-pass process is used to compute the final
-   layout height, as described in "calculated layout height" above.
-   
-   <li><b>setFont(<i>name</i>, <i>pointSize</i>, <i>weight</i>):</b>  Sets the
-   text font to use for subsequent drawText() and measureText() calls.  Any of
-   the arguments can be passed as <b>undefined</b> to keep the values for the
-   current font; for example, you can change just the point size, keeping
-   the current weight, by calling <tt>dc.setFont(undefined, 24)</tt>.  The
-   weight value is from 100 to 900; for most fonts, 400 is the normal weight
-   and 700 is bold.  (Some fonts have extra-light and extra-bold variations,
-   which is why the range is wider than 400-700, and some have semi-bold
-   variations between normal and bold.)
-   
-   <li><b>setTextAlign(<i>horz</i>, <i>vert</i>):</b>  Sets the text alignment
-   for drawText().  Either parameter can be set to <b>undefined</b> to keep the
-   current alignment for that dimension.  For <i>horz</i>, -1 means left
-   alignment, 0 is center alignment, and 1 is right alignment.  For
-   <i>vert</i>, -1 is top alignment, 0 is vertically centered, and
-   1 is bottom alignment.  When drawing, the alignments are relative to the
-   current text area and the current text origin.
-   
-   <li><b>setTextArea(<i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>):</b>
-   Sets the boundaries of the current text area.  The coordinates and dimensions
-   are specified in pixels relative to the popup drawing area.  The text
-   boundaries are used for word-wrapping and alignment in drawText().
-   
-   <li><b>setTextColor(<i>color</i>):</b>  Sets the color for text drawn
-   with drawText(), as an HTML-style 0xRRGGBB value.
-   
-   <li><b>setTextOrigin(<i>x</i>, <i>y</i>:</b>  Sets the text origin
-   for the next call to drawText().  The coordinates are in pixels relative
-   to the popup drawing area.
-   
+   <li>Third, because the function will be called twice, it's
+   important that you don't do anything "global" within the
+   function.  Anything you do will happen twice, so you don't
+   want to do anything that triggers a side effect that the
+   user can see (for example, showing an alert box), and you
+   don't want to do anything that changes the values of global
+   variables.
 </ul>
+
+<h3>Calculating the height in the drawing function</h3>
 <p>
-   <b>Return value:</b>  If necessary, the function must return the
-   desired final height in pixels of the popup.  This is needed if
+   If you use the "calculated layout height" procedure described
+   above, your custom drawing function must return a value indicating
+   the desired pixel height for the popup box.  This is necessary if
    you don't specify a height for the popup in the popup descriptor
-   and you don't supply a background image, since in this case the
-   system has no way to figure the required height on its own.  To
-   figure the required height, you should keep
+   and you don't supply a background image, since that doesn't give
+   the system any way to figure the required height on its own.
+</p>
+<p>
+   To calculate the required height, you should keep
    track of the positions and heights of the objects you draw, and
    use that to calculate the overall height needed for the contents.
-   Return the result as the return value from the function.  The
-   system ignores the returned height if you explicitly specify a
-   height or a background image in the popup descriptor.
+   Return the result as the return value from the function.
+</p>
+<p>
+   The system ignores the returned height value if you provide a
+   height explicitly in the original popup descriptor object, or
+   if you specify a background image in the popup descriptor.  In
+   either case, the pre-determined height supersedes the custom draw
+   function's calculated height.
 </p>
    
 

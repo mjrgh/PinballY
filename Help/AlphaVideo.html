@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Notes on videos with "Alpha" transparency</h1>
+
+<p>
+   Starting with version 1.0 beta 17, PinballY is capable of
+   showing videos with "alpha" transparency information embedded
+   in the video.
+</p>
+<p>
+   Alpha transparency is probably a familiar concept if you've
+   done any work with image editors.  Image formats like PNG can
+   represent partially transparent pixels, so that one image can
+   be superimposed on top of another one, with areas of the background
+   image showing through areas of the top image.  Alpha transparency
+   in videos is very similar, with each individual frame in the
+   video having its own transparency mask.  This allows for
+   complex compositions where moving images are layered on top
+   of a background video.
+</p>
+
+<h2>Where alpha videos can be used in PinballY</h2>
+
+<p>
+   PinballY uses alpha for all videos that have it, regardless
+   of context.  Alpha transparency is a property of the video itself,
+   so PinballY simply uses alpha for a video if the video has alpha information
+   in the first place.
+</p>
+<p>
+   This applies to all videos, including the background videos
+   in the playfield window and other windows.  However, it's not
+   particularly useful for background videos, because there's
+   nothing "behind" them to show through the transparent areas
+   in the video - just a black background.  Any completely transparent
+   areas in a background video will thus be filled with
+   black, and partially transparent areas will effectively look like
+   they're shown at reduced brightness, as they'll be mixed
+   proportionally with the black background.
+</p>
+<p>
+   Transparency is therefore really only useful for videos that
+   are layered on top of other display areas.  Currently, PinballY
+   uses layered videos in the following contexts:
+</p>
+<ul>
+   <li>Launch overlays.  A launch overlay is layered on top of the
+   main playfield window, so transparent areas in a launch overlay
+   video will show the playfield video and other elements of the
+   normal wheel UI in the main window. 
+   See <a href="LaunchOverlayEvent.html">Launch overlay events</a>
+      and <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay</a>.
+</ul>
+
+<h2>Animated GIFs</h2>
+
+<p>
+   The most popular current "video" format with transparency support isn't
+   really a video format at all: it's the GIF image file format.
+   GIF files can be animated, by storing multiple image frames
+   and showing them sequentially on a timer.  It's not exactly
+   a video format in the usual sense, but the effect is similar,
+   and it's widely used on the Web for creating animated icons
+   and short video loops.  GIF also has a simple form of transparency,
+   so it can be used for animated overlays - just the sort of
+   thing you'd use alpha-channel video for.
+</p>
+<p>
+   Unfortunately, PinballY doesn't support animated GIF files.  (It
+   does support GIF as a still-image format, and it'll <i>load</i>
+   animated GIFs, but it'll only display the first frame,
+   as though you had pressed the pause button.)
+</p>
+<p>
+   GIFs might be your best source for overlay images, though,
+   so I'm going to give you an easy recipe for converting an
+   animated transparent GIF into an alpha-channel video format that
+   PinballY can use.  You can do this conversion using the
+   version of FFMPEG that comes with PinballY, or you can
+   use your own copy of FFMPEG if you've installed it
+   separately.  This converts a GIF into a MOV (Apple QuickTime
+   video) file with alpha transparency.  Type this into a CMD window
+   (note that this all goes on a single command line - it's extra
+   long, so it might wrap to multiple lines here):
+</p>
+<div class="indented commandline">
+ffmpeg -i <i>source_file</i>.gif -codec prores_ks -pix_fmt yuva444p10le -f mov <i>output_file</i>.mov   
+</div>
+   
+
+<h2>Supported video formats with alpha channels</h2>
+
+<p>
+   As of this writing, alpha channel support in the standard video
+   formats is quite limited.  It's not supported at all in
+   the most common formats and codecs, including MP4 and H.264.
+   (That's not because of PinballY limitations or libvlc
+   limitations - it's inherent in the formats.)
+</p>
+<p>
+   The only video file formats that currently support alpha appear
+   to be MOV (Apple's QuickTime video format), FLV (Adobe Flash Video),
+   and AVI (Windows).  However, that's hardly the full story, because
+   you also have to use a codec that supports alpha.  Here's a list
+   of what works now:
+</p>
+<ul>
+   <li>AVI files: PNG codec
+   <li>FLV files: PNG codec
+   <li>MOV files: PNG, QTRLE, or Apple's ProRes_KS with YUVA 4:4:4:4 at 10 bits per pixel (yuva444p10le)
+</ul>
+<p>
+   Note that "PNG" in this context is a <i>video codec</i>, not
+   a file format.  (It does happen to use the PNG image format to encode
+   each frame within the video, which is why the name is reused in this
+   somewhat confusing way.)  A PNG-encoded video stream can be stored in an AVI or FLV file.
+   You can encode videos this way with ffmpeg, for example.
+</p>
+<p>
+   PNG and QTRLE are usable only for very short clips, because they
+   use lossless encodings that result in extremely poor compression
+   ratios compared to what we're accustomed to with modern video
+   codecs like MP4 or H.264.  So at the moment, the ProRes YUVA 4:4:4:4
+   format is really the only good option for full video.  Fortunately,
+   ProRes seems to be a high-quality format with great alpha
+   support, so there's at least one good option.
+</p>
+<p>
+   This list might eventually grow, and it sure seems primed for
+   growth given how sparse it is, but I actually don't see it
+   growing quickly or soon.   Alpha channel support in video
+   seems to be a difficult technical problem that's of little
+   interest to the video engineering community.  It doesn't
+   seem that anyone except the Apple ProRes group has given
+   it much thought.  (That makes ProRes a curious anomaly:
+   computer technologies usually develop incrementally,
+   with a series of false starts and half measures before
+   a good solution appears.  But in this case, it seems
+   like no one else  was even trying, and along comes Apple
+   to just solve it for real.)
+</p>
+
+<h2>Creating alpha channel video from chroma-keyed material</h2>
+
+<p>
+   Even though alpha channel support in video formats seems to be a
+   work in progress that's barely begun, the concept of motion overlays is hardly new.
+   It goes back to film-based special effects.  Traditionally,
+   layered film and video composition was handled with an entirely different
+   process, called "chroma keying".  This is also known as
+   "green screen" or "blue screen" effects.
+</p>
+<p>
+   In chroma keying, rather than using a separate channel to
+   indicate which pixels are opaque and which are transparent, you
+   use a special "key" color within the image to mark the transparent pixels.
+   Every pixel that matches the key color is transparent, and the rest
+   are opaque.  This technique has been used for a long time in
+   film and video special effects because it works well when
+   the subject is live rather than computer-generated.  You
+   shoot the subject against a backdrop that's painted uniformly
+   with the key color - the "green screen", as it's commonly
+   called, because that's the color usually used in video production.
+   You can then superimpose the subject onto a different background
+   later by replacing all of the green-screen pixels with the
+   separate background layer.  It's the technique they use to
+   show the weather map behind the announcer on the local news.
+</p>
+<p>
+   The reason I mention chroma keying is that there's a lot of
+   stock video on the Web that uses the chroma key technique,
+   and very little that uses alpha.  If you're looking for
+   material to use for overlay videos, you might have an
+   easier time finding chroma-keyed videos.  To use these in
+   PinballY as transparent overlays, you'll need to convert
+   them to use alpha channels.  So here's a handy recipe
+   you can use:
+</p>
+<ul>
+   <li>First, identify the key color.  An easy way to do this
+   is to play the video in any video player, and take a screen
+   shot of any frame showing the background color.  Open up
+   the screen shot in a photo editor and use the "eyedropper"
+   tool to pick the pixel color.  Note its hex RGB value.
+   Most photo editors these days will give you an
+   HTML "#" code for each color, like "#00FF00" for bright
+   green.  That's the hex RGB value.
+
+   <li>Now fire up a CMD prompt, and enter the following magical
+   incantation to ffmpeg.  You can use the copy of ffmpeg that's
+   in your PinballY install folder.  Replace the <b>0x00ff00</b>
+   part in the <b>chromakey</b> section with the hex RGB color value you noted above.
+   (Note that this all goes on one command line in the CMD window - it's
+   very long so it'll probably wrap as displayed here.)
+   <div class="indented commandline">
+ffmpeg -i <i>source_video_file</i> -vf "chromakey=0x00ff00:0.01:0.01" -codec prores_ks -pix_fmt yuva444p10le -f mov <i>output_file_name</i>.mov
+   </div>
+   <p>
+      Note that there are two extra parameters in the <b>chromakey</b>
+      section, following the hex RGB color value, which you might
+      also want to play with to optimize the conversion.  The
+      first <b>0.01</b> value is the "tolerance" for matching
+      the key color.  0.01 is 1% tolerance, meaning that the
+      color has to match almost exactly.  This works well for
+      computer-generated videos with perfectly uniform backgrounds,
+      but material with a live subject against a green screen
+      might have a lot more variation in the background.  Adjust
+      this upwards if areas of the background remain opaque in
+      the converted video.  The second <b>0.01</b> value sets
+      how much of a transparency ramp is used to adjust pixels
+      that are close to the background color but not exact.
+      Again, a small value like .01 is good for computer-generated
+      material; this will result in sharp edges around the
+      subject.  A higher value will make the edges appear softer
+      by making them partially transparent, which might look better
+      with live subjects.  But too high a value will make the
+      subject look too transparent, so you might have to
+      experiment to find the right value for a given video.
+   </p>
+</ul>
+   

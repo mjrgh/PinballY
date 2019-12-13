@@ -343,7 +343,7 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 		// game is running, as the game owns the DMD device for the
 		// duration of the run; we'll reattach if appropriate when
 		// the game exits and we take over the UI again.
-		if (runningGamePopup == nullptr)
+		if (runningGameMsgPopup == nullptr)
 		{
 			// shut down any existing DMD session
 			if (realDMD != nullptr)
@@ -613,6 +613,9 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsHighScoresRequestEvent, "HighScoresRequestEvent")
 				|| !GetObj(jsHighScoresReadyEvent, "HighScoresReadyEvent")
 				|| !GetObj(jsUnderlayChangeEvent, "UnderlayChangeEvent")
+				|| !GetObj(jsLaunchOverlayShowEvent, "LaunchOverlayShowEvent")
+				|| !GetObj(jsLaunchOverlayHideEvent, "LaunchOverlayHideEvent")
+				|| !GetObj(jsLaunchOverlayMessageEvent, "LaunchOverlayMessageEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -745,6 +748,26 @@ void PlayfieldView::InitJavascript()
 					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsRemove), &StatusLine::JsRemove, void, int>, this, eh)
 				|| !js->DefineObjMethod(statusLineProto, "StatusLine", "show",
 					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsShow), &StatusLine::JsShow, void, TSTRING>, this, eh))
+				return;
+
+			// Set up the mainWindow.launchOverlay object methods
+			JsValueRef launchOverlayLayerObj, launchOverlayLayerProto;
+			if ((err = js->GetGlobProp(launchOverlayLayerObj, "LaunchOverlayLayer", where)) != JsNoError
+				|| (err = js->GetProp(launchOverlayLayerProto, launchOverlayLayerObj, "prototype", where)) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error getting LaunchOverlayLayer prototype object: %s\n"), where);
+				return;
+			}
+
+			// set up the LaunchOverlayLayer prototype methods
+			if (!js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "loadImage",
+				&PlayfieldView::JsLaunchOverlayLoadImage, this, eh)
+				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "loadVideo",
+					&PlayfieldView::JsLaunchOverlayLoadVideo, this, eh)
+				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "draw",
+					&PlayfieldView::JsLaunchOverlayDraw, this, eh)
+				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "clear",
+					&PlayfieldView::JsLaunchOverlayClear, this, eh))
 				return;
 
 			// create the DrawingContext prototype and populate its methods
@@ -3721,6 +3744,12 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// continue the underlay crossfade animation
 		AnimateUnderlayCrossfade();
 		break;
+
+	case runFreezeTimerID:
+		// enter run freeze mode
+		EnterRunFreezeMode();
+		KillTimer(hWnd, timer);
+		break;
 	}
 
 	// use the default handling
@@ -3977,7 +4006,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 
 			// switch to the "exiting game" message
 			runningGameMode = RunningGameMode::Exiting;
-			ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING));
+			ShowRunningGameMessage(L"terminating", LoadStringT(IDS_GAME_EXITING));
 
 			// switch to "cancelling" mode
 			Application::Get()->ShowCaptureCancel();
@@ -5003,12 +5032,22 @@ bool PlayfieldView::FireLaunchEvent(JavascriptEngine::JsObj *overrides, JsValueR
 	return ret;
 }
 
+bool PlayfieldView::FireLaunchOverlayEvent(JsValueRef type, GameListItem *game)
+{
+	// try firing the event
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		return js->FireEvent(jsMainWindow, type, BuildJsGameInfo(game));
+
+	// javascript isn't active - proceed with the default
+	return true;
+}
+
 void PlayfieldView::ResetGameTimeout()
 {
 	// If a game is running, and the timeout interval is non-zero, set 
 	// the timer.  This replaces any previous timer, so it effectively 
 	// resets the interval if a timer was already set.
-	if (runningGamePopup != nullptr && gameTimeout != 0)
+	if (runningGameMsgPopup != nullptr && gameTimeout != 0)
 		SetTimer(hWnd, gameTimeoutTimerID, gameTimeout, NULL);
 }
 
@@ -5723,26 +5762,19 @@ void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
 			if (drawFunc != JS_INVALID_REFERENCE)
 			{
 				// set up a drawing context for the callback
-				jsDC.reset(new JsDrawingContext(g,
+				jsDC.reset(new JsDrawingContext(this, g,
 					static_cast<float>(pixWidth), static_cast<float>(pixHeight),
 					static_cast<float>(borderWidth)));
 
-				// Create the Javascript drawing context.  This is just an object with
-				// prototype <jsDrawingContext>, which encapsulates the drawing methods.
-				// The context object doesn't *actually* capture any host state, even
-				// though it represents the host drawing state conceptually.  The real 
-				// host state is managed by the jsPopupDC static, which is fine for our
-				// purposes here since it only has to exist for the duration of the
-				// callback.  If in the future we wanted to create multiple host drawing
-				// contexts for javascript use that could exist simultaneously with
-				// overlapping lifetimes, we'd make the concept match the reality by
-				// putting a reference to the true host state object in the js object;
-				// but for now we don't have any practical need for that, so keep it
-				// simple by using the static.
-				auto jsdc = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsDrawingContextProto);
+				// set the initial text color
+				jsDC->textColor = Gdiplus::Color(
+					0xFF,
+					static_cast<BYTE>((txtColor >> 16) & 0xff),
+					static_cast<BYTE>((txtColor >> 8) & 0xff),
+					static_cast<BYTE>(txtColor & 0xff));
 
 				// call the callback:  func(drawingContext)
-				JsValueRef argv[] = { js->GetGlobalObject(), jsdc.jsobj }, result;
+				JsValueRef argv[] = { js->GetGlobalObject(), jsDC->jsobj.jsobj }, result;
 				if (JsErrorCode err = JsCallFunction(drawFunc, argv, static_cast<unsigned short>(countof(argv)), &result); err != JsNoError)
 					js->Throw(err, _T("mainWindow.showPopup draw callback"));
 
@@ -5802,6 +5834,25 @@ void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
 	catch (JavascriptEngine::CallException exc)
 	{
 		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+PlayfieldView::JsDrawingContext::JsDrawingContext(
+	PlayfieldView *pfv, Gdiplus::Graphics &g, float width, float height, float borderWidth) :
+	g(g),
+	width(width),
+	height(height),
+	borderWidth(static_cast<float>(borderWidth)),
+	textOrigin(borderWidth, borderWidth),
+	textBounds(borderWidth, borderWidth, width - borderWidth * 2.0f, height - borderWidth * 2.0f)
+{
+	try
+	{
+		jsobj = JavascriptEngine::JsObj::CreateObjectWithPrototype(pfv->jsDrawingContextProto);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("Initializing drawing context object for custom drawing function"));
 	}
 }
 
@@ -5900,7 +5951,7 @@ void PlayfieldView::JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValue
 	jsDC->font.reset();
 }
 
-void PlayfieldView::JsDrawSetTextColor(int rgb)
+void PlayfieldView::JsDrawSetTextColor(int argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -5909,9 +5960,10 @@ void PlayfieldView::JsDrawSetTextColor(int rgb)
 
 	// set the new color
 	jsDC->textColor = Gdiplus::Color(
-		static_cast<BYTE>((rgb >> 16) & 0xff),
-		static_cast<BYTE>((rgb >> 8) & 0xff),
-		static_cast<BYTE>(rgb & 0xff));
+		static_cast<BYTE>((argb >> 24) & 0xff),
+		static_cast<BYTE>((argb >> 16) & 0xff),
+		static_cast<BYTE>((argb >> 8) & 0xff),
+		static_cast<BYTE>(argb & 0xff));
 
 	// clear the previous text brush
 	jsDC->textBrush.reset();
@@ -6133,7 +6185,7 @@ JsValueRef PlayfieldView::JsDrawMeasureText(TSTRING text)
 	}
 }
 
-void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, int rgb)
+void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, int argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -6146,15 +6198,16 @@ void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, 
 
 	// create a brush
 	Gdiplus::SolidBrush br(Gdiplus::Color(
-		static_cast<BYTE>((rgb >> 16) & 0xff),
-		static_cast<BYTE>((rgb >> 8) & 0xff),
-		static_cast<BYTE>(rgb & 0xff)));
+		static_cast<BYTE>((argb >> 24) & 0xff),
+		static_cast<BYTE>((argb >> 16) & 0xff),
+		static_cast<BYTE>((argb >> 8) & 0xff),
+		static_cast<BYTE>(argb & 0xff)));
 
 	// fill the rectangle
 	jsDC->g.FillRectangle(&br, x, y, width, height);
 }
 
-void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int rgb)
+void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -6167,9 +6220,10 @@ void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height,
 
 	// create a pen
 	Gdiplus::Pen pen(Gdiplus::Color(
-		static_cast<BYTE>((rgb >> 16) & 0xff),
-		static_cast<BYTE>((rgb >> 8) & 0xff),
-		static_cast<BYTE>(rgb & 0xff)), frameWidth);
+		static_cast<BYTE>((argb >> 24) & 0xff),
+		static_cast<BYTE>((argb >> 16) & 0xff),
+		static_cast<BYTE>((argb >> 8) & 0xff),
+		static_cast<BYTE>(argb & 0xff)), frameWidth);
 
 	// draw the frame
 	jsDC->g.DrawRectangle(&pen, x, y, width, height);
@@ -8088,12 +8142,27 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	// fire a DOF Launch Game event
 	QueueDOFPulse(L"PBYLaunchGame");
 
-	// show the initial blank screen
+	// create the running game sprites
+	runningGameBkgPopup.Attach(new VideoSprite());
+	runningGameBkgPopup->alpha = 0.0f;
+	runningGameMsgPopup.Attach(new VideoSprite());
+	runningGameMsgPopup->alpha = 0.0f;
+	UpdateDrawingList();
+
+	// fire a Launch Overlay Show event
+	if (FireLaunchOverlayEvent(jsLaunchOverlayShowEvent, game))
+	{
+		// show the default background screen - just an opaque
+		// dark fill
+		LaunchOverlayClear(runningGameBkgPopup, 0xFF1E1E1E);
+	}
+
+	// show the initial blank message screen
 	runningGameMode = RunningGameMode::Starting;
-	ShowRunningGameMessage(nullptr);
+	ShowRunningGameMessage(L"init", nullptr);
 
 	// animate the popup opening
-	runningGamePopup->alpha = 0;
+	runningGameMsgPopup->alpha = 0;
 	StartAnimTimer(runningGamePopupStartTime);
 	runningGamePopupMode = RunningGamePopupOpen;
 
@@ -8113,16 +8182,49 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	UpdateJsUIMode();
 }
 
-void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg)
+void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 {
-	// create the sprite
-	runningGamePopup.Attach(new Sprite());
+	// get the running game object
+	auto game = GameList::Get()->GetByInternalID(runningGameID);
+
+	// fire the Launch Overlay Message event
+	bool includeWheelImage = true;
+	TSTRING newMsg;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		try
+		{
+			// Fire the event.  If the event handler cancels the event,
+			// simply leave the previous message overlay screen in place.
+			JsValueRef eventObjVal;
+			if (!js->FireAndReturnEvent(eventObjVal, jsMainWindow, jsLaunchOverlayMessageEvent, BuildJsGameInfo(game), id, msg))
+				return;
+
+			// get the returned event object
+			JavascriptEngine::JsObj event(eventObjVal);
+
+			// update the message string 
+			newMsg = event.Get<TSTRING>("message");
+			msg = newMsg.c_str();
+
+			// check if they want to suppress the wheel logo
+			if (event.Get<bool>("hideWheelImage"))
+				includeWheelImage = false;
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("Launch Overlay Show event"));
+		}
+	}
+
+	// Javascript didn't intervene - do the default drawing
+	runningGameMsgPopup.Attach(new VideoSprite());
 	const int width = NormalizedWidth(), height = 1920;
 	Application::InUiErrorHandler eh;
-	runningGamePopup->Load(width, height, [width, height, msg, this](Gdiplus::Graphics &g)
+	runningGameMsgPopup->Load(width, height, [width, height, msg, includeWheelImage, game, this](Gdiplus::Graphics &g)
 	{
-		// fill the background
-		Gdiplus::SolidBrush bkg(Gdiplus::Color(255, 30, 30, 30));
+		// fill the background with transparency
+		Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 30, 30, 30));
 		g.FillRectangle(&bkg, 0, 0, width, height);
 
 		// If there's a message, draw the wheel image and the message.
@@ -8132,9 +8234,8 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg)
 			// load the wheel image, if available
 			std::unique_ptr<Gdiplus::Bitmap> wheelImage;
 			SIZE wheelImageSize = { 0, 0 };
-			auto game = GameList::Get()->GetByInternalID(runningGameID);
 			TSTRING wheelFile;
-			if (IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
+			if (includeWheelImage && IsGameValid(game) && game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
 				wheelImage.reset(Gdiplus::Bitmap::FromFile(wheelFile.c_str()));
 
 			// draw the wheel image, if available
@@ -8157,7 +8258,28 @@ void PlayfieldView::ShowRunningGameMessage(const TCHAR *msg)
 		}
 	}, eh, _T("Game Running Popup"));
 
-	// udpate the drawing list with the new sprite
+	// update the drawing list with the new sprite
+	UpdateDrawingList();
+}
+
+void PlayfieldView::EnterRunFreezeMode()
+{
+	// We're presumably running in the background at this point, since
+	// the game player app should be in front now, so we're not doing
+	// the usual D3D redraw-on-idle that we do in the foreground.  We
+	// need to do an old-fashioned InvalidateRect() to trigger a
+	// WM_PAINT to show the running game popup.  That remains static
+	// as long as the game is running, so we won't need further manual
+	// updates, but we at least need one now for the initial display.
+	InvalidateRect(hWnd, 0, false);
+
+	// freeze idle-time rendering while we're in the background, to
+	// minimize GPU usage
+	freezeBackgroundRendering = true;
+
+	// clear our playfield video
+	currentPlayfield.Clear();
+	incomingPlayfield.Clear();
 	UpdateDrawingList();
 }
 
@@ -8169,8 +8291,11 @@ void PlayfieldView::EndRunningGameMode()
 	// resume background updates
 	freezeBackgroundRendering = false;
 
+	// kill any pending timer for initiating the background freeze
+	KillTimer(hWnd, runFreezeTimerID);
+
 	// Only proceed if we're in running game mode
-	if (runningGamePopup == nullptr)
+	if (runningGameMsgPopup == nullptr)
 		return;
 
 	// Clear the keyboard queue
@@ -8192,6 +8317,10 @@ void PlayfieldView::EndRunningGameMode()
 
 	// Remove any game inactivity timeout timer
 	KillTimer(hWnd, gameTimeoutTimerID);
+
+	// fire the "hide" event
+	auto game = GameList::Get()->GetByInternalID(runningGameID);
+	FireLaunchOverlayEvent(jsLaunchOverlayHideEvent, game);
 
 	// remove the popup
 	StartAnimTimer(runningGamePopupStartTime);
@@ -8229,6 +8358,135 @@ void PlayfieldView::EndRunningGameMode()
 	UpdateJsUIMode();
 }
 
+void PlayfieldView::JsLaunchOverlayClear(JsValueRef self, unsigned int argb)
+{
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
+		LaunchOverlayClear(sprite, argb);
+}
+
+void PlayfieldView::LaunchOverlayClear(VideoSprite *sprite, unsigned int argb)
+{
+	// clear any prior video
+	sprite->ClearVideo();
+
+	// Draw a blank background with the desired color
+	const int width = NormalizedWidth(), height = 1920;
+	Application::InUiErrorHandler eh;
+	sprite->Load(width, height, [argb, width, height, this](Gdiplus::Graphics &g)
+	{
+		// Note that Gdiplus::ARGB happens to use the same format we're
+		// using (32-bit int encoded MSB to LSB as AARRGGBB), but we don't
+		// want to assume that's permanent or universal, so we'll explicitly
+		// decode our format and re-encode it with the Gdiplus public
+		// interface.  That way this won't mysteriously start reversing
+		// the color order or anything wacky like that down the road.
+		Gdiplus::SolidBrush bkg(Gdiplus::Color(
+			static_cast<BYTE>((argb >> 24) & 0xff),
+			static_cast<BYTE>((argb >> 16) & 0xff),
+			static_cast<BYTE>((argb >> 8) & 0xff),
+			static_cast<BYTE>(argb & 0xff)));
+		g.FillRectangle(&bkg, 0, 0, width, height);
+
+	}, eh, _T("Launch overlay - default background"));
+}
+
+void PlayfieldView::JsLaunchOverlayDraw(JsValueRef self, JsValueRef drawFunc)
+{
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
+	{
+		// clear any prior video
+		sprite->ClearVideo();
+
+		// figure the normalized size
+		const int width = NormalizedWidth(), height = 1920;
+
+		// set up the native draw function, which will invoke the JS
+		// drawing callback
+		auto Draw = [&](Gdiplus::Graphics &g)
+		{
+			// Set up the native interface for the Javascript drawing context for 
+			// the callback.  Note that this object is static, which is fine, since 
+			// it only has to exist for the duration of the callback invocation.
+			jsDC.reset(new JsDrawingContext(this, g, static_cast<float>(width), static_cast<float>(height), 0));
+
+			// invoke the callback - drawFunc(drawingContext)
+			auto js = JavascriptEngine::Get();
+			JsValueRef argv[] = { js->GetGlobalObject(), jsDC->jsobj.jsobj }, result;
+			if (JsErrorCode err = JsCallFunction(drawFunc, argv, static_cast<unsigned short>(countof(argv)), &result); err != JsNoError)
+				js->Throw(err, _T("mainWindow.launchOverlay.draw callback"));
+
+			// the drawing context is valid only for the duration of the callback
+			jsDC.reset();
+		};
+
+		// do the drawing
+		sprite->Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw"));
+	}
+}
+
+bool PlayfieldView::JsLaunchOverlayLoadImage(JsValueRef self, WSTRING filename)
+{
+	// presume failure
+	bool ok = false;
+
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
+	{
+		// clear any prior video
+		sprite->ClearVideo();
+
+		// load the image
+		const int width = NormalizedWidth(), height = 1920;
+		ok = sprite->Load(filename.c_str(),
+			POINTF{ static_cast<float>(width), static_cast<float>(height) },
+			SIZE{ width, height },
+			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
+	}
+
+	// return the result
+	return ok;
+}
+
+bool PlayfieldView::JsLaunchOverlayLoadVideo(JsValueRef self, WSTRING filename)
+{
+	// presume failure
+	bool ok = false;
+
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
+	{
+		// load the video
+		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
+		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(),
+			hWnd, POINTF{ width, 1.0f },
+			LogFileErrorHandler(), _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"));
+	}
+
+	// return the result
+	return ok;
+}
+
+VideoSprite *PlayfieldView::JsThisToOverlayLayer(JsValueRef self)
+{
+	// get the ID from the object
+	auto js = JavascriptEngine::Get();
+	TSTRING id;
+	const TCHAR *where;
+	if (js->GetProp(id, self, "id", where) != JsNoError)
+	{
+		js->LogAndClearException();
+		return nullptr;
+	}
+
+	// get the layer corresponding to the ID
+	return id == _T("fg") ? runningGameMsgPopup.Get() :
+		id == _T("bg") ? runningGameBkgPopup.Get() :
+		nullptr;
+}
+
+
 bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
@@ -8253,7 +8511,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 			// Show the "Launching Game" message while the game is loading, and
 			// while we're running the RunBefore javascript and external commands.
-			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ? 
+			ShowRunningGameMessage(L"launching", LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ? 
 				IDS_CAPTURE_LOADING : IDS_GAME_LOADING));
 
 			// fire Javascript "runbefore"
@@ -8280,7 +8538,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			FireLaunchEvent(jsRunAfterEvent, report->gameInternalID, report->launchCmd);
 
 			// clear the screen
-			ShowRunningGameMessage(nullptr);
+			ShowRunningGameMessage(L"after", nullptr);
 
 			// fire "runafter post"
 			FireLaunchEvent(jsRunAfterPostEvent, report->gameInternalID, report->launchCmd);
@@ -8296,8 +8554,10 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 			// switch to "Running" mode in the UI
 			runningGameMode = RunningGameMode::Running;
-			ShowRunningGameMessage(LoadStringT((report->launchFlags & Application::LaunchFlags::Capturing) != 0 ?
-				IDS_CAPTURE_RUNNING : IDS_GAME_RUNNING));
+			if ((report->launchFlags & Application::LaunchFlags::Capturing) != 0)
+				ShowRunningGameMessage(L"capturing", LoadStringT(IDS_CAPTURE_RUNNING));
+			else
+				ShowRunningGameMessage(L"running", LoadStringT(IDS_GAME_RUNNING));
 
 			// If a menu is closing, remove it immediately.  Most games take
 			// a couple of seconds to launch, so the menu that launches the
@@ -8329,18 +8589,27 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			// Fire the Javascript "gamestarted" event
 			FireLaunchEvent(jsGameStartedEvent, report->gameInternalID, report->launchCmd);
 
-			// We're presumably running in the background at this point, since
-			// the game player app should be in front now, so we're not doing
-			// the usual D3D redraw-on-idle that we do in the foreground.  We
-			// need to do an old-fashioned InvalidateRect() to trigger a
-			// WM_PAINT to show the running game popup.  That remains static
-			// as long as the game is running, so we won't need further manual
-			// updates, but we at least need one now for the initial display.
-			InvalidateRect(hWnd, 0, false);
-
-			// freeze idle-time rendering while we're in the background, to
-			// minimize GPU usage
-			freezeBackgroundRendering = true;
+			// Set a timer to finalize "game is running" mode in a few moments.
+			// Even though the game is *nominally* running *right now*, in the 
+			// sense that PFVMsgGameLoaded is fired after the game opens its
+			// first window and exhausts its initial queue of Windows message,
+			// it might not be apparent to the user that the game is running.
+			// VP and FP both open their editor windows first - which triggers
+			// the present event - but might not display the actual game screen
+			// for several seconds.  So leave our UI running for a little while
+			// longer for a smoother transition.  In cases like VP where the
+			// initial window isn't the same as the actual game window, it's 
+			// impossible to know when that game window is finally ready, so
+			// we'll just have to use an arbitrary delay here.  All of the
+			// pinball simulators I've encountered need a fairly long time to
+			// get ready for user interaction, even after showing their main
+			// window, so it's okay to err on the side of waiting too long:
+			// that will give us the smoothest display transition, since we're
+			// more likely to keep updating until the game window is in front.
+			// As long as we don't pick an unreasonably long delay, we should
+			// be out of the way by the time the actual user interaction is
+			// going, which is when it matters that we reduce our footprint.
+			SetTimer(hWnd, runFreezeTimerID, 5000, NULL);
 		}
 		return true;
 
@@ -8356,7 +8625,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			if (runningGameMode != RunningGameMode::Exiting)
 			{
 				runningGameMode = RunningGameMode::Exiting;
-				ShowRunningGameMessage(LoadStringT(IDS_GAME_EXITING));
+				ShowRunningGameMessage(L"gameover", LoadStringT(IDS_GAME_EXITING));
 			}
 
 			// Update the run time for the game, if statistics updates were requested
@@ -9573,7 +9842,7 @@ void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 
 	// if a game is running, don't do anything unless we're
 	// explicitly returning from the running game
-	if (runningGamePopup != nullptr && mode != SyncEndGame)
+	if (runningGameMsgPopup != nullptr && mode != SyncEndGame)
 		return;
 
 	// if the current playfield matches the game list selection,
@@ -9642,8 +9911,10 @@ void PlayfieldView::UpdateDrawingList()
 		sprites.push_back(infoBox.sprite);
 
 	// add the running game overlay
-	if (runningGamePopup != nullptr)
-		sprites.push_back(runningGamePopup);
+	if (runningGameBkgPopup != nullptr)
+		sprites.push_back(runningGameBkgPopup);
+	if (runningGameMsgPopup != nullptr)
+		sprites.push_back(runningGameMsgPopup);
 
 	// add the video overlay sprite
 	if (videoOverlay != nullptr)
@@ -10432,26 +10703,31 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// Animate the running game overlay
-	if (runningGamePopupMode != RunningGamePopupNone && runningGamePopup != nullptr)
+	if (runningGamePopupMode != RunningGamePopupNone && runningGameMsgPopup != nullptr)
 	{
 		// update the fade
 		DWORD dt = GetTickCount() - runningGamePopupStartTime;
 		float progress = fminf(1.0f, float(dt) / float(popupOpenTime));
-		runningGamePopup->alpha = (runningGamePopupMode == RunningGamePopupOpen ? progress : 1.0f - progress);
+		float alpha = (runningGamePopupMode == RunningGamePopupOpen ? progress : 1.0f - progress);
+		runningGameMsgPopup->alpha = alpha;
+
+		// sync the background popup, if present
+		if (runningGameBkgPopup != nullptr)
+			runningGameBkgPopup->alpha = alpha;
+
+		// if we're at the end of the fade, end the animation
 		if (progress == 1.0f)
 		{
 			switch (runningGamePopupMode)
 			{
 			case RunningGamePopupOpen:
-				// opening - clear the playfield sprites
-				currentPlayfield.Clear();
-				incomingPlayfield.Clear();
-				updateDrawingList = true;
+				// opening - nothing to do
 				break;
 
 			case RunningGamePopupClose:
 				// closing - remove the popup
-				runningGamePopup = 0;
+				runningGameMsgPopup = nullptr;
+				runningGameBkgPopup = nullptr;
 				updateDrawingList = true;
 				break;
 			}
@@ -11614,7 +11890,7 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 		// play the selected button sound
 		PlayButtonSound(sound);
 	}
-	else if (runningGamePopup != nullptr)
+	else if (runningGameMsgPopup != nullptr)
 	{
 		// Running a game.  Show the game menu.
 		ShowPauseMenu(usingExitKey);
@@ -11927,7 +12203,7 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 				ClosePopup();
 			}
 		}
-		else if (runningGamePopup != nullptr)
+		else if (runningGameMsgPopup != nullptr)
 		{
 			// treat this as a Select button, to show the game control menu
 			CmdSelect(key);
@@ -12110,7 +12386,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGamePopup != nullptr)
+	else if (runningGameMsgPopup != nullptr)
 	{
 		// don't change games while a game is running
 	}
@@ -12217,7 +12493,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGamePopup != nullptr)
+	else if (runningGameMsgPopup != nullptr)
 	{
 		// don't change games while a game is running
 	}
@@ -12277,7 +12553,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			// menu/popup - treat it as a regular 'next'
 			DoCmdNext(key.mode == KeyRepeat);
 		}
-		else if (runningGamePopup != nullptr)
+		else if (runningGameMsgPopup != nullptr)
 		{
 			// running a game - do nothing
 		}
@@ -12339,7 +12615,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 			// menu/popup - treat as equivalent to 'previous'
 			DoCmdPrev(key.mode == KeyRepeat);
 		}
-		else if (runningGamePopup != nullptr)
+		else if (runningGameMsgPopup != nullptr)
 		{
 			// running a game - do nothing
 		}
@@ -12365,7 +12641,7 @@ void PlayfieldView::CmdLaunch(const QueuedKey &key)
 		{
 			// a startup video was playing - don't do anything else until it stops
 		}
-		else if (curMenu != nullptr || popupSprite != nullptr || runningGamePopup != nullptr)
+		else if (curMenu != nullptr || popupSprite != nullptr || runningGameMsgPopup != nullptr)
 		{
 			// Menu, popup, or running game popup is showing.  Treat Launch
 			// as Select.
@@ -12660,7 +12936,7 @@ void PlayfieldView::CmdService4(const QueuedKey &key)
 	// show our "service menu", with program and game setup commands.
 	if (key.mode == KeyDown)
 	{
-		if (curMenu != nullptr || popupSprite != nullptr || runningGamePopup != nullptr)
+		if (curMenu != nullptr || popupSprite != nullptr || runningGameMsgPopup != nullptr)
 		{
 			// menu or popup is showing - treat this as a normal Select
 			CmdSelect(key);
@@ -17153,7 +17429,7 @@ void PlayfieldView::CmdSettings(const QueuedKey &key)
 void PlayfieldView::ShowSettingsDialog()
 {
 	// don't allow this when a game is running
-	if (runningGamePopup != nullptr)
+	if (runningGameMsgPopup != nullptr)
 	{
 		ShowError(EIT_Information, LoadStringT(IDS_ERR_NOT_WHILE_RUNNING));
 		return;
@@ -17871,7 +18147,6 @@ R PlayfieldView::JsStatusLineMethod(JsValueRef selfVal, Args... args)
 		auto id = self.Get<WSTRING>("id");
 
 		// invoke the method on the appropriate status line
-		auto pfv = Application::Get()->GetPlayfieldView();
 		if (id == L"upper")
 			return static_cast<R>((this->upperStatus.*M)(args...));
 		else if (id == L"lower")

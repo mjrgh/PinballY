@@ -1,15 +1,17 @@
 // This file is part of PinballY
-// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+// Copyright 2019 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
-// YUV 4:2:0 (VLC FOURCC 'I420') and YUV 4:4:4 shaders ('I444')
+// YUVA 4:2:0 (VLC FOURCC 'I40A') and YUVA 4:4:4 shaders ('YUVA')
 //
-// This takes Y:U:V data as four separate textures, one per plane.  
-// The Y plane provides 8 bits of luma data per pixel; the U and V 
-// planes each provide 8 bits of chroma data per 2x2 pixel block.  
+// This shader takes Y:U:V:A data as four separate textures, one per 
+// plane.  The Y plane provides 8 bits of luma data per pixel; the U 
+// and V planes each provide 8 bits of chroma data per 2x2 pixel block;
+// and the A plane provides 8 bits of alpha (transparency) data per
+// pixel.
 //
-// This shader also works with I444 data with no changes.  I444 uses
-// 8 bits per image pixel in all three planes, so the only difference
-// from I420 is that the U and V planes have more pixels.  This is
+// This shader also works with YUVA (4:4:4) data with no changes.  YUVA
+// uses 8 bits per image pixel every plane, so the only difference
+// from 4:2:0 is that the U and V planes have more pixels.  This is
 // transparent to the shader because we use normalized texture coords.
 // Simply bind the supersized textures the same way as for I420.
 //
@@ -93,14 +95,18 @@ float4 main(PixelInputType input) : SV_TARGET
 	float Y = 1.164f * ((YTexture.Sample(SampleType, input.tex).r * 255.0f) - 16.0f);
 	float U = (UTexture.Sample(SampleType, input.tex).r * 255.0f) - 128.0f;
 	float V = (VTexture.Sample(SampleType, input.tex).r * 255.0f) - 128.0f;
-	
+
+	// Get the A (alpha) value.  No conversion is necessary, as YUVA alpha
+	// is interpreted the same way as RGBA alpha.
+	float A = ATexture.Sample(SampleType, input.tex).r;
+
 	// Figure the RGB conversion, converting the final result back to
 	// the normalized 0..1 range.
 	float4 RGBA = float4(
 		clamp(Y + 1.596f*V, 0, 255.0f) / 255.0f,
 		clamp(Y - 0.813f*V - 0.391f*U, 0, 255.0f) / 255.0f,
 		clamp(Y + 2.018f*U, 0, 255.0f) / 255.0f,
-		alpha);
+		clamp(A * alpha, 0, 1));
 
 	// return the RGB result
 	return RGBA;

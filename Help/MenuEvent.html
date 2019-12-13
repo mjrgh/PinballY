@@ -361,15 +361,17 @@ mainWindow.on("menuopen", (ev) =&gt; {
    </p>
 
    <a name="tidyMenu"></a>
-   <li><b>tidyMenu(<i>items</i>)</b>:  tidies up the given menu item
+   <li><b>tidyMenu(<i>items</i>)</b>:  Cleans up the given menu item
    array, by removing any redundant separator bars.  If your event
    listener removes one or more items from a system menu, there's a
    chance that you might have removed all of the items between a
-   pair of separator bars that the system menu used to group related
-   items, leaving behind sloppy-looking empty group.  This method
-   looks for empty groups and removes them, replacing each run of
-   consecutive separator bars with a single separator bar so that
-   the menu looks tidy again.
+   pair of separator bars that the system placed in the original menu to
+   visually group a set of related items.  If you removed all of the items
+   in such a group, you'll leave behind the pair of separator bars,
+   with nothing in between them.  That looks a little sloppy.  This method
+   looks for empty groups like that and removes them, replacing each
+   bunch of consecutive separator bars with a single separator bar, so that
+   the menu looks properly formatted again.
    <p>
       If you pass an <i>items</i> array
       as an argument, the method tidies up that array and returns the

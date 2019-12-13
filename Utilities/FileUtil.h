@@ -57,6 +57,37 @@ BOOL CreateSubDirectory(
 	const TCHAR *fullParentPath,
 	LPSECURITY_ATTRIBUTES lpSecurityAttributes);
 
+// -----------------------------------------------------------------------
+//
+// FILE* holder.  This ensures that the FILE* is fclose()'d when
+// the holder goes out of scope.
+//
+struct FILEPtrHolder 
+{
+	FILEPtrHolder() : fp(nullptr) { }
+	FILEPtrHolder(FILE *fp) : fp(fp) { }
+
+	~FILEPtrHolder() { fclose(); }
+
+	int fclose()
+	{
+		int ret = 0;
+		if (fp != nullptr)
+		{
+			ret = ::fclose(fp);
+			fp = nullptr;
+		}
+		return ret;
+	}
+
+	// the underlying FILE*
+	FILE *fp;
+
+	// for convenience, the struct can be used as though it were a FILE* 
+	operator FILE* () { return fp; }
+	FILE** operator& () { return &fp; }
+};
+
 
 // -----------------------------------------------------------------------
 //

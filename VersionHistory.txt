@@ -22,6 +22,84 @@ dialog lets you enable or disable the underlay display.  (This doesn't
 affect Javascript from displaying underlays; it only prevents the
 system from updating the underlay when selecting a new game.)
 
+* Javascript now has access to the overlay graphics displayed when a
+game is launched, allowing for complex customizations.  See the help
+sections for the new LaunchOverlayEvent group and the new
+mainWindow.launchOverlay property.
+
+* Fixed a Javascript type conversion error that occurred when calling
+certain system methods with an argument value of zero in certain
+argument slots.
+
+* Alpha channel information in videos is now supported.  Alpha refers
+to per-pixel partial transparency, for superimposing one video on top
+of another.  PinballY will now use alpha channel information whenever
+it's part of a video, but it's not particularly interesting for
+background videos (such as the playfield or backglass video), since
+there's nothing "behind" these videos to show through the transparent
+areas - just a black background.  The only current feature where alpha
+is useful is the "launch overlay", since this is layered on top of the
+playfield background. 
+
+In order to take advantage of the video transparency feature, you have
+to create your video with an alpha channel embedded in the video
+itself.  This is only possible with a few formats, including FLV, MOV,
+and AVI; most of the other formats (including MP4, MPG, and H.264)
+have to way to store alpha in the video.  It also requires a video
+editor that supports transparency, so that you can designate
+transparent areas in your videos and save them to an alpha-capable
+format.  Higher-end video tools like Adobe After Effects are generally
+capable of creating videos in this sort of format.
+
+
+* The "Resume Game" command will now do a better job of restoring
+focus to the original game window after a "Pause" command.  In the
+past, when you resumed a game that was paused, the system looked for
+an open top-level window owned by the game process, and gave focus to
+that window.  This usually worked, but in game systems that display
+multiple windows (such as VP when using a backglass and/or DMD
+window), focus sometimes went to one of the secondary game windows
+instead of the game itself.  With the new approach, PinballY notes the
+specific game window that's active at the time of the Pause command,
+and returns focus to that same window on Resume Game.  This usually
+puts focus back in the right window, since presumably focus was in the
+right window before the Pause.  At the very least, it restores the
+same focus condition as before the Pause.
+
+* In the "Custom Drawing" API used in the Popup mechanism to draw
+custom popup box graphics, you can now specify alpha channel
+(transparency) information in all of the drawing context methods that
+accept color parameters.  Specifically, this affects the fillRect(),
+frameRect(), and setTextColor() methods.  The alpha component of the
+color is specified in the high-order 8 bits of the 32-bit color
+value: for example, 0x80FFFFFF is 50% transparent white.
+
+For convenience, as well as compatibility with existing code, the
+drawing context has a default alpha value that's applied to any color
+parameter passed with an alpha component equal to zero.  This is
+initially set to 0xFF, equivalent to fully opaque, so any color that
+doesn't specify a non-zero alpha will automatically be set to fully
+opaque.  You can override this in any color parameter simply by
+including a non-zero alpha value.  You can also change the default
+alpha via the new defaultAlpha property.  If you want to be able to
+draw fully transparent areas, you must set defaultAlpha to zero, since
+that causes a zero alpha in a color parameter to be kept with a zero
+value, since applying the default of zero leaves it as zero.
+
+* When loading a font, the system now tries italic and bold style
+variations if the "regular" style can't be loaded.  This should allow
+using certain TrueType fonts that didn't load properly on Windows 7.
+In particular, it should help with fonts that contain only an "italic"
+or "bold" variation in the font file.  Most TrueType fonts provide
+either just a "regular" style, or a full set of regular, bold, and
+italic styles.  But some font files omit the regular style and only
+include bold or italic variations.  Apparently, Windows 7 will act
+like a font doesn't exist if you ask for "regular" and the font only
+has "italic".  Since PinballY previously only tried the "regular"
+variation, fonts that didn't have a "regular" style didn't load on
+Windows 7.  This wasn't problem on Windows 8 and later, as Microsoft
+apparently fixed this at the OS level in Win 8.  (Issue #93 on
+github.)
 
 
 11-29-2019 (1.0.0 Beta 16)

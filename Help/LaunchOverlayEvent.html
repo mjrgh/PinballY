@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>LaunchEvent</h1>
+
+<p>
+   This class represents events that occur during the game launch
+   process related to updating the "Launch Overlay", which is a graphics
+   layer in the UI where the system displays status messages about
+   the progress of the launch.  You can use these events to customize
+   the appearance of the overlay.
+</p>
+<p>
+   This class includes the following subtypes:
+</p>
+<ul>
+   <li><b>launchoverlayshow:</b> Fired when the system initially shows
+   the launch overlay.  By default, the system fills the playfield screen
+   with a dark background.  You can intercept this event to display your
+   own alternative graphics, using the <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay</a>
+   object, which lets you access the overlay to draw custom graphics
+   or load your own videos or images.
+   See the section on the launchOverlay object for details.
+
+   <li><b>launchoverlaymessage:</b> Fired each time the system updates the
+   message in the launch overlay.  The system also displays the "wheel icon"
+   for the game as part of the text layer.  If you wish to do your own
+   custom drawing, you can cancel the event to prevent the system from
+   showing its standard message graphics.
+   If you let the event proceed, the system draws its default message
+   update as usual, but you can modify the text message it displays
+   and control whether or not the game's wheel icon is drawn by
+   changing properties in the event object.  See the event properties
+   below for more details.
+
+   <li><b>launchoverlayhide:</b>  Fired when the system hides the launch
+   overlay, when a launched game terminates and PinballY returns to its
+   normal UI.  This event can't be canceled as it's fired after the fact.
+</ul>
+
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+
+<h2>Event sequence</h2>
+
+<p>
+   For each game launch, these events are fired in the following order:
+</p>
+<ul>
+   <li><b>launchoverlayshow</b> is fired once
+   <li><b>launchoverlaymessage</b> is fired several times, corresponding to the
+   progress of the launch process; the exact sequence depends upon whether or
+   not the launch is successful, whether it's a normal launch for interactive
+   play or a launch for media capture, etc
+   <li><b>launchoverlayhide</b> is fired once
+</ul>
+
+
+<h2>Drawing layers</h2>
+
+<p>
+   The point of these events is to let you take control over the
+   visual presentation of the launch process, so it's helpful to understand
+   the way the graphics are constructed.  There are actually two drawing
+   layers making up the "launch overlay":
+</p>
+<ul>
+   <li>A front layer, where the system displays text messages indicating
+   the status of the launch, and the game's wheel icon.  This is all drawn
+   with a transparent background fill, so that the back layer shows through.
+   You can access this layer via the
+   <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay.fg</a>
+   object.
+
+   <li>A back layer, for background graphics.  The system simply displays
+   a dark background fill here.  You can access this layer via the
+   <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay.bg</a>
+   object.
+</ul>
+
+<p>
+   The two layers are separated so that you can display a fixed graphic or
+   video background during the entire launch process, with text messages
+   superimposed in the foreground layer as the launch process proceeds.
+   Since the text messages are in a separate layer, they can be updated at
+   each step without having to redraw the background graphics or reload
+   the video.
+</p>
+<p>
+   Both of these layers are drawn in front of all of the other layers (the
+   wheel icons and the playfield background image or video), which also
+   remain on the screen during the launch process.  The system's
+   default drawing makes the background layer opaque, hiding the other
+   layers.  You can draw a transparent or partially transparent background
+   if you want to let the regular playfield background continue to appear
+   on screen during the launch.
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   Launch events include all of the standard event properties and methods (see the
+   <a href="Event.html">Event</a> class), plus the following:
+</p>
+
+<ul>
+
+   <li><b>game:</b>  A <a href="GameInfo.html">GameInfo</a> object representing
+   the game being launched.
+
+   <li><b>hideWheelImage:</b>  Applies for the <b>launchoverlaymessage</b> event only.
+   If you set this to <b>true</b> before returning from the event listener, the
+   system will omit the "wheel icon" that it would normally display as part of
+   the status text overlay.
+
+   <li><b>id:</b>  For the <b>launchoverlaymessage</b> event only, this is a
+   string abstractly identifying the status that the system is about to display
+   in the text message update.  This carries roughly the same information as the
+   <b>message</b> property, but the ID is more useful programmatically,
+   because it's independent of any language translation and won't be affected
+   by any tweaks to the wording of the messages in the UI.  The possible
+   ID values are:
+   <ul>
+      <li><b>"init":</b>  The launch process has just started, and the overlay
+      is being newly displayed, with a blank message initially
+
+      <li><b>"launching":</b>  The system is about to launch the game (which
+      includes running the "Run Before" step for the game system, as defined
+      in the system options)
+
+      <li><b>"capturing":</b>  The game has started running for a media capture
+      operation
+
+      <li><b>"running":</b>  The game has started running for normal interactive play
+
+      <li><b>"terminating":</b>  The user has pressed the Exit Game button, so
+      the system is about to try terminating the game process
+
+      <li><b>"gameover":</b>  The game program has just ended; the system might
+      still be processing the "Run After" step
+
+      <li><b>"after":</b> The game has exited and the system has completed
+      the "Run After" step, with only the "Run After Post" step remaining;
+      the system normally displays a blank message at this point
+   </ul>
+   <p>
+      Note that changing the ID value in the event object won't have any effect
+      on the default display.  If you want to change the displayed message text, change
+      the <b>message</b> property instead.
+   </p>
+
+   <li><b>message:</b>  For the <b>launchoverlaymessage</b> event only, this is
+   a string containing the text of the status update message the system will display.
+   This can be <b>null</b> if the system was going to display a blank message.
+   You can change this to a different string if you wish to use the standard
+   system drawing but replace the message with custom text.
+
+</ul>
+
+</body>
+</html>

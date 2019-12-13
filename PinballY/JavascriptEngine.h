@@ -320,6 +320,8 @@ public:
 	}
 	template<> static int JsToNative<int>(JsValueRef jsval) { return JsToNativeNumType<int>(jsval); }
 	template<> static int JsToNative<int>(JsValueRef jsval, int defval) { return JsToNativeNumType<int>(jsval, defval); }
+	template<> static unsigned int JsToNative<unsigned int>(JsValueRef jsval) { return JsToNativeNumType<unsigned int>(jsval); }
+	template<> static unsigned int JsToNative<unsigned int>(JsValueRef jsval, unsigned int defval) { return JsToNativeNumType<unsigned int>(jsval, defval); }
 	template<> static long JsToNative<long>(JsValueRef jsval) { return JsToNativeNumType<long>(jsval); }
 	template<> static long JsToNative<long>(JsValueRef jsval, long defval) { return JsToNativeNumType<long>(jsval, defval); }
 	template<> static float JsToNative<float>(JsValueRef jsval) { return JsToNativeNumType<float>(jsval); }
@@ -516,6 +518,7 @@ public:
 	// methods to retrieve properties as native values.
 	struct JsObj
 	{
+		JsObj() : jsobj(JS_INVALID_REFERENCE) { }
 		JsObj(JsValueRef obj) : jsobj(obj) { }
 
 		// the underlying object value
@@ -774,6 +777,9 @@ public:
 	}
 	template<> static JsValueRef NativeToJs(const CHAR *p)
 	{
+		if (p == nullptr)
+			return JavascriptEngine::Get()->nullVal;
+
 		JsErrorCode err;
 		JsValueRef jsval;
 		WSTRING s = AnsiToWide(p);
@@ -795,6 +801,9 @@ public:
 	template<> static JsValueRef NativeToJs(CSTRING c) { return NativeToJs<const CSTRING&>(c); }
 	template<> static JsValueRef NativeToJs(const WCHAR *p)
 	{
+		if (p == nullptr)
+			return JavascriptEngine::Get()->nullVal;
+
 		JsErrorCode err;
 		JsValueRef jsval;
 		if ((err = JsPointerToString(p, wcslen(p), &jsval)) == JsNoError)
@@ -1016,6 +1025,23 @@ public:
 		}
 	};
 
+	template<> class ToNativeConverter<unsigned int> : public ToNativeConverterBase
+	{
+	public:
+		int Empty() const { return 0; }
+		int Conv(JsValueRef val, bool &ok, const CSTRING &name) const
+		{
+			JsValueRef num;
+			Check(JsConvertValueToNumber(val, &num), ok, name);
+
+			int i = 0;
+			if (ok)
+				Check(JsNumberToInt(num, &i), ok, name);
+
+			return static_cast<unsigned int>(i);
+		}
+	};
+
 	template<> class ToNativeConverter<double> : public ToNativeConverterBase
 	{
 	public:
@@ -1046,7 +1072,7 @@ public:
 			if (ok)
 				Check(JsNumberToDouble(num, &d), ok, name);
 
-			if (ok && (d < FLT_MIN || d > FLT_MAX))
+			if (ok && (d < -FLT_MAX || d > FLT_MAX))
 			{
 				Check(JsErrorInvalidArgument, ok, name);
 				return NAN;

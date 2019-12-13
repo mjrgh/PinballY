@@ -1212,6 +1212,34 @@ this.UnderlayChangeEvent = class UnderlayChangeEvent extends UnderlayEvent
     }
 };
 
+
+// Launch Overlay events
+this.LaunchOverlayEvent = class LaunchOverlayEvent extends Event
+{
+    constructor(type, cancelable, game)
+    {
+        super(type, { cancelable: cancelable });
+        this.game = game;
+    }
+};
+this.LaunchOverlayShowEvent = class LaunchOverlayShowEvent extends LaunchOverlayEvent
+{
+    constructor(game, ) { super("launchoverlayshow", true, game); }
+};
+this.LaunchOverlayHideEvent = class LaunchOverlayHideEvent extends LaunchOverlayEvent
+{
+    constructor(game) { super("launchoverlayhide", false, game); }
+};
+this.LaunchOverlayMessageEvent = class LaunchOverlayMessageEvent extends LaunchOverlayEvent
+{
+    constructor(game, id, message)
+    {
+        super("launchoverlaymessage", true, game);
+        this.id = id;
+        this.message = message;
+    }
+};
+
 // ------------------------------------------------------------------------
 //
 // This object represents the current program settings.  Properties and
@@ -1295,12 +1323,13 @@ const SW_SHOW = 5;
 // ------------------------------------------------------------------------
 //
 // Status line objects.  A status line is an event target for
-// StatusLineEvent events.
+// StatusLineEvent events.  The system populates this with some
+// native methods.
 //
 this.StatusLine = class StatusLine extends EventTarget {
     constructor(id) {
         super();
-        this.id = id;
+        Object.defineProperty(this, "id", { value: id, writable: false });
     }
 };
 
@@ -1311,6 +1340,39 @@ this.mainWindow.statusLines = {
     lower: new StatusLine("lower"),
     attract: new StatusLine("attract")
 };
+
+
+// ------------------------------------------------------------------------
+//
+// Launch Overlay object.  This provides access to the launch overlay
+// foreground and background layers, which can be used to display graphics
+// (image or video) while a game is being launched.  This is accessible
+// from the mainWindow object.
+//
+Object.defineProperty(this.mainWindow, "launchOverlay", {
+    value: { },
+    writable: false
+});
+
+// Base class for the launch overlay layers.  The system populates
+// this with some native methods.
+this.LaunchOverlayLayer = class LaunchOverlayLayer {
+    constructor(id) {
+        Object.defineProperty(this, "id", { value: id, writable: false });
+    }
+};
+
+// Define the foreground layer object
+Object.defineProperty(this.mainWindow.launchOverlay, "fg", {
+    value: new LaunchOverlayLayer("fg"),
+    writable: false
+});
+
+// Define the background layer
+Object.defineProperty(this.mainWindow.launchOverlay, "bg", {
+    value: new LaunchOverlayLayer("bg"),
+    writable: false
+});
 
 
 // ------------------------------------------------------------------------

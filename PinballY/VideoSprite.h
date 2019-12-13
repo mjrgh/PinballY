@@ -24,6 +24,9 @@ public:
 		ErrorHandler &eh, const TCHAR *descForErrors, 
 		bool play = true, int volumePct = 100);
 
+	// Clear the video
+	void ClearVideo() { ReleaseVideoPlayer(); }
+
 	// Render the video
 	virtual void Render(Camera *camera) override;
 
