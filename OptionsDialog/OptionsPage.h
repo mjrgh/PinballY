@@ -2,6 +2,7 @@
 // Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 #pragma once
+#include <afxcolorbutton.h>
 #include "../Utilities/Config.h"
 
 class OptionsPage : public CPropertyPageEx
@@ -305,5 +306,31 @@ protected:
 
 		void InitConfigVal();
 		int configVal;
+	};
+
+	// Color button mapper
+	struct ColorButtonMap : VarMap
+	{
+		ColorButtonMap(const TCHAR *configVar, int controlID, COLORREF defVal) :
+			VarMap(configVar, controlID, button), defVal(defVal) { }
+
+		COLORREF defVal;
+
+		// compact color button - omits the drop arrow to keep it smaller
+		class CompactColorButton : public CMFCColorButton
+		{
+		public:
+			virtual void OnDraw(CDC *pDC, const CRect &rc, UINT uiState) override;
+			virtual void OnDrawFocusRect(CDC* pDC, const CRect& rectClient) override;
+			virtual void OnDrawBorder(CDC*, CRect&, UINT) override { }
+		};
+
+		CompactColorButton button;
+
+		virtual void InitControl() override;
+		virtual void doDDX(CDataExchange *pDX) override;
+		virtual void LoadConfigVar() override;
+		virtual void SaveConfigVar() override;
+		virtual bool IsModifiedFromConfig() override;
 	};
 };

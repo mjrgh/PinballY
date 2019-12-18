@@ -319,12 +319,12 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 		// check the message mode
 		if (cancelled)
 		{
-			std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400));
+			std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400, false));
 			g.DrawString(LoadStringT(IDS_CAPSTAT_CANCELLED), -1, textFont.get(), rcLayout, &cformat, &textBr);
 		}
 		else if (batchCancelPrompt)
 		{
-			std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400));
+			std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400, false));
 			g.DrawString(LoadStringT(IDS_CAPSTAT_BATCH_CONFIRM_CXL), -1, textFont.get(), rcLayout, &cformat, &textBr);
 		}
 		else
@@ -336,7 +336,7 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 
 			// measure the text for the top title area
 			TSTRINGEx title;
-			std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 22, 400));
+			std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Tahoma"), 22, 400, false));
 			title.Load(isBatch ? IDS_CAPSTAT_BATCH_TITLE : IDS_CAPSTAT_TITLE);
 			Gdiplus::RectF bbox;
 			g.MeasureString(title.c_str(), -1, titleFont.get(), rcLayout, &cformat, &bbox);
@@ -364,7 +364,7 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 
 			// get the text for the bottom control area
 			TSTRINGEx ctls;
-			std::unique_ptr<Gdiplus::Font> ctlFont(CreateGPFont(_T("Tahoma"), 16, 700));
+			std::unique_ptr<Gdiplus::Font> ctlFont(CreateGPFont(_T("Tahoma"), 16, 700, false));
 			if (manualStartMode || manualStopMode)
 			{
 				// figure the main prompt
@@ -428,7 +428,7 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 			}
 
 			// figure the text area
-			std::unique_ptr<Gdiplus::Font> txtFont(CreateGPFont(_T("Tahoma"), 14, 400));
+			std::unique_ptr<Gdiplus::Font> txtFont(CreateGPFont(_T("Tahoma"), 14, 400, false));
 			Gdiplus::RectF rcTxt = rcLayout;
 			int txtMargin = 30;
 			rcTxt.Y += rcTitleBar.Height + txtMargin;

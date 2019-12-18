@@ -10,11 +10,11 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>Font Options</h1>
+<h1>Font and Color Options</h1>
 
 <p>
-   This dialog lets you customize the text fonts used throughout the
-   PinballY user interface.
+   This dialog lets you customize the text fonts and colors used
+   throughout the PinballY user interface.
 </p>
 <p>
    <b>Default Font</b> is the master control.  This lets you
@@ -34,7 +34,8 @@
 </p>
 <p>
    For each of of the function-specific font options, you can
-   specify the font name, point size, and weight (normal or bold).
+   specify the font name, point size, and style (normal, bold,
+   or bold italic).
    For each field, "*" means "use the default", which is to say:
 </p>
 <ul>
@@ -44,12 +45,22 @@
    <li>For point sizes, the default is a system-defined size that
    varies by function
 
-   <li>For weights, the default is also a system-defined weight for
+   <li>For styles, the default is also a system-defined style for
    the function, but this is currently just "normal" for everything
 </ul>
 
 <p>
    <b>Menus:</b>  The font used for the line items in pop-up menus.
+</p>
+<p>
+   Each entry also lets you select a color for the text shown in
+   that context.  Some of the items also have a second button in
+   the "Bkg" column, for the background color.  For items that
+   are displayed in popup boxes, this is the color used for the
+   popup box background.  For the wheel titles and status messages,
+   the "background" instead refers to the color of the drop shadow
+   effect displayed with the text, since these items are overlaid
+   directly on the main background without a popup box.
 </p>
 
 <p>
@@ -61,12 +72,13 @@
 </p>
 
 <p>
-   <b>Popup Titles:</b>  The large title text shown at the top of a popup box.
+   <b>Popups:</b>  The main text in a popup box.
 </p>
 
 <p>
-   <b>Popup main text:</b>  The main text in a popup box.
+   <b>Popup Titles:</b>  The large title text shown at the top of a popup box.
 </p>
+
 <p>
    <b>Popup smaller text:</b>  A smaller font for popup box text, for items
    that we want to be a little less conspicuous but still be visible.

@@ -479,6 +479,7 @@ float ConfigManager::GetFloat(const TCHAR *name, float defval) const
 	return it == vars.end() || it->second->erased ? defval : ToFloat(it->second->value.c_str());
 }
 
+// convert a value to float
 float ConfigManager::ToFloat(const TCHAR *val)
 {
 	return static_cast<float>(_ttof(val));
@@ -490,6 +491,54 @@ void ConfigManager::SetFloat(const TCHAR *name, float val)
 	TCHAR buf[32];
 	if (_stprintf_s(buf, _T("%f"), val) >= 0)
 		Set(name, buf);
+}
+
+// get a value as a color
+COLORREF ConfigManager::GetColor(const TCHAR *name, COLORREF defval) const
+{
+	auto it = vars.find(name);
+	return it == vars.end() || it->second->erased ? defval : ToColor(it->second->value.c_str(), defval);
+}
+
+// parse a color value
+COLORREF ConfigManager::ToColor(const TCHAR *val, COLORREF defval)
+{
+	// Try an HTML-style #RGB three-digit hex value
+	static const std::basic_regex<TCHAR> hex3(_T("#?([a-z0-9])([a-z0-9])([a-z0-9])"), std::regex_constants::icase);
+	std::match_results<const TCHAR*> m;
+	if (std::regex_match(val, m, hex3))
+	{
+		// #RGB 
+		return RGB(
+			_tcstol(m[1].str().c_str(), nullptr, 16) * 0x11,
+			_tcstol(m[2].str().c_str(), nullptr, 16) * 0x11,
+			_tcstol(m[3].str().c_str(), nullptr, 16) * 0x11);
+	}
+
+	// try an HTML-style #RRGGBB six-digit hex value
+	static const std::basic_regex<TCHAR> hex6(_T("#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})"), std::regex_constants::icase);
+	if (std::regex_match(val, m, hex6))
+	{
+		// #RRGGBB 
+		return RGB(
+			_tcstol(m[1].str().c_str(), nullptr, 16),
+			_tcstol(m[2].str().c_str(), nullptr, 16),
+			_tcstol(m[3].str().c_str(), nullptr, 16));
+	}
+
+	// invalid - use the default value
+	return defval;
+}
+
+// set a color
+void ConfigManager::SetColor(const TCHAR *name, COLORREF value)
+{
+	TCHAR buf[128];
+	_stprintf_s(buf, _T("#%02x%02x%02x"), 
+		static_cast<unsigned int>(GetRValue(value)),
+		static_cast<unsigned int>(GetGValue(value)),
+		static_cast<unsigned int>(GetBValue(value)));
+	Set(name, buf);
 }
 
 // set an array element to an int

@@ -95,10 +95,12 @@ GdiplusIniter::~GdiplusIniter()
 	Gdiplus::GdiplusShutdown(token);
 }
 
-static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight)
+static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight, bool italic)
 {
 	// figure the style
 	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
+	if (italic)
+		style |= Gdiplus::FontStyleItalic;
 
 	// Try loading a font by name.  Returns a Gdiplus::Font* on success,
 	// nullptr on failure.
@@ -110,24 +112,24 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 		if (font->IsAvailable())
 			return font.release();
 
-		// Windows 7 GDI+ seems to be pickier about matching font.  If the
-		// installed font only has a "bold" or "italic" style, trying to load
-		// it with "regular" style will fail.  (Windows 8 and later, in 
-		// contrast, will load the font in any case.)  So try again with
-		// italic style.
-		font.reset(new Gdiplus::Font(&family, emSize, style | Gdiplus::FontStyleItalic, Gdiplus::UnitPixel));
+		// Windows 7 GDI+ seems to be pickier about matching fonts.  If the
+		// installed font only has a "bold" or "italic" style, loading it
+		// with the "regular" style will fail.  Windows 8 and later, in 
+		// contrast, will load the font in any case.  So try again with
+		// italic style inverted.
+		font.reset(new Gdiplus::Font(&family, emSize, style ^ Gdiplus::FontStyleItalic, Gdiplus::UnitPixel));
 		if (font->IsAvailable())
 			return font.release();
 
-		// 'Regular' and 'italic' failed.  If we didn't ask for bold, try bold.
-		// If we DID ask for bold, try removing bold.
-		int newStyle = style ^ Gdiplus::FontStyleBold;
-		font.reset(new Gdiplus::Font(&family, emSize, newStyle, Gdiplus::UnitPixel));
+		// Inverting 'italic' didn't make any difference.  Try flipping the
+		// 'bold' status next.
+		font.reset(new Gdiplus::Font(&family, emSize, style ^ Gdiplus::FontStyleBold, Gdiplus::UnitPixel));
 		if (font->IsAvailable())
 			return font.release();
 
-		// this is ridiculous, but just in case, try the new style plus Italic as a last resort
-		font.reset(new Gdiplus::Font(&family, emSize, newStyle | Gdiplus::FontStyleBoldItalic, Gdiplus::UnitPixel));
+		// Okay, this is getting ridiculous, but just in case, try flipping BOTH
+		// bold and italic, so that we've covered every possible combination.
+		font.reset(new Gdiplus::Font(&family, emSize, style ^ Gdiplus::FontStyleBoldItalic, Gdiplus::UnitPixel));
 		if (font->IsAvailable())
 			return font.release();
 
@@ -191,7 +193,7 @@ static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int wei
 	return new Gdiplus::Font(_T("Arial"), emSize, style, Gdiplus::UnitPixel);
 }
 
-Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc)
+Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, bool italic, HDC hdc)
 {
 	// Figure the pixel pitch in pix/inch.  If a DC was specified, use
 	// its pixel pitch, otherwise use the reference 96 dpi.
@@ -201,10 +203,10 @@ Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HD
 	float emSize = (float)pointSize * (float)dpi / (float)72.0f;
 
 	// create the font
-	return CreateGPFont0(faceName, emSize, weight);
+	return CreateGPFont0(faceName, emSize, weight, italic);
 }
 
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, HDC hdc)
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, bool italic, HDC hdc)
 {
 	// figure the pixel pitch in pix/inch: use the pixel pitch specific
 	// to the device if a DC was provided, otherwise use the reference 96dpi
@@ -214,7 +216,7 @@ Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weigh
 	float emSize = 96.0f/float(dpi) * float(pixHeight);
 
 	// create the font
-	return CreateGPFont0(faceName, emSize, weight);
+	return CreateGPFont0(faceName, emSize, weight, italic);
 }
 
 void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,

@@ -150,6 +150,28 @@ namespace ConfigVars
 	static const TCHAR *StatusFont = _T("StatusFont");
 	static const TCHAR *CreditsFont = _T("CreditsFont");
 
+	static const TCHAR *MenuTextColor = _T("MenuTextColor");
+	static const TCHAR *MenuBackgroundColor = _T("MenuBackgroundColor");
+	static const TCHAR *MenuHiliteColor = _T("MenuHiliteColor");
+	static const TCHAR *MenuGroupTextColor = _T("MenuGroupTextColor");
+	static const TCHAR *MenuHeaderColor = _T("MenuHeaderColor");
+	static const TCHAR *PopupTitleColor = _T("PopupTitleColor");
+	static const TCHAR *PopupTextColor = _T("PopupTextColor");
+	static const TCHAR *PopupBackgroundColor = _T("PopupBackgroundColor");
+	static const TCHAR *PopupSmallTextColor = _T("PopupSmallTextColor");
+	static const TCHAR *PopupDetailTextColor = _T("PopupDetailTextColor");
+	static const TCHAR *MediaDetailTextColor = _T("MediaDetailTextColor");
+	static const TCHAR *WheelTitleColor = _T("WheelTitleColor");
+	static const TCHAR *WheelTitleShadowColor = _T("WheelTitleShadowColor");
+	static const TCHAR *HiScoreTextColor = _T("HiScoreTextColor");
+	static const TCHAR *InfoBoxTitleColor = _T("InfoBoxTitleColor");
+	static const TCHAR *InfoBoxTextColor = _T("InfoBoxTextColor");
+	static const TCHAR *InfoBoxBackgroundColor = _T("InfoBoxBackgroundColor");
+	static const TCHAR *InfoBoxDetailTextColor = _T("InfoBoxDetailTextColor");
+	static const TCHAR *StatusLineTextColor = _T("StatusLineTextColor");
+	static const TCHAR *StatusLineShadowColor = _T("StatusLineShadowColor");
+	static const TCHAR *CreditsTextColor = _T("CreditsTextColor");
+
 	static const TCHAR *SimultaneousSync = _T("SimultaneousWindowUpdate");
 	static const TCHAR *CrossfadeTime = _T("CrossfadeTime");
 
@@ -775,6 +797,7 @@ void PlayfieldView::InitJavascript()
 				|| JsAddRef(jsDrawingContextProto, nullptr) != JsNoError
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "drawText", &PlayfieldView::JsDrawDrawText, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setFont", &PlayfieldView::JsDrawSetFont, this, eh)
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setFontFromPrefs", &PlayfieldView::JsDrawSetFontFromPrefs, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextColor", &PlayfieldView::JsDrawSetTextColor, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "setTextAlign", &PlayfieldView::JsDrawSetTextAlign, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "drawImage", &PlayfieldView::JsDrawDrawImage, this, eh)
@@ -4576,7 +4599,7 @@ void PlayfieldView::ShowAboutBox()
 		// draw the title
 		const TCHAR *title = Application::Get()->Title;
 		Gdiplus::SolidBrush br(Gdiplus::Color(0xff, 0x40, 0x40, 0x40));
-		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Segoe UI"), 48, 400));
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(_T("Segoe UI"), 48, 400, false));
 		Gdiplus::PointF origin(margin, margin);
 		GPDrawStringAdv(g, title, titleFont.get(), &br, origin, bbox);
 
@@ -4584,8 +4607,8 @@ void PlayfieldView::ShowAboutBox()
 		origin.Y += 8;
 
 		// draw the version string
-		std::unique_ptr<Gdiplus::Font> verFont(CreateGPFont(_T("Segoe UI"), 24, 400));
-		std::unique_ptr<Gdiplus::Font> smallFont(CreateGPFont(_T("Segoe UI"), 14, 400));
+		std::unique_ptr<Gdiplus::Font> verFont(CreateGPFont(_T("Segoe UI"), 24, 400, false));
+		std::unique_ptr<Gdiplus::Font> smallFont(CreateGPFont(_T("Segoe UI"), 14, 400, false));
 		GPDrawStringAdv(g, MsgFmt(_T("Version %hs"), G_VersionInfo.fullVerWithStat),
 			verFont.get(), &br, origin, bbox);
 		GPDrawStringAdv(g, MsgFmt(_T("Build %d (%s, %hs)"),
@@ -4593,7 +4616,7 @@ void PlayfieldView::ShowAboutBox()
 			smallFont.get(), &br, origin, bbox);
 
 		// add the DOF version if present
-		std::unique_ptr<Gdiplus::Font> smallerFont(CreateGPFont(_T("Segoe UI"), 12, 400));
+		std::unique_ptr<Gdiplus::Font> smallerFont(CreateGPFont(_T("Segoe UI"), 12, 400, false));
 		if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
 			GPDrawStringAdv(g, MsgFmt(_T("DirectOutput Framework %s"), dof->GetDOFVersion()),
 				smallerFont.get(), &br, origin, bbox);
@@ -5315,7 +5338,7 @@ void PlayfieldView::UpdateRateGameDialog()
 		Gdiplus::Graphics g(hdc);
 
 		// draw the background
-		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+		Gdiplus::SolidBrush bkgBr(GPColorFromCOLORREF(popupBackgroundColor, 0xd0));
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// draw the border
@@ -5333,7 +5356,6 @@ void PlayfieldView::UpdateRateGameDialog()
 
 		// draw the game wheel icon, if available, or just the game title
 		TSTRING wheelFile;
-		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
 		if (game->GetMediaItem(wheelFile, GameListItem::wheelImageType))
 		{
 			// load the image
@@ -5360,7 +5382,8 @@ void PlayfieldView::UpdateRateGameDialog()
 		{
 			// no wheel icon - just draw the title
 			Gdiplus::RectF rcTitle(0.0f, 0.0f, (float)width, (float)height / 3.0f);
-			g.DrawString(game->title.c_str(), -1, popupTitleFont, rcTitle, &centerFmt, &textBr);
+			Gdiplus::SolidBrush titleBr(GPColorFromCOLORREF(popupTitleColor));
+			g.DrawString(game->title.c_str(), -1, popupTitleFont, rcTitle, &centerFmt, &titleBr);
 		}
 
 		// draw the stars
@@ -5375,15 +5398,18 @@ void PlayfieldView::UpdateRateGameDialog()
 			DrawStars(g, x, y, workingRating);
 		}
 
+
 		// show the current rating as text
 		Gdiplus::RectF rcStars(0.f, (float)height / 2.0f + (float)cyStar, (float)width, (float)cyStar);
 		FontPref &starsFont = popupDetailFont;
-		g.DrawString(MsgFmt(_T("(%s)"), StarsAsText(workingRating).c_str()), -1, starsFont, rcStars, &centerFmt, &textBr);
+		Gdiplus::SolidBrush starsBr(GPColorFromCOLORREF(popupDetailTextColor));
+		g.DrawString(MsgFmt(_T("(%s)"), StarsAsText(workingRating).c_str()), -1, starsFont, rcStars, &centerFmt, &starsBr);
 
 		// draw the prompt text
 		FontPref &promptFont = popupFont;
 		Gdiplus::RectF rcPrompt(0.0f, (float)height*2.0f/3.0f, (float)width, (float)height/3.0f);
-		g.DrawString(LoadStringT(IDS_RATE_GAME_PROMPT), -1, promptFont, rcPrompt, &centerFmt, &textBr);
+		Gdiplus::SolidBrush promptBr(GPColorFromCOLORREF(popupDetailTextColor));
+		g.DrawString(LoadStringT(IDS_RATE_GAME_PROMPT), -1, promptFont, rcPrompt, &centerFmt, &promptBr);
 
 		// flush GDI+ drawing to the bitmap
 		g.Flush();
@@ -5522,7 +5548,7 @@ void PlayfieldView::UpdateAudioVolumeDialog()
 		Gdiplus::Graphics g(hdc);
 
 		// draw the background
-		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+		Gdiplus::SolidBrush bkgBr(GPColorFromCOLORREF(popupBackgroundColor, 0xD0));
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// draw the border
@@ -5538,7 +5564,7 @@ void PlayfieldView::UpdateAudioVolumeDialog()
 		GPDrawString gds(g, Gdiplus::RectF(inner, inner, width - 2*inner, height - 2*inner));
 
 		// draw the main caption and instructions text
-		Gdiplus::SolidBrush br(Gdiplus::Color(0xff, 0xff, 0xff));
+		Gdiplus::SolidBrush br(GPColorFromCOLORREF(popupTextColor));
 		gds.DrawString(LoadStringT(IDS_ADJUST_AUDIO_CAPTION), popupFont, &br, true, 0);
 		gds.DrawString(LoadStringT(IDS_ADJUST_AUDIO_INSTR), popupSmallerFont, &br, true, 0);
 
@@ -5860,7 +5886,7 @@ void PlayfieldView::JsDrawingContext::InitFont()
 {
 	// create a font object if we don't already have one
 	if (font == nullptr)
-		font.reset(CreateGPFont(fontName.c_str(), fontPtSize, fontWeight));
+		font.reset(CreateGPFont(fontName.c_str(), fontPtSize, fontWeight, fontItalic));
 
 	// If there's still no font, create a default font. 
 	if (font == nullptr)
@@ -5871,7 +5897,7 @@ void PlayfieldView::JsDrawingContext::InitFont()
 		int weight = fontWeight >= 100 && fontWeight <= 900 ? fontWeight : 400;
 
 		// create the font
-		font.reset(CreateGPFont(_T("Tahoma"), ptSize, weight));
+		font.reset(CreateGPFont(_T("Tahoma"), ptSize, weight, fontItalic));
 	}
 
 	// create a brush if we don't already have one
@@ -5931,7 +5957,7 @@ void PlayfieldView::JsDrawDrawText(TSTRING text)
 	}
 }
 
-void PlayfieldView::JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight)
+void PlayfieldView::JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight, JsValueRef italic)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -5946,9 +5972,42 @@ void PlayfieldView::JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValue
 		return js->Throw(err), static_cast<void>(0);
 	if (weight != js->GetUndefVal() && (err = js->ToInt(jsDC->fontWeight, weight)) != JsNoError)
 		return js->Throw(err), static_cast<void>(0);
+	if (italic != js->GetUndefVal() && (err = js->ToBool(jsDC->fontItalic, italic)) != JsNoError)
+		return js->Throw(err), static_cast<void>(0);
 
 	// clear the previous font
 	jsDC->font.reset();
+}
+
+bool PlayfieldView::JsDrawSetFontFromPrefs(WSTRING varname)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), false;
+
+	// If the name contains spaces, treat it as a pre-parsed config
+	// variable VALUE.  Otherwise treat it as a variable NAME.
+	const TCHAR *val = varname.c_str();
+	if (_tcschr(varname.c_str(), ' ') == nullptr)
+	{
+		// retrieve the variable value; if it's undefined, fail
+		if ((val = ConfigManager::GetInstance()->Get(varname.c_str())) == nullptr)
+			return false;
+	}
+
+	// Set up a FontPref object to parse the value
+	FontPref f(this, 24, defaultFontFamily.c_str());
+	f.Parse(val);
+	
+	// set the characteristics from this font
+	jsDC->fontName = f.family;
+	jsDC->fontPtSize = f.ptSize;
+	jsDC->fontWeight = f.weight;
+	jsDC->fontItalic = f.italic;
+
+	// success
+	return true;
 }
 
 void PlayfieldView::JsDrawSetTextColor(int argb)
@@ -6372,7 +6431,7 @@ void PlayfieldView::DrawInfoBoxCommon(const GameListItem *game,
 	Gdiplus::Graphics &g, int width, int height, float margin, GPDrawString &gds)
 {
 	// draw the background
-	Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+	Gdiplus::SolidBrush bkgBr(GPColorFromCOLORREF(popupBackgroundColor, 0xD0));
 	g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 	// draw the border
@@ -6405,9 +6464,9 @@ void PlayfieldView::DrawInfoBoxCommon(const GameListItem *game,
 	}
 
 	// draw the title
-	Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
+	Gdiplus::SolidBrush titleBr(GPColorFromCOLORREF(popupTitleColor));
 	Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
-	g.DrawString(game->title.c_str(), -1, popupTitleFont, titleBox, &fmt, &textBr);
+	g.DrawString(game->title.c_str(), -1, popupTitleFont, titleBox, &fmt, &titleBr);
 
 	// measure the fit
 	Gdiplus::RectF bbox;
@@ -6424,7 +6483,7 @@ void PlayfieldView::DrawInfoBoxCommon(const GameListItem *game,
 // create a font for drawing arrows
 struct ArrowFont
 {
-	ArrowFont(int ptSize) : font(CreateGPFont(_T("Wingdings 3, Webdings"), ptSize, 400))
+	ArrowFont(int ptSize) : font(CreateGPFont(_T("Wingdings 3, Webdings"), ptSize, 400, false))
 	{
 		// determine which font we actually loaded
 		Gdiplus::FontFamily family;
@@ -6499,13 +6558,16 @@ void PlayfieldView::ShowGameInfo()
 		DrawInfoBoxCommon(game, g, width, height, margin, gds);
 
 		// set up fonts and colors
-		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
 		FontPref &textFont = popupFont;
 		FontPref &smallerTextFont = popupSmallerFont;
 		FontPref &detailsFont = popupDetailFont;
-		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), detailsFont.ptSize, 400));
+		Gdiplus::SolidBrush textBr(GPColorFromCOLORREF(popupTextColor));
+		Gdiplus::SolidBrush smallerTextBr(GPColorFromCOLORREF(popupSmallTextColor));
+		Gdiplus::SolidBrush detailsBr(GPColorFromCOLORREF(popupDetailTextColor));
+
+		std::unique_ptr<Gdiplus::Font> symFont(CreateGPFont(_T("Wingdings"), detailsFont.ptSize, 400, false));
 		ArrowFont arrowFont(18);
-		
+
 		//
 		// Main bibliographic details section
 		//
@@ -6525,11 +6587,11 @@ void PlayfieldView::ShowGameInfo()
 
 		// table type
 		if (auto tt = tableTypeNameMap.find(game->tableType); tt != tableTypeNameMap.end())
-			gds.DrawString(tt->second.c_str(), smallerTextFont, &textBr);
+			gds.DrawString(tt->second.c_str(), smallerTextFont, &smallerTextBr);
 
 		// system
 		if (game->system != nullptr)
-			gds.DrawString(game->system->displayName.c_str(), smallerTextFont, &textBr);
+			gds.DrawString(game->system->displayName.c_str(), smallerTextFont, &smallerTextBr);
 
 		// show the personal rating
 		float rating = gl->GetRating(game);
@@ -6558,7 +6620,7 @@ void PlayfieldView::ShowGameInfo()
 			// taller than the font, advance by the difference, so that the text
 			// baseline matches the star graphics baseline.
 			gds.curOrigin.Y += fmaxf(0.0f, -dh);
-			gds.DrawString(MsgFmt(_T("(%s)"), StarsAsText(rating).c_str()), detailsFont, &textBr, true);
+			gds.DrawString(MsgFmt(_T("(%s)"), StarsAsText(rating).c_str()), detailsFont, &detailsBr, true);
 
 			// make sure we moved past the stars vertically
 			gds.curOrigin.Y = fmaxf(y0 + starHt, gds.curOrigin.Y);
@@ -6578,32 +6640,31 @@ void PlayfieldView::ShowGameInfo()
 			if (d.IsValid())
 			{
 				gds.DrawString(MsgFmt(IDS_LAST_PLAYED_DATE, d.FormatLocalDateTime(DATE_LONGDATE, TIME_NOSECONDS).c_str()),
-					detailsFont, &textBr);
+					detailsFont, &detailsBr);
 			}
 			else
-				gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &textBr);
+				gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &detailsBr);
 
 			// add the number of times played
-			gds.DrawString(MsgFmt(IDS_TIMES_PLAYED, playCount), detailsFont, &textBr);
+			gds.DrawString(MsgFmt(IDS_TIMES_PLAYED, playCount), detailsFont, &detailsBr);
 
 			// add the total play time
-			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, PlayTimeAsText(gl->GetPlayTime(game)).c_str()), detailsFont, &textBr);
+			gds.DrawString(MsgFmt(IDS_TOTAL_PLAY_TIME, PlayTimeAsText(gl->GetPlayTime(game)).c_str()), detailsFont, &detailsBr);
 		}
 		else
 		{
 			// never played - just say so, without all of the zeroed statistics
-			gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &textBr);
+			gds.DrawString(LoadStringT(IDS_LAST_PLAYED_NEVER).c_str(), detailsFont, &detailsBr);
 		}
 
 		// mention if it's in the favorites
 		if (gl->IsFavorite(game))
-			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont, &textBr);
+			gds.DrawString(LoadStringT(IDS_GAMEINFO_FAV), detailsFont, &detailsBr);
 
 		//
 		// Technical details section
 		//
 		gds.VertSpace(16.0f);
-		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(0xff, 0xA0, 0xA0, 0xA0));
 
 		// date added
 		if (DateTime dateAdded = gl->GetDateAdded(game); dateAdded.IsValid())
@@ -6727,7 +6788,8 @@ void PlayfieldView::ShowHighScores()
 
 	// set up the default font
 	int textFontPts = highScoreFont.ptSize;
-	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(highScoreFont.family.c_str(), textFontPts, highScoreFont.weight));
+	std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(
+		highScoreFont.family.c_str(), textFontPts, highScoreFont.weight, highScoreFont.italic));
 
 	// drawing function
 	int width = 972, height = 2000;
@@ -6745,7 +6807,7 @@ void PlayfieldView::ShowHighScores()
 		DrawInfoBoxCommon(game, g, width, height, margin, gds);
 
 		// write the high score information
-		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
+		Gdiplus::SolidBrush textBr(GPColorFromCOLORREF(hiScoreTextColor));
 		for (auto const &txt : game->highScores)
 			gds.DrawString(txt.length() == 0 ? _T(" ") : txt.c_str(), textFont.get(), &textBr);
 
@@ -6796,7 +6858,7 @@ void PlayfieldView::ShowHighScores()
 
 		// reduce the font size slightly and try again
 		textFontPts -= 4;
-		textFont.reset(CreateGPFont(highScoreFont.family.c_str(), textFontPts, highScoreFont.weight));
+		textFont.reset(CreateGPFont(highScoreFont.family.c_str(), textFontPts, highScoreFont.weight, highScoreFont.italic));
 	}
 
 	// set a minimum height, so that the box doesn't look too squat for
@@ -7864,7 +7926,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			for (int ptsize = wheelFont.ptSize; ptsize >= 40; ptsize -= 8)
 			{
 				// create the font at this size
-				font.reset(CreateGPFont(wheelFont.family.c_str(), ptsize, wheelFont.weight));
+				font.reset(CreateGPFont(wheelFont.family.c_str(), ptsize, wheelFont.weight, wheelFont.italic));
 
 				// measure it
 				g.MeasureString(title, -1, font.get(), rcLayout, &bbox);
@@ -7881,7 +7943,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			rcLayout.Height = bbox.Height;
 
 			// draw a drop shadow
-			Gdiplus::SolidBrush shadow(Gdiplus::Color(192, 0, 0, 0));
+			Gdiplus::SolidBrush shadow(GPColorFromCOLORREF(wheelTitleShadowColor));
 			Gdiplus::StringFormat fmt;
 			fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 			g.DrawString(title, -1, font.get(), rcLayout, &fmt, &shadow);
@@ -7889,7 +7951,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			// draw the text
 			rcLayout.X -= 3;
 			rcLayout.Y -= 3;
-			Gdiplus::SolidBrush br(Gdiplus::Color(255, 255, 255, 255));
+			Gdiplus::SolidBrush br(GPColorFromCOLORREF(wheelTitleColor));
 			g.DrawString(title, -1, font.get(), rcLayout, &fmt, &br);
 			
 			// make sure updates are flushed
@@ -8224,7 +8286,7 @@ void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 	runningGameMsgPopup->Load(width, height, [width, height, msg, includeWheelImage, game, this](Gdiplus::Graphics &g)
 	{
 		// fill the background with transparency
-		Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 30, 30, 30));
+		Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 0, 0, 0));
 		g.FillRectangle(&bkg, 0, 0, width, height);
 
 		// If there's a message, draw the wheel image and the message.
@@ -8248,7 +8310,7 @@ void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 			}
 
 			// draw the text, centered above the wheel image
-			Gdiplus::SolidBrush fg(Gdiplus::Color(255, 255, 255, 255));
+			Gdiplus::SolidBrush fg(GPColorFromCOLORREF(popupTitleColor));
 			Gdiplus::RectF bbox;
 			g.MeasureString(msg, -1, popupTitleFont, Gdiplus::PointF(0, 0), &bbox);
 			g.DrawString(msg, -1, popupTitleFont, Gdiplus::PointF(
@@ -8987,7 +9049,7 @@ void PlayfieldView::ShowQueuedError()
 	// set up a font for the error text
 	MemoryDC memdc;
 	Gdiplus::Graphics g(memdc);
-	std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Segoe UI"), 22, 400));
+	std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Segoe UI"), 22, 400, false));
 
 	// figure the height of the error list
 	int ht = 0;
@@ -9282,7 +9344,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 		| Gdiplus::StringFormatFlagsMeasureTrailingSpaces);
 
 	// set up our main text font and checkmark font
-	std::unique_ptr<Gdiplus::Font> symfont(CreateGPFont(_T("Wingdings"), menuFont.ptSize, 400));
+	std::unique_ptr<Gdiplus::Font> symfont(CreateGPFont(_T("Wingdings"), menuFont.ptSize, 400, false));
 	ArrowFont arrowFont(menuFont.ptSize);
 
 	// checkmark and bullet characters in Wingdings
@@ -9433,11 +9495,11 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 	// create the background
     Application::InUiErrorHandler eh;
-	if (!m->sprBkg->Load(boxWid, menuHt, [boxWid, menuHt, borderWidth](HDC hdc, HBITMAP hbmp) 
+	if (!m->sprBkg->Load(boxWid, menuHt, [this, boxWid, menuHt, borderWidth](HDC hdc, HBITMAP hbmp) 
 	{
 		// fill the background
 		Gdiplus::Graphics g(hdc);
-		Gdiplus::SolidBrush br(Gdiplus::Color(0xA8, 0x00, 0x00, 0x00));
+		Gdiplus::SolidBrush br(GPColorFromCOLORREF(menuBackgroundColor, 0xA8));
 		g.FillRectangle(&br, 0, 0, boxWid, menuHt);
 
 		// draw the border
@@ -9456,10 +9518,10 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 	// Create the highlight overlay.  We set this up at a single line height,
 	// and then move it behind the selected menu item to highlight it.
-	if (!m->sprHilite->Load(boxWid, lineHt, [boxWid, menuHt, lineHt, borderWidth](HDC hdc, HBITMAP hbmp)
+	if (!m->sprHilite->Load(boxWid, lineHt, [this, boxWid, menuHt, lineHt, borderWidth](HDC hdc, HBITMAP hbmp)
 	{
 		Gdiplus::Graphics g(hdc);
-		Gdiplus::SolidBrush br(Gdiplus::Color(0xE0, 0x40, 0xA0, 0xFF));
+		Gdiplus::SolidBrush br(GPColorFromCOLORREF(menuHiliteColor, 0xE0));
 		g.FillRectangle(&br, borderWidth, 0, boxWid - 2 * borderWidth, lineHt);
 		g.Flush();
 	}, eh, _T("menu hilite")))
@@ -9493,8 +9555,9 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 		// set up the drawing objects
 		Gdiplus::Graphics g(hdc);
-		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-		Gdiplus::SolidBrush groupTextBr(Gdiplus::Color(0xFF, 0x00, 0xFF, 0xFF));
+		Gdiplus::SolidBrush headerBr(GPColorFromCOLORREF(menuHeaderColor));
+		Gdiplus::SolidBrush textBr(GPColorFromCOLORREF(menuTextColor));
+		Gdiplus::SolidBrush groupTextBr(GPColorFromCOLORREF(menuGroupTextColor));
 		Gdiplus::Pen pen(Gdiplus::Color(0xff, 0xa0, 0xa0, 0xa0), 2.0f);
 		for (auto &i : m->descs)
 		{
@@ -9579,7 +9642,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 			if ((flags & SHOWMENU_DIALOG_STYLE) != 0 && &i == &m->descs.front())
 			{
 				// draw it centered in the layout area
-				g.DrawString(text, -1, menuHeaderFont, rcLayout, &tformat, &textBr);
+				g.DrawString(text, -1, menuHeaderFont, rcLayout, &tformat, &headerBr);
 
 				// advance by the prompt height
 				y += promptHt;
@@ -10032,9 +10095,15 @@ void PlayfieldView::UpdateInfoBox()
 
 void PlayfieldView::SyncInfoBox()
 {
-	// Don't show the info box if there's a menu or popup
-	// showing, or if any animation is running.
-	if (isAnimTimerRunning || popupSprite != nullptr || curMenu != nullptr || attractMode.active)
+	// Don't show the info box if there's a menu or popup showing, 
+	// or if any animation is running, or we're in running game mode,
+	// or the options dialog is open.
+	if (isAnimTimerRunning 
+		|| popupSprite != nullptr 
+		|| curMenu != nullptr 
+		|| attractMode.active
+		|| runningGameMsgPopup != nullptr
+		|| settingsDialogOpen)
 		return;
 
 	// skip the info box if it's disabled in the options
@@ -10061,15 +10130,14 @@ void PlayfieldView::SyncInfoBox()
 				Gdiplus::Graphics g(hdc);
 
 				// draw the background
-				Gdiplus::SolidBrush bkg(Gdiplus::Color(192, 0, 0, 0));
+				Gdiplus::SolidBrush bkg(GPColorFromCOLORREF(infoBoxBackgroundColor, 192));
 				g.FillRectangle(&bkg, 0, 0, width, height);
 
 				// draw the frame
 				Gdiplus::Pen pen(Gdiplus::Color(192, 255, 255, 255), 4);
 				g.DrawRectangle(&pen, 2, 2, width - 4, height - 4);
 
-				// set up for text drawing
-				Gdiplus::SolidBrush txt(Gdiplus::Color(255, 255, 255, 255));
+				// set up the text layout 
 				const int marginX = 24, marginY = 16;
 				Gdiplus::RectF rcLayout((float)marginX, (float)marginY, (float)(width - 2*marginX), (float)(height - 2*marginY));
 				Gdiplus::PointF origin((float)marginX, (float)marginY);
@@ -10092,7 +10160,8 @@ void PlayfieldView::SyncInfoBox()
 				else if (infoBoxOpts.title)
 				{
 					// draw the title as text
-					GPDrawStringAdv(g, game->title.c_str(), titleFont, &txt, origin, rcLayout);
+					Gdiplus::SolidBrush titleBr(GPColorFromCOLORREF(infoBoxTitleColor));
+					GPDrawStringAdv(g, game->title.c_str(), titleFont, &titleBr, origin, rcLayout);
 					origin.Y += 12;
 				}
 
@@ -10119,6 +10188,7 @@ void PlayfieldView::SyncInfoBox()
 
 				// add the manufacturer, type, and year
 				FontPref &txtFont = infoBoxFont;
+				Gdiplus::SolidBrush txtBr(GPColorFromCOLORREF(infoBoxTextColor));
 				Gdiplus::Image *manufLogo;
 				if (infoBoxOpts.manufLogo && LoadManufacturerLogo(manufLogo, game->manufacturer, game->year))
 				{
@@ -10131,7 +10201,7 @@ void PlayfieldView::SyncInfoBox()
 					// add the type and year, if non-empty
 					if (typeAndYear.length() != 0)
 						g.DrawString(MsgFmt(_T("  (%s)"), typeAndYear.c_str()), -1, txtFont,
-							Gdiplus::PointF(origin.X + wid, origin.Y + txtHt * .2f), &txt);
+							Gdiplus::PointF(origin.X + wid, origin.Y + txtHt * .2f), &txtBr);
 
 					// advance past it
 					origin.Y += ht + 10;
@@ -10150,13 +10220,13 @@ void PlayfieldView::SyncInfoBox()
 					// draw the combined tstring
 					GPDrawString gp(g, rcLayout);
 					gp.curOrigin = origin;
-					gp.DrawString(str.c_str(), txtFont, &txt);
+					gp.DrawString(str.c_str(), txtFont, &txtBr);
 					origin = gp.curOrigin;
 				}
 				else if (typeAndYear.length() != 0)
 				{
 					// draw just the type and year string
-					GPDrawStringAdv(g, typeAndYear.c_str(), txtFont, &txt, origin, rcLayout);
+					GPDrawStringAdv(g, typeAndYear.c_str(), txtFont, &txtBr, origin, rcLayout);
 				}
 
 				// add the system
@@ -10175,14 +10245,14 @@ void PlayfieldView::SyncInfoBox()
 				else if (infoBoxOpts.system && game->system != nullptr)
 				{
 					// draw the system name as text
-					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont, &txt, origin, rcLayout);
+					GPDrawStringAdv(g, game->system->displayName.c_str(), txtFont, &txtBr, origin, rcLayout);
 				}
 
 				// add the game file name
 				if (infoBoxOpts.tableFile && game->filename.length() != 0)
 				{
-					Gdiplus::SolidBrush gray(Gdiplus::Color(255, 192, 192, 192));
-					GPDrawStringAdv(g, game->filename.c_str(), infoBoxDetailFont, &gray, origin, rcLayout);
+					Gdiplus::SolidBrush detailBr(GPColorFromCOLORREF(infoBoxDetailTextColor));
+					GPDrawStringAdv(g, game->filename.c_str(), infoBoxDetailFont, &detailBr, origin, rcLayout);
 				}
 
 				// add the rating, if set
@@ -11259,6 +11329,29 @@ void PlayfieldView::OnConfigChange()
 	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont);
 	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont);
 
+	// load the font color settings
+	menuTextColor = cfg->GetColor(ConfigVars::MenuTextColor, RGB(0xff, 0xff, 0xff));
+	menuBackgroundColor = cfg->GetColor(ConfigVars::MenuBackgroundColor, RGB(0x00, 0x00, 0x00));
+	menuHiliteColor = cfg->GetColor(ConfigVars::MenuHiliteColor, RGB(0x40, 0xA0, 0xFF));
+	menuGroupTextColor = cfg->GetColor(ConfigVars::MenuGroupTextColor, RGB(0x00, 0xff, 0xff));
+	menuHeaderColor = cfg->GetColor(ConfigVars::MenuHeaderColor, RGB(0xff, 0xff, 0xff));
+	popupTitleColor = cfg->GetColor(ConfigVars::PopupTitleColor, RGB(0xff, 0xff, 0xff));
+	popupTextColor = cfg->GetColor(ConfigVars::PopupTextColor, RGB(0xff, 0xff, 0xff));
+	popupBackgroundColor = cfg->GetColor(ConfigVars::PopupBackgroundColor, RGB(0xff, 0xff, 0xff));
+	popupSmallTextColor = cfg->GetColor(ConfigVars::PopupSmallTextColor, RGB(0xff, 0xff, 0xff));
+	popupDetailTextColor = cfg->GetColor(ConfigVars::PopupDetailTextColor, RGB(0xA0, 0xA0, 0xA0));
+	mediaDetailTextColor = cfg->GetColor(ConfigVars::MediaDetailTextColor, RGB(0xff, 0xff, 0xff));
+	wheelTitleColor = cfg->GetColor(ConfigVars::WheelTitleColor, RGB(0xff, 0xff, 0xff));
+	wheelTitleShadowColor = cfg->GetColor(ConfigVars::WheelTitleShadowColor, RGB(0x00, 0x00, 0x00));
+	hiScoreTextColor = cfg->GetColor(ConfigVars::HiScoreTextColor, RGB(0xff, 0xff, 0xff));
+	infoBoxTitleColor = cfg->GetColor(ConfigVars::InfoBoxTitleColor, RGB(0xff, 0xff, 0xff));
+	infoBoxTextColor = cfg->GetColor(ConfigVars::InfoBoxTextColor, RGB(0xff, 0xff, 0xff));
+	infoBoxBackgroundColor = cfg->GetColor(ConfigVars::InfoBoxBackgroundColor, RGB(0x00, 0x00, 0x00));
+	infoBoxDetailTextColor = cfg->GetColor(ConfigVars::InfoBoxDetailTextColor, RGB(0xC0, 0xC0, 0xC0));
+	statusLineTextColor = cfg->GetColor(ConfigVars::StatusLineTextColor, RGB(0xff, 0xff, 0xff));
+	statusLineShadowColor = cfg->GetColor(ConfigVars::StatusLineShadowColor, RGB(0x00, 0x00, 0x00));
+	creditsTextColor = cfg->GetColor(ConfigVars::CreditsTextColor, RGB(0xff, 0xff, 0xff));
+
 	// load the media capture mode defaults
 	RestoreLastCaptureModes();
 
@@ -11500,7 +11593,7 @@ void PlayfieldView::OnConfigChange()
 void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 {
 	// try matching the standard format: <size> <weight> <name>
-	static std::basic_regex<TCHAR> pat(_T("\\s*(\\d+(pt)?|\\*)\\s+(\\S+)\\s+(.*)"), std::regex_constants::icase);
+	static const std::basic_regex<TCHAR> pat(_T("\\s*(\\d+(pt)?|\\*)\\s+(\\S+)\\s+(.*)"), std::regex_constants::icase);
 	std::match_results<const TCHAR*> m;
 	if (std::regex_match(text, m, pat))
 	{
@@ -11513,49 +11606,81 @@ void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
 			ptSize = n;
 		}
 
-		// read the weight
+		// read the weight and style
 		weight = defaultWeight;
-		auto weightStr = m[3].str();
-		if (int n = _ttoi(weightStr.c_str()); n >= 100 && n <= 900)
+		italic = defaultItalic;
+		auto weightStyleStr = m[3].str();
+		static const std::basic_regex<TCHAR> weightStylePat(_T("([^/]+)(?:/(.+))?"));
+		std::match_results<TSTRING::const_iterator> mw;
+		if (weightStyleStr.length() != 0 && weightStyleStr != _T("*") && std::regex_match(weightStyleStr, mw, weightStylePat))
 		{
-			// numeric weight specified
-			weight = n;
-		}
-		else if (weightStr.length() != 0 && weightStr != _T("*"))
-		{
-			// try a standard weight keyword
-			static const struct
+			// check what kind of weight spec we have
+			auto weightStr = mw[1].str();
+			if (int n = _ttoi(weightStr.c_str()); n >= 100 && n <= 900)
 			{
-				const TCHAR *name;
-				int weight;
+				// numeric weight value, 100 to 900 scale
+				weight = n;
 			}
-			names[] = {
-				{ _T("thin"), 100 },
-				{ _T("hairline"), 100 },
-				{ _T("xlight"), 200 },
-				{ _T("extralight"), 200 },
-				{ _T("extra-light"), 200 },
-				{ _T("ultralight"), 200 },
-				{ _T("ultra-light"), 200 },
-				{ _T("light"), 300 },
-				{ _T("normal"), 400 },
-				{ _T("medium"), 500 },
-				{ _T("semibold"), 600 },
-				{ _T("semi-bold"), 600 },
-				{ _T("bold"), 700 },
-				{ _T("extrabold"), 800 },
-				{ _T("extra-bold"), 800 },
-				{ _T("xbold"), 800 },
-				{ _T("black"), 900 },
-				{ _T("heavy"), 900 }
-			};
-			for (size_t i = 0; i < countof(names); ++i)
+			else if (weightStr.length() != 0 && weightStr != _T("*"))
 			{
-				if (_tcsicmp(weightStr.c_str(), names[i].name) == 0)
+				// try a standard weight keyword
+				static const struct
 				{
-					weight = names[i].weight;
-					break;
+					const TCHAR *name;
+					int weight;
 				}
+				names[] = {
+					{ _T("thin"), 100 },
+					{ _T("hairline"), 100 },
+					{ _T("xlight"), 200 },
+					{ _T("extralight"), 200 },
+					{ _T("extra-light"), 200 },
+					{ _T("ultralight"), 200 },
+					{ _T("ultra-light"), 200 },
+					{ _T("light"), 300 },
+					{ _T("normal"), 400 },
+					{ _T("medium"), 500 },
+					{ _T("semibold"), 600 },
+					{ _T("semi-bold"), 600 },
+					{ _T("bold"), 700 },
+					{ _T("extrabold"), 800 },
+					{ _T("extra-bold"), 800 },
+					{ _T("xbold"), 800 },
+					{ _T("black"), 900 },
+					{ _T("heavy"), 900 },
+				};
+				bool matched = false;
+				for (size_t i = 0; i < countof(names); ++i)
+				{
+					if (_tcsicmp(weightStr.c_str(), names[i].name) == 0)
+					{
+						weight = names[i].weight;
+						matched = true;
+						break;
+					}
+				}
+
+				// If we didn't match a weight name, check for a style name,
+				// in case they used a style without specifying a weight.
+				// This is treated as equivalent to "*/style", meaning that
+				// the default weight is inherited.
+				if (!matched)
+				{
+					if (_tcsicmp(weightStr.c_str(), _T("italic")) == 0)
+						italic = true;
+					else if (_tcsicmp(weightStr.c_str(), _T("regular")) == 0)
+						italic = false;
+				}
+			}
+
+			// Check for a style spec, for "regular" or "italic"
+			if (mw[2].matched)
+			{
+				auto styleStr = mw[2].str();
+				if (_tcsicmp(styleStr.c_str(), _T("italic")) == 0)
+					italic = true;
+				else if (_tcsicmp(styleStr.c_str(), _T("regular")) == 0)
+					italic = false;
 			}
 		}
 
@@ -11605,7 +11730,7 @@ void PlayfieldView::FontPref::ParseConfig(const TCHAR *varname)
 Gdiplus::Font* PlayfieldView::FontPref::Get()
 {
 	if (font == nullptr)
-		font.reset(CreateGPFont(family.c_str(), ptSize, weight));
+		font.reset(CreateGPFont(family.c_str(), ptSize, weight, italic));
 
 	return font.get();
 }
@@ -12775,7 +12900,7 @@ void PlayfieldView::DisplayCredits()
 		float y = ((float)height - txtht) / 2.0f;
 
 		// draw the text centered
-		Gdiplus::SolidBrush br(Gdiplus::Color(0xff, 0xff, 0xff, 0xff));
+		Gdiplus::SolidBrush br(GPColorFromCOLORREF(creditsTextColor));
 		g.DrawString(line1, -1, font, Gdiplus::PointF(((float)width - bbox1.Width)/2.0f, y - bbox1.Height), &br);
 		g.DrawString(line2, -1, font, Gdiplus::PointF(((float)width - bbox2.Width)/2.0f, y), &br);
 
@@ -14876,7 +15001,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 		// draw the background and borders
 		const float margin = 16.0f;
 		const int borderWidth = 2;
-		Gdiplus::SolidBrush bkgbr(Gdiplus::Color(224, 0, 0, 0));
+		Gdiplus::SolidBrush bkgbr(GPColorFromCOLORREF(popupBackgroundColor, 224));
 		Gdiplus::Pen pen(Gdiplus::Color(0xE0, 0xFF, 0xFF, 0xFF), (float)borderWidth);
 		g.FillRectangle(&bkgbr, Gdiplus::RectF(0.0f, 0.0f, (float)width, (float)height));
 		g.DrawRectangle(&pen, Gdiplus::Rect(borderWidth/2, borderWidth/2, width - borderWidth, height - borderWidth));
@@ -14885,9 +15010,8 @@ void PlayfieldView::ShowMediaFiles(int dir)
 		GPDrawString gds(g, Gdiplus::RectF(margin, margin, (float)width - 2.0f*margin, (float)height - 2.0f*margin));
 		FontPref &titleFont = popupSmallerFont;
 		FontPref &textFont = mediaDetailFont;
-		Gdiplus::SolidBrush textbr(Gdiplus::Color(255, 255, 255));
-		Gdiplus::SolidBrush graybr(Gdiplus::Color(128, 128, 128));
-		Gdiplus::SolidBrush hilitebr(Gdiplus::Color(0, 128, 255));
+		Gdiplus::SolidBrush textbr(GPColorFromCOLORREF(popupTitleColor));
+		Gdiplus::SolidBrush hilitebr(GPColorFromCOLORREF(menuHiliteColor));
 
 		// show the caption
 		gds.DrawString(MsgFmt(IDS_SHOWMEDIA_CAPTION, game->title.c_str()), titleFont, &textbr);
@@ -15640,7 +15764,7 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 		Gdiplus::Graphics g(hdc);
 
 		// draw the background
-		Gdiplus::SolidBrush bkgBr(Gdiplus::Color(0xd0, 0x00, 0x00, 0x00));
+		Gdiplus::SolidBrush bkgBr(GPColorFromCOLORREF(popupBackgroundColor, 0xD0));
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// draw the border
@@ -15658,14 +15782,15 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 
 		// draw the main text
 		Gdiplus::RectF rc(0.0f, 0.0f, (float)width, (float)height/2.0f);
-		FontPref &font1 = popupTitleFont;
-		Gdiplus::SolidBrush textBr(Gdiplus::Color(0xFF, 0xFF, 0xFF, 0xFF));
-		g.DrawString(MsgFmt(IDS_CAPTURE_DELAYTIME1, adjustedCaptureStartupDelay), -1, font1, rc, &centerFmt, &textBr);
+		FontPref &titleFont = popupTitleFont;
+		Gdiplus::SolidBrush titleBr(GPColorFromCOLORREF(popupTitleColor));
+		g.DrawString(MsgFmt(IDS_CAPTURE_DELAYTIME1, adjustedCaptureStartupDelay), -1, titleFont, rc, &centerFmt, &titleBr);
 
 		// draw the bottom text
 		rc.Y += (float)height/2.0f;
-		FontPref &font2 = popupSmallerFont;
-		g.DrawString(LoadStringT(IDS_CAPTURE_DELAYTIME2), -1, font2, rc, &centerFmt, &textBr);
+		FontPref &smallFont = popupSmallerFont;
+		Gdiplus::SolidBrush smallBr(GPColorFromCOLORREF(popupSmallTextColor));
+		g.DrawString(LoadStringT(IDS_CAPTURE_DELAYTIME2), -1, smallFont, rc, &centerFmt, &smallBr);
 
 		// done with GDI+
 		g.Flush();
@@ -16974,9 +17099,9 @@ void PlayfieldView::BatchCaptureView()
 		g.FillRectangle(&bkgBr, 0, 0, width, height);
 
 		// set up resources for text drawing
-		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(popupFont.family.c_str(), 16, 400));
-		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(popupFont.family.c_str(), 12, 400));
-		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(popupFont.family.c_str(), 14, 400));
+		std::unique_ptr<Gdiplus::Font> gameTitleFont(CreateGPFont(popupFont.family.c_str(), 16, 400, popupFont.italic));
+		std::unique_ptr<Gdiplus::Font> detailsFont(CreateGPFont(popupFont.family.c_str(), 12, 400, popupFont.italic));
+		std::unique_ptr<Gdiplus::Font> mediaItemFont(CreateGPFont(popupFont.family.c_str(), 14, 400, popupFont.italic));
 		Gdiplus::SolidBrush gameTitleBr(Gdiplus::Color(255, 255, 255));
 		Gdiplus::SolidBrush detailsBr(Gdiplus::Color(128, 128, 128));
 		Gdiplus::SolidBrush mediaItemBr(Gdiplus::Color(220, 220, 220));
@@ -17133,7 +17258,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 
 		// draw a title bar at the top
 		auto title = LoadStringT(IDS_CAPPREVIEW_TITLE);
-		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(popupFont.family.c_str(), 20, 700));
+		std::unique_ptr<Gdiplus::Font> titleFont(CreateGPFont(popupFont.family.c_str(), 20, 700, popupFont.italic));
 		Gdiplus::SolidBrush titleBr(Gdiplus::Color(0, 0, 0));
 		Gdiplus::SolidBrush titleBkg(frameColor);
 		Gdiplus::RectF bbox;
@@ -17146,7 +17271,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 		if (srcHeight > maxHeight)
 		{
 			auto instr = LoadStringT(IDS_CAPPREVIEW_INSTRS);
-			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(popupFont.family.c_str(), 16, 400));
+			std::unique_ptr<Gdiplus::Font> instrFont(CreateGPFont(popupFont.family.c_str(), 16, 400, popupFont.italic));
 			g.MeasureString(instr, -1, instrFont.get(), Gdiplus::PointF(0.0f, 0.0f), &centerFmt, &bbox);
 			Gdiplus::RectF rcInstr(0.0f, (float)height - bbox.Height*1.4f, (float)width, bbox.Height*1.4f);
 			g.FillRectangle(&titleBkg, rcInstr);
@@ -18116,8 +18241,8 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 		float y = (float(height) - bbox.Height) / 2.0f;
 
 		// draw it centered
-		Gdiplus::SolidBrush txt(Gdiplus::Color(255, 255, 255, 255));
-		Gdiplus::SolidBrush shadow(Gdiplus::Color(192, 0, 0, 0));
+		Gdiplus::SolidBrush txt(GPColorFromCOLORREF(pfv->statusLineTextColor));
+		Gdiplus::SolidBrush shadow(GPColorFromCOLORREF(pfv->statusLineShadowColor));
 		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x+2, y+2), &shadow);
 		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x, y), &txt);
 
@@ -18280,7 +18405,7 @@ void PlayfieldView::StatusLine::JsShow(TSTRING txt)
 		for (;;)
 		{
 			// advance to the next item, wrapping at the end
-			if (++pos == items.end())
+			if (pos == items.end() || ++pos == items.end())
 				pos = items.begin();
 
 			// If this *isn't* a temporary item, insert here.  Also stop

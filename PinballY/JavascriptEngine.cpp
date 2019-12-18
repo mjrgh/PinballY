@@ -619,6 +619,18 @@ JsErrorCode JavascriptEngine::ToFloat(float &f, const JsValueRef &val)
 	return JsNoError;
 }
 
+JsErrorCode JavascriptEngine::ToBool(bool &b, const JsValueRef &val)
+{
+	// convert to boolean
+	JsErrorCode err;
+	JsValueRef boolval;
+	if ((err = JsConvertValueToBoolean(val, &boolval)) != JsNoError)
+		return err;
+
+	// convert to native bool
+	return JsBooleanToBool(boolval, &b);
+}
+
 JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 {
 	// Variant Dates are extremely tricky to work with because of poor

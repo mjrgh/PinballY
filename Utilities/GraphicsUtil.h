@@ -139,6 +139,12 @@ void DrawOffScreen(DIBitmap &dib, int width, int height,
 	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
 
 
+// GDI+ color from Win32 COLORREF
+inline Gdiplus::Color GPColorFromCOLORREF(COLORREF color, BYTE alpha = 0xff)
+{
+	return Gdiplus::Color(alpha, GetRValue(color), GetGValue(color), GetBValue(color));
+}
+
 
 // Simplified GDI+ font creation.  This uses the typical defaults for
 // most settings, to avoid the need to fill out a LOGFONT struct to
@@ -149,11 +155,11 @@ void DrawOffScreen(DIBitmap &dib, int width, int height,
 // of 96 dpi.  The reference size should be used for most of our D3D
 // graphics, since we prepare those in device-independent format at a
 // reference scale.
-Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, HDC hdc = NULL);
+Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, bool italic, HDC hdc = NULL);
 
 // Create a GDI+ font at a given pixel height.  If a DC is provided,
 // we'll scale 
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, HDC hdc = NULL);
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, bool italic, HDC hdc = NULL);
 
 // Draw a string via GDI+, advancing the origin to the next line
 // vertically.

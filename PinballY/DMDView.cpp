@@ -608,7 +608,7 @@ void DMDView::GenerateHighScoreImages()
 							g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
 
 							// get the font
-							std::unique_ptr<Gdiplus::Font> font(CreateGPFontPixHt(_T("Courier New"), ht / 8, 400));
+							std::unique_ptr<Gdiplus::Font> font(CreateGPFontPixHt(_T("Courier New"), ht / 8, 400, false));
 
 							// combine the text into a single string separated by line breaks
 							TSTRING txt;

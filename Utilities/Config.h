@@ -185,6 +185,7 @@ public:
 	bool GetBool(const TCHAR *name, bool defval = false) const;
 	int GetInt(const TCHAR *name, int defval = 0) const;
 	float GetFloat(const TCHAR *name, float defval = 0.0f) const;
+	COLORREF GetColor(const TCHAR *name, COLORREF defval = RGB(0, 0, 0)) const;
 	RECT GetRect(const TCHAR *name, RECT defval = { 0, 0, 0, 0 }) const;
 
 	// Convert from string to the various datatypes
@@ -192,6 +193,7 @@ public:
 	static bool ToBool(const TCHAR *val);
 	static int ToInt(const TCHAR *val);
 	static float ToFloat(const TCHAR *val);
+	static COLORREF ToColor(const TCHAR *val, COLORREF defval);
 	static RECT ToRect(const TCHAR *val);
 
 	// set a variable in various formats
@@ -200,6 +202,7 @@ public:
 	void Set(const TCHAR *name, RECT &rc);
 	void SetFloat(const TCHAR *name, float value);
 	void SetBool(const TCHAR *name, bool value);
+	void SetColor(const TCHAR *name, COLORREF value);
 
 	// set to a formatted string value
 	void Set(const TCHAR *name, ConfigLine::FormatString format, ...);

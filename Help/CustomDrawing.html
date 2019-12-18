@@ -257,16 +257,51 @@ function myDrawingFunction(dc)
    account line wrapping; it measures the text as though it were going to be laid
    out in an infinitely widely boundary area.
    
-   <li><b>setFont(<i>name</i>, <i>pointSize</i>, <i>weight</i>):</b>  Sets the
-   text font to use for subsequent drawText() and measureText() calls.  Any of
-   the arguments can be passed as <b>undefined</b> to keep the values for the
-   current font; for example, you can change just the point size, keeping
+   <li><b>setFont(<i>name</i>, <i>pointSize</i>, <i>weight</i>, <i>italic</i>):</b>
+   Sets the text font to use for subsequent drawText() and measureText() calls.
+   Any of the arguments can be passed as <b>undefined</b> to keep the values
+   for the current font; for example, you can change just the point size, keeping
    the current weight, by calling <tt>dc.setFont(undefined, 24)</tt>.  The
    weight value is from 100 to 900; for most fonts, 400 is the normal weight
    and 700 is bold.  (Some fonts have extra-light and extra-bold variations,
    which is why the range is wider than 400-700, and some have semi-bold
    variations between normal and bold.)
    
+   <li><b>setFontFromPrefs(<i>str</i>):</b>  Sets the text font for subsequent
+   drawText() and measureText() calls to a font specified in the current
+   user settings.  <i>str</i> is a string giving the name of a configuration
+   variable that refers to a font.  This can be any variable name in the
+   settings, including custom variables.  The standard font option
+   variable names are:
+   <ul class="compact">
+      <li><b>MenuFont:</b> menu items
+      <li><b>PopupFont:</b> base font for popup dialogs and messages
+      <li><b>PopupTitleFont:</b> large font for title text in popups
+      <li><b>PopupSmallerFont:</b> smaller text font in popups
+      <li><b>PopupDetailFont:</b> even smaller detail text font in popups
+      <li><b>MediaDetailFont:</b> small font for line items in media file listings
+      <li><b>WheelFont:</b> game titles in the wheel when logos aren't available
+      <li><b>HighScoreFont:</b> font for the high score list in the info box
+      <li><b>InfoBoxTitleFont:</b> large font for title text in info box displays
+      <li><b>InfoBoxFont:</b> font for main text in info box displays
+      <li><b>InfoBoxDetailFont:</b> small font for fine print in info box displays
+      <li><b>StatusFont:</b> status line font
+      <li><b>CreditsFont:</b> credits message font
+   </ul>
+   <p>
+      Alternatively, you can use the string to specify the font information
+      using the format that's used in the font preference settings, without
+      actually looking in the setting for a variable.  The format is
+      "<i>pointSize</i> <i>weight/style</i> <i>family</i>", where
+      <i>pointSize</i> is an integer giving the size in points of the text;
+      <i>weight/style</i> is a combination of weight (100 to 900, or
+      one of the standard weight names: thin, extralight, light, normal,
+      medium, semibold, bold, ultrabold, black) and/or style ("regular"
+      or "italic"), with a slash "/" separating them if both are included;
+      and <i>family</i> is the font name as its appears in the Windows Fonts
+      control panel.  For example, "24 bold/italic Tahoma".
+   </p>
+
    <li><b>setTextAlign(<i>horz</i>, <i>vert</i>):</b>  Sets the text alignment
    for drawText().  Either parameter can be set to <b>undefined</b> to keep the
    current alignment for that dimension.  For <i>horz</i>, -1 means left

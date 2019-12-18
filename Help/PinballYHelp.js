@@ -7,6 +7,7 @@ var contents = [
    "Install.html Installation",
         "+SWF.html Flash Player",
    "Troubleshooting.html Troubleshooting",
+   "Backups.html Backups",
    "OptionSettings.html Option Settings",
         "+AttractModeOptions.html Attract Mode",
         "+AudioVideoOptions.html Audio/Video",

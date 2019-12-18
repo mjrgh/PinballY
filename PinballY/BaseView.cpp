@@ -415,7 +415,7 @@ void BaseView::DrawDropAreaList(POINT pt)
 		fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 		fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 		Gdiplus::SolidBrush txtbr(Gdiplus::Color(255, 255, 255, 255));
-		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), 36, 400));
+		std::unique_ptr<Gdiplus::Font> font(CreateGPFont(_T("Tahoma"), 36, 400, false));
 
 		// Find the drop area at the current mouse location
 		activeDropArea = FindDropAreaHit(pt);

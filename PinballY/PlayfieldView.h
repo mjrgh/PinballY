@@ -302,11 +302,13 @@ protected:
 	// font options
 	struct FontPref
 	{
-		FontPref(PlayfieldView *pfv, int defaultPtSize, const TCHAR *defaultFamily = nullptr, int defaultWeight = 400) :
+		FontPref(PlayfieldView *pfv, int defaultPtSize, const TCHAR *defaultFamily = nullptr, 
+			int defaultWeight = 400, bool defaultItalic = false) :
 			pfv(pfv),
 			defaultPtSize(defaultPtSize), 
 			defaultFamily(defaultFamily), 
-			defaultWeight(defaultWeight)
+			defaultWeight(defaultWeight),
+			defaultItalic(defaultItalic)
 		{ }
 
 		PlayfieldView *pfv;
@@ -315,12 +317,14 @@ protected:
 		TSTRING family;
 		int ptSize = 0;
 		int weight = 0;
+		bool italic = false;
 
 		// Defaults for the font.  defaultName can be null, in which case the
 		// global DefaultFontFamily preference is used.
 		const TCHAR *defaultFamily;
 		int defaultPtSize;
 		int defaultWeight;
+		bool defaultItalic;
 
 		// Parse a font option string.  If the string doesn't match the
 		// standard format, we'll apply defaults if useDefault is true,
@@ -356,7 +360,30 @@ protected:
 	FontPref infoBoxDetailFont{ this, 16 };   // info box fine print
 	FontPref creditsFont{ this, 42 };         // credits message font
 
-	// name of my startup video
+	// text font colors
+	COLORREF menuTextColor;
+	COLORREF menuBackgroundColor;
+	COLORREF menuHiliteColor;
+	COLORREF menuGroupTextColor;
+	COLORREF menuHeaderColor;
+	COLORREF popupTitleColor;
+	COLORREF popupTextColor;
+	COLORREF popupBackgroundColor;
+	COLORREF popupSmallTextColor;
+	COLORREF popupDetailTextColor;
+	COLORREF mediaDetailTextColor;
+	COLORREF wheelTitleColor;
+	COLORREF wheelTitleShadowColor;
+	COLORREF hiScoreTextColor;
+	COLORREF infoBoxBackgroundColor;
+	COLORREF infoBoxTitleColor;
+	COLORREF infoBoxTextColor;
+	COLORREF infoBoxDetailTextColor;
+	COLORREF statusLineTextColor;
+	COLORREF statusLineShadowColor;
+	COLORREF creditsTextColor;
+
+	// name of the playfield window startup video
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video"); }
 
 	// is a startup video playing?
@@ -2807,7 +2834,8 @@ protected:
 	// collect the methods into a coherent namespace.
 	JsValueRef jsDrawingContextProto = JS_INVALID_REFERENCE;
 	void JsDrawDrawText(TSTRING text);
-	void JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight);
+	void JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight, JsValueRef italic);
+	bool JsDrawSetFontFromPrefs(WSTRING varname);
 	void JsDrawSetTextColor(int rgb);
 	void JsDrawSetTextAlign(JsValueRef horz, JsValueRef vert);
 	void JsDrawDrawImage(TSTRING filename, float x, float y, JsValueRef width, JsValueRef height);
@@ -2847,6 +2875,7 @@ protected:
 		TSTRING fontName = _T("Tahoma");
 		int fontPtSize = 24;
 		int fontWeight = 400;
+		bool fontItalic = false;
 
 		// Create a font from the current specs if we don't already have one
 		void InitFont();

@@ -522,18 +522,23 @@ SimultaneousWindowUpdate = 0
 # game in the wheel UI.
 CrossfadeTime = 120
 
-# Fonts for UI elements.  Specify as <point size> <weight> <family>.
+# Fonts for UI elements.  Specify as <point size> <weight/style> <family>.
 #
 # <point size> is a number, with optional "pt" suffix.
 #
-# <weight> can be a standard font weight value from 100 to 900,
+# <weight/style> can be a standard font weight value from 100 to 900,
 # (400 is normal weight in most fonts, 700 is bold), or one of the
 # standard weight names: "thin" (100), "extralight" (200), "light" 
 # (300), "normal" (400), "medium" (500), "semibold" (600), "bold" 
 # (700), "ultrabold" (800), "black" (900).
 #
+# You can also add a style to the <weight/style> setting, by adding
+# a "/" and the style name, which can be "regular" or "italic".
+# For example, "400/italic" or "normal/italic" would select the
+# italic style for the font in normal weight.
+#
 # <family> is a font family name (e.g., Tahoma or Comic Sans MS).
-# Speciy the full name as it appears in the Windows Fonts control
+# Specify the full name as it appears in the Windows Fonts control
 # panel.
 #
 # Any of <point size>, <weight>, and <family> can be entered as *
@@ -546,6 +551,7 @@ CrossfadeTime = 120
 # reference, the normal system point sizes are listed in the
 # comments below.
 #
+# MenuHeaderFont = menu headers (36pt)
 # MenuFont = menu items (42pt)
 # PopupFont = base font for popup dialogs and messages (24pt)
 # PopupTitleFont = large font for title text in popups (48pt)
@@ -561,6 +567,7 @@ CrossfadeTime = 120
 # CreditsFont = credits message font (42pt)
 #
 MenuFont = * * *
+MenuHeaderFont = * * *
 PopupFont = * * *
 PopupTitleFont = * * *
 PopupSmallerFont = * * *
@@ -573,6 +580,51 @@ InfoBoxFont = * * *
 InfoBoxDetailFont = * * *
 StatusFont = * * *
 CreditsFont = * * *
+
+# Text message colors.
+#
+# MenuHeaderColor - menu header (explanatory message at the top of a menu)
+# MenuTextColor - regular menu items
+# MenuBackgroundColor - menu background
+# MenuGroupTextColor - menu group section titles
+# PopupTextColor - popup message box main text
+# PopupBackgroundColor - popup message background
+# PopupTitleColor - popup message box titles
+# PopupSmallTextColor - popup message box small text
+# PopupDetailTextColor - popup message box detail (extra-small) text
+# MediaDetailTextColor - media detail text
+# WheelTitleColor - game title shown in the wheel when there's no icon
+# WheelTitleShadowColor - drop shadow for game titles
+# HiScoreTextColor - high score text
+# InfoBoxTextColor - game info box main text
+# InfoBoxBackgoundColor - game info box background
+# InfoBoxTitleColor - game info box titles
+# InfoBoxDetailTextColor - game info box small detail text
+# StatusLineTextColor - status line text
+# StatusLineShadowColor - status line text drop shadow
+# CreditsTextColor - coin/credit message text
+#
+MenuHeaderColor = #FFFFFF
+MenuTextColor = #FFFFFF
+MenuBackgroundColor = #000000
+MenuGroupTextColor = #00FFFF
+PopupTextColor = #FFFFFF
+PopupBackgroundColor = #000000
+PopupTitleColor = #FFFFFF
+PopupSmallTextColor = #FFFFFF
+PopupDetailTextColor = #A0A0A0
+MediaDetailTextColor = #FFFFFF
+WheelTitleColor = #FFFFFF
+WheelTitleShadowColor = #000000
+HiScoreTextColor = #FFFFFF
+InfoBoxTextColor = #FFFFFF
+InfoBoxBackgroundColor = #000000
+InfoBoxTitleColor = #FFFFFF
+InfoBoxDetailTextColor = #C0C0C0
+StatusLineTextColor = #FFFFFF
+StatusLineShadowColor = #000000
+CreditsTextColor = #FFFFFF
+
 
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 

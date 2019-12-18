@@ -122,6 +122,7 @@ public:
 	static JsErrorCode ToInt(int &i, const JsValueRef &val);
 	static JsErrorCode ToFloat(float &f, const JsValueRef &val);
 	static JsErrorCode ToDouble(double &d, const JsValueRef &val);
+	static JsErrorCode ToBool(bool &b, const JsValueRef &val);
 
 	// Convert various date representations to Javascript representation.  If
 	// you have a string to be converted, use DateTime to parse the string, first,

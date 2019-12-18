@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Backing up your files</h1>
+
+<p>
+   It's always a good idea to make backup copies of your hard disk,
+   in case you ever have a hardware failure or software problem that
+   requires replacing or reformatting your hard disk.
+</p>
+<p>
+   My first recommendation would be to use a good backup program or
+   disk imaging program that saves everything on your system.  I
+   consider that to be the safest approach, because it guarantees
+   that you won't accidentally forget something important.
+</p>
+<p>
+   But some people prefer to do manual backups, in which case you'll
+   want to know which PinballY files you need to back up.  Or, there
+   might be times when you just want to create a snapshot of
+   your full PinballY setup.  So for those situations, here's a list
+   of all of the files needed to re-create your PinballY setup:
+</p>
+<ul>
+   <li><b>Settings.txt</b> in the main PinballY folder (stores
+   all of your program option settings)
+
+   <li><b>GameStats.csv</b> in the main PinballY folder (stores
+   portions of the game metadata)
+
+   <li>Your entire <b>Media</b> folder tree
+
+   <li>Your entire <b>Databases</b> folder tree
+</ul>
+
+<p>
+   The <b>Media</b> and <b>Databases</b> folder locations depend on
+   your option settings.  See <a href="DirectoryInfo.html">Files &amp; Folders</a>
+   for full details, but here's the quick summary:
+</p>
+<ul>
+   <li>If you're using the "Share with PinballX" option, both folders
+   will be in your PinballX install folder
+
+   <li>If you're not sharing with PinballX, both folders will be in
+   your PinballY install folder by default
+
+   <li>However, you can override the default locations in the settings -
+   if you're not sure, the <b>Folders</b> page in the options dialog
+   will show you the current settings
+</ul>
+
+<p>
+   PinballY doesn't store any settings in the registry, so you don't
+   need to worry about that.  (Many other programs do use registry
+   settings to store user information, though, which is one of the
+   reasons I think it's a good idea to use a proper backup program
+   or disk imaging program, rather than making backups manually.
+   A "real" backup program will usually include a full capture
+   of the registry as an automatic part of the backup set.)
+</p>
+<p>
+   You don't need to back up the PinballY program files
+   themselves, since you can always just do a fresh install to
+   re-create those.  But if you're not on a tight space budget for your
+   backup media, the simplest thing is to just make a copy of
+   your entire PinballY folder tree (plus your complete PinballX
+   folder tree, if you're sharing media with PinballX).
+</p>
+
+<h2>Recommended backup practices</h2>
+
+<p>
+   This has nothing to do with PinballY, but as long as we're on the
+   subject, I can't resist the urge to make some recommendations
+   about backup practices in general.  I see too many
+   posts on the forums from people who had to re-build their
+   systems from scratch after a hard disk failure or Windows
+   crash.  It's clear that a lot of people skip backups for
+   their pin cabs.  Don't be one of them!
+</p>
+<p>
+   Here are some key things I'd look for in a backup setup:
+</p>
+<ul>
+   <li>It should be <b>automatic</b>.  It should run on a schedule
+   so that you don't have to remember to run it yourself.  If
+   you have to run it manually, chances are that you won't think
+   about it for long stretches.
+
+   <li>The media should be <b>remote</b> - not physically
+   connected computer you're backing up.  Ideally, it should be
+   off-site in a cloud service, since that gives you complete
+   physical isolation.  At the very
+   least, it should be on an external hard disk that you don't
+   keep connected to the machine, or on a separate computer
+   on your home network.  A hardware failure or Windows crash
+   could corrupt every disk connected to the computer, and
+   a malware attack could trash every connected disk.  Physical
+   isolation is the only way to be sure the backup media are
+   safe against whatever disaster hits the subject system.
+
+   <li>It should be <b>versioned</b>.  Versioning is critical
+   for malware protection - if you discover an infection or
+   lose everything in a ransomware attack, it'll do you no good
+   to have a backup copy of the infected files.  You'll need to
+   be able to go back in time to an earlier version before the
+   infection.  Versioning is also an extremely nice safety net
+   when you're making configuration changes, because it lets
+   you go back in time to an earlier working setup if you mess
+   something up.
+
+   <li>It should do a whole-disk scan.  If you have to manually
+   choose the files that get backed up, you'll inevitably miss
+   something important.
+
+   <li>It should include the Windows registry as part of the
+   backup, since Windows itself and many application programs
+   store a lot of important configuration data there.
+</ul>
+
+</body>
+</html>

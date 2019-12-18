@@ -563,3 +563,68 @@ void OptionsPage::KeepWindowCkMap::OnApply(std::list<std::unique_ptr<VarMap>> &v
 	// save the final value
 	ConfigManager::GetInstance()->Set(configVar, val.c_str());
 }
+
+// -----------------------------------------------------------------------
+//
+// Color button variable mapper
+//
+
+void OptionsPage::ColorButtonMap::InitControl()
+{
+	button.EnableOtherButton(LoadStringT(IDS_OTHER_COLOR_BUTTON));
+}
+
+void OptionsPage::ColorButtonMap::doDDX(CDataExchange *pDX)
+{
+	DDX_Control(pDX, controlID, button);
+}
+
+void OptionsPage::ColorButtonMap::LoadConfigVar()
+{
+	button.SetColor(ConfigManager::GetInstance()->GetColor(configVar, defVal));
+}
+
+void OptionsPage::ColorButtonMap::SaveConfigVar()
+{
+	ConfigManager::GetInstance()->SetColor(configVar, button.GetColor());
+}
+
+bool OptionsPage::ColorButtonMap::IsModifiedFromConfig()
+{
+	return button.GetColor() != ConfigManager::GetInstance()->GetColor(configVar, defVal);
+}
+
+// -----------------------------------------------------------------------
+//
+// Compact color button
+//
+
+void OptionsPage::ColorButtonMap::CompactColorButton::OnDraw(CDC *pDC, const CRect &rc, UINT uiState)
+{
+	ASSERT_VALID(pDC);
+
+	// get the color
+	COLORREF color = m_Color;
+
+	// draw the button outline
+	CRect rcColor = rc;
+	rcColor.OffsetRect(0, -1);
+	rcColor.DeflateRect(1, 1);
+	pDC->Draw3dRect(rcColor, GetGlobalData()->clrBtnShadow, GetGlobalData()->clrBtnShadow);
+	rcColor.DeflateRect(2, 2);
+
+	// fill the interior with the current selected color
+	if (color != (COLORREF)-1 && (uiState & ODS_DISABLED) == 0)
+	{
+		CBrush br(color);
+		pDC->FillRect(rcColor, &br);
+	}
+}
+
+void OptionsPage::ColorButtonMap::CompactColorButton::OnDrawFocusRect(CDC* pDC, const CRect& rectClient)
+{
+	CRect rcColor = rectClient;
+	rcColor.top -= 1;
+	rcColor.DeflateRect(2, 2);
+	CMFCButton::OnDrawFocusRect(pDC, rcColor);
+}

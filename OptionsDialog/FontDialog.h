@@ -75,6 +75,23 @@ protected:
 			fontCombo.SetPreviewStyle(CFontPreviewCombo::PreviewStyle::NAME_THEN_SAMPLE);
 			fontCombo.Init(allFonts);
 			fontCombo.SelectString(0, fontVar);
+
+			// Windows has the weird notion that owner-drawn combos need
+			// to use a different size from regular combos, so the font
+			// combo (owner drawn) have a slightly different height from
+			// the adjacent size and weight combos.  The contents of the
+			// font combo are drawn to look like the default, so we don't
+			// need special sizing, and it looks weird to have different
+			// heights for adjacent controls that are apparently of the
+			// same type.  Fortunately, Windows lets us force the height
+			// of a combo's main window to a custom height by setting
+			// the "item height" of the pseudo-item -1.  (Note that the
+			// naive approach, of setting the window height via, say,
+			// SetWindowRect, won't work: combos interpret everything
+			// having to do with the window rect as referring to the
+			// drop list rect.  Not a great API design, in my opinion,
+			// but no one asked me.)
+			fontCombo.SetItemHeight(-1, sizeCombo.GetItemHeight(-1));
 		}
 
 		virtual void ddxControl(CDataExchange *pDX) override

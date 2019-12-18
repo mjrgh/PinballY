@@ -2,6 +2,10 @@ PinballY Update History
 
 ? (1.0.0 Beta 17)
 
+* You can now customize the text colors for most of the text displays,
+via color buttons alongside the font selections in the
+Fonts &amp; Colors section of the options dialog.
+
 * You can now continue to show PinballY media on the real DMD device
 while a game is running.  This works the same as the existing "Keep
 windows open when running" options for the regular windows, so you can
@@ -18,9 +22,9 @@ the game itself from accessing the DMD device, since the devices only
 allow access from one program at a time.
 
 * A new checkbox option in the Game Wheel section of the settings
-dialog lets you enable or disable the underlay display.  (This doesn't
-affect Javascript from displaying underlays; it only prevents the
-system from updating the underlay when selecting a new game.)
+dialog lets you enable or disable the underlay display.  (Disabling
+this doesn't prevent Javascript from displaying underlays; it only
+disables the system's built-in underlay display feature.)
 
 * Javascript now has access to the overlay graphics displayed when a
 game is launched, allowing for complex customizations.  See the help
@@ -86,6 +90,11 @@ draw fully transparent areas, you must set defaultAlpha to zero, since
 that causes a zero alpha in a color parameter to be kept with a zero
 value, since applying the default of zero leaves it as zero.
 
+* Font selections in the option settings can now specify Italic
+styles.  In the Fonts page of the options dialog, the "Style" drop
+list now offers Italic and Bold Italic options.  (This drop list
+formerly only offered weight settings, for normal or bold.)
+
 * When loading a font, the system now tries italic and bold style
 variations if the "regular" style can't be loaded.  This should allow
 using certain TrueType fonts that didn't load properly on Windows 7.
@@ -100,6 +109,11 @@ variation, fonts that didn't have a "regular" style didn't load on
 Windows 7.  This wasn't problem on Windows 8 and later, as Microsoft
 apparently fixed this at the OS level in Win 8.  (Issue #93 on
 github.)
+
+* The Javascript drawing context method setFont() has a new parameter
+letting you specify italic style.  In addition, the new method
+setFontFromPrefs() lets you set the drawing font to one of the fonts
+defined in the settings.  See "Custom Drawing" in the help.
 
 
 11-29-2019 (1.0.0 Beta 16)

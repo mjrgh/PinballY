@@ -119,9 +119,9 @@ static int CALLBACK FontEnumProc(ENUMLOGFONT *lplf, NEWTEXTMETRIC *lptm, DWORD d
 	fonts->maxNameWidth = max(fonts->maxNameWidth, nameWidth);
 	dc.SelectObject(hf);
 
-	// measure sample in cur font
+	// measure sample in the control font
 	hf = (HFONT)dc.SelectObject(cf);
-	if (hf)
+	if (hf != nullptr)
 	{
 		sz = dc.GetTextExtent(fonts->sample);
 		LONG cappedSampleWidth = min(sz.cx, static_cast<LONG>(nameWidth * 1.25f));
@@ -165,9 +165,9 @@ void CFontPreviewCombo::Init(Fonts *fonts)
 	// load the image list
 	m_img.Create(IDB_TTF_BMP, GLYPH_WIDTH, 1, RGB(255, 255, 255));
 
-	// turn off sorting while loading the fonts, so that we don't waste time
-	// doing the insertion sort at every step
-	bool sorted = (GetStyle() & CBS_SORT) != 0;
+	// Turn off sorting.  We build the enumerated font list in sorted order,
+	// so there's no need to waste time doing another sorting pass in the
+	// combo.
 	ModifyStyle(CBS_SORT, 0);
 
 	// likewise, turn off drawing
@@ -191,10 +191,6 @@ void CFontPreviewCombo::Init(Fonts *fonts)
 
 	// restore drawing
 	SetRedraw(true);
-
-	// reenable sorting
-	if (sorted)
-		ModifyStyle(0, CBS_SORT);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -241,7 +237,7 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 	// draw the cute TTF glyph
 	DWORD_PTR dwData = GetItemData(lpDIS->itemID);
 	if ((dwData & ffTrueType) != 0)
-		m_img.Draw(&dc, 0, CPoint(rc.left + 5, rc.top + 4), ILD_TRANSPARENT);
+		m_img.Draw(&dc, 0, CPoint(rc.left + 5, rc.top + 3), ILD_TRANSPARENT);
 
 	// advance past the glyph whether it's there or not, so that the font names line up
 	rc.left += GLYPH_WIDTH;
@@ -298,7 +294,7 @@ void CFontPreviewCombo::DrawItem(LPDRAWITEMSTRUCT lpDIS)
 		{
 			// font name in GUI font
 			sz = dc.GetTextExtent(csCurFontName);
-			iPosY = (rc.Height() - sz.cy) / 2;
+			iPosY = (rc.Height() - sz.cy) / 2 - 1;
 			dc.TextOut(rc.left+iOffsetX, rc.top + iPosY, csCurFontName);
 
 			// show the sample in the current font, if available
@@ -378,11 +374,30 @@ void CFontPreviewCombo::MeasureItem(LPMEASUREITEMSTRUCT lpMeasureItemStruct)
 	CString csFontName;
 	GetLBText(lpMeasureItemStruct->itemID, csFontName);
 
+	// get the system border size
+	int yborder = ::GetSystemMetrics(SM_CYBORDER);
+
 	// look up the item in the font list
 	if (auto it = m_fonts->fonts.find(csFontName.GetString()); it != m_fonts->fonts.end())
 	{
-		// use the height from the font list, with a few extra pixels for padding
-		lpMeasureItemStruct->itemHeight = it->second.height + 4;
+		// use the height from the font list, plus the border height
+		lpMeasureItemStruct->itemHeight = it->second.height + 2*yborder;
+	}
+	else
+	{
+		// measure the height using the default font
+		if (CFont *ctlFont = GetFont(); ctlFont != nullptr)
+		{
+			// select the default font
+			CClientDC dc(this);
+			CFont *prvFont = dc.SelectObject(ctlFont);
+
+			// measure the height
+			lpMeasureItemStruct->itemHeight = dc.GetTextExtent(_T("0")).cy + 2*yborder;
+
+			// clean up
+			dc.SelectObject(prvFont);
+		}
 	}
 }
 
