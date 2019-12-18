@@ -3269,6 +3269,72 @@ DWORD Application::GameMonitorThread::Main()
 		}
 	}
 
+	// The process has started.  Now give it a few seconds to display a
+	// visible and non-minimized window.
+	for (UINT64 waitEnd = GetTickCount64() + 5000; GetTickCount64() < waitEnd; )
+	{
+		// pause briefly
+		HANDLE waitHandles[] = { shutdownEvent, closeEvent };
+		switch (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 50))
+		{
+		case WAIT_TIMEOUT:
+			break;
+
+		case WAIT_OBJECT_0:
+			// shutdown event - terminate
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch: interrupted waiting for child process to open a wnidow; aborting launch\n"));
+			return 0;
+
+		case WAIT_OBJECT_0 + 1:
+			// close event - stop immediately
+			waitEnd = GetTickCount64();
+			break;
+
+		default:
+			// error - abort
+			LogFile::Get()->Write(LogFile::TableLaunchLogging,
+				_T("+ table launch: error waiting for target process to open a window; aborting launch\n"));
+			return 0;
+		}
+
+		// check for an open window
+		struct enumctx
+		{
+			enumctx(DWORD pid) : pid(pid) { }
+			DWORD pid;
+			bool found = false;
+		} wctx(pid);
+		EnumWindows([](HWND hwnd, LPARAM lparam)
+		{
+			// only consider visible windows with no owner
+			if (IsWindowVisible(hwnd) && !IsIconic(hwnd) && GetWindowOwner(hwnd) == NULL)
+			{
+				// get the process information for the window
+				DWORD tid, pid;
+				tid = GetWindowThreadProcessId(hwnd, &pid);
+
+				// check if it matches our process and/or thread ID
+				auto ctx = reinterpret_cast<enumctx*>(lparam);
+				if (pid == ctx->pid)
+				{
+					// flag it
+					ctx->found = true;
+
+					// no need to keep searching
+					return FALSE;
+				}
+			}
+
+			// continue the enumeration
+			return TRUE;
+		}, reinterpret_cast<LPARAM>(&wctx));
+
+		// stop if we found a window
+		if (wctx.found)
+			break;
+	}
+
 	// Successful launch!
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ table launch: process launch succeeded\n"));
 
