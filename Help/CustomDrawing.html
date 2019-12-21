@@ -21,27 +21,29 @@
 <ul>
    <li><a href="Popups.html">Popups</a> - message boxes displayed in
    the main window.  To do custom drawing in a popup box, provide a
-   custom drawing function in the <b>draw</b> property of the parameter
+   custom drawing function in the <b>draw()</b> property of the parameter
    object when you call the <a href="MainWindowObject.html#showPopup">mainWindow.showPopup</a> method.
    The system will call your custom drawing function as part of the
    showPopup() processing.
-   
-   <li><a href="MainWindowObject.html#launchOverlay">Launch overlay background</a> -
-   the background graphics layer shown during a game launch to provide status
-   updates on the progress of the launch.  To display custom
-   background graphics, call
-   <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay.draw()</a>,
-   passing a reference to your custom drawing function as the parameter.
-   The system will call your custom drawing function as part of the draw()
-   method processing.
 
-   <li><a href="LaunchOverlayEvent.html">Launch overlay foreground</a> -
-   the foreground text message layer shown during a game launch.  To
-   display custom foreground graphics, create an event listener for the
-   <a href="LaunchOverlayEvent.html">launchoverlaymessage</a> event,
-   and store a reference to your custom draw function in the <b>draw</b>
-   property of the event object.  The system will call your custom drawing
-   function after the event listener returns.
+   <li><a href="DrawingLayer.html">Drawing layers</a> - custom graphics
+   layers that you can create in any of the windows through scripting code.
+   You can create a drawing layer via the
+   <a href="WindowObjects.html">createDrawingLayer()</a> method on any
+   of the system window objects (mainWindow, backglassWindow, etc).
+   That method returns an object representing the new drawing layer,
+   which you can draw custom graphics into using its
+   <a href="DrawingLayer.html#draw">draw()</a> method.
+   
+   <li><a href="MainWindowObject.html#launchOverlay">Launch overlays</a> -
+   the graphics layers shown during a game launch to provide status
+   updates on the progress of the launch.  The system lets you access
+   these layers through objects that you can get through the <b>fg</b>
+   and <b>bg</b> properties of
+   <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay</a>.
+   To display custom graphics in  these layers, call the
+   <a href="DrawingLayer.html#draw">draw()</a> method on the launch overlay
+   layer object, passing a reference to your custom drawing function as the argument.
 </ul>
    
 <h2>Creating a custom drawing function</h2>
@@ -103,54 +105,66 @@ function myDrawingFunction(dc)
    return value isn't used.
 </ul>   
 
+<a name="colorParameters"></a>
 <h2>Color values</h2>
 <p>
    Several of the drawing context methods take color values as
-   arguments.  These are specified using hex integer values, similar
-   to HTML "#rrggbb" color values, but with the addition of "alpha
-   channel" information.
-</p>
-<p>
-   A color value is specified via a hex integer value in the
-   format <b>0xAARRGGBB</b>, which has the following components:
+   arguments.  You can specify these in several ways:
 </p>
 <ul>
-   <li>AA is the hex value for the alpha transparency.  00 is completely
-   transparent, and FF is completely opaque.  Values in between represent
-   partial transparency; for example, 80 is 50% transparency.
+   <li>As a hex integer value, in the format 0xAARRGGBB, where
+   AA is the alpha (transparency) value, RR is the red component,
+   GG is the green component, and BB is the blue component.
+   Each can range from 00 to FF hex.  For example, 0xFF0000FF
+   represents opaque red (FF for the alpha component, or
+   completely opaque, and FF for the red component, for maximum
+   brightness in that component).
    <p>
-      Note that the system will automatically replace an alpha of 00
-      with the value of the <b>defaultAlpha</b> property in the drawing
-      context.  See "Default alpha values" below.  This allows you to
-      specify color codes using the simpler HTML-style RRGGBB format
-      in cases where you don't need to override the default transparency
-      value.
+      If you're familiar with HTML "#rrggbb" color values, these values
+      will look almost the same, with the differences that you replace
+      the "#" sign with the Javascript "hex" prefix <b>0x</b>, and you
+      always have to add an <b>FF</b> at the beginning to indicate that
+      the color is opaque.  For example, the HTML color code #123456 would
+      be written in your custom drawing code as <b>0xFF123456</b>.
+   </p>
+   <p>
+      In this format, if the alpha component (AA) is zero, the
+      <b>defaultAlpha</b> property of the drawing context is
+      automatically used.  See "Default alpha values" below.
    </p>
 
-   <li>RR is the hex value for the red component, 00 to FF
+   <li>As an HTML-style "#RGB" color string.  For example, #00F
+   represents solid red.  For HTML-style colors, the opacity
+   is always fully opaque.
 
-   <li>GG is the hex value for the green component, 00 to FF
+   <li>As an HTML-style "#RRGGBB" color string.  The opacity with
+   this format is always fully opaque.
 
-   <li>BB is the hex value for the blue component, 00 to FF
+   <li>As a pseudo-HTML string in the format "#AARRGGBB".  In
+   other words, the normal HTML color format, with the addition of
+   an alpha component (the "AA" portion), to let you specify an
+   alpha value explicitly.
+
+   <li>As the name of a configuration variable from the settings
+   file.  This lets you refer to color from the settings rather
+   than having to look it up as a separate step.
 </ul>
-<p>
-   For example, opaque red is 0xFF0000FF.
-</p>
-<p>
-   If you're familiar with HTML "#rrggbb" color values, these values
-   will look almost the same, with the differences that you replace
-   the "#" sign with the Javascript "hex" prefix <b>0x</b>, and you
-   always have to add an <b>FF</b> at the beginning to indicate that
-   the color is opaque.  For example, the HTML color code #123456 would
-   be written in your custom drawing code as <b>0xFF123456</b>.
-</p>
 
 <h2>Default alpha value</h2>
 <p>
    For convenience, you don't have to specify the alpha value in each
-   individual color parameter.  If a color parameter has a 00 (zero)
-   value in the Alpha component, the drawing context replaces it with
-   a default alpha value.
+   individual color parameter.
+</p>
+<ul>
+   <li>For a color parameter passed as a hex integer value, if the
+   alpha component is zero, the default alpha value from the drawing
+   context is automatically used.
+
+   <li>For a color passed as an HTML-style "#RGB" or "#RRGGBB" string,
+   full opacity (alpha FF) is always used, regardless of the default
+   alpha in the drawing context.
+</ul>
+   
 </p>
 <p>
    The default alpha value is given by the <b>defaultAlpha</b> property
@@ -239,15 +253,23 @@ function myDrawingFunction(dc)
    giving the dimensions in pixels of the given image file.
 
    <li><b>getSize():</b>  Returns an object with properties {width: <i>integer</i>, height: <i>integer</i>}
-   giving the dimensions in pixels of the popup drawing area.  Note that the height will be invalid
-   on the first call to your draw function if the two-pass process is used to compute the final
-   layout height, as described in "calculated layout height" above.
+   giving the dimensions in pixels of the popup drawing area.
+
+   <p>
+      For popup boxes, if you use the "dynamic layout height" option to figure the
+      popup's height based on its contents, the reported height will be invalid during
+      the first pass, because the whole point of the first pass is to calculate the
+      required height.  See <a href="Popups.html#dynamicLayoutHeight">Dynamic layout height</a>
+      in <a href="Popups.html">Popups</a>.
+   </p>
    
    <li><b>getTextOrigin():</b>  Returns an object with properties {x: <i>integer</i>, y: <i>integer</i>}
    giving the current text origin, in pixel coordinates within the popup drawing
    area.  This reflects the updates to the origin made by any drawText() calls, so
-   it's helpful when calculating the content height dynamically (see "calculated layout
-   height" above).
+   it's helpful when laying out text across multiple lines.  It's also useful for
+   calculating the layout height of a popup box dynamically; see
+   <a href="Popups.html#dynamicLayoutHeight">Dynamic layout height</a>
+   in <a href="Popups.html">Popups</a>.
 
    <li><b>measureText(<i>string</i>):</b>  Figures the pixel area required to display
    the given text.  Returns an object with properties {left: <i>integer</i>, top: <i>integer</i>,

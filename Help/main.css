@@ -167,6 +167,10 @@ div.code {
     margin: -1.75em 2em 1em 2em;
     white-space: pre;
 }
+span.code {
+    display: inline-block;
+    padding: 0px;
+}
     
 .hljs {
     background: #ffffff;

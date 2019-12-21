@@ -26,14 +26,18 @@ dialog lets you enable or disable the underlay display.  (Disabling
 this doesn't prevent Javascript from displaying underlays; it only
 disables the system's built-in underlay display feature.)
 
+* Javascript now has the ability to draw custom graphics in any
+of the windows.  See the help section Javascript Scripting > Drawing
+Layers.
+
 * Javascript now has access to the overlay graphics displayed when a
 game is launched, allowing for complex customizations.  See the help
 sections for the new LaunchOverlayEvent group and the new
-mainWindow.launchOverlay property.
-
-* Fixed a Javascript type conversion error that occurred when calling
-certain system methods with an argument value of zero in certain
-argument slots.
+mainWindow.launchOverlay property.  Also see the "Worked Examples"
+section in the help to see how you can use this to create a
+"seamless loading" experience, where the playfield in the main window
+continues to be visible through the loading process until the launched
+game takes over the screen.
 
 * Alpha channel information in videos is now supported.  Alpha refers
 to per-pixel partial transparency, for superimposing one video on top
@@ -55,7 +59,6 @@ transparent areas in your videos and save them to an alpha-capable
 format.  Higher-end video tools like Adobe After Effects are generally
 capable of creating videos in this sort of format.
 
-
 * The "Resume Game" command will now do a better job of restoring
 focus to the original game window after a "Pause" command.  In the
 past, when you resumed a game that was paused, the system looked for
@@ -69,6 +72,14 @@ and returns focus to that same window on Resume Game.  This usually
 puts focus back in the right window, since presumably focus was in the
 right window before the Pause.  At the very least, it restores the
 same focus condition as before the Pause.
+
+* When launching a game, the system now waits for the game to open a
+visible and non-minimized window before it considers the game to be
+fully loaded.  In the past, it was enough for the child process to
+have started up.  This is meant to make the UI transition between
+PinballY and a launched game a little smoother by leaving the PinballY
+displays on the screen until the game actually displays something,
+which for many game systems takes several seconds.
 
 * In the "Custom Drawing" API used in the Popup mechanism to draw
 custom popup box graphics, you can now specify alpha channel
@@ -114,6 +125,10 @@ github.)
 letting you specify italic style.  In addition, the new method
 setFontFromPrefs() lets you set the drawing font to one of the fonts
 defined in the settings.  See "Custom Drawing" in the help.
+
+* Fixed a Javascript type conversion error that occurred when calling
+certain system methods with an argument value of zero in certain
+argument slots.
 
 
 11-29-2019 (1.0.0 Beta 16)

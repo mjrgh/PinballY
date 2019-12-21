@@ -32,6 +32,34 @@
 
 <div class="eventTargetTOC" data-eventtarget="mainWindow"></div>
 
+<a name="drawingLayers"></a>
+<h2>Drawing layer ordering</h2>
+
+<p>
+   The system displays graphics in several layers in the main window.
+   If you use custom <a href="DrawingLayer.html">drawing layers</a>, you
+   can interleave your graphics with the system's graphics by using the
+   Z index when creating a layer.  Here's the order of the layers,
+   from back to front:
+</p>
+<ul>
+   <li>Main background image or video
+   <li>Custom drawing layers with Z index 0 to 999
+   <li>Underlay
+   <li>Custom drawing layers 1000 to 1999
+   <li>Status line text
+   <li>Custom drawing layers 2000 to 2999
+   <li>Wheel images
+   <li>Custom drawing layers 3000 to 3999
+   <li>Game info box (the summary of the current game selection that appears when the UI is idle)
+   <li>Custom drawing layers 4000 to 4999
+   <li>Video overlays and popup boxes
+   <li>Custom drawing layers 5000 to 5999
+   <li>Menus and credit/coin messages
+   <li>Custom drawing layers 6000 and above
+   <li>Drag-and-drop feedback graphics
+</ul>
+
 
 <h2>Methods and properties</h2>
 
@@ -186,12 +214,12 @@
    <a name="launchOverlay"></a>
    <b>mainWindow.launchOverlay:</b> This read-only property contains an object
    representing the launch overlay, which displays graphics showing the status
-   during game launches.  This object lets you customize the graphics shown
+   during game launches.  This lets you customize the graphics shown
    during the launch process.  <b>launchOverlay</b> has two properties, giving
    you access to the two drawing layers of the launch overlay:
 </p>
 <ul>
-   <li><bg>fg:</b> an object representing the foreground layer
+   <li><b>fg:</b> an object representing the foreground layer
    <li><b>bg:</b> an object representing the background layer
 </ul>
 <p>
@@ -206,11 +234,10 @@
 <p>
    The reason we have two layers for this one overlay is that it lets the
    system (or your Javascript code) draw some fixed graphics in the background
-   layer, and then update the message shown in the foreground layer each time
-   the status of the launch proceeds to the next stage.  Since the status
-   message is drawn in a separate layer, the background layer doesn't
-   have to be redrawn each time the status changes.  This is faster, and
-   it's also nice if you want to show a video, since videos can't be
+   layer, and then update the message in the foreground layer at each stage
+   of the process, without having to redraw the background.  This is more
+   efficient than redrawing the whole background on every update,
+   and it's also nice if you want to show a video, since videos can't be
    directly combined in one layer with other graphics.  You can use the
    background layer for a video that plays throughout the loading process,
    for example, while status messages are drawn on top of the video via
@@ -223,47 +250,21 @@
    group of events.
 </p>
 <p>
-   Here are the methods you can call on the <b>fg</b> and <b>bg</b> objects,
-   to draw into the respective layers:
+   The <b>fg</b> and <b>bg</b> objects are <a href="DrawingLayer.html">DrawingLayer</a>
+   objects.  You can draw graphics into them the same way you would with a drawing
+   layer that you created explicitly in your scripting code via
+   <a href="WindowObjects.html#createDrawingLayer">createDrawingLayer()</a>.  However, since
+   PinballY itself creates and manages the <b>fg</b> and <b>bg</b> objects,
+   there are a few differences to be aware of:
 </p>
 <ul>
-   <li><b>draw(<i>func</i>):</b> Clears any prior video or graphics displayed
-   in the launch overlay, and calls the provided function to perform custom
-   drawing.  The function is called with a "drawing context" object as its
-   parameter.  See <a href="CustomDrawing.html">Custom Drawing</a>
-   for details on how this works.
-   
-   <li><b>loadImage(<i>filename</i>):</b>  Loads the given image file and displays
-   it in the launch overlay layer.  The filename must be a fully qualified Windows
-   path, with drive, directory, and extension.  The normal collection of image
-   file formats can be used (JPEG, PNG).  The image is stretched to fill
-   the window.  You can use the <b>draw()</b> method if you need more control
-   over the image layout, or if you want to use multiple images or mix an image
-   with text or other graphics.  The new image replaces any prior graphics and
-   any video that was playing.
-
-   <li><b>loadVideo(<i>filename</i>):</b> Loads and plays the given video in the
-   launch overlay layer.  The filename must be a fully qualified path, with drive,
-   directory, and extension.  The usual video formats are supported (MP4, MPG, etc).
-   The video is stretched to fill the window.  If any prior video was playing or
-   any prior graphics were displayed, this removes the existing video or graphics.
-</ul>
-
-<p>
-   <a name="playButtonSound"></a>
-   <b>mainWindow.playButtonSound(<i>name</i>):</b>  Plays a button sound effect.
-   These are the same system sound effects played when the user presses various
-   buttons.  Does nothing if button sounds are muted in the user's option settings.
-   The available effect names are:
-</p>
-<ul>
-   <li><b>AddCredit:</b> played when a coin is inserted and a full credit is added
-   <li><b>CoinIn:</b> played when a coin is inserted and a fractional credit is added
-   <li><b>Deselect:</b> played when closing a menu or popup
-   <li><b>Launch:</b> played each time a game is launched
-   <li><b>Next:</b> played when switching to the next game, menu item, or popup page
-   <li><b>Prev:</b> played when switching to the previous game, menu item, or popup page
-   <li><b>Select:</b> played when showing a menu or selecting a menu item
+   <li>These layers only exist during the launch process, so you can't draw
+   into them at other times
+   <li>PinballY itself draws graphics in these layers during the launch process,
+   which might replace any graphics you draw if you don't intervene via the
+   <a href="LaunchOverlayEvent.html">LaunchOverlay events</a>
+   <li>Because these are system-created layers, you can't remove them with
+   <a href="WindowObjects.html#removeDrawingLayer">removeDrawingLayer()</a>
 </ul>
 
 <p>
@@ -394,6 +395,16 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
    in the main window, in the style of the standard system popups (e.g., game
    information, high scores, ratings entry).   See
    <a href="Popups.html#custom">Custom Popups</a> for more details.
+</p>
+
+<p>
+   <a name="showWheel"></a>
+   <b>mainWindow.showWheel(<i>show</i>):</b> Shows or hides the game wheel
+   display.  If <i>show</i> is true, the function shows the wheel; if <i>show</i>
+   is false, the wheel is hidden.  The system hides the wheel itself at certain
+   times, such as when "attract mode" is active and the options are set to
+   hide the wheel in attract mode; in these cases, showing the wheel through
+   this function will have no immediate effect.
 </p>
 
 <p>

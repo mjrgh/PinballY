@@ -139,6 +139,9 @@ public:
 	// visual transition.)
 	void EnterRunFreezeMode();
 
+	// Run freeze timer is pending
+	bool runFreezeTimerPending = false;
+
 	// Show the pause menu, used as the main menu when a game is running
 	void ShowPauseMenu(bool usingExitKey);
 
@@ -290,6 +293,10 @@ public:
 	// Get the configured crossfade time (in milliseconds)
 	DWORD GetCrossfadeTime() const { return crossfadeTime; }
 
+	// Invoke a Javascript drawing callback to draw into the given Gdiplus 
+	// context
+	void JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc);
+
 protected:
 	// destruction - called internally when the reference count reaches zero
 	~PlayfieldView();
@@ -395,17 +402,6 @@ protected:
 
 	// Timer handler for the startup video fadeout
 	void UpdateStartupVideoFade();
-
-	// Figure the pixel width of the window layout in terms of the normalized
-	// height of 1920 pixels.
-	int NormalizedWidth()
-	{
-		if (szLayout.cy == 0)
-			return 1080;
-		else
-			return static_cast<int>(1920.0f *
-				(static_cast<float>(szLayout.cx) / static_cast<float>(szLayout.cy)));
-	}
 
 	// InputManager::RawInputReceiver implementation
 	virtual bool OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize) override;
@@ -514,6 +510,7 @@ protected:
 	static const int hideCursorTimerID = 128;     // hide the cursor after a delay
 	static const int underlayFadeTimerID = 129;   // underlay crossfade timer
 	static const int runFreezeTimerID = 130;      // freeze UI updates after a launched game starts
+	static const int wheelFadeTimerID = 131;      // fading the wheel in or out
 
 	// update the selection to match the game list
 	void UpdateSelection();
@@ -1466,6 +1463,11 @@ protected:
 	// switch animations, we add the next game on the incoming side.
 	std::list<RefPtr<Sprite>> wheelImages;
 
+	// wheel fade in/out
+	void AnimateWheelFade();
+	bool wheelVisible = true;
+	float wheelAlpha = 1.0f;
+
 	// Game info box.  This is a popup that appears when we're idling
 	// with a game selected, showing the title and other metadata for
 	// the active selection.  This box is automatically removed when
@@ -1485,6 +1487,11 @@ protected:
 	RefPtr<VideoSprite> runningGameMsgPopup;
 	RefPtr<VideoSprite> runningGameBkgPopup;
 
+	// Custom drawing layer lookup.  We expose the running game popups 
+	// to Javascript using the drawing layer interface, so we need to
+	// find them on drawing callbacks into that interface.
+	virtual VideoSprite *JsThisToDrawingLayerSprite(JsValueRef self) const override;
+
 	// Internal ID of current running game
 	LONG runningGameID;
 
@@ -1497,26 +1504,6 @@ protected:
 		Exiting		// game is exiting
 	};
 	RunningGameMode runningGameMode;
-
-	// Javascript access to the running game popups (which we refer to as
-	// the Launch Overlay in Javascript and user documentation).  These
-	// are all called with a Javsacript 'this' object specifying the
-	// layer in its "id" property.
-	bool JsLaunchOverlayLoadImage(JsValueRef self, WSTRING filename);
-	bool JsLaunchOverlayLoadVideo(JsValueRef self, WSTRING filename);
-	void JsLaunchOverlayDraw(JsValueRef self, JsValueRef drawFunc);
-	void JsLaunchOverlayClear(JsValueRef self, unsigned int argb);
-
-	// clear a launch overlay layer with the specified color
-	void LaunchOverlayClear(VideoSprite *sprite, unsigned int argb);
-
-	// For the JsLaunchOverlayXxx methods, get the VideoSprite object
-	// corresponding to the layer in the Javscript 'this' parameter.
-	// Note that this can return null if a valid 'this' isn't present,
-	// which is entirely possible with Javascript given the reflection
-	// mechanisms that let you make calls to arbitrary functions with
-	// arbitrary 'this' contexts.
-	VideoSprite *JsThisToOverlayLayer(JsValueRef self);
 
 	// boxes, dialogs, etc.
 	RefPtr<Sprite> popupSprite;
@@ -2828,15 +2815,17 @@ protected:
 
 	// Show a popup
 	void JsShowPopup(JavascriptEngine::JsObj contents);
+	
+	// Show/hide the wheel
+	void JsShowWheel(bool show);
 
 	// Javascript drawing callback functions.  These are exposed on a "drawing
-	// context" object, which is just for the sake of the js prototype to
-	// collect the methods into a coherent namespace.
+	// context" prototype object for Javascript purposes.
 	JsValueRef jsDrawingContextProto = JS_INVALID_REFERENCE;
 	void JsDrawDrawText(TSTRING text);
 	void JsDrawSetFont(JsValueRef name, JsValueRef pointSize, JsValueRef weight, JsValueRef italic);
 	bool JsDrawSetFontFromPrefs(WSTRING varname);
-	void JsDrawSetTextColor(int rgb);
+	void JsDrawSetTextColor(JsValueRef argb);
 	void JsDrawSetTextAlign(JsValueRef horz, JsValueRef vert);
 	void JsDrawDrawImage(TSTRING filename, float x, float y, JsValueRef width, JsValueRef height);
 	JsValueRef JsDrawGetImageSize(TSTRING filename);
@@ -2844,8 +2833,10 @@ protected:
 	void JsDrawSetTextOrigin(float x, float y);
 	JsValueRef JsDrawGetTextOrigin();
 	JsValueRef JsDrawMeasureText(TSTRING text);
-	void JsDrawFillRect(float x, float y, float width, float height, int rgb);
-	void JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int rgb);
+	void JsDrawFillRect(float x, float y, float width, float height, JsValueRef argb);
+	void JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, JsValueRef argb);
+	int JsDrawGetDefaultAlpha() const;
+	void JsDrawSetDefaultAlpha(int alpha);
 	JsValueRef JsDrawGetSize();
 
 	// Internal drawing context object.  This is a static object that's
@@ -2867,6 +2858,9 @@ protected:
 		// surface includes the border, so we need to adjust the js coords
 		// by the border size.
 		float borderWidth;
+
+		// default alpha value, for RGB color settings without explicit alpha
+		BYTE defaultAlpha;
 
 		// text color
 		Gdiplus::Color textColor{ 0xff, 0xff, 0xff, 0xff };

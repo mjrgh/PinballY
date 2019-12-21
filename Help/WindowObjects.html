@@ -57,12 +57,45 @@
    frame controls.
 </p>
 
+<a name="createDrawingLayer"></a>
+<p>
+   <b><i>window</i>.createDrawingLayer(<i>zIndex</i>):</b>  Creates a custom
+   <a href="DrawingLayer.html">drawing layer</a> in the window.  A drawing
+   layer is a graphics layer where you can display videos, image files,
+   or draw custom graphics.  The graphics can use alpha transparency to
+   layer images on top of other layers.
+</p>
+<p>
+   <i>zIndex</i> is an integer that specifies the new layer's position
+   in the "stack" of drawing layers.  This can be from 0 to the the maximum
+   integer value of 2147483647.  If you think about each drawing layer as
+   a piece of transparency film, and imagine that the layers are arranged
+   in a stack, one on top of another, then the Z index gives the position
+   in the stack.  The layer with the highest Z index is on top of the stack,
+   so its graphics will be drawn in front of the layer with the next lower
+   Z index.
+</p>
+<p>
+   For most of the windows, all of the custom drawing layers created through
+   scripting are drawn in front of the background image or video that the
+   system displays in the window.  The main playfield window is the exception,
+   because it uses several different layers of its own, and it allows you to
+   interleave custom scripting layers with the built-in layers.  This is
+   described in more detail in
+   <a href="MainWindowObject.html#drawingLayers">layer ordering</a>
+   in the <a href="MainWindowObject.html">mainWindow object</a> section.
+</p>
+
 <p>
    <b><i>window</i>.fullScreenMode:</b>  Gets or sets the current full-screen
    status of the window.  Reading this property returns a boolean (true/false)
    indicating whether or not the window is currently in full-screen mode.
    Setting it to true switches the window to full-screen mode; setting it
    to false switches the window to normal windowed mode.
+</p>
+<p>
+   See <a href="DrawingLayer.html">Drawing Layers</a> for more information
+   on how to use a drawing layer once you create one.
 </p>
 
 <p>
@@ -120,6 +153,17 @@
    identify it programmatically, it's better to compare the reference to the
    named window objects (mainWindow, etc), as that insulates you from any
    future changes to the names.
+</p>
+
+<a name="removeDrawingLayer"></a>
+<p>
+   <b><i>window</i>.removeDrawingLayer(<i>layer</i>):</b>  Removes a custom
+   drawing layer that you previously created via createDrawingLayer().
+   <i>layer</i> is the drawing layer object that was returned from createDrawingLayer()
+   when you created the layer.  This deletes the layer and removes any
+   on-screen video or graphics being displayed in the layer.  After
+   calling this method, the layer is no longer valid, so any attempts
+   to load media or draw graphics will be ignored.
 </p>
 
 <p>

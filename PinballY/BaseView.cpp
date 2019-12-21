@@ -209,6 +209,35 @@ bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
+	case AVPMsgSetFormat:
+		// Video frame format detection/change.  Search for a javascript
+		// drawing layer playing this video and set its load size to match,
+		// now that we know the true load size.
+		for (auto &l : jsDrawingLayers)
+		{
+			if (l.sprite != nullptr && l.sprite->GetVideoPlayerCookie() == wParam)
+			{
+				// Update the sprite's load size to match the new aspect ratio
+				auto desc = reinterpret_cast<const AudioVideoPlayer::FormatDesc*>(lParam);
+				if (desc->width != 0)
+				{
+					l.sprite->loadSize.y = 1.0f;
+					l.sprite->loadSize.x = static_cast<float>(desc->width) / static_cast<float>(desc->height);
+
+					// re-create the mesh at the new aspect ratio
+					l.sprite->ReCreateMesh();
+
+					// rescale the sprite
+					ScaleDrawingLayerSprite(l);
+				}
+
+				// no need to keep searching
+				break;
+			}
+		}
+		break;
+
+
 	case AVPMsgEndOfPresentation:
 		// check for the end of the overlay video
 		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
@@ -824,5 +853,536 @@ bool BaseView::IsStartupVideoPlaying() const
 		&& videoOverlayID == _T("Startup")
 		&& videoOverlay->GetVideoPlayer() != nullptr
 		&& videoOverlay->GetVideoPlayer()->IsPlaying();
+}
+
+void BaseView::ScaleSprites()
+{
+	// scale the Javascript drawing layer sprites
+	for (auto &it : jsDrawingLayers)
+		ScaleDrawingLayerSprite(it);
+}
+
+void BaseView::ScaleDrawingLayerSprite(JsDrawingLayer &l)
+{
+	if (auto s = l.sprite.Get(); s != nullptr)
+	{
+		// Figure the window's width in terms of its height.  The
+		// window's height in normalized sprite units is fixed at 1.0,
+		// so this is the same as figuring the width in normalized
+		// units.
+		const float y = 1.0f;
+		const float x = float(szLayout.cx) / float(szLayout.cy);
+
+		// get the load size
+		const float xLoad0 = s->loadSize.x;
+		const float yLoad0 = s->loadSize.y;
+
+		// adjust for the sprite's rotation
+		FLOAT theta = s->rotation.z;
+		float sinTh = sinf(-theta);
+		float cosTh = cosf(-theta);
+		float xLoad = fabsf(xLoad0*cosTh - yLoad0 * sinTh);
+		float yLoad = fabsf(yLoad0*cosTh + xLoad0 * sinTh);
+
+		// Figure the scaling factor for each dimension that makes the
+		// sprite exactly fill the window in that dimension.
+		float xScale0 = x / xLoad;
+		float yScale0 = 1.0f / yLoad;
+
+		// rotate back to sprite space
+		sinTh = sinf(theta);
+		cosTh = cosf(theta);
+		float xScale = fabsf(xScale0*cosTh - yScale0 * sinTh);
+		float yScale = fabsf(yScale0*cosTh + xScale0 * sinTh);
+
+		// now scale the sprite according to its scaling options
+		if (l.scaling.xSpan > 0.0f && l.scaling.ySpan > 0.0f)
+		{
+			// Both dimensions are constrained.  Adjust each dimension
+			// according to the specified span for that dimension.
+			s->scale.x = xScale * l.scaling.xSpan;
+			s->scale.y = yScale * l.scaling.ySpan;
+		}
+		else if (l.scaling.xSpan > 0)
+		{
+			// The width is constrained.  Use the width scale on both axes.
+			s->scale.x = s->scale.y = xScale * l.scaling.xSpan;
+		}
+		else if (l.scaling.ySpan > 0)
+		{
+			// The height is constrained.  Use the height scale on both axes.
+			s->scale.x = s->scale.y = yScale * l.scaling.ySpan;
+		}
+		else if (l.scaling.span > 0)
+		{
+			// We have a combined scale.  Use the smaller of the two scaling
+			// factors.
+			s->scale.x = s->scale.y = fminf(xScale * l.scaling.span, yScale * l.scaling.span);
+		}
+
+		// Figure the new position.  Sprite coordinates are relative to the
+		// window's height, which is the same scale used for pos.y.  But pos.x
+		// is in terms of the window's width, so we need to rescale it for
+		// sprite coordinates.
+		s->offset.x = (l.pos.x * x) + (l.pos.xAlign * 0.5f * (x - s->loadSize.x * s->scale.x));
+		s->offset.y = (l.pos.y) + (l.pos.yAlign * 0.5f * (1.0f - s->loadSize.y * s->scale.y));
+
+		// update the sprite's world matrix for any changes we just made
+		s->UpdateWorld();
+	}
+}
+
+BaseView::JsDrawingLayer::JsDrawingLayer(double id, int zIndex) : 
+	id(id),
+	zIndex(zIndex)
+{
+	// create a new sprite
+	sprite.Attach(new VideoSprite());
+}
+
+JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
+{
+	// Find the insertion point in the list.  We want to keep the
+	// list ordered in rendering order, meaning back to front, so
+	// we want to insert the new item before the next item in front
+	// if it, meaning the first item with a higher Z index.
+	auto it = jsDrawingLayers.begin();
+	while (it != jsDrawingLayers.end() && it->zIndex <= zIndex)
+		++it;
+
+	// Insert before this item, or at the end of the list
+	auto id = jsDrawingLayerNextID++;
+	jsDrawingLayers.emplace(it, id, zIndex);
+
+	// update the drawing list to incorporate the new sprite
+	UpdateDrawingList();
+
+	// Create the Javascript object to represent the new layer object.
+	// This is an object with our drawing layer prototype object as its
+	// prototype, and the "id" property set to our new layer's ID.
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		JavascriptEngine::JsObj obj;
+		obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsDrawingLayerProto);
+		obj.Set("id", id);
+		return obj.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("<window>.createDrawingLayer()"));
+		return js->Throw(exc.jsErrorCode, _T("<window>.createDrawingLayer()"));
+	}
+}
+
+void BaseView::JsRemoveDrawingLayer(JavascriptEngine::JsObj obj)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get the layer ID
+		double id = obj.Get<double>("id");
+
+		// search for a match
+		for (auto it = jsDrawingLayers.begin() ; it != jsDrawingLayers.end(); ++it)
+		{
+			if (it->id == id)
+			{
+				// got it - remove it from the list
+				jsDrawingLayers.erase(it);
+
+				// update the drawing list for the change
+				UpdateDrawingList();
+
+				// if we're frozen in the background, force a refresh
+				if (freezeBackgroundRendering && !Application::IsInForeground())
+					InvalidateRect(hWnd, NULL, FALSE);
+
+				// drawing layers are unique, so there won't be another match
+				break;
+			}
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("<window>.removeDrawingLayer()"));
+		js->Throw(exc.jsErrorCode, _T("<window>.createDrawingLayer()"));
+	}
+}
+
+// -----------------------------------------------------------------------
+//
+// Drawing layers
+//
+
+void BaseView::JsDrawingLayerClear(JsValueRef self, JsValueRef argb)
+{
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	{
+		// clear the background
+		DrawingLayerClear(sprite, JsToGPColor(argb, 0x00));
+
+		// adjust the scaling
+		if (auto layer = JsThisToDrawingLayer(self); layer != nullptr)
+			ScaleDrawingLayerSprite(*layer);
+
+		// if we're frozen in the background, force a refresh
+		if (freezeBackgroundRendering && !Application::IsInForeground())
+			InvalidateRect(hWnd, NULL, FALSE);
+	}
+}
+
+void BaseView::DrawingLayerClear(VideoSprite *sprite, Gdiplus::Color argb)
+{
+	// clear any prior video
+	sprite->ClearVideo();
+
+	// Draw a blank background with the desired color.  Since we're using
+	// a fixed color for every pixel, the scaling is irrelevant, so use
+	// a small fixed size to minimize memory consumption.  (We could even
+	// just make this 1x1, but that somehow seems wrong.  It's probably
+	// an irrational instinct, but at the least I think it might push our
+	// luck with probing edge conditions in buggy D3D drivers if we go
+	// too far on the small side here.  I expect that modern hardware is
+	// so optimized for bigness that anything below a certain threshold
+	// will all use the same amount of memory and CPU anyway.)
+	const int width = 32, height = 32;
+	Application::InUiErrorHandler eh;
+	sprite->Load(width, height, [argb, width, height, this](Gdiplus::Graphics &g)
+	{
+		Gdiplus::SolidBrush bkg(argb);
+		g.FillRectangle(&bkg, 0, 0, width, height);
+	}, eh, _T("Launch overlay - default background"));
+}
+
+void BaseView::JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueRef widthArg, JsValueRef heightArg)
+{
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	{
+		// clear any prior video
+		sprite->ClearVideo();
+
+		auto js = JavascriptEngine::Get();
+		try
+		{
+			// If the width  height weren't specified, default to the window's
+			// actual layout size.
+			int width = JavascriptEngine::IsUndefinedOrNull(widthArg) ? szLayout.cx : JavascriptEngine::JsToNative<int>(widthArg);
+			int height = JavascriptEngine::IsUndefinedOrNull(heightArg) ? szLayout.cy : JavascriptEngine::JsToNative<int>(heightArg);
+
+			// the playfield view manages the Javascript drawing context - have
+			// it do the drawing
+			if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+				pfv->JsDraw(sprite, width, height, drawFunc);
+
+			// if we're frozen in the background, force a refresh
+			if (freezeBackgroundRendering && !Application::IsInForeground())
+				InvalidateRect(hWnd, NULL, FALSE);
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("DrawingLayer.draw()"));
+			js->Throw(exc.jsErrorCode, _T("DrawingLayer.draw()"));
+		}
+	}
+}
+
+bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
+{
+	// presume failure
+	bool ok = false;
+
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	{
+		// clear any prior video
+		sprite->ClearVideo();
+
+		// if we can't get the image size, load at the window size
+		SIZE sz { NormalizedWidth(), 1920 };
+
+		// Get the image size, so that we can load it at its native aspect ratio
+		ImageFileDesc desc;
+		if (GetImageFileInfo(WSTRINGToTSTRING(filename).c_str(), desc, true))
+			sz = desc.size;
+
+		// load the image
+		ok = sprite->Load(WSTRINGToTSTRING(filename).c_str(),
+			POINTF{ static_cast<float>(sz.cx)/1920.f, static_cast<float>(sz.cy)/1920.f }, sz,
+			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
+
+		// if we're frozen in the background, force a refresh
+		if (freezeBackgroundRendering && !Application::IsInForeground())
+			InvalidateRect(hWnd, NULL, FALSE);
+	}
+
+	// return the result
+	return ok;
+}
+
+bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, JavascriptEngine::JsObj options)
+{
+	// presume failure
+	bool ok = false;
+
+	// get options
+	auto js = JavascriptEngine::Get();
+	bool loop = true;
+	bool mute = false;
+	int vol = 100;
+	try
+	{
+		if (!options.IsNull())
+		{
+			if (options.Has("loop"))
+				loop = options.Get<bool>("loop");
+			if (options.Has("mute"))
+				mute = options.Get<bool>("mute");
+			if (options.Has("volume"))
+				vol = options.Get<int>("volume");
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("DrawingLayer.loadVideo()"));
+		js->Throw(exc.jsErrorCode, _T("DrawingLayer.loadVideo()"));
+	}
+
+	// get the layer from the 'self' object
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	{
+		// load the video
+		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
+		LogFileErrorHandler eh;
+		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, POINTF{ width, 1.0f },
+			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), loop, vol);
+
+		// set options
+		if (ok)
+		{
+			if (auto player = sprite->GetVideoPlayer(); player != nullptr)
+			{
+				player->SetLooping(loop);
+				player->Mute(mute);
+				player->Play(eh);
+			}
+		}
+	}
+
+	// return the result
+	return ok;
+}
+
+float BaseView::JsDrawingLayerGetAlpha(JsValueRef self) const
+{
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+		return sprite->alpha;
+	else
+		return 0.0;
+}
+
+void BaseView::JsDrawingLayerSetAlpha(JsValueRef self, float alpha)
+{
+	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+		sprite->alpha = fmaxf(0.0f, fminf(alpha, 1.0f));
+}
+
+void BaseView::JsDrawingLayerSetScale(JsValueRef self, JavascriptEngine::JsObj scale)
+{
+	if (auto l = JsThisToDrawingLayer(self); l != nullptr)
+	{
+		auto js = JavascriptEngine::Get();
+		try
+		{
+			// set the default options first, in case the options object
+			// doesn't include any properties
+			l->scaling.xSpan = l->scaling.ySpan = l->scaling.span = 1.0f;
+
+			// set the new scaling properties from the options
+			if (!scale.IsNull())
+			{
+				l->scaling.xSpan = scale.Get<float>("xSpan");
+				l->scaling.ySpan = scale.Get<float>("ySpan");
+				l->scaling.span = scale.Get<float>("span");
+			}
+
+			// update the scaling in the sprite
+			ScaleDrawingLayerSprite(*l);
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("DrawingLayer.setScale()"));
+			js->Throw(exc.jsErrorCode, _T("DrawingLayer.setScale()"));
+		}
+	}
+}
+
+void BaseView::JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING align)
+{
+	if (auto l = JsThisToDrawingLayer(self); l != nullptr)
+	{
+		// set the new position
+		l->pos.x = x;
+		l->pos.y = y;
+
+		// set the new alignment point
+		l->pos.xAlign = l->pos.yAlign = 0;
+		std::wregex pat(L"\\s*(top|middle|bottom)?\\b\\s*(left|center|right)?\\s*", std::regex_constants::icase);
+		std::match_results<WSTRING::const_iterator> m;
+		if (std::regex_match(align, m, pat))
+		{
+			if (m[1].matched)
+			{
+				l->pos.yAlign = _wcsicmp(m[1].str().c_str(), L"bottom") == 0 ? -1 :
+					_wcsicmp(m[1].str().c_str(), L"top") == 0 ? 1 : 0;
+			}
+			if (m[2].matched)
+			{
+				l->pos.xAlign = _wcsicmp(m[2].str().c_str(), L"left") == 0 ? -1 : 
+					_wcsicmp(m[2].str().c_str(), L"right") == 0 ? 1 : 0;
+			}
+		}
+
+		// update the sprite layout
+		ScaleDrawingLayerSprite(*l);
+	}
+}
+
+VideoSprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
+{
+	// get the ID from the object
+	auto js = JavascriptEngine::Get();
+	double id;
+	const TCHAR *where;
+	if (js->GetProp(id, self, "id", where) != JsNoError)
+	{
+		js->LogAndClearException();
+		return nullptr;
+	}
+
+	// search the drawing layer list for a match to the ID
+	for (auto &it : jsDrawingLayers)
+	{
+		if (it.id == id)
+			return it.sprite;
+	}
+
+	// not found
+	return nullptr;
+}
+
+BaseView::JsDrawingLayer *BaseView::JsThisToDrawingLayer(JsValueRef self) 
+{
+	// get the ID from the object
+	auto js = JavascriptEngine::Get();
+	double id;
+	const TCHAR *where;
+	if (js->GetProp(id, self, "id", where) != JsNoError)
+	{
+		js->LogAndClearException();
+		return nullptr;
+	}
+
+	// search the drawing layer list for a match to the ID
+	for (auto &it : jsDrawingLayers)
+	{
+		if (it.id == id)
+			return &it;
+	}
+
+	// not found
+	return nullptr;
+}
+
+Gdiplus::Color BaseView::JsToGPColor(JsValueRef val, BYTE defaultAlpha)
+{
+	JsValueType type = JsUndefined;
+	JsGetValueType(val, &type);
+	if (type == JsNumber)
+	{
+		// Interpret as 0xAARRGGBB
+		int argb;
+		JsNumberToInt(val, &argb);
+		BYTE a = static_cast<BYTE>((argb >> 24) & 0xff);
+		BYTE r = static_cast<BYTE>((argb >> 16) & 0xff);
+		BYTE g = static_cast<BYTE>((argb >> 8) & 0xff);
+		BYTE b = static_cast<BYTE>(argb & 0xff);
+
+		// Apply the default alpha if the alpha in the number is zero
+		if (a == 0)
+			a = defaultAlpha;
+
+		// convert to a GDI+ color value
+		return Gdiplus::Color(a, r, g, b);
+	}
+	else if (type == JsString)
+	{
+		// get the string
+		const WCHAR *ptr;
+		size_t len;
+		JsStringToPointer(val, &ptr, &len);
+
+		// convert to something easier to work with
+		WSTRING s(ptr, len);
+
+		// try it once in raw form, then again as an expanded config variable
+		for (int pass = 1; pass <= 2; ++pass)
+		{
+			// try parsing as an HTML-style #RGB value
+			static const std::wregex hex3(L"#?([a-z0-9])([a-z0-9])([a-z0-9])", std::regex_constants::icase);
+			std::match_results<WSTRING::const_iterator> m;
+			if (std::regex_match(s, m, hex3))
+			{
+				return Gdiplus::Color(
+					0xFF,
+					static_cast<BYTE>(_tcstol(m[1].str().c_str(), nullptr, 16) * 0x11),
+					static_cast<BYTE>(_tcstol(m[2].str().c_str(), nullptr, 16) * 0x11),
+					static_cast<BYTE>(_tcstol(m[3].str().c_str(), nullptr, 16) * 0x11));
+			}
+
+			// try an HTML-style #RRGGBB six-digit hex value
+			static const std::wregex hex6(L"#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})", std::regex_constants::icase);
+			if (std::regex_match(s, m, hex6))
+			{
+				return Gdiplus::Color(
+					0xFF,
+					static_cast<BYTE>(_tcstol(m[1].str().c_str(), nullptr, 16)),
+					static_cast<BYTE>(_tcstol(m[2].str().c_str(), nullptr, 16)),
+					static_cast<BYTE>(_tcstol(m[3].str().c_str(), nullptr, 16)));
+			}
+
+			// try an HTML-style #AARRGGBB value
+			static const std::wregex hex8(L"#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})", std::regex_constants::icase);
+			if (std::regex_match(s, m, hex6))
+			{
+				return Gdiplus::Color(
+					static_cast<BYTE>(_tcstol(m[1].str().c_str(), nullptr, 16)),
+					static_cast<BYTE>(_tcstol(m[2].str().c_str(), nullptr, 16)),
+					static_cast<BYTE>(_tcstol(m[3].str().c_str(), nullptr, 16)),
+					static_cast<BYTE>(_tcstol(m[4].str().c_str(), nullptr, 16)));
+			}
+
+			// don't re-expand configuration variables on the second pass
+			if (pass > 1)
+				break;
+
+			// try looking it up as a config variable
+			if (auto cv = ConfigManager::GetInstance()->Get(s.c_str()); cv != nullptr)
+			{
+				// expand to the config variable string and try again
+				s = cv;
+			}
+			else
+			{
+				// no match - stop
+				break;
+			}
+		}
+	}
+
+	// on failure, return solid black as a default
+	return Gdiplus::Color(0xFF, 0, 0, 0);
 }
 

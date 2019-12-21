@@ -11,6 +11,7 @@
 #include "../ChakraCore/include/ChakraDebug.h"
 #include "../ChakraCore/include/ChakraDebugService.h"
 #include "../ChakraCore/include/ChakraDebugProtocolHandler.h"
+#include "../Utilities/DateUtil.h"
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
@@ -138,12 +139,16 @@ public:
 
 	// get a property value
 	JsErrorCode GetProp(int &intval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
+	JsErrorCode GetProp(double &dblval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(TSTRING &strval, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 	JsErrorCode GetProp(JsValueRef &val, JsValueRef obj, const CHAR *prop, const TCHAR* &errWhere);
 
 	// Create an object.  Returns true on success; on error, throws an error
 	// within the javascript engine and returns false.
 	bool CreateObj(JsValueRef &obj);
+
+	// Create an object with a prototype
+	bool CreateObjWithProto(JsValueRef &obj, JsValueRef proto);
 
 	// create an array
 	bool CreateArray(JsValueRef &arr);
@@ -1287,10 +1292,12 @@ public:
 	public:
 		JsValueRef Apply(std::function<void(Ts...)> func, std::tuple<Ts...> args)
 		{
-			// call the function (no return value)
+			// call the function - it's a 'void', so it has no return value
 			std::apply(func, args);
 
-			// return 'undefined'
+			// Javascript doesn't have a notion of a 'void' return, so
+			// we have to return *something*.  The best conceptual match
+			// is 'undefined'.
 			JsValueRef v;
 			JsGetUndefinedValue(&v);
 			return v;
@@ -1320,7 +1327,10 @@ public:
 			// call the function 
 			int i = std::apply(func, args);
 
-			// return the integer value
+			// Return the integer value as a Javascript number.  Javascript
+			// numbers are represented as doubles internally.  A double can
+			// exactly represent any 32-bit int, so there's no possibility
+			// of loss of precision.
 			JsValueRef v;
 			JsIntToNumber(i, &v);
 			return v;
@@ -1330,13 +1340,16 @@ public:
 	template<typename... Ts> class FromNativeConverter<unsigned int, Ts...>
 	{
 	public:
-		JsValueRef Apply(std::function<int(Ts...)> func, std::tuple<Ts...> args)
+		JsValueRef Apply(std::function<unsigned int(Ts...)> func, std::tuple<Ts...> args)
 		{
 			// call the function 
 			unsigned int u = std::apply(func, args);
 
-			// Return the integer value.  Cast through double before
-			// converting to Javascript, to retain the unsignedness.
+			// Return the integer value as a Javsacript number.  Cast 
+			// the int through double before converting to Javascript, to 
+			// retain the unsignedness.  A Javscript number is represented
+			// as a double internally, and a double has enough precision
+			// to store any 32-bit unsigned int exactly.			
 			JsValueRef v;
 			JsDoubleToNumber(static_cast<double>(u), &v);
 			return v;
@@ -1366,9 +1379,29 @@ public:
 			// call the function 
 			double d = std::apply(func, args);
 
-			// return the integer value
+			// Return the double as a javascript number.  Javascript numbers
+			// are represented internally as doubles, so this is a trivial
+			// conversion with no possibility of overflow or loss of precision.
 			JsValueRef v;
 			JsDoubleToNumber(d, &v);
+			return v;
+		}
+	};
+
+	template<typename... Ts> class FromNativeConverter<float, Ts...>
+	{
+	public:
+		JsValueRef Apply(std::function<float(Ts...)> func, std::tuple<Ts...> args)
+		{
+			// call the function 
+			float f = std::apply(func, args);
+
+			// Return the float as a javascript number.  Javascript numbers
+			// are represented as doubles, so there's no possibility of
+			// overflow or loss of precision, as a double can represent
+			// any float value.
+			JsValueRef v;
+			JsDoubleToNumber(f, &v);
 			return v;
 		}
 	};
@@ -1627,6 +1660,15 @@ public:
 	{
 		NativeFunctionBinderBase *getterWrapper = getter != nullptr ? CreateAndSaveWrapper(getter, self) : nullptr;
 		NativeFunctionBinderBase *setterWrapper = setter != nullptr ? CreateAndSaveWrapper(setter, self) : nullptr;
+		return this->DefineGetterSetter(obj, objName, propName, getterWrapper, setterWrapper, eh);
+	}
+
+	template <class C, typename R>
+	bool DefineGetterSetter(JsValueRef obj, const CHAR *objName, const CHAR *propName,
+		R(C::*getter)(JsValueRef) const, void (C::*setter)(JsValueRef, R), C *self, ErrorHandler &eh)
+	{
+		NativeFunctionBinderBase *getterWrapper = getter != nullptr ? CreateAndSaveMethodWrapper(getter, self) : nullptr;
+		NativeFunctionBinderBase *setterWrapper = setter != nullptr ? CreateAndSaveMethodWrapper(setter, self) : nullptr;
 		return this->DefineGetterSetter(obj, objName, propName, getterWrapper, setterWrapper, eh);
 	}
 

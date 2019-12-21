@@ -84,6 +84,10 @@ void SecondaryView::UpdateDrawingList()
 	if (videoOverlay != nullptr)
 		sprites.push_back(videoOverlay);
 
+	// add the javascript overlays
+	for (auto const &it : jsDrawingLayers)
+		sprites.push_back(it.sprite);
+
 	// add the drop effect overlay
 	if (dropTargetSprite != nullptr)
 		sprites.push_back(dropTargetSprite);
@@ -105,6 +109,9 @@ void SecondaryView::ScaleSprites()
 	ScaleSprite(currentBackground.sprite, 1.0f, false);
 	ScaleSprite(incomingBackground.sprite, 1.0f, false);
 	ScaleSprite(dropTargetSprite, 1.0f, true);
+
+	// do the base class work
+	__super::ScaleSprites();
 }
 
 void SecondaryView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)

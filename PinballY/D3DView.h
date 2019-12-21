@@ -90,8 +90,8 @@ protected:
 	// initialize the window
 	virtual bool InitWin() override;
 
-	// Update the sprite drawing list.  Subclasses must override to populate
-	// 'sprites' and 'videos' with the current list of drawing items.  Subclasses
+	// Update the sprite drawing list.  Subclasses must override this to
+	// populate 'sprites' with the current list of drawing items.  Subclasses
 	// must call this whenever a new sprite needs to be added to the list or 
 	// removed from it.
 	virtual void UpdateDrawingList() = 0;
@@ -168,7 +168,7 @@ protected:
 	{
 		DragModeNone,	// no drag mode
 		DragModePan,	// panning - move camera relative to view direction
-		DragModeOrbit	// 
+		DragModeOrbit	// orbiting - maintain distance from a point in front of the camera
 	}
 	dragMode;
 
@@ -180,7 +180,7 @@ protected:
 	POINT dragPos;						// mouse position at last event
 
 	// Timer IDs
-	static const int fpsTimerID = 1;		// performance overlay timer
+	static const int fpsTimerID = 1;	// performance overlay timer
 
 	// Window layout area.  This is the client area, rotated as needed to
 	// match the camera orientation.  So if we're rotated 90 or 270 degrees,

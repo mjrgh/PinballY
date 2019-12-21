@@ -657,11 +657,11 @@ void PlayfieldView::InitJavascript()
 					return false;
 
 				// get the view
-				auto view = dynamic_cast<D3DView*>(frame->GetView());
+				auto view = dynamic_cast<BaseView*>(frame->GetView());
 
 				// set up the HWND properties
 				JsErrorCode err;
-				const TCHAR *where;
+				const TCHAR *where = _T("unknown");
 				JsValueRef propval;
 				if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
 					|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
@@ -675,7 +675,40 @@ void PlayfieldView::InitJavascript()
 					|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
 					|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
 					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh))
+					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh)
+					|| !js->DefineObjPropFunc(jswinobj, name, "createDrawingLayer", &BaseView::JsCreateDrawingLayer, view, eh)
+					|| !js->DefineObjPropFunc(jswinobj, name, "removeDrawingLayer", &BaseView::JsRemoveDrawingLayer, view, eh))
+					return false;
+
+				// Set up the mainWindow.launchOverlay object methods
+				JsValueRef drawingLayerProto;
+				if (!js->CreateObj(drawingLayerProto))
+				{
+					LogFile::Get()->Write(LogFile::JSLogging, _T(". creating DrawingLayer prototype"));
+					return false;
+				}
+
+				// Save the prototype in the view.  Each view has its own prototype,
+				// since the prototype methods need to point back to that view's
+				// C++ object.
+				view->jsDrawingLayerProto = drawingLayerProto;
+				JsAddRef(drawingLayerProto, nullptr);
+
+				// set up the LaunchOverlayLayer prototype methods
+				if (!js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadImage",
+					&BaseView::JsDrawingLayerLoadImage, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadVideo",
+						&BaseView::JsDrawingLayerLoadVideo, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "draw",
+						&BaseView::JsDrawingLayerDraw, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "clear",
+						&BaseView::JsDrawingLayerClear, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setScale",
+						&BaseView::JsDrawingLayerSetScale, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setPos",
+						&BaseView::JsDrawingLayerSetPos, view, eh)
+					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "alpha",
+						&BaseView::JsDrawingLayerGetAlpha, &BaseView::JsDrawingLayerSetAlpha, view, eh))
 					return false;
 
 				// success 
@@ -687,6 +720,20 @@ void PlayfieldView::InitJavascript()
 				|| !InitWinObj(Application::Get()->GetTopperWin(), jsTopperWindow, "topperWindow")
 				|| !InitWinObj(Application::Get()->GetInstCardWin(), jsInstCardWindow, "instCardWindow"))
 				return;
+
+			// populate mainWindow.launchOverlayLayer's fg and bg objects
+			JsValueRef launchOverlayLayer, fgOverlay, bgOverlay;
+			if (js->GetProp(launchOverlayLayer, jsMainWindow, "launchOverlay", where) != JsNoError
+				|| !js->CreateObjWithProto(fgOverlay, jsDrawingLayerProto)
+				|| js->SetReadonlyProp(fgOverlay, "id", JavascriptEngine::NativeToJs(L"fg"), where) != JsNoError
+				|| js->SetReadonlyProp(launchOverlayLayer, "fg", fgOverlay, where) != JsNoError
+				|| !js->CreateObjWithProto(bgOverlay, jsDrawingLayerProto)
+				|| js->SetReadonlyProp(bgOverlay, "id", JavascriptEngine::NativeToJs(L"bg"), where) != JsNoError
+				|| js->SetReadonlyProp(launchOverlayLayer, "bg", bgOverlay, where) != JsNoError)
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting mainWindow.launchOverlay properties: %s\n"), where);
+				return;
+			}
 
 			// set up the console methods
 			if (!js->DefineObjPropFunc(jsConsole, "console", "_log", &PlayfieldView::JsConsoleLog, this, eh))
@@ -722,7 +769,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "endAttractMode", &PlayfieldView::JsEndAttractMode, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playButtonSound", &PlayfieldView::JsPlayButtonSound, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh))
 				return;
 
 			// Get the status lines
@@ -772,26 +820,6 @@ void PlayfieldView::InitJavascript()
 					&PlayfieldView::JsStatusLineMethod<decltype(&StatusLine::JsShow), &StatusLine::JsShow, void, TSTRING>, this, eh))
 				return;
 
-			// Set up the mainWindow.launchOverlay object methods
-			JsValueRef launchOverlayLayerObj, launchOverlayLayerProto;
-			if ((err = js->GetGlobProp(launchOverlayLayerObj, "LaunchOverlayLayer", where)) != JsNoError
-				|| (err = js->GetProp(launchOverlayLayerProto, launchOverlayLayerObj, "prototype", where)) != JsNoError)
-			{
-				LogFile::Get()->Write(LogFile::JSLogging, _T(". error getting LaunchOverlayLayer prototype object: %s\n"), where);
-				return;
-			}
-
-			// set up the LaunchOverlayLayer prototype methods
-			if (!js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "loadImage",
-				&PlayfieldView::JsLaunchOverlayLoadImage, this, eh)
-				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "loadVideo",
-					&PlayfieldView::JsLaunchOverlayLoadVideo, this, eh)
-				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "draw",
-					&PlayfieldView::JsLaunchOverlayDraw, this, eh)
-				|| !js->DefineObjMethod(launchOverlayLayerProto, "LaunchOverlayLayer", "clear",
-					&PlayfieldView::JsLaunchOverlayClear, this, eh))
-				return;
-
 			// create the DrawingContext prototype and populate its methods
 			if (!js->CreateObj(jsDrawingContextProto)
 				|| JsAddRef(jsDrawingContextProto, nullptr) != JsNoError
@@ -808,7 +836,9 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "measureText", &PlayfieldView::JsDrawMeasureText, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "fillRect", &PlayfieldView::JsDrawFillRect, this, eh)
 				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "frameRect", &PlayfieldView::JsDrawFrameRect, this, eh)
-				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "getSize", &PlayfieldView::JsDrawGetSize, this, eh))
+				|| !js->DefineObjPropFunc(jsDrawingContextProto, "DrawingContext", "getSize", &PlayfieldView::JsDrawGetSize, this, eh)
+				|| !js->DefineGetterSetter(jsDrawingContextProto, "DrawingContext", "defaultAlpha",
+					&PlayfieldView::JsDrawGetDefaultAlpha, &PlayfieldView::JsDrawSetDefaultAlpha, this, eh))
 				return;
 
 			// Set up the game list methods.  These are nominally on the gameList Javascript
@@ -3715,7 +3745,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// process pending audio/video player deletions
 		AudioVideoPlayer::ProcessDeletionQueue();
 		return true;
-		
+
 	case mediaDropTimerID:
 		// continue media drop processing
 		KillTimer(hWnd, timer);
@@ -3768,10 +3798,18 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		AnimateUnderlayCrossfade();
 		break;
 
+	case wheelFadeTimerID:
+		AnimateWheelFade();
+		break;
+
 	case runFreezeTimerID:
 		// enter run freeze mode
-		EnterRunFreezeMode();
-		KillTimer(hWnd, timer);
+		if (runFreezeTimerPending)
+		{
+			EnterRunFreezeMode();
+			KillTimer(hWnd, timer);
+			runFreezeTimerPending = false;
+		}
 		break;
 	}
 
@@ -6010,7 +6048,7 @@ bool PlayfieldView::JsDrawSetFontFromPrefs(WSTRING varname)
 	return true;
 }
 
-void PlayfieldView::JsDrawSetTextColor(int argb)
+void PlayfieldView::JsDrawSetTextColor(JsValueRef argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -6018,11 +6056,7 @@ void PlayfieldView::JsDrawSetTextColor(int argb)
 		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
 
 	// set the new color
-	jsDC->textColor = Gdiplus::Color(
-		static_cast<BYTE>((argb >> 24) & 0xff),
-		static_cast<BYTE>((argb >> 16) & 0xff),
-		static_cast<BYTE>((argb >> 8) & 0xff),
-		static_cast<BYTE>(argb & 0xff));
+	jsDC->textColor = JsToGPColor(argb, jsDC->defaultAlpha);
 
 	// clear the previous text brush
 	jsDC->textBrush.reset();
@@ -6244,7 +6278,7 @@ JsValueRef PlayfieldView::JsDrawMeasureText(TSTRING text)
 	}
 }
 
-void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, int argb)
+void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, JsValueRef argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -6256,17 +6290,13 @@ void PlayfieldView::JsDrawFillRect(float x, float y, float width, float height, 
 	y += jsDC->borderWidth;
 
 	// create a brush
-	Gdiplus::SolidBrush br(Gdiplus::Color(
-		static_cast<BYTE>((argb >> 24) & 0xff),
-		static_cast<BYTE>((argb >> 16) & 0xff),
-		static_cast<BYTE>((argb >> 8) & 0xff),
-		static_cast<BYTE>(argb & 0xff)));
+	Gdiplus::SolidBrush br(JsToGPColor(argb, jsDC->defaultAlpha));
 
 	// fill the rectangle
 	jsDC->g.FillRectangle(&br, x, y, width, height);
 }
 
-void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, int argb)
+void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height, float frameWidth, JsValueRef argb)
 {
 	// validate the drawing context
 	auto js = JavascriptEngine::Get();
@@ -6278,14 +6308,30 @@ void PlayfieldView::JsDrawFrameRect(float x, float y, float width, float height,
 	y += jsDC->borderWidth;
 
 	// create a pen
-	Gdiplus::Pen pen(Gdiplus::Color(
-		static_cast<BYTE>((argb >> 24) & 0xff),
-		static_cast<BYTE>((argb >> 16) & 0xff),
-		static_cast<BYTE>((argb >> 8) & 0xff),
-		static_cast<BYTE>(argb & 0xff)), frameWidth);
+	Gdiplus::Pen pen(JsToGPColor(argb, jsDC->defaultAlpha));
 
 	// draw the frame
 	jsDC->g.DrawRectangle(&pen, x, y, width, height);
+}
+
+int PlayfieldView::JsDrawGetDefaultAlpha() const
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), 0;
+
+	return jsDC->defaultAlpha;
+}
+
+void PlayfieldView::JsDrawSetDefaultAlpha(int alpha)
+{
+	// validate the drawing context
+	auto js = JavascriptEngine::Get();
+	if (jsDC == nullptr)
+		return js->Throw(_T("Drawing operation is not valid now")), static_cast<void>(0);
+
+	jsDC->defaultAlpha = alpha < 0 ? 0 : alpha > 255 ? 255 : alpha;
 }
 
 JsValueRef PlayfieldView::JsDrawGetSize()
@@ -7809,6 +7855,39 @@ void PlayfieldView::SizeUnderlay(UnderlayMedia &media, POINTF *normSize)
 	}
 }
 
+// show/hide the wheel from Javascript
+void PlayfieldView::JsShowWheel(bool show)
+{
+	// set the new status
+	wheelVisible = show;
+
+	// animate the fade in/out
+	SetTimer(hWnd, wheelFadeTimerID, 16, 0);
+}
+
+void PlayfieldView::AnimateWheelFade()
+{
+	// update the alpha
+	float dAlpha = wheelVisible ? .0667f : -.0667f;
+	wheelAlpha += dAlpha;
+
+	// check to see if we've reached the endpoint
+	if (wheelAlpha >= 1.0f)
+	{
+		wheelAlpha = 1.0f;
+		KillTimer(hWnd, wheelFadeTimerID);
+	}
+	else if (wheelAlpha <= 0.0f)
+	{
+		wheelAlpha = 0.0f;
+		KillTimer(hWnd, wheelFadeTimerID);
+	}
+
+	// update the images
+	for (auto &w : wheelImages)
+		w->alpha = wheelAlpha;
+}
+
 void PlayfieldView::MuteTableAudio(bool mute)
 {
 	if (incomingPlayfield.audio != nullptr)
@@ -7871,6 +7950,9 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 {
 	// create the sprite
 	Sprite *sprite = new Sprite();
+
+	// set the current wheel alpha, in case we're in a fade
+	sprite->alpha = wheelAlpha;
 
 	// get the path for the wheel image
 	TSTRING path;
@@ -8216,7 +8298,7 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	{
 		// show the default background screen - just an opaque
 		// dark fill
-		LaunchOverlayClear(runningGameBkgPopup, 0xFF1E1E1E);
+		DrawingLayerClear(runningGameBkgPopup, Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
 	}
 
 	// show the initial blank message screen
@@ -8355,6 +8437,14 @@ void PlayfieldView::EndRunningGameMode()
 
 	// kill any pending timer for initiating the background freeze
 	KillTimer(hWnd, runFreezeTimerID);
+	runFreezeTimerPending = false;
+
+	// Reset the game media so that we reload everything.  No matter
+	// how far we got into the launch process, we want to treat this
+	// as a game switch.
+	incomingPlayfield.Clear();
+	currentPlayfield.Clear();
+	UpdateDrawingList();
 
 	// Only proceed if we're in running game mode
 	if (runningGameMsgPopup == nullptr)
@@ -8420,117 +8510,35 @@ void PlayfieldView::EndRunningGameMode()
 	UpdateJsUIMode();
 }
 
-void PlayfieldView::JsLaunchOverlayClear(JsValueRef self, unsigned int argb)
+void PlayfieldView::JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc)
 {
-	// get the layer from the 'self' object
-	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
-		LaunchOverlayClear(sprite, argb);
-}
-
-void PlayfieldView::LaunchOverlayClear(VideoSprite *sprite, unsigned int argb)
-{
-	// clear any prior video
-	sprite->ClearVideo();
-
-	// Draw a blank background with the desired color
-	const int width = NormalizedWidth(), height = 1920;
-	Application::InUiErrorHandler eh;
-	sprite->Load(width, height, [argb, width, height, this](Gdiplus::Graphics &g)
+	// set up the native draw function, which will invoke the JS
+	// drawing callback
+	auto Draw = [&](Gdiplus::Graphics &g)
 	{
-		// Note that Gdiplus::ARGB happens to use the same format we're
-		// using (32-bit int encoded MSB to LSB as AARRGGBB), but we don't
-		// want to assume that's permanent or universal, so we'll explicitly
-		// decode our format and re-encode it with the Gdiplus public
-		// interface.  That way this won't mysteriously start reversing
-		// the color order or anything wacky like that down the road.
-		Gdiplus::SolidBrush bkg(Gdiplus::Color(
-			static_cast<BYTE>((argb >> 24) & 0xff),
-			static_cast<BYTE>((argb >> 16) & 0xff),
-			static_cast<BYTE>((argb >> 8) & 0xff),
-			static_cast<BYTE>(argb & 0xff)));
-		g.FillRectangle(&bkg, 0, 0, width, height);
+		// remember any prior drawing context
+		auto oldJsDC = jsDC.release();
 
-	}, eh, _T("Launch overlay - default background"));
+		// Set up the native interface for the Javascript drawing context for 
+		// the callback.  Note that this object is static, which is fine, since 
+		// it only has to exist for the duration of the callback invocation.
+		jsDC.reset(new JsDrawingContext(this, g, static_cast<float>(width), static_cast<float>(height), 0));
+
+		// invoke the callback - drawFunc(drawingContext)
+		auto js = JavascriptEngine::Get();
+		JsValueRef argv[] = { js->GetGlobalObject(), jsDC->jsobj.jsobj }, result;
+		if (JsErrorCode err = JsCallFunction(drawFunc, argv, static_cast<unsigned short>(countof(argv)), &result); err != JsNoError)
+			js->Throw(err, _T("drawing callback"));
+
+		// restore the prior drawing context
+		jsDC.reset(oldJsDC);
+	};
+
+	// do the drawing
+	sprite->Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw"));
 }
 
-void PlayfieldView::JsLaunchOverlayDraw(JsValueRef self, JsValueRef drawFunc)
-{
-	// get the layer from the 'self' object
-	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
-	{
-		// clear any prior video
-		sprite->ClearVideo();
-
-		// figure the normalized size
-		const int width = NormalizedWidth(), height = 1920;
-
-		// set up the native draw function, which will invoke the JS
-		// drawing callback
-		auto Draw = [&](Gdiplus::Graphics &g)
-		{
-			// Set up the native interface for the Javascript drawing context for 
-			// the callback.  Note that this object is static, which is fine, since 
-			// it only has to exist for the duration of the callback invocation.
-			jsDC.reset(new JsDrawingContext(this, g, static_cast<float>(width), static_cast<float>(height), 0));
-
-			// invoke the callback - drawFunc(drawingContext)
-			auto js = JavascriptEngine::Get();
-			JsValueRef argv[] = { js->GetGlobalObject(), jsDC->jsobj.jsobj }, result;
-			if (JsErrorCode err = JsCallFunction(drawFunc, argv, static_cast<unsigned short>(countof(argv)), &result); err != JsNoError)
-				js->Throw(err, _T("mainWindow.launchOverlay.draw callback"));
-
-			// the drawing context is valid only for the duration of the callback
-			jsDC.reset();
-		};
-
-		// do the drawing
-		sprite->Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw"));
-	}
-}
-
-bool PlayfieldView::JsLaunchOverlayLoadImage(JsValueRef self, WSTRING filename)
-{
-	// presume failure
-	bool ok = false;
-
-	// get the layer from the 'self' object
-	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
-	{
-		// clear any prior video
-		sprite->ClearVideo();
-
-		// load the image
-		const int width = NormalizedWidth(), height = 1920;
-		ok = sprite->Load(filename.c_str(),
-			POINTF{ static_cast<float>(width), static_cast<float>(height) },
-			SIZE{ width, height },
-			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
-	}
-
-	// return the result
-	return ok;
-}
-
-bool PlayfieldView::JsLaunchOverlayLoadVideo(JsValueRef self, WSTRING filename)
-{
-	// presume failure
-	bool ok = false;
-
-	// get the layer from the 'self' object
-	if (auto sprite = JsThisToOverlayLayer(self); sprite != nullptr)
-	{
-		// load the video
-		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
-		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(),
-			hWnd, POINTF{ width, 1.0f },
-			LogFileErrorHandler(), _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"));
-	}
-
-	// return the result
-	return ok;
-}
-
-VideoSprite *PlayfieldView::JsThisToOverlayLayer(JsValueRef self)
+VideoSprite *PlayfieldView::JsThisToDrawingLayerSprite(JsValueRef self) const
 {
 	// get the ID from the object
 	auto js = JavascriptEngine::Get();
@@ -8542,10 +8550,12 @@ VideoSprite *PlayfieldView::JsThisToOverlayLayer(JsValueRef self)
 		return nullptr;
 	}
 
-	// get the layer corresponding to the ID
+	// Get the layer corresponding to the ID.  If it doesn't match
+	// one of our special layer codes, use the base class lookup to
+	// find a standard Javascript drawing layer.
 	return id == _T("fg") ? runningGameMsgPopup.Get() :
 		id == _T("bg") ? runningGameBkgPopup.Get() :
-		nullptr;
+		__super::JsThisToDrawingLayerSprite(self);
 }
 
 
@@ -8655,12 +8665,11 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			// Even though the game is *nominally* running *right now*, in the 
 			// sense that PFVMsgGameLoaded is fired after the game opens its
 			// first window and exhausts its initial queue of Windows message,
-			// it might not be apparent to the user that the game is running.
-			// VP and FP both open their editor windows first - which triggers
-			// the present event - but might not display the actual game screen
-			// for several seconds.  So leave our UI running for a little while
-			// longer for a smoother transition.  In cases like VP where the
-			// initial window isn't the same as the actual game window, it's 
+			// it might not be apparent to the user that the game is running,
+			// as the game program might still be initializing and might not
+			// have displayed its full UI yet.  So leave our UI running for a 
+			// few seconds longer in the hope of a smoother transition.  In 
+			// cases like VP where the initial window isn't the same as the actual game window, it's 
 			// impossible to know when that game window is finally ready, so
 			// we'll just have to use an arbitrary delay here.  All of the
 			// pinball simulators I've encountered need a fairly long time to
@@ -8672,6 +8681,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			// be out of the way by the time the actual user interaction is
 			// going, which is when it matters that we reduce our footprint.
 			SetTimer(hWnd, runFreezeTimerID, 5000, NULL);
+			runFreezeTimerPending = true;
 		}
 		return true;
 
@@ -9921,6 +9931,18 @@ void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 // Update the drawing sprite list
 void PlayfieldView::UpdateDrawingList()
 {
+	// function to add Javascript sprites in a given Z-index range
+	auto AddJsSprites = [this](int zMin, int zMax)
+	{
+		for (auto const &it : jsDrawingLayers)
+		{
+			if (it.zIndex > zMax)
+				break;
+			else if (it.zIndex > zMin)
+				sprites.push_back(it.sprite);
+		}
+	};
+
 	// empty the old lists
 	sprites.clear();
 
@@ -9933,6 +9955,9 @@ void PlayfieldView::UpdateDrawingList()
 	if (incomingPlayfield.sprite != nullptr)
 		sprites.push_back(incomingPlayfield.sprite);
 
+	// sprites 0..999 go just above the playfield
+	AddJsSprites(0, 999);
+
 	// the underlay goes next, but hide it in attract mode if
 	// we're hiding wheel images
 	if (!attractMode.active || !attractMode.hideWheelImages)
@@ -9942,6 +9967,9 @@ void PlayfieldView::UpdateDrawingList()
 		if (incomingUnderlay.sprite != nullptr)
 			sprites.push_back(incomingUnderlay.sprite);
 	}
+
+	// sprites 1000..1999 go just above the overlay
+	AddJsSprites(1000, 1999);
 
 	// add the status lines
 	if (statusLineBkg != nullptr)
@@ -9954,6 +9982,9 @@ void PlayfieldView::UpdateDrawingList()
 		upperStatus.AddSprites(sprites);
 		lowerStatus.AddSprites(sprites);
 	}
+
+	// sprites 2000..2999 go just above the status lines
+	AddJsSprites(2000, 2999);
 
 	// Add the wheel images.  
 	//
@@ -9969,9 +10000,15 @@ void PlayfieldView::UpdateDrawingList()
 			sprites.push_back(s);
 	}
 
+	// sprites 3000..3999 go just above the wheel
+	AddJsSprites(3000, 3999);
+
 	// add the game info box
 	if (infoBox.sprite != nullptr)
 		sprites.push_back(infoBox.sprite);
+
+	// sprites 4000..4999 go above the info box
+	AddJsSprites(4000, 4999);
 
 	// add the running game overlay
 	if (runningGameBkgPopup != nullptr)
@@ -9987,6 +10024,9 @@ void PlayfieldView::UpdateDrawingList()
 	if (popupSprite != nullptr)
 		sprites.push_back(popupSprite);
 
+	// sprites 5000..5999 go above the popups
+	AddJsSprites(5000, 5999);
+
 	// add the menu
 	if (curMenu != nullptr)
 	{
@@ -9998,6 +10038,9 @@ void PlayfieldView::UpdateDrawingList()
 	// add the credits overlay
 	if (creditsSprite != nullptr)
 		sprites.push_back(creditsSprite);
+
+	// sprites 6000+ go in front of everything except drop targets
+	AddJsSprites(6000, INT_MAX);
 
 	// add the drop target overlay
 	if (dropTargetSprite != nullptr)
@@ -10032,6 +10075,9 @@ void PlayfieldView::ScaleSprites()
 	// resize the underlay sprites as needed
 	SizeUnderlay(currentUnderlay);
 	SizeUnderlay(incomingUnderlay);
+
+	// do the base class work
+	__super::ScaleSprites();
 }
 
 // Start a menu animation

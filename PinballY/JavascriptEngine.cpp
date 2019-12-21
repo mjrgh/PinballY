@@ -892,6 +892,31 @@ JsErrorCode JavascriptEngine::GetProp(int &intval, JsValueRef obj, const CHAR *p
 	return JsNoError;
 }
 
+JsErrorCode JavascriptEngine::GetProp(double &dblval, JsValueRef obj, const CHAR *prop, const TCHAR* &where)
+{
+	// look up the property in JsValueRef format
+	JsErrorCode err;
+	JsValueRef val;
+	if ((err = GetProp(val, obj, prop, where)) != JsNoError)
+		return err;
+
+	// get the integer value
+	JsValueRef numval;
+	if ((err = JsConvertValueToNumber(val, &numval)) != JsNoError)
+	{
+		where = _T("JsConvertValueToNumber");
+		return err;
+	}
+	if ((err = JsNumberToDouble(numval, &dblval)) != JsNoError)
+	{
+		where = _T("JsNumberToDouble");
+		return err;
+	}
+
+	// success
+	return JsNoError;
+}
+
 JsErrorCode JavascriptEngine::GetProp(TSTRING &strval, JsValueRef obj, const CHAR *prop, const TCHAR* &where)
 {
 	// look up the property in JsValueRef format
@@ -950,7 +975,17 @@ JsErrorCode JavascriptEngine::GetProp(JsValueRef &val, JsValueRef obj, const CHA
 bool JavascriptEngine::CreateObj(JsValueRef &obj)
 {
 	if (JsErrorCode err = JsCreateObject(&obj); err != JsNoError)
-		return Throw(err, _T("JsCreateObject")), false;
+		return Throw(err, _T("JsCreateObj")), false;
+
+	return true;
+}
+
+bool JavascriptEngine::CreateObjWithProto(JsValueRef &obj, JsValueRef proto)
+{
+	JsErrorCode err;
+	if ((err = JsCreateObject(&obj)) != JsNoError
+		|| (err = JsSetPrototype(obj, proto)) != JsNoError)
+		return Throw(err, _T("CreateObjWithProto")), false;
 
 	return true;
 }
@@ -9594,7 +9629,7 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 
 		for (auto &gs : getSet)
 		{
-			// create the decriptor and add 'enumerable'
+			// create the descriptor and add 'enumerable'
 			JsValueRef propKey, propDesc;
 			if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
 				|| (err = JsCreateObject(&propDesc)) != JsNoError

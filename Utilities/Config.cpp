@@ -508,7 +508,6 @@ COLORREF ConfigManager::ToColor(const TCHAR *val, COLORREF defval)
 	std::match_results<const TCHAR*> m;
 	if (std::regex_match(val, m, hex3))
 	{
-		// #RGB 
 		return RGB(
 			_tcstol(m[1].str().c_str(), nullptr, 16) * 0x11,
 			_tcstol(m[2].str().c_str(), nullptr, 16) * 0x11,
@@ -519,7 +518,6 @@ COLORREF ConfigManager::ToColor(const TCHAR *val, COLORREF defval)
 	static const std::basic_regex<TCHAR> hex6(_T("#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})"), std::regex_constants::icase);
 	if (std::regex_match(val, m, hex6))
 	{
-		// #RRGGBB 
 		return RGB(
 			_tcstol(m[1].str().c_str(), nullptr, 16),
 			_tcstol(m[2].str().c_str(), nullptr, 16),

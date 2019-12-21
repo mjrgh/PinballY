@@ -1354,26 +1354,6 @@ Object.defineProperty(this.mainWindow, "launchOverlay", {
     writable: false
 });
 
-// Base class for the launch overlay layers.  The system populates
-// this with some native methods.
-this.LaunchOverlayLayer = class LaunchOverlayLayer {
-    constructor(id) {
-        Object.defineProperty(this, "id", { value: id, writable: false });
-    }
-};
-
-// Define the foreground layer object
-Object.defineProperty(this.mainWindow.launchOverlay, "fg", {
-    value: new LaunchOverlayLayer("fg"),
-    writable: false
-});
-
-// Define the background layer
-Object.defineProperty(this.mainWindow.launchOverlay, "bg", {
-    value: new LaunchOverlayLayer("bg"),
-    writable: false
-});
-
 
 // ------------------------------------------------------------------------
 //
