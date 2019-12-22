@@ -22,8 +22,26 @@ class VideoSprite;
 class GameListItem;
 class DMDFont;
 
+// DMD sprite.  This is a simple subclass of the basic sprite
+// that uses the special DMD shader, which renders a simulation
+// of the visible pixel structure of a physical DMD.
+class DMDSprite : public Sprite
+{
+public:
+	DMDSprite(RGBQUAD bgColor, BYTE bgAlpha) : bgColor(bgColor), bgAlpha(bgAlpha) { }
+
+protected:
+	virtual void Render(Camera *camera) override;
+	virtual Shader *GetShader() const override;
+
+	RGBQUAD bgColor;
+	BYTE bgAlpha;
+};
+
 class DMDView : public SecondaryView
 {
+	friend struct HighScoreGraphicsGenThread;
+
 public:
 	DMDView();
 
@@ -43,6 +61,131 @@ public:
 	// enter/exit running game mode
 	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideo) override;
 	virtual void EndRunningGameMode() override;
+
+	// Generate a DMD-style image slide.  This can be used to generate
+	// this graphics style for use in any window.
+	//
+	// The request runs asynchronously in a thread.  On completion, we
+	// send a BVMsgDMDImageReady to the specified view window with the
+	// results.  The message has parameters WPARAM = seqence number,
+	// LPARAM = (std::list<HighScoreImage>*).
+	//
+	// Returns the sequence number of the request, which can be used 
+	// to associate the result back to the requester in the completion
+	// message handler.
+	DWORD GenerateDMDImage(
+		BaseView *view, std::list<TSTRING> &messages,
+		const TCHAR *style = nullptr, const TCHAR *font = nullptr,
+		RGBQUAD *txtColor = nullptr, RGBQUAD *bgColor = nullptr, BYTE bgAlpha = 255);
+
+	// high-score graphics list
+	struct HighScoreImage
+	{
+		// sprite type, for deferred sprite creation from a bitmap
+		enum SpriteType
+		{
+			NoSpriteType,
+			NormalSpriteType,
+			DMDSpriteType
+		};
+
+		HighScoreImage(SpriteType spriteType, DWORD t) :
+			spriteType(spriteType), displayTime(t)
+		{ }
+
+		HighScoreImage(Sprite *sprite, DWORD t) :
+			spriteType(NoSpriteType), sprite(sprite), displayTime(t)
+		{ }
+
+		HighScoreImage(SpriteType spriteType, const BITMAPINFO &bmi, BYTE *dibits,
+			DWORD t, RGBQUAD bgColor, BYTE bgAlpha) :
+			spriteType(spriteType), dibits(dibits), displayTime(t), 
+			bgColor(bgColor), bgAlpha(bgAlpha)
+		{
+			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
+		}
+
+		HighScoreImage(SpriteType spriteType, HBITMAP hbmp, const BITMAPINFO &bmi, const void *dibits, DWORD t) :
+			spriteType(spriteType), hbmp(hbmp), dibits(dibits), displayTime(t)
+		{
+			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
+		}
+
+		// transfer ownership of resources from another HighScoreImage object
+		HighScoreImage(HighScoreImage &i) :
+			spriteType(i.spriteType),
+			sprite(i.sprite.Detach()),
+			hbmp(i.hbmp.Detach()),
+			dibits(i.dibits),
+			displayTime(i.displayTime),
+			bgColor(bgColor),
+			bgAlpha(bgAlpha)
+		{
+			// copy the bitmap info
+			memcpy(&this->bmi, &i.bmi, sizeof(this->bmi));
+
+			// we've taken ownership of the DIbits - clear it in the source
+			i.dibits = nullptr;
+		}
+
+		~HighScoreImage()
+		{
+			// If we have a dibits array but no bitmap handle, the 
+			// dibits array was separately allocated and we're
+			// responsible for cleaning it up.  If there's a bitmap
+			// handle, the dibits are owned by the bitmap and don't
+			// need to be separately deleted.
+			if (hbmp == NULL && dibits != nullptr)
+				delete[] dibits;
+		}
+
+		// for deferred sprite creation, the type of Sprite object to create
+		SpriteType spriteType;
+
+		// image for this item
+		RefPtr<Sprite> sprite;
+
+		// Create and load the sprite
+		void CreateSprite()
+		{
+			// if there's no sprite, create one
+			if (sprite == nullptr)
+			{
+				// create a sprite of the appropriate type
+				switch (spriteType)
+				{
+				case HighScoreImage::DMDSpriteType:
+					sprite.Attach(new DMDSprite(bgColor, bgAlpha));
+					break;
+
+				default:
+					sprite.Attach(new Sprite());
+					break;
+				}
+
+				// load the image
+				if (!sprite->Load(bmi, dibits, SilentErrorHandler(), _T("high score slide")))
+					sprite = nullptr;
+			}
+		}
+
+		// We create the images in a background thread, staging them
+		// initially to a DIB for later conversion to a D3D image in
+		// the main thread.  The DIB information is saved here until
+		// the renderer needs to display the image, at which point
+		// it's converted into a sprite.
+		HBITMAPHolder hbmp;
+		BITMAPINFO bmi;
+		const void *dibits = nullptr;
+
+		// time in milliseconds to display this item
+		DWORD displayTime = 3500;
+
+		// background color and alpha for the DMD renderer
+		RGBQUAD bgColor = { 0, 0, 0, 0 };
+		BYTE bgAlpha = 255;
+	};
+	std::list<HighScoreImage> highScoreImages;
 
 protected:
 	// private application message (WM_APP to 0xBFFF)
@@ -82,91 +225,27 @@ protected:
 	// scale sprites
 	virtual void ScaleSprites() override;
 
-	// generate high score images for the current game
+	// generate high score images for the current game, or for custom
+	// Javascript messages
 	void GenerateHighScoreImages();
 
 	// clear out the high score images
 	void ClearHighScoreImages();
 
+	// get the "auto" high score style for the current game
+	const TCHAR *GetCurGameHighScoreStyle();
+
+	// get the DMD dot color for high score displays for the current game
+	RGBQUAD GetCurGameHighScoreColor();
+
 	// start the high score slideshow
 	void StartHighScorePlayback();
 
-	// high-score graphics list
-	struct HighScoreImage
-	{
-		// sprite type, for deferred sprite creation from a bitmap
-		enum SpriteType
-		{
-			NoSpriteType,
-			NormalSpriteType,
-			DMDSpriteType
-		};
-
-		HighScoreImage(SpriteType spriteType, DWORD t) :
-			spriteType(spriteType), dibits(nullptr), displayTime(t)
-		{ }
-
-		HighScoreImage(Sprite *sprite, DWORD t) : 
-			spriteType(NoSpriteType), sprite(sprite), dibits(nullptr), displayTime(t)
-		{ }
-
-		HighScoreImage(SpriteType spriteType, const BITMAPINFO &bmi, BYTE *dibits, DWORD t) :
-			spriteType(spriteType), dibits(dibits), displayTime(t)
-		{
-			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
-		}
-
-		HighScoreImage(SpriteType spriteType, HBITMAP hbmp, const BITMAPINFO &bmi, const void *dibits, DWORD t) :
-			spriteType(spriteType), hbmp(hbmp), dibits(dibits), displayTime(t)
-		{
-			memcpy(&this->bmi, &bmi, sizeof(this->bmi));
-		}
-
-		// transfer ownership of resources from another HighScoreImage object
-		HighScoreImage(HighScoreImage &i) :
-			spriteType(i.spriteType),
-			sprite(i.sprite.Detach()), 
-			hbmp(i.hbmp.Detach()), 
-			dibits(i.dibits), 
-			displayTime(i.displayTime)
-		{
-			// copy the bitmap info
-			memcpy(&this->bmi, &i.bmi, sizeof(this->bmi));
-
-			// we've taken ownership of the DIbits - clear it in the source
-			i.dibits = nullptr;
-		}
-
-		~HighScoreImage()
-		{
-			// If we have a dibits array but no bitmap handle, the 
-			// dibits array was separately allocated and we're
-			// responsible for cleaning it up.  If there's a bitmap
-			// handle, the dibits are owned by the bitmap and don't
-			// need to be separately deleted.
-			if (hbmp == NULL && dibits != nullptr)
-				delete[] dibits;
-		}
-
-		// for deferred sprite creation, the type of Sprite object to create
-		SpriteType spriteType;
-
-		// image for this item
-		RefPtr<Sprite> sprite;
-
-		// We create the images in a background thread, staging them
-		// initially to a DIB for later conversion to a D3D image in
-		// the main thread.  The DIB information is saved here until
-		// the renderer needs to display the image, at which point
-		// it's converted into a sprite.
-		HBITMAPHolder hbmp;
-		BITMAPINFO bmi;
-		const void *dibits;
-
-		// time in milliseconds to display this item
-		DWORD displayTime;
-	};
-	std::list<HighScoreImage> highScoreImages;
+	// Current display position in high score image list.  This
+	// is ignored when the high score image list is empty.  When
+	// it's non-empty, this points to the current image being
+	// displayed.
+	decltype(highScoreImages)::iterator highScorePos;
 
 	// Set the high score image list.  When we switch to a new game, we kick
 	// off a thread to generate the high score images.  We use a thread rather
@@ -176,15 +255,13 @@ protected:
 	// we'll simply discard results from an older request.
 	void SetHighScoreImages(DWORD seqno, std::list<HighScoreImage> *images);
 
-	// Last high score request sequence number
-	DWORD highScoreRequestSeqNo;
+	// Next available image request sequence number
+	DWORD nextImageRequestSeqNo = 1;
+
+	// Sequence number of current outstanding image request
+	// in this window
+	DWORD pendingImageRequestSeqNo = 0;
 
 	// Number of outstanding high score image generator threads
-	volatile DWORD nHighScoreThreads;
-
-	// Current display position in high score image list.  This
-	// is ignored when the high score image list is empty.  When
-	// it's non-empty, this points to the current image being
-	// displayed.
-	decltype(highScoreImages)::iterator highScorePos;
+	volatile DWORD nHighScoreThreads = 0;
 };

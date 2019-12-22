@@ -9,6 +9,7 @@
 #include "VideoSprite.h"
 #include "MediaDropTarget.h"
 #include "MouseButtons.h"
+#include "DMDView.h"
 #include "LogFile.h"
 
 BaseView::~BaseView()
@@ -190,6 +191,10 @@ bool BaseView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
+	case BVMsgDMDImageReady:
+		DMDImageReady(wParam, lParam);
+		return true;
+
 	case BVMsgAsyncSpriteLoadDone:
 		{
 			// get the parameters as pointers
@@ -215,7 +220,7 @@ bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// now that we know the true load size.
 		for (auto &l : jsDrawingLayers)
 		{
-			if (l.sprite != nullptr && l.sprite->GetVideoPlayerCookie() == wParam)
+			if (auto vs = dynamic_cast<VideoSprite*>(l.sprite.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
 			{
 				// Update the sprite's load size to match the new aspect ratio
 				auto desc = reinterpret_cast<const AudioVideoPlayer::FormatDesc*>(lParam);
@@ -1017,6 +1022,9 @@ void BaseView::JsRemoveDrawingLayer(JavascriptEngine::JsObj obj)
 
 void BaseView::JsDrawingLayerClear(JsValueRef self, JsValueRef argb)
 {
+	// revert to a standard video sprite
+	DrawingLayerConvertSpriteType<VideoSprite>(self);
+
 	// get the layer from the 'self' object
 	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
 	{
@@ -1033,10 +1041,10 @@ void BaseView::JsDrawingLayerClear(JsValueRef self, JsValueRef argb)
 	}
 }
 
-void BaseView::DrawingLayerClear(VideoSprite *sprite, Gdiplus::Color argb)
+void BaseView::DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb)
 {
 	// clear any prior video
-	sprite->ClearVideo();
+	sprite->Clear();
 
 	// Draw a blank background with the desired color.  Since we're using
 	// a fixed color for every pixel, the scaling is irrelevant, so use
@@ -1056,13 +1064,27 @@ void BaseView::DrawingLayerClear(VideoSprite *sprite, Gdiplus::Color argb)
 	}, eh, _T("Launch overlay - default background"));
 }
 
+// Convert the sprite type in a drawing layer to the given type
+template<class SpriteType>
+void BaseView::DrawingLayerConvertSpriteType(JsValueRef self)
+{
+	if (auto layer = JsThisToDrawingLayer(self); layer != nullptr && dynamic_cast<SpriteType*>(layer->sprite.Get()) == nullptr)
+	{
+		layer->sprite.Attach(new SpriteType());
+		UpdateDrawingList();
+	}
+}
+
 void BaseView::JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueRef widthArg, JsValueRef heightArg)
 {
+	// make sure we have a standard video sprite
+	DrawingLayerConvertSpriteType<VideoSprite>(self);
+
 	// get the layer from the 'self' object
 	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
 	{
-		// clear any prior video
-		sprite->ClearVideo();
+		// clear previous resources in the sprite
+		sprite->Clear();
 
 		auto js = JavascriptEngine::Get();
 		try
@@ -1094,11 +1116,14 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 	// presume failure
 	bool ok = false;
 
+	// make sure we have a standard video sprite
+	DrawingLayerConvertSpriteType<VideoSprite>(self);
+
 	// get the layer from the 'self' object
 	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
 	{
-		// clear any prior video
-		sprite->ClearVideo();
+		// clear old resources from the sprite
+		sprite->Clear();
 
 		// if we can't get the image size, load at the window size
 		SIZE sz { NormalizedWidth(), 1920 };
@@ -1150,8 +1175,12 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 		js->Throw(exc.jsErrorCode, _T("DrawingLayer.loadVideo()"));
 	}
 
-	// get the layer from the 'self' object
-	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	// make sure we have a standard video sprite
+	DrawingLayerConvertSpriteType<VideoSprite>(self);
+
+	// Get the sprite from the 'self' object.  The sprite has to be
+	// a video sprite to use this function.
+	if (auto sprite = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); sprite != nullptr)
 	{
 		// load the video
 		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
@@ -1173,6 +1202,106 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 
 	// return the result
 	return ok;
+}
+
+void BaseView::JsDrawingLayerLoadDMDText(JsValueRef self, WSTRING text, JavascriptEngine::JsObj options)
+{
+	// we need access to the drawing layer and DMD view to proceed
+	auto layer = JsThisToDrawingLayer(self);
+	auto dmdview = Application::Get()->GetDMDView();
+	if (layer != nullptr && dmdview != nullptr)
+	{
+		auto js = JavascriptEngine::Get();
+		try
+		{
+			// retrieve options
+			TSTRING style, font;
+			const TCHAR *pStyle = nullptr, *pFont = nullptr;
+			RGBQUAD txtColor, *pTxtColor = nullptr;
+			RGBQUAD bgColor, *pBgColor = nullptr;
+			BYTE bgAlpha = 255;
+			if (!options.IsNull())
+			{
+				if (options.Has("style"))
+				{
+					style = options.Get<TSTRING>("style");
+					pStyle = style.c_str();
+				}
+				if (options.Has("font"))
+				{
+					font = options.Get<TSTRING>("font");
+					pFont = font.c_str();
+				}
+				if (options.Has("color"))
+				{
+					Gdiplus::Color c = JsToGPColor(options.Get<JsValueRef>("color"), 0xFF);
+					txtColor = { c.GetBlue(), c.GetGreen(), c.GetRed() };
+					pTxtColor = &txtColor;
+				}
+				if (options.Has("bgColor"))
+				{
+					Gdiplus::Color c = JsToGPColor(options.Get<JsValueRef>("bgColor"), 0xFF);
+					bgColor = { c.GetBlue(), c.GetGreen(), c.GetRed() };
+					pBgColor = &bgColor;
+					bgAlpha = c.GetAlpha();
+				}
+			}
+
+			// Break the string up into a list at newlines
+			auto messages = StrSplit<TSTRING>(WSTRINGToTSTRING(text).c_str(), '\n');
+
+			// Clear any existing sprite.  Since we have to generate the image
+			// asynchronously, we could potentially get a new Javascript request
+			// to load a new image or video before the DMD request completes.
+			// The empty sprite will let us know that hasn't happened, since
+			// another drawing request in the meantime will create a new sprite.
+			layer->sprite = nullptr;
+			UpdateDrawingList();
+
+			// Kick off the image generation
+			layer->dmdRequestSeqNo = dmdview->GenerateDMDImage(
+				this, messages, pStyle, pFont, pTxtColor, pBgColor, bgAlpha);
+		}
+		catch (JavascriptEngine::CallException exc)
+		{
+			exc.Log(_T("DrawingLayer.loadVideo()"));
+			js->Throw(exc.jsErrorCode, _T("DrawingLayer.loadVideo()"));
+		}
+	}
+}
+
+void BaseView::DMDImageReady(WPARAM seqno, LPARAM lParam)
+{
+	// Look for a drawing layer with an outstanding request matching 
+	// the sequence number.  Only consider layers with null sprites,
+	// as Javascript could have done more drawing in the time since
+	// we started the request, in which case this request is moot.
+	for (auto &layer : jsDrawingLayers)
+	{
+		if (layer.dmdRequestSeqNo == seqno && layer.sprite == nullptr)
+		{
+			// get the image list
+			auto list = reinterpret_cast<std::list<DMDView::HighScoreImage>*>(lParam);
+			if (list->size() > 0)
+			{
+				// The generator can create a whole series of slides, for
+				// a rotating high score display.  For Javascript purposes,
+				// we'll only ever generate one slide.
+				auto slide = list->begin();
+
+				// create the sprite and grab a reference
+				slide->CreateSprite();
+				layer.sprite = slide->sprite;
+
+				// if we successfully created the sprite, update the drawing list
+				if (layer.sprite != nullptr)
+					UpdateDrawingList();
+			}
+
+			// no need to keep looking
+			break;
+		}
+	}
 }
 
 float BaseView::JsDrawingLayerGetAlpha(JsValueRef self) const
@@ -1250,7 +1379,7 @@ void BaseView::JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING a
 	}
 }
 
-VideoSprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
+Sprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
 {
 	// get the ID from the object
 	auto js = JavascriptEngine::Get();
@@ -1331,7 +1460,7 @@ Gdiplus::Color BaseView::JsToGPColor(JsValueRef val, BYTE defaultAlpha)
 		for (int pass = 1; pass <= 2; ++pass)
 		{
 			// try parsing as an HTML-style #RGB value
-			static const std::wregex hex3(L"#?([a-z0-9])([a-z0-9])([a-z0-9])", std::regex_constants::icase);
+			static const std::wregex hex3(L"#?([a-f0-9])([a-f0-9])([a-f0-9])", std::regex_constants::icase);
 			std::match_results<WSTRING::const_iterator> m;
 			if (std::regex_match(s, m, hex3))
 			{
@@ -1343,7 +1472,7 @@ Gdiplus::Color BaseView::JsToGPColor(JsValueRef val, BYTE defaultAlpha)
 			}
 
 			// try an HTML-style #RRGGBB six-digit hex value
-			static const std::wregex hex6(L"#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})", std::regex_constants::icase);
+			static const std::wregex hex6(L"#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})", std::regex_constants::icase);
 			if (std::regex_match(s, m, hex6))
 			{
 				return Gdiplus::Color(
@@ -1354,8 +1483,8 @@ Gdiplus::Color BaseView::JsToGPColor(JsValueRef val, BYTE defaultAlpha)
 			}
 
 			// try an HTML-style #AARRGGBB value
-			static const std::wregex hex8(L"#?([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})([a-z0-9]{2})", std::regex_constants::icase);
-			if (std::regex_match(s, m, hex6))
+			static const std::wregex hex8(L"#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})", std::regex_constants::icase);
+			if (std::regex_match(s, m, hex8))
 			{
 				return Gdiplus::Color(
 					static_cast<BYTE>(_tcstol(m[1].str().c_str(), nullptr, 16)),

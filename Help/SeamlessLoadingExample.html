@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>"Seamless" Game Launch</h1>
+<p>
+   An enhancement request on the github issue tracker proposed
+   adding an option for
+   "seamless launching".  The idea is to get rid of the blank
+   black background that PinballY normally shows on the playfield
+   screen while waiting for the game program to start up, and instead
+   continue showing the playfield video as normal.  The status messages
+   about the progress of the launch would still appear ("Loading...
+   Running..."), but superimposed on the background video instead
+   of on a boring black background.
+</p>
+<p>
+   The new Javascript features in 1.0 Beta 17 make this pretty easy
+   to implement.  They also make it easy to add custom touches, such
+   as dimming the background video a bit, or superimposing some
+   animated graphics to make the transition more dynamic looking.
+</p>
+
+<h2>Launch Overlay events</h2>
+<p>
+   The first system feature we can bring to bear on this problem is
+   the <a href="LaunchOverlayEvent.html">Launch Overlay event</a>
+   group, which gives us a natural place to put the code that will
+   orchestrate the seamless loading UI.
+</p>
+<p>
+   The black background that the system displays during the launch
+   process is actually an overlay layer that's drawn in front of the
+   normal background.  Another layer on top of this holds the status
+   text with the "Loading... Running..." messages.
+</p>
+<p>
+   When the system is about to display these overlay layers at the
+   start of a launch, it fires a <b>launchoverlayshow</b> event.
+   This is where we can intervene to prevent the normal black
+   background from coming up, which we can do simply by blocking
+   the default event processing, via the event object's
+   preventDefault() method.
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    ev.preventDefault();
+});
+</div>
+
+
+<h2>Tidying up the UI</h2>
+
+<p>
+   There are two other little details in the UI that we should
+   take care of: hide the wheel, and hide the underlay.  These
+   are both simple operations that we can add to our event handler:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    mainWindow.showWheel(false);
+    mainWindow.setOverlay();
+    ev.preventDefault();
+});
+</div>
+
+<p>
+   Having made those changes, we'll need to undo them when the
+   game exits.  We actually don't have to worry about undoing
+   the underlay removal, since that will come back on its own;
+   the system pretends that you've selected a new game when
+   it returns to the wheel UI after a game session has ended,
+   which reloads all of its media, including any underlay.
+   But we do have to restore the wheel to visibility explicitly.
+   The system won't presume to override our wishes on the wheel
+   hiding until we say otherwise.
+</p>
+<p>
+   The place to take care of these end-of-launch cleanup tasks
+   is in the <b>launchoverlayhide</b> event, which the system fires
+   when it's removing the launch overlay at the end of a game
+   launch session.  This event is the bookend to <b>launchoverlayshow</b>,
+   so it's the place to undo changes we make there.
+</p>
+<div class="code">
+mainWindow.on("launchoverlayhide", ev => {
+    mainWindow.showWheel(true);
+});
+</div>
+
+
+<h2>Launch overlay drawing layers</h2>
+<p>
+   Preventing the default system processing on a <b>launchoverlyshow</b>
+   event is actually all we have to do to leave the playfield video
+   showing throughout the launch.  That's the only point at which the
+   system will try to cover up the background video.  But I also
+   want to point out that we can do more than just blocking the
+   system's default black background.  We can actually take it
+   over and provide a different background of our own!
+</p>
+<p>
+   The way we can draw our own background is to use the
+   <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay</a>
+   objects.  That property gives us an object, which in turn contains
+   two properties, <b>fg</b> and <b>bg</b>, giving us two more
+   objects.  <b>mainWindow.launchOverlay.fg</b> is the "foreground"
+   layer of the launch overlay, which is where the system draws the
+   "Running... Loading..." text message updates.  
+   And <b>mainWindow.launchOverlay.bg</b> is the background layer,
+   which the system normally fills with an opaque dark gray.
+</p>
+<p>
+   Those two objects are <a href="DrawingLayer.html">Drawing Layer</a>
+   objects, so they offer flexible graphics capabilities: you can
+   use them to display still image files, videos, or your own
+   custom graphics, using the <a href="CustomDrawing.html">Custom
+   Drawing</a> facility.
+</p>
+<p>
+   As a simple example, let's place a thin veil over the playfield
+   video to emphasize that we're not in the normal PinballY
+   interactive mode while we're waiting for the launch.  We'll
+   still make the video visible, but we'll dim it out a little
+   and give it a purple tint.  We can do this simply by filling
+   the overlay background layer with a partially transparent
+   fill color:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    mainWindow.launchOverlay.bg.clear(0x20FF00FF);
+    ev.preventDefault();
+});
+</div>
+<p>
+   This fills the background layer with color code 0x20FF00FF.
+   That parses as 20 (hex) for the alpha value, which is about
+   12% opacity, meaning it's mostly but not entirely
+   transparent.  The rest is RGB for bright purple, the
+   same as HTML code #ff00ff, which looks like this:
+</p>
+<div style="text-align: center;">
+   <div style="display: inline-block; width: 2em; height: 2em; background: #ff00ff">
+   </div>
+</div>
+<p>
+   When that's combined at 12% with the background playfield video,
+   it'll dim the background slightly and give it a tinge of the
+   foreground color.
+</p>
+<p>
+   Note that we don't have to worry about undoing our custom background
+   the game launch ends, since the system will automatically remove
+   the launch overlay on its own.  The same goes for any other custom
+   drawing we do, or for loading an image or video into the overlay
+   layer.
+</p>
+
+<h2>Moving the progress messages to the DMD</h2>
+
+<p>
+   Another little tweak you might want to make to the launch UI
+   is to move the status messages out of the playfield window
+   and into the DMD window instead.  The DMD screen is, after all,
+   the place where the newly launched game will display its own
+   messages, so it's natural to move the launch messages there
+   as well.
+</p>
+<p>
+   Note that this is only possible with a <b>video</b> DMD screen.
+   If you have a <b>real</b> DMD device - not a video screen, but
+   a plasma or LED score dot-matrix display like on the real
+   pinball machines - we unfortunately can't use it for launch
+   status messages.  The reason is that the real DMD hardware
+   devices can't be shared by two programs at once, so PinballY
+   has to disconnect itself from the DMD hardware before it
+   launches the game.  If it doesn't do that, the game program
+   might encounter an error trying to connect to the device,
+   because of the one-program-at-a-time limitation.  So it's
+   really important for PinballY to release the DMD before the
+   launch process even begins, thus making it impossible to
+   display any progress messages there during the launch.
+</p>
+<p>
+   We can display the launch messages on the DMD by using a
+   <a href="DrawingLayer.html">custom drawing layer</a> in
+   the DMD window.  And we can use the <a href="DrawingLayer.html#drawDMDText">drawDMDText()</a>
+   method on the drawing layer to make the message look like
+   an actual DMD message.
+</p>
+<p>
+   The way to intercept the status update messages is via
+   the <b>launchoverlaymessage</b> event.  That event fires
+   each time the system updates the progress message.  Left
+   to its own devices, the system will display the message
+   as text in the foreground layer of the launch overlay.
+   We can intercept the event, display the message in the
+   DMD window instead, and then cancel the event (via
+   preventDefault()) to keep the system from displaying
+   its own message in the playfield window.
+</p>
+<div class="code">
+// Create a drawing layer in the DMD window.  This is just
+// a global variable, so the layer will always be around;
+// it'll just be showing nothing most of the time.
+let dmdLaunchMessageLayer = dmdWindow.createDrawingLayer(1000);
+
+// now intercept launch message updates to display the
+// messages on the DMD overlay instead of the main window
+mainWindow.on("launchoverlaymessage", ev => {
+    dmdLaunchMessageLayer.drawDMDText(ev.message || "", {
+        font: "12px";
+    });
+    ev.preventDefault();
+});
+</div>
+
+<p>
+   The reason that we wrote <span class="code">ev.message || ""</span>
+   rather than just using the message directly is that the
+   message can be null in some cases, and if you use a
+   null value where a string is expected, Javascript converts
+   the null to the literal string "null".  For our purposes
+   here, we'd prefer to render these null messages as
+   no text at all, which the "or" syntax accomplishes.
+</p>
+<p>
+   Note that you can specify some other options in drawDMDText()
+   to control the display style, but we're intentionally letting
+   the system choose the defaults based on the current game, so
+   that our display harmonizes the with the game's normal
+   DMD-window appearance.  The one option we're customizing
+   is the DMD font, which we've set to "12px".  If we let
+   the system choose the DMD font, it'll pick the biggest
+   font that will make the text fit, so successive messages
+   might be drawn in different fonts.  That looks a little
+   awkward, so I prefer to set a fixed font; the "12px"
+   font is a good all-purpose size for the launch messages.
+</p>
+<p>
+   There's one more little detail (isn't there always?).
+   When the launch process is over, we'll want to get rid
+   of the overlay, so that we return to normal media and
+   high score displays in the DMD window.  <b>launchoverlayhide</b>
+   is once again the place for these end-of-launch cleanup
+   tasks.  We can effectively hide the layer by filling
+   it with a fully transparent (zero alpha) background.
+</p>
+<div class="code">
+mainWindow.on("launchoverlayhide", ev => {
+    dmdLaunchMessageOverlay.clear(0x00000000);
+});
+</div>
+
+
+<h2>Playing a video overlay</h2>
+<p>
+   A neat thing you can do with the launch overlay is to
+   display a video that plays during the launch process.  There are lots of
+   little video snippets on the Web with special effects loops
+   that could make nice decorative effects during a launch.
+   Here's how you could load such a video into the launch overlay
+   background layer, when the launch process first starts up:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    let video = gameList.resolveMedia("Videos", "launch.mp4");
+    mainWindow.launchOverlay.bg.loadVideo(video);
+});
+</div>
+
+<p>
+   Here we've assumed that you've found a suitable video,
+   named it <b>launch.mp4</b>, and placed it in the
+   placed it in PinballY Media\Videos folder.  Remember that
+   we're talking about customization here, so this isn't a
+   video that comes with PinballY - it's just something that
+   we made up for the sake of this example.  If you want to
+   do this for real, you'll have to go find a video you want
+   to use and install it at that location.
+</p>
+<p>
+   We'll want this video to stop playing as soon as the game has
+   finished loading, so that it doesn't consume system resources
+   that could hurt the game's performance.  To do that, we can
+   use the <b>gamestarted</b> event (see <a href="LaunchEvent.html">LaunchEvent</a>):
+</p>
+<div class="code">
+mainWindow.on("gamestarted", ev => {
+    mainWindow.launchOverlay.bg.clear(0xff404040);
+});
+</div>
+
+<p>
+   That fills the launch overlay background layer with an opaque
+   dark gray - basically the same thing the system would have done
+   on its own at the start of the launch, if we hadn't intervened.
+   Clearing the drawing layer has the effect of removing any video
+   that was playing in the layer, so this will stop the system
+   resource load that the video was creating, just as we wanted.
+   It also tidies up the UI; separately from the performance impact,
+   we probably don't want the UI to keep showing the transition
+   effect once the transition is over and the game has started.
+</p>
+<p>
+   The original motivation of this chapter was to make the
+   launch process seamless, by <i>not</i> covering up the
+   background video, so this idea of loading a video instead
+   of a blank background isn't quite what we were after.
+   Even so, I wanted to mention it, since some people might
+   prefer it as a third option that's even better than
+   leaving the playfield video playing.  There's also a
+   best-of-both-worlds option here: you could play a
+   <b>partially transparent video</b> that displays an effect
+   superimposed over the playfield video.  PinballY supports
+   videos with alpha channel transparency, which makes it
+   possible to come up with some very elaborate special
+   effects.  See <a href="AlphaVideo.html">Alpha transprency in videos</a>
+   for more on this.
+</p>
+
+   
+
+</body>
+</html>

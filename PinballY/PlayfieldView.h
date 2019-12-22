@@ -1490,7 +1490,7 @@ protected:
 	// Custom drawing layer lookup.  We expose the running game popups 
 	// to Javascript using the drawing layer interface, so we need to
 	// find them on drawing callbacks into that interface.
-	virtual VideoSprite *JsThisToDrawingLayerSprite(JsValueRef self) const override;
+	virtual Sprite *JsThisToDrawingLayerSprite(JsValueRef self) const override;
 
 	// Internal ID of current running game
 	LONG runningGameID;

@@ -24,6 +24,9 @@ public:
 		ErrorHandler &eh, const TCHAR *descForErrors, 
 		bool play = true, int volumePct = 100);
 
+	// Clear resources
+	virtual void Clear() override;
+
 	// Clear the video
 	void ClearVideo() { ReleaseVideoPlayer(); }
 

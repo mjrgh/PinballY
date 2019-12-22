@@ -121,6 +121,10 @@ public:
 	// re-create the mesh
 	void ReCreateMesh();
 
+	// Clear the sprite.  This frees any exeternal resources currently 
+	// in use, such as video playback streams.
+	virtual void Clear();
+
 protected:
 	virtual ~Sprite();
 

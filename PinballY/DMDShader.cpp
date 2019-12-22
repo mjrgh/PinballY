@@ -50,7 +50,7 @@ bool DMDShader::Init()
 	if (FAILED(hr = d3d->CreatePixelShader(g_psDMDShader, sizeof(g_psDMDShader), &ps)))
 		return GenErr(_T("DMD Shader -> CreatePixelShader"));
 
-	// create the pixel shader input buffer
+	// create the pixel shader alpha input buffer
 	D3D11_BUFFER_DESC desc;
 	desc.Usage = D3D11_USAGE_DEFAULT;
 	desc.ByteWidth = sizeof(AlphaBufferType);
@@ -59,6 +59,11 @@ bool DMDShader::Init()
 	desc.MiscFlags = 0;
 	desc.StructureByteStride = 0;
 	if (FAILED(hr = d3d->CreateBuffer(&desc, &cbAlpha, "DMDShader::cbAlpha")))
+		return GenErr(_T("DMD Shader -> create color constant buffer"));
+
+	// create the background input buffer
+	desc.ByteWidth = sizeof(BgColorBufferType);
+	if (FAILED(hr = d3d->CreateBuffer(&desc, &cbBgColor, "DMDShader::cbBgColor")))
 		return GenErr(_T("DMD Shader -> create color constant buffer"));
 
 	// set the initial alpha to opaque
@@ -75,6 +80,18 @@ void DMDShader::SetAlpha(float alpha)
 	d3d->UpdateResource(cbAlpha, &cb);
 }
 
+void DMDShader::SetBgColor(RGBQUAD color, BYTE alpha)
+{
+	D3D *d3d = D3D::Get();
+	BgColorBufferType cb = { XMFLOAT4(
+		static_cast<float>(color.rgbRed) / 255.0f,
+		static_cast<float>(color.rgbGreen) / 255.0f,
+		static_cast<float>(color.rgbBlue) / 255.0f,
+		static_cast<float>(alpha) / 255.0f
+	)};
+	d3d->UpdateResource(cbBgColor, &cb);
+}
+
 void DMDShader::SetShaderInputs(Camera *camera)
 {
 	D3D *d3d = D3D::Get();
@@ -86,7 +103,8 @@ void DMDShader::SetShaderInputs(Camera *camera)
 	d3d->VSSetWorldConstantBuffer(2);
 
 	// set the pixel shader inputs
-	d3d->PSSetConstantBuffers(0, 1, &cbAlpha);
+	ID3D11Buffer *bufs[] = { cbAlpha.Get(), cbBgColor.Get() };
+	d3d->PSSetConstantBuffers(0, countof(bufs), bufs);
 
 	// Set the input layout
 	d3d->SetInputLayout(layout);

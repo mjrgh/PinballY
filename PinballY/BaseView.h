@@ -327,8 +327,9 @@ protected:
 		// drawn in front of lower Z.
 		int zIndex;
 
-		// sprite
-		RefPtr<VideoSprite> sprite;
+		// Sprite.  Note that this can be any sprite subclass, including
+		// video sprites and DMD sprites.
+		RefPtr<Sprite> sprite;
 
 		// Positioning.  For x, -.5 is the left edge, +.5 is the
 		// right edge, and 0 is the horizontal center.  For y,
@@ -378,6 +379,13 @@ protected:
 			// fitting in the other dimension.
 			float span = 1.0f;
 		} scaling;
+
+		// DMD-style message graphics are generated asynchronously
+		// in a background thread.  When we have a threaded request
+		// outstanding, we remember the sequence number of the request
+		// here.  This lets us determine if the request is stale when
+		// it finishes.
+		DWORD dmdRequestSeqNo = 0;
 	};
 	std::list<JsDrawingLayer> jsDrawingLayers;
 
@@ -393,12 +401,16 @@ protected:
 	JsValueRef jsDrawingLayerProto = JS_INVALID_REFERENCE;
 	bool JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename);
 	bool JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, JavascriptEngine::JsObj options);
+	void JsDrawingLayerLoadDMDText(JsValueRef self, WSTRING text, JavascriptEngine::JsObj options);
 	void JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueRef width, JsValueRef height);
 	void JsDrawingLayerClear(JsValueRef self, JsValueRef argb);
 	float JsDrawingLayerGetAlpha(JsValueRef self) const;
 	void JsDrawingLayerSetAlpha(JsValueRef self, float alpha);
 	void JsDrawingLayerSetScale(JsValueRef self, JavascriptEngine::JsObj scale);
 	void JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING align);
+
+	// handle a DMD image completion message (BVMsgDMDImageReady)
+	void DMDImageReady(WPARAM seqno, LPARAM imageList);
 
 	// Convert a JsValueRef to a Gdiplus color.  This parses arguments
 	// to DrawingLayer and Custom Drawing Context methods:
@@ -422,7 +434,10 @@ protected:
 	Gdiplus::Color JsToGPColor(JsValueRef val, BYTE defaultAlpha);
 
 	// clear a drawing layer with the specified color
-	void DrawingLayerClear(VideoSprite *sprite, Gdiplus::Color argb);
+	void DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb);
+
+	// convert a drawing layer to the given sprite type
+	template<class SpriteType> void DrawingLayerConvertSpriteType(JsValueRef self);
 
 	// For the JsDrawingLayerXxx methods, get the VideoSprite object
 	// corresponding to the layer in the Javscript 'this' parameter.
@@ -432,7 +447,7 @@ protected:
 	// The base class implementation searches the drawing layer list.
 	// Subclasses can use this to give Javascript access to other
 	// sprites through the same drawing interface.
-	virtual VideoSprite *JsThisToDrawingLayerSprite(JsValueRef self) const;
+	virtual Sprite *JsThisToDrawingLayerSprite(JsValueRef self) const;
 
 	// Get the JsDrawingLayer control object for the Javascript 'this'
 	// parameter to a JsDrawingLayerXxx method.

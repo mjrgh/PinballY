@@ -33,6 +33,9 @@ public:
 
 	// set the alpha value in the shader resource
 	void SetAlpha(float alpha) override;
+	
+	// set the background color
+	void SetBgColor(RGBQUAD color, BYTE alpha);
 
 protected:
 	// alpha buffer type - must match the layout in TextureShaderPS.hlsl
@@ -42,6 +45,13 @@ protected:
 		DirectX::XMFLOAT3 padding;
 	};
 
-	// pixel shader input
+	// background color buffer type
+	struct BgColorBufferType
+	{
+		DirectX::XMFLOAT4 rgba;
+	};
+
+	// pixel shader inputs
 	RefPtr<ID3D11Buffer> cbAlpha;
+	RefPtr<ID3D11Buffer> cbBgColor;
 };

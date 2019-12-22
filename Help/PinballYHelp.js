@@ -43,6 +43,7 @@ var contents = [
         "+WorkedExamples.html Worked Examples",
             "++CustomPlayModesExample.html Custom Play Modes",
             "++TopGamesExample.html A \"Top 10\" Filter",
+            "++SeamlessLoadingExample.html \"Seamless\" Game Launch",
             "++FindMediaExample.html Custom \"Find Media\" Menu",
             "++DisplayCloningExample.html Display Cloning",
             "++RunProgramExample.html Running a Program",

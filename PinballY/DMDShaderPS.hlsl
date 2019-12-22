@@ -15,6 +15,11 @@ cbuffer AlphaBufferType
 	float3 padding;
 }
 
+cbuffer BkColorBufferType
+{
+	float4 bkColor;
+};
+
 struct PixelInputType
 {
 	float4 position : SV_POSITION;
@@ -54,12 +59,16 @@ float4 main(PixelInputType input) : SV_TARGET
 	float yd = y - yr;
 	float r2 = xd*xd + yd*yd;
 
-	// Roll off brightness and truncate past a certain point.  This
+	// Roll off opacity and truncate past a certain point.  This
 	// gives the pixel we're drawing a soft edge, which makes it 
-	// look more like a plasma pixel.
+	// look more like a plasma pixel.  Use alpha so that we can
+	// blend against arbitrary background colors.
+	// if (r2 > .25f) discard;
+	// textureColor.w *= 1.0f - r2/0.25f;
 	if (r2 > .25f)
-		discard;
-	textureColor.w *= 1.0f - r2/0.25f;
+		textureColor = bkColor;
+	else
+		textureColor = (textureColor * (1.0f - r2 / 0.25f)) + (bkColor * r2 / 0.25f);
 
 	// return the texture color
 	return textureColor;

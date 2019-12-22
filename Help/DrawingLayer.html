@@ -307,6 +307,73 @@ overlay.clear(0x00000000);
    in setScale().
 </p>
 
+<a name="drawDMDText"></a>
+<p>
+   <b><i>layer</i>.drawDMDText(<i>text</i>, <i>options</i>):</b>
+   Draws a DMD-style text screen.  This generates a still image that looks
+   like a score-area text display, and then loads the image into the drawing
+   layer.  (Even though this uses the DMD display style, you can use it in
+   any window to create a DMD-like text effect in that window.)
+   This is effectively an image-loader function, so like the other
+   media loader functions (loadImage(), loadVideo(), etc), it replaces any
+   previous image that the layer was displaying.
+</p>
+<p>
+   <i>text</i> is the text to display.  This can contain multiple lines, by
+   using "\n" (newline) characters to separate the lines.  <i>options</i> is
+   an object with more information on exactly how to generate the simulated
+   DMD image.  If you omit the object entirely, or provide the object but
+   omit any of the individual properties listed below, the system chooses
+   suitable defaults based on the currently selected game.  The option
+   properties are:
+</p>
+<ul>
+   <li><b>bgColor:</b> The background color, for the DMD style.  This can
+   be specified as a hex number, in 0xAARRGGBB format (AA is the alpha
+   transparency component), or as an HTML "#RRGGBB" or "#AARRGGBB" string.
+   Setting the alpha to something less than FF will make the background
+   partially transparent; setting to it to 00 will make it entirely
+   transparent.
+
+   <li><b>color:</b> The dot color, for the DMD style.  This can be specified
+   as a hex number, in 0xRRGGBB format, or as an HTML "#RRGGBB" string.
+   This color is always fully opaque (any alpha component is ignored).
+
+   <li><b>font:</b> The dot font, for the DMD style.  If you don't specify
+   this, the system will choose the largest font that makes the text fit
+   the available area.  The currently available dot fonts are all approximations
+   of the fonts used on the 1990s Williams machines, and are named by their
+   pixel height:
+   <ul class="compact">
+      <li>"20px"
+      <li>"15px"
+      <li>"12px"
+      <li>"9px"
+      <li>"7px"
+      <li>"5px"
+   </ul>
+   <p>
+      If you're displaying a single message, you can just let the system
+      choose a font based on what'll fit.  For a sequence of messages
+      shown in succession, though, it can look jarring to switch fonts
+      on each screen, so you might prefer to pick a font that will work
+      across the whole sequence.  You might have to experiment to find
+      the best fit, but as a rough guide, the "12px" font will fit two
+      lines of text of about 10-12 characters per line, and "9px" will
+      fit three lines of about 16 characters per line.
+   </p>
+
+   <li><b>style:</b>  A string specifying the display style; one of "auto",
+   "dmd", "alpha", or "tt".  This is the same style selection you can make
+   for a game's high score display in the normal UI, via the
+   <a href="EditGameDetails.html">Edit Game Details</a> dialog.  If you
+   omit this or specify "auto", the high-score display style for the
+   current game will be used, as set in the game's metadata or as
+   inferred from the game's table type and era.  For example, games
+   from the early 1980s use the "alpha" style by default, and games
+   from the 1990s use the "dmd" style.
+</ul>
+
 <a name="loadImage"></a>
 <p>
    <b><i>layer</i>.loadImage(<i>filename</i>):</b>  Loads the given image file and displays

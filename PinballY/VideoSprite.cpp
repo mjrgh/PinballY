@@ -142,3 +142,9 @@ void VideoSprite::Render(Camera *camera)
 	// if we have one
 	__super::Render(camera);
 }
+
+void VideoSprite::Clear()
+{
+	ClearVideo();
+	__super::Clear();
+}

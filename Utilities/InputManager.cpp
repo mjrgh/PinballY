@@ -387,8 +387,10 @@ void InputManager::AddRawInputDevice(HANDLE hDevice)
 			// recognize.  The types we recognize are:
 			//
 			//   Usage Page 0x01, Usage 0x04 => Joystick
+			//   Usage Page 0x01, Usage 0x05 => Game Pad
 			//
-			if (info.hid.usUsagePage == 1 && info.hid.usUsage == 4)
+			if (info.hid.usUsagePage == 1 
+				&& (info.hid.usUsage == 4 || info.hid.usUsage == 5))
 			{
 				// It's a joystick.  Add it through the joystick
 				// manager.

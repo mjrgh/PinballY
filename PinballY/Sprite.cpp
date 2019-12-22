@@ -33,10 +33,11 @@ Sprite::~Sprite()
 
 void Sprite::DetachFlash()
 {
-	if (flashSite != 0)
+	if (flashSite != nullptr)
 	{
 		flashSite->Shutdown();
-		flashSite = 0;
+		flashSite = nullptr;
+		stagingTexture = nullptr;
 	}
 }
 
@@ -53,9 +54,9 @@ void Sprite::UpdateWorld()
 bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
 	// release any previous texture
-	texture = 0;
-	stagingTexture = 0;
-	rv = 0;
+	texture = nullptr;
+	stagingTexture = nullptr;
+	rv = nullptr;
 
 	// Try to determine the image type from the file contents
 	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
@@ -398,7 +399,7 @@ void Sprite::Render(Camera *camera)
 	// is needed on each rendering cycle.  If the Flash backing bitmap
 	// hasn't been invalidated since we last copied it into our texture,
 	// we can simply reuse the existing texture, which is very fast.
-	if (flashSite != 0 && flashSite->NeedsRedraw())
+	if (flashSite != nullptr && flashSite->NeedsRedraw())
 	{
 		// Note if the size has changed
 		bool sizeChanged = flashSite->IsSizeChanged();
@@ -486,7 +487,7 @@ void Sprite::Render(Camera *camera)
 	}
 
 	// do nothing if we don't have a shader resource view
-	if (rv == 0)
+	if (rv == nullptr)
 		return;
 
 	// prepare my shader
@@ -510,7 +511,7 @@ Shader *Sprite::GetShader() const
 void Sprite::RenderMesh()
 {
 	// we can only proceed if we have valid vertex and index buffers
-	if (vertexBuffer == 0 || indexBuffer == 0)
+	if (vertexBuffer == nullptr || indexBuffer == nullptr)
 		return;
 
 	// get the D3D context
@@ -585,4 +586,16 @@ void Sprite::AdviseWindowSize(SIZE szLayout)
 		int pixHeight = (int)((float)szLayout.cy * loadSize.y * scale.y);
 		flashSite->SetLayoutSize({ pixWidth, pixHeight });
 	}
+}
+
+void Sprite::Clear()
+{
+	// if we have a Flash site, release it
+	DetachFlash();
+
+	// release D3D resources
+	vertexBuffer = nullptr;
+	indexBuffer = nullptr;
+	texture = nullptr;
+	rv = nullptr;
 }

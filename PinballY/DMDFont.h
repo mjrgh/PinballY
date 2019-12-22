@@ -31,15 +31,24 @@ public:
 	// bytes are laid out in the same order as in the DIB.
 	struct Color
 	{
-		Color() { c[3] = 0xff; }
+		Color() { Set(0xff, 0x00, 0x00, 0x00); }
 
 		// set the bytes
 		void Set(int r, int g, int b)
 		{
-			c[2] = (BYTE)r;
-			c[1] = (BYTE)g;
-			c[0] = (BYTE)b;
+			c[3] = 0xFF;
+			c[2] = static_cast<BYTE>(r);
+			c[1] = static_cast<BYTE>(g);
+			c[0] = static_cast<BYTE>(b);
 		}
+		void Set(int a, int r, int g, int b)
+		{
+			c[3] = static_cast<BYTE>(a);
+			c[2] = static_cast<BYTE>(r);
+			c[1] = static_cast<BYTE>(g);
+			c[0] = static_cast<BYTE>(b);
+		}
+
 		void R(BYTE r) { c[2] = r; }
 		void G(BYTE g) { c[1] = g; }
 		void B(BYTE b) { c[0] = b; }

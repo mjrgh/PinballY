@@ -31,6 +31,7 @@
 
 // BaseView messages
 const UINT BVMsgAsyncSpriteLoadDone = WM_USER + 0;	// sprite loading finished
+const UINT BVMsgDMDImageReady = WM_USER + 1;        // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images
 
 // BaseWin messages
 const UINT BWMsgUpdateMenu = WM_USER + 100;			// update menu commands; wparam=HMENU, lParam=BaseWin* fromWin
@@ -54,8 +55,6 @@ const UINT PFVMsgShowFlashError = WM_USER + 210;    // LPARAM = const ErrorList 
 const UINT PFVMsgPlayElevReqd = WM_USER + 211;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
 const UINT PFVMsgJsDebugMessage = WM_USER + 212;    // Javascript debug request received from debugger UI
 
-// DMDView messages
-const UINT DMVMsgHighScoreImage = WM_USER + 300;    // WPARAM = DWORD seqno, LPARAM = std::list<DMDView::HighScoreImage> *images
 
 // PFVShowMessage parameters struct
 class ErrorList;

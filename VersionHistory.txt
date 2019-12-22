@@ -130,6 +130,16 @@ defined in the settings.  See "Custom Drawing" in the help.
 certain system methods with an argument value of zero in certain
 argument slots.
 
+* Added recognition of USB game pad devices when detecting joysticks.
+(This is currently experimental.  It just adds the recognition, and
+uses the existing joystick input parsing code, so I'm not sure it'll
+actually work with every game pad.  Joysticks and game pads are quite
+similar at the USB protocol level apart from the device code, but
+there might be some differences that the current PinballY joystick
+code won't handle correctly.  It'll at least recognize them, so that
+people with game pads can try them out to see how they work.)
+
+
 
 11-29-2019 (1.0.0 Beta 16)
 

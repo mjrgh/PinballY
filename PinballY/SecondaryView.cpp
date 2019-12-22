@@ -86,7 +86,10 @@ void SecondaryView::UpdateDrawingList()
 
 	// add the javascript overlays
 	for (auto const &it : jsDrawingLayers)
-		sprites.push_back(it.sprite);
+	{
+		if (it.sprite != nullptr)
+			sprites.push_back(it.sprite);
+	}
 
 	// add the drop effect overlay
 	if (dropTargetSprite != nullptr)

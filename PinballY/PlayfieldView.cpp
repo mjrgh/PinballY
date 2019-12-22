@@ -699,6 +699,8 @@ void PlayfieldView::InitJavascript()
 					&BaseView::JsDrawingLayerLoadImage, view, eh)
 					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadVideo",
 						&BaseView::JsDrawingLayerLoadVideo, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "drawDMDText",
+						&BaseView::JsDrawingLayerLoadDMDText, view, eh)
 					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "draw",
 						&BaseView::JsDrawingLayerDraw, view, eh)
 					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "clear",
@@ -8538,7 +8540,7 @@ void PlayfieldView::JsDraw(Sprite *sprite, int width, int height, JsValueRef dra
 	sprite->Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw"));
 }
 
-VideoSprite *PlayfieldView::JsThisToDrawingLayerSprite(JsValueRef self) const
+Sprite *PlayfieldView::JsThisToDrawingLayerSprite(JsValueRef self) const
 {
 	// get the ID from the object
 	auto js = JavascriptEngine::Get();
@@ -9938,7 +9940,7 @@ void PlayfieldView::UpdateDrawingList()
 		{
 			if (it.zIndex > zMax)
 				break;
-			else if (it.zIndex > zMin)
+			else if (it.zIndex >= zMin && it.sprite != nullptr)
 				sprites.push_back(it.sprite);
 		}
 	};
