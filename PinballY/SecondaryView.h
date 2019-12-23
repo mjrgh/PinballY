@@ -148,7 +148,7 @@ protected:
 			sprite = nullptr;
 		}
 		GameListItem *game;				// game list item
-		RefPtr<VideoSprite> sprite;		// sprite
+		RefPtr<Sprite> sprite;			// sprite
 	}
 	currentBackground, incomingBackground;
 

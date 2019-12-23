@@ -54,11 +54,47 @@ void Sprite::UpdateWorld()
 	worldT = XMMatrixTranspose(world);
 }
 
-bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
+Sprite *Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous resources
-	Clear();
+	RefPtr<Sprite> sprite(new Sprite());
+	if (sprite->LoadImage(filename, normalizedSize, pixSize, eh))
+		return sprite.Detach();
 
+	return nullptr;
+}
+
+Sprite *Sprite::Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
+	ErrorHandler &eh, const TCHAR *descForErrors)
+{
+	RefPtr<Sprite> sprite(new Sprite());
+	if (sprite->LoadDraw(pixWidth, pixHeight, drawingFunc, eh, descForErrors))
+		return sprite.Detach();
+
+	return nullptr;
+}
+
+Sprite *Sprite::Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics &g)> drawingFunc,
+	ErrorHandler &eh, const TCHAR *descForErrors)
+{
+	RefPtr<Sprite> sprite(new Sprite());
+	if (sprite->LoadDraw(pixWidth, pixHeight, drawingFunc, eh, descForErrors))
+		return sprite.Detach();
+
+	return nullptr;
+}
+
+Sprite *Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
+{
+	RefPtr<Sprite> sprite(new Sprite());
+	if (sprite->LoadDIB(bmi, dibits, eh, descForErrors))
+		return sprite.Detach();
+
+	return nullptr;
+}
+
+
+bool Sprite::LoadImage(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
+{
 	// Try to determine the image type from the file contents
 	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
 	{
@@ -77,7 +113,7 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 		{
 			// Load it as a bitmap.  Note that the final bitmap is at the DISPLAY size,
 			// which might be rotated from the source size.
-			return Load(desc.dispSize.cx, desc.dispSize.cy, [&desc, filename](Gdiplus::Graphics &g)
+			return LoadDraw(desc.dispSize.cx, desc.dispSize.cy, [&desc, filename](Gdiplus::Graphics &g)
 			{
 				// load the image 
 				std::unique_ptr<Gdiplus::Bitmap> bitmap(Gdiplus::Bitmap::FromFile(filename));
@@ -131,9 +167,6 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous resources
-	Clear();
-
 	// Create the new Flash site.  Our FlashClientSite creates a windowless
 	// activation site for the Flash object, loads the file (as a "movie"),
 	// and starts playback.  The windowless site captures the Flash graphics
@@ -149,7 +182,7 @@ bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 		return false;
 
 	// Load our D3D11 texture from the initial bitmap
-	if (!Load(bmi, bits, eh, _T("Load Shockwave Flash frame")))
+	if (!LoadDIB(bmi, bits, eh, _T("Load Shockwave Flash frame")))
 		return false;
 
 	// Create a staging texture for frame updates
@@ -233,9 +266,6 @@ static void BlendGIFRect(const Image &composed, const Image &raw, const RECT &de
 // Load a GIF, with animation support
 bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous resources
-	Clear();
-
 	// system errors
 	HRESULT hr = E_FAIL;
 	auto SysErr = [filename, &hr, &eh](const CHAR *details)
@@ -563,10 +593,10 @@ bool Sprite::CreateStagingTexture(int pixWidth, int pixHeight, ErrorHandler &eh)
 	return true;
 }
 
-bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics&)> drawingFunc,
+bool Sprite::LoadDraw(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics&)> drawingFunc,
 	ErrorHandler &eh, const TCHAR *descForErrors)
 {
-	return Load(pixWidth, pixHeight, [&drawingFunc](HDC hdc, HBITMAP)
+	return LoadDraw(pixWidth, pixHeight, [&drawingFunc](HDC hdc, HBITMAP)
 	{
 		// set up the Gdiplus context from the HDC
 		Gdiplus::Graphics g(hdc);
@@ -579,7 +609,7 @@ bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graph
 	}, eh, descForErrors);
 }
 
-bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
+bool Sprite::LoadDraw(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
 	ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// set up a bitmap and do the off-screen drawing
@@ -591,14 +621,14 @@ bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)>
 		drawingFunc(hdc, hbmp);
 
 		// load the sprite texture from the memory bitmap
-		ret = Load(bmi, dibits, eh, descForErrors);
+		ret = LoadDIB(bmi, dibits, eh, descForErrors);
 	});
 
 	// return the result
 	return ret;
 }
 
-bool Sprite::Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors)
+bool Sprite::LoadHBITMAP(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// get the size of the bitmap
 	BITMAP bm;
@@ -633,15 +663,15 @@ bool Sprite::Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descF
 	}
 
 	// load from the DI bits
-	return Load(bmi, pixels.get(), eh, descForErrors);
+	return LoadDIB(bmi, pixels.get(), eh, descForErrors);
 }
 
-bool Sprite::Load(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors)
+bool Sprite::LoadDIB(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors)
 {
-	return Load(dib.bmi, dib.dibits, eh, descForErrors);
+	return LoadDIB(dib.bmi, dib.dibits, eh, descForErrors);
 }
 
-bool Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
+bool Sprite::LoadDIB(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// load the bitmap
 	if (!CreateTextureFromBitmap(bmi, dibits, eh, descForErrors))
@@ -1000,20 +1030,4 @@ void Sprite::AdviseWindowSize(SIZE szLayout)
 		int pixHeight = (int)((float)szLayout.cy * loadSize.y * scale.y);
 		flashSite->SetLayoutSize({ pixWidth, pixHeight });
 	}
-}
-
-void Sprite::Clear()
-{
-	// clear the animation frame list
-	curAnimFrame = 0;
-	animFrames.clear();
-
-	// if we have a Flash site, release it
-	DetachFlash();
-
-	// release D3D resources
-	vertexBuffer = nullptr;
-	indexBuffer = nullptr;
-	texture = nullptr;
-	rv = nullptr;
 }

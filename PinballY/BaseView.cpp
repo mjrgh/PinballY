@@ -165,8 +165,8 @@ Sprite *BaseView::PrepInstructionCard(const TCHAR *filename)
 
 	// load the image at the calculated size
 	CapturingErrorHandler eh;
-	RefPtr<Sprite> sprite(new Sprite());
-	if (!sprite->Load(filename, normSize, pixSize, eh))
+	RefPtr<Sprite> sprite(Sprite::Load(filename, normSize, pixSize, eh));
+	if (sprite == nullptr)
 	{
 		// Load failed.  If the file is an SWF (Shockwave Flash), handle
 		// it with a special error in the main window, to give the user
@@ -262,8 +262,8 @@ void BaseView::OnEndOverlayVideo()
 
 void BaseView::AsyncSpriteLoader::AsyncLoad(
 	bool sta,
-	std::function<void(VideoSprite*)> load,
-	std::function<void(VideoSprite*)> done)
+	std::function<Sprite*()> load,
+	std::function<void(Sprite*)> done)
 {
 #if 1
 	// The asynchronous loading doesn't actually seem to make the
@@ -292,11 +292,8 @@ void BaseView::AsyncSpriteLoader::AsyncLoad(
 	// words, it already does what our async version does, so it
 	// doesn't improve matters further to add our own async-ness.)
 
-	// Create a sprite
-	RefPtr<VideoSprite> sprite(new VideoSprite());
-
-	// load it
-	load(sprite);
+	// create and load the sprite
+	RefPtr<Sprite> sprite(load());
 
 	// complete the loading
 	done(sprite);
@@ -337,15 +334,13 @@ BaseView::AsyncSpriteLoader::Thread::Thread(
 	bool sta,
 	AsyncSpriteLoader *loader,
 	std::function<void(VideoSprite*)> load,
-	std::function<void(VideoSprite*)> done)
-	: sta(sta), loader(loader), load(load), done(done)
+	std::function<void(VideoSprite*)> done) :
+	sta(sta), 
+	view(loader->view, RefCounted::DoAddRef),
+	loader(loader), 
+	load(load), 
+	done(done)
 {
-	// Explicitly initialize our reference on the containing view,
-	// so that we count the added reference.  DON'T use the 
-	// RefPtr constructor initializer form here, as that's for a 
-	// newly constructed object that already counts our reference.
-	// In this case we explicitly want to add an extra reference.
-	view = loader->view;
 }
 
 
@@ -435,8 +430,7 @@ void BaseView::DrawDropAreaList(POINT pt)
 {
 	// set up the drop feedback sprite
 	int width = szLayout.cx, height = szLayout.cy;
-	dropTargetSprite.Attach(new Sprite());
-	dropTargetSprite->Load(width, height, [this, pt, width, height](Gdiplus::Graphics &g)
+	dropTargetSprite.Attach(Sprite::Load(width, height, [this, pt, width, height](Gdiplus::Graphics &g)
 	{
 		// fill the window
 		Gdiplus::SolidBrush bkg(Gdiplus::Color(128, 0, 0, 0));
@@ -515,7 +509,7 @@ void BaseView::DrawDropAreaList(POINT pt)
 
 		}
 
-	}, Application::InUiErrorHandler(), _T("drop target sprite"));
+	}, Application::InUiErrorHandler(), _T("drop target sprite")));
 
 	// update the drawing list with the new sprite
 	UpdateDrawingList();
@@ -759,21 +753,21 @@ bool BaseView::LoadStartupVideo()
 		// windows that also have videos so that we can start them all at
 		// the same time, for closer synchronization in case we're showing
 		// a coordinated multi-screen "experience".
-		videoOverlay.Attach(new VideoSprite());
-		videoOverlay->alpha = 1.0f;
 		POINTF pos = { static_cast<float>(szLayout.cx)/static_cast<float>(szLayout.cy), 1.0f };
-		if (videoOverlay->LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading startup video"), false))
+		videoOverlay.Attach(VideoSprite::LoadVideo(startupVideo, hWnd, pos, LogFileErrorHandler(), _T("Loading startup video"), false));
+		if (videoOverlay != nullptr)
 		{
 			// success
 			found = true;
 			videoOverlayID = _T("Startup");
+			videoOverlay->alpha = 1.0f;
 
 			// the video sprite loops by default; we only want to play once
 			videoOverlay->GetVideoPlayer()->SetLooping(false);
-
-			// udpate the drawing list to include the video overlay sprite
-			UpdateDrawingList();
 		}
+
+		// udpate the drawing list to include the video overlay sprite
+		UpdateDrawingList();
 	}
 
 	// tell the caller whether or not we loaded a startup video
@@ -941,8 +935,6 @@ BaseView::JsDrawingLayer::JsDrawingLayer(double id, int zIndex) :
 	id(id),
 	zIndex(zIndex)
 {
-	// create a new sprite
-	sprite.Attach(new VideoSprite());
 }
 
 JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
@@ -958,9 +950,6 @@ JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
 	// Insert before this item, or at the end of the list
 	auto id = jsDrawingLayerNextID++;
 	jsDrawingLayers.emplace(it, id, zIndex);
-
-	// update the drawing list to incorporate the new sprite
-	UpdateDrawingList();
 
 	// Create the Javascript object to represent the new layer object.
 	// This is an object with our drawing layer prototype object as its
@@ -1022,11 +1011,8 @@ void BaseView::JsRemoveDrawingLayer(JavascriptEngine::JsObj obj)
 
 void BaseView::JsDrawingLayerClear(JsValueRef self, JsValueRef argb)
 {
-	// revert to a standard video sprite
-	DrawingLayerConvertSpriteType<VideoSprite>(self);
-
 	// get the layer from the 'self' object
-	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	if (auto sprite = JsThisToDrawingLayerSpriteRef(self); sprite != nullptr)
 	{
 		// clear the background
 		DrawingLayerClear(sprite, JsToGPColor(argb, 0x00));
@@ -1041,11 +1027,8 @@ void BaseView::JsDrawingLayerClear(JsValueRef self, JsValueRef argb)
 	}
 }
 
-void BaseView::DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb)
+void BaseView::DrawingLayerClear(RefPtr<Sprite> *sprite, Gdiplus::Color argb)
 {
-	// clear any prior video
-	sprite->Clear();
-
 	// Draw a blank background with the desired color.  Since we're using
 	// a fixed color for every pixel, the scaling is irrelevant, so use
 	// a small fixed size to minimize memory consumption.  (We could even
@@ -1057,35 +1040,21 @@ void BaseView::DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb)
 	// will all use the same amount of memory and CPU anyway.)
 	const int width = 32, height = 32;
 	Application::InUiErrorHandler eh;
-	sprite->Load(width, height, [argb, width, height, this](Gdiplus::Graphics &g)
+	sprite->Attach(Sprite::Load(width, height, [argb, width, height, this](Gdiplus::Graphics &g)
 	{
 		Gdiplus::SolidBrush bkg(argb);
 		g.FillRectangle(&bkg, 0, 0, width, height);
-	}, eh, _T("Launch overlay - default background"));
-}
+	}, eh, _T("Launch overlay - default background")));
 
-// Convert the sprite type in a drawing layer to the given type
-template<class SpriteType>
-void BaseView::DrawingLayerConvertSpriteType(JsValueRef self)
-{
-	if (auto layer = JsThisToDrawingLayer(self); layer != nullptr && dynamic_cast<SpriteType*>(layer->sprite.Get()) == nullptr)
-	{
-		layer->sprite.Attach(new SpriteType());
-		UpdateDrawingList();
-	}
+	// update the drawing list
+	UpdateDrawingList();
 }
 
 void BaseView::JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueRef widthArg, JsValueRef heightArg)
 {
-	// make sure we have a standard video sprite
-	DrawingLayerConvertSpriteType<VideoSprite>(self);
-
 	// get the layer from the 'self' object
-	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	if (auto sprite = JsThisToDrawingLayerSpriteRef(self); sprite != nullptr)
 	{
-		// clear previous resources in the sprite
-		sprite->Clear();
-
 		auto js = JavascriptEngine::Get();
 		try
 		{
@@ -1097,7 +1066,13 @@ void BaseView::JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueR
 			// the playfield view manages the Javascript drawing context - have
 			// it do the drawing
 			if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			{
+				// do the drawing
 				pfv->JsDraw(sprite, width, height, drawFunc);
+
+				// that created a new sprite - update the sprite list
+				UpdateDrawingList();
+			}
 
 			// if we're frozen in the background, force a refresh
 			if (freezeBackgroundRendering && !Application::IsInForeground())
@@ -1116,15 +1091,9 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 	// presume failure
 	bool ok = false;
 
-	// make sure we have a standard video sprite
-	DrawingLayerConvertSpriteType<VideoSprite>(self);
-
 	// get the layer from the 'self' object
-	if (auto sprite = JsThisToDrawingLayerSprite(self); sprite != nullptr)
+	if (auto sprite = JsThisToDrawingLayerSpriteRef(self); sprite != nullptr)
 	{
-		// clear old resources from the sprite
-		sprite->Clear();
-
 		// if we can't get the image size, load at the window size
 		SIZE sz { NormalizedWidth(), 1920 };
 
@@ -1134,9 +1103,12 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 			sz = desc.size;
 
 		// load the image
-		ok = sprite->Load(WSTRINGToTSTRING(filename).c_str(),
-			POINTF{ static_cast<float>(sz.cx)/1920.f, static_cast<float>(sz.cy)/1920.f }, sz,
-			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
+		sprite->Attach(Sprite::Load(WSTRINGToTSTRING(filename).c_str(),
+			POINTF{ static_cast<float>(sz.cx) / 1920.f, static_cast<float>(sz.cy) / 1920.f }, sz,
+			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: "))));
+
+		// update the drawing list for the new sprite
+		UpdateDrawingList();
 
 		// rescale the drawing layer for the new image
 		if (auto layer = JsThisToDrawingLayer(self); layer != nullptr)
@@ -1179,23 +1151,22 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 		js->Throw(exc.jsErrorCode, _T("DrawingLayer.loadVideo()"));
 	}
 
-	// make sure we have a standard video sprite
-	DrawingLayerConvertSpriteType<VideoSprite>(self);
-
-	// Get the sprite from the 'self' object.  The sprite has to be
-	// a video sprite to use this function.
-	if (auto sprite = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); sprite != nullptr)
+	// get the sprite reference container
+	if (auto sprite = JsThisToDrawingLayerSpriteRef(self); sprite != nullptr)
 	{
 		// load the video
 		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
 		LogFileErrorHandler eh;
-		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, POINTF{ width, 1.0f },
+		VideoSprite *vs = VideoSprite::LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, POINTF{ width, 1.0f },
 			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), loop, vol);
 
+		// set the new sprite in the layer
+		sprite->Attach(vs);
+
 		// set options
-		if (ok)
+		if (vs != nullptr)
 		{
-			if (auto player = sprite->GetVideoPlayer(); player != nullptr)
+			if (auto player = vs->GetVideoPlayer(); player != nullptr)
 			{
 				player->SetLooping(loop);
 				player->Mute(mute);
@@ -1383,7 +1354,13 @@ void BaseView::JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING a
 	}
 }
 
-Sprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
+Sprite* BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
+{
+	auto r = const_cast<BaseView*>(this)->JsThisToDrawingLayerSpriteRef(self);
+	return r != nullptr ? r->Get() : nullptr;
+}
+
+RefPtr<Sprite>* BaseView::JsThisToDrawingLayerSpriteRef(JsValueRef self)
 {
 	// get the ID from the object
 	auto js = JavascriptEngine::Get();
@@ -1399,7 +1376,7 @@ Sprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
 	for (auto &it : jsDrawingLayers)
 	{
 		if (it.id == id)
-			return it.sprite;
+			return it.sprite.RefPtrAddr();
 	}
 
 	// not found

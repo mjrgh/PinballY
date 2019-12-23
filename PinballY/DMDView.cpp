@@ -1006,15 +1006,16 @@ bool DMDView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	// of going directly to a replay of the video.  If a game is
 	// currently running, skip the score display and just loop the
 	// video - we suppress score display while running.
+	auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get());
 	if (msg == AVPMsgLoopNeeded 
 		&& highScoreImages.size() != 0 
 		&& !Application::Get()->IsGameActive()
-		&& currentBackground.sprite != nullptr
-		&& currentBackground.sprite->IsVideo()
-		&& currentBackground.sprite->GetVideoPlayerCookie() == wParam)
+		&& cvs != nullptr
+		&& cvs->IsVideo()
+		&& cvs->GetVideoPlayerCookie() == wParam)
 	{
 		// stop the video
-		currentBackground.sprite->GetVideoPlayer()->Stop(SilentErrorHandler());
+		cvs->GetVideoPlayer()->Stop(SilentErrorHandler());
 
 		// start the high score slideshow
 		StartHighScorePlayback();
@@ -1032,8 +1033,9 @@ void DMDView::StartHighScorePlayback()
 	if (highScoreImages.size() != 0)
 	{
 		// if a video is playing, stop it
-		if (currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
-			currentBackground.sprite->GetVideoPlayer()->Stop(SilentErrorHandler());
+		auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get());
+		if (cvs != nullptr && cvs->IsVideo())
+			cvs->GetVideoPlayer()->Stop(SilentErrorHandler());
 
 		// start at the first high score image
 		highScorePos = highScoreImages.begin();
@@ -1055,7 +1057,7 @@ bool DMDView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, timer);
 
 		// check if the background is a video
-		if (currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
+		if (auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get()); cvs != nullptr && cvs->IsVideo())
 		{
 			// It's a video, so ignore the timer message.  We coordinate the
 			// slide show timing with the video loop cycle instead.
@@ -1090,10 +1092,10 @@ bool DMDView::OnTimer(WPARAM timer, LPARAM callback)
 		else
 		{
 			// if we have a video start, restart playback
-			if (currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
+			if (auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get()); cvs != nullptr && cvs->IsVideo())
 			{
 				// restart playback
-				currentBackground.sprite->GetVideoPlayer()->Replay(SilentErrorHandler());
+				cvs->GetVideoPlayer()->Replay(SilentErrorHandler());
 			}
 			else
 			{
@@ -1157,8 +1159,9 @@ void DMDView::BeginRunningGameMode(GameListItem *game, GameSystem *system, bool 
 		// If a high score image is currently being displayed, and we have a
 		// video, the video is currently stopped while showing high scores.
 		// Restart the video.
-		if (highScorePos != highScoreImages.end() && currentBackground.sprite != nullptr && currentBackground.sprite->IsVideo())
-			currentBackground.sprite->GetVideoPlayer()->Replay(SilentErrorHandler());
+		if (auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get());
+			highScorePos != highScoreImages.end() && cvs != nullptr && cvs->IsVideo())
+			cvs->GetVideoPlayer()->Replay(SilentErrorHandler());
 
 		// go to the end of the high score rotation
 		highScorePos = highScoreImages.end();

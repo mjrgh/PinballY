@@ -116,9 +116,12 @@ protected:
 		AsyncSpriteLoader(BaseView *view) : view(view) { }
 
 		// Load a sprite asynchronously.  This starts a new thread that
-		// creates a new VideoSprite object and invoke the 'load' callback.
-		// If a previous sprite load is already in progress, we abandon it:
-		// the old sprite is harmlessly discarded once it finished loading.
+		// invokes the 'load' callback.  The load callback creates and
+		// loads a new VideoSprite object, returning it to the caller.
+		// We then invoke the 'done' callback.
+		//
+		// If a previous sprite load is already in progress, we abandon it.
+		// The old sprite is harmlessly discarded once it finished loading.
 		// 
 		// The load callback must be thread-safe, as it runs in a separate
 		// background thread.  The easiest way to accomplish this is to keep
@@ -136,8 +139,7 @@ protected:
 		// any local variables in the enclosing scope if you're using
 		// lambdas as the callbacks.  Captured references to locals become
 		// invalid when the local scope exits, which it surely will in the
-		// case of threaded calls to these callbacks.  C++ is no Javascript
-		// on this count.
+		// case of threaded calls to these callbacks.
 		//
 		// 'sta' is true if the sprite requires OLE "single-threaded
 		// apartment" initialization on the thread.  If this is false, we 
@@ -148,8 +150,8 @@ protected:
 		//
 		void AsyncLoad(
 			bool sta,
-			std::function<void(VideoSprite*)> load,
-			std::function<void(VideoSprite*)> done);
+			std::function<Sprite*()> load,
+			std::function<void(Sprite*)> done);
 
 	protected:
 		// containing view
@@ -162,8 +164,8 @@ protected:
 			Thread(
 				bool sta,
 				AsyncSpriteLoader *loader,
-				std::function<void(VideoSprite*)> load,
-				std::function<void(VideoSprite*)> done);
+				std::function<Sprite*()> load,
+				std::function<void(Sprite*)> done);
 
 			// static thread entrypoint
 			static DWORD CALLBACK ThreadMain(LPVOID param)
@@ -434,10 +436,7 @@ protected:
 	Gdiplus::Color JsToGPColor(JsValueRef val, BYTE defaultAlpha);
 
 	// clear a drawing layer with the specified color
-	void DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb);
-
-	// convert a drawing layer to the given sprite type
-	template<class SpriteType> void DrawingLayerConvertSpriteType(JsValueRef self);
+	void DrawingLayerClear(RefPtr<Sprite> *sprite, Gdiplus::Color argb);
 
 	// For the JsDrawingLayerXxx methods, get the VideoSprite object
 	// corresponding to the layer in the Javscript 'this' parameter.
@@ -447,7 +446,8 @@ protected:
 	// The base class implementation searches the drawing layer list.
 	// Subclasses can use this to give Javascript access to other
 	// sprites through the same drawing interface.
-	virtual Sprite *JsThisToDrawingLayerSprite(JsValueRef self) const;
+	virtual RefPtr<Sprite>* JsThisToDrawingLayerSpriteRef(JsValueRef self);
+	Sprite *JsThisToDrawingLayerSprite(JsValueRef self) const;
 
 	// Get the JsDrawingLayer control object for the Javascript 'this'
 	// parameter to a JsDrawingLayerXxx method.

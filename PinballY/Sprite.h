@@ -24,6 +24,27 @@
 //
 // - Invoke Render() to draw the mesh
 //
+//
+// Creating a sprite:  Sprites are immutable.  Once loaded with an
+// image file, bitmap, etc, a sprite can't be reloaded with new
+// media.  To emphasize this in the API, all sprite creation is
+// done through static Load() methods that create a new sprite
+// object loaded with the requested media.
+//
+// (The main technical reason we chose to make sprites immutable
+// is that it simplifies resource management, especially for
+// asynchronous operations.  Asynchronous loading in particular
+// is desirable because some media types take a while to load.
+// If an existing sprite object could be re-loaded with different
+// media, an asynchronous loading operation could become stale
+// before it was completed, so we'd have to create a mechanism
+// to detect that.  Immutability makes this simple: if a caller
+// wants to replace a partially loaded sprite, the caller simply
+// discards the sprite and creates a new one.  The old sprite
+// will continue to load in the background but will then be
+// automatically discarded when the loader thread finishes and
+// releases its reference, which is presumably the last ref on
+// the object, given that the client has discarded its ref.)
 
 #pragma once
 #include "D3D.h"
@@ -36,8 +57,6 @@ struct DIBitmap;
 class Sprite: public RefCounted
 {
 public:
-	Sprite();
-
 	// Load a texture file.  The normalized size is in terms of our
 	// normalized screen dimensions, where 1.0 is the window height;
 	// this is used for the layout of the 3D mesh object.  The pixel
@@ -45,48 +64,22 @@ public:
 	// graphic media (e.g., Flash objects).  It's ignored for raster
 	// images (e.g., JPEG, PNG), which are loaded at the native size
 	// for the media.
-	bool Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
-
-	// Load from a Shockwave Flash file.  The regular Load(filename,...)
-	// method calls this when it detects Flash content, so you don't have
-	// to call this explicitly unless you know for certain that a file 
-	// contains Flash data and doesn't need to be checked for other 
-	// content types.
-	bool LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
-
-	// Load a GIF image file.  The regular Load(filename,...) method calls
-	// this when it detects GIF contents, so you don't have to call this
-	// explicitly unless you already know that a file contains GIF data,
-	// in which case you can skip the content detection.  This routine
-	// automatically detects animated GIF files and loads the animation
-	// frame set.
-	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
-
-	// Load a texture from an image file using WIC.  This does a direct
-	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
-	// but doesn't have support for orientation metadata or multi-frame
-	// animated GIFs.
-	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
-
-	// Load from an HBITMAP
-	bool Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors);
-
-	// load from a device-independent bitmap pixel array
-	bool Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
-	bool Load(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors);
-
+	static Sprite *Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
 
 	// Load by drawing into an off-screen HDC.  This allows dynamic content
 	// to be created via GDI or GDI+ and then displayed through a sprite.
 	// The off-screen bitmap for drawing is created with the given pixel
 	// width and height; we scale the sprite to our normalized screen 
 	// dimensions (1920-pixel screen height).
-	bool Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
+	static Sprite *Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
 		ErrorHandler &eh, const TCHAR *descForErrors);
 
 	// Load by drawing into an off-screen Gdiplus::Graphics contxt
-	bool Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics &g)> drawingFunc,
+	static Sprite *Load(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics &g)> drawingFunc,
 		ErrorHandler &eh, const TCHAR *descForErrors);
+
+	// Load from a DIB (device-independent bitmap)
+	static Sprite *Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
 
 	// Render the sprite
 	virtual void Render(Camera *camera);
@@ -136,12 +129,61 @@ public:
 	// re-create the mesh
 	void ReCreateMesh();
 
-	// Clear the sprite.  This frees any exeternal resources currently 
-	// in use, such as video playback streams.
-	virtual void Clear();
-
 protected:
+	// create by loading
+	Sprite();
+
+	// ref counted -> delete by releasing references
 	virtual ~Sprite();
+
+	// Load a texture file.  The normalized size is in terms of our
+	// normalized screen dimensions, where 1.0 is the window height;
+	// this is used for the layout of the 3D mesh object.  The pixel
+	// size is used to determine the rasterization size for vector 
+	// graphic media (e.g., Flash objects).  It's ignored for raster
+	// images (e.g., JPEG, PNG), which are loaded at the native size
+	// for the media.
+	bool LoadImage(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load from a Shockwave Flash file.  The regular Load(filename,...)
+	// method calls this when it detects Flash content, so you don't have
+	// to call this explicitly unless you know for certain that a file 
+	// contains Flash data and doesn't need to be checked for other 
+	// content types.
+	bool LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a GIF image file.  The regular Load(filename,...) method calls
+	// this when it detects GIF contents, so you don't have to call this
+	// explicitly unless you already know that a file contains GIF data,
+	// in which case you can skip the content detection.  This routine
+	// automatically detects animated GIF files and loads the animation
+	// frame set.
+	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a texture from an image file using WIC.  This does a direct
+	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
+	// but doesn't have support for orientation metadata or multi-frame
+	// animated GIFs.
+	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
+
+	// Load from an HBITMAP
+	bool LoadHBITMAP(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors);
+
+	// load from a device-independent bitmap pixel array
+	bool LoadDIB(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
+	bool LoadDIB(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors);
+
+	// Load by drawing into an off-screen HDC.  This allows dynamic content
+	// to be created via GDI or GDI+ and then displayed through a sprite.
+	// The off-screen bitmap for drawing is created with the given pixel
+	// width and height; we scale the sprite to our normalized screen 
+	// dimensions (1920-pixel screen height).
+	bool LoadDraw(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)> drawingFunc,
+		ErrorHandler &eh, const TCHAR *descForErrors);
+
+	// Load by drawing into an off-screen Gdiplus::Graphics contxt
+	bool LoadDraw(int pixWidth, int pixHeight, std::function<void(Gdiplus::Graphics &g)> drawingFunc,
+		ErrorHandler &eh, const TCHAR *descForErrors);
 
 	// detach the Flash object, if present
 	void DetachFlash();

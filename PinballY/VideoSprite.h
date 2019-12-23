@@ -15,20 +15,10 @@ class Camera;
 class VideoSprite : public Sprite
 {
 public:
-	VideoSprite();
-
-	// Load a video.  'width' and 'height' give the size of the sprite
-	// in our normalized coordinates, where 1.0 is the height of the
-	// window.
-	bool LoadVideo(const TSTRING &filename, HWND hwnd, POINTF normalizedSize, 
-		ErrorHandler &eh, const TCHAR *descForErrors, 
+	// load a new video sprite
+	static VideoSprite *LoadVideo(const TSTRING &filename, HWND hwnd,
+		POINTF normalizedSize, ErrorHandler &eh, const TCHAR *descForErrors,
 		bool play = true, int volumePct = 100);
-
-	// Clear resources
-	virtual void Clear() override;
-
-	// Clear the video
-	void ClearVideo() { ReleaseVideoPlayer(); }
 
 	// Render the video
 	virtual void Render(Camera *camera) override;
@@ -44,7 +34,18 @@ public:
 		{ return videoPlayer != nullptr ? videoPlayer->GetCookie() : 0; }
 
 protected:
+	// create through static LoadVideo() method
+	VideoSprite();
+
+	// delete through RefPtr release
 	virtual ~VideoSprite();
+
+	// Load a video.  'width' and 'height' give the size of the sprite
+	// in our normalized coordinates, where 1.0 is the height of the
+	// window.
+	bool _LoadVideo(const TSTRING &filename, HWND hwnd, POINTF normalizedSize,
+		ErrorHandler &eh, const TCHAR *descForErrors,
+		bool play = true, int volumePct = 100);
 
 	// Release the video player.  This should be called whenever the
 	// video player pointer is about to be changed, since it ensures

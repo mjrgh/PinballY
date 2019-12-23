@@ -92,7 +92,18 @@ void VideoSprite::ReleaseVideoPlayer()
 	}
 }
 
-bool VideoSprite::LoadVideo(
+VideoSprite *VideoSprite::LoadVideo(const TSTRING &filename, HWND hwnd,
+	POINTF normalizedSize, ErrorHandler &eh, const TCHAR *descForErrors,
+	bool play, int volumePct)
+{
+	RefPtr<VideoSprite> vs(new VideoSprite());
+	if (vs->_LoadVideo(filename, hwnd, normalizedSize, eh, descForErrors, play, volumePct))
+		return vs.Detach();
+
+	return nullptr;
+}
+
+bool VideoSprite::_LoadVideo(
 	const TSTRING &filename, HWND hwnd, POINTF sz,
 	ErrorHandler &eh, const TCHAR *descForErrors,
 	bool play, int volumePct)
@@ -163,8 +174,3 @@ void VideoSprite::Render(Camera *camera)
 	__super::Render(camera);
 }
 
-void VideoSprite::Clear()
-{
-	ClearVideo();
-	__super::Clear();
-}

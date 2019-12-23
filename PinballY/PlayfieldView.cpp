@@ -365,7 +365,7 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 		// game is running, as the game owns the DMD device for the
 		// duration of the run; we'll reattach if appropriate when
 		// the game exits and we take over the UI again.
-		if (runningGameMsgPopup == nullptr)
+		if (runningGameMode == RunningGameMode::None)
 		{
 			// shut down any existing DMD session
 			if (realDMD != nullptr)
@@ -4621,9 +4621,8 @@ void PlayfieldView::ShowAboutBox()
     std::unique_ptr<Gdiplus::Bitmap> bkg(GPBitmapFromPNG(IDB_ABOUTBOX));
 	
 	// create the sprite
-	popupSprite.Attach(new Sprite());
     Application::InUiErrorHandler eh;
-	bool ok = popupSprite->Load(bkg->GetWidth(), bkg->GetHeight(), [&bkg, this](HDC hdc, HBITMAP bmp)
+	popupSprite.Attach(Sprite::Load(bkg->GetWidth(), bkg->GetHeight(), [&bkg, this](HDC hdc, HBITMAP bmp)
 	{
 		// set up GDI+ on the memory DC
 		Gdiplus::Graphics g(hdc);
@@ -4701,13 +4700,18 @@ void PlayfieldView::ShowAboutBox()
 		// flush our drawing to the pixel buffer
 		g.Flush();
 
-	}, eh, _T("About Box"));
+	}, eh, _T("About Box")));
+
+	// add the sprite to the drawing list
+	UpdateDrawingList();
 
 	// open the popup, positioning it in the upper half of the screen
-	popupSprite->offset.y = .2f;
-	popupSprite->UpdateWorld();
-	StartPopupAnimation(PopupAboutBox, popupName, true);
-	UpdateDrawingList();
+	if (popupSprite != nullptr)
+	{
+		popupSprite->offset.y = .2f;
+		popupSprite->UpdateWorld();
+		StartPopupAnimation(PopupAboutBox, popupName, true);
+	}
 }
 
 void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, int systemIndex)
@@ -5110,7 +5114,7 @@ void PlayfieldView::ResetGameTimeout()
 	// If a game is running, and the timeout interval is non-zero, set 
 	// the timer.  This replaces any previous timer, so it effectively 
 	// resets the interval if a timer was already set.
-	if (runningGameMsgPopup != nullptr && gameTimeout != 0)
+	if (runningGameMode != RunningGameMode::None && gameTimeout != 0)
 		SetTimer(hWnd, gameTimeoutTimerID, gameTimeout, NULL);
 }
 
@@ -5236,10 +5240,13 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 	{
 		// If we're displaying the card in another window, we still
 		// need to display a fake popup in our own window so that we
-		// act like we're in popup mode as long a the card is up. 
+		// act like we're in popup mode as long as the card is up. 
 		// Just set up a blank sprite.
 		if (!displayHere)
-			popupSprite.Attach(new Sprite());
+		{
+			popupSprite.Attach(Sprite::Load(16, 16, [](HDC, HBITMAP) {},
+				SilentErrorHandler(), _T("instruction card popup placeholder")));
+		}
 
 		// remember which card we're showing (there might be more than one)
 		instCardPage = cardNumber;
@@ -5309,11 +5316,11 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 
 	// load the image at the calculated size
     Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(flyer->c_str(), normalizedSize, pixSize, eh))
+	popupSprite.Attach(Sprite::Load(flyer->c_str(), normalizedSize, pixSize, eh));
+	UpdateDrawingList();
+
+	if (popupSprite == nullptr)
 	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
 		ShowQueuedError();
 		return;
 	}
@@ -5323,9 +5330,6 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 
 	// if we're switching to flyer mode, animate the popup
 	StartPopupAnimation(PopupFlyer, popupName, true);
-
-	// put the new sprite in the drawing list
-	UpdateDrawingList();
 
 	// Signal a Flyer event in DOF
 	QueueDOFPulse(L"PBYFlyer");
@@ -5371,8 +5375,7 @@ void PlayfieldView::UpdateRateGameDialog()
 	// set up the info box
 	const int width = 600, height = 480;
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(width, height, [gl, game, this, width, height](HDC hdc, HBITMAP)
+	popupSprite.Attach(Sprite::Load(width, height, [gl, game, this, width, height](HDC hdc, HBITMAP)
 	{
 		// set up a GDI+ drawing context
 		Gdiplus::Graphics g(hdc);
@@ -5454,21 +5457,18 @@ void PlayfieldView::UpdateRateGameDialog()
 		// flush GDI+ drawing to the bitmap
 		g.Flush();
 
-	}, eh, _T("Rate Game Dialog")))
-	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
+	}, eh, _T("Rate Game Dialog")));
+	UpdateDrawingList();
+
+	// abort if we couldn't create the sprite
+	if (popupSprite == nullptr)
 		return;
-	}
 
 	// adjust it to the canonical popup position
 	AdjustSpritePosition(popupSprite);
 
 	// if we're switching to flyer mode, animate the popup
 	StartPopupAnimation(PopupRateGame, popupName, true);
-
-	// put the new sprite in the drawing list
-	UpdateDrawingList();
 }
 
 TSTRING PlayfieldView::StarsAsText(float rating)
@@ -5644,22 +5644,18 @@ void PlayfieldView::UpdateAudioVolumeDialog()
 
 	// draw it for real
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(width, height, Draw, eh, _T("Game Audio Volume Dialog")))
-	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
+	popupSprite.Attach(Sprite::Load(width, height, Draw, eh, _T("Game Audio Volume Dialog")));
+	UpdateDrawingList();
+
+	// abort if we couldn't create the sprite
+	if (popupSprite == nullptr)
 		return;
-	}
 
 	// adjust it to the canonical popup position
 	AdjustSpritePosition(popupSprite);
 
 	// if we're switching to flyer mode, animate the popup
 	StartPopupAnimation(PopupGameAudioVolume, popupName, true);
-
-	// put the new sprite in the drawing list
-	UpdateDrawingList();
 }
 
 void PlayfieldView::AdjustWorkingAudioVolume(int delta)
@@ -5682,12 +5678,12 @@ void PlayfieldView::ApplyWorkingAudioVolume()
 	int vol = workingAudioVolume * Application::Get()->GetVideoVolume() / 100;
 
 	// update our video sprites
-	auto Update = [vol](GameMedia<VideoSprite> &media)
+	auto Update = [vol](GameMedia<Sprite> &media)
 	{
 		// update its video player, if it has one
-		if (media.sprite != nullptr && media.sprite->IsVideo())
+		if (auto vs = dynamic_cast<VideoSprite*>(media.sprite.Get()); vs != nullptr && vs->IsVideo())
 		{
-			if (auto vp = media.sprite->GetVideoPlayer(); vp != nullptr)
+			if (auto vp = vs->GetVideoPlayer(); vp != nullptr)
 				vp->SetVolume(vol);
 		}
 
@@ -5879,23 +5875,23 @@ void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
 		}
 
 		// create the sprite
-		popupSprite.Attach(new Sprite());
-		popupSprite->Load(pixWidth, pixHeight, Draw, SilentErrorHandler(), _T("jsShowPopup"));
-
-		// set the canonical popup position
-		AdjustSpritePosition(popupSprite);
-
-		// if an explicit position was specified, apply it
-		if (xOfs >= 0)
-			popupSprite->offset.x = xOfs;
-		if (yOfs >= 0)
-			popupSprite->offset.y = yOfs;
-
-		// show the popup
-		StartPopupAnimation(PopupUserDefined, id.c_str(), true);
-
-		// put the new sprite in the drawing list
+		popupSprite.Attach(Sprite::Load(pixWidth, pixHeight, Draw, SilentErrorHandler(), _T("jsShowPopup")));
 		UpdateDrawingList();
+
+		if (popupSprite != nullptr)
+		{
+			// set the canonical popup position
+			AdjustSpritePosition(popupSprite);
+
+			// if an explicit position was specified, apply it
+			if (xOfs >= 0)
+				popupSprite->offset.x = xOfs;
+			if (yOfs >= 0)
+				popupSprite->offset.y = yOfs;
+
+			// show the popup
+			StartPopupAnimation(PopupUserDefined, id.c_str(), true);
+		}
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
@@ -6788,11 +6784,12 @@ void PlayfieldView::ShowGameInfo()
 
 	// Set up the info box at the computed height
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(width, height, Draw, eh, _T("Game Info box")))
+	popupSprite.Attach(Sprite::Load(width, height, Draw, eh, _T("Game Info box")));
+	UpdateDrawingList();
+
+	// check for failure
+	if (popupSprite == nullptr)
 	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
 		ShowQueuedError();
 		return;
 	}
@@ -6808,9 +6805,6 @@ void PlayfieldView::ShowGameInfo()
 		{ PopupNone }
 	};
 	StartPopupAnimation(PopupGameInfo, popupName, true, replaceTypes);
-
-	// put the new sprite in the drawing list
-	UpdateDrawingList();
 
 	// Signal a Game Information event in DOF
 	QueueDOFPulse(L"PBYGameInfo");
@@ -6915,7 +6909,7 @@ void PlayfieldView::ShowHighScores()
 
 	// If there's a game info popup currently showing, we must be switching
 	// "pages" between game info and high scores, so use the height of the
-	// existing popup as the minimum for the new popup.  This makes for a
+	// existing popup as the minimum for the new popup.  This makes for w 
 	// slightly smoother presentation if we're switching back and forth
 	// between the two, by keeping the outline size the same and just
 	// updating the contents, like two pages of a multi-tab dialog.
@@ -6925,11 +6919,12 @@ void PlayfieldView::ShowHighScores()
 	// Now create the sprite and draw it for real at the final height
 	++pass;
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(width, height, Draw, eh, _T("High Scores box")))
+	popupSprite.Attach(Sprite::Load(width, height, Draw, eh, _T("High Scores box")));
+	UpdateDrawingList();
+
+	// abort on error
+	if (popupSprite == nullptr)
 	{
-		popupSprite = 0;
-		UpdateDrawingList();
 		ShowQueuedError();
 		return;
 	}
@@ -7456,13 +7451,11 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// video over from the beginning, so it's nicer to leave it running
 	// uninterrupted.
 	bool isSameVideo = false;
-	if (videosEnabled
-		&& incomingPlayfield.sprite == nullptr
-		&& currentPlayfield.sprite != nullptr
-		&& currentPlayfield.sprite->GetVideoPlayer() != nullptr)
+	if (auto cvs = dynamic_cast<VideoSprite*>(currentPlayfield.sprite.Get());
+		videosEnabled && incomingPlayfield.sprite == nullptr && cvs != nullptr && cvs->GetVideoPlayer() != nullptr)
 	{
 		// get the current video path
-		if (const TCHAR *oldPath = currentPlayfield.sprite->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
+		if (const TCHAR *oldPath = cvs->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
 		{
 			// figure out which new video we're going to use
 			const TCHAR *newPath = nullptr;
@@ -7486,20 +7479,15 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		// Asynchronous loader function
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
+		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct]()
 		{
-			// nothing loaded yet
-			bool ok = false;
-
-			// initialize it to fully transparent so we can cross-fade into it
-			sprite->alpha = 0;
+			RefPtr<Sprite> sprite;
 
 			// First try loading a playfield video.  Load it at the full window
 			// height (1.0) and width.  We'll scale the video when we get its format.
 			Application::AsyncErrorHandler eh;
-			if (video.length() != 0
-				&& sprite->LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video"), true, volumePct))
-				ok = true;
+			if (video.length() != 0)
+				sprite.Attach(VideoSprite::LoadVideo(video, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Video"), true, volumePct));
 
 			// If there's no video, try a static image
 			auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
@@ -7518,34 +7506,49 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 				SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
 
 				// load the image into a new sprite
-				return sprite->Load(path, normSize, pixSize, eh);
+				sprite.Attach(Sprite::Load(path, normSize, pixSize, eh));
 			};
-			if (!ok && image.length() != 0)
-				ok = LoadImage(image.c_str());
+			if (sprite == nullptr && image.length() != 0)
+				LoadImage(image.c_str());
 
 			// if we didn't find any media to load, and videos are enabled, try the
 			// default playfield video
 			TCHAR defaultVideo[MAX_PATH];
-			if (!ok && videosEnabled && GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
-				ok = sprite->LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f }, eh, _T("Playfield Default Video"), true, volumePct);
+			if (sprite == nullptr
+				&& videosEnabled
+				&& GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
+			{
+				sprite.Attach(VideoSprite::LoadVideo(defaultVideo, hWnd, { 1.0f, 1.0f },
+					eh, _T("Playfield Default Video"), true, volumePct));
+			}
 
 			// if we *still* didn't find anything, try the default playfield image
 			TCHAR defaultImage[MAX_PATH];
-			if (!ok && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
-				ok = LoadImage(defaultImage);
+			if (sprite == nullptr && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
+				LoadImage(defaultImage);
 
-			// HyperPin/PBX playfield images are oriented sideways, with the bottom at
-			// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
-			// The actual display will of course orient it according to the camera
-			// view, but it makes things easier to think about if we orient all
-			// graphics the "normal" way internally.  (Note that CCW is positive on
-			// the Z axis, since D3D coordinates are left-handed.)
-			sprite->rotation.z = XM_PI / 2.0f;
-			sprite->UpdateWorld();
+			// if we finally loaded a sprite, set it up
+			if (sprite != nullptr)
+			{
+				// HyperPin/PBX playfield images are oriented sideways, with the bottom at
+				// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
+				// The actual display will of course orient it according to the camera
+				// view, but it makes things easier to think about if we orient all
+				// graphics the "normal" way internally.  (Note that CCW is positive on
+				// the Z axis, since D3D coordinates are left-handed.)
+				sprite->rotation.z = XM_PI / 2.0f;
+				sprite->UpdateWorld();
+
+				// initialize it to fully transparent so we can cross-fade into it
+				sprite->alpha = 0;
+			}
+
+			// return the sprite
+			return sprite.Detach();
 		};
 
 		// Asynchronous loader completion
-		auto done = [this](VideoSprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
+		auto done = [this](Sprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
 
 		// Kick off the asynchronous load
 		playfieldLoader.AsyncLoad(false, load, done);
@@ -7739,10 +7742,6 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	// save the options in the incoming underlay structure
 	incomingUnderlay.options = *options;
 
-	// create the sprite
-	incomingUnderlay.sprite.Attach(new Sprite());
-	UpdateDrawingList();
-
 	// figure the normalized sprite size
 	POINTF normSize;
 	SizeUnderlay(incomingUnderlay, &normSize);
@@ -7755,15 +7754,17 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	{
 		// load the image at its native size
 		Application::InUiErrorHandler eh;
-		if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, eh))
-		{
-			incomingUnderlay.Clear();
-			UpdateDrawingList();
+		incomingUnderlay.sprite.Attach(Sprite::Load(filename, normSize, incomingUnderlay.pixSize, eh));
+		UpdateDrawingList();
+
+		// abort if we didn't create the sprite
+		if (incomingUnderlay.sprite == nullptr)
 			return false;
-		}
 	}
+
 	// set the alpha for the start of the fade process
-	incomingUnderlay.sprite->alpha = alpha;
+	if (incomingUnderlay.sprite != nullptr)
+		incomingUnderlay.sprite->alpha = alpha;
 
 	// set the outgoing alpha for the opposite end of the fade
 	if (currentUnderlay.sprite != nullptr)
@@ -7898,7 +7899,7 @@ void PlayfieldView::MuteTableAudio(bool mute)
 		currentPlayfield.audio->Mute(mute);
 }
 
-void PlayfieldView::IncomingPlayfieldMediaDone(VideoSprite *sprite)
+void PlayfieldView::IncomingPlayfieldMediaDone(Sprite *sprite)
 {
 	// set the new sprite
 	incomingPlayfield.sprite = sprite;
@@ -7910,7 +7911,8 @@ void PlayfieldView::IncomingPlayfieldMediaDone(VideoSprite *sprite)
 	// Start the cross-fade.  Exception: if there's a video, and it hasn't 
 	// started playing yet, defer the cross-fade until we get notification
 	// that playback has started.
-	if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
+	auto vs = dynamic_cast<VideoSprite*>(sprite);
+	if (vs == nullptr || vs->GetVideoPlayer() == nullptr || vs->GetVideoPlayer()->IsFrameReady())
 		StartPlayfieldCrossfade();
 }
 
@@ -7921,14 +7923,15 @@ void PlayfieldView::OnEnableVideos(bool enable)
 	// have a video currently showing.  If video is becoming enabled, reload
 	// under all circumstances.
 	bool reload = false;
-	auto Check = [enable, &reload](GameMedia<VideoSprite> &item)
+	auto Check = [enable, &reload](GameMedia<Sprite> &item)
 	{
 		// we only need to reload this item if it has a sprite loaded
 		if (item.sprite != nullptr)
 		{
 			// reload the item if we're newly enabling video, or the item
 			// is currently showing a video
-			if (enable || item.sprite->GetVideoPlayer() != nullptr)
+			auto vs = dynamic_cast<VideoSprite*>(item.sprite.Get());
+			if (enable || (vs != nullptr && vs->GetVideoPlayer() != nullptr))
 			{
 				// enabling - reload unconditionally
 				item.Clear();
@@ -7950,15 +7953,10 @@ void PlayfieldView::OnEnableVideos(bool enable)
 
 Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 {
-	// create the sprite
-	Sprite *sprite = new Sprite();
-
-	// set the current wheel alpha, in case we're in a fade
-	sprite->alpha = wheelAlpha;
+	RefPtr<Sprite> sprite;
 
 	// get the path for the wheel image
 	TSTRING path;
-	bool ok = false;
     Application::InUiErrorHandler eh;
 	if (IsGameValid(game) && game->GetMediaItem(path, GameListItem::wheelImageType))
 	{
@@ -7983,15 +7981,15 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 		SIZE pixSize = { (int)(width * szLayout.cx), (int)(height * szLayout.cy) };
 
 		// Load the image
-		ok = sprite->Load(path.c_str(), normSize, pixSize, eh);
+		sprite.Attach(Sprite::Load(path.c_str(), normSize, pixSize, eh));
 	}
 
 	// if we didn't load a sprite, synthesize a default image
-	if (!ok)
+	if (sprite == nullptr)
 	{
 		// synthesize a default image based on the table title
 		int width = 844, height = 240;
-		sprite->Load(width, height, [this, game, width, height](HDC hdc, HBITMAP)
+		sprite.Attach(Sprite::Load(width, height, [this, game, width, height](HDC hdc, HBITMAP)
 		{
 			// get the title string
 			TSTRINGEx title;
@@ -8040,11 +8038,21 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			
 			// make sure updates are flushed
 			g.Flush();
-		}, eh, _T("default wheel image"));
+		}, eh, _T("default wheel image")));
 	}
 
-	// return the new sprite
-	return sprite;
+	// return the new sprite, if we created one
+	if (sprite != nullptr)
+	{
+		// set the current wheel alpha, in case we're in a fade
+		sprite->alpha = wheelAlpha;
+
+		// return the sprite
+		return sprite.Detach();
+	}
+
+	// failed
+	return nullptr;
 }
 
 // Update a wheel image position.  'n' is the position on the wheel,
@@ -8288,19 +8296,11 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	// fire a DOF Launch Game event
 	QueueDOFPulse(L"PBYLaunchGame");
 
-	// create the running game sprites
-	runningGameBkgPopup.Attach(new VideoSprite());
-	runningGameBkgPopup->alpha = 0.0f;
-	runningGameMsgPopup.Attach(new VideoSprite());
-	runningGameMsgPopup->alpha = 0.0f;
-	UpdateDrawingList();
-
 	// fire a Launch Overlay Show event
 	if (FireLaunchOverlayEvent(jsLaunchOverlayShowEvent, game))
 	{
-		// show the default background screen - just an opaque
-		// dark fill
-		DrawingLayerClear(runningGameBkgPopup, Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
+		// show the default background screen - just an opaque dark fill
+		DrawingLayerClear(runningGameBkgPopup.RefPtrAddr(), Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
 	}
 
 	// show the initial blank message screen
@@ -8308,7 +8308,10 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	ShowRunningGameMessage(L"init", nullptr);
 
 	// animate the popup opening
-	runningGameMsgPopup->alpha = 0;
+	if (runningGameMsgPopup != nullptr)
+		runningGameMsgPopup->alpha = 0;
+	if (runningGameBkgPopup != nullptr)
+		runningGameBkgPopup->alpha = 0;
 	StartAnimTimer(runningGamePopupStartTime);
 	runningGamePopupMode = RunningGamePopupOpen;
 
@@ -8364,10 +8367,9 @@ void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 	}
 
 	// Javascript didn't intervene - do the default drawing
-	runningGameMsgPopup.Attach(new VideoSprite());
 	const int width = NormalizedWidth(), height = 1920;
 	Application::InUiErrorHandler eh;
-	runningGameMsgPopup->Load(width, height, [width, height, msg, includeWheelImage, game, this](Gdiplus::Graphics &g)
+	runningGameMsgPopup.Attach(Sprite::Load(width, height, [width, height, msg, includeWheelImage, game, this](Gdiplus::Graphics &g)
 	{
 		// fill the background with transparency
 		Gdiplus::SolidBrush bkg(Gdiplus::Color(0, 0, 0, 0));
@@ -8402,7 +8404,7 @@ void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 				(float)(height - wheelImageSize.cy) / 2.0f - bbox.Height - 60),
 				&fg);
 		}
-	}, eh, _T("Game Running Popup"));
+	}, eh, _T("Game Running Popup")));
 
 	// update the drawing list with the new sprite
 	UpdateDrawingList();
@@ -8449,7 +8451,7 @@ void PlayfieldView::EndRunningGameMode()
 	UpdateDrawingList();
 
 	// Only proceed if we're in running game mode
-	if (runningGameMsgPopup == nullptr)
+	if (runningGameMode != RunningGameMode::None)
 		return;
 
 	// Clear the keyboard queue
@@ -8512,7 +8514,7 @@ void PlayfieldView::EndRunningGameMode()
 	UpdateJsUIMode();
 }
 
-void PlayfieldView::JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc)
+void PlayfieldView::JsDraw(RefPtr<Sprite> *sprite, int width, int height, JsValueRef drawFunc)
 {
 	// set up the native draw function, which will invoke the JS
 	// drawing callback
@@ -8537,10 +8539,10 @@ void PlayfieldView::JsDraw(Sprite *sprite, int width, int height, JsValueRef dra
 	};
 
 	// do the drawing
-	sprite->Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw"));
+	sprite->Attach(Sprite::Load(width, height, Draw, SilentErrorHandler(), _T("mainWindow.launchOverlay.draw")));
 }
 
-Sprite *PlayfieldView::JsThisToDrawingLayerSprite(JsValueRef self) const
+RefPtr<Sprite>* PlayfieldView::JsThisToDrawingLayerSpriteRef(JsValueRef self) 
 {
 	// get the ID from the object
 	auto js = JavascriptEngine::Get();
@@ -8555,9 +8557,9 @@ Sprite *PlayfieldView::JsThisToDrawingLayerSprite(JsValueRef self) const
 	// Get the layer corresponding to the ID.  If it doesn't match
 	// one of our special layer codes, use the base class lookup to
 	// find a standard Javascript drawing layer.
-	return id == _T("fg") ? runningGameMsgPopup.Get() :
-		id == _T("bg") ? runningGameBkgPopup.Get() :
-		__super::JsThisToDrawingLayerSprite(self);
+	return id == _T("fg") ? runningGameMsgPopup.RefPtrAddr() :
+		id == _T("bg") ? runningGameBkgPopup.RefPtrAddr() :
+		__super::JsThisToDrawingLayerSpriteRef(self);
 }
 
 
@@ -8891,9 +8893,9 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	case AVPMsgSetFormat:
 		// Video frame format detection/change.
 		{
-			auto UpdateFormat = [this, wParam, lParam](VideoSprite *sprite)
+			auto UpdateFormat = [this, wParam, lParam](Sprite *sprite)
 			{
-				if (sprite != nullptr && sprite->GetVideoPlayerCookie() == wParam)
+				if (auto vs = dynamic_cast<VideoSprite*>(sprite); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
 				{
 					// Update the sprite's load size to match the actual video frame size.
 					// Note that playfield videos are by convention rotated 90 degrees CW,
@@ -8926,8 +8928,8 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// asynchronous, so it's possible that we could have already
 		// switched to a new playfield by the time this notification
 		// arrives.
-		if (incomingPlayfield.sprite != nullptr 
-			&& incomingPlayfield.sprite->GetVideoPlayerCookie() == wParam)
+		if (auto vs = dynamic_cast<VideoSprite*>(incomingPlayfield.sprite.Get());
+			vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
 			StartPlayfieldCrossfade();
 		break;
 
@@ -9107,9 +9109,8 @@ void PlayfieldView::ShowQueuedError()
 	FallbackHandler eh(err);
 
 	// set up the popup
-	popupSprite.Attach(new Sprite());
 	int layoutHeight = headerHeight + 2*margins + outline + ht + bottomSpacing;
-	popupSprite->Load(layoutWidth, layoutHeight, 
+	popupSprite.Attach(Sprite::Load(layoutWidth, layoutHeight, 
 		[&err, &messages, layoutWidth, layoutHeight, headerHeight, spacing, margins, outline, &font]
 		(HDC hdc, HBITMAP)
 	{
@@ -9175,7 +9176,14 @@ void PlayfieldView::ShowQueuedError()
 
 		// sync pixels with the bitmap
 		g.Flush();
-	}, eh, _T("Error Box"));
+	}, eh, _T("Error Box")));
+	
+	// update the sprite list
+	UpdateDrawingList();
+
+	// fail if we didn't create the sprite
+	if (popupSprite == nullptr)
+		return;
 
 	// adjust it to the canonical popup position
 	AdjustSpritePosition(popupSprite);
@@ -9185,7 +9193,6 @@ void PlayfieldView::ShowQueuedError()
 
 	// animate the popup
 	StartPopupAnimation(PopupErrorMessage, popupName, true);
-	UpdateDrawingList();
 }
 
 void PlayfieldView::ShowFlashError(const ErrorList &list)
@@ -9341,9 +9348,6 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 	// remember the page of the menu being displayed
 	menuPage = pageno;
-
-	// set the initial animation for the incoming menu to the start of the sequence
-	UpdateMenuAnimation(m, true, 0.0f);
 
 	// set up a GDI+ Graphics object on a memory DC to prepare the graphics
 	MemoryDC memdc;
@@ -9507,7 +9511,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 	// create the background
     Application::InUiErrorHandler eh;
-	if (!m->sprBkg->Load(boxWid, menuHt, [this, boxWid, menuHt, borderWidth](HDC hdc, HBITMAP hbmp) 
+	m->sprBkg.Attach(Sprite::Load(boxWid, menuHt, [this, boxWid, menuHt, borderWidth](HDC hdc, HBITMAP hbmp) 
 	{
 		// fill the background
 		Gdiplus::Graphics g(hdc);
@@ -9520,27 +9524,29 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 		// make sure the pixels hit the DIB
 		g.Flush();
-	}, eh, _T("menu background")))
-		return;
+	}, eh, _T("menu background")));
 
-	// Adjust the item list sprite to the canonical popup position, and
-	// apply the same offset to the background sprite.
-	AdjustSpritePosition(m->sprBkg);
-	m->sprItems->offset.y = m->sprBkg->offset.y;
+	// abort if that failed
+	UpdateDrawingList();
+	if (m->sprBkg == nullptr)
+		return;
 
 	// Create the highlight overlay.  We set this up at a single line height,
 	// and then move it behind the selected menu item to highlight it.
-	if (!m->sprHilite->Load(boxWid, lineHt, [this, boxWid, menuHt, lineHt, borderWidth](HDC hdc, HBITMAP hbmp)
+	m->sprHilite.Attach(Sprite::Load(boxWid, lineHt, [this, boxWid, menuHt, lineHt, borderWidth](HDC hdc, HBITMAP hbmp)
 	{
 		Gdiplus::Graphics g(hdc);
 		Gdiplus::SolidBrush br(GPColorFromCOLORREF(menuHiliteColor, 0xE0));
 		g.FillRectangle(&br, borderWidth, 0, boxWid - 2 * borderWidth, lineHt);
 		g.Flush();
-	}, eh, _T("menu hilite")))
+	}, eh, _T("menu hilite")));
+
+	UpdateDrawingList();
+	if (m->sprHilite == nullptr)
 		return;
 
 	// create the text item overlay
-	if (!m->sprItems->Load(boxWid, menuHt, 
+	m->sprItems.Attach(Sprite::Load(boxWid, menuHt, 
 		[this, boxWid, menuHt, &symfont, &arrowFont, &items, &m, 
 		lineHt, spacerHt, yPadding, borderWidth, nPagedItems, nItemsPerPage, &tformat,
 		upArrow, downArrow, subMenuArrow, promptHt, &rcLayout, flags]
@@ -9734,8 +9740,19 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 		// make sure the pixels hit the DIB
 		g.Flush();
-	}, eh, _T("menu items")))
+	}, eh, _T("menu items")));
+
+	UpdateDrawingList();
+	if (m->sprItems == nullptr)
 		return;
+
+	// Adjust the item list sprite to the canonical popup position, and
+	// apply the same offset to the background sprite.
+	AdjustSpritePosition(m->sprBkg);
+	m->sprItems->offset.y = m->sprBkg->offset.y;
+
+	// set the initial animation for the incoming menu to the start of the sequence
+	UpdateMenuAnimation(m, true, 0.0f);
 
 	// Select the first item if we didn't already select something else
 	if (m->selected == m->items.end())
@@ -9856,11 +9873,6 @@ void PlayfieldView::UpdateMenuAnimation(Menu *menu, bool opening, float progress
 PlayfieldView::Menu::Menu(const WCHAR *id, DWORD flags) :
 	id(id), flags(flags)
 {
-	// create our sprite objects on creation
-	sprBkg.Attach(new Sprite());
-	sprItems.Attach(new Sprite());
-	sprHilite.Attach(new Sprite());
-
 	// no selection yet
 	selected = items.end();
 
@@ -9917,7 +9929,7 @@ void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 
 	// if a game is running, don't do anything unless we're
 	// explicitly returning from the running game
-	if (runningGameMsgPopup != nullptr && mode != SyncEndGame)
+	if (runningGameMode != RunningGameMode::None && mode != SyncEndGame)
 		return;
 
 	// if the current playfield matches the game list selection,
@@ -10150,7 +10162,7 @@ void PlayfieldView::SyncInfoBox()
 		|| popupSprite != nullptr 
 		|| curMenu != nullptr 
 		|| attractMode.active
-		|| runningGameMsgPopup != nullptr
+		|| runningGameMode != RunningGameMode::None
 		|| settingsDialogOpen)
 		return;
 
@@ -10330,17 +10342,18 @@ void PlayfieldView::SyncInfoBox()
 			
 			// create the new sprite
 			Application::InUiErrorHandler eh;
-			infoBox.sprite.Attach(new Sprite());
-			infoBox.sprite->Load(width, height, Draw, eh, _T("Info Box"));
+			infoBox.sprite.Attach(Sprite::Load(width, height, Draw, eh, _T("Info Box")));
+			if (infoBox.sprite != nullptr)
+			{
+				// move it up towards the top of the screen
+				infoBox.sprite->offset.y = 0.25f;
+				infoBox.sprite->UpdateWorld();
 
-			// move it up towards the top of the screen
-			infoBox.sprite->offset.y = 0.25f;
-			infoBox.sprite->UpdateWorld();
-
-			// start the fade-in animation
-			infoBox.sprite->alpha = 0;
-			SetTimer(hWnd, infoBoxFadeTimerID, AnimTimerInterval, 0);
-			infoBoxStartTime = GetTickCount();
+				// start the fade-in animation
+				infoBox.sprite->alpha = 0;
+				SetTimer(hWnd, infoBoxFadeTimerID, AnimTimerInterval, 0);
+				infoBoxStartTime = GetTickCount();
+			}
 		}
 		else
 		{
@@ -10821,15 +10834,15 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// Animate the running game overlay
-	if (runningGamePopupMode != RunningGamePopupNone && runningGameMsgPopup != nullptr)
+	if (runningGamePopupMode != RunningGamePopupNone)
 	{
 		// update the fade
 		DWORD dt = GetTickCount() - runningGamePopupStartTime;
 		float progress = fminf(1.0f, float(dt) / float(popupOpenTime));
 		float alpha = (runningGamePopupMode == RunningGamePopupOpen ? progress : 1.0f - progress);
-		runningGameMsgPopup->alpha = alpha;
 
-		// sync the background popup, if present
+		if (runningGameMsgPopup != nullptr)
+			runningGameMsgPopup->alpha = alpha;
 		if (runningGameBkgPopup != nullptr)
 			runningGameBkgPopup->alpha = alpha;
 
@@ -12063,7 +12076,7 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 		// play the selected button sound
 		PlayButtonSound(sound);
 	}
-	else if (runningGameMsgPopup != nullptr)
+	else if (runningGameMode != RunningGameMode::None)
 	{
 		// Running a game.  Show the game menu.
 		ShowPauseMenu(usingExitKey);
@@ -12376,7 +12389,7 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 				ClosePopup();
 			}
 		}
-		else if (runningGameMsgPopup != nullptr)
+		else if (runningGameMode != RunningGameMode::None)
 		{
 			// treat this as a Select button, to show the game control menu
 			CmdSelect(key);
@@ -12559,7 +12572,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGameMsgPopup != nullptr)
+	else if (runningGameMode != RunningGameMode::None)
 	{
 		// don't change games while a game is running
 	}
@@ -12666,7 +12679,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 			ClosePopup();
 		}
 	}
-	else if (runningGameMsgPopup != nullptr)
+	else if (runningGameMode != RunningGameMode::None)
 	{
 		// don't change games while a game is running
 	}
@@ -12726,7 +12739,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			// menu/popup - treat it as a regular 'next'
 			DoCmdNext(key.mode == KeyRepeat);
 		}
-		else if (runningGameMsgPopup != nullptr)
+		else if (runningGameMode != RunningGameMode::None)
 		{
 			// running a game - do nothing
 		}
@@ -12788,7 +12801,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 			// menu/popup - treat as equivalent to 'previous'
 			DoCmdPrev(key.mode == KeyRepeat);
 		}
-		else if (runningGameMsgPopup != nullptr)
+		else if (runningGameMode != RunningGameMode::None)
 		{
 			// running a game - do nothing
 		}
@@ -12814,7 +12827,7 @@ void PlayfieldView::CmdLaunch(const QueuedKey &key)
 		{
 			// a startup video was playing - don't do anything else until it stops
 		}
-		else if (curMenu != nullptr || popupSprite != nullptr || runningGameMsgPopup != nullptr)
+		else if (curMenu != nullptr || popupSprite != nullptr || runningGameMode != RunningGameMode::None)
 		{
 			// Menu, popup, or running game popup is showing.  Treat Launch
 			// as Select.
@@ -12920,10 +12933,9 @@ void PlayfieldView::DoCoinCommon(const QueuedKey &key, int slotNum)
 void PlayfieldView::DisplayCredits()
 {
 	// create the new sprite
-	creditsSprite.Attach(new Sprite());
 	Application::InUiErrorHandler eh;
 	int width = 800, height = 400;
-	bool ok = creditsSprite->Load(width, height, [width, height, this](HDC hdc, HBITMAP bmp)
+	creditsSprite.Attach(Sprite::Load(width, height, [width, height, this](HDC hdc, HBITMAP bmp)
 	{
 		// set up GDI+ on the memory DC
 		Gdiplus::Graphics g(hdc);
@@ -12955,17 +12967,22 @@ void PlayfieldView::DisplayCredits()
 		// flush our drawing to the pixel buffer
 		g.Flush();
 
-	}, eh, _T("Credits overlay"));
+	}, eh, _T("Credits overlay")));
 
-	// set/reset the credits animation timer
-	SetTimer(hWnd, creditsDispTimerID, 16, 0);
-	creditsStartTime = GetTickCount();
-
-	// open the popup, positioning it in the lower half of the screen
-	creditsSprite->alpha = 1.0f;
-	creditsSprite->offset.y = -0.2f;
-	creditsSprite->UpdateWorld();
+	// add the sprite to the drawing list
 	UpdateDrawingList();
+
+	if (creditsSprite != nullptr)
+	{
+		// set/reset the credits animation timer
+		SetTimer(hWnd, creditsDispTimerID, 16, 0);
+		creditsStartTime = GetTickCount();
+
+		// open the popup, positioning it in the lower half of the screen
+		creditsSprite->alpha = 1.0f;
+		creditsSprite->offset.y = -0.2f;
+		creditsSprite->UpdateWorld();
+	}
 }
 
 void PlayfieldView::OnCreditsDispTimer()
@@ -13109,7 +13126,7 @@ void PlayfieldView::CmdService4(const QueuedKey &key)
 	// show our "service menu", with program and game setup commands.
 	if (key.mode == KeyDown)
 	{
-		if (curMenu != nullptr || popupSprite != nullptr || runningGameMsgPopup != nullptr)
+		if (curMenu != nullptr || popupSprite != nullptr || runningGameMode != RunningGameMode::None)
 		{
 			// menu or popup is showing - treat this as a normal Select
 			CmdSelect(key);
@@ -15379,11 +15396,12 @@ void PlayfieldView::ShowMediaFiles(int dir)
 
 	// do the actual drawing
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(width, height, Draw, eh, _T("Media File Info")))
+	popupSprite.Attach(Sprite::Load(width, height, Draw, eh, _T("Media File Info")));
+	UpdateDrawingList();
+
+	// abort if we couldn't create the sprite
+	if (popupSprite != nullptr)
 	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
 		ShowQueuedError();
 		return;
 	}
@@ -15393,9 +15411,6 @@ void PlayfieldView::ShowMediaFiles(int dir)
 
 	// start the animation
 	StartPopupAnimation(PopupMediaList, L"media list", true);
-
-	// put the new sprite in the drawing list
-	UpdateDrawingList();
 
 	// treat it as a Game Information event in DOF
 	QueueDOFPulse(L"PBYGameInfo");
@@ -15805,8 +15820,7 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 	// set up the new dialog
 	const int width = 960, height = 480;
 	Application::InUiErrorHandler eh;
-	popupSprite.Attach(new Sprite());
-	if (popupSprite->Load(width, height, [this, width, height](HDC hdc, HBITMAP)
+	popupSprite.Attach(Sprite::Load(width, height, [this, width, height](HDC hdc, HBITMAP)
 	{
 		// set up the GDI+ context
 		Gdiplus::Graphics g(hdc);
@@ -15843,17 +15857,14 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 		// done with GDI+
 		g.Flush();
 
-	}, eh, _T("Capture startup delay adjustment dialog")))
+	}, eh, _T("Capture startup delay adjustment dialog")));
+	UpdateDrawingList();
+
+	if (popupSprite != nullptr)
 	{
 		AdjustSpritePosition(popupSprite);
 		StartPopupAnimation(PopupCaptureDelay, L"capture delay", true);
 	}
-	else
-	{
-		popupSprite = nullptr;
-	}
-
-	UpdateDrawingList();
 }
 
 void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMenuMode mode)
@@ -17262,9 +17273,6 @@ void PlayfieldView::BatchCaptureView()
 
 void PlayfieldView::UpdateBatchCaptureView()
 {
-	// create the popup
-	popupSprite.Attach(new Sprite());
-
 	// figure the popup height:  if the bitmap fits into our maximum height,
 	// use the bitmap height, otherwise use the maximum height and scroll it
 	const int maxHeight = 1500;
@@ -17279,7 +17287,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 		batchViewScrollY = srcHeight - height;
 
 	// draw the sprite
-	bool ok = popupSprite->Load(width, height, [this, width, height, maxHeight, srcHeight](Gdiplus::Graphics &g)
+	popupSprite.Attach(Sprite::Load(width, height, [this, width, height, maxHeight, srcHeight](Gdiplus::Graphics &g)
 	{
 		// figure the scrolling region
 		float y = srcHeight <= maxHeight ? 0.0f : (float)batchViewScrollY;
@@ -17326,24 +17334,20 @@ void PlayfieldView::UpdateBatchCaptureView()
 			g.DrawString(instr, -1, instrFont.get(), rcInstr, &centerFmt, &titleBr);
 		}
 
-	}, Application::InUiErrorHandler(), _T("Batch capture preview"));
+	}, Application::InUiErrorHandler(), _T("Batch capture preview")));
+
+	// add the sprite to the drawing list
+	UpdateDrawingList();
 
 	// if that failed, abort
-	if (!ok)
-	{
-		popupSprite = nullptr;
-		UpdateDrawingList();
+	if (popupSprite == nullptr)
 		return;
-	}
 		
 	// finalize the position
 	AdjustSpritePosition(popupSprite);
 
 	// animate the popup opening if it wasn't already displayed
 	StartPopupAnimation(PopupBatchCapturePreview, L"batch capture preview", true);
-
-	// update the drawing list
-	UpdateDrawingList();
 }
 
 void PlayfieldView::BatchCaptureGo()
@@ -17602,7 +17606,7 @@ void PlayfieldView::CmdSettings(const QueuedKey &key)
 void PlayfieldView::ShowSettingsDialog()
 {
 	// don't allow this when a game is running
-	if (runningGameMsgPopup != nullptr)
+	if (runningGameMode != RunningGameMode::None)
 	{
 		ShowError(EIT_Information, LoadStringT(IDS_ERR_NOT_WHILE_RUNNING));
 		return;
@@ -18258,7 +18262,7 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 {
 	// get my new display text
 	TSTRING newDispText = ExpandText(pfv);
-	
+
 	// fire the Javascript event
 	pfv->FireStatusLineEvent(sl->jsobj, this->srcText, newDispText);
 
@@ -18271,10 +18275,9 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 	dispText = newDispText;
 
 	// create the new sprite
-	sprite.Attach(new Sprite());
 	const int width = 1080, height = 75;
 	Application::InUiErrorHandler eh;
-	sprite->Load(width, height, [this, pfv, width, height](HDC hdc, HBITMAP)
+	sprite.Attach(Sprite::Load(width, height, [this, pfv, width, height](HDC hdc, HBITMAP)
 	{
 		// set up a drawing context
 		Gdiplus::Graphics g(hdc);
@@ -18291,16 +18294,19 @@ void PlayfieldView::StatusItem::Update(PlayfieldView *pfv, StatusLine *sl, float
 		// draw it centered
 		Gdiplus::SolidBrush txt(GPColorFromCOLORREF(pfv->statusLineTextColor));
 		Gdiplus::SolidBrush shadow(GPColorFromCOLORREF(pfv->statusLineShadowColor));
-		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x+2, y+2), &shadow);
+		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x + 2, y + 2), &shadow);
 		g.DrawString(dispText.c_str(), -1, font, Gdiplus::PointF(x, y), &txt);
 
 		// flush the drawing context to the bitmap
 		g.Flush();
-	}, eh, _T("Status Message"));
+	}, eh, _T("Status Message")));
 
-	// set it up in the proper location
-	sprite->offset.y = -0.5f + float(height/2)/1920.f + y;
-	sprite->UpdateWorld();
+	if (sprite != nullptr)
+	{
+		// set it up in the proper location
+		sprite->offset.y = -0.5f + float(height / 2) / 1920.f + y;
+		sprite->UpdateWorld();
+	}
 
 	// update the drawing list
 	pfv->UpdateDrawingList();

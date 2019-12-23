@@ -292,13 +292,14 @@ void SecondaryView::SyncCurrentGame()
 	// video over from the beginning, so it's nicer to leave it running
 	// uninterrupted.
 	bool isSameVideo = false;
-	if (videosEnabled
+	if (auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get());
+		videosEnabled 
 		&& incomingBackground.sprite == nullptr
-		&& currentBackground.sprite != nullptr
-		&& currentBackground.sprite->GetVideoPlayer() != nullptr)
+		&& cvs != nullptr
+		&& cvs->GetVideoPlayer() != nullptr)
 	{
 		// get the current video path
-		if (const TCHAR *oldPath = currentBackground.sprite->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
+		if (const TCHAR *oldPath = cvs->GetVideoPlayer()->GetMediaPath(); oldPath != nullptr)
 		{
 			// figure out which new video we're going to use
 			const TCHAR *newPath = nullptr;
@@ -321,23 +322,22 @@ void SecondaryView::SyncCurrentGame()
 		// set up to load the sprite asynchronously
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled, volPct](VideoSprite *sprite)
+		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled, volPct]()
 		{
-			// start at zero alpha, for the cross-fade
-			sprite->alpha = 0;
+			RefPtr<Sprite> sprite;
 
 			// try the video first, unless videos are disabled
 			Application::AsyncErrorHandler eh;
-			bool ok = false;
 			if (video.length() != 0 && videosEnabled)
-				ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"), true, volPct);
+				sprite.Attach(VideoSprite::LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"), true, volPct));
 
 			// try the image if that didn't work
-			if (!ok && image.length() != 0)
+			if (sprite == nullptr && image.length() != 0)
 			{
 				// try loading the image
 				CapturingErrorHandler ceh;
-				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, ceh)))
+				sprite.Attach(Sprite::Load(image.c_str(), { 1.0f, 1.0f }, szLayout, ceh));
+				if (sprite == nullptr)
 				{
 					// if this is an SWF file, log the error specially
 					ImageFileDesc desc;
@@ -349,15 +349,23 @@ void SecondaryView::SyncCurrentGame()
 			}
 
 			// try the default video if we still don't have anything
-			if (!ok && videosEnabled && defaultVideo.length() != 0)
-				ok = sprite->LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Default background video"), volPct);
+			if (sprite == nullptr && videosEnabled && defaultVideo.length() != 0)
+				sprite.Attach(VideoSprite::LoadVideo(defaultVideo.c_str(), hWnd, { 1.0f, 1.0f }, 
+					eh, _T("Default background video"), volPct));
 
 			// load a default image if we didn't load anything custom
-			if (!ok)
-				sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, eh);
+			if (sprite == nullptr)
+				sprite.Attach(Sprite::Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, eh));
+
+			// start at zero alpha, for the cross-fade
+			if (sprite != nullptr)
+				sprite->alpha = 0;
+
+			// return the sprite
+			return sprite.Detach();
 		};
 
-		auto done = [this, game](VideoSprite *sprite)
+		auto done = [this, game](Sprite *sprite)
 		{
 			// set the new sprite
 			incomingBackground.sprite = sprite;
@@ -367,7 +375,8 @@ void SecondaryView::SyncCurrentGame()
 			UpdateDrawingList();
 
 			// start the fade timer, unless we have a video that's still loading
-			if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
+			if (auto vs = dynamic_cast<VideoSprite*>(sprite);
+				vs == nullptr || vs->GetVideoPlayer() == nullptr || vs->GetVideoPlayer()->IsFrameReady())
 				StartBackgroundCrossfade();
 		};
 
@@ -399,7 +408,8 @@ void SecondaryView::OnEnableVideos(bool enable)
 		{
 			// reload the item if we're newly enabling video, or the item
 			// is currently showing a video
-			if (enable || item.sprite->GetVideoPlayer() != nullptr)
+			auto vs = dynamic_cast<VideoSprite*>(item.sprite.Get());
+			if (enable || (vs != nullptr && vs->GetVideoPlayer() != nullptr))
 			{
 				// enabling - reload unconditionally
 				item.Clear();
@@ -419,9 +429,9 @@ void SecondaryView::ApplyWorkingAudioVolume(int volPct)
 {
 	auto Update = [volPct](decltype(incomingBackground) &item)
 	{
-		if (item.sprite != nullptr && item.sprite->IsVideo())
+		if (auto vs = dynamic_cast<VideoSprite*>(item.sprite.Get()); vs != nullptr && vs->IsVideo())
 		{
-			if (auto vp = item.sprite->GetVideoPlayer(); vp != nullptr)
+			if (auto vp = vs->GetVideoPlayer(); vp != nullptr)
 				vp->SetVolume(volPct);
 		}
 	};
@@ -461,10 +471,10 @@ void SecondaryView::BeginRunningGameMode(GameListItem *game, GameSystem *system,
 		// Determine if we're showing (or are about to show) a video
 		// as the background.  If so, we'll want full-speed frame
 		// updates.  For static images, we can freeze the background.
-		if (incomingBackground.sprite != nullptr)
-			hasVideo = incomingBackground.sprite->IsVideo();
-		else if (currentBackground.sprite != nullptr)
-			hasVideo = currentBackground.sprite->IsVideo();
+		if (auto ivs = dynamic_cast<VideoSprite*>(incomingBackground.sprite.Get()); ivs != nullptr)
+			hasVideo = ivs->IsVideo();
+		else if (auto cvs = dynamic_cast<VideoSprite*>(currentBackground.sprite.Get()); cvs != nullptr)
+			hasVideo = cvs->IsVideo();
 
 		// don't freze playback if we have a video
 		if (hasVideo)
@@ -587,7 +597,8 @@ bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	case AVPMsgFirstFrameReady:
 		// If this is the incoming background's video player, start the
 		// cross-fade for the new background.
-		if (incomingBackground.sprite != nullptr && incomingBackground.sprite->GetVideoPlayerCookie() == wParam)
+		if (auto vs = dynamic_cast<VideoSprite*>(incomingBackground.sprite.Get()); 
+			vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
 			StartBackgroundCrossfade();
 		break;
 	}

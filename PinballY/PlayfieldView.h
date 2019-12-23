@@ -295,7 +295,7 @@ public:
 
 	// Invoke a Javascript drawing callback to draw into the given Gdiplus 
 	// context
-	void JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc);
+	void JsDraw(RefPtr<Sprite> *sprite, int width, int height, JsValueRef drawFunc);
 
 protected:
 	// destruction - called internally when the reference count reaches zero
@@ -526,7 +526,7 @@ protected:
 	// Finish loading a new playfield.  This is called when the sprite
 	// loader thread finishes.  This is called on the main UI thread,
 	// so we don't have to do anything special for thread safety.
-	void IncomingPlayfieldMediaDone(VideoSprite *sprite);
+	void IncomingPlayfieldMediaDone(Sprite *sprite);
 
 	// Load a wheel image
 	Sprite *LoadWheelImage(const GameListItem *game);
@@ -1355,7 +1355,7 @@ protected:
 		RefPtr<SpriteType> sprite;
 		RefPtr<AudioVideoPlayer> audio;
 	};
-	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield;
+	GameMedia<Sprite> currentPlayfield, incomingPlayfield;
 	
 	// Should we maintain the playfield image aspect ratio or stretch
 	// it to fit the window?
@@ -1484,13 +1484,13 @@ protected:
 	// background layer is intended for an image or video; the message
 	// layer is a transparent layer on top of that where we display the
 	// current loading status message and game logo.
-	RefPtr<VideoSprite> runningGameMsgPopup;
-	RefPtr<VideoSprite> runningGameBkgPopup;
+	RefPtr<Sprite> runningGameMsgPopup;
+	RefPtr<Sprite> runningGameBkgPopup;
 
 	// Custom drawing layer lookup.  We expose the running game popups 
 	// to Javascript using the drawing layer interface, so we need to
 	// find them on drawing callbacks into that interface.
-	virtual Sprite *JsThisToDrawingLayerSprite(JsValueRef self) const override;
+	virtual RefPtr<Sprite>* JsThisToDrawingLayerSpriteRef(JsValueRef self) override;
 
 	// Internal ID of current running game
 	LONG runningGameID;

@@ -28,9 +28,20 @@ class DMDFont;
 class DMDSprite : public Sprite
 {
 public:
-	DMDSprite(RGBQUAD bgColor, BYTE bgAlpha) : bgColor(bgColor), bgAlpha(bgAlpha) { }
+	static DMDSprite *Load(RGBQUAD bgColor, BYTE bgAlpha,
+		const BITMAPINFO &bmi, const void *dibits,
+		ErrorHandler &eh, const TCHAR *descForErrors)
+	{
+		RefPtr<DMDSprite> sprite(new DMDSprite(bgColor, bgAlpha));
+		if (sprite->LoadDIB(bmi, dibits, eh, descForErrors))
+			return sprite.Detach();
+
+		return nullptr;
+	}
 
 protected:
+	DMDSprite(RGBQUAD bgColor, BYTE bgAlpha) : bgColor(bgColor), bgAlpha(bgAlpha) { }
+
 	virtual void Render(Camera *camera) override;
 	virtual Shader *GetShader() const override;
 
@@ -155,17 +166,14 @@ public:
 				switch (spriteType)
 				{
 				case HighScoreImage::DMDSpriteType:
-					sprite.Attach(new DMDSprite(bgColor, bgAlpha));
-					break;
+					sprite.Attach(DMDSprite::Load(bgColor, bgAlpha, bmi, dibits,
+						SilentErrorHandler(), _T("high score slide")));
+							break;
 
 				default:
-					sprite.Attach(new Sprite());
+					sprite.Attach(Sprite::Load(bmi, dibits, SilentErrorHandler(), _T("high score slide")));
 					break;
 				}
-
-				// load the image
-				if (!sprite->Load(bmi, dibits, SilentErrorHandler(), _T("high score slide")))
-					sprite = nullptr;
 			}
 		}
 
