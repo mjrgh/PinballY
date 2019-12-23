@@ -44,21 +44,50 @@
    media packs, you can use all of those existing table lists and media files
    in PinballY without moving or copying any files.  (So it's not really
    "migrating" in the usual sense - you don't have to go through any
-   conversion process.)  All you have to do is
-   make sure that the <b>System name</b> settings in your PinballY setup
-   match those in your PinballX setup.  PinballX keys all of the folder
-   locations for its table database and media files to the system name,
-   so as the PinballY system name settings match your old PinballX system
-   name settings, PinballY should be able to find your existing PinballX
-   files.  You should also go to the "Folders" page and make sure that
-   you've selected the "Auto" setting for both the main media folder and
-   main table database folder; this will tell PinballY to use your existing
-   PinballX folder trees.
+   conversion process.)  All you have to do is make sure that the
+   <b>System name</b> settings in your PinballY setup match those in your
+   PinballX setup.  PinballX keys all of the folder locations for its table
+   database and media files to the system name, so PinballY will find the
+   same files as long as you set all of the system names the same way.
 </p>
 <p>
-   As long as you set the system name correctly for each system (to match
-   the system name as it appeared in your PinballX setup), you can leave
-   the "Media folder" and "Database folder" boxes blank.
+   The system naming is <i>usually</i> the same by default, so matching
+   them can be practically invisible and automatic.  However, there's
+   one place where it's easy to get hung up: <b>version numbers</b>.
+   Most people have a slew of different Visual Pinball versions installed,
+   because many of the VP versions are incompatible with each other's files.
+   So pay close attention to the system names for
+   the different VP versions.  Here are the default system names
+   that PinballY uses for VP 9 and VP 10 (aka VPX):
+</p>
+<table class="dataTable">
+   <tr><th>Program</th><th>Default system name in PinballY</th></tr>
+   <tr><td>Visual Pinball 9.x</td><td>"Visual Pinball"</td></tr>
+   <tr><td>Visual Pinball 10</td><td>"Visual Pinball X"</td></tr>
+</table>
+
+<p>
+   Those are the defaults because that's how a lot of
+   people have things set up in PinballX.  If your PinballX setup is
+   the same, the files will all be shared automatically.  But some people
+   have their PinballX system settings sort of the opposite, with
+   the PinballX system name for VP 10 set to "Visual Pinball", and
+   VP 9 set to "Visual Pinball 9".  If that's how you set up PinballX,
+   you can see how this is going to create confusion for PinballY:
+   PinballY is going to think that "Visual Pinball" means
+   VP 9, so it's going to try to use VP 9 for all of your VP 10 games.
+</p>
+<p>
+   If you run into this, it's really easy to fix.  The easiest way to go
+   to the system settings dialog and change the system names in PinballY
+   to match your PinballX settings.  PinballY doesn't have any hard-coded
+   assumptions about what the various systems are called, so you're free
+   to rename them as needed.  The other way is to go into the system
+   settings for each system and set explicit folder paths for the
+   <b>Media Folder</b> and <b>Database Folder</b>.  By default, those
+   simply use the system name that you've entered, which is the same
+   convention that PinballX uses.  But PinballY lets you override
+   them individually if you want to look in other folders.
 </p>
 
 <h2>Settings for all systems</h2>
@@ -73,6 +102,17 @@
    you're migrating from PinballX, and you want to use the same
    media and table list files, you should make sure this matches
    the name used in your PinballX settings.
+   <p>
+      If you want to share files with PinballX, be sure to use
+      the <b>exact</b> same names as in your PinballX setup.
+      Pay particular attention to <b>version numbers</b>
+      for Visual Pinball versions.  When you first install PinballY,
+      its default settings use the plain name "Visual Pinball"
+      (with no version number) for VP <b>9</b> - VP 10 is called
+      "Visual Pinball X" in the default settings.  If your
+      PinballX setup uses "Visual Pinball" as the name for VP X,
+      you should change the PinballY settings to match.
+   </p>
 
    <li><b>Enable:</b> Check this box to enable the system; un-check
    it to disable it.  Disabling a system prevents any of its games
