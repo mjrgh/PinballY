@@ -3486,7 +3486,7 @@ void GameList::EnumTableFileSets(std::function<void(const TableFileSet&)> func)
 
 bool GameList::FindGlobalImageFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
 {
-	static const TCHAR *imageExts[] = { _T(".png"), _T(".jpg"), _T(".jpeg") };
+	static const TCHAR *imageExts[] = { _T(".png"), _T(".jpg"), _T(".jpeg"), _T(".gif") };
 	return FindGlobalMediaFile(path, subfolder, file, imageExts, countof(imageExts));
 }
 
@@ -3797,7 +3797,7 @@ TSTRING GameListItem::CleanMediaName(const TCHAR *src)
 // In addition, the first extension for each type determines the
 // default capture format for that type.
 //
-#define ImageExtensions  _T(".png .jpg .jpeg")
+#define ImageExtensions  _T(".png .jpg .jpeg .gif")
 #define VideoExtensions  _T(".f4v .mp4 .mpg .mkv .wmv .m4v .avi")
 #define AudioExtensions  _T(".mp3 .wav")
 
@@ -3820,7 +3820,7 @@ static const TCHAR *flyerPages[] = {
 // are explicitly not localized, since they're internal names defined by
 // the HyperPin/PinballX media database structure.
 const MediaType GameListItem::wheelImageType = {
-	100, _T("Wheel Images"), true, _T(".png"), IDS_MEDIATYPE_WHEELPIC, _T("WheelImage"), L"wheel image",
+	100, _T("Wheel Images"), true, _T(".png .gif"), IDS_MEDIATYPE_WHEELPIC, _T("WheelImage"), L"wheel image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
 const MediaType GameListItem::instructionCardImageType = {

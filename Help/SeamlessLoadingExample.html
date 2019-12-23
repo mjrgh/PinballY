@@ -177,11 +177,12 @@ mainWindow.on("launchoverlayshow", ev => {
 <p>
    Note that this is only possible with a <b>video</b> DMD screen.
    If you have a <b>real</b> DMD device - not a video screen, but
-   a plasma or LED score dot-matrix display like on the real
-   pinball machines - we unfortunately can't use it for launch
+   a plasma or LED score display like on a real
+   pinball machine - we unfortunately can't use it for launch
    status messages.  The reason is that the real DMD hardware
-   devices can't be shared by two programs at once, so PinballY
-   has to disconnect itself from the DMD hardware before it
+   devices can't be shared by two programs at once, which
+   makes it critical for PinballY
+   to disconnect itself from the DMD hardware before it
    launches the game.  If it doesn't do that, the game program
    might encounter an error trying to connect to the device,
    because of the one-program-at-a-time limitation.  So it's
@@ -224,7 +225,7 @@ mainWindow.on("launchoverlaymessage", ev => {
 </div>
 
 <p>
-   The reason that we wrote <span class="code">ev.message || ""</span>
+   The reason that we wrote (<span class="code">ev.message || ""</span>)
    rather than just using the message directly is that the
    message can be null in some cases, and if you use a
    null value where a string is expected, Javascript converts
@@ -304,11 +305,11 @@ mainWindow.on("gamestarted", ev => {
    dark gray - basically the same thing the system would have done
    on its own at the start of the launch, if we hadn't intervened.
    Clearing the drawing layer has the effect of removing any video
-   that was playing in the layer, so this will stop the system
-   resource load that the video was creating, just as we wanted.
+   that was playing in the layer, so this will reduce our
+   performance impact, just as we wanted.
    It also tidies up the UI; separately from the performance impact,
-   we probably don't want the UI to keep showing the transition
-   effect once the transition is over and the game has started.
+   it just wouldn't look right for the transition effect to keep
+   going after the game has started.
 </p>
 <p>
    The original motivation of this chapter was to make the
@@ -323,11 +324,9 @@ mainWindow.on("gamestarted", ev => {
    superimposed over the playfield video.  PinballY supports
    videos with alpha channel transparency, which makes it
    possible to come up with some very elaborate special
-   effects.  See <a href="AlphaVideo.html">Alpha transprency in videos</a>
-   for more on this.
+   effects.  See <a href="AlphaVideo.html">Alpha transparency in videos</a>
+   for more.
 </p>
-
-   
 
 </body>
 </html>

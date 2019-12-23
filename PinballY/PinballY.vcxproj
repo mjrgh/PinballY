@@ -99,7 +99,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
@@ -132,7 +132,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>
@@ -168,7 +168,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)\Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
@@ -205,7 +205,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
     </Link>

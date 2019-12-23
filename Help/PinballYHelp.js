@@ -109,7 +109,7 @@ var contents = [
     "AdminMode.html Administrator Mode",
     "Underlay.html Underlay",
     "DirectoryInfo.html Files &amp; Folders",
-    "AlphaVideo.html Alpha transparency video",
+    "AlphaVideo.html Transparent videos",
     "DOFEvents.html DOF Events",
     "Credits.html Credits and disclaimers",
     "../License.txt Copyright &amp; License",

@@ -97,6 +97,26 @@ bool VideoSprite::LoadVideo(
 	ErrorHandler &eh, const TCHAR *descForErrors,
 	bool play, int volumePct)
 {
+	// Check for GIF files.  Perversely, libvlc can't play animated
+	// GIFs, but our regular image sprite loader can!  Libvlc actually
+	// can *load* animated GIFs, it won't animate them - it just shows
+	// the first frame.  And even more weirdly, libvlc actually has
+	// the code to play back animated GIFs, but it's disabled, because
+	// the libvlc media type list has GIF entered as a still image
+	// format.  This misfeature has been there for years and years
+	// (there are some old reports of it on the Web), so they don't
+	// seem interested in fixing it; maybe there are complications
+	// beyond just changing the media type that make it impractical,
+	// or maybe they just don't want to bother testing it.  In any
+	// case, there's no way to work around it in the libvlc API.  But
+	// we *can* work around it by using our own image sprite loader
+	// instead when we detect a GIF file.  If it turns out to be a
+	// still GIF, that's fine, too, since our image loader happily
+	// handles those.
+	if (ImageFileDesc desc; GetImageFileInfo(filename.c_str(), desc, false)
+		&& desc.imageType == ImageFileDesc::GIF)
+		return __super::LoadGIF(filename.c_str(), sz, desc.dispSize, eh);
+
 	// create a new video player
 	RefPtr<AudioVideoPlayer> v(new VLCAudioVideoPlayer(hwnd, hwnd, false));
 

@@ -52,6 +52,15 @@ struct VARIANTARGArray
 	size_t n;
 };
 
+// PROPVARIANT subclass with auto initialization and cleanup
+struct PROPVARIANTEx : PROPVARIANT
+{
+	PROPVARIANTEx() { Clear(); }
+	~PROPVARIANTEx() { Clear(); }
+
+	void Clear() { PropVariantClear(this); }
+};
+
 // ITypeInfo subobject resource managers
 template<typename T, void (STDMETHODCALLTYPE ITypeInfo::*release)(T*)>
 class TypeInfoItemHolder

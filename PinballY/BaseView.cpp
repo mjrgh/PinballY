@@ -1138,6 +1138,10 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 			POINTF{ static_cast<float>(sz.cx)/1920.f, static_cast<float>(sz.cy)/1920.f }, sz,
 			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
 
+		// rescale the drawing layer for the new image
+		if (auto layer = JsThisToDrawingLayer(self); layer != nullptr)
+			ScaleDrawingLayerSprite(*layer);
+
 		// if we're frozen in the background, force a refresh
 		if (freezeBackgroundRendering && !Application::IsInForeground())
 			InvalidateRect(hWnd, NULL, FALSE);

@@ -47,11 +47,26 @@ public:
 	// for the media.
 	bool Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
 
-	// Load from a Shockwave Flash file.  The regular Load(filename,...) method
-	// calls this when it detects Flash content, so you don't have to call this
-	// explicitly unless you know for certain that a file contains Flash data
-	// and doesn't need to be checked for other content types.
+	// Load from a Shockwave Flash file.  The regular Load(filename,...)
+	// method calls this when it detects Flash content, so you don't have
+	// to call this explicitly unless you know for certain that a file 
+	// contains Flash data and doesn't need to be checked for other 
+	// content types.
 	bool LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a GIF image file.  The regular Load(filename,...) method calls
+	// this when it detects GIF contents, so you don't have to call this
+	// explicitly unless you already know that a file contains GIF data,
+	// in which case you can skip the content detection.  This routine
+	// automatically detects animated GIF files and loads the animation
+	// frame set.
+	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a texture from an image file using WIC.  This does a direct
+	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
+	// but doesn't have support for orientation metadata or multi-frame
+	// animated GIFs.
+	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
 
 	// Load from an HBITMAP
 	bool Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors);
@@ -171,9 +186,29 @@ protected:
 	// our texture, and its shader resource view
 	RefPtr<ID3D11Resource> texture;
 	RefPtr<ID3D11ShaderResourceView> rv;
-	
+
 	// staging texture - used only for Flash objects
 	RefPtr<ID3D11Texture2D> stagingTexture;
+
+	// Animation frame 
+	struct AnimFrame
+	{
+		// time to display this frame, in milliseconds
+		DWORD dt;
+
+		// text and shader resource view for the frame
+		RefPtr<ID3D11Resource> texture;
+		RefPtr<ID3D11ShaderResourceView> rv;
+	};
+
+	// animation frame list
+	std::vector<std::unique_ptr<AnimFrame>> animFrames;
+
+	// current animation frame index
+	int curAnimFrame = 0;
+
+	// ending time of the current frame, in system ticks
+	UINT64 curAnimFrameEndTime = 0;
 
 	// world transform matrix
 	DirectX::XMMATRIX world;

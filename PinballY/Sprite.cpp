@@ -4,9 +4,12 @@
 #include "stdafx.h"
 #include <d3d11_1.h>
 #include <DirectXMath.h>
+#include <wincodec.h>
 #include "../Utilities/GraphicsUtil.h"
+#include "../Utilities/ComUtil.h"
 #include "DDSTextureLoader.h"
 #include "WICTextureLoader.h"
+#include "../DirectXTex/DirectXTex/DirectXTex.h"
 #include "D3D.h"
 #include "Sprite.h"
 #include "Shader.h"
@@ -53,17 +56,20 @@ void Sprite::UpdateWorld()
 
 bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous texture
-	texture = nullptr;
-	stagingTexture = nullptr;
-	rv = nullptr;
+	// release any previous resources
+	Clear();
 
 	// Try to determine the image type from the file contents
 	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
 	{
-		// If it's an SWF, it requires special handling
+		// If it's an SWF, WIC can't handle it - we have to load it through
+		// our Flash client site object
 		if (desc.imageType == ImageFileDesc::SWF)
 			return LoadSWF(filename, normalizedSize, pixSize, eh);
+
+		// If it's a GIF, we need to load it specially in case it's animated
+		if (desc.imageType == ImageFileDesc::GIF)
+			return LoadGIF(filename, normalizedSize, pixSize, eh);
 
 		// The WIC loader ignores orientation metadata (such as JPEG Exif data), so
 		// we have to do some special work if it's rotated or reflected.
@@ -79,7 +85,7 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 				// Set up the drawing port with the origin at the center of the final
 				// view size, to make the rotation and reflection transforms easier to
 				// think about.
-				g.TranslateTransform(float(desc.dispSize.cx/2), float(desc.dispSize.cy/2));
+				g.TranslateTransform(float(desc.dispSize.cx / 2), float(desc.dispSize.cy / 2));
 
 				// apply the JPEG Exif transform
 				Gdiplus::Matrix m;
@@ -89,14 +95,21 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 				// draw the image with the transforms applied, at the SOURCE image size
 				float cx = float(desc.size.cx);
 				float cy = float(desc.size.cy);
-				g.DrawImage(bitmap.get(), Gdiplus::RectF(-cx/2.0f, -cy/2.0f, cx, cy),
+				g.DrawImage(bitmap.get(), Gdiplus::RectF(-cx / 2.0f, -cy / 2.0f, cx, cy),
 					0.0f, 0.0f, cx, cy, Gdiplus::UnitPixel);
 
 			}, eh, _T("Sprite::Load(file) with orientation metadata"));
 		}
 	}
 
-	// It's not an SWF, and it's not rotated, so translate the image to a texture via WIC.
+	// It's didn't require special handling, so we'll just let DirectxTk 
+	// load it directly via WIC.
+	return LoadWICTexture(filename, normalizedSize, eh);
+}
+
+bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh)
+{
+	// create the WIC texture
 	HRESULT hr = CreateWICTextureFromFileEx(D3D::Get()->GetDevice(), filename, 
 		0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, WIC_LOADER_IGNORE_SRGB, &texture, &rv);
 	if (FAILED(hr))
@@ -118,13 +131,8 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous texture
-	texture = 0;
-	stagingTexture = 0;
-	rv = 0;
-
-	// clear any old Flash site
-	flashSite = nullptr;
+	// release any previous resources
+	Clear();
 
 	// Create the new Flash site.  Our FlashClientSite creates a windowless
 	// activation site for the Flash object, loads the file (as a "movie"),
@@ -147,6 +155,386 @@ bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	// Create a staging texture for frame updates
 	if (!CreateStagingTexture(pixSize.cx, pixSize.cy, eh))
 		return false;
+
+	// success
+	return true;
+}
+
+// Fill a rectangle in a GIF image under construction
+static void FillGIFRect(const Image &img, const RECT &destRect, uint32_t color)
+{
+	RECT clipped =
+	{
+		(destRect.left < 0) ? 0 : destRect.left,
+		(destRect.top < 0) ? 0 : destRect.top,
+		(destRect.right > static_cast<long>(img.width)) ? static_cast<long>(img.width) : destRect.right,
+		(destRect.bottom > static_cast<long>(img.height)) ? static_cast<long>(img.height) : destRect.bottom
+	};
+
+	uint8_t *ptr = img.pixels
+		+ static_cast<size_t>(clipped.top) * img.rowPitch 
+		+ static_cast<size_t>(clipped.left) * sizeof(uint32_t);
+
+	for (long y = clipped.top; y < clipped.bottom; ++y)
+	{
+		auto pixelPtr = reinterpret_cast<uint32_t*>(ptr);
+		for (long x = clipped.left; x < clipped.right; ++x)
+			*pixelPtr++ = color;
+
+		ptr += img.rowPitch;
+	}
+}
+
+// Blend a rectangle in a GIF image under construction.  This has
+// a very restricted notion of alpha transparency: the alpha in the
+// source image is either 00 (fully transparent) or FF (fully opaque).
+// Anything else is considered opaque.  This won't accomplish full
+// alpha blending, but full alpha isn't needed for GIF loading, as
+// GIF only has transparent and opaque pixels.  (So why, you might
+// ask, do we have an alpha channel at all here?  It's because we're
+// working in terms of WIC-decoded image frames, which WIC has already
+// converted to ABGR format in memory.  WIC translates the transparent
+// color index in the GIF to A=00 in the ABGR pixel data.  So we have
+// what looks like a full alpha-channel image.  But we know we'll
+// never see any alpha values other than 00 or FF, because of the
+// nature of the source data, so we can skip the computationally
+// expensive alpha blend step; the blend is always 100% source or
+// 100% destination, so we just pick the pixel to keep.)
+static void BlendGIFRect(const Image &composed, const Image &raw, const RECT &destRect)
+{
+	RECT clipped =
+	{
+		(destRect.left < 0) ? 0 : destRect.left,
+		(destRect.top < 0) ? 0 : destRect.top,
+		(destRect.right > static_cast<long>(composed.width)) ? static_cast<long>(composed.width) : destRect.right,
+		(destRect.bottom > static_cast<long>(composed.height)) ? static_cast<long>(composed.height) : destRect.bottom
+	};
+
+	uint8_t *rawPtr = raw.pixels;
+	uint8_t *composedPtr = composed.pixels 
+		+ size_t(clipped.top) * composed.rowPitch 
+		+ size_t(clipped.left) * sizeof(uint32_t);
+
+	for (long y = clipped.top; y < clipped.bottom; ++y)
+	{
+		auto srcPtr = reinterpret_cast<uint32_t*>(rawPtr);
+		auto destPtr = reinterpret_cast<uint32_t*>(composedPtr);
+		for (long x = clipped.left; x < clipped.right; ++x, ++destPtr, ++srcPtr)
+		{
+			if ((*srcPtr & 0xFF000000) != 0)
+				*destPtr = *srcPtr;
+		}
+
+		rawPtr += raw.rowPitch;
+		composedPtr += composed.rowPitch;
+	}
+}
+
+// Load a GIF, with animation support
+bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
+{
+	// release any previous resources
+	Clear();
+
+	// system errors
+	HRESULT hr = E_FAIL;
+	auto SysErr = [filename, &hr, &eh](const CHAR *details)
+	{
+		WindowsErrorMessage sysErr(hr);
+		eh.SysError(MsgFmt(IDS_ERR_IMGLOAD, filename), 
+			MsgFmt(_T("GIF loader: %hs (HRESULT %lx: %s)"), details, hr, sysErr.Get()));
+		return false;
+	};
+
+	// get the WIC factory
+	bool isWIC2;
+	auto pWIC = GetWICFactory(isWIC2);
+	if (pWIC == nullptr)
+		return (hr = E_NOINTERFACE), SysErr("Unable to get WIC factory");
+
+	// create the image decoder
+	RefPtr<IWICBitmapDecoder> decoder;
+	if (FAILED(hr = pWIC->CreateDecoderFromFilename(filename, nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder)))
+		return SysErr("Unable to create bitmap decoder");
+
+	// read the frame count
+	UINT nFrames;
+	if (FAILED(hr = decoder->GetFrameCount(&nFrames)))
+		return SysErr("Unable to read frame count");
+
+	// If the frame count is zero or one, there's no need to do anything
+	// fancy for animation support.  We can just use the regular WIC loader.
+	if (nFrames <= 1)
+		return LoadWICTexture(filename, normalizedSize, eh);
+
+	// get the file format
+	GUID containerFormat;
+	if (FAILED(hr = decoder->GetContainerFormat(&containerFormat)))
+		return SysErr("Unable get container file format");
+
+	// verify that it's a GIF file - if it's not, load it using
+	// the basic WIC image file loader instead
+	if (memcmp(&containerFormat, &GUID_ContainerFormatGif, sizeof(GUID)) != 0)
+		return LoadWICTexture(filename, normalizedSize, eh);
+
+	// get the metadata reader
+	RefPtr<IWICMetadataQueryReader> meta;
+	if (FAILED(hr = decoder->GetMetadataQueryReader(&meta)))
+		return SysErr("Unable to get metadata reader");
+
+	// get the frame size
+	auto ReadInt = [&meta, &hr, &SysErr](UINT &val, const WCHAR *metaName)
+	{
+		PROPVARIANTEx prop;
+		if (FAILED(hr = meta->GetMetadataByName(metaName, &prop)))
+			return SysErr("Unable to read metadata property");
+
+		if (prop.vt != VT_UI2)
+			return (hr = E_UNEXPECTED), SysErr("Metadata property is wrong type");
+
+		val = prop.uiVal;
+		return true;
+	};
+
+	UINT width, height;
+	if (!ReadInt(width, L"/logscrdesc/Width") || !ReadInt(height, L"/logscrdesc/Height"))
+		return false;
+
+	// presume we'll use transparency as the background color
+	WICColor bgColor = 0;
+
+	// Check for an explicit background color 
+	PROPVARIANTEx colorTableFlag;
+	if (SUCCEEDED(meta->GetMetadataByName(L"/logscrdesc/GlobalColorTableFlag", &colorTableFlag))
+		&& colorTableFlag.vt == VT_BOOL
+		&& colorTableFlag.boolVal)
+	{
+		PROPVARIANTEx bgColorIndex;
+		if (SUCCEEDED(meta->GetMetadataByName(L"/logscrdesc/BackgroundColorIndex", &bgColorIndex))
+			&& bgColorIndex.vt == VT_UI1)
+		{
+			// create a palette
+			RefPtr<IWICPalette> palette;
+			if (FAILED(hr = pWIC->CreatePalette(&palette)))
+				return SysErr("Unable to create palette");
+
+			// copy the image palette
+			if (FAILED(hr = decoder->CopyPalette(palette)))
+				return SysErr("Unable to copy palette");
+
+			// retrieve the colors
+			WICColor rgColors[256];
+			UINT actualColors = 0;
+			if (FAILED(hr = palette->GetColors(_countof(rgColors), rgColors, &actualColors)))
+				return SysErr("Unable to retrieve palette colors");
+
+			// look up the color in the palette
+			uint8_t index = bgColorIndex.bVal;
+			if (index < actualColors)
+				bgColor = rgColors[index];
+		}
+	}
+
+	// read the frames
+	std::vector<std::unique_ptr<ScratchImage>> frames;
+	UINT prevFrame = 0;
+	enum disposal_t { 
+		DM_UNDEFINED = 0, 
+		DM_NONE = 1,         // keep this frame, draw next frame on top of it
+		DM_BACKGROUND = 2,   // clear the frame with the background color
+		DM_PREVIOUS = 3      // revert to previous frame
+	} disposal = DM_UNDEFINED;
+	RECT rc = { 0, 0, 0, 0 };
+	for (UINT iFrame = 0; iFrame < nFrames; ++iFrame)
+	{
+		// create a scratch image frame
+		std::unique_ptr<ScratchImage> image(new (std::nothrow) ScratchImage);
+		if (image == nullptr)
+			return (hr = E_OUTOFMEMORY), "Unable to allocate frame memory";
+
+		// initialize the frame, using the previous frame if we have one,
+		// otherwise a blank background
+		if (disposal == DM_PREVIOUS)
+			hr = image->InitializeFromImage(*frames[prevFrame]->GetImage(0, 0, 0));
+		else if (iFrame > 0)
+			hr = image->InitializeFromImage(*frames[iFrame - 1]->GetImage(0, 0, 0));
+		else
+			hr = image->Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, width, height, 1, 1);
+
+		if (FAILED(hr))
+			return SysErr("Unable to initialize image frame");
+
+		// get the current image as the starting point for composition
+		auto composedImage = image->GetImage(0, 0, 0);
+
+		// fill the whole first frame with the background; fill later
+		// frames over the update area
+		if (iFrame == 0)
+		{
+			RECT rcFull = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+			FillGIFRect(*composedImage, rcFull, bgColor);
+		}
+		else if (disposal == DM_BACKGROUND)
+		{
+			FillGIFRect(*composedImage, rc, bgColor);
+		}
+
+		// decode the frame
+		RefPtr<IWICBitmapFrameDecode> decodedFrame;
+		if (FAILED(hr = decoder->GetFrame(iFrame, &decodedFrame)))
+			return SysErr("Unable to decode frame");
+
+		// get the pixel format
+		WICPixelFormatGUID pixFmt;
+		if (FAILED(hr = decodedFrame->GetPixelFormat(&pixFmt)))
+			return SysErr("Unable to get decoded frame foramt");
+
+		// Make sure it's an indexed (paletted) 8-bit format, as that's the
+		// only format GIF should support.
+		if (memcmp(&pixFmt, &GUID_WICPixelFormat8bppIndexed, sizeof(GUID)) != 0)
+			return (hr = E_UNEXPECTED), SysErr("Wrong pixel format for frame (should be 8bpp indexed)");
+
+		// Try getting the metadata for this frame.  It's not an error
+		// if we can't get the reader, as the frame might not have any
+		// metadata.
+		LONG delay = 0;
+		meta = nullptr;
+		if (SUCCEEDED(decodedFrame->GetMetadataQueryReader(&meta)))
+		{
+			// Read the sub-rectangle metadata for this frame.  The
+			// frame might only have partial metadata, so it's not an
+			// error if we can't read any of the individual items.
+			LONG lval;
+			auto ReadDim = [&meta, &lval](const WCHAR *name)
+			{
+				PROPVARIANTEx prop;
+				if (SUCCEEDED(meta->GetMetadataByName(name, &prop))
+					&& prop.vt == VT_UI2)
+				{
+					lval = static_cast<LONG>(prop.uiVal);
+					return true;
+				}
+				return false;
+			};
+			if (ReadDim(L"/imgdesc/Left"))
+				rc.left = lval;
+			if (ReadDim(L"/imgdesc/Top"))
+				rc.top = lval;
+			if (ReadDim(L"/imgdesc/Width"))
+				rc.right = rc.left + lval;
+			if (ReadDim(L"/imgdesc/Height"))
+				rc.bottom = rc.top + lval;
+
+			// get the disposal for the frame
+			disposal = DM_UNDEFINED;
+			PROPVARIANTEx dprop;
+			if (SUCCEEDED(meta->GetMetadataByName(L"/grctlext/Disposal", &dprop))
+				&& dprop.vt == VT_UI1)
+				disposal = static_cast<disposal_t>(dprop.bVal);
+
+			// get the frame delay time - this is in 10ms units in the GIF file
+			if (ReadDim(L"/grctlext/Delay"))
+				delay = lval * 10;
+		}
+
+		UINT w, h;
+		if (FAILED(hr = decodedFrame->GetSize(&w, &h)))
+			return SysErr("Unable to read frame size");
+
+		// initialize a working frame
+		ScratchImage rawFrame;
+		if (FAILED(hr = rawFrame.Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, w, h, 1, 1)))
+			return SysErr("Unable to initialize working frmae for composition");
+
+		// set up a converter
+		RefPtr<IWICFormatConverter> conv;
+		if (FAILED(hr = pWIC->CreateFormatConverter(&conv)))
+			return SysErr("Unable to create format converter");
+
+		// initialize the converter
+		if (FAILED(hr = conv->Initialize(decodedFrame, GUID_WICPixelFormat32bppBGRA,
+			WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeMedianCut)))
+			return SysErr("Unable to initialize format converter");
+
+		// get the frame contents
+		auto img = rawFrame.GetImage(0, 0, 0);
+		if (FAILED(hr = conv->CopyPixels(nullptr, static_cast<UINT>(img->rowPitch), static_cast<UINT>(img->slicePitch), img->pixels)))
+			return SysErr("Unable to copy pixels to raw frame");
+
+		// copy the first frame, or blend the new frame with the last frame
+		if (iFrame == 0)
+		{
+			Rect rcFull(0, 0, img->width, img->height);
+			if (FAILED(hr = CopyRectangle(*img, rcFull, *composedImage, TEX_FILTER_DEFAULT,
+				static_cast<size_t>(rc.left), static_cast<size_t>(rc.top))))
+				return SysErr("Unable to copy first frame");
+		}
+		else
+		{
+			BlendGIFRect(*composedImage, *img, rc);
+		}
+
+		// if we're not reverting to the previous frame, this frame
+		// will be the previous frame for the next frame with 
+		// disposal method DM_PREVIOUS
+		if (disposal != DM_PREVIOUS)
+			prevFrame = iFrame;
+
+		// Create a D3D texture and shader resource view for the frame
+		{
+			// get the image data
+			auto imageData = image->GetImage(0, 0, 0);
+
+			// create an animation frame
+			auto animFrame = animFrames.emplace_back(new AnimFrame()).get();
+			animFrame->dt = static_cast<DWORD>(delay);
+				
+			// set up the D3D texture descriptor
+			D3D11_TEXTURE2D_DESC txd = CD3D11_TEXTURE2D_DESC(
+				DXGI_FORMAT_B8G8R8A8_UNORM, 
+				static_cast<UINT>(imageData->width), static_cast<UINT>(imageData->height),
+				1, 1, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE,
+				1, 0, 0);
+
+			// set up the subresource descriptor
+			D3D11_SUBRESOURCE_DATA srd;
+			ZeroMemory(&srd, sizeof(srd));
+			srd.pSysMem = imageData->pixels;
+			srd.SysMemPitch = static_cast<UINT>(imageData->rowPitch);
+			srd.SysMemSlicePitch = static_cast<UINT>(imageData->slicePitch);
+
+			// set up the shader resource view
+			D3D11_SHADER_RESOURCE_VIEW_DESC svd;
+			svd.Format = txd.Format;
+			svd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			svd.Texture2D.MipLevels = txd.MipLevels;
+			svd.Texture2D.MostDetailedMip = 0;
+
+			// create the texture and resource view
+			HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &animFrame->rv, &animFrame->texture);
+			if (!SUCCEEDED(hr))
+			{
+				WindowsErrorMessage winMsg(hr);
+				eh.SysError(
+					MsgFmt(IDS_ERR_IMGCREATE, filename),
+					MsgFmt(_T("GIF loader, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
+				return false;
+			}
+		}
+
+		// Add the image to the results, to facilitate composing subsequent frames
+		frames.emplace_back(std::move(image));
+	}
+
+	// create the mesh
+	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
+		return false;
+
+	// initialize the animation
+	curAnimFrame = 0;
+	curAnimFrameEndTime = GetTickCount64();
+	if (animFrames.size() > 0)
+		curAnimFrameEndTime += animFrames[0]->dt;
 
 	// success
 	return true;
@@ -270,9 +658,9 @@ bool Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, c
 bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// release any previous texture
-	texture = 0;
-	stagingTexture = 0;
-	rv = 0;
+	texture = nullptr;
+	stagingTexture = nullptr;
+	rv = nullptr;
 
 	// Figure the pixel width and height from the bitmap header.  Note
 	// that the header height will be negative for a top-down bitmap
@@ -280,7 +668,7 @@ bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, 
 	int wid = bmi.bmiHeader.biWidth;
 	int ht = abs(bmi.bmiHeader.biHeight);
 
-	// set up the D3D text descriptor
+	// set up the D3D texture descriptor
 	D3D11_TEXTURE2D_DESC txd = CD3D11_TEXTURE2D_DESC(
 		DXGI_FORMAT_B8G8R8A8_UNORM, wid, ht, 1, 1, 
 		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE,
@@ -323,8 +711,8 @@ void Sprite::ReCreateMesh()
 bool Sprite::CreateMesh(POINTF sz, ErrorHandler &eh, const TCHAR *descForErrors)
 {
 	// remove any prior resources
-	vertexBuffer = 0;
-	indexBuffer = 0;
+	vertexBuffer = nullptr;
+	indexBuffer = nullptr;
 
 	// get the D3D interface
 	D3D *d3d = D3D::Get();
@@ -486,8 +874,34 @@ void Sprite::Render(Camera *camera)
 		}
 	}
 
+	// Assume we'll use the still-frame shader resource view
+	ID3D11ShaderResourceView *rvCur = rv;
+
+	// check for animation
+	if (animFrames.size() != 0)
+	{
+		// Check if it's time to advance to the next frame.  Note that we
+		// might have to advance past multiple frames, because it's possible
+		// for a frame to have a zero delay, which means that it's only
+		// there for composition purposes and won't actually be on the
+		// screen for finite time.
+		UINT64 now = GetTickCount64();
+		while (now >= curAnimFrameEndTime)
+		{
+			// it's time - advance to the next frame
+			if (++curAnimFrame >= animFrames.size())
+				curAnimFrame = 0;
+
+			// figure the frame end time
+			curAnimFrameEndTime = now + animFrames[curAnimFrame]->dt;
+		}
+
+		// use the current frame's shader resource view
+		rvCur = animFrames[curAnimFrame]->rv;
+	}
+
 	// do nothing if we don't have a shader resource view
-	if (rv == nullptr)
+	if (rvCur == nullptr)
 		return;
 
 	// prepare my shader
@@ -496,7 +910,7 @@ void Sprite::Render(Camera *camera)
 	ts->SetAlpha(UpdateFade());
 
 	// load our texture into the pixel shader
-	D3D::Get()->PSSetShaderResources(0, 1, &rv);
+	D3D::Get()->PSSetShaderResources(0, 1, &rvCur);
 
 	// do the basic mesh rendering
 	RenderMesh();
@@ -590,6 +1004,10 @@ void Sprite::AdviseWindowSize(SIZE szLayout)
 
 void Sprite::Clear()
 {
+	// clear the animation frame list
+	curAnimFrame = 0;
+	animFrames.clear();
+
 	// if we have a Flash site, release it
 	DetachFlash();
 
