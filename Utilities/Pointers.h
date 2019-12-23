@@ -115,7 +115,7 @@ template<class T> class RefPtr
 {
 public:
 	// construction - set null reference by default
-	RefPtr() { ptr = 0; }
+	RefPtr() { ptr = nullptr; }
 
 	// Construction from a bare pointer.  This is used to create
 	// the initial reference, such as when constructing an object
@@ -152,7 +152,7 @@ public:
 	{
 		// if we have a valid object pointer, decrease the reference
 		// count to reflect the termination of this referencer
-		if (ptr != 0)
+		if (ptr != nullptr)
 			ptr->Release();
 	}
 
@@ -166,12 +166,12 @@ public:
 		// want to trigger spurious destruction by letting the 
 		// reference count drop incorrectly to zero before we
 		// attach to it internally.
-		if (t != 0)
+		if (t != nullptr)
 			t->AddRef();
 
 		// Now it's safe to remove the reference to the previous
 		// object, if any
-		if (ptr != 0)
+		if (ptr != nullptr)
 			ptr->Release();
 
 		// finally, remember the new object
@@ -187,9 +187,9 @@ public:
 	{
 		// count the new reference, drop the old reference, and 
 		// remember the new pointer (in that order)
-		if (t.ptr != 0)
+		if (t.ptr != nullptr)
 			t.ptr->AddRef();
-		if (ptr != 0)
+		if (ptr != nullptr)
 			ptr->Release();
 		ptr = t.ptr;
 
@@ -204,7 +204,7 @@ public:
 	RefPtr<T> &Attach(T *t)
 	{
 		// release any previous object pointer
-		if (ptr != 0)
+		if (ptr != nullptr)
 			ptr->Release();
 
 		// set the new pointer without adding a reference
@@ -228,7 +228,7 @@ public:
 		// clear the internal pointer without counting the reference
 		// removal, since our reference count now implicitly belongs
 		// to the caller
-		ptr = 0;
+		ptr = nullptr;
 
 		// return the naked pointer
 		return retval;
@@ -250,6 +250,9 @@ public:
 	{
 		return &ptr;
 	}
+
+	// This is for times when you want the address of the RefPtr itself
+	RefPtr<T>* RefPtrAddr() { return this; }
 
 	// casting to the underlying object gets the naked pointer
 	operator T*() const
@@ -327,17 +330,17 @@ public:
 
 	// Test if the underlying object still alive.  If so, the pointer is
 	// valid and can be dereferenced.
-	bool IsAlive() const { return ptr != 0 && (*ptr).target != 0; }
+	bool IsAlive() const { return ptr != nullptr && (*ptr).target != nullptr; }
 
 	// Casting to the underlying object gets the naked pointer.  Note
 	// that this can be null even if the caller hasn't cleared the pointer,
 	// since the underlying object might have been deleted by unrelated code
 	// by becoming unreachable from strong (counted) references.
-	operator T*() const { return ptr != 0 ? (*ptr).target : 0; }
+	operator T*() const { return ptr != nullptr ? (*ptr).target : nullptr; }
 
 	// Dereference the underlying pointer.  The caller should always take
 	// care to check the validity of the pointer first.
-	T* operator ->() { return ptr != 0 ? (*ptr).target : 0; }
+	T* operator ->() { return ptr != nullptr ? (*ptr).target : nullptr; }
 
 protected:
 	// Set the pointer
@@ -373,7 +376,7 @@ public:
 	virtual ~WeakRefable()
 	{
 		// clear the proxy pointer
-		weakRefProxy->target = 0;
+		weakRefProxy->target = nullptr;
 	}
 
 protected:
