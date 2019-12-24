@@ -16,7 +16,7 @@
 #include "TextureShader.h"
 #include "Application.h"
 #include "FlashClient/FlashClient.h"
-
+#include "LogFile.h"
 
 using namespace DirectX;
 
@@ -335,210 +335,216 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 		}
 	}
 
-	// read the frames
-	std::vector<std::unique_ptr<ScratchImage>> frames;
-	UINT prevFrame = 0;
-	enum disposal_t { 
-		DM_UNDEFINED = 0, 
-		DM_NONE = 1,         // keep this frame, draw next frame on top of it
-		DM_BACKGROUND = 2,   // clear the frame with the background color
-		DM_PREVIOUS = 3      // revert to previous frame
-	} disposal = DM_UNDEFINED;
-	RECT rc = { 0, 0, 0, 0 };
-	for (UINT iFrame = 0; iFrame < nFrames; ++iFrame)
-	{
-		// create a scratch image frame
-		std::unique_ptr<ScratchImage> image(new (std::nothrow) ScratchImage);
-		if (image == nullptr)
-			return (hr = E_OUTOFMEMORY), "Unable to allocate frame memory";
-
-		// initialize the frame, using the previous frame if we have one,
-		// otherwise a blank background
-		if (disposal == DM_PREVIOUS)
-			hr = image->InitializeFromImage(*frames[prevFrame]->GetImage(0, 0, 0));
-		else if (iFrame > 0)
-			hr = image->InitializeFromImage(*frames[iFrame - 1]->GetImage(0, 0, 0));
-		else
-			hr = image->Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, width, height, 1, 1);
-
-		if (FAILED(hr))
-			return SysErr("Unable to initialize image frame");
-
-		// get the current image as the starting point for composition
-		auto composedImage = image->GetImage(0, 0, 0);
-
-		// fill the whole first frame with the background; fill later
-		// frames over the update area
-		if (iFrame == 0)
-		{
-			RECT rcFull = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
-			FillGIFRect(*composedImage, rcFull, bgColor);
-		}
-		else if (disposal == DM_BACKGROUND)
-		{
-			FillGIFRect(*composedImage, rc, bgColor);
-		}
-
-		// decode the frame
-		RefPtr<IWICBitmapFrameDecode> decodedFrame;
-		if (FAILED(hr = decoder->GetFrame(iFrame, &decodedFrame)))
-			return SysErr("Unable to decode frame");
-
-		// get the pixel format
-		WICPixelFormatGUID pixFmt;
-		if (FAILED(hr = decodedFrame->GetPixelFormat(&pixFmt)))
-			return SysErr("Unable to get decoded frame foramt");
-
-		// Make sure it's an indexed (paletted) 8-bit format, as that's the
-		// only format GIF should support.
-		if (memcmp(&pixFmt, &GUID_WICPixelFormat8bppIndexed, sizeof(GUID)) != 0)
-			return (hr = E_UNEXPECTED), SysErr("Wrong pixel format for frame (should be 8bpp indexed)");
-
-		// Try getting the metadata for this frame.  It's not an error
-		// if we can't get the reader, as the frame might not have any
-		// metadata.
-		LONG delay = 0;
-		meta = nullptr;
-		if (SUCCEEDED(decodedFrame->GetMetadataQueryReader(&meta)))
-		{
-			// Read the sub-rectangle metadata for this frame.  The
-			// frame might only have partial metadata, so it's not an
-			// error if we can't read any of the individual items.
-			LONG lval;
-			auto ReadDim = [&meta, &lval](const WCHAR *name)
-			{
-				PROPVARIANTEx prop;
-				if (SUCCEEDED(meta->GetMetadataByName(name, &prop))
-					&& prop.vt == VT_UI2)
-				{
-					lval = static_cast<LONG>(prop.uiVal);
-					return true;
-				}
-				return false;
-			};
-			if (ReadDim(L"/imgdesc/Left"))
-				rc.left = lval;
-			if (ReadDim(L"/imgdesc/Top"))
-				rc.top = lval;
-			if (ReadDim(L"/imgdesc/Width"))
-				rc.right = rc.left + lval;
-			if (ReadDim(L"/imgdesc/Height"))
-				rc.bottom = rc.top + lval;
-
-			// get the disposal for the frame
-			disposal = DM_UNDEFINED;
-			PROPVARIANTEx dprop;
-			if (SUCCEEDED(meta->GetMetadataByName(L"/grctlext/Disposal", &dprop))
-				&& dprop.vt == VT_UI1)
-				disposal = static_cast<disposal_t>(dprop.bVal);
-
-			// get the frame delay time - this is in 10ms units in the GIF file
-			if (ReadDim(L"/grctlext/Delay"))
-				delay = lval * 10;
-		}
-
-		UINT w, h;
-		if (FAILED(hr = decodedFrame->GetSize(&w, &h)))
-			return SysErr("Unable to read frame size");
-
-		// initialize a working frame
-		ScratchImage rawFrame;
-		if (FAILED(hr = rawFrame.Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, w, h, 1, 1)))
-			return SysErr("Unable to initialize working frmae for composition");
-
-		// set up a converter
-		RefPtr<IWICFormatConverter> conv;
-		if (FAILED(hr = pWIC->CreateFormatConverter(&conv)))
-			return SysErr("Unable to create format converter");
-
-		// initialize the converter
-		if (FAILED(hr = conv->Initialize(decodedFrame, GUID_WICPixelFormat32bppBGRA,
-			WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeMedianCut)))
-			return SysErr("Unable to initialize format converter");
-
-		// get the frame contents
-		auto img = rawFrame.GetImage(0, 0, 0);
-		if (FAILED(hr = conv->CopyPixels(nullptr, static_cast<UINT>(img->rowPitch), static_cast<UINT>(img->slicePitch), img->pixels)))
-			return SysErr("Unable to copy pixels to raw frame");
-
-		// copy the first frame, or blend the new frame with the last frame
-		if (iFrame == 0)
-		{
-			Rect rcFull(0, 0, img->width, img->height);
-			if (FAILED(hr = CopyRectangle(*img, rcFull, *composedImage, TEX_FILTER_DEFAULT,
-				static_cast<size_t>(rc.left), static_cast<size_t>(rc.top))))
-				return SysErr("Unable to copy first frame");
-		}
-		else
-		{
-			BlendGIFRect(*composedImage, *img, rc);
-		}
-
-		// if we're not reverting to the previous frame, this frame
-		// will be the previous frame for the next frame with 
-		// disposal method DM_PREVIOUS
-		if (disposal != DM_PREVIOUS)
-			prevFrame = iFrame;
-
-		// Create a D3D texture and shader resource view for the frame
-		{
-			// get the image data
-			auto imageData = image->GetImage(0, 0, 0);
-
-			// create an animation frame
-			auto animFrame = animFrames.emplace_back(new AnimFrame()).get();
-			animFrame->dt = static_cast<DWORD>(delay);
-				
-			// set up the D3D texture descriptor
-			D3D11_TEXTURE2D_DESC txd = CD3D11_TEXTURE2D_DESC(
-				DXGI_FORMAT_B8G8R8A8_UNORM, 
-				static_cast<UINT>(imageData->width), static_cast<UINT>(imageData->height),
-				1, 1, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE,
-				1, 0, 0);
-
-			// set up the subresource descriptor
-			D3D11_SUBRESOURCE_DATA srd;
-			ZeroMemory(&srd, sizeof(srd));
-			srd.pSysMem = imageData->pixels;
-			srd.SysMemPitch = static_cast<UINT>(imageData->rowPitch);
-			srd.SysMemSlicePitch = static_cast<UINT>(imageData->slicePitch);
-
-			// set up the shader resource view
-			D3D11_SHADER_RESOURCE_VIEW_DESC svd;
-			svd.Format = txd.Format;
-			svd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			svd.Texture2D.MipLevels = txd.MipLevels;
-			svd.Texture2D.MostDetailedMip = 0;
-
-			// create the texture and resource view
-			HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &animFrame->rv, &animFrame->texture);
-			if (!SUCCEEDED(hr))
-			{
-				WindowsErrorMessage winMsg(hr);
-				eh.SysError(
-					MsgFmt(IDS_ERR_IMGCREATE, filename),
-					MsgFmt(_T("GIF loader, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
-				return false;
-			}
-		}
-
-		// Add the image to the results, to facilitate composing subsequent frames
-		frames.emplace_back(std::move(image));
-	}
+	// Set up the frame decoder state
+	gifLoaderState.Init(pWIC, decoder, width, height, nFrames, bgColor, filename);
 
 	// create the mesh
 	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
 		return false;
 
 	// initialize the animation
+	isAnimation = true;
 	curAnimFrame = 0;
 	curAnimFrameEndTime = GetTickCount64();
-	if (animFrames.size() > 0)
-		curAnimFrameEndTime += animFrames[0]->dt;
 
 	// success
 	return true;
 }
+
+void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
+{
+	// if we've decoded the last frame, we're done
+	if (iFrame >= nFrames)
+		return;
+
+	// log any errors
+	HRESULT hr;
+	auto SysErr = [this, &hr](const CHAR *details)
+	{
+		// log the error
+		LogFileErrorHandler eh;
+		WindowsErrorMessage sysErr(hr);
+		eh.SysError(MsgFmt(IDS_ERR_IMGLOAD, filename.c_str()),
+			MsgFmt(_T("GIF loader: %hs (HRESULT %lx: %s)"), details, hr, sysErr.Get()));
+
+		// clear resources to stop further decoding
+		Clear();
+	};
+
+	// create a scratch image frame
+	std::unique_ptr<ScratchImage> image(new (std::nothrow) ScratchImage);
+	if (image == nullptr)
+		return (hr = E_OUTOFMEMORY), SysErr("Unable to allocate frame memory");
+
+	// initialize the frame, using the previous frame if we have one,
+	// otherwise a blank background
+	if (disposal == DM_PREVIOUS)
+		hr = image->InitializeFromImage(*frames[prevFrame]->GetImage(0, 0, 0));
+	else if (iFrame > 0)
+		hr = image->InitializeFromImage(*frames[iFrame - 1]->GetImage(0, 0, 0));
+	else
+		hr = image->Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, rcFull.right, rcFull.bottom, 1, 1);
+
+	if (FAILED(hr))
+		return SysErr("Unable to initialize image frame");
+
+	// get the current image as the starting point for composition
+	auto composedImage = image->GetImage(0, 0, 0);
+
+	// fill the whole first frame with the background; fill later
+	// frames over the update area
+	if (iFrame == 0)
+		FillGIFRect(*composedImage, rcFull, bgColor);
+	else if (disposal == DM_BACKGROUND)
+		FillGIFRect(*composedImage, rcSub, bgColor);
+
+	// decode the frame
+	RefPtr<IWICBitmapFrameDecode> decodedFrame;
+	if (FAILED(hr = decoder->GetFrame(iFrame, &decodedFrame)))
+		return SysErr("Unable to decode frame");
+
+	// get the pixel format
+	WICPixelFormatGUID pixFmt;
+	if (FAILED(hr = decodedFrame->GetPixelFormat(&pixFmt)))
+		return SysErr("Unable to get decoded frame foramt");
+
+	// Make sure it's an indexed (paletted) 8-bit format, as that's the
+	// only format GIF should support.
+	if (memcmp(&pixFmt, &GUID_WICPixelFormat8bppIndexed, sizeof(GUID)) != 0)
+		return (hr = E_UNEXPECTED), SysErr("Wrong pixel format for frame (should be 8bpp indexed)");
+
+	// Try getting the metadata for this frame.  It's not an error
+	// if we can't get the reader, as the frame might not have any
+	// metadata.
+	LONG delay = 0;
+	RefPtr<IWICMetadataQueryReader> meta;
+	if (SUCCEEDED(decodedFrame->GetMetadataQueryReader(&meta)))
+	{
+		// Read the sub-rectangle metadata for this frame.  The
+		// frame might only have partial metadata, so it's not an
+		// error if we can't read any of the individual items.
+		LONG lval;
+		auto ReadDim = [&meta, &lval](const WCHAR *name)
+		{
+			PROPVARIANTEx prop;
+			if (SUCCEEDED(meta->GetMetadataByName(name, &prop))
+				&& prop.vt == VT_UI2)
+			{
+				lval = static_cast<LONG>(prop.uiVal);
+				return true;
+			}
+			return false;
+		};
+		if (ReadDim(L"/imgdesc/Left"))
+			rcSub.left = lval;
+		if (ReadDim(L"/imgdesc/Top"))
+			rcSub.top = lval;
+		if (ReadDim(L"/imgdesc/Width"))
+			rcSub.right = rcSub.left + lval;
+		if (ReadDim(L"/imgdesc/Height"))
+			rcSub.bottom = rcSub.top + lval;
+
+		// get the disposal for the frame
+		disposal = DM_UNDEFINED;
+		PROPVARIANTEx dprop;
+		if (SUCCEEDED(meta->GetMetadataByName(L"/grctlext/Disposal", &dprop))
+			&& dprop.vt == VT_UI1)
+			disposal = static_cast<disposal_t>(dprop.bVal);
+
+		// get the frame delay time - this is in 10ms units in the GIF file
+		if (ReadDim(L"/grctlext/Delay"))
+			delay = lval * 10;
+	}
+
+	UINT w, h;
+	if (FAILED(hr = decodedFrame->GetSize(&w, &h)))
+		return SysErr("Unable to read frame size");
+
+	// initialize a working frame
+	ScratchImage rawFrame;
+	if (FAILED(hr = rawFrame.Initialize2D(DXGI_FORMAT_B8G8R8A8_UNORM, w, h, 1, 1)))
+		return SysErr("Unable to initialize working frmae for composition");
+
+	// set up a converter
+	RefPtr<IWICFormatConverter> conv;
+	if (FAILED(hr = pWIC->CreateFormatConverter(&conv)))
+		return SysErr("Unable to create format converter");
+
+	// initialize the converter
+	if (FAILED(hr = conv->Initialize(decodedFrame, GUID_WICPixelFormat32bppBGRA,
+		WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeMedianCut)))
+		return SysErr("Unable to initialize format converter");
+
+	// get the frame contents
+	auto img = rawFrame.GetImage(0, 0, 0);
+	if (FAILED(hr = conv->CopyPixels(nullptr, static_cast<UINT>(img->rowPitch), static_cast<UINT>(img->slicePitch), img->pixels)))
+		return SysErr("Unable to copy pixels to raw frame");
+
+	// copy the first frame, or blend the new frame with the last frame
+	if (iFrame == 0)
+	{
+		Rect rcFull(0, 0, img->width, img->height);
+		if (FAILED(hr = CopyRectangle(*img, rcFull, *composedImage, TEX_FILTER_DEFAULT,
+			static_cast<size_t>(rcSub.left), static_cast<size_t>(rcSub.top))))
+			return SysErr("Unable to copy first frame");
+	}
+	else
+	{
+		BlendGIFRect(*composedImage, *img, rcSub);
+	}
+
+	// if we're not reverting to the previous frame, this frame
+	// will be the previous frame for the next frame with 
+	// disposal method DM_PREVIOUS
+	if (disposal != DM_PREVIOUS)
+		prevFrame = iFrame;
+
+	// Create a D3D texture and shader resource view for the frame
+	{
+		// get the image data
+		auto imageData = image->GetImage(0, 0, 0);
+
+		// create an animation frame
+		auto animFrame = sprite->animFrames.emplace_back(new AnimFrame()).get();
+		animFrame->dt = static_cast<DWORD>(delay);
+
+		// set up the D3D texture descriptor
+		D3D11_TEXTURE2D_DESC txd = CD3D11_TEXTURE2D_DESC(
+			DXGI_FORMAT_B8G8R8A8_UNORM,
+			static_cast<UINT>(imageData->width), static_cast<UINT>(imageData->height),
+			1, 1, D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE,
+			1, 0, 0);
+
+		// set up the subresource descriptor
+		D3D11_SUBRESOURCE_DATA srd;
+		ZeroMemory(&srd, sizeof(srd));
+		srd.pSysMem = imageData->pixels;
+		srd.SysMemPitch = static_cast<UINT>(imageData->rowPitch);
+		srd.SysMemSlicePitch = static_cast<UINT>(imageData->slicePitch);
+
+		// set up the shader resource view
+		D3D11_SHADER_RESOURCE_VIEW_DESC svd;
+		svd.Format = txd.Format;
+		svd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		svd.Texture2D.MipLevels = txd.MipLevels;
+		svd.Texture2D.MostDetailedMip = 0;
+
+		// create the texture and resource view
+		if (FAILED(hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &animFrame->rv, &animFrame->texture)))
+			return SysErr("CreateTexture2D failed");
+	}
+
+	// Add the image to the results, to facilitate composing subsequent frames
+	frames.emplace_back(std::move(image));
+
+	// advance to the next frame
+	++iFrame;
+
+	// if we're done, clear resources
+	if (iFrame >= nFrames)
+		Clear();
+}
+
 
 bool Sprite::CreateStagingTexture(int pixWidth, int pixHeight, ErrorHandler &eh)
 {
@@ -875,10 +881,10 @@ void Sprite::Render(Camera *camera)
 	}
 
 	// Assume we'll use the still-frame shader resource view
-	ID3D11ShaderResourceView *rvCur = rv;
+	ID3D11ShaderResourceView *rvToRender = rv;
 
 	// check for animation
-	if (animFrames.size() != 0)
+	if (isAnimation)
 	{
 		// Check if it's time to advance to the next frame.  Note that we
 		// might have to advance past multiple frames, because it's possible
@@ -888,20 +894,30 @@ void Sprite::Render(Camera *camera)
 		UINT64 now = GetTickCount64();
 		while (now >= curAnimFrameEndTime)
 		{
-			// it's time - advance to the next frame
+			// If decoding is still in progress, decode the next frame
+			if (animFrames.size() < gifLoaderState.nFrames)
+				gifLoaderState.DecodeFrame(this);
+
+			// advance to the next frame; loop after the last frame
 			if (++curAnimFrame >= animFrames.size())
 				curAnimFrame = 0;
+			
+			// Stop if we don't have a frame available.  (This can only
+			// occur if decoding fails, but that's always a possibility.)
+			if (curAnimFrame > animFrames.size())
+				break;
 
 			// figure the frame end time
 			curAnimFrameEndTime = now + animFrames[curAnimFrame]->dt;
 		}
 
 		// use the current frame's shader resource view
-		rvCur = animFrames[curAnimFrame]->rv;
+		if (curAnimFrame < animFrames.size())
+			rvToRender = animFrames[curAnimFrame]->rv;
 	}
 
 	// do nothing if we don't have a shader resource view
-	if (rvCur == nullptr)
+	if (rvToRender == nullptr)
 		return;
 
 	// prepare my shader
@@ -910,7 +926,7 @@ void Sprite::Render(Camera *camera)
 	ts->SetAlpha(UpdateFade());
 
 	// load our texture into the pixel shader
-	D3D::Get()->PSSetShaderResources(0, 1, &rvCur);
+	D3D::Get()->PSSetShaderResources(0, 1, &rvToRender);
 
 	// do the basic mesh rendering
 	RenderMesh();

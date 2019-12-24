@@ -204,6 +204,9 @@ protected:
 	// animation frame list
 	std::vector<std::unique_ptr<AnimFrame>> animFrames;
 
+	// is an animation active?
+	bool isAnimation = false;
+
 	// current animation frame index
 	int curAnimFrame = 0;
 
@@ -215,4 +218,112 @@ protected:
 
 	// transposed world matrix, for passing to the shader
 	DirectX::XMMATRIX worldT;
+
+
+	// Animated GIF incremental frame reader.  Loading a large
+	// multi-frame GIF can take a noticable amount of time.  The
+	// individual frame decoding is pretty fast, on the order of
+	// a few milliseconds, but this can easily add up to a 
+	// perceptible delay (as much as a second or two) for a 
+	// GIF with dozens of frames.  One way to mitigate this 
+	// would be to do the decoding in a separate thread.  But
+	// threading always adds some complexity, and in this case
+	// it's not really needed.  A simpler approach that works 
+	// well for our purposes is to decode the frames one at a 
+	// time on demand, as we actually need to render them.  
+	// GIF frames are typically played back no faster than 
+	// the video refresh rate, and individual frame decoding
+	// is much faster than the render cycle, so we can easily
+	// fit one frame's worth of decoding into the time slice
+	// we get during a render cycle without adding any extra
+	// delay.  Doing it this way naturally distributes the
+	// load time over the playback time in such a way that
+	// it becomes invisible.  It also has the virtue of 
+	// practically zero latency for the first frame, which
+	// would be more difficult to accomplish with threaded
+	// decoding, since we'd have to synchronize with the
+	// thread at single-frame granularity to make that work.
+	//
+	// The naive way to write a GIF decoder is as a loop that
+	// loads all of the frames.  We don't want to sit in a
+	// loop, though; we basically want to do one iteration 
+	// at a time instead.  So we need to take the state we'd
+	// normally put into local variables controlling a loop
+	// and put them into a struct.  That's what this struct
+	// is about.
+	struct GIFLoaderState
+	{
+		// initialize
+		void Init(IWICImagingFactory *pWIC, IWICBitmapDecoder *decoder, 
+			UINT width, UINT height, UINT nFrames, WICColor bgColor, const WCHAR *filename)
+		{
+			this->pWIC = pWIC;
+			this->decoder = decoder;
+			this->rcFull = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
+			this->nFrames = nFrames;
+			this->bgColor = bgColor;
+			this->filename = filename;
+
+			this->frames.reserve(nFrames);
+		}
+
+		// clear - releases resources when we're done
+		void Clear()
+		{
+			iFrame = nFrames = 0;
+			filename = _T("");
+			frames.clear();
+			pWIC = nullptr;
+			decoder = nullptr;
+		}
+
+		// WIC factory
+		RefPtr<IWICImagingFactory> pWIC;
+
+		// file decoder
+		RefPtr<IWICBitmapDecoder> decoder;
+
+		// sprite file name, for error reporting
+		WSTRING filename;
+
+		// background color
+		WICColor bgColor;
+
+		// total number of frames
+		UINT nFrames = 0;
+
+		// current frame number
+		UINT iFrame = 0;
+
+		// "Previous" frame number, for frame disposal purposes.
+		// One of the disposal codes is "revert to previous"; this
+		// keeps track of the frame that refers to.
+		UINT prevFrame = 0;
+
+		// Image frame history.  GIF specifies each frame
+		// as a difference from a previous frame, so we 
+		// need to keep a history of recent frames.  We
+		// actually only need the current frame and one
+		// prior frame, so we could make this more
+		// efficient, but for now we'll keep all frames.
+		std::vector<std::unique_ptr<DirectX::ScratchImage>> frames;
+
+		// GIF "Disposal" code for the prior frame
+		enum disposal_t {
+			DM_UNDEFINED = 0,
+			DM_NONE = 1,         // keep this frame, draw next frame on top of it
+			DM_BACKGROUND = 2,   // clear the frame with the background color
+			DM_PREVIOUS = 3      // revert to previous frame
+		} disposal = DM_UNDEFINED;
+
+		// full-frame rectangle for the overall image
+		RECT rcFull;
+
+		// sub-frame rectangle for the current frame
+		RECT rcSub = { 0, 0, 0, 0 };
+
+		// Decode the next GIF frame
+		void DecodeFrame(Sprite *sprite);
+	};
+	GIFLoaderState gifLoaderState;
 };

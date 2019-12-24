@@ -33,11 +33,14 @@
 #include <mfreadwrite.h>
 #include <Mferror.h>
 #include <evr.h>
+#include <wincodec.h>
 
 typedef double DOUBLE;
 
+
 // Direct Input version
 #define DIRECTINPUT_VERSION 0x0800
+
 
 // C RunTime Header Files
 #include <stdlib.h>
@@ -53,6 +56,10 @@ typedef double DOUBLE;
 #include <functional>
 #include <regex>
 #include <unordered_set>
+
+
+// Third-party library headers
+#include "../DirectXTex/DirectXTex/DirectXTex.h"
 
 
 // Widely used internal headers

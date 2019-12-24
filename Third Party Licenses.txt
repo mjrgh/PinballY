@@ -25,9 +25,15 @@ Project article is a much better starting point.]
 ---------------------------------------------------------------------------
 
 Chakra Core and the Chakra Core Debugger Companion Project
+DirectX Tool Kit (aka DirectXTK)
+DirectXTex texture processing library
+
 Copyright (c) Microsoft Corporation
+
 https://github.com/Microsoft/ChakraCore/
 https://github.com/Microsoft/ChakraCore-Debugger/
+https://github.com/microsoft/DirectXTK
+https://github.com/microsoft/DirectXTex
 
 The MIT License
 Copyright (c) Microsoft Corporation

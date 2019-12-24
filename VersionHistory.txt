@@ -24,16 +24,16 @@ anything on the DMD, since PinballY's continued use of the device will
 lock out the other program.  That makes the option best for games that
 don't use the real DMD themselves.
 
-* Animated GIF files are now supported anywhere an image can be used.
+* Animated GIF files are now supported anywhere images can be used.
 Note that GIFs always count as *images*, not videos, even when
 animated.  This can be important when choosing media folders for
 installing files - always put GIFs in the media folders intended for
 regular images, never in video folders.  (I know this might seem a
-little weird given that animation is more like video than still
-images, but it does have the virtue of being simple and consistent:
-GIF = image, period.  The technical reason is that libvlc doesn't
-support GIF animation properly, so we couldn't treat them as videos
-even if we wanted to.)
+little weird given that an animation is more like a video than like a
+still images, but it does have the virtue of being simple and
+consistent: GIF = image, period.  The technical reason is that libvlc
+doesn't support GIF animation properly, so we couldn't treat them as
+videos even if we wanted to.)
 
 * A new checkbox option in the Game Wheel section of the settings
 dialog lets you enable or disable the underlay display.  (Disabling
