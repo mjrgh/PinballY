@@ -47,34 +47,12 @@ public:
 	// for the media.
 	bool Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
 
-	// Load from a Shockwave Flash file.  The regular Load(filename,...)
-	// method calls this when it detects Flash content, so you don't have
-	// to call this explicitly unless you know for certain that a file 
-	// contains Flash data and doesn't need to be checked for other 
-	// content types.
-	bool LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
-
-	// Load a GIF image file.  The regular Load(filename,...) method calls
-	// this when it detects GIF contents, so you don't have to call this
-	// explicitly unless you already know that a file contains GIF data,
-	// in which case you can skip the content detection.  This routine
-	// automatically detects animated GIF files and loads the animation
-	// frame set.
-	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
-
-	// Load a texture from an image file using WIC.  This does a direct
-	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
-	// but doesn't have support for orientation metadata or multi-frame
-	// animated GIFs.
-	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
-
 	// Load from an HBITMAP
 	bool Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors);
 
 	// load from a device-independent bitmap pixel array
 	bool Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
 	bool Load(const DIBitmap &dib, ErrorHandler &eh, const TCHAR *descForErrors);
-
 
 	// Load by drawing into an off-screen HDC.  This allows dynamic content
 	// to be created via GDI or GDI+ and then displayed through a sprite.
@@ -146,6 +124,20 @@ protected:
 	// detach the Flash object, if present
 	void DetachFlash();
 
+	// Load from a Shockwave Flash file.  The regular Load(filename,...)
+	// method calls this when it detects Flash content.
+	bool LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a GIF image file.  The regular Load(filename,...) method calls
+	// this when it detects GIF contents.
+	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
+	// Load a texture from an image file using WIC.  This does a direct
+	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
+	// but doesn't have support for orientation metadata or multi-frame
+	// animated GIFs.
+	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
+
 	// create the texture and resource view from a bitmap
 	bool CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
 
@@ -183,9 +175,40 @@ protected:
 	// special sprites can use a different shader as needed.
 	virtual Shader *GetShader() const;
 
-	// our texture, and its shader resource view
-	RefPtr<ID3D11Resource> texture;
-	RefPtr<ID3D11ShaderResourceView> rv;
+	// Deferred loader context.  Loading images can take a noticable
+	// amount of time - enough to cause visible rendering glitches, 
+	// if done on the foreground thread.  To mitigate this, we allow
+	// for loading via a background thread.  To make it easy to
+	// manage the resources, we create a loader context object,
+	// which we share with the loader.  This is particularly useful
+	// if the foreground thread happens to re-load a new image at
+	// some point before the background thread is finished, in
+	// which case we just discard the loader context and set up a
+	// new one.  The background thread finishes its loading and
+	// happily updates its context, which we no longer care about.
+	// The context is harmlessly deleted when the loader releases
+	// its last reference.
+	struct LoadContext : RefCounted
+	{
+		// Is the object ready?  The render won't use the resources
+		// until this is true, so the loader lets us know that it's
+		// done by setting this flag.  Note that no heavier-weight
+		// thread synchronization is needed, since this can only be
+		// written by the loader thread.
+		//
+		// Note that we initialize this to true by default, because
+		// most of our loading is just done inline on the foreground
+		// thread.  We only need to set this to false when we're
+		// kicking off an async thread to do the loading.
+		bool ready = true;
+
+		// our texture, and its shader resource view
+		RefPtr<ID3D11Resource> texture;
+		RefPtr<ID3D11ShaderResourceView> rv;
+	};
+
+	// current loading context
+	RefPtr<LoadContext> loadContext;
 
 	// staging texture - used only for Flash objects
 	RefPtr<ID3D11Texture2D> stagingTexture;

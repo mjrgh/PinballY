@@ -59,6 +59,9 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 	// release any previous resources
 	Clear();
 
+	// set up a new load context
+	loadContext.Attach(new LoadContext());
+
 	// Try to determine the image type from the file contents
 	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
 	{
@@ -109,21 +112,64 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, Er
 
 bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh)
 {
-	// create the WIC texture
-	HRESULT hr = CreateWICTextureFromFileEx(D3D::Get()->GetDevice(), filename, 
-		0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, WIC_LOADER_IGNORE_SRGB, &texture, &rv);
-	if (FAILED(hr))
+	// WIC file loading can be kind of slow for large image files.
+	// Do the loading in a thread.
+	loadContext->ready = false;
+
+	// set up the thread context
+	struct ThreadContext
 	{
-		WindowsErrorMessage winMsg(hr);
-		eh.SysError(
-			MsgFmt(IDS_ERR_IMGLOAD, filename),
-			MsgFmt(_T("CreateWICTextureFromFile failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
-		return false;
-	}
+		ThreadContext(LoadContext *loadContext, const WCHAR *filename) :
+			loadContext(loadContext, RefCounted::DoAddRef),
+			filename(filename)
+		{ }
+
+		RefPtr<LoadContext> loadContext;
+		WSTRING filename;
+	};
+	std::unique_ptr<ThreadContext> ctx(new ThreadContext(loadContext, filename));
+
+	auto ThreadMain = [](LPVOID params) -> DWORD
+	{
+		// get the context - we own it and must discard it when done, so use a unique_ptr
+		std::unique_ptr<ThreadContext> ctx(static_cast<ThreadContext*>(params));
+
+		// create the WIC texture
+		HRESULT hr = CreateWICTextureFromFileEx(D3D::Get()->GetDevice(), ctx->filename.c_str(),
+			0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, WIC_LOADER_IGNORE_SRGB,
+			&ctx->loadContext->texture, &ctx->loadContext->rv);
+
+		if (FAILED(hr))
+		{
+			WindowsErrorMessage winMsg(hr);
+			LogFileErrorHandler eh;
+			eh.SysError(
+				MsgFmt(IDS_ERR_IMGLOAD, ctx->filename.c_str()),
+				MsgFmt(_T("CreateWICTextureFromFile failed, HRESULT %lx: %s"), static_cast<long>(hr), winMsg.Get()));
+		}
+		else
+		{
+			// resource is ready
+			ctx->loadContext->ready = true;
+		}
+		
+		return 0;
+	};
 
 	// create the mesh
 	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
 		return false;
+
+	// kick off the loader thread
+	DWORD tid;
+	HandleHolder hThread(CreateThread(0, 0, ThreadMain, ctx.get(), 0, &tid));
+
+	// if the thread startup succeeded, release the context object to the thread;
+	// otherwise try doing the work inline
+	if (hThread != nullptr)
+		ctx.release();
+	else
+		ThreadMain(ctx.get());
 
 	// success
 	return true;
@@ -131,9 +177,6 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous resources
-	Clear();
-
 	// Create the new Flash site.  Our FlashClientSite creates a windowless
 	// activation site for the Flash object, loads the file (as a "movie"),
 	// and starts playback.  The windowless site captures the Flash graphics
@@ -233,9 +276,6 @@ static void BlendGIFRect(const Image &composed, const Image &raw, const RECT &de
 // Load a GIF, with animation support
 bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// release any previous resources
-	Clear();
-
 	// system errors
 	HRESULT hr = E_FAIL;
 	auto SysErr = [filename, &hr, &eh](const CHAR *details)
@@ -545,7 +585,6 @@ void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
 		Clear();
 }
 
-
 bool Sprite::CreateStagingTexture(int pixWidth, int pixHeight, ErrorHandler &eh)
 {
 	// release any prior texture
@@ -663,10 +702,11 @@ bool Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, c
 
 bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
 {
-	// release any previous texture
-	texture = nullptr;
+	// set up a new load context
+	loadContext.Attach(new LoadContext());
+
+	// clear the old staging texture, if any
 	stagingTexture = nullptr;
-	rv = nullptr;
 
 	// Figure the pixel width and height from the bitmap header.  Note
 	// that the header height will be negative for a top-down bitmap
@@ -695,7 +735,7 @@ bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, 
 	svd.Texture2D.MostDetailedMip = 0;
 
 	// create the texture
-	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &rv, &texture);
+	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &loadContext->rv, &loadContext->texture);
 	if (!SUCCEEDED(hr))
 	{
 		WindowsErrorMessage winMsg(hr);
@@ -785,6 +825,11 @@ bool Sprite::CreateMesh(POINTF sz, ErrorHandler &eh, const TCHAR *descForErrors)
 
 void Sprite::Render(Camera *camera)
 {
+	// If there's no loader context, or it's not ready, we don't have 
+	// anything to render
+	if (loadContext == nullptr || !loadContext->ready)
+		return;
+
 	// If we have a flash object, update its bitmap contents if necessary.
 	// This requires copying the DIB bits into the D3D texture, so it's
 	// a fairly time-consuming operation that we want to avoid when
@@ -875,13 +920,13 @@ void Sprite::Render(Camera *camera)
 				// texture has been updated.  As discussed above, that optimization
 				// doesn't gain us anything for our typical "instruction card" use
 				// case, so we keep it simple and just copy the whole texture.
-				devctx->CopyResource(texture, stagingTexture);
+				devctx->CopyResource(loadContext->texture, stagingTexture);
 			}
 		}
 	}
 
 	// Assume we'll use the still-frame shader resource view
-	ID3D11ShaderResourceView *rvToRender = rv;
+	ID3D11ShaderResourceView *rvToRender = loadContext->rv;
 
 	// check for animation
 	if (isAnimation)
@@ -1030,6 +1075,5 @@ void Sprite::Clear()
 	// release D3D resources
 	vertexBuffer = nullptr;
 	indexBuffer = nullptr;
-	texture = nullptr;
-	rv = nullptr;
+	loadContext = nullptr;
 }

@@ -153,6 +153,12 @@ there might be some differences that the current PinballY joystick
 code won't handle correctly.  It'll at least recognize them, so that
 people with game pads can try them out to see how they work.)
 
+* Still images are now loaded in a background thread, which should
+reduce visible pauses in the video display when large images are being
+loaded.  This should make the UI a little smoother when switching
+between games, for example.
+
+
 
 
 11-29-2019 (1.0.0 Beta 16)
