@@ -58,7 +58,7 @@ void BackglassBaseView::UpdateDrawingList()
 
 	// add the instruction card image
 	if (instructionCard != nullptr)
-		sprites.push_back(instructionCard);
+		AddToDrawingList(instructionCard);
 
 	// rescale the sprites
 	ScaleSprites();

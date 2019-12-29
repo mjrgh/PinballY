@@ -237,7 +237,7 @@ void D3DView::RenderFrame()
 	d3d->SetMirroredRasterizerState(camera->IsMirrorHorz() ^ camera->IsMirrorVert());
 
 	// render the sprite list
-	for (auto s : sprites)
+	for (auto &s : sprites)
 		s->Render(camera);
 
 	// draw any text overlay
@@ -307,7 +307,7 @@ void D3DView::ScaleSprite(Sprite *sprite, float span, bool maintainAspect)
 
 void D3DView::ForDrawingList(std::function<void(Sprite*)> callback)
 {
-	for (auto s : sprites)
+	for (auto &s : sprites)
 		callback(s);
 }
 
@@ -721,10 +721,10 @@ bool D3DView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	case AVPMsgLoopNeeded:
 		// Loop needed in a video sprite.  Search for a matching
 		// video sprite in our drawing list.
-		for (auto s : sprites)
+		for (auto &s : sprites)
 		{
 			// if this is a video sprite, match it against the cookie
-			if (auto vs = dynamic_cast<VideoSprite*>(s); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
+			if (auto vs = dynamic_cast<VideoSprite*>(s.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
 			{
 				// restart playback
 				vs->GetVideoPlayer()->Replay(SilentErrorHandler());

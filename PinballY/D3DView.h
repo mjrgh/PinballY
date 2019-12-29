@@ -207,7 +207,14 @@ protected:
 	TextDrawFont *dmdFont;
 
 	// Sprite list in drawing order
-	std::list<Sprite*> sprites;
+	std::list<RefPtr<Sprite>> sprites;
+
+	// add a sprite to the drawing list
+	inline void AddToDrawingList(Sprite *sprite) 
+	{ 
+		if (sprite != nullptr)
+			sprites.emplace_back(sprite, RefCounted::DoAddRef); 
+	}
 
 	// performance monitor for this window
 	PerfMon perfMon;

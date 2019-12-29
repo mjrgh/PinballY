@@ -78,22 +78,22 @@ void SecondaryView::UpdateDrawingList()
 	// add the background images to the list
 	AddBackgroundToDrawingList();
 	if (incomingBackground.sprite != 0)
-		sprites.push_back(incomingBackground.sprite);
+		AddToDrawingList(incomingBackground.sprite);
 
 	// add the video overlay
 	if (videoOverlay != nullptr)
-		sprites.push_back(videoOverlay);
+		AddToDrawingList(videoOverlay);
 
 	// add the javascript overlays
 	for (auto const &it : jsDrawingLayers)
 	{
 		if (it.sprite != nullptr)
-			sprites.push_back(it.sprite);
+			AddToDrawingList(it.sprite);
 	}
 
 	// add the drop effect overlay
 	if (dropTargetSprite != nullptr)
-		sprites.push_back(dropTargetSprite);
+		AddToDrawingList(dropTargetSprite.Get());
 
 	// update sprite scaling
 	ScaleSprites();
@@ -102,7 +102,7 @@ void SecondaryView::UpdateDrawingList()
 void SecondaryView::AddBackgroundToDrawingList()
 {
 	if (currentBackground.sprite != 0)
-		sprites.push_back(currentBackground.sprite);
+		AddToDrawingList(currentBackground.sprite);
 }
 
 // update sprite scaling

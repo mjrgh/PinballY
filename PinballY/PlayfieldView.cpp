@@ -9940,7 +9940,7 @@ void PlayfieldView::UpdateDrawingList()
 			if (it.zIndex > zMax)
 				break;
 			else if (it.zIndex >= zMin && it.sprite != nullptr)
-				sprites.push_back(it.sprite);
+				AddToDrawingList(it.sprite);
 		}
 	};
 
@@ -9952,9 +9952,9 @@ void PlayfieldView::UpdateDrawingList()
 	// goes on top of it, so that we can cross-fade into the new
 	// playfield by ramping its alpha from 0 to 1.  
 	if (currentPlayfield.sprite != nullptr)
-		sprites.push_back(currentPlayfield.sprite);
+		AddToDrawingList(currentPlayfield.sprite);
 	if (incomingPlayfield.sprite != nullptr)
-		sprites.push_back(incomingPlayfield.sprite);
+		AddToDrawingList(incomingPlayfield.sprite);
 
 	// sprites 0..999 go just above the playfield
 	AddJsSprites(0, 999);
@@ -9964,9 +9964,9 @@ void PlayfieldView::UpdateDrawingList()
 	if (!attractMode.active || !attractMode.hideWheelImages)
 	{
 		if (currentUnderlay.sprite != nullptr)
-			sprites.push_back(currentUnderlay.sprite);
+			AddToDrawingList(currentUnderlay.sprite);
 		if (incomingUnderlay.sprite != nullptr)
-			sprites.push_back(incomingUnderlay.sprite);
+			AddToDrawingList(incomingUnderlay.sprite);
 	}
 
 	// sprites 1000..1999 go just above the overlay
@@ -9974,7 +9974,7 @@ void PlayfieldView::UpdateDrawingList()
 
 	// add the status lines
 	if (statusLineBkg != nullptr)
-		sprites.push_back(statusLineBkg);
+		AddToDrawingList(statusLineBkg);
 
 	if (attractMode.active)
 		attractModeStatus.AddSprites(sprites);
@@ -9998,7 +9998,7 @@ void PlayfieldView::UpdateDrawingList()
 	if (!attractMode.active || !attractMode.hideWheelImages)
 	{
 		for (auto& s : wheelImages)
-			sprites.push_back(s);
+			AddToDrawingList(s);
 	}
 
 	// sprites 3000..3999 go just above the wheel
@@ -10006,24 +10006,24 @@ void PlayfieldView::UpdateDrawingList()
 
 	// add the game info box
 	if (infoBox.sprite != nullptr)
-		sprites.push_back(infoBox.sprite);
+		AddToDrawingList(infoBox.sprite);
 
 	// sprites 4000..4999 go above the info box
 	AddJsSprites(4000, 4999);
 
 	// add the running game overlay
 	if (runningGameBkgPopup != nullptr)
-		sprites.push_back(runningGameBkgPopup);
+		AddToDrawingList(runningGameBkgPopup);
 	if (runningGameMsgPopup != nullptr)
-		sprites.push_back(runningGameMsgPopup);
+		AddToDrawingList(runningGameMsgPopup);
 
 	// add the video overlay sprite
 	if (videoOverlay != nullptr)
-		sprites.push_back(videoOverlay);
+		AddToDrawingList(videoOverlay);
 
 	// add the popup
 	if (popupSprite != nullptr)
-		sprites.push_back(popupSprite);
+		AddToDrawingList(popupSprite);
 
 	// sprites 5000..5999 go above the popups
 	AddJsSprites(5000, 5999);
@@ -10031,21 +10031,21 @@ void PlayfieldView::UpdateDrawingList()
 	// add the menu
 	if (curMenu != nullptr)
 	{
-		sprites.push_back(curMenu->sprBkg);
-		sprites.push_back(curMenu->sprHilite);
-		sprites.push_back(curMenu->sprItems);
+		AddToDrawingList(curMenu->sprBkg);
+		AddToDrawingList(curMenu->sprHilite);
+		AddToDrawingList(curMenu->sprItems);
 	}
 
 	// add the credits overlay
 	if (creditsSprite != nullptr)
-		sprites.push_back(creditsSprite);
+		AddToDrawingList(creditsSprite);
 
 	// sprites 6000+ go in front of everything except drop targets
 	AddJsSprites(6000, INT_MAX);
 
 	// add the drop target overlay
 	if (dropTargetSprite != nullptr)
-		sprites.push_back(dropTargetSprite);
+		AddToDrawingList(dropTargetSprite);
 
 	// rescale sprites that vary by window size
 	ScaleSprites();
@@ -18042,16 +18042,16 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 	}
 }
 
-void PlayfieldView::StatusLine::AddSprites(std::list<Sprite*> &sprites)
+void PlayfieldView::StatusLine::AddSprites(std::list<RefPtr<Sprite>> &sprites)
 {
 	// add the current item
 	if (curItem != items.end() && curItem->sprite != nullptr)
-		sprites.push_back(curItem->sprite);
+		sprites.emplace_back(curItem->sprite.Get(), RefCounted::DoAddRef);
 }
 
 bool PlayfieldView::StatusItem::NeedsUpdate(PlayfieldView *pfv)
 {
-	return sprite == 0 || ExpandText(pfv) != dispText;
+	return sprite == nullptr || ExpandText(pfv) != dispText;
 }
 
 std::list<PlayfieldView::StatusItem>::iterator PlayfieldView::StatusLine::NextItem()

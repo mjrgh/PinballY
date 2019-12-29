@@ -1253,7 +1253,7 @@ protected:
 		void OnSourceDataUpdate(PlayfieldView *pfv);
 
 		// add my sprites to the window's D3D drawing list
-		void AddSprites(std::list<Sprite*> &sprites);
+		void AddSprites(std::list<RefPtr<Sprite>> &sprites);
 
 		// reset 
 		void Reset(PlayfieldView *pfv);
@@ -1435,7 +1435,7 @@ protected:
 		SIZE pixSize;
 
 		// sprite
-		RefPtr<Sprite> sprite = nullptr;
+		RefPtr<Sprite> sprite;
 	} currentUnderlay, incomingUnderlay;
 
 	// loader for the underlay sprite
