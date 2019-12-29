@@ -40,10 +40,6 @@ dialog lets you enable or disable the underlay display.  (Disabling
 this doesn't prevent Javascript from displaying underlays; it only
 disables the system's built-in underlay display feature.)
 
-* Javascript now has the ability to draw custom graphics in any
-of the windows.  See the help section Javascript Scripting > Drawing
-Layers.
-
 * Javascript now has access to the overlay graphics displayed when a
 game is launched, allowing for complex customizations.  See the help
 sections for the new LaunchOverlayEvent group and the new
