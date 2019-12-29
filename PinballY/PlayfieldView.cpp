@@ -6928,7 +6928,7 @@ void PlayfieldView::ShowHighScores()
 	popupSprite.Attach(new Sprite());
 	if (!popupSprite->Load(width, height, Draw, eh, _T("High Scores box")))
 	{
-		popupSprite = 0;
+		popupSprite = nullptr;
 		UpdateDrawingList();
 		ShowQueuedError();
 		return;
@@ -8308,7 +8308,6 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	ShowRunningGameMessage(L"init", nullptr);
 
 	// animate the popup opening
-	runningGameMsgPopup->alpha = 0;
 	StartAnimTimer(runningGamePopupStartTime);
 	runningGamePopupMode = RunningGamePopupOpen;
 
@@ -11385,7 +11384,7 @@ void PlayfieldView::OnConfigChange()
 	menuHeaderColor = cfg->GetColor(ConfigVars::MenuHeaderColor, RGB(0xff, 0xff, 0xff));
 	popupTitleColor = cfg->GetColor(ConfigVars::PopupTitleColor, RGB(0xff, 0xff, 0xff));
 	popupTextColor = cfg->GetColor(ConfigVars::PopupTextColor, RGB(0xff, 0xff, 0xff));
-	popupBackgroundColor = cfg->GetColor(ConfigVars::PopupBackgroundColor, RGB(0xff, 0xff, 0xff));
+	popupBackgroundColor = cfg->GetColor(ConfigVars::PopupBackgroundColor, RGB(0x00, 0x00, 0x00));
 	popupSmallTextColor = cfg->GetColor(ConfigVars::PopupSmallTextColor, RGB(0xff, 0xff, 0xff));
 	popupDetailTextColor = cfg->GetColor(ConfigVars::PopupDetailTextColor, RGB(0xA0, 0xA0, 0xA0));
 	mediaDetailTextColor = cfg->GetColor(ConfigVars::MediaDetailTextColor, RGB(0xff, 0xff, 0xff));

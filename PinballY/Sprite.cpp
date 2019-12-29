@@ -629,7 +629,7 @@ bool Sprite::Load(int pixWidth, int pixHeight, std::function<void(HDC, HBITMAP)>
 {
 	// set up a bitmap and do the off-screen drawing
 	bool ret;
-	DrawOffScreen(pixWidth, pixHeight, [this, &ret, drawingFunc, &eh, descForErrors]
+	DrawOffScreen(pixWidth, pixHeight, [this, &ret, &drawingFunc, &eh, descForErrors]
 	    (HDC hdc, HBITMAP hbmp, const void *dibits, const BITMAPINFO &bmi)
 	{
 		// invoke the caller's drawing function

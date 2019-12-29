@@ -1062,6 +1062,10 @@ void BaseView::DrawingLayerClear(Sprite *sprite, Gdiplus::Color argb)
 		Gdiplus::SolidBrush bkg(argb);
 		g.FillRectangle(&bkg, 0, 0, width, height);
 	}, eh, _T("Launch overlay - default background"));
+
+	// reset the scale for full screen
+	sprite->loadSize = { 1.0f, 1.0f };
+	sprite->ReCreateMesh();
 }
 
 // Convert the sprite type in a drawing layer to the given type
