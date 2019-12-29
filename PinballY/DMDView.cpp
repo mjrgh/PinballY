@@ -241,7 +241,7 @@ static const UINT alphaSegmentMask[] = {
 	0x4100,     // 0x29 ')'
 	0x7f40,     // 0x2a '*'
 	0x2a40,     // 0x2b '+'
-	0x0080,     // 0x2c ','
+	0x8080,     // 0x2c ','
 	0x0840,     // 0x2d '-'
 	0x8000,     // 0x2e '.'
 	0x4400,     // 0x2f '/'
@@ -378,7 +378,7 @@ static const Gdiplus::PointF alphanumFontThinSeg03[] = { { 158.46f,293.87f }, { 
 static const Gdiplus::PointF alphanumFontThinSeg04[] = { { 19.87f,285.96f }, { 19.87f,159.37f }, { 24.77f,159.37f }, { 31.37f,165.97f }, { 31.37f,278.61f }, { 21.94f,288.03f }, };
 static const Gdiplus::PointF alphanumFontThinSeg05[] = { { 19.87f,27.78f }, { 19.87f,154.37f }, { 24.77f,154.37f }, { 31.37f,147.77f }, { 31.37f,35.13f }, { 21.94f,25.71f }, };
 static const Gdiplus::PointF alphanumFontThinSeg06[] = { { 84.04f,151.12f }, { 35.18f,151.12f }, { 29.43f,156.87f }, { 35.18f,162.62f }, { 84.04f,162.62f }, { 89.79f,156.87f }, };
-static const Gdiplus::PointF alphanumFontThinSeg07[] = { { 172.37f,298.87f }, { 172.37f,303.86f }, { 178.12f,309.61f }, { 183.87f,303.86f }, { 183.87f,298.87f }, };
+static const Gdiplus::PointF alphanumFontThinSeg07[] = { { 172.37f,298.87f }, { 172.37f,303.86f }, { 173.12f,329.61f }, { 183.87f,303.86f }, { 183.87f,298.87f }, };
 static const Gdiplus::PointF alphanumFontThinSeg08[] = { { 36.37f,36.37f }, { 36.37f,55.27f }, { 80.03f,146.12f }, { 82.87f,146.12f }, { 82.87f,127.22f }, { 39.21f,36.37f }, };
 static const Gdiplus::PointF alphanumFontThinSeg09[] = { { 87.87f,36.37f }, { 87.87f,147.29f }, { 93.62f,153.04f }, { 99.37f,147.29f }, { 99.37f,36.37f }, };
 static const Gdiplus::PointF alphanumFontThinSeg10[] = { { 150.87f,36.37f }, { 150.87f,55.27f }, { 107.21f,146.12f }, { 104.37f,146.12f }, { 104.37f,127.22f }, { 148.03f,36.37f }, };
@@ -416,7 +416,7 @@ static const Gdiplus::PointF alphanumFontBoldSeg03[] = { { 155.42f,298.55f }, { 
 static const Gdiplus::PointF alphanumFontBoldSeg04[] = { { 14.83f,281.64f }, { 14.83f,158.55f }, { 24.73f,158.55f }, { 36.33f,170.15f }, { 36.33f,274.29f }, { 21.9f,288.71f } };
 static const Gdiplus::PointF alphanumFontBoldSeg05[] = { { 14.83f,31.71f }, { 14.83f,154.8f }, { 24.73f,154.8f }, { 36.33f,143.2f }, { 36.33f,39.06f }, { 21.9f,24.64f } };
 static const Gdiplus::PointF alphanumFontBoldSeg06[] = { { 80,146.05f }, { 39.14f,146.05f }, { 28.39f,156.8f }, { 39.14f,167.55f }, { 80,167.55f }, { 90.75f,156.8f } };
-static const Gdiplus::PointF alphanumFontBoldSeg07[] = { { 176.83f,302.55f }, { 176.83f,311.29f }, { 191.26f,325.71f }, { 198.33f,318.64f }, { 198.33f,302.55f } };
+static const Gdiplus::PointF alphanumFontBoldSeg07[] = { { 176.83f,302.55f }, { 176.83f,311.29f }, { 177.26f,330.71f }, { 198.33f,318.64f }, { 198.33f,302.55f } };
 static const Gdiplus::PointF alphanumFontBoldSeg08[] = { { 40.33f,40.3f }, { 40.33f,75.11f }, { 74.53f,142.05f }, { 78.83f,142.05f }, { 78.83f,108.15f }, { 44.17f,40.3f } };
 static const Gdiplus::PointF alphanumFontBoldSeg09[] = { { 82.83f,40.03f }, { 82.83f,143.22f }, { 93.58f,153.97f }, { 104.33f,143.22f }, { 104.33f,40.03f } };
 static const Gdiplus::PointF alphanumFontBoldSeg10[] = { { 146.83f,40.3f }, { 146.83f,75.11f }, { 112.63f,142.05f }, { 108.33f,142.05f }, { 108.33f,108.15f }, { 142.99f,40.3f } };

@@ -211,7 +211,8 @@ mainWindow.on("launchoverlayshow", ev => {
 <div class="code">
 // Create a drawing layer in the DMD window.  This is just
 // a global variable, so the layer will always be around;
-// it'll just be showing nothing most of the time.
+// it'll be invisible most of the time, since we'll clear
+// it to all transparent pixels when it's not in use.
 let dmdLaunchMessageLayer = dmdWindow.createDrawingLayer(1000);
 
 // now intercept launch message updates to display the
@@ -262,37 +263,45 @@ mainWindow.on("launchoverlayhide", ev => {
 </div>
 
 
-<h2>Playing a video overlay</h2>
+<h2>Playing an animated overlay</h2>
 <p>
    A neat thing you can do with the launch overlay is to
-   display a video that plays during the launch process.  There are lots of
-   little video snippets on the Web with special effects loops
+   display a video or animated GIF that plays during the launch process.
+   There are lots of little animated GIF snippets on the Web with special effects loops
    that could make nice decorative effects during a launch.
-   Here's how you could load such a video into the launch overlay
+   Here's how you could load such an animation into the launch overlay
    background layer, when the launch process first starts up:
 </p>
 <div class="code">
 mainWindow.on("launchoverlayshow", ev => {
-    let video = gameList.resolveMedia("Videos", "launch.mp4");
-    mainWindow.launchOverlay.bg.loadVideo(video);
+    let animation = gameList.resolveMedia("Images", "launch.gif");
+    mainWindow.launchOverlay.bg.loadImage(animation);
 });
 </div>
 
 <p>
-   Here we've assumed that you've found a suitable video,
-   named it <b>launch.mp4</b>, and placed it in the
-   placed it in PinballY Media\Videos folder.  Remember that
-   we're talking about customization here, so this isn't a
-   video that comes with PinballY - it's just something that
-   we made up for the sake of this example.  If you want to
-   do this for real, you'll have to go find a video you want
-   to use and install it at that location.
+   Here we've assumed that you've found a suitable animated
+   GIF file, named it <b>launch.gif</b>, and placed it in the
+   PinballY Media\Images folder.  Remember that
+   we're talking about customization here, so this GIF isn't a
+   file that comes with PinballY - it's just something that
+   we made up for the sake of this example, and we leave it
+   as an exercise to find an animation clip you like for this.
 </p>
 <p>
-   We'll want this video to stop playing as soon as the game has
-   finished loading, so that it doesn't consume system resources
-   that could hurt the game's performance.  To do that, we can
-   use the <b>gamestarted</b> event (see <a href="LaunchEvent.html">LaunchEvent</a>):
+   You could just as well use a video file, replacing the
+   call to <b>loadImage()</b> with a call to <b>loadVideo()</b>.
+   We went with the GIF for this example just because it seems
+   easier to find little effect-loop clips in animated GIF format
+   than in video formats.
+</p>
+<p>
+   We'll want to hide the animated image as soon as the game has
+   finished loading, both because it'll stop being appropriate
+   visually at that point, and because we don't want the animation
+   taking up system resources while the game is running.
+   To hide the image, we can use the <b>gamestarted</b> event
+   (see <a href="LaunchEvent.html">LaunchEvent</a>):
 </p>
 <div class="code">
 mainWindow.on("gamestarted", ev => {
@@ -304,28 +313,26 @@ mainWindow.on("gamestarted", ev => {
    That fills the launch overlay background layer with an opaque
    dark gray - basically the same thing the system would have done
    on its own at the start of the launch, if we hadn't intervened.
-   Clearing the drawing layer has the effect of removing any video
-   that was playing in the layer, so this will reduce our
-   performance impact, just as we wanted.
-   It also tidies up the UI; separately from the performance impact,
-   it just wouldn't look right for the transition effect to keep
-   going after the game has started.
+   Clearing the drawing layer removes any video or image
+   that was displayed in the layer, so this will tidy up the
+   UI and reduce our performance impact, just as we wanted.
 </p>
 <p>
    The original motivation of this chapter was to make the
    launch process seamless, by <i>not</i> covering up the
-   background video, so this idea of loading a video instead
-   of a blank background isn't quite what we were after.
-   Even so, I wanted to mention it, since some people might
-   prefer it as a third option that's even better than
-   leaving the playfield video playing.  There's also a
-   best-of-both-worlds option here: you could play a
-   <b>partially transparent video</b> that displays an effect
-   superimposed over the playfield video.  PinballY supports
-   videos with alpha channel transparency, which makes it
-   possible to come up with some very elaborate special
-   effects.  See <a href="AlphaVideo.html">Alpha transparency in videos</a>
-   for more.
+   playfield image or video, so this idea of loading an
+   animation or video into the overlay might not quite fit the
+   original plan.  Even so, I wanted to mention it, since some
+   people might  prefer it as a third option that's even better
+   than leaving the playfield video playing.  There's also a
+   best-of-both-worlds option, which is that GIF animations
+   can contain transparent areas.  A transparent
+   GIF would superimpose an effect animation on top of the
+   playfield background, so you'd have both the "seamless"
+   part and the special effect.  There are even a few video
+   formats that support partial transparency:  see
+   <a href="AlphaVideo.html">Alpha transparency in videos</a>
+   for more on that.
 </p>
 
 </body>

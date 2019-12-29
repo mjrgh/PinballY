@@ -25,26 +25,20 @@
    image showing through areas of the top image.
 </p>
 <p>
-   There's a separate kind of transparency that GIF files use,
-   where a single color is designated as the "invisible ink"
-   color.  Those pixels are completely transparent, and all
-   other pixels are opaque.
-   Alpha transparency is more sophisticated
-   in that it allows for <i>partial</i> transparency, where each
-   pixel can be translucent rather than completely transparent,
-   and where the degree of transparency can be controlled for
-   each pixel, on a sliding scale from completely transparent
-   to completely opaque.
-   A partially transparent pixel acts like a sheet of colored glass, so
-   that you can see the background through it, but blended
-   with the foreground color.  The alpha channel lets you
-   control the percentage mixing at each individual pixel.
+   There's a separate kind of transparency used in GIF images,
+   where a pixel color in the image is designated as the "invisible
+   ink" color.  All pixels in the image that match the designated
+   invisible ink color are drawn as though there
+   were completely transparent, and all other pixels are opaque.
+   This is less sophisticated than alpha transparency, since
+   it only allows an all-or-nothing kind of transparency, whereas
+   alpha allows for continuous gradations of partial transparency.
 </p>
 
 <h2>Where can transparent videos be used in PinballY?</h2>
 
 <p>
-   Quick answer: all videos can use transparency.
+   Quick answer: transparent videos can be used anywhere videos can be used.
 </p>
 <p>
    PinballY uses transparent rendering for all videos that contain alpha channel information, regardless
@@ -90,9 +84,10 @@
    really a video format at all: it's the GIF image file format.
    GIF files support a simple sort of animation where a single
    GIF file can store a series of image frames that are played
-   back sequentially on a timer.  It's not exactly
-   a video format in the usual sense, but the effect is similar,
-   and it's widely used on the Web for creating animated icons
+   back sequentially on a timer.  It's not exactly a "video"
+   format in the usual sense, and it's not useful for anything
+   lengthy because it doesn't compress well,
+   but it's widely used on the Web for creating animated icons
    and short video loops.  GIF also has a simple form of transparency,
    so it can be used for animated overlays - just the sort of
    thing you'd use alpha-channel video for.

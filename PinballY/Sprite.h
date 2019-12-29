@@ -231,7 +231,7 @@ protected:
 	bool isAnimation = false;
 
 	// current animation frame index
-	int curAnimFrame = 0;
+	UINT curAnimFrame = 0;
 
 	// ending time of the current frame, in system ticks
 	UINT64 curAnimFrameEndTime = 0;

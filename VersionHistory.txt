@@ -1,10 +1,10 @@
 PinballY Update History
 
-? (1.0.0 Beta 17)
+12-28-2019 (1.0.0 Beta 17)
 
 * You can now customize the text colors for most of the text displays,
-via color buttons alongside the font selections in the
-Fonts &amp; Colors section of the options dialog.
+via color buttons alongside the font selections in the Fonts &amp;
+Colors section of the options dialog.
 
 * You can now tell PinballY to continue showing PinballY media on the
 real DMD device while a game is running.  This works the same as the
@@ -53,15 +53,26 @@ section in the help to see how you can use this to create a
 continues to be visible through the loading process until the launched
 game takes over the screen.
 
+* A new "custom drawing layers" feature in Javascript lets you display
+your own custom graphics in any of PinballY's windows, layering your
+graphics on top of or interleaved with the system's standard graphics.
+This can be used to create your own additions to the UI.  Drawing
+layers can display image or video files, and can also be used with the
+custom drawing API to create complex graphics.  See Javascript
+Scripting > Drawing Layers in the help for more on this.
+
 * Alpha channel information in videos is now supported.  Alpha refers
 to per-pixel partial transparency, for superimposing one video on top
 of another.  PinballY will now use alpha channel information whenever
 it's part of a video, but it's not particularly interesting for
 background videos (such as the playfield or backglass video), since
 there's nothing "behind" these videos to show through the transparent
-areas - just a black background.  The only current feature where alpha
-is useful is the "launch overlay", since this is layered on top of the
-playfield background. 
+areas - just a black background.  The only current built-in feature
+where alpha is useful is the "launch overlay", since this is layered
+on top of the playfield background.  In addition, they might be useful
+in conjunction with the new Javascript "custom drawing layers"
+feature, since that lets you overlay your own graphics onto any
+window.
 
 In order to take advantage of the video transparency feature, you have
 to create your video with an alpha channel embedded in the video
@@ -71,7 +82,8 @@ have to way to store alpha in the video.  It also requires a video
 editor that supports transparency, so that you can designate
 transparent areas in your videos and save them to an alpha-capable
 format.  Higher-end video tools like Adobe After Effects are generally
-capable of creating videos in this sort of format.
+capable of creating videos in this sort of format.  See "Transparent
+Videos" in the help for more details on this.
 
 * The "Resume Game" command will now do a better job of restoring
 focus to the original game window after a "Pause" command.  In the
@@ -164,11 +176,11 @@ algorithm based on Freezy's approach in his dmd-extensions system.
 The old algorithm used a set of pre-rendered images that came from
 photos of a real display, which were at least photo-realistic (being
 based on actual photos!).  But the photos weren't all that great, and
-I thought Freezy's synthetic rendering approach ultimately produced a
-nicer overall effect.  The photographic source approach also limited
-the number of colors that could be used.  The new code renders the
-individual lighted display segments using vector graphics and a glow
-effect.
+I thought Freezy's synthetic rendering approach looked a lot nicer.
+The photographic source approach also limited the number of colors
+that could be used.  The new code renders the individual lighted
+display segments using vector graphics and a glow effect, so it's
+infinitely flexible on color and scales well to any size.
 
 
 
