@@ -58,6 +58,9 @@ public:
 	JsValueRef JsCreateDrawingLayer(int zIndex);
 	void JsRemoveDrawingLayer(JavascriptEngine::JsObj obj);
 
+	// get the layout size
+	SIZE GetLayoutSize() const { return szLayout; }
+
 	// Figure the pixel width of the window layout in terms of the normalized
 	// height of 1920 pixels.
 	int NormalizedWidth()

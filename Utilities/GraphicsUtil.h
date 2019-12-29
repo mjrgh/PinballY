@@ -111,8 +111,9 @@ void DrawOffScreen(int width, int height,
 
 // Draw off-screen into a newly created bitmap, returning the bitmap
 // to the caller.
+template<typename DibType = const void> 
 void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
-	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
+	std::function<void(HDC, HBITMAP, DibType*, const BITMAPINFO&)> func);
 
 // Draw off-screen into a newly created bitmap, returning the bitmap
 // and its DIB pixel array to the caller
@@ -220,14 +221,14 @@ class MemoryDC
 public:
 	MemoryDC() 
 	{
-		hdc = CreateCompatibleDC(0);
-		oldbmp = 0;
+		hdc = CreateCompatibleDC(NULL);
+		oldbmp = NULL;
 	}
 
 	~MemoryDC()
 	{
 		// restore the prior selected bitmap, if any
-		if (oldbmp != 0)
+		if (oldbmp != NULL)
 			SelectObject(hdc, oldbmp);
 
 		// delete the DC
@@ -251,7 +252,7 @@ public:
 		// If we haven't already stashed the old bitmap, stash this one.
 		// Don't do it again if we've already done this, as the point is
 		// to restore the one from before the MemoryDC was created.
-		if (oldbmp == 0)
+		if (oldbmp == NULL)
 			oldbmp = prv;
 
 		// return the new bitmap
@@ -274,13 +275,13 @@ public:
 		bmi.bmiHeader.biCompression = BI_RGB;		// uncompressed
 
 		// create the DIB
-		HBITMAP bmp = ::CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &bits, 0, 0);
+		HBITMAP bmp = ::CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
 
 		// select it into the device context
 		HGDIOBJ prv = ::SelectObject(hdc, bmp);
 
 		// if we haven't already stashed a prior bitmap, save the old one
-		if (oldbmp == 0)
+		if (oldbmp == NULL)
 			oldbmp = prv;
 
 		// return the new bitmap
@@ -328,6 +329,27 @@ struct HBITMAPHolder
 };
 
 
-// Color space conversions
+// Color space conversions - RGB <-> YUV
 void RGBtoYUV(BYTE r, BYTE g, BYTE b, BYTE &y, BYTE &u, BYTE &v);
 void YUVtoRGB(BYTE y, BYTE u, BYTE v, BYTE &r, BYTE &g, BYTE &b);
+
+// Color space conversions - RGB <-> Hue Saturation Lightness
+void RGBtoHSL(BYTE r, BYTE g, BYTE b, BYTE &h, BYTE &s, BYTE &l);
+void HSLtoRGB(BYTE h, BYTE s, BYTE l, BYTE &r, BYTE &g, BYTE &b);
+
+
+// Apply morphological dilation to a Gdiplus bitmap.  rx and ry are
+// the X and Y radii of the effect.
+namespace Gdiplus
+{
+	// Dilation with pre-set structuring elements.  This routine uses a
+	// naive algorithm with no SE decomposition, so it's quite slow for
+	// large radii.
+	enum DilationMode { DilationModeRect, DilationModeDisc, DilationModeDiamond };
+	Bitmap *DilationEffect(Bitmap *bitmap, UINT rx, UINT ry, DilationMode mode);
+
+	// Dilation with a rectangular structuring element.  This is faster
+	// than the general DilationEffect() routine because it decomposes
+	// the SE into its base element.
+	Bitmap *DilationEffectRect(Bitmap *bitmap, UINT rx, UINT ry);
+}

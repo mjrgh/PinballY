@@ -17,7 +17,10 @@
 
 #include "targetver.h"
 
-// Windows Header Files:
+// enable GDI+ 1.1 (for Effects classes)
+#define GDIPVER 0x0110
+
+// Windows Header Files
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <windows.h>
 #include <windowsx.h>
@@ -26,6 +29,7 @@
 #include <gdiplus.h>
 #include <dwmapi.h>
 #include <gdiplus.h>
+#include <gdipluseffects.h>
 #include <d3d11_1.h>
 #include <DirectXMath.h>
 #include <mfapi.h>

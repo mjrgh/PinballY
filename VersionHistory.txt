@@ -158,6 +158,17 @@ reduce visible pauses in the video display when large images are being
 loaded.  This should make the UI a little smoother when switching
 between games, for example.
 
+* The rendering for the alphanumeric display style for high scores on
+the video DMD has been revamped to look a little nicer, using a new
+algorithm based on Freezy's approach in his dmd-extensions system.
+The old algorithm used a set of pre-rendered images that came from
+photos of a real display, which were at least photo-realistic (being
+based on actual photos!).  But the photos weren't all that great, and
+I thought Freezy's synthetic rendering approach ultimately produced a
+nicer overall effect.  The photographic source approach also limited
+the number of colors that could be used.  The new code renders the
+individual lighted display segments using vector graphics and a glow
+effect.
 
 
 

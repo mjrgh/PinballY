@@ -39,8 +39,9 @@ void DrawOffScreen(int width, int height,
 }
 
 // Perform off-screen drawing, returning the HBITMAP to the caller.
+template<typename DibType>
 void DrawOffScreen(HBITMAP *phBitmap, int width, int height, 
-	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func)
+	std::function<void(HDC, HBITMAP, DibType*, const BITMAPINFO&)> func)
 {
 	// create a memory DC
 	MemoryDC memdc;
@@ -51,11 +52,11 @@ void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
 	*phBitmap = memdc.CreateDIB(width, height, dibits, bmi);
 
 	// invoke the callback to carry out the drawing
-	func(memdc, *phBitmap, dibits, bmi);
-
-	// done with the bitmap
-	SelectObject(memdc, memdc.oldbmp);
+	func(memdc, *phBitmap, static_cast<DibType*>(dibits), bmi);
 }
+
+// Explicitly instantiate DrawOffScreen<DibType> for BYTE
+static auto drawOffScreenBYTE = &DrawOffScreen<BYTE>;
 
 // Perform off-screen drawing, returning the DIBitmap information
 // to the caller.
@@ -73,9 +74,6 @@ void DrawOffScreen(DIBitmap &dib, int width, int height,
 
 	// invoke the callback to carry out the drawing
 	func(memdc, dib.hbitmap, dib.dibits, dib.bmi);
-
-	// done with the bitmap
-	SelectObject(memdc, memdc.oldbmp);
 }
 
 // -----------------------------------------------------------------------
@@ -793,8 +791,282 @@ bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool 
 
 // -----------------------------------------------------------------------
 //
-// 
+// GDI+ effects
+//
 
+Gdiplus::Bitmap *Gdiplus::DilationEffect(Gdiplus::Bitmap *bitmap, UINT rx, UINT ry, Gdiplus::DilationMode mode)
+{
+	// figure the bounds of the bitmap
+	const int startX = 0, startY = 0;
+	const UINT width = bitmap->GetWidth(), height = bitmap->GetHeight();
+	const int stopX = static_cast<int>(width), stopY = static_cast<int>(height);
+
+	// lock the bitmap data in 32bpp ARGB mode
+	Gdiplus::Rect rcEffect(0, 0, width, height);
+	Gdiplus::BitmapData bdSrc;
+	bitmap->LockBits(&rcEffect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bdSrc);
+	const BYTE *srcBase = static_cast<const BYTE*>(bdSrc.Scan0);
+
+	// create the destination bitmap
+	std::unique_ptr<Gdiplus::Bitmap> dstBitmap(new Gdiplus::Bitmap(width, height, PixelFormat32bppARGB));
+	Gdiplus::BitmapData bdDst;
+	dstBitmap->LockBits(&rcEffect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, &bdDst);
+	BYTE *dstRow = static_cast<BYTE*>(bdDst.Scan0);
+
+	// figure the structuring element size
+	UINT seSizeX = rx * 2 + 1;
+	UINT seSizeY = ry * 2 + 1;
+
+	// construct a circular structuring element matrix
+	std::unique_ptr<bool> se(new bool[seSizeX * seSizeY]);
+	if (mode == DilationModeDisc)
+	{
+		bool *pse = se.get();
+		const UINT rMax = (rx > ry ? rx : ry);
+		const UINT r2 = rMax * rMax;
+		for (UINT row = 0; row < seSizeY; ++row)
+		{
+			for (UINT col = 0; col < seSizeX; ++col, ++pse)
+			{
+				int dx = col - rx;
+				int dy = row - ry;
+				UINT d2 = dx*dx + dy*dy;
+				*pse = (d2 <= r2);
+			}
+		}
+	}
+	else if (mode == DilationModeDiamond)
+	{
+		bool *pse = se.get();
+		for (UINT row = 0; row < seSizeY; ++row)
+		{
+			for (UINT col = 0; col < seSizeX; ++col, ++pse)
+				*pse = false;
+		}
+		for (UINT row = 0; row < seSizeY; ++row)
+		{
+			for (int col = seSizeX / 2 - row; col < static_cast<int>(seSizeX / 2 + row); ++col)
+			{
+				if (col >= 0 && col < static_cast<int>(seSizeX))
+					se.get()[row * seSizeY + col] = true;
+			}
+		}
+	}
+	else // default is rect
+	{
+		// rect mode - pick every pixel
+		bool *pse = se.get();
+		for (UINT i = seSizeX * seSizeY; i != 0; --i)
+			*pse++ = true;
+	}
+
+	// scan line
+	for (int y = startY; y < stopY; ++y, dstRow += bdDst.Stride)
+	{
+		// scan pixels in the line
+		BYTE *dst = dstRow;
+		for (int x = startX; x < stopX; ++x, dst += 4)
+		{
+			// clear the current maximum for each channel
+			BYTE rMax = 0, gMax = 0, bMax = 0, aMax = 0;
+
+			// iterate over the structuring element by row
+			for (UINT i = 0; i < seSizeY; ++i)
+			{
+				int ir = i - ry;
+				int ySrc = y + ir;
+
+				// skip rows before the starting row
+				if (ySrc < startY)
+					continue;
+
+				// stop after passing the last row
+				if (ySrc >= stopY)
+					break;
+
+				// for each structuring element's column
+				const bool *pse = se.get() + i*seSizeX;
+				for (UINT j = 0; j < seSizeX; ++j, ++pse)
+				{
+					int jr = j - rx;
+					int xSrc = x + jr;
+
+					// skip columns before the starting column
+					if (xSrc < startX)
+						continue;
+
+					// stop after the last column
+					if (xSrc >= stopX)
+						break;
+
+					if (*pse)
+					{
+						// red
+						const BYTE *src = srcBase + (ySrc * bdSrc.Stride) + (xSrc * 4);
+						BYTE v = src[0];
+						if (v > rMax)
+							rMax = v;
+
+						// green
+						v = src[1];
+						if (v > gMax)
+							gMax = v;
+
+						// blue
+						v = src[2];
+						if (v > bMax)
+							bMax = v;
+
+						// alpha
+						v = src[3];
+						if (v > aMax)
+							aMax = v;
+					}
+				}
+			}
+
+			// result pixel
+			dst[0] = rMax;
+			dst[1] = gMax;
+			dst[2] = bMax;
+			dst[3] = aMax;
+		}
+	}
+
+	// done with the bitmap data
+	bitmap->UnlockBits(&bdSrc);
+	dstBitmap->UnlockBits(&bdDst);
+
+	// return the destination bitmap
+	return dstBitmap.release();
+}
+
+Gdiplus::Bitmap *Gdiplus::DilationEffectRect(Gdiplus::Bitmap *bitmap, UINT rx, UINT ry)
+{
+	// figure the bounds of the bitmap
+	const int startX = 0, startY = 0;
+	const UINT width = bitmap->GetWidth(), height = bitmap->GetHeight();
+	const int stopX = static_cast<int>(width), stopY = static_cast<int>(height);
+
+	// lock the bitmap data in 32bpp ARGB mode
+	Gdiplus::Rect rcEffect(0, 0, width, height);
+	Gdiplus::BitmapData bdInput;
+	bitmap->LockBits(&rcEffect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, &bdInput);
+
+	// Create two temporary working buffers.  We'll use these to perform
+	// multiple passes with the decomposed structuring element - one will
+	// be the output in each pass, and will swap to being the input on the
+	// next pass.  The one used for output on the last pass will become
+	// the returned bitmap, and the other will be discarded.
+	INT stride = abs(bdInput.Stride);
+	std::unique_ptr<BYTE> tmp1(new BYTE[height * stride]);
+	std::unique_ptr<BYTE> tmp2(new BYTE[height * stride]);
+
+	// on the first pass, the input bitmap is the source, and the output is temp 1
+	const BYTE *bufSrc = static_cast<BYTE*>(bdInput.Scan0);
+	BYTE *bufDst = tmp1.get();
+
+	// swap outputs
+#define SwapTempBufs() \
+    if (bufDst == tmp1.get()) \
+        bufSrc = tmp1.get(), bufDst = tmp2.get(); \
+    else \
+        bufSrc = tmp2.get(), bufDst = tmp1.get();
+
+	// process a source pixel
+	BYTE s0, s1, s2, s3;
+#define ReadPixN(src, n) \
+    if (*((src) + n) > s##n) s##n = *((src) + n);
+#define ReadPix(src) \
+    ReadPixN(src, 0) \
+    ReadPixN(src, 1) \
+    ReadPixN(src, 2) \
+    ReadPixN(src, 3)
+
+// write a destination pixel
+#define WritePixN(dst, n) \
+    *((dst) + n) = s##n;
+#define WritePix(dst) \
+	WritePixN(dst, 0) \
+	WritePixN(dst, 1) \
+	WritePixN(dst, 2) \
+	WritePixN(dst, 3)
+
+	// Do the horizontal passes.  Each pass does a horizontal dilation with
+	// radius 1, which increases the overall radius by 1.
+	for (UINT hPass = 1; hPass <= rx; ++hPass)
+	{
+		// get the pixel buffer pointers
+		BYTE *dst = bufDst;
+		const BYTE *src = bufSrc;
+
+		// scan the image
+		for (UINT y = 0; y < height; ++y)
+		{
+			for (UINT x = 0; x < width; ++x, src += 4, dst += 4)
+			{
+				// read the three adjacent pixels
+				s0 = s1 = s2 = s3 = 0;
+				if (x >= 1) { ReadPix(src - 4); }
+				ReadPix(src);
+				if (x + 1 < width) { ReadPix(src + 4); }
+
+				// write the pixel
+				WritePix(dst);
+			}
+		}
+
+		// swap temporary buffers
+		SwapTempBufs();
+	}
+
+	// Do the vertical passes.  Each pass does a vertical dilation with 
+	// radius 1, increasing the overall radius by 1.
+	for (UINT vPass = 1; vPass <= ry; ++vPass)
+	{
+		// get the pixel buffer pointers
+		BYTE *dst = bufDst;
+		const BYTE *src = bufSrc;
+
+		// scan the image
+		for (UINT y = 0; y < height; ++y)
+		{
+			for (UINT x = 0; x < width; ++x, src += 4, dst += 4)
+			{
+				// read the three adjacent pixels
+				s0 = s1 = s2 = s3 = 0;
+				if (y >= 1) { ReadPix(src - stride); }
+				ReadPix(src);
+				if (y + 1 < height) { ReadPix(src + stride); }
+
+				// write the pixel
+				WritePix(dst);
+			}
+		}
+
+		// swap temporary buffers
+		SwapTempBufs();
+	}
+
+	// unlock the source bitmap
+	bitmap->UnlockBits(&bdInput);
+
+	// create a new bitmap for the result
+	auto result = new Gdiplus::Bitmap(width, height, PixelFormat32bppARGB);
+
+	// lock its pixel buffer
+	Gdiplus::BitmapData bdResult;
+	result->LockBits(&rcEffect, Gdiplus::ImageLockModeWrite, PixelFormat32bppARGB, &bdResult);
+	
+	// Copy the bits from the current source buffer.  We always
+	// leave the results of the last pass in the source buffer, 
+	// since we swap buffers at the end of each pass.
+	memcpy(bdResult.Scan0, bufSrc, height * stride);
+
+	// unlock it and return the new bitmap object
+	result->UnlockBits(&bdResult);
+	return result;
+}
 
 
 // -----------------------------------------------------------------------
@@ -821,3 +1093,74 @@ void YUVtoRGB(BYTE y, BYTE u, BYTE v, BYTE &r, BYTE &g, BYTE &b)
 	gp = min(gp, 255); g = max(gp, 0);
 	bp = min(bp, 255); b = max(bp, 0);
 }
+
+void RGBtoHSL(BYTE r, BYTE g, BYTE b, BYTE &h, BYTE &s, BYTE &l)
+{
+	// get the normalized RGB components
+	float rr = static_cast<float>(r) / 255.0f;
+	float gg = static_cast<float>(g) / 255.0f;
+	float bb = static_cast<float>(b) / 255.0f;
+
+	// figure the min and max components, and the range
+	float cmin = fminf(rr, fminf(gg, bb));
+	float cmax = fmaxf(rr, fmaxf(gg, bb));
+	float delta = cmax - cmin;
+
+	// figure the lightness
+	float ll = (cmax + cmin) / 2.0f;
+
+	// figure the hue and saturation
+	float hh, ss;
+	if (delta == 0.0f)
+	{
+		hh = 0.0f;
+		ss = 0.0f;
+	}
+	else
+	{
+		if (cmax == rr)
+			hh = 60.0f * fmodf((gg - bb) / delta, 6.0f);
+		else if (cmax == gg)
+			hh = 60.0f * ((bb - rr) / delta + 2.0f);
+		else
+			hh = 60.0f * ((rr - gg) / delta + 4.0f);
+
+		ss = delta / (1.0f - fabsf(2 * ll - 1.0f));
+	}
+
+	// convert back to BYTE space
+	h = static_cast<BYTE>(hh / 360.f * 255.0f);
+	s = static_cast<BYTE>(ss * 255.0f);
+	l = static_cast<BYTE>(ll * 255.0f);
+}
+
+void HSLtoRGB(BYTE h, BYTE s, BYTE l, BYTE &r, BYTE &g, BYTE &b)
+{
+	// normalize the HSL values
+	float hh = static_cast<float>(h) / 255.0f * 360.0f;
+	float ss = static_cast<float>(s) / 255.0f;
+	float ll = static_cast<float>(l) / 255.0f;
+
+	float c = (1.0f - fabsf(2.0f * ll - 1.0f)) * ss;
+	float x = c * (1.0f - fabsf(fmodf(hh / 60.f, 2.0f) - 1.0f));
+	float m = ll - c / 2.0f;
+
+	float rr, gg, bb;
+	if (hh < 60.0f)
+		rr = c, gg = x, bb = 0.0f;
+	else if (hh < 120.0f)
+		rr = x, gg = c, bb = 0.0f;
+	else if (hh < 180.0f)
+		rr = 0.0f, gg = c, bb = x;
+	else if (hh < 240.0f)
+		rr = 0.0f, gg = x, bb = c;
+	else if (hh < 300.0f)
+		rr = x, gg = 0.0f, bb = c;
+	else
+		rr = c, gg = 0.0f, bb = x;
+
+	r = static_cast<BYTE>((rr + m) * 255.0f);
+	g = static_cast<BYTE>((gg + m) * 255.0f);
+	b = static_cast<BYTE>((bb + m) * 255.0f);
+}
+

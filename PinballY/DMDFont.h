@@ -32,6 +32,8 @@ public:
 	struct Color
 	{
 		Color() { Set(0xff, 0x00, 0x00, 0x00); }
+		Color(BYTE a, BYTE r, BYTE g, BYTE b) { Set(a, r, g, b); }
+		Color(BYTE a, RGBQUAD q) { Set(a, q.rgbRed, q.rgbGreen, q.rgbBlue); }
 
 		// set the bytes
 		void Set(int r, int g, int b)

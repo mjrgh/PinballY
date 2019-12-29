@@ -62,6 +62,48 @@ public:
 	virtual void BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideo) override;
 	virtual void EndRunningGameMode() override;
 
+	// Alphanumeric display options
+	struct AlphanumOptions
+	{
+		// Initialize with default layer settings based on a given
+		// color for the foreground segments.
+		void InitFromSegColor(BYTE r, BYTE g, BYTE b);
+		void InitFromSegColor(const RGBQUAD &rgb) { InitFromSegColor(rgb.rgbRed, rgb.rgbGreen, rgb.rgbBlue); }
+
+		// slant angle in degrees
+		int slant = 10;
+
+		// layer options
+		struct Layer
+		{
+			// color for this segment (with alpha)
+			Gdiplus::Color color;
+
+			// dilation x and y radius (0 = no dilation)
+			int dilationx, dilationy;
+
+			// gaussian blur radius (0 = no blur)
+			int blur;
+		};
+
+		// Lit segments layer.  Displays the main lighting of the lit 
+		// segments.
+		Layer lit = { Gdiplus::Color(0xff, 0xff, 0x58, 0x20), 0, 0 };
+
+		// Upper glow layer.  Intended for a bright, narrow halo around 
+		// the lit segments.
+		Layer glow1 = { Gdiplus::Color(0xa0, 0xe0, 0x34, 0x00), 7, 5, 15 };
+
+		// Lower glow layer.  Intended for a larger and more diffuse 
+		// halo around the lit segments.
+		Layer glow2 = { Gdiplus::Color(0x40, 0xb7, 0x4a, 0x29), 45, 20, 25 };
+
+		// Unlit segments.  Displays a faint image of the unlit segments,
+		// to simulate the visible structure of a physical segmented
+		// dsiplay device.
+		Layer unlit = { Gdiplus::Color(0x20, 0xff, 0x58, 0x20), 0, 0, 5 };
+	};
+
 	// Generate a DMD-style image slide.  This can be used to generate
 	// this graphics style for use in any window.
 	//
@@ -76,7 +118,8 @@ public:
 	DWORD GenerateDMDImage(
 		BaseView *view, std::list<TSTRING> &messages,
 		const TCHAR *style = nullptr, const TCHAR *font = nullptr,
-		RGBQUAD *txtColor = nullptr, RGBQUAD *bgColor = nullptr, BYTE bgAlpha = 255);
+		RGBQUAD *txtColor = nullptr, RGBQUAD *bgColor = nullptr, BYTE bgAlpha = 255,
+		AlphanumOptions *alphanumOptions = nullptr);
 
 	// high-score graphics list
 	struct HighScoreImage
@@ -118,8 +161,8 @@ public:
 			hbmp(i.hbmp.Detach()),
 			dibits(i.dibits),
 			displayTime(i.displayTime),
-			bgColor(bgColor),
-			bgAlpha(bgAlpha)
+			bgColor(i.bgColor),
+			bgAlpha(i.bgAlpha)
 		{
 			// copy the bitmap info
 			memcpy(&this->bmi, &i.bmi, sizeof(this->bmi));
@@ -181,9 +224,14 @@ public:
 		// time in milliseconds to display this item
 		DWORD displayTime = 3500;
 
-		// background color and alpha for the DMD renderer
+		// Background color and alpha for the DMD shader.   This has
+		// to be stored separately from the image, since we have to 
+		// pass it to the shader through a constant buffer.
 		RGBQUAD bgColor = { 0, 0, 0, 0 };
 		BYTE bgAlpha = 255;
+
+		// Display options
+
 	};
 	std::list<HighScoreImage> highScoreImages;
 

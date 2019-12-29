@@ -97,16 +97,16 @@ about, with suggestions for fixes or ways to gather more information.
 Scan through the list to see if you can find anything that sounds
 similar to any problems you're having.
 
-<h3>I'm running PinballY in Admin mode, and...</h3>
+<h3>I'm running PinballY in Admin mode, and something's not working</h3>
 
-<p>
-   ...something's going wrong.
-</p>
 <p>
   Simple answer: Don't run PinballY in Admin mode.  If you're running
   PinballY by right-clicking the program file and selecting "Run as Administrator",
-  please see the help section on <a href="AdminMode.html">Administrator Mode</a>
-  for instructions on what you should be doing instead.
+  or you check the box for "Run as Administrator" in the .EXE file's property
+  page, it's going to cause a bunch of problems, because the program
+  isn't designed to run that way.  There <i>is</i> a way to run in Admin mode if necessary, but
+  not by using "Run as Administrator".  See the help section on
+  <a href="AdminMode.html">Administrator Mode</a> for the right approach.
 </p>
 <p>
    But more importantly, you ideally shouldn't need to use Admin
@@ -138,6 +138,23 @@ similar to any problems you're having.
    its Admin Mode launch, without forcing everything else to run in Admin Mode too.
 </ul>
 
+
+<h3>Errors about missing DirectX components immediately at start-up</h3>
+<p>
+   If PinballY shows an error message about missing DirectX components
+   as soon as you launch the program, you probably need to upgrade to the
+   latest version of Microsoft's DirectX.  This should only be necessary
+   on Windows 7, because Windows 8 and later come with the necessary
+   components pre-installed.  But you might need to update DirectX if
+   you're running Windows 7, even if you already have DirectX 11,
+   because Windows 7 originally came with an earlier version of DirectX 11
+   that's not compatible with PinballY.  Update instructions can be
+   found on the Microsoft website:
+</p>
+<div class="indented">
+   <a target="_blank" href="https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx">https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx</a>
+</div>
+   
 
 <h3>PinballY isn't finding my tables</h3>
 

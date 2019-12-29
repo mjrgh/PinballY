@@ -216,7 +216,7 @@ overlay.clear(0x00000000);
    Things get weird when we start talking about custom drawing, because
    now we have to start thinking in terms of pixels in addition to
    the constraint-based scaling.  The custom drawing system is based
-   on plain old pixels, just like the more conventional sort of Windows
+   on plain old pixels, like PNG files or conventional Windows
    graphics programming.  How do we reconcile the pixel-based drawing
    with the span-based scaling?
 </p>
@@ -231,16 +231,29 @@ overlay.clear(0x00000000);
 </p>
 <p>
    Whatever you do with the canvas, when you're done, you have a
-   rectangular image that's X pixels by Y pixels in size.  Just
-   like a PNG file that's X pixels by Y pixels in size.  We now load
+   rectangular image that's X pixels by Y pixels in size.  This is just
+   like a PNG file that's X pixels by Y pixels in size, except that
+   it only exists in memory, not as a disk file.  We now load
    this X-by-Y-pixel image into a drawing layer.  It's only at
-   this point that the span-based scaling kicks in.  PinballY
+   this point that the more abstract window-based scaling kicks in.  PinballY
    now takes that X-by-Y-pixel image and stretches it to fill
-   the desired fraction of the window's width and height.  Whenever
+   the desired fraction of the window's width and height, according
+   to the "span" values in your drawing layer's scale settings.  Whenever
    the window size or layout changes, PinballY rescales the image,
    going back to the same X-by-Y-pixel original, and stretching it
    to match the new window layout.
-</p>   
+</p>
+<p>
+   This dual sizing scheme - pixel sizing for the underlying image, window
+   percentages for the final display - gives you a lot of flexibility.
+   A really nice feature is that it lets you create custom drawings at a fixed pixel size, without
+   having to worry about how large or small the image will be when actually
+   displayed.  That lets you arrange the drawing with the exact proportions
+   you want, based on pre-determined sizes for the elements within the
+   drawing, such as text and external images you draw onto the canvas.
+   The finished image will then be displayed at whatever size is needed
+   in the UI, thanks to the window-based scaling.
+</p>
    
 
 <h2>Methods and properties</h2>
@@ -328,41 +341,100 @@ overlay.clear(0x00000000);
    properties are:
 </p>
 <ul>
-   <li><b>bgColor:</b> The background color, for the DMD style.  This can
+   <li><b>bgColor:</b> The background color, for the DMD and alphanumeric
+   styles.  This can
    be specified as a hex number, in 0xAARRGGBB format (AA is the alpha
    transparency component), or as an HTML "#RRGGBB" or "#AARRGGBB" string.
    Setting the alpha to something less than FF will make the background
    partially transparent; setting to it to 00 will make it entirely
-   transparent.
+   transparent.  This is ignored for the "tt" style, which uses a
+   background image instead.
 
-   <li><b>color:</b> The dot color, for the DMD style.  This can be specified
-   as a hex number, in 0xRRGGBB format, or as an HTML "#RRGGBB" string.
-   This color is always fully opaque (any alpha component is ignored).
+   <li><b>color:</b> This is the color of the dots making up the dot matrix
+   for the "dmd" style, or the colors of the segments for the 16-segment
+   display in the "alpha" style.  It's ignored for the "tt" style.
+   The color can be specified as a hex number, in 0xRRGGBB format, or as an
+   HTML "#RRGGBB" string.  This color is always fully opaque; any alpha
+   component you specify is ignored.
 
-   <li><b>font:</b> The dot font, for the DMD style.  If you don't specify
-   this, the system will choose the largest font that makes the text fit
-   the available area.  The currently available dot fonts are all approximations
-   of the fonts used on the 1990s Williams machines, and are named by their
-   pixel height:
-   <ul class="compact">
-      <li>"20px"
-      <li>"15px"
-      <li>"12px"
-      <li>"9px"
-      <li>"7px"
-      <li>"5px"
+   <li><b>font:</b> The font to use for the text.  The interpretation of
+   the font name depends on the drawing style.
+   <ul>
+      <li>For the "dmd" style, the drawing system uses special built-in
+      fonts designed specifically for the dot matrix layout.  These are
+      named according to the pixel height of the character cell:
+      <ul class="compact">
+         <li>"dmd-20px"
+         <li>"dmd-15px"
+         <li>"dmd-12px"
+         <li>"dmd-9px"
+         <li>"dmd-7px"
+         <li>"dmd-5px"
+      </ul>
+      <p>
+         If you don't specify one of these dmd-NNpx fonts, the system
+         will automatically choose the largest one that will make your
+         text message fit the display.  If you're displaying a series
+         of messages in succession, you might want to specify one font
+         across the whole sequence to make the messages look more
+         consistent.  The fonts use proportional spacing (different
+         widths per character), so there's no exact formula for how
+         much text will fit on the 128x32-dot display, but roughly
+         speaking, the "12px" font will fit two lines of text of about
+         10-12 characters per line, and "9px" will fit three lines
+         of about 16 characters per line.
+      </p>
+
+      <li>For the "alpha" drawing style, the drawing system uses special
+      built-in fonts designed specifically for the segmented display.
+      The following fonts are available:
+      <ul class="compact">
+         <li>"alphanum-thin" (thinner segments; this is the default)
+         <li>"alphanum-bold" (wider segments)
+      </ul>
+
+      <li>For the "tt" drawing style, the text is displayed using normal
+      Windows TrueType fonts, so you can specify any TrueType font here.
+      The default is Courier New, which has a typewritten appearance,
+      to create the impression of an ad hoc note attached to the machine.
    </ul>
    <p>
-      If you're displaying a single message, you can just let the system
-      choose a font based on what'll fit.  For a sequence of messages
-      shown in succession, though, it can look jarring to switch fonts
-      on each screen, so you might prefer to pick a font that will work
-      across the whole sequence.  You might have to experiment to find
-      the best fit, but as a rough guide, the "12px" font will fit two
-      lines of text of about 10-12 characters per line, and "9px" will
-      fit three lines of about 16 characters per line.
+      You can specify more than one font by separating the font names with
+      commas.  For example, "Lucida Sans, Courier New, dmd-12px".  The
+      drawing system will try to match each font in the order provided,
+      considering only the font names valid for the selected style and
+      available on the system, until it finds a match.  (Any additional
+      fonts listed after the first match are ignored.)  This has two uses:
    </p>
-
+   <ul>
+      <li>The first is to provide fallback fonts for
+      the "tt" style, in case your first choice of fonts isn't installed
+      on the system.  For example, you could specify something
+      like "Letter Gothic, Lucia Typewriter, Courier New".
+      
+      <li>The second use is to provide font selections for each possible
+      drawing style when you're letting the system choose by setting
+      <b>style</b> to "auto" (or simply omitting it).  You might still
+      want to control the font in this case, but since you don't know
+      which style you'll get, you can't know whether "dmd-12px",
+      "alphanum-bold", or "Lucida Typewriter" applies.  The solution is
+      to specify them all, or at least to specify the ones that you
+      want to override.  If the system chooses the DMD style, it
+      will ignore any fonts that aren't in the special "dmd-Npx" set,
+      so it's safe to include "Lucida Typewriter" and "alphanum-bold"
+      in the list.  By the same token, if the system uses the alphanumeric
+      style, it'll ignore any fonts other than the "alphanum-xxx" fonts.
+      And if the "tt" style is used, the system will naturally ignore
+      the "dmd-Npx" and "alphanum-xxx" fonts, since those aren't the
+      names of any TrueType Windows fonts.  (Technically, they <i>could</i>
+      be the names of TrueType fonts, but in practice they probably won't
+      be.  To reduce the chances of accidentally picking a TrueType
+      font with such an odd name, you might want to list the "tt"
+      font options first, so that a proper TrueType font will be
+      selected for the "tt" style before the drawing system even
+      considers the others.)
+   </ul>
+      
    <li><b>style:</b>  A string specifying the display style; one of "auto",
    "dmd", "alpha", or "tt".  This is the same style selection you can make
    for a game's high score display in the normal UI, via the

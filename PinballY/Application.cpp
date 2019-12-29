@@ -64,6 +64,14 @@
        publicKeyToken='6595b64144ccf1df' \
        language='*'\"")
 
+// add Gdiplus 1.1 support
+#pragma comment(linker, "\"/manifestdependency:type='Win32' \
+    name='Microsoft.Windows.GdiPlus' \
+    version='1.1.0.0' \
+    processorArchitecture='*' \
+    publicKeyToken='6595b64144ccf1df' \
+    language='*'\"")
+
 // include the common control library in the link
 #pragma comment(lib, "comctl32.lib")
 
