@@ -489,7 +489,7 @@ void DMDView::AlphanumOptions::InitFromSegColor(BYTE r, BYTE g, BYTE b)
 	// top glow color
 	s = static_cast<BYTE>(s * 65 / 100);
 	HSLtoRGB(h, s, l, rr, gg, bb);
-	glow2 = { Gdiplus::Color(0x40, rr, gg, bb), 40, 20, 25 };
+	glow2 = { Gdiplus::Color(0x40, rr, gg, bb), 40, 20, 30 };
 
 	// Set the bottom glow layer to low-alpha white, which
 	// will make it look gray.
@@ -913,8 +913,14 @@ struct HighScoreGraphicsGenThread
 		xform.Scale(scale, scale);
 		xform.Shear(-shear_dx, 0);
 
-		// back up the left edge by half of the shear distance
-		x0 = static_cast<int>(x0 - shear_dx * charCellWid / 2.0f);
+		// Adjust the left edge by half of the shear distance, to keep
+		// the overall image centered.  The shear will make the image
+		// wider by the shear distance than the nominal cell widths.
+		// Again, since GDI+ will apply the shear as a leftward shear
+		// at the bottom of the image, the extra space from the shear
+		// will be added at the left side, so we need to move right to
+		// compensate.
+		x0 = static_cast<int>(x0 + shear_dx * charCellWid / 2.0f);
 
 		// draw the slides
 		for (auto &group : slides)

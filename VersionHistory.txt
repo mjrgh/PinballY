@@ -21,6 +21,20 @@ and steal keyboard focus if you launched a game and then immediately
 tried to close it, before the game had finished launching.  (Related
 to issue #79 on github.)
 
+* Added a new option to keep the DMD window in front of the backglass
+window at all times.  This might be handy if you have a single-monitor
+or two-monitor setup, and you want to keep the backglass and DMD
+windows on the same monitor.  The new option is under the Windows page
+in the options dialog.  (Note that the option only applies to
+PinballY's own DMD window.  It doesn't affect any of the other DMD
+windows in other programs, such as the "virtual DMD" window that
+Freezy's dmd-extensions system shows, or the VPinMAME DMD window.
+Those are controlled by separate programs, so PinballY can't set their
+layering.  Freezy's dmd-extensions has its own config file where you
+can set its virtual DMD window to "always in front mode"; I don't
+think there's any such option for the VPinMAME window.)
+
+
 
 12-28-2019 (1.0.0 Beta 17)
 

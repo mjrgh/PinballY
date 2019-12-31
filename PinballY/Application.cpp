@@ -103,6 +103,7 @@ namespace ConfigVars
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
 	static const TCHAR *MouseHideByMoving = _T("Mouse.HideByMoving");
 	static const TCHAR *MouseHideCoors = _T("Mouse.HideCoords");
+	static const TCHAR *KeepDMDInFront = _T("DMDWindow.KeepInFrontOfBg");
 }
 
 // include the capture-related variables
@@ -456,6 +457,11 @@ int Application::EventLoop(int nCmdShow)
 	// bring the main playfield window to the front
 	SetForegroundWindow(playfieldWin->GetHWnd());
 	SetActiveWindow(playfieldWin->GetHWnd());
+
+	// if desired, reparent the DMD window under the backglass, to keep it
+	// in front of the backglass at all times
+	if (ConfigManager::GetInstance()->GetBool(ConfigVars::KeepDMDInFront))
+		SetWindowLongPtr(dmdWin->GetHWnd(), GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(backglassWin->GetHWnd()));
 
 	// done with the dummy window
 	dummyWindow->SendMessage(WM_CLOSE);
@@ -876,6 +882,17 @@ void Application::OnConfigChange()
 		const TCHAR *txt = cfg->Get(ConfigVars::MouseHideCoors, _T("1920,540"));
 		_stscanf_s(txt, _T("%ld,%ld"), &hideCursorPos.x, &hideCursorPos.y);
 	}
+
+	// Set the parent (actually, owner, since it's a top-level widnow) of the
+	// DMD window.  If "keep DMD in front of backglass" is enabled, make the 
+	// parent the backglass, since a window always stays in front of its owner.
+	// Otherwise, set the parent to the playfield window like all of the other
+	// windows.
+	bool dmdInFront = cfg->GetBool(ConfigVars::KeepDMDInFront);
+	FrameWin *dmdOwner = dmdInFront ? static_cast<FrameWin*>(backglassWin.Get()) : static_cast<FrameWin*>(playfieldWin.Get());
+	if (dmdWin != nullptr && dmdWin->GetHWnd() != NULL && dmdOwner != nullptr && dmdOwner->GetHWnd() != NULL
+		&& playfieldWin != nullptr && playfieldWin->GetHWnd() != NULL)
+		SetWindowLongPtr(dmdWin->GetHWnd(), GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(dmdOwner->GetHWnd()));
 }
 
 void Application::SaveFiles()

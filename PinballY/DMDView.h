@@ -65,6 +65,14 @@ public:
 	// Alphanumeric display options
 	struct AlphanumOptions
 	{
+		AlphanumOptions() 
+		{
+			// set a default color scheme based on an approximation of
+			// the characteristic amber of the original plasma displays
+			// in the 1980s machines
+			InitFromSegColor(0xff, 0x58, 0x20); 
+		}
+
 		// Initialize with default layer settings based on a given
 		// color for the foreground segments.
 		void InitFromSegColor(BYTE r, BYTE g, BYTE b);
@@ -88,20 +96,20 @@ public:
 
 		// Lit segments layer.  Displays the main lighting of the lit 
 		// segments.
-		Layer lit = { Gdiplus::Color(0xff, 0xff, 0x58, 0x20), 0, 0 };
+		Layer lit;
 
 		// Upper glow layer.  Intended for a bright, narrow halo around 
 		// the lit segments.
-		Layer glow1 = { Gdiplus::Color(0xa0, 0xe0, 0x34, 0x00), 7, 5, 15 };
+		Layer glow1;
 
 		// Lower glow layer.  Intended for a larger and more diffuse 
 		// halo around the lit segments.
-		Layer glow2 = { Gdiplus::Color(0x40, 0xb7, 0x4a, 0x29), 45, 20, 25 };
+		Layer glow2;
 
 		// Unlit segments.  Displays a faint image of the unlit segments,
 		// to simulate the visible structure of a physical segmented
 		// dsiplay device.
-		Layer unlit = { Gdiplus::Color(0x20, 0xff, 0x58, 0x20), 0, 0, 5 };
+		Layer unlit;
 	};
 
 	// Generate a DMD-style image slide.  This can be used to generate

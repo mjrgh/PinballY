@@ -251,6 +251,7 @@
     <ClCompile Include="TreePropSheet\PropPageFrameDefault.cpp" />
     <ClCompile Include="TreePropSheet\TreePropSheet.cpp" />
     <ClCompile Include="VCEdit.cpp" />
+    <ClCompile Include="WindowDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="OptionsDialog.def" />
@@ -292,6 +293,7 @@
     <ClInclude Include="TreePropSheet\PropPageFrameDefault.h" />
     <ClInclude Include="TreePropSheet\TreePropSheet.h" />
     <ClInclude Include="VCEdit.h" />
+    <ClInclude Include="WindowDialog.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="FontPreviewCombo\res\ttf_glyph.bmp" />

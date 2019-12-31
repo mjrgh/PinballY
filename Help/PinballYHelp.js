@@ -29,6 +29,7 @@ var contents = [
         "+StatuslineOptions.html Statusline",
         "+SystemOptions.html Systems",
             "++SystemOptionsBrowseSubfolder.html System Setup - Browse Subfolders",
+        "+WindowOptions.html Windows",
     "MediaCapture.html Media Capture",
     "UsageTips.html Usage Tips",
     "NewTableSetup.html New Table Setup",

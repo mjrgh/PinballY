@@ -1729,6 +1729,25 @@ System7.DOFTitlePrefix = FX2
 GameList.EmptyCategories = 
 
 
+# Keep the DMD window in front of backglass.  If this is enabled (1), the
+# PinballY DMD window will be set up so that it's always displayed in front
+# of the PinballY backglass window.  This isn't normally necessary on pin
+# cabs with three monitors, since the window ordering isn't a factor when
+# all of the windows are on separate monitors.  But if you're running in
+# a desktop environment or a two-monitor pin cab, you might want to place
+# both windows on the same monitor.  This will ensure that the DMD window
+# stays in front of the backglass window in such a setup.
+#
+# Note that this applies to the *PinballY* DMD window.  It doesn't have
+# any effect on the Freezy dmd-extensions "virtual DMD" window.  dmd-ext
+# is a whole separate program with its own configuration files, so you'll
+# need to configure that window separately.  It also doesn't have any
+# effect on the VPinMAME DMD window, which is displayed while you're
+# playing Visual Pinball games.  That's also a separate program with its
+# own setup.
+DMDWindow.KeepInFrontOfBg = 0
+
+
 # Window layout.  There's no need to edit any of this manually.  Just run
 # the program and arrange the windows the way you want them using the normal
 # Windows controls.  Use the right-click menu in each window to switch 

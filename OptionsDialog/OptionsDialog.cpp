@@ -26,6 +26,7 @@
 #include "InfoBoxDialog.h"
 #include "FontDialog.h"
 #include "MouseDialog.h"
+#include "WindowDialog.h"
 
 using namespace TreePropSheet;
 
@@ -339,6 +340,7 @@ MainOptionsDialog::MainOptionsDialog(
 	AddPage(new InfoBoxDialog(IDD_INFOBOX), InfoBoxPage, _T("InfoBoxOptions.html"));
 	AddPage(new FontDialog(IDD_FONTS), FontPage, _T("FontOptions.html"));
 	AddPage(new MouseDialog(IDD_MOUSE), MousePage, _T("MouseOptions.html"));
+	AddPage(new WindowDialog(IDD_WINDOWS), WindowPage, _T("WindowOptions.html"));
 
 	// Add pages for the systems
 	auto cfg = ConfigManager::GetInstance();
