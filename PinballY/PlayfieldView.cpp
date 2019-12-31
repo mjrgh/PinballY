@@ -4071,7 +4071,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 			runningGameMode = RunningGameMode::Exiting;
 			ShowRunningGameMessage(L"terminating", LoadStringT(IDS_GAME_EXITING));
 
-			// switch to "cancelling" mode
+			// switch to "canceling" mode
 			Application::Get()->ShowCaptureCancel();
 
 			// send the terminate command to the game
@@ -8486,8 +8486,9 @@ void PlayfieldView::EndRunningGameMode()
 	attractMode.Reset(this);
 	SetTimer(hWnd, attractModeTimerID, attractModeTimerInterval, 0);
 
-	// make sure I'm in the foreground
-	SetForegroundWindow(GetParent(hWnd));
+	// try to make sure our frame is in the foreground and that we
+	// have focus
+	BetterSetForegroundWindow(GetParent(hWnd), hWnd);
 
 	// Set a timer to reinstate our DOF client after a short delay.
 	// Don't do this immediately, because DOF doesn't do anything to
@@ -11057,13 +11058,8 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 			bool repeat = ((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0);
 			KeyPressType keyType = repeat ? KeyBgRepeat : down ? KeyBgDown : KeyUp;
 
-			// Check for auto-repeat.  If the repeat flag is set, and we're 
-			// repeating the same key as last time, count the repeat; otherwise
-			// set the repeat count to zero for the initial press of a new key.
-			if (down && repeat && rawInputRepeat.vkey == vkey)
-				rawInputRepeat.repeatCount += 1;
-			else
-				rawInputRepeat.repeatCount = 0;
+			// Process the key through our repeat counter
+			rawInputRepeat.OnKey(vkey, down, repeat);
 
 			// run it through any Javascript event handlers
 			if (FireKeyEvent(vkey, down, rawInputRepeat.repeatCount, true))
@@ -12838,6 +12834,35 @@ void PlayfieldView::CmdExitGame(const QueuedKey &key)
 	// the background.
 	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == KeyBgDown)
 		SendMessage(WM_COMMAND, ID_KILL_GAME);
+
+	// If the user has been holding down the key for a few seconds,
+	// try forcing the application to the foreground.  This is a
+	// last resort for situations where focus gets screwed up 
+	// during a launch or due to a background process barging in,
+	// to let the user send focus back to PinballY manually without
+	// having to get out the mouse.
+	if ((key.mode & KeyBgRepeat) == KeyBgRepeat)
+	{
+		// To figure the repeat time, look at the system parameters
+		// for the repeat speed.  The repeat rate is idiosyncratic
+		// units, on a scale from 0 to 31, where 0 represents
+		// approximately 2.5 Hz and 31 is about 30 Hz, so each
+		// step represents about .887 Hz.
+		DWORD rate;
+		SystemParametersInfo(SPI_GETKEYBOARDSPEED, 0, &rate, 0);
+
+		// Figure frequency in Hz - that's keys per second.  To
+		// figure the number of keys in N seconds, just multiply
+		// by N.  
+		float hz = static_cast<float>(rate)*.887097f + 2.5f;
+		const float minInterval = 3.0f;
+		int nKeys = static_cast<int>(minInterval * hz);
+
+		// Now see if we've had enough repeats to reach our minimum
+		// holding time.  If so, try to force the window to the front.
+		if (key.repeatCount >= nKeys)
+			BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+	}
 }
 
 void PlayfieldView::CmdPauseGame(const QueuedKey &key)

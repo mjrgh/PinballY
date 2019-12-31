@@ -136,6 +136,48 @@ bool ValidateFullScreenLayout(const RECT &rc)
 
 // -----------------------------------------------------------------------
 //
+// "Better" SetForegroundWindow
+//
+void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus)
+{
+	// check if we're the foreground application
+	HWND hwndFg = GetForegroundWindow();
+	DWORD myTID = GetCurrentThreadId();
+	DWORD fgTID = ::GetWindowThreadProcessId(hwndFg, NULL);
+	if (myTID != fgTID)
+	{
+		// Some other program is in the foreground.  Try to force focus
+		// and activation into our window by attaching to the other thread.
+		//
+		// This is a little recipe that Microsoft suggests.  The idea is
+		// that we join our active/focus state with the target thread, so
+		// that the two threads have to agree on who's in front and the
+		// OS doesn't have to mediate.  While the input states are joined,
+		// we do a TOPMOST toggle to try to force our window in front of
+		// any other windows in either thread, and also set the system-wide
+		// foreground window to our window.  That should get us truly in
+		// front in almost all cases.
+		AttachThreadInput(fgTID, myTID, TRUE);
+
+		// toggle TOPMOST to try to bring us to the very front
+		SetWindowPos(hwndActive, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+		SetWindowPos(hwndActive, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
+
+		// also explicitly set the foreground window
+		SetForegroundWindow(hwndActive);
+
+		// done with the attach
+		AttachThreadInput(fgTID, myTID, FALSE);
+	}
+
+	// do an explicit focus/activate on the respective windows
+	SetForegroundWindow(hwndActive);
+	SetFocus(hwndFocus);
+	SetActiveWindow(hwndActive);
+}
+
+// -----------------------------------------------------------------------
+//
 // Windows error messages
 //
 

@@ -68,6 +68,13 @@ bool ValidateFullScreenLayout(const RECT &rc);
 
 // -----------------------------------------------------------------------
 //
+// A "better" SetForegroundWindow.
+//
+void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus);
+
+
+// -----------------------------------------------------------------------
+//
 // Handle holder.  This is a simple RAII object that closes a handle
 // upon going out of scope.
 //

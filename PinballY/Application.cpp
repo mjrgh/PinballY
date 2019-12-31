@@ -1816,7 +1816,9 @@ void Application::GameMonitorThread::CloseGame()
 			// our window, assuming we're in full-screen mode.  Explorer 
 			// normally hides the taskbar when a full-screen window is
 			// in front, but only when it's in front.
-			if (auto pfw = Application::Get()->GetPlayfieldWin(); pfw != nullptr)
+			auto pfw = Application::Get()->GetPlayfieldWin();
+			auto pfv = Application::Get()->GetPlayfieldView();
+			if (pfw != nullptr)
 			{
 				// inject a call to the child process to set our window
 				// as the foreground
@@ -1874,6 +1876,19 @@ void Application::GameMonitorThread::CloseGame()
 					if (closeCtx.windows.size() == 0)
 						break;
 
+					// Before we close anything, try to make sure we're in the
+					// foreground.  During the initial stages of a process launch,
+					// the Windows desktop seems to become the incumbent foreground
+					// window, so focus and activation can go to the desktop upon
+					// closing the target program's windows.  This makes the 
+					// desktop come to the foreground, which looks clunky.  (And
+					// it seems like a bug/hack in the OS to me; the launch should
+					// have been between us and the child process, with no desktop
+					// involvement.)  Try to avoid this as much as possible by
+					// explicitly bring ourselves to the foreground first.
+					if (pfw != nullptr && pfv != nullptr)
+						BetterSetForegroundWindow(pfw->GetHWnd() , pfv->GetHWnd());
+
 					// try closing each window we found
 					for (auto hWnd : closeCtx.windows)
 					{
@@ -1885,6 +1900,11 @@ void Application::GameMonitorThread::CloseGame()
 						if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
 							SendMessage(hWnd, WM_CLOSE, 0, 0);
 					}
+
+					// try to force our window into the foreground again, in case
+					// the desktop tries to intervene
+					if (pfw != nullptr && pfv != nullptr)
+						BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
 
 					// pause briefly between iterations to give the program a chance
 					// to update its windows; stop if the process exits
@@ -2212,22 +2232,42 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	// invoke the member function for the main thread entrypoint
 	DWORD result = self->Main();
 
-	// Regardless of how we exited, tell the main window that the game
-	// monitor thread is exiting.
-	if (self->playfieldView != 0)
+	// make sure we have a playfield view
+	if (self->playfieldView != nullptr)
 	{
+		// Regardless of how we exited, tell the main window that the game
+		// monitor thread is exiting.
 		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId, self->gameSys.configIndex);
 		self->playfieldView->SendMessage(PFVMsgLaunchThreadExit, 0, reinterpret_cast<LPARAM>(&report));
+
+		// Sigh, there still seem to be a couple of timing windows where
+		// killing a game that's still launching will force the Windows
+		// desktop to the foreground and leave it there.  Particularly on
+		// Windows 7.  It might be impossible to fix every possible
+		// case of that, since we can't predict the timing of when the
+		// desktop will barge in and take over, but it seems to happen
+		// within a few seconds in the cases I've seen.  So let's try
+		// to take focus back a few times over a few seconds after the
+		// game monitor thread finishes.
+		auto hwnd = self->playfieldView->GetHWnd();
+		for (int i = 0; i < 3; ++i)
+		{
+			// pause 
+			Sleep(1000);
+
+			// try to take focus back
+			BetterSetForegroundWindow(GetParent(hwnd), hwnd);
+		}
 	}
+
+	// thread exiting - set the state to Done for observers
+	self->state = GameMonitorDone;
 
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
 	// be deleted as long as the thread is running.  Now that the
 	// thread is just about to exit, release our reference.
 	self->Release();
-
-	// thread exiting - set the state to Done for observers
-	self->state = GameMonitorDone;
 
 	// return the exit code from the main thread handler
 	return result;
@@ -3291,7 +3331,7 @@ DWORD Application::GameMonitorThread::Main()
 		case WAIT_OBJECT_0:
 			// shutdown event - terminate
 			LogFile::Get()->Write(LogFile::TableLaunchLogging,
-				_T("+ table launch: interrupted waiting for child process to open a wnidow; aborting launch\n"));
+				_T("+ table launch: interrupted waiting for child process to open a window; aborting launch\n"));
 			return 0;
 
 		case WAIT_OBJECT_0 + 1:
@@ -3539,7 +3579,7 @@ DWORD Application::GameMonitorThread::Main()
 		// use the key names from the list above.
 		//   
 		const TCHAR *p = gameSys.startupKeys.c_str();
-		while (*p != 0)
+		while (*p != 0 && !closeCommandIssued)
 		{
 			// find the next token - stop if there are no more tokens
 			std::basic_regex<TCHAR> tokPat(_T("(^\\s*([^\\s\\[\\]]+|\\[[^\\]]+\\]|\\{[^}]+\\})\\s*).*"));
@@ -3653,7 +3693,7 @@ DWORD Application::GameMonitorThread::Main()
 		}
 	}
 
-	// we've now finished all startup preliminaries, so we're officiall
+	// we've now finished all startup preliminaries, so we're officially
 	// in Running mode
 	state = GameMonitorRunning;
 

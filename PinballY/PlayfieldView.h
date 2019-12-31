@@ -409,6 +409,21 @@ protected:
 	// Raw input key auto-repeat tracker
 	struct
 	{
+		void OnKey(USHORT vkey, bool down, bool repeat)
+		{
+			if (down && repeat && this->vkey == vkey)
+			{
+				// it's a repeat - count it
+				repeatCount += 1;
+			}
+			else
+			{
+				// not a repeat - clear the count and note the new key
+				repeatCount = 0;
+				this->vkey = vkey;
+			}
+		}
+
 		USHORT vkey = 0;       // last vkey
 		int repeatCount = 0;   // repeat count
 	} rawInputRepeat;

@@ -1,10 +1,32 @@
 PinballY Update History
 
+? (1.0.0 Beta 18)
+
+* If PinballY ever gets stuck behind another window or loses keyboard
+focus, you should now be able to make PinballY active again by
+pressing and holding the Exit Game button for a few seconds.  (Exit
+Game is usually mapped to the Escape key.)  Ideally, you'd never run
+into such a situation in the first place, since PinballY goes to some
+trouble to keep itself in the foreground automatically whenever it's
+appropriate for it to be there.  But focus on Windows can be hard to
+control, since other applications (and Windows itself) sometimes want
+to fight over it.  So this new press-and-hold gesture is meant as a
+last resort.  Hopefully it'll serve as a more convenient way to get
+focus back if such a situation does arise (more convenient than, say,
+reaching for the mouse).
+
+* Fixed a couple of special cases on Windows 7 where the Windows
+desktop could force itself to the foreground (rather than PinballY)
+and steal keyboard focus if you launched a game and then immediately
+tried to close it, before the game had finished launching.  (Related
+to issue #79 on github.)
+
+
 12-28-2019 (1.0.0 Beta 17)
 
 * You can now customize the text colors for most of the text displays,
-via color buttons alongside the font selections in the Fonts &amp;
-Colors section of the options dialog.
+via color buttons alongside the font selections in the Fonts & Colors
+section of the options dialog.
 
 * You can now tell PinballY to continue showing PinballY media on the
 real DMD device while a game is running.  This works the same as the

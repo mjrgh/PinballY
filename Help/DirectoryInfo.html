@@ -533,42 +533,52 @@
 <h2>Windows Registry</h2>
 
 <p>
-   PinballY stores absolutely nothing* in the Windows Registry.  The
+   PinballY stores nothing of its own in the Windows Registry.  The
    registry is such a source of misery for other software that I try
    to avoid it entirely.
 </p>
 <p>
-   *Okay, what I really meant was <i>nothing of its own</i>.
-   There actually is one key that might be set, depending on how
-   you installed the program:
+   However, if you install via the Windows SETUP installer using the
+   .msi download, the installer places two keys in the registry.
+   These keys are purely for SETUP's use, and aren't used by PinballY
+   itself, so deleting or changing them won't have any effect on
+   normal program operation.  They're also unique to PinballY, so
+   they won't affect any other programs.
 </p>
 <ul>
-   <li>If you use the Windows Setup installer (the .msi file distribution)
-   to install PinballY, it creates a registry entry that the
-   Windows "Add or Remove Programs" control panel uses to list installed
-   programs and uninstall them on demand.  This key has one of the following
-   forms, depending on whether you installed the 32-bit or 64-bit version
-   of PinballY:
+   <li><b>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}:</b>
+   This Microsoft installer system uses this key to record an "Uninstall" entry,
+   which the Windows "Add or Remove Programs" control panel uses to show you a
+   list of installed programs.
+   <p>
+      The <b>{XXXXX}</b> part is randomly generated for each PinballY version,
+      so it changes on each version.  It's a long sequence of characters (hexadecimal
+      digits, to be more precise) in curly braces, known as a GUID (Globally
+      Unique IDentifier).  This is Microsoft's way of uniquely identifying
+      program versions.  Unfortunately, being random, it has no relationship
+      to the nominal program version, so there's no way to determine it other
+      than to search the registry.  The easiest way to find it is to open RegEdit,
+      navigate to the parent key (...\Uninstall), press Ctrl+F to bring up
+      a search box, and type in <b>PinballY</b>.  That will find the key
+      via its <b>DisplayName</b> property, which the installer will have set to
+      "PinballY".
+   </p>
+   <p>
+      If you're running the 32-bit version of PinballY on a 64-bit Windows system,
+      the key will have a slightly different name, due to the way Windows
+      segregates 32-bit and 64-bit applications:
+      HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
+   </p>
 
-   <ul>
-      <li>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
-      <li>HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}
-   </ul>
-   <p>
-      Setup uses the first key if you're installing 32-bit PinballY on 32-bit
-      Windows, or 64-bit PinballY on 64-bit Windows.  The second key is used
-      when you install the 32-bit PinballY on 64-bit Windows.
-   </p>
-   <p>
-      The {XXXXX} part is a long sequence of hexadecimal digits enclosed in curly
-      braces, known as a GUID (globally unique identifier).  Each release has a
-      different randomly generated GUID.  That wasn't our bright idea; it's
-      an artifact of the Windows Setup process.  The easiest way to find the
-      key for your current version is to select the parent Uninstall key
-      in RegEdit, press Ctrl+F to bring up a search box, and type PinballY into
-      the search box.  That will find a "DisplayName" property under the
-      right key, which will let you see the install GUID.
-   </p>
+   <li><b>HKEY_LOCAL_MACHINE\SOFTWARE\Pinscape Labs\PinballY:</b>  This key stores
+   the folder where you installed PinballY via its <b>InstallPath</b> property.
+   The installer uses this so that it can pre-select the same folder as the
+   default the <i>next</i> time you install a new version of PinballY.  This
+   is just to save you a little typing on future updates.  PinballY doesn't
+   use this during normal program operations, so it doesn't matter whether
+   or not it's in sync with your current setup; it's purely for the next
+   install, to save a little typing when selecting the install location.
+
 </ul>
 
 <h2>Task Scheduler</h2>
