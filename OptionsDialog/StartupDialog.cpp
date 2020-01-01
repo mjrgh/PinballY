@@ -291,7 +291,7 @@ BOOL StartupDialog::OnApply()
 					// get the error code
 					WindowsErrorMessage err;
 
-					// If the error was "cancelled by the user", there's no need to show
+					// If the error was "canceled by the user", there's no need to show
 					// an error box telling the user what they know they just did.  Other
 					// error codes need an explanation, though.
 					if (err.GetCode() == ERROR_CANCELLED)

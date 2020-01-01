@@ -88,8 +88,8 @@ protected:
 	// is the batch capture prompt showing?
 	bool batchCancelPrompt = false;
 
-	// capture has been cancelled
-	bool cancelled = false;
+	// capture has been canceled
+	bool canceled = false;
 
 	// manual start/stop mode
 	bool manualStartMode = false;

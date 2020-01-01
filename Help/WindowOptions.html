@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Window Options</h1>
+
+<p>
+   <b>Keep the DMD window in front of the backglass window:</b>
+   If this box is checked, PinballY will make sure that its DMD window
+   is always displayed in front of the backglass window.  Even if
+   you click the mouse on the backglass window, the DMD window
+   will still stay in front of it.  By default (if the box isn't
+   checked), the DMD window follows the normal Windows UI rules
+   where you can bring other windows in front of it by clicking
+   on them, and you can bring the DMD window back in front by
+   clicking on it.
+</p>
+<p>
+   This option might be handy if you're using a single-monitor
+   or two-monitor setup and you're positioning both the backglass
+   and DMD on the same monitor.  (In the more typical pin cab setup,
+   where you have three separate monitors - playfield, backglass,
+   and DMD - the respective layering of these windows is kind of
+   irrelevant since the windows are all on separate monitors anyway.)
+</p>
+<p>
+   Note that this option only affects the <b>PinballY</b> DMD
+   window and backglass window.  It doesn't have any effect on
+   DMD windows displayed by other programs, such as the "virtual DMD"
+   window in Freezy's dmd-extensions system, or the VPinMAME DMD
+   window that appears while you're playing a Visual Pinball game,
+   or the B2S Backglass Server DMD window that might also appear
+   while a VP game is running.  It also doesn't affect the layering
+   of backglass windows from other programs, such as the B2S
+   Backglass Server window.
+</p>
+
+</body>
+</html>

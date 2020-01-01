@@ -1827,26 +1827,36 @@ void Application::GameMonitorThread::CloseGame()
 		{
 			// Normal launch - we can do the close ourselves
 
-			// Try bringing our main window to the foreground before 
-			// closing the game program's window(s), so that the taskbar 
-			// doesn't reappear between closing the game and activating
-			// our window, assuming we're in full-screen mode.  Explorer 
-			// normally hides the taskbar when a full-screen window is
-			// in front, but only when it's in front.
+			// If we're not already in the foreground, try bringing our
+			// main window to the foreground before closing the game.
+			// We'll want to be in front after the game exits anyway,
+			// but it's better to get ourselves in front BEFORE the
+			// game window closes, because the window transition can
+			// be clunky if we let Explorer or anything else come to
+			// the front during the change.  A particular bit of
+			// clunkiness is that the desktop taskbar pops up when
+			// you close an active full-screen window - so to prevent
+			// that, we can make sure the window we're about to close 
+			// isn't the active one.  The desktop is at least smart
+			// about leaving the taskbar hidden during a switch from
+			// one full-screen window to another full-screen window.
 			auto pfw = Application::Get()->GetPlayfieldWin();
 			auto pfv = Application::Get()->GetPlayfieldView();
-			if (pfw != nullptr)
+			if (!IsForegroundProcess())
 			{
-				// inject a call to the child process to set our window
-				// as the foreground
-				DWORD tid;
-				HandleHolder hRemoteThread = CreateRemoteThread(
-					hGameProc, NULL, 0,
-					(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
-					0, &tid);
+				if (pfw != nullptr)
+				{
+					// inject a call to the child process to set our window
+					// as the foreground
+					DWORD tid;
+					HandleHolder hRemoteThread = CreateRemoteThread(
+						hGameProc, NULL, 0,
+						(LPTHREAD_START_ROUTINE)&SetForegroundWindow, pfw->GetHWnd(),
+						0, &tid);
 
-				// explicitly set our foreground window
-				SetForegroundWindow(pfw->GetHWnd());
+					// also explicitly set our foreground window
+					SetForegroundWindow(pfw->GetHWnd());
+				}
 			}
 
 			// Check the termination mode
@@ -1903,8 +1913,8 @@ void Application::GameMonitorThread::CloseGame()
 					// have been between us and the child process, with no desktop
 					// involvement.)  Try to avoid this as much as possible by
 					// explicitly bring ourselves to the foreground first.
-					if (pfw != nullptr && pfv != nullptr)
-						BetterSetForegroundWindow(pfw->GetHWnd() , pfv->GetHWnd());
+					if (pfw != nullptr && pfv != nullptr && !IsForegroundProcess())
+						BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
 
 					// try closing each window we found
 					for (auto hWnd : closeCtx.windows)
@@ -1927,7 +1937,7 @@ void Application::GameMonitorThread::CloseGame()
 
 					// try to force our window into the foreground again, in case
 					// the desktop tries to intervene
-					if (pfw != nullptr && pfv != nullptr)
+					if (pfw != nullptr && pfv != nullptr && !IsForegroundProcess())
 						BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
 
 					// pause briefly between iterations to give the program a chance
@@ -2282,7 +2292,8 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 				break;
 
 			// try to take focus back
-			BetterSetForegroundWindow(GetParent(hwnd), hwnd);
+			if (!IsForegroundProcess())
+				BetterSetForegroundWindow(GetParent(hwnd), hwnd);
 		}
 	}
 
@@ -4656,10 +4667,14 @@ DWORD Application::GameMonitorThread::Main()
 
 void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 {
-	// If the application currently has focus, remember its active
-	// window, so that we can restore the same active window when
-	// we resume the game.  This helps ensure that focus goes back
-	// to the right window on resuming.
+	// If the game process is currently in the foreground, remember
+	// its active window, so that we can restore the same active 
+	// window when we resume the game.  This helps ensure that focus 
+	// goes back to the right window on resuming.  This is important
+	// for systems like VP that have multiple windows during play.
+	// We don't want to send focus to the VPinMAME DMD window or B2S
+	// backglass window during a VP game, for example, because those
+	// act like separate "modes" when they have focus.
 	stolenFocusWindow = NULL;
 	if (auto fgHwnd = GetForegroundWindow(); fgHwnd != NULL)
 	{
@@ -4669,17 +4684,21 @@ void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 			stolenFocusWindow = fgHwnd;
 	}
 
-	// inject a call in to the child process to set our window
-	// as the foreground
-	DWORD tid;
-	HandleHolder hRemoteThread = CreateRemoteThread(
-		hGameProc, NULL, 0,
-		(LPTHREAD_START_ROUTINE)&SetForegroundWindow, hwnd,
-		0, &tid);
+	// if we don't already have focus, grab it
+	if (!IsForegroundProcess())
+	{
+		// inject a call in to the child process to set our window
+		// as the foreground
+		DWORD tid;
+		HandleHolder hRemoteThread = CreateRemoteThread(
+			hGameProc, NULL, 0,
+			(LPTHREAD_START_ROUTINE)&SetForegroundWindow, hwnd,
+			0, &tid);
 
-	// explicitly set ourselves as the foreground window here, too,
-	// for good measure
-	SetForegroundWindow(hwnd);
+		// explicitly set ourselves as the foreground window here, too,
+		// for good measure
+		SetForegroundWindow(hwnd);
+	}
 }
 
 bool Application::GameMonitorThread::WaitForStartup(const TCHAR *exepath, HANDLE hProc)

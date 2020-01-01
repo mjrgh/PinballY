@@ -1394,7 +1394,7 @@ bool JavascriptEngine::RunTasks()
 			bool keep = true;
 
 			// check the task status
-			if (task->cancelled)
+			if (task->canceled)
 			{
 				// The task has been canceled.  Simply delete it from the
 				// queue without invoking it.

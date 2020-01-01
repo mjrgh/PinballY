@@ -439,8 +439,28 @@ bool FrameWin::CreateWin(HWND parent, int nCmdShow, const TCHAR *title)
 	if (!visible)
 		nCmdShow = SW_HIDE;
 
+	// if we have a vanity shield window, don't initially show it in
+	// the create - we'll want to reposition it behind the vanity shield
+	// window before making it visible
+	int nEffectiveCmdShow = vanityShield != nullptr ? SW_HIDE : nCmdShow;
+
 	// create the window
-	return Create(parent, title, normalWindowStyle, nCmdShow);
+	bool ok = Create(parent, title, normalWindowStyle, nEffectiveCmdShow);
+
+	// if we successfully created the window, and we have a vanity shield,
+	// arrange its layering behind the shield window and show it
+	if (vanityShield != nullptr)
+	{
+		// layer it behind the vanity shield window
+		SetWindowPos(hWnd, vanityShield->GetHWnd(), -1, -1, -1, -1,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+		// show it using the "real" show command
+		InitShowWin(nCmdShow);
+	}
+
+	// return the result
+	return ok;
 }
 
 void FrameWin::UpdateMenu(HMENU hMenu, BaseWin *fromWin)

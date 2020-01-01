@@ -176,6 +176,23 @@ void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus)
 	SetActiveWindow(hwndActive);
 }
 
+// Does the current system-wide foreground window belong to my process?
+bool IsForegroundProcess()
+{
+	// get the current foreground window
+	HWND hwndFg = GetForegroundWindow();
+
+	// it's possible for there to be no foreground window, in which
+	// case we obviously don't own the foreground window
+	if (hwndFg == NULL)
+		return false;
+
+	// check if this window belongs to our process
+	DWORD pid;
+	DWORD tid = GetWindowThreadProcessId(hwndFg, &pid);
+	return pid == GetCurrentProcessId();
+}
+
 // -----------------------------------------------------------------------
 //
 // Windows error messages

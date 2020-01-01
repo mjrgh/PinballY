@@ -1739,7 +1739,7 @@ public:
 	// function, a timeout, an interval, or a module load handler.
 	struct Task
 	{
-		Task() : id(nextId++), readyTime(0), cancelled(false) { }
+		Task() : id(nextId++), readyTime(0), canceled(false) { }
 		virtual ~Task() { }
 
 		// Execute the task.  Returns true if the task should remain
@@ -1757,12 +1757,12 @@ public:
 		// after this timestamp.
 		ULONGLONG readyTime;
 
-		// Has the task been cancelled?  A task can be cancelled from
+		// Has the task been canceled?  A task can be canceled from
 		// within script code (e.g., clearTimeout() or clearInterval()).
 		// Doing so sets this flag, which tells the queue processor to
 		// ignore the task and remove it the next time the queue is
 		// processed.
-		bool cancelled;
+		bool canceled;
 
 		// next available ID
 		static double nextId;
@@ -1857,8 +1857,8 @@ public:
 			// do the basic execution
 			__super::Execute();
 
-			// if the task has been cancelled, don't reschedule it
-			if (cancelled)
+			// if the task has been canceled, don't reschedule it
+			if (canceled)
 				return false;
 
 			// reschedule it for the next interval

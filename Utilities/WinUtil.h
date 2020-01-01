@@ -68,9 +68,20 @@ bool ValidateFullScreenLayout(const RECT &rc);
 
 // -----------------------------------------------------------------------
 //
-// A "better" SetForegroundWindow.
+// A "better" SetForegroundWindow.  This uses a tricky procedure that
+// Microsoft recommends to bring the process to the foreground more
+// reliably than the basic Win32 SetForegroundWindow() function, involving
+// attaching to the current foreground window's thread's input state.
+// This should generally be used in place of SetForegroundWindow(), since
+// it has the same intended effect, but just tends to have that effect
+// more reliably than the base SFW().
 //
 void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus);
+
+// Is our process the foreground application?  This checks the process
+// ID of the current system-wide foreground window to determine if the
+// window belongs to the current process.
+bool IsForegroundProcess();
 
 
 // -----------------------------------------------------------------------

@@ -261,7 +261,7 @@ public:
 		// overall capture success/failure status
 		bool ok;
 
-		// the operation was cancelled by the user
+		// the operation was canceled by the user
 		bool cancel;
 
 		// message ID for overall status
@@ -1118,7 +1118,7 @@ protected:
 		// twice to cancel the batch.
 		bool cancelPending;
 
-		// Batch cancelled.
+		// Batch canceled.
 		bool cancel;
 
 		// number of games planned, attemped, and succeeded during this batch

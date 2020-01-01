@@ -62,7 +62,7 @@ void CaptureStatusWin::BatchCaptureCancelPrompt(bool show)
 void CaptureStatusWin::ShowCaptureCancel()
 {
 	CriticalSectionLocker locker(lock);
-	cancelled = true;
+	canceled = true;
 	if (hWnd != NULL)
 		InvalidateRect(hWnd, NULL, FALSE);
 }
@@ -239,7 +239,7 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 
 		// figure the basic color scheme based on the mode
 		Gdiplus::Color bkColor, textColor, frameColor, blinkOffColor;
-		if (batchCancelPrompt || cancelled)
+		if (batchCancelPrompt || canceled)
 		{
 			// cancel prompt or cancellation in progress - white text on red, with a red frame
 			textColor = Gdiplus::Color(255, 255, 255);
@@ -317,10 +317,10 @@ void CaptureStatusWin::OnPaint(HDC hdc)
 		tformat.SetFormatFlags(tformat.GetFormatFlags() & ~Gdiplus::StringFormatFlagsLineLimit);
 
 		// check the message mode
-		if (cancelled)
+		if (canceled)
 		{
 			std::unique_ptr<Gdiplus::Font> textFont(CreateGPFont(_T("Tahoma"), 24, 400, false));
-			g.DrawString(LoadStringT(IDS_CAPSTAT_CANCELLED), -1, textFont.get(), rcLayout, &cformat, &textBr);
+			g.DrawString(LoadStringT(IDS_CAPSTAT_CANCELED), -1, textFont.get(), rcLayout, &cformat, &textBr);
 		}
 		else if (batchCancelPrompt)
 		{

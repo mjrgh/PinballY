@@ -1437,7 +1437,7 @@ void PlayfieldView::JsClearTimeout(double id)
 	{
 		if (auto tt = dynamic_cast<JavascriptEngine::TimeoutTask*>(task); tt != nullptr && tt->id == id)
 		{
-			tt->cancelled = true;
+			tt->canceled = true;
 			return false;
 		}
 		return true;
@@ -1457,7 +1457,7 @@ void PlayfieldView::JsClearInterval(double id)
 	{
 		if (auto it = dynamic_cast<JavascriptEngine::IntervalTask*>(task); it != nullptr && it->id == id)
 		{
-			it->cancelled = true;
+			it->canceled = true;
 			return false;
 		}
 		return true;
@@ -4063,7 +4063,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 					return true;
 				}
 
-				// mark the batch as cancelled
+				// mark the batch as canceled
 				batchCaptureMode.cancel = true;
 			}
 
@@ -8488,7 +8488,8 @@ void PlayfieldView::EndRunningGameMode()
 
 	// try to make sure our frame is in the foreground and that we
 	// have focus
-	BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+	if (!IsForegroundProcess())
+		BetterSetForegroundWindow(GetParent(hWnd), hWnd);
 
 	// Set a timer to reinstate our DOF client after a short delay.
 	// Don't do this immediately, because DOF doesn't do anything to
@@ -16551,7 +16552,7 @@ void PlayfieldView::EndFileDrop()
 	// Try to bring the app to the foreground.  Windows normally leaves
 	// the originating window of a drag/drop in front, which isn't great
 	// in this case since the UI workflow takes us to the drop menu next.
-	SetForegroundWindow(GetParent(hWnd));
+	BetterSetForegroundWindow(GetParent(hWnd), hWnd);
 
 	// If no game is selected, reject the drop
 	auto game = GameList::Get()->GetNthGame(0);
@@ -17455,7 +17456,7 @@ void PlayfieldView::BatchCaptureGo()
 
 void PlayfieldView::BatchCaptureNextGame()
 {
-	// if we haven't cancelled the whole operation, and the application
+	// if we haven't canceled the whole operation, and the application
 	// still has more queued games, launch the next one
 	if (!batchCaptureMode.cancel && Application::Get()->IsGameQueuedForLaunch())
 		LaunchQueuedGame();
@@ -17519,8 +17520,8 @@ void PlayfieldView::ExitBatchCapture()
 	if (!batchCaptureMode.active)
 		return;
 
-	// Clear any queued batch capture items.  If we cancelled
-	// in the middle of a batch, there could still be items queued.
+	// Clear any queued batch capture items.  If we canceled in
+	// the middle of a batch, there could still be items queued.
 	// They'd get cleaned up in due course anyway, but there's no
 	// reason to leave them sitting there taking up memory, and it
 	// would probably be confusing in some situation (at the very
