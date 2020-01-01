@@ -2,25 +2,6 @@ PinballY Update History
 
 ? (1.0.0 Beta 18)
 
-* If PinballY ever gets stuck behind another window or loses keyboard
-focus, you should now be able to make PinballY active again by
-pressing and holding the Exit Game button for a few seconds.  (Exit
-Game is usually mapped to the Escape key.)  Ideally, you'd never run
-into such a situation in the first place, since PinballY goes to some
-trouble to keep itself in the foreground automatically whenever it's
-appropriate for it to be there.  But focus on Windows can be hard to
-control, since other applications (and Windows itself) sometimes want
-to fight over it.  So this new press-and-hold gesture is meant as a
-last resort.  Hopefully it'll serve as a more convenient way to get
-focus back if such a situation does arise (more convenient than, say,
-reaching for the mouse).
-
-* Fixed a couple of special cases on Windows 7 where the Windows
-desktop could force itself to the foreground (rather than PinballY)
-and steal keyboard focus if you launched a game and then immediately
-tried to close it, before the game had finished launching.  (Related
-to issue #79 on github.)
-
 * Added a new option to keep the DMD window in front of the backglass
 window at all times.  This might be handy if you have a single-monitor
 or two-monitor setup, and you want to keep the backglass and DMD
@@ -33,6 +14,67 @@ Those are controlled by separate programs, so PinballY can't set their
 layering.  Freezy's dmd-extensions has its own config file where you
 can set its virtual DMD window to "always in front mode"; I don't
 think there's any such option for the VPinMAME window.)
+
+* Fixed a problem in the Real DMD handling that made PinballY stay
+attached to the DMD device while the game was running, even if you
+didn't have the "Keep using real DMD" option set for that game.  When
+this happened, it prevented the game from accessing the DMD device.
+
+* If PinballY ever gets stuck behind another window or loses keyboard
+focus, you should now be able to make PinballY active again by
+pressing and holding the Exit Game button for a few seconds.  (Exit
+Game is usually mapped to the Escape key.)  Ideally, you'd never run
+into such a situation in the first place, since PinballY goes to some
+trouble to keep itself in the foreground automatically whenever it's
+appropriate for it to be there.  But focus on Windows can be hard to
+control, since other applications (and Windows itself) sometimes want
+to fight over it.  So this new press-and-hold gesture is meant as a
+last resort.  Hopefully it'll serve as a more convenient way to get
+focus back if such a situation does arise (more convenient than, say,
+reaching for the mouse).  (Issue #101 on github.)
+
+* Fixed a couple of special cases on Windows 7 where the Windows
+desktop could force itself to the foreground (rather than PinballY)
+and steal keyboard focus if you launched a game and then immediately
+tried to close it, before the game had finished launching.  (Related
+to issue #79 on github.)
+
+* In the past, if the launched game had a dialog box open, pressing
+the Exit Game button sometimes caused PinballY to get stuck until you
+manually closed the game's dialog box.  This is because PinballY
+normally tries to close a game "gently", by closing its windows rather
+than asking Windows to forcibly terminating it, since abrupt process
+termination can prevent the game from saving any settings updates
+properly before it exits, and can sometimes even cause instability
+across the whole system, since it can leave device drivers in
+indeterminate states.  The problem is that "gently" closing a program
+by closing its windows might not work if one of those windows is a
+dialog box, because dialog boxes tend to disable the normal close
+commands, in order to force you to acknowledge them by clicking one of
+their buttons.  So PinballY now tries to send a CANCEL DIALOG command
+along with the CLOSE command.  This isn't fool-proof either, but it
+works for most dialogs in most programs, so it should be more reliable
+than the CLOSE command alone.  In addition, PinballY no longer gets
+stuck in these situations in any case; whereas it used to wait
+indefinitely for the program to acknowledge these commands, it now
+only gives the programs a brief interval to respond, so PinballY
+should quickly become responsive again even if the game program itself
+is stuck.
+
+* The installer now remembers the folder location where you installed
+the program, so that it can use it as the default location the next
+time you update.  In the past, the installer always just started with
+the default path C:\PinballY, so you had to re-select the correct
+folder on each update if you placed it in some other folder.  This
+comes at the expense of dramatically DOUBLING the program's number of
+registry keys (from one to two!), but it's pretty benign as Windows
+registry use goes, as it's not used for any other purpose and will
+have no effect on normal program operation (of PinballY or anything
+else).  And note that the automatic default unfortunately WON'T work
+on THIS update, since the last version you installed didn't save the
+information for this update to restore.  But after you install this
+version, future updates should reap the benefits by saving you that
+extra step during the install process.
 
 
 

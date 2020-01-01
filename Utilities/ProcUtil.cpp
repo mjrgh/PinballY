@@ -410,8 +410,20 @@ void SaferTerminateProcess(HANDLE hProcess)
 			if (hwnd == NULL)
 				break;
 
-			// try closing this window
-			::SendMessage(hwnd, WM_CLOSE, 0, 0);
+			// try closing the window via an SC_CLOSE system command
+			DWORD_PTR result;
+			::SendMessageTimeout(hwnd, WM_SYSCOMMAND, SC_CLOSE, 0, SMTO_ABORTIFHUNG, 20, &result);
+
+			// If it's still there, send it an ordinary WM_CLOSE as well.
+			// Some windows don't response to SC_CLOSE.
+			if (IsWindow(hwnd) && IsWindowVisible(hwnd) && IsWindowEnabled(hwnd))
+				SendMessageTimeout(hwnd, WM_CLOSE, 0, 0, SMTO_ABORTIFHUNG, 20, &result);
+
+			// If it's STILL there, try sending it an IDCANCEL command.
+			// This is usually the only way to dismiss a dialog box
+			// window.
+			if (IsWindow(hwnd) && IsWindowVisible(hwnd) && IsWindowEnabled(hwnd))
+				SendMessageTimeout(hwnd, WM_COMMAND, IDCANCEL, 0, SMTO_ABORTIFHUNG, 20, &result);
 		}
 
 		// We're either out of windows or out of retries.  Check to see

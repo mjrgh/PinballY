@@ -881,7 +881,8 @@ protected:
 		HandleHolder startStopEvent;
 
 		// Shutdown event for this thread.  The application sets this
-		// event when the program is ready to shut down.
+		// event when the program is ready to shut down entirely, or 
+		// wants the thread to shut down with no further cleanup work.
 		HandleHolder shutdownEvent;
 
 		// Close Game event for this thread.  The application sets 

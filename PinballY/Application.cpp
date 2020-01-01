@@ -1909,13 +1909,20 @@ void Application::GameMonitorThread::CloseGame()
 					// try closing each window we found
 					for (auto hWnd : closeCtx.windows)
 					{
-						// try closing this window
-						SendMessage(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0);
+						// Try closing it with an SC_CLOSE system menu command
+						DWORD_PTR result;
+						SendMessageTimeout(hWnd, WM_SYSCOMMAND, SC_CLOSE, 0, SMTO_ABORTIFHUNG, 20, &result);
 
 						// If it's still there, send it an ordinary WM_CLOSE as well.
 						// Some windows don't response to SC_CLOSE.
 						if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
-							SendMessage(hWnd, WM_CLOSE, 0, 0);
+							SendMessageTimeout(hWnd, WM_CLOSE, 0, 0, SMTO_ABORTIFHUNG, 20, &result);
+
+						// If it's STILL there, try sending it an IDCANCEL command.
+						// This is usually the only way to dismiss a dialog box
+						// window.
+						if (IsWindow(hWnd) && IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
+							SendMessageTimeout(hWnd, WM_COMMAND, IDCANCEL, 0, SMTO_ABORTIFHUNG, 20, &result);
 					}
 
 					// try to force our window into the foreground again, in case
@@ -2269,8 +2276,10 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 		auto hwnd = self->playfieldView->GetHWnd();
 		for (int i = 0; i < 3; ++i)
 		{
-			// pause 
-			Sleep(1000);
+			// pause; abort if no further cleanup is required, as indicated
+			// by the shutdown event
+			if (WaitForSingleObject(self->shutdownEvent, 1000) != WAIT_TIMEOUT)
+				break;
 
 			// try to take focus back
 			BetterSetForegroundWindow(GetParent(hwnd), hwnd);

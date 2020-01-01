@@ -652,8 +652,9 @@ void RealDMD::Shutdown()
 		hWriterThread = nullptr;
 	}
 
-	// blank the DMD before we detach from it
-	if (enabled && Render_16_Shades_ != NULL && emptySlide != nullptr)
+	// if the session wasn't already closed, blank the DMD before
+	// we detach from it
+	if (sessionOpen && enabled && Render_16_Shades_ != NULL && emptySlide != nullptr)
 	{
 		CriticalSectionLocker dmdLocker(dmdLock);
 		Render_16_Shades_(dmdWidth, dmdHeight, emptySlide->pix.get());
@@ -1439,70 +1440,74 @@ DWORD RealDMD::WriterThreadMain()
 				// load any registry settings, we'll still have valid defaults
 				// to send from initializing the struct earlier.)
 				CriticalSectionLocker dmdLocker(dmdLock);
-				PM_GameSettings_(settings->gameName.c_str(), GEN_WPC95, settings->opts);
+				if (sessionOpen)
+					PM_GameSettings_(settings->gameName.c_str(), GEN_WPC95, settings->opts);
 			}
 
 			// send the video frame to the device
 			if (frame != nullptr)
 			{
 				CriticalSectionLocker dmdLocker(dmdLock);
-				switch (frame->colorSpace)
+				if (sessionOpen)
 				{
-				case DMD_COLOR_MONO4:
-					Render_4_Shades_(dmdWidth, dmdHeight, frame->pix.get());
-					break;
-
-				case DMD_COLOR_MONO16:
-					Render_16_Shades_(dmdWidth, dmdHeight, frame->pix.get());
-					break;
-
-				case DMD_COLOR_RGB:
-					// *** Dmd-Extensions bug #176 workaround ***
-					//
-					// There's a bug in dmd-extensions that makes it drop an RGB
-					// frame if the last RGB frame contained the same pixels, EVEN
-					// IF an intervening frame of a different format was displayed.
-					// (See https://github.com/freezy/dmd-extensions/issues/176.)
-					//
-					// The case we're particularly concerned with is when we're
-					// alternating the display between fixed images in MONO16 and
-					// RGB format, which can happen we have PNG/JPEG media for the
-					// game alternating with generated high-score images.  In this
-					// case, the PNG/JPEG media slide has the same pixels on each
-					// iteration, which makes dmd-ext drop it.  To work around this,
-					// we can very slightly change the pixel data in the source
-					// buffer on each iteration to defeat the buggy "same pixels"
-					// check in dmd-ext.  Flipping the low-order bit of an RGB
-					// component of one pixel won't have any visible effect -
-					// you can't typically see the difference between blue=74
-					// and blue=75, say.  We'll use the blue component because the
-					// human eye has the poorest color resolution in blue, but it
-					// wouldn't really matter if we chose green or red, as the eye
-					// can't resolve color well enough in any component to be able
-					// to distinguish this degree of change.
-					//
-					// To ensure that every consecutive RGB frame is different, no
-					// matter the source, we'll simply replace the low bit in the B
-					// component of the top left pixel in each frame with a bit value
-					// that reverses on every successive frame.
-					//
-					// If this is fixed in a future dmd-extensions, we can do a
-					// version/feature test on the DLL we're attached to and make
-					// the workaround conditional on it:
-					// if (workaround_required)
+					switch (frame->colorSpace)
 					{
-						// invert the low bit in the static counter
-						static BYTE b = 0x00;
-						b ^= 0x01;
+					case DMD_COLOR_MONO4:
+						Render_4_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+						break;
 
-						// replace the low bit in pixel #0's blue component
-						BYTE *p = frame->pix.get() + 2;
-						*p = (*p & 0xFE) | b;
+					case DMD_COLOR_MONO16:
+						Render_16_Shades_(dmdWidth, dmdHeight, frame->pix.get());
+						break;
+
+					case DMD_COLOR_RGB:
+						// *** Dmd-Extensions bug #176 workaround ***
+						//
+						// There's a bug in dmd-extensions that makes it drop an RGB
+						// frame if the last RGB frame contained the same pixels, EVEN
+						// IF an intervening frame of a different format was displayed.
+						// (See https://github.com/freezy/dmd-extensions/issues/176.)
+						//
+						// The case we're particularly concerned with is when we're
+						// alternating the display between fixed images in MONO16 and
+						// RGB format, which can happen we have PNG/JPEG media for the
+						// game alternating with generated high-score images.  In this
+						// case, the PNG/JPEG media slide has the same pixels on each
+						// iteration, which makes dmd-ext drop it.  To work around this,
+						// we can very slightly change the pixel data in the source
+						// buffer on each iteration to defeat the buggy "same pixels"
+						// check in dmd-ext.  Flipping the low-order bit of an RGB
+						// component of one pixel won't have any visible effect -
+						// you can't typically see the difference between blue=74
+						// and blue=75, say.  We'll use the blue component because the
+						// human eye has the poorest color resolution in blue, but it
+						// wouldn't really matter if we chose green or red, as the eye
+						// can't resolve color well enough in any component to be able
+						// to distinguish this degree of change.
+						//
+						// To ensure that every consecutive RGB frame is different, no
+						// matter the source, we'll simply replace the low bit in the B
+						// component of the top left pixel in each frame with a bit value
+						// that reverses on every successive frame.
+						//
+						// If this is fixed in a future dmd-extensions, we can do a
+						// version/feature test on the DLL we're attached to and make
+						// the workaround conditional on it:
+						// if (workaround_required)
+						{
+							// invert the low bit in the static counter
+							static BYTE b = 0x00;
+							b ^= 0x01;
+
+							// replace the low bit in pixel #0's blue component
+							BYTE *p = frame->pix.get() + 2;
+							*p = (*p & 0xFE) | b;
+						}
+
+						// Render the frame
+						Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<rgb24*>(frame->pix.get()));
+						break;
 					}
-
-					// Render the frame
-					Render_RGB24_(dmdWidth, dmdHeight, reinterpret_cast<rgb24*>(frame->pix.get()));
-					break;
 				}
 			}
 		}
