@@ -14398,6 +14398,7 @@ void PlayfieldView::EditGameInfo()
 			// populate the table type combo
 			const TCHAR *tableType = game->tableType.c_str();
 			HWND cbTableType = GetDlgItem(IDC_CB_TABLE_TYPE);
+			auto foundTableType = false;
 			for (auto const &s : LoadStringT(IDS_TABLETYPECOMBO_STRINGS).Split(';'))
 			{
 				// add the string
@@ -14405,13 +14406,22 @@ void PlayfieldView::EditGameInfo()
 
 				// select this string if its first token matches the db value
 				if (_tcsicmp(tableType, GetFirstToken(s).c_str()) == 0)
+				{
 					ComboBox_SetText(cbTableType, s.c_str());
+					foundTableType = true;
+				}
 			}
+
+			// if we didn't find a match for the table type in the combo list,
+			// just set the raw text
+			if (!foundTableType)
+				ComboBox_SetText(cbTableType, tableType);
 
 			// populate the high score display type combo
 			const TCHAR *hiScoreStyle = GameList::Get()->GetHighScoreStyle(game);
 			HWND cbHiScoreStyle = GetDlgItem(IDC_CB_HIGH_SCORE_STYLE);
 			auto hiScoreStrings = LoadStringT(IDS_HISCORECOMBO_STRINGS).Split(';');
+			bool foundHiScoreStyle = false;
 			for (auto const &s : hiScoreStrings)
 			{
 				// add the string
@@ -14419,14 +14429,19 @@ void PlayfieldView::EditGameInfo()
 
 				// select this string if its first token matches the db value
 				if (hiScoreStyle != nullptr && _tcsicmp(hiScoreStyle, GetFirstToken(s).c_str()) == 0)
+				{
 					ComboBox_SetText(cbHiScoreStyle, s.c_str());
+					foundHiScoreStyle = true;
+				}
 			}
 
 			// If the db value for the high score style is empty, select the 
 			// first list item as the default.  The first item should always
-			// "Auto".
+			// "Auto".  Otherwise, if we didn't find a match, set the raw text.
 			if (hiScoreStyle == nullptr || hiScoreStyle[0] == 0)
 				ComboBox_SetText(cbHiScoreStyle, hiScoreStrings.front().c_str());
+			else if (!foundHiScoreStyle)
+				ComboBox_SetText(cbHiScoreStyle, hiScoreStyle);
 
 			// If the game's current media name matches the default media name,
 			// fill in the media name field with "[Default]", otherwise fill it

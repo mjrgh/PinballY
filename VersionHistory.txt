@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 18)
+01-01-2020 (1.0.0 Beta 18)
 
 * Added a new option to keep the DMD window in front of the backglass
 window at all times.  This might be handy if you have a single-monitor
@@ -34,10 +34,9 @@ focus back if such a situation does arise (more convenient than, say,
 reaching for the mouse).  (Issue #101 on github.)
 
 * Fixed a couple of special cases on Windows 7 where the Windows
-desktop could force itself to the foreground (rather than PinballY)
-and steal keyboard focus if you launched a game and then immediately
-tried to close it, before the game had finished launching.  (Related
-to issue #79 on github.)
+desktop could force itself to the foreground and steal keyboard focus
+if you launched a game and then immediately tried to close it, before
+the game had finished launching.  (Related to issue #79 on github.)
 
 * In the past, if the launched game had a dialog box open, pressing
 the Exit Game button sometimes caused PinballY to get stuck until you
@@ -75,6 +74,13 @@ on THIS update, since the last version you installed didn't save the
 information for this update to restore.  But after you install this
 version, future updates should reap the benefits by saving you that
 extra step during the install process.
+
+* In the Edit Game Details dialog, if the game's table type was set to
+something besides one of the standard table type codes defined by IPDB
+(EM for electro-mechanical, ME for pure mechanical, or SS for solid
+state), the Table Type box was shown as empty when you brought up the
+dialog.  The box now shows the custom code.  The same thing applies to
+the high score style.
 
 
 

@@ -67,7 +67,7 @@ mainWindow.on("launchoverlayshow", ev => {
 <div class="code">
 mainWindow.on("launchoverlayshow", ev => {
     mainWindow.showWheel(false);
-    mainWindow.setOverlay();
+    mainWindow.setUnderlay("");
     ev.preventDefault();
 });
 </div>
@@ -219,7 +219,7 @@ let dmdLaunchMessageLayer = dmdWindow.createDrawingLayer(1000);
 // messages on the DMD overlay instead of the main window
 mainWindow.on("launchoverlaymessage", ev => {
     dmdLaunchMessageLayer.drawDMDText(ev.message || "", {
-        font: "12px";
+        font: "12px"
     });
     ev.preventDefault();
 });
