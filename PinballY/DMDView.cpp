@@ -1627,8 +1627,7 @@ void DMDView::AddBackgroundToDrawingList()
 		highScorePos->CreateSprite();
 
 		// add it to the sprite list if we have a valid sprite
-		if (highScorePos->sprite != nullptr)
-			sprites.emplace_back(highScorePos->sprite.Get(), RefCounted::DoAddRef);
+		AddToDrawingList(highScorePos->sprite);
 	}
 	else
 	{

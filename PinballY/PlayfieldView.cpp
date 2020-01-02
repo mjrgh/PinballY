@@ -3813,6 +3813,14 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 			runFreezeTimerPending = false;
 		}
 		break;
+
+	case forceToFgTimerID:
+		// force the application to the foreground
+		BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+
+		// this is a one-shot
+		KillTimer(hWnd, timer);
+		break;
 	}
 
 	// use the default handling
@@ -8440,16 +8448,16 @@ void PlayfieldView::EndRunningGameMode()
 	KillTimer(hWnd, runFreezeTimerID);
 	runFreezeTimerPending = false;
 
+	// Only proceed if we're in running game mode
+	if (runningGameMsgPopup == nullptr)
+		return;
+
 	// Reset the game media so that we reload everything.  No matter
 	// how far we got into the launch process, we want to treat this
 	// as a game switch.
 	incomingPlayfield.Clear();
 	currentPlayfield.Clear();
 	UpdateDrawingList();
-
-	// Only proceed if we're in running game mode
-	if (runningGameMsgPopup == nullptr)
-		return;
 
 	// Clear the keyboard queue
 	keyQueue.clear();
@@ -8490,6 +8498,16 @@ void PlayfieldView::EndRunningGameMode()
 	// have focus
 	if (!IsForegroundProcess())
 		BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+
+	// Also do a mouse click in our window.  On Windows 7, at least,
+	// there seems to be some weird window ordering that can happen
+	// after a game exits, where the *next* launch will send our
+	// window to the bottom of the stack, which messily brings any
+	// other running app windows to the foreground briefly while
+	// the game is starting up.  The mouse click seems to clear 
+	// that up.  (Mostly, anyway; it still seems to happen once in
+	// a while, but much more rarely this way.)
+	ForceTakeFocus();
 
 	// Set a timer to reinstate our DOF client after a short delay.
 	// Don't do this immediately, because DOF doesn't do anything to
@@ -12834,36 +12852,18 @@ void PlayfieldView::CmdExitGame(const QueuedKey &key)
 	// "Exit Game" Key.  This only applies when we're running in
 	// the background.
 	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == KeyBgDown)
+	{
+		// send ourself a KILL GAME command to terminate any running game
 		SendMessage(WM_COMMAND, ID_KILL_GAME);
 
-	// If the user has been holding down the key for a few seconds,
-	// try forcing the application to the foreground.  This is a
-	// last resort for situations where focus gets screwed up 
-	// during a launch or due to a background process barging in,
-	// to let the user send focus back to PinballY manually without
-	// having to get out the mouse.
-	if ((key.mode & KeyBgRepeat) == KeyBgRepeat)
-	{
-		// To figure the repeat time, look at the system parameters
-		// for the repeat speed.  The repeat rate is idiosyncratic
-		// units, on a scale from 0 to 31, where 0 represents
-		// approximately 2.5 Hz and 31 is about 30 Hz, so each
-		// step represents about .887 Hz.
-		DWORD rate;
-		SystemParametersInfo(SPI_GETKEYBOARDSPEED, 0, &rate, 0);
-
-		// Figure frequency in Hz - that's keys per second.  To
-		// figure the number of keys in N seconds, just multiply
-		// by N.  
-		float hz = static_cast<float>(rate)*.887097f + 2.5f;
-		const float minInterval = 3.0f;
-		int nKeys = static_cast<int>(minInterval * hz);
-
-		// Now see if we've had enough repeats to reach our minimum
-		// holding time.  If so, try to force the window to the front.
-		if (key.repeatCount >= nKeys)
-			BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+		// set/reset the press-and-hold timer - if the user holds down the
+		// key for a few seconds, we'll force the program to the foreground
+		SetTimer(hWnd, forceToFgTimerID, 3000, NULL);
 	}
+
+	// if this is a Key Up, cancel any press-and-hold timer
+	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == 0)
+		KillTimer(hWnd, forceToFgTimerID);
 }
 
 void PlayfieldView::CmdPauseGame(const QueuedKey &key)
@@ -17778,6 +17778,10 @@ void PlayfieldView::ShowSettingsDialog()
 		// our registration while it's running.  We need to restore our
 		// registration when it's done.
 		InputManager::GetInstance()->InitRawInput(Application::Get()->GetPlayfieldWin()->GetHWnd());
+
+		// Set focus back into the main window
+		SetActiveWindow(GetParent(hWnd));
+		SetFocus(hWnd);
 	}
 	else
 	{

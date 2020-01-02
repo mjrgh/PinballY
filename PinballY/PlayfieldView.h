@@ -526,6 +526,7 @@ protected:
 	static const int underlayFadeTimerID = 129;   // underlay crossfade timer
 	static const int runFreezeTimerID = 130;      // freeze UI updates after a launched game starts
 	static const int wheelFadeTimerID = 131;      // fading the wheel in or out
+	static const int forceToFgTimerID = 132;      // press-and-hold EXIT GAME button to bring app to foreground
 
 	// update the selection to match the game list
 	void UpdateSelection();

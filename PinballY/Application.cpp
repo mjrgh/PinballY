@@ -891,7 +891,7 @@ void Application::OnConfigChange()
 	bool dmdInFront = cfg->GetBool(ConfigVars::KeepDMDInFront);
 	FrameWin *dmdOwner = dmdInFront ? static_cast<FrameWin*>(backglassWin.Get()) : static_cast<FrameWin*>(playfieldWin.Get());
 	if (dmdWin != nullptr && dmdWin->GetHWnd() != NULL && dmdOwner != nullptr && dmdOwner->GetHWnd() != NULL
-		&& playfieldWin != nullptr && playfieldWin->GetHWnd() != NULL)
+		&& reinterpret_cast<HWND>(GetWindowLongPtr(dmdWin->GetHWnd(), GWLP_HWNDPARENT)) != dmdOwner->GetHWnd())
 		SetWindowLongPtr(dmdWin->GetHWnd(), GWLP_HWNDPARENT, reinterpret_cast<LONG_PTR>(dmdOwner->GetHWnd()));
 }
 
