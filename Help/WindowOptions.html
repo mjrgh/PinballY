@@ -43,5 +43,36 @@
    Backglass Server window.
 </p>
 
+<p>
+   <b>Keep the playfield window in front of other applications during launch:</b>
+   If this box is checked, PinballY will make its windows "Topmost"
+   during the process of launching a game - that is, between the time
+   you select the "Play" command and the time the game displays its
+   main window.  "Topmost" is a special status in Windows that
+   keeps a window in front of other non-topmost windows - even in
+   front of an active window.  This more or less guarantees that
+   other windows won't be visible until the game has started.
+</p>
+<p>
+   This option is intended to make for smoother visual transitions
+   during game launch if you experience any problems
+   with windows belonging to other applications (besides PinballY
+   and the game itself) popping into the foreground during launch.
+   Ideally, we want the PinballY window to be the only thing visible
+   until the game is ready.  But other applications don't always
+   cooperate with this plan, thus this option.  I've seen
+   problems on Windows 7 in particular where random other
+   windows can come to the foreground during the launch process.
+</p>
+<p>
+   This option is a rather heavy-handed workaround, and
+   I'd only enable it if you actually experience problems
+   with other windows appearing in front of PinballY during launch.  The sort
+   of forced layering that this option uses can cause problems of
+   its own.  The PinballY windows
+   really should stay in front during launch naturally, without this
+   option enabled.  But if they don't, this might be worth a try.
+</p>
+
 </body>
 </html>

@@ -42,6 +42,7 @@ BaseView *PlayfieldWin::CreateViewWin()
 
 void PlayfieldWin::OnAppActivationChange(bool activating)
 {
+	// pass the notification to our view
 	if (auto pfv = dynamic_cast<PlayfieldView*>(GetView()); pfv != nullptr)
 		pfv->OnAppActivationChange(activating);
 }

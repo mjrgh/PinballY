@@ -1729,6 +1729,25 @@ System7.DOFTitlePrefix = FX2
 GameList.EmptyCategories = 
 
 
+# Keep PinballY's windows in front of all other applications during game
+# launches.  If this is set, the playfield window will be set to "Topmost"
+# status between the start of a game launch and when it shows its first
+# window.  "Topmost" is a special status in Windows that keeps a window
+# in front of other windows, even when another window is the "active"
+# window.
+#
+# This option is intended to make for smoother visual transitions during
+# game launches, by preventing other application windows from popping
+# into the foreground while waiting for the game to finish starting up.
+# If you ever have problems with other random application windows coming
+# into view during a game launch, this option might be helpful.  I've
+# mostly seen this sort of layering problem on Windows 7, where the OS
+# seems to want to rearrange windows during process creation in some
+# cases.
+#
+PlayfieldWindow.TopmostDuringGameLaunch = 0
+
+
 # Keep the DMD window in front of backglass.  If this is enabled (1), the
 # PinballY DMD window will be set up so that it's always displayed in front
 # of the PinballY backglass window.  This isn't normally necessary on pin

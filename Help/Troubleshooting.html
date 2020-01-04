@@ -20,15 +20,15 @@
 <h2>General troubleshooting advice</h2>
 
 In case your specific issue isn't listed elsewhere in this section,
-here are a few general tips you should be able to apply to just
-about any problem with the program.
+here are a few general tips that might help diagnose or solve the
+problem.
 
-<h3>Declaring settings bankruptcy (resetting all options)</h3>
+<h3>Resetting to factory settings</h3>
 
 <p>
    If you feel like you've screwed up your settings beyond repair and
-   you just want to reset everything, it's usually <b>not</b> necessary
-   to go to the trouble of reinstalling the whole program.
+   you just want to reset everything to the standard defaults, it's
+   usually <b>not</b> necessary to go to the trouble of reinstalling the whole program.
 </p>
 <p>
    In most cases, all you have to do is delete the file <b>Settings.txt</b>,
@@ -96,6 +96,77 @@ The topics below list some of the more common problems that I've heard
 about, with suggestions for fixes or ways to gather more information.
 Scan through the list to see if you can find anything that sounds
 similar to any problems you're having.
+
+<h3>PinballY doesn't have keyboard focus at system startup</h3>
+
+<p>
+   Symptom: You've set up PinballY to start up automatically with
+   Windows, but each time you start up the system, PinballY ignores
+   key presses.  You have to click on the PinballY window to give
+   it keyboard focus.
+</p>
+<p>
+   Causes: If you're using Windows 10, this is probably due to a change
+   that Microsoft made in Task Scheduler (which PinballY uses for
+   startup launching).  Microsoft changed Task Scheduler in Win 10 so
+   that it doesn't give keyboard focus to the programs it launches.
+   This might sound like a bug, and it kind of is for our purposes, but
+   they did this intentionally because they consider auto-launch programs
+   to be "background" tasks that shouldn't interrupt the user.  It would have
+   been nice if they'd provided an option setting one way or the other
+   on that, but they didn't.
+</p>
+<p>
+   The only solution I've found to this issue is to make PinballY
+   force keyboard focus into its own window at some time after it
+   starts up.  In the Startup options dialog, try checking the box
+   for "Force keyboard focus to PinballY at startup".  If that
+   doesn't help, try increasing the delay time on the focus change.
+</p>
+<p>
+   If all else fails, you can try <b>pressing and holding</b> the
+   Exit Game button for about five seconds.  That's something you
+   can do at any time to bring PinballY to the foreground and give
+   it keyboard focus.
+</p>
+<p>
+   If you're using a pre-Windows 10 system, Task Scheduler normally
+   does give focus to newly launched tasks.  The most common thing that
+   can prevent PinballY from having keyboard is another program
+   "stealing" focus by starting up shortly after PinballY does.
+   In most cases, the most recently launched program gets focus,
+   so if something launches after PinballY during your system
+   startup process, it usually gets focus by taking it away from
+   PinballY.  To deal with this, try increasing the startup delay
+   parameter in the Startup options dialog ("After logon, pause
+   before starting PinballY").
+</p>
+
+<h3>PinballY loses keyboard focus after finishing a game</h3>
+<p>
+   Symptom: PinballY stops responding to button or key presses until you
+   click the mouse in one of its windows.
+</p>
+<p>
+   As I'm sure you know, Windows has concept called "keyboard focus" where
+   it only sends keyboard input to one application at a time - usually the
+   application with the active window.  This is usually seamless on a desktop
+   PC, since you just use the mouse to choose the window you want to work
+   with.  On a pin cab PC, though, you probably don't want to keep the mouse
+   handy all the time.  So PinballY <i>tries</i> to manage focus as automatically
+   as it can, by switching focus between itself and the running game as games
+   start and exit.  But focus is always a point of contention on Windows,
+   and it's possible for other applications (or Windows itself) to steal
+   focus away, making PinballY stop responding to keyboard input.
+</p>
+<p>
+   Starting with the Beta 18 release, there's a "mouseless" workaround if PinballY ever loses
+   keyboard focus.  Simply <b>press and hold</b> the EXIT GAME button for about
+   five seconds.  (The EXIT GAME button is usually the Escape key, but you can
+   change this in the settings under <a href="ButtonOptions.html">Buttons</a>.)
+   This should force PinballY back into the foreground and give it keyboard
+   focus again.
+</p>
 
 <h3>I'm running PinballY in Admin mode, and something's not working</h3>
 
@@ -302,45 +373,6 @@ similar to any problems you're having.
 </p>
 
 
-<h3>PinballY doesn't have keyboard focus at system startup</h3>
-
-<p>
-   Symptom: You've set up PinballY to start up automatically with
-   Windows, but each time you start up the system, PinballY ignores
-   key presses.  You have to click on the PinballY window to give
-   it keyboard focus.
-</p>
-<p>
-   Causes: If you're using Windows 10, this is probably due to a change
-   that Microsoft made in Task Scheduler (which PinballY uses for
-   startup launching).  Microsoft changed Task Scheduler in Win 10 so
-   that it doesn't give keyboard focus to the programs it launches.
-   This might sound like a bug, and it kind of is for our purposes, but
-   they did this intentionally because they consider auto-launch programs
-   to be "background" tasks that shouldn't interrupt the user.  It would have
-   been nice if they'd provided an option setting one way or the other
-   on that, but they didn't.
-</p>
-<p>
-   The only solution I've found to this issue is to make PinballY
-   force keyboard focus into its own window at some time after it
-   starts up.  In the Startup options dialog, try checking the box
-   for "Force keyboard focus to PinballY at startup".  If that
-   doesn't help, try increasing the delay time on the focus change.
-</p>
-<p>
-   If you're using a pre-Windows 10 system, Task Scheduler normally
-   does give focus to newly launched tasks.  The most common thing that
-   can prevent PinballY from having keyboard is another program
-   "stealing" focus by starting up shortly after PinballY does.
-   In most cases, the most recently launched program gets focus,
-   so if something launches after PinballY during your system
-   startup process, it usually gets focus by taking it away from
-   PinballY.  To deal with this, try increasing the startup delay
-   parameter in the Startup options dialog ("After logon, pause
-   before starting PinballY").
-</p>
-
 <h3>The capture screen location is wrong for the playfield/backglass/other window</h3>
 
 <p>
@@ -505,22 +537,66 @@ similar to any problems you're having.
    doesn't feel the need to redo the whole screen layout every time VP exits.
 </p>
 <p>
-   If you really need to disable desktop composition, it's better to
-   disable it <b>globally</b> across your whole system, rather than
-   switching it on and off in VP.  To do this:
-   In the Windows control panel, select System and Security,
-   then System, then Advanced System Settings.  Select the Advanced
-   tab.  Click the Settings button.  In the Performance section, find
-   "Enable desktop composition", and un-check the box.
+   If you really need to disable desktop composition in VP for
+   performance reasons, you might have to live with the momentary
+   taskbar appearance after game sessions.  It's possible to disable
+   desktop composition across your whole system in the Windows settings, so that
+   Windows isn't constantly switching it on and off when switching
+   programs - but doing so might prevent PinballY from displaying
+   its graphics properly.  So I don't recommend that.
 </p>
 <p>
    Note that if you have Windows 8 or later, you should definitely
    un-check the option in VP, because it doesn't do anything anyway!
-   Microsoft stopped letting applications control this after Windows 7.
-   Applications can still make the API call (which VP does attempt),
-   but Windows simply ignores it on Win 8 and later.
+   Microsoft made desktop composition a core feature of the operating
+   system starting in Windows 8, so applications can't disable it
+   even if they try.  VP will still try if you un-check the box,
+   so un-checking the box might still cause the glitchy taskbar redrawing,
+   but it won't have any performance benefit since Windows will otherwise
+   ignore the attempt.
 </p>
 
+<h3>Menu text (or other text) is missing</h3>
+<p>
+   Symptom: When you press the Start button to bring up a menu, you
+   just see a blank gray box with a blue highlight line, with no text
+   anywhere to be seen.  The game titles shown in the game wheel (for
+   games without icon images) might also be missing.
+</p>
+<p>
+   If you're on Windows 7, this can be caused by some system video option
+   settings.  Check the following two settings:
+</p>
+<ul>
+   <li>Open the Windows control panel, go to the <b>Appearance and Personalization</b>
+   section, and click "change the theme".  Make sure that one of the <b>Aero themes</b>
+   is selected.
+
+   <li>Still in the Windows control panel, go to the <b>Performance Information and Tools</b> section.
+   Select the <b>Visual Effects</b> tab.
+   <ul>
+      <li>If you're already using <b>Custom</b>, make sure <b>Smooth edges of screen fonts</b> is checked
+
+      <li>If you've selected <b>Adjust to best performance</b>, switch to <b>Custom</b>,
+      and check the checkbox labeled <b>Smooth edges of screen fonts</b>
+   </ul>
+</ul>
+
+<p>
+   The key appears to be that font-smoothing option.  Apparently the Windows drawing
+   functions that PinballY uses to construct the menu and other text graphics depend
+   upon it.
+</p>
+<p>
+   Note that some Windows 7 users intentionally disable the Aero theme because
+   of its performance impact, especially if you have a lower-end video card.
+   If you need to disable Aero for acceptable game performance, you might be able
+   to disable it on a game-by-game basis, instead of disabling it for the whole system.
+   Look in the game player programs you're using for option settings.  For example,
+   Visual Pinball has an option in its <b>Video/Graphics Options</b> preference
+   dialog called <b>Enable desktop composition</b>, which you can un-check to
+   disable the Aero elements that affect performance.
+</p>
 
 </body>
 </html>

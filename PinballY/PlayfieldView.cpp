@@ -177,6 +177,8 @@ namespace ConfigVars
 
 	static const TCHAR *DOFEnable = _T("DOF.Enable");
 
+	static const TCHAR *TopmostDuringGameLaunch = _T("PlayfieldWindow.TopmostDuringGameLaunch");
+
 	static const TCHAR *CaptureSkipLayoutMessage = _T("Capture.SkipLayoutMessage");
 	static const TCHAR *CaptureManualStartStopButtons = _T("Capture.ManualStartStopButton");
 
@@ -8287,6 +8289,27 @@ void PlayfieldView::OnNewFilesAdded()
 	UpdateSelection();
 }
 
+// Remove the pre-run TOPMOST status
+void PlayfieldView::RevertPreRunTopmost(HWND hwndGame)
+{
+	if (preRunTopmostApplied)
+	{
+		// If we have a game window, move our window behind the game window
+		if (hwndGame != NULL)
+			SetWindowPos(GetParent(hWnd), hwndGame, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+		// If we're still topmost, explicitly revoke the topmost status.  It's
+		// possible to be left topmost after moving behind the game window,
+		// because the game window itself might be a topmost window; SetWindosPow
+		// only revokes topmost status when moving behind a non-topmost window.
+		if ((GetWindowLong(GetParent(hWnd), GWL_EXSTYLE) & WS_EX_TOPMOST) != 0)
+			SetWindowPos(GetParent(hWnd), HWND_NOTOPMOST, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+		// we've now revoked the topmost status
+		preRunTopmostApplied = false;
+	}
+}
+
 // Show the "game running" popup
 void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 {
@@ -8295,6 +8318,15 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 
 	// fire a DOF Launch Game event
 	QueueDOFPulse(L"PBYLaunchGame");
+
+	// if desired, make the playfield window topmost, to prevent it from
+	// going behind other windows as the game application starts up
+	if (isTopmostDuringLaunch)
+	{
+		preRunTopmostApplied = true;
+		SetWindowPos(GetParent(hWnd), HWND_TOPMOST, -1, -1, -1, -1,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	}
 
 	// create the running game sprites
 	runningGameBkgPopup.Attach(new VideoSprite());
@@ -8438,6 +8470,9 @@ void PlayfieldView::EnterRunFreezeMode()
 
 void PlayfieldView::EndRunningGameMode()
 {
+	// remove any pre-run topmost status from the main window
+	RevertPreRunTopmost(NULL);
+
 	// clear the running game mode flag
 	runningGameMode = RunningGameMode::None;
 
@@ -8507,7 +8542,7 @@ void PlayfieldView::EndRunningGameMode()
 	// the game is starting up.  The mouse click seems to clear 
 	// that up.  (Mostly, anyway; it still seems to happen once in
 	// a while, but much more rarely this way.)
-	ForceTakeFocus();
+	// $$$ ForceTakeFocus();
 
 	// Set a timer to reinstate our DOF client after a short delay.
 	// Don't do this immediately, because DOF doesn't do anything to
@@ -8644,6 +8679,11 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			// get the launch report
 			auto report = reinterpret_cast<LaunchReport*>(lParam);
+
+			// if we were set to topmost, move our window behind the game window
+			// (or to the bottom of the stack if the launch thread didn't identify
+			// a game window)
+			RevertPreRunTopmost(report->hwndGame != NULL ? report->hwndGame : HWND_BOTTOM);
 
 			// switch to "Running" mode in the UI
 			runningGameMode = RunningGameMode::Running;
@@ -11462,6 +11502,9 @@ void PlayfieldView::OnConfigChange()
 
 	// load the media crossfade time
 	crossfadeTime = cfg->GetInt(ConfigVars::CrossfadeTime, 120);
+
+	// topmost during launch?
+	isTopmostDuringLaunch = cfg->GetBool(ConfigVars::TopmostDuringGameLaunch, false);
 
 	// load the underlay enabled status
 	underlayEnabled = cfg->GetBool(ConfigVars::UnderlayEnable, true);

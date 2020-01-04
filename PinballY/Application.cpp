@@ -2271,7 +2271,7 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 	{
 		// Regardless of how we exited, tell the main window that the game
 		// monitor thread is exiting.
-		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId, self->gameSys.configIndex);
+		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId, self->gameSys.configIndex, NULL);
 		self->playfieldView->SendMessage(PFVMsgLaunchThreadExit, 0, reinterpret_cast<LPARAM>(&report));
 
 		// Sigh, there still seem to be a couple of timing windows where
@@ -2899,7 +2899,7 @@ DWORD Application::GameMonitorThread::Main()
 	// Javascript scripts.  Stop if the Javascript handlers cancel the launch.
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex, NULL);
 		if (!playfieldView->SendMessage(PFVMsgGameRunBefore, 0, reinterpret_cast<LPARAM>(&report)))
 			return 0;
 	}
@@ -3356,6 +3356,7 @@ DWORD Application::GameMonitorThread::Main()
 
 	// The process has started.  Now give it a few seconds to display a
 	// visible and non-minimized window.
+	HWND hwndGame = NULL;
 	for (UINT64 waitEnd = GetTickCount64() + 5000; GetTickCount64() < waitEnd; )
 	{
 		// pause briefly
@@ -3388,11 +3389,12 @@ DWORD Application::GameMonitorThread::Main()
 		{
 			enumctx(DWORD pid) : pid(pid) { }
 			DWORD pid;
+			HWND hwndFound = NULL;
 			bool found = false;
 		} wctx(pid);
 		EnumWindows([](HWND hwnd, LPARAM lparam)
 		{
-			// only consider visible windows with no owner
+			// only consider visible, non-minimized, top-level windows
 			if (IsWindowVisible(hwnd) && !IsIconic(hwnd) && GetWindowOwner(hwnd) == NULL)
 			{
 				// get the process information for the window
@@ -3405,6 +3407,7 @@ DWORD Application::GameMonitorThread::Main()
 				{
 					// flag it
 					ctx->found = true;
+					ctx->hwndFound = hwnd;
 
 					// no need to keep searching
 					return FALSE;
@@ -3417,7 +3420,10 @@ DWORD Application::GameMonitorThread::Main()
 
 		// stop if we found a window
 		if (wctx.found)
+		{
+			hwndGame = wctx.hwndFound;
 			break;
+		}
 	}
 
 	// Successful launch!
@@ -3429,7 +3435,7 @@ DWORD Application::GameMonitorThread::Main()
 	// switch the playfield view to Running mode (unless we've received a Close command already)
 	if (playfieldView != nullptr && !closeCommandIssued)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex, hwndGame);
 		playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
 	}
 
@@ -4652,7 +4658,7 @@ DWORD Application::GameMonitorThread::Main()
 	// remove the "game exiting" message
 	if (playfieldView != nullptr)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex);
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex, NULL);
 		playfieldView->SendMessage(PFVMsgGameRunAfter, 0, reinterpret_cast<LPARAM>(&report));
 	}
 

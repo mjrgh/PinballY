@@ -1,5 +1,17 @@
 PinballY Update History
 
+? (1.0.0 Beta 19)
+
+* Added a new option to force the playfield window to the foreground
+during the launch process.  To enable this, go to the Windows section
+of the options dialog and check the box for "Keep the playfield window
+in front of other applications during launch".  This is intended as a
+workaround if you have any problems with other application windows
+coming to the foreground during game launches.  I'd only enable it if
+you actually have this sort of problem in practice, since the window
+layering really *should* take care of itself.
+
+
 01-01-2020 (1.0.0 Beta 18)
 
 * Added a new option to keep the DMD window in front of the backglass

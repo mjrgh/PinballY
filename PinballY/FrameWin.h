@@ -264,7 +264,10 @@ protected:
 	SIZE szIcon;
 
 	// reactivate full-screen mode on switching the app to the foreground
-	void ReactivateFullScreen();
+	virtual void ReactivateFullScreen();
+
+	// deactivate full-screen mode on switching the app to the background
+	virtual void DeactivateFullScreen();
 
 	// current mode - windowed or full-screen
 	bool fullScreenMode;

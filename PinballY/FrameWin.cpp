@@ -821,9 +821,21 @@ void FrameWin::OnAppActivationChange(bool activating)
 		if (activating)
 			ReactivateFullScreen();
 		else
-			SetWindowPos(hWnd, HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			DeactivateFullScreen();
 	}
 }
+
+// Deactivate full-screen mode.  This is called whenever the application switches
+// to the background (we're notified of this via WM_APPACTIVATE).
+void FrameWin::DeactivateFullScreen()
+{
+	// Move the window to the bottom of the Z order, so that windows from
+	// other apps will come up in front.  Skip this if we're set as a topmost
+	// window.
+	if ((GetWindowLong(hWnd, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0)
+		SetWindowPos(hWnd, HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
 
 // Reactivate full-screen mode.  This is called whenever the application switches
 // to the foreground (we're notified of this via WM_APPACTICVATE, which we handle

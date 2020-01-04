@@ -127,6 +127,19 @@ public:
 	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
 
+	// Revert the pre-run TOPMOST status for the main window.  If desired,
+	// we can set the playfield window to TOPMOST style, meaning that it 
+	// stays in front of windows from other apps that don't have TOPMOST
+	// style, even when another app is active.  We remove this status as
+	// soon as the game starts up, or if the load fails or is canceled.
+	void RevertPreRunTopmost(HWND hwndGame);
+
+	// configurtion status for Topmost During Game Launch
+	bool isTopmostDuringLaunch = false;
+
+	// flag: we applied the pre-run topmost status
+	bool preRunTopmostApplied = false;
+
 	// Enter "freeze" mode for a running game.  This stops the playfield
 	// video and freezes idle-time UI updates, to minimize our performance 
 	// footprint while the game is running.  We enter this mode on a timer,
@@ -204,17 +217,19 @@ public:
 	// Game launch report, for the PFVMsgXxx messages for game launch steps
 	struct LaunchReport
 	{
-		LaunchReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex) :
+		LaunchReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex, HWND hwndGame) :
 			launchCmd(launchCmd),
 			launchFlags(launchFlags),
 			gameInternalID(gameInternalID),
-			systemConfigIndex(systemConfigIndex)
+			systemConfigIndex(systemConfigIndex),
+			hwndGame(hwndGame)
 		{ }
 
 		int launchCmd;
 		DWORD launchFlags;
 		LONG gameInternalID;
 		int systemConfigIndex;
+		HWND hwndGame;  // main game window
 	};
 
 	// Game launch error report, for PFVMsgGameLaunchError
@@ -222,7 +237,7 @@ public:
 	{
 		LaunchErrorReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex,
 			const TCHAR *errorMessage) :
-			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex),
+			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex, NULL),
 			errorMessage(errorMessage)
 		{}
 
@@ -233,7 +248,7 @@ public:
 	struct GameOverReport : LaunchReport
 	{
 		GameOverReport(int launchCmd, DWORD launchFlags, LONG gameInternalID, int systemConfigIndex, INT64 runTime_ms) :
-			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex),
+			LaunchReport(launchCmd, launchFlags, gameInternalID, systemConfigIndex, NULL),
 			runTime_ms(runTime_ms)
 		{}
 
