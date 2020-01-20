@@ -485,29 +485,15 @@ gameList.createFilter({
 </div>
 
 <p>
-   <b>Short, medium, and long titles:</b>  This is a pretty contrived
+   <b>Short, medium, and long titles:</b>  For
+   this example, we'll create a group of filters that select according to the
+   length of a game's title: short (6 character or fewer), medium
+   (7-15 characters), or long (16+ characters).  We'll create
+   these as three filters that appear on a custom submenu, which will 
+   be reachable from a new top-level menu item called
+   "Filter by Title Length".  This is a pretty contrived
    example, but it shows how to create a custom filter group and present
-   it in the main menu.  For
-   this example, we'll create filters that select according to the
-   length of a game's title.  We'll create three filters, one for
-   short titles (6 character or fewer), one for medium-length titles
-   (7-15 characters), and one for long titles.  These three filters
-   will appear on a custom submenu, which will in turn be reachable
-   from a new top-level menu item that the system automatically
-   inserts, "Filter by Title Length".
-</p>
-<p>
-   Note how we give each filter a sort key to arrange the submenu in
-   the natural order (Short, Medium, Long).  The natural order isn't
-   the same as the alphabetic order of those titles, which is why we
-   have to add explicit sort keys.  The sort keys aren't visible to the user
-   anywhere, so we can use any arbitrary strings that are
-   convenient for putting things into the right order, in this
-   case simply "A", "B", and "C".  If you wanted to leave gaps for
-   inserting more items in the future, you could have made those
-   "A", "M", and "Z", or something more flexible like "1000", "2000",
-   and "3000".  But for our fixed list of three items, the simplistic
-   "A", "B", "C" will do just fine.
+   it in the main menu.  
 </p>
 <div class="code">
 gameList.createFilter({
@@ -532,6 +518,50 @@ gameList.createFilter({
     sortKey: "C"
 });
 </div>
+<p>
+   One thing to note here is that
+   we gave each filter a <b>sort key</b>.  Sort keys are optional,
+   but in this case, it's nice to include one.  Without an explicit
+   sort key, the system would just sort the menu items alphabetically
+   by their labels.
+   That's usually great, but this is one of those cases where the
+   "natural" order that a user would expect isn't alphabetical.
+   The intuitive order here is clearly short, medium, long.  The
+   sort keys let us override the default alphabetical sorting
+   and provide our own custom sorting instead.  When you provide
+   sort keys, the system sorts the menus alphabetically by the
+   sort keys, rather than alphabetically by the visible label.
+   That lets you put the menus in any order you want, without
+   having to change the labels.
+</p>
+<p>
+   The sort keys aren't visible to the user
+   anywhere, so we can use any arbitrary strings that are
+   convenient for putting things into the right order.  In this
+   case, we simply use "A", "B", and "C".  If you wanted to leave gaps for
+   inserting more items in the future, you could have made those
+   "A", "M", and "Z", or something more flexible like "1000", "2000",
+   and "3000".  But for our fixed list of three items, the simplistic
+   "A", "B", "C" will do just fine.
+</p>
+<p>
+   Note that you can use numeric strings like "1000" and "2000" for
+   sort keys, but remember that they're still treated as <b>strings</b>,
+   meaning they're sorted "lexically" rather than numerically.  This
+   has some odd consequences when you use strings that happen to
+   contain digits.  For example, the string "10" sorts <i>before</i>
+   the string "2", for the same reason that "A0" sorts before "B".
+   Lexical sorting mean that we compare the strings <i>one
+   character at a time</i>, starting at the left end of the string.
+   So if the <i>very first character</i> of string A sorts before
+   the first character of string B, string A will go before string B,
+   even if A has more characters following that make it look like
+   a larger number when interpreted as a number.
+   Hence "10" goes before "2", simply because "1" sorts before "2".
+   The easy way to deal with this is to make sure that digit strings
+   used as sort keys are all the same number of digits, using leading zeroes
+   if necessary - so "0002" rather than just "2", for example.
+</p>
 
 <p>
    <b>Top-rated games:</b>  For a more extensive example, see

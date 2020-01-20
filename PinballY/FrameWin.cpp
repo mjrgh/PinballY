@@ -833,7 +833,8 @@ void FrameWin::DeactivateFullScreen()
 	// other apps will come up in front.  Skip this if we're set as a topmost
 	// window.
 	if ((GetWindowLong(hWnd, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0)
-		SetWindowPos(hWnd, HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+		SetWindowPos(hWnd, HWND_BOTTOM, -1, -1, -1, -1, 
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 }
 
 
@@ -906,7 +907,7 @@ bool FrameWin::OnActivate(int waCode, int minimized, HWND hWndOther)
 	case WA_ACTIVE:
 	case WA_CLICKACTIVE:
 		// set focus on the view
-		if (view != 0)
+		if (view != nullptr)
 			SetFocus(view->GetHWnd());
 
 		// handled

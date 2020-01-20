@@ -1506,19 +1506,20 @@ void Application::StealFocusFromGame()
 {
 	if (gameMonitor != nullptr)
 	{
-		HWND hwnd = GetPlayfieldWin()->GetHWnd();
+		HWND hwndActive = GetPlayfieldWin()->GetHWnd();
+		HWND hwndFocus = GetPlayfieldView()->GetHWnd();
 		if (gameMonitor->IsAdminMode() && adminHost.IsAvailable())
 		{
 			// admin mode - we have to proxy this through the admin host
 			TCHAR hwndAsStr[32];
-			_stprintf_s(hwndAsStr, _T("%ld"), (long)(INT_PTR)hwnd);
+			_stprintf_s(hwndAsStr, _T("%ld"), (long)(INT_PTR)hwndActive);
 			const TCHAR *req[] = { _T("stealFocus"), hwndAsStr };
 			adminHost.PostRequest(req, countof(req));
 		}
 		else
 		{
 			// it's not in admin mode - we should be able to take focus directly
-			gameMonitor->StealFocusFromGame(hwnd);
+			gameMonitor->StealFocusFromGame(hwndActive, hwndFocus);
 		}
 	}
 }
@@ -2019,7 +2020,20 @@ void Application::GameMonitorThread::BringToForeground()
 		// the foreground window.  Do this last to ensure that focus
 		// ends up here.
 		if (stolenFocusWindow != NULL)
+		{
+			// If it's minimized, restore it.  Windows minimizes full-screen
+			// exclusive windows when they lose focus, and switching back to
+			// them doesn't automatically restore them - we have to do that
+			// explicitly.
+			if (IsIconic(stolenFocusWindow))
+			{
+				DWORD_PTR result;
+				SendMessageTimeout(stolenFocusWindow, WM_SYSCOMMAND, SC_RESTORE, 0, SMTO_ABORTIFHUNG, 100, &result);
+			}
+
+			// bring it to the foreground
 			SetForegroundWindow(stolenFocusWindow);
+		}
 	}
 }
 
@@ -4671,7 +4685,7 @@ DWORD Application::GameMonitorThread::Main()
 	return 0;
 }
 
-void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
+void Application::GameMonitorThread::StealFocusFromGame(HWND hwndActive, HWND hwndFocus)
 {
 	// If the game process is currently in the foreground, remember
 	// its active window, so that we can restore the same active 
@@ -4698,12 +4712,12 @@ void Application::GameMonitorThread::StealFocusFromGame(HWND hwnd)
 		DWORD tid;
 		HandleHolder hRemoteThread = CreateRemoteThread(
 			hGameProc, NULL, 0,
-			(LPTHREAD_START_ROUTINE)&SetForegroundWindow, hwnd,
+			(LPTHREAD_START_ROUTINE)&SetForegroundWindow, hwndActive,
 			0, &tid);
 
 		// explicitly set ourselves as the foreground window here, too,
 		// for good measure
-		SetForegroundWindow(hwnd);
+		BetterSetForegroundWindow(hwndActive, hwndFocus);
 	}
 }
 

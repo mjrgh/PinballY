@@ -678,7 +678,7 @@ protected:
 		bool IsAdminMode() const { return isAdminMode; }
 
 		// try to steal focus from the game
-		void StealFocusFromGame(HWND hwnd);
+		void StealFocusFromGame(HWND hwndActive, HWND hwndFocus);
 
 		// terminate the game
 		void CloseGame();

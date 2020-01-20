@@ -9524,6 +9524,7 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 			{
 				INVOKEKIND invkind = INVOKE_PROPERTYGET;
 				JsValueRef func = JS_INVALID_REFERENCE;
+				SHORT nParams = 0;
 			}
 			get, set;
 		};
@@ -9552,8 +9553,7 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 					return Throw(err, _T("createAutomationObject: creating @@iterator wrapper"));
 			}
 
-			// Skip restricted, hidden, and non-dispatch functions, with the
-			// following special exceptions:
+			// Skip restricted, hidden, and non-dispatch functions
 			if ((funcDesc->wFuncFlags & (FUNCFLAG_FRESTRICTED | FUNCFLAG_FHIDDEN)) != 0
 				|| funcDesc->funckind != FUNC_DISPATCH)
 				continue;
@@ -9581,18 +9581,16 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 			// a getter or setter, add it to the get/set map.  We have to bind each
 			// get/set pair as a unit, so we have to wait until we've visited all of
 			// the functions to be sure we have the full set.  
-			//
-			// Some functions that take arguments are marked as property getters, such
-			// as OLE automation collection .Item methods.  For Javascript purposes,
-			// such a function is a function, not a getter, as a JS getter can't take
-			// any arguments.
-			if (funcDesc->invkind == INVOKE_FUNC || funcDesc->cParams != 0 || funcDesc->cParamsOpt != 0)
+			if (funcDesc->invkind == INVOKE_FUNC)
 			{
 				// method call - bind now
 				JsValueRef propKey;
 				if ((err = JsPointerToString(names[0], SysStringLen(names[0]), &propKey)) != JsNoError
 					|| (err = JsObjectSetProperty(proto, propKey, bindResult, true)) != JsNoError)
 					return Throw(err, _T("createAutomationObject: binding method wrapper"));
+
+				if (funcDesc->invkind == INVOKE_PROPERTYGET)
+					OutputDebugString(L"propertyget with arguments\n");
 			}
 			else
 			{
@@ -9602,16 +9600,13 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 				if (it == getSet.end())
 					it = getSet.emplace(name, GetSet()).first;
 
-				if (funcDesc->invkind == INVOKE_PROPERTYGET)
-				{
-					it->second.get.invkind = funcDesc->invkind;
-					it->second.get.func = bindResult;
-				}
-				else
-				{
-					it->second.set.invkind = funcDesc->invkind;
-					it->second.set.func = bindResult;
-				}
+				// get the appropriate descriptor according to the get/put type
+				auto &desc = funcDesc->invkind == INVOKE_PROPERTYGET ? it->second.get : it->second.set;
+
+				// populate the descriptor
+				desc.invkind = funcDesc->invkind;
+				desc.func = bindResult;
+				desc.nParams = funcDesc->cParams + funcDesc->cParamsOpt;
 
 				// Stash the function reference in the stack to protect it from the javascript
 				// garbage collector.  The Get/Set map won't protect it because it allocates heap
@@ -9629,27 +9624,68 @@ JsValueRef JavascriptEngine::WrapAutomationObject(WSTRING &className, IDispatch 
 
 		for (auto &gs : getSet)
 		{
-			// create the descriptor and add 'enumerable'
-			JsValueRef propKey, propDesc;
-			if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
-				|| (err = JsCreateObject(&propDesc)) != JsNoError
-				|| (err = JsSetProperty(propDesc, enumerableProp, trueVal, true)) != JsNoError)
-				return Throw(err, _T("initializing get/set descriptor"));
+			// If the getter has any arguments, or the setter has more than one 
+			// argument, we can't represent these directly as Javascript property
+			// getters/setters, since js getters/setters can't take parameters.
+			//
+			// For the getter, we can make this transparent by using the property
+			// name and mapping it as a simple function.  For the setter, however,
+			// Javascript doesn't have any way to represent a function result as
+			// an lvalue: there's no way to say "x.item(5) = 7" in js directly.
+			// Instead, we have to map this the way it really works under the
+			// covers, as "x.put_item(5, 7)".
+			if (gs.second.get.nParams > 0 || gs.second.set.nParams > 1)
+			{
+				// The getter or setter have extra parameters, so we can't map
+				// this as an ordinary Javascript getter/setter pair.  Map it
+				// instead to a PROPNAME() method for the getter and a put_PROPNAME()
+				// method for the setter.
+				if (gs.second.get.func != JS_INVALID_REFERENCE)
+				{
+					// map the getter as a method called PROPNAME()
+					JsValueRef propKey;
+					if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
+						|| (err = JsObjectSetProperty(proto, propKey, gs.second.get.func, true)) != JsNoError)
+						return Throw(err, _T("createAutomationObject: binding getter-with-params method wrapper"));
+				}
+				if (gs.second.set.func != JS_INVALID_REFERENCE)
+				{
+					// bind the setter as a method called put_PROPNAME()
+					WSTRING setterName = L"put_" + gs.first;
+					JsValueRef propKey;
+					if ((err = JsPointerToString(setterName.c_str(), setterName.length(), &propKey)) != JsNoError
+						|| (err = JsObjectSetProperty(proto, propKey, gs.second.set.func, true)) != JsNoError)
+						return Throw(err, _T("createAutomationObject: binding setter-with-params method wrapper"));
+				}
+			}
+			else
+			{
+				// The getter has zero parameters and the setter (if there is one
+				// at all) has one parameter (the value), so we can map this to a
+				// Javascript getter/setter pair.
 
-			// add 'get' if there's a getter
-			if (gs.second.get.func != JS_INVALID_REFERENCE
-				&& (err = JsSetProperty(propDesc, getProp, gs.second.get.func, true)) != JsNoError)
-				return Throw(err, _T("creating getter descriptor"));
+				// create the descriptor and add 'enumerable'
+				JsValueRef propKey, propDesc;
+				if ((err = JsPointerToString(gs.first.c_str(), gs.first.length(), &propKey)) != JsNoError
+					|| (err = JsCreateObject(&propDesc)) != JsNoError
+					|| (err = JsSetProperty(propDesc, enumerableProp, trueVal, true)) != JsNoError)
+					return Throw(err, _T("initializing get/set descriptor"));
 
-			// add 'set' if there's a setter
-			if (gs.second.set.func != JS_INVALID_REFERENCE
-				&& (err = JsSetProperty(propDesc, setProp, gs.second.set.func, true)) != JsNoError)
-				return Throw(err, _T("creating setter descriptor"));
+				// add 'get' if there's a getter.
+				if (gs.second.get.func != JS_INVALID_REFERENCE
+					&& (err = JsSetProperty(propDesc, getProp, gs.second.get.func, true)) != JsNoError)
+					return Throw(err, _T("creating getter descriptor"));
 
-			// add the property
-			bool ok;
-			if ((err = JsObjectDefineProperty(proto, propKey, propDesc, &ok)) != JsNoError || !ok)
-				return Throw(err, _T("binding get/set"));
+				// add 'set' if there's a setter
+				if (gs.second.set.func != JS_INVALID_REFERENCE
+					&& (err = JsSetProperty(propDesc, setProp, gs.second.set.func, true)) != JsNoError)
+					return Throw(err, _T("creating setter descriptor"));
+
+				// add the property
+				bool ok = false;
+				if ((err = JsObjectDefineProperty(proto, propKey, propDesc, &ok)) != JsNoError || !ok)
+					return Throw(err, _T("binding get/set"));
+			}
 		}
 	}
 
@@ -9680,7 +9716,8 @@ bool JavascriptEngine::MarshallAutomationNum(VARIANTARG &v, JsValueRef jsval)
 }
 
 // IDispatch type parser
-bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc)
+bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc,
+	std::list<VARIANTEx> &byRefList)
 {
 	JsErrorCode err;
 	HRESULT hr;
@@ -9697,6 +9734,95 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 	{
 		Throw(err, _T("Getting argument value type"));
 		return false;
+	}
+
+	// Check for a pointer type
+	if (desc.vt == VT_PTR)
+	{
+		// marshall the underlying type to the by-ref list
+		auto &byRef = byRefList.emplace_back();
+		if (!MarshallAutomationArg(byRef, jsval, typeInfo, *desc.lptdesc, byRefList))
+			return false;
+
+		// marshall the value as a pointer to the original
+		v.vt = byRef.vt | VT_BYREF;
+		switch (byRef.vt)
+		{
+		case VT_I1:
+		case VT_UI1:
+			v.pcVal = &byRef.cVal;
+			break;
+
+		case VT_I2:
+		case VT_UI2:
+			v.piVal = &byRef.iVal;
+			break;
+
+		case VT_I4:
+		case VT_UI4:
+			v.plVal = &byRef.lVal;
+			break;
+
+		case VT_R4:
+			v.pfltVal = &byRef.fltVal;
+			break;
+
+		case VT_R8:
+			v.pdblVal = &byRef.dblVal;
+			break;
+
+		case VT_DATE:
+			v.pdate = &byRef.date;
+			break;
+
+		case VT_BSTR:
+			v.pbstrVal = &byRef.bstrVal;
+			break;
+
+		case VT_BOOL:
+			v.pboolVal = &byRef.boolVal;
+			break;
+
+		case VT_VARIANT:
+			v.pvarVal = &byRef;
+			break;
+
+		case VT_INT:
+		case VT_UINT:
+			v.pintVal = &byRef.intVal;
+			break;
+
+		case VT_ARRAY:
+			v.pparray = &byRef.parray;
+			break;
+
+		case VT_DECIMAL:
+			v.pdecVal = &byRef.decVal;
+			break;
+
+		case VT_CY:
+			v.pcyVal = &byRef.cyVal;
+			break;
+
+		case VT_UNKNOWN:
+			v.ppunkVal = &byRef.punkVal;
+			break;
+
+		case VT_DISPATCH:
+			v.ppdispVal = &byRef.pdispVal;
+			break;
+
+		case VT_RECORD | VT_BYREF:
+			// I think it's illegal to ask for a VT_PTR to a VT_RECORD in a
+			// DISPINTERFACE, because the VARIANT struct member name for this,
+			// as implied by the naming convention used for all of the other
+			// types, would be "ppvRecord", which doesn't exist in the struct.
+			Throw(_T("Variant VT_PTR reference to VT_USERDEFINED is not allowed"));
+			return false;
+		}
+
+		// success
+		return true;
 	}
 
 	// If we're converting to a user-defined type, decode the destination
@@ -9750,7 +9876,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 				}
 
 				// now marshall the value as the target type
-				return MarshallAutomationArg(v, jsval, subInfo, enumdesc);
+				return MarshallAutomationArg(v, jsval, subInfo, enumdesc, byRefList);
 			}
 
 		case TKIND_RECORD:
@@ -9793,7 +9919,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 				void *tempRec = marshallerContext->Alloc(recSize);
 
 				// use this as the result value
-				v.vt = VT_USERDEFINED | VT_BYREF;
+				v.vt = VT_RECORD | VT_BYREF;
 				v.pvRecord = tempRec;
 
 				// marshall the individual fields
@@ -9821,7 +9947,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 
 					// convert it to a variant, recursively
 					VARIANTARG vfield;
-					if (!MarshallAutomationArg(vfield, jsPropVal, subInfo, vardesc->elemdescVar.tdesc))
+					if (!MarshallAutomationArg(vfield, jsPropVal, subInfo, vardesc->elemdescVar.tdesc, byRefList))
 						return false;
 
 					// store the field
@@ -9844,7 +9970,7 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 			}
 
 		case TKIND_ALIAS:
-			return MarshallAutomationArg(v, jsval, subInfo, attr->tdescAlias);
+			return MarshallAutomationArg(v, jsval, subInfo, attr->tdescAlias, byRefList);
 
 		default:
 			// others aren't handled
@@ -10198,6 +10324,15 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 	// contain the arguments that we actually pass to Javascript.
 	VARIANTARGArray va(funcDesc->cParams);
 
+	// Also provide local storage for by-reference elements.  For these,
+	// the marshaller will have to allocate separate storage for the
+	// value, and then store a pointer to the allocated storage in the
+	// argument array.  This list provides the memory management for the
+	// allocated storage, to ensure that (1) it stays in scope as long
+	// as 'va' remains in scope; and (2) the memory is released when we
+	// exit this scope.
+	std::list<VARIANTEx> byRefList;
+
 	// Figure the number of FIXED arguments in the va array (that is,
 	// excluding any varargs).  If we don't have varargs, this is simply
 	// the total array size.  If we do have varargs, this is one less
@@ -10240,7 +10375,7 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 		{
 			// copy it into the vector only if it's IN argument only
 			if ((desc.paramdesc.wParamFlags & PARAMFLAG_FIN) != 0
-				&& !js->MarshallAutomationArg(vdest, argv[jsargi], typeInfo, desc.tdesc))
+				&& !js->MarshallAutomationArg(vdest, argv[jsargi], typeInfo, desc.tdesc, byRefList))
 				return js->undefVal;
 		}
 		else
@@ -10290,7 +10425,7 @@ JsValueRef CALLBACK JavascriptEngine::InvokeAutomationMethod(JsValueRef callee, 
 		// add each additional argument to the varargs array
 		for (; jsargi < argc; ++jsargi, ++psav)
 		{
-			if (!js->MarshallAutomationArg(*psav, argv[jsargi], typeInfo, tdesc))
+			if (!js->MarshallAutomationArg(*psav, argv[jsargi], typeInfo, tdesc, byRefList))
 				return js->undefVal;
 		}
 

@@ -8017,7 +8017,8 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 			std::unique_ptr<Gdiplus::Font> font;
 			Gdiplus::RectF rcLayout(0, 0, float(width), 0);
 			Gdiplus::RectF bbox;
-			for (int ptsize = wheelFont.ptSize; ptsize >= 40; ptsize -= 8)
+			int ptsize = wheelFont.ptSize;
+			do
 			{
 				// create the font at this size
 				font.reset(CreateGPFont(wheelFont.family.c_str(), ptsize, wheelFont.weight, wheelFont.italic));
@@ -8028,7 +8029,11 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 				// if it fits, use this font size
 				if (bbox.Height <= height)
 					break;
+
+				// shrink it a bit to find a better fit
+				ptsize -= 8;
 			}
+			while (ptsize >= 40);
 
 			// center it
 			rcLayout.X = float(width - bbox.Width) / 2.0f;
@@ -8038,7 +8043,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 
 			// draw a drop shadow
 			Gdiplus::SolidBrush shadow(GPColorFromCOLORREF(wheelTitleShadowColor));
-			Gdiplus::StringFormat fmt;
+			Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
 			fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 			g.DrawString(title, -1, font.get(), rcLayout, &fmt, &shadow);
 
@@ -15750,7 +15755,6 @@ void PlayfieldView::SaveLastCaptureModes()
 	for (auto &c : lastCaptureModes)
 	{
 		// translate the mode ID to a string for storing in the config file
-		const TCHAR *mode = nullptr;
 		for (size_t i = 0; i < countof(lastCaptureModeMap); ++i)
 		{
 			if (lastCaptureModeMap[i].mode == c.second)
@@ -16257,6 +16261,7 @@ void PlayfieldView::AdvanceCaptureItemState(int cmd)
 void PlayfieldView::CaptureMediaGo()
 {
 	// Save the media type modes for the next capture
+	lastCaptureModes.clear();
 	for (auto &c : captureList)
 		lastCaptureModes.emplace(&c.mediaType, c.mode);
 
@@ -17432,6 +17437,8 @@ void PlayfieldView::UpdateBatchCaptureView()
 void PlayfieldView::BatchCaptureGo()
 {
 	// save the capture modes and keep/replace settings for next time
+	lastCaptureModes.clear();
+	lastBatchCaptureReplace.clear();
 	for (auto &c : captureList)
 	{
 		lastCaptureModes.emplace(&c.mediaType, c.mode);

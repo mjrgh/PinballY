@@ -11,6 +11,60 @@ coming to the foreground during game launches.  I'd only enable it if
 you actually have this sort of problem in practice, since the window
 layering really *should* take care of itself.
 
+* When resuming a game after pausing, PinballY automatically restores
+the game window if it's minimized.  This is for the sake of games
+running in "exclusive full-screen" mode, a special graphics mode that
+takes over a whole monitor.  Windows always minimizes a window using
+this mode when switching to another application, because such a window
+by design owns the whole screen, hence the only way for another
+application to get access to the screen is to hide the exclusive
+window, which Windows accomplishes by minimizing it.  Restoring the
+window on resuming the game should properly restore the game to its
+exclusive status on the screen.
+
+* Fixed a problem with saving the last media type selections when
+performing a media capture operation.  (Issue #98 on github.)
+
+* Fixed a bug that didn't display any text for a game title in the
+wheel (for games without wheel images) when the "Wheel" font in the
+options was set to a point size smaller than 40 points.  (Issue #109
+on github.)
+
+* Fixed a bug that cut off the last character of some titles in the
+game wheel when displayed as text (for games without wheel images),
+depending on the font selected for the "Wheel" font in the options.
+(Issue #109 on github.)
+
+* When writing XML files for table databases, apostrophes in game
+titles are now left as literal apostrophes in the XML text, rather
+than being converted to the XML "&apos;" entity format (as they were
+in the past).  The "&apos;" format is valid XML, but PinballX didn't
+parse it properly, which caused a couple of problems if you tried to
+shared the files with PinballX or the PBX Game Manager.  The "&apos;"
+conversion isn't technically required for XML purposes, so this change
+won't affect the validity of the XML, and will let PinballX read the
+files more easily. (Issue #108 on github.)
+
+* In Javascript, it wasn't possible to write to read/write properties
+of OLE Automation (scripting) objects.  This has been fixed.  (Issue
+#110 on github.)  
+
+* Javascript support has been added for read/write access to OLE
+Automation object properties that require index argument.  The Visual
+Basic array-variable-like syntax used to assign to such properties
+doesn't translate to Javascript, so we have to use the C++ convention
+of adding a method called put_PROPNAME() to assign values to such
+properties.  For example, for the standard Windows scripting object
+Scripting.Dictionary, the "Item" property requires a "key" argument
+when reading or writing.  To read an Item property, use the same
+notation as in Visual Basic, "object.Item(key)".  To assign a value to
+an Item property, however, we have to use the C++ "put_" convention:
+"object.put_Item(key, value)".  See "Properties" in the the Javascript
+> OLE Automation section in the help.
+
+* In Javascript, "By Reference" parameters are now supported when
+calling methods in OLE Automation (scripting) objects.
+
 
 01-01-2020 (1.0.0 Beta 18)
 

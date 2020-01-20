@@ -292,7 +292,7 @@ void GameList::SaveGameListFiles()
 					// with them, in case someone tries this program and decides to
 					// switch back after all.  (PinballX doesn't seem to have any
 					// problem reading back the "<tag/>" format, but just in case.)
-					rapidxml::print<char>(os, d->doc, rapidxml::print_expand_empty_tags);
+					rapidxml::print<char>(os, d->doc, rapidxml::print_expand_empty_tags | rapidxml::print_no_apos);
 					os.close();
 
 					// check for errors

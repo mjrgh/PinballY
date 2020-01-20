@@ -305,6 +305,11 @@ $(function()
 
     leftBar.push("</div>");
     $(".topnavbar").append($(leftBar.join("")));
+
+    var navHt = $(".leftnav").outerHeight();
+    var mainHt = $("#main").outerHeight();
+    if (mainHt < navHt)
+        $("#main").css("min-height", navHt + "px");
 });
 
 $(document).ready(function() {

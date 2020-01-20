@@ -12,6 +12,7 @@
 #include "../ChakraCore/include/ChakraDebugService.h"
 #include "../ChakraCore/include/ChakraDebugProtocolHandler.h"
 #include "../Utilities/DateUtil.h"
+#include "../Utilities/ComUtil.h"
 
 extern "C" UINT64 JavascriptEngine_CallCallback(void *wrapper, void *argv);
 
@@ -2229,8 +2230,17 @@ protected:
 	static JsValueRef CALLBACK InvokeAutomationMethod(JsValueRef callee, bool isConstructCall,
 		JsValueRef *argv, unsigned short argc, void *ctx);
 
-	// marshall a Javascript value to an automation VARIANTARG
-	bool MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc);
+	// Marshall a Javascript value to an automation VARIANTARG.
+	//
+	// 'byRefList' is a list provided by the caller that we use to create
+	// temporary storage for arguments passed by reference.  The caller
+	// merely has to provide us with an empty list, which we populate as
+	// needed.  The caller's only responsibility is to manage the lifetime
+	// of the storage.  We can't do that, since the list has to stay around
+	// until the caller is done with the generated argument 'v', since 'v'
+	// might contain a pointer into the list.
+	bool MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, ITypeInfo *typeInfo, TYPEDESC &desc,
+		std::list<VARIANTEx> &byRefList);
 
 	// marshall to a numeric VARIANTARG type
 	template<typename T, T VARIANTARG::*ele>

@@ -333,10 +333,6 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="Passkey.h" />
     <ClInclude Include="PerfMon.h" />
     <ClInclude Include="PlayfieldView.h" />
-    <ClInclude Include="rapidxml\rapidxml.hpp" />
-    <ClInclude Include="rapidxml\rapidxml_iterators.hpp" />
-    <ClInclude Include="rapidxml\rapidxml_print.hpp" />
-    <ClInclude Include="rapidxml\rapidxml_utils.hpp" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SecondaryView.h" />
     <ClInclude Include="Shader.h" />
