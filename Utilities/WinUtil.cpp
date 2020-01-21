@@ -157,7 +157,10 @@ void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus)
 		// any other windows in either thread, and also set the system-wide
 		// foreground window to our window.  That should get us truly in
 		// front in almost all cases.
-		AttachThreadInput(fgTID, myTID, TRUE);
+		AttachThreadInput(myTID, fgTID, TRUE);
+
+		// unlock SetForegroundWindow
+		AllowSetForegroundWindow(ASFW_ANY);
 
 		// toggle TOPMOST to try to bring us to the very front
 		SetWindowPos(hwndActive, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);
@@ -166,14 +169,20 @@ void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus)
 		// also explicitly set the foreground window
 		SetForegroundWindow(hwndActive);
 
-		// done with the attach
-		AttachThreadInput(fgTID, myTID, FALSE);
-	}
+		// do an explicit focus/activate on the respective windows
+		SetActiveWindow(hwndActive);
+		SetFocus(hwndFocus);
 
-	// do an explicit focus/activate on the respective windows
-	SetForegroundWindow(hwndActive);
-	SetFocus(hwndFocus);
-	SetActiveWindow(hwndActive);
+		// done with the attach
+		AttachThreadInput(myTID, fgTID, FALSE);
+	}
+	else
+	{
+		// do an explicit focus/activate on the respective windows
+		SetForegroundWindow(hwndActive);
+		SetActiveWindow(hwndActive);
+		SetFocus(hwndFocus);
+	}
 }
 
 // Does the current system-wide foreground window belong to my process?

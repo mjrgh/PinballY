@@ -1,26 +1,41 @@
 PinballY Update History
 
-? (1.0.0 Beta 19)
+01-21-2020 (1.0.0 Beta 19)
 
-* Added a new option to force the playfield window to the foreground
-during the launch process.  To enable this, go to the Windows section
-of the options dialog and check the box for "Keep the playfield window
-in front of other applications during launch".  This is intended as a
-workaround if you have any problems with other application windows
-coming to the foreground during game launches.  I'd only enable it if
-you actually have this sort of problem in practice, since the window
-layering really *should* take care of itself.
+* Made some further tweaks to the way windows are rearranged when
+switching between PinballY and a launched game (that is, when starting
+a game, pausing, resuming, and terminating), to try to make focus and
+window layering more reliable when switching between the game and
+PinballY.  This is an attempt to fix some remaining cases where either
+the game or PinballY didn't always come to the foreground when
+desired.  (This sort of focus/activation processing is always fragile
+in Windows, so it's possible that these changes will create new focus
+problems that didn't exist before as well as solving some prior ones,
+but hopefully this will at least be a net improvement.)
 
 * When resuming a game after pausing, PinballY automatically restores
 the game window if it's minimized.  This is for the sake of games
 running in "exclusive full-screen" mode, a special graphics mode that
-takes over a whole monitor.  Windows always minimizes a window using
-this mode when switching to another application, because such a window
-by design owns the whole screen, hence the only way for another
-application to get access to the screen is to hide the exclusive
-window, which Windows accomplishes by minimizing it.  Restoring the
-window on resuming the game should properly restore the game to its
-exclusive status on the screen.
+some game programs use to take over a whole monitor at the hardware
+level.  When a game is running in "exclusive" mode, Windows has to
+minimize the exclusive window when switching to another application,
+because such a window by design can't share screen space with other
+programs.  So when PinballY suspends an "exclusive" game with the
+Pause Game command, the exclusive window will be minimized as long as
+PinballY is in control.  That means we have to restore the window in
+order to switch back to the game.  This change should make Pause/
+Resume transitions work better for games running in "exclusive" mode.
+
+* Added a new option to force the playfield window to the foreground
+during the game launch process.  To enable this, go to the Windows
+section of the options dialog and check the box for "Keep the
+playfield window in front of other applications during launch".  This
+is intended as a workaround if you have any problems with other
+application windows coming to the foreground during game launches.
+I'd only enable it if you actually have this sort of problem in
+practice, since attempts at explicit window layering can turn into an
+arms race with other programs; it's best not to get started down that
+road if you can avoid it.
 
 * Fixed a problem with saving the last media type selections when
 performing a media capture operation.  (Issue #98 on github.)
@@ -64,6 +79,7 @@ an Item property, however, we have to use the C++ "put_" convention:
 
 * In Javascript, "By Reference" parameters are now supported when
 calling methods in OLE Automation (scripting) objects.
+
 
 
 01-01-2020 (1.0.0 Beta 18)

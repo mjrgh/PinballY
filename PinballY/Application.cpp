@@ -2034,6 +2034,16 @@ void Application::GameMonitorThread::BringToForeground()
 			// bring it to the foreground
 			SetForegroundWindow(stolenFocusWindow);
 		}
+
+		// If we found any game windows to bring to the front, explicitly
+		// send our own windows to the back.  This helps make sure that
+		// our secondary windows don't stay in front of the game's secondary
+		// windows.  Even though we've already moved the game process's
+		// top-level windows to the front, this doesn't always catch all
+		// of the game's secondary windows, since some of those might come 
+		// from different processes or might not be top-level.
+		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			pfv->SendToBackForResumeGame();
 	}
 }
 

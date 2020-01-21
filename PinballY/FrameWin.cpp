@@ -839,7 +839,7 @@ void FrameWin::DeactivateFullScreen()
 
 
 // Reactivate full-screen mode.  This is called whenever the application switches
-// to the foreground (we're notified of this via WM_APPACTICVATE, which we handle
+// to the foreground (we're notified of this via WM_APPACTIVATE, which we handle
 // in the Application object).  We reset the window placement to fill our primary
 // monitor.  
 //

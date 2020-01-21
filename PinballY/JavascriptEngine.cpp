@@ -9814,9 +9814,21 @@ bool JavascriptEngine::MarshallAutomationArg(VARIANTARG &v, JsValueRef jsval, IT
 
 		case VT_RECORD | VT_BYREF:
 			// I think it's illegal to ask for a VT_PTR to a VT_RECORD in a
-			// DISPINTERFACE, because the VARIANT struct member name for this,
-			// as implied by the naming convention used for all of the other
-			// types, would be "ppvRecord", which doesn't exist in the struct.
+			// DISPINTERFACE.  I can't find any official ruling on this in the
+			// Microsoft documentation, which is pretty skimpy on VT_RECORD in
+			// general, but I think we can infer it from the VARIANT struct
+			// itself.  But if we look at the VARIANT struct definition, we see
+			// that VT_RECORD is inherently a pointer, so adding another level of
+			// indirection would require this to be a pointer to a pointer to a
+			// record, and the name for that member in the VARIANT struct (as
+			// implied by the naming convention used for all of the other member
+			// variables) would have to be "ppvRecord".  There's no such member
+			// in the struct, so I'm concluding that this simply isn't a valid
+			// combination of types.  (In contrast, you can have an IUnknown**
+			// via ppunkVal, an IDispatch** via ppdispVal, or a pointer to a
+			// pointer to an array via pparray.  The explicit inclusion of the
+			// others and explicit omission of ppvRecord suggests that such a
+			// type combination is not supported.)
 			Throw(_T("Variant VT_PTR reference to VT_USERDEFINED is not allowed"));
 			return false;
 		}

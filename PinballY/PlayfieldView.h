@@ -127,6 +127,10 @@ public:
 	void BeginRunningGameMode(GameListItem *game, GameSystem *system);
 	void EndRunningGameMode();
 
+	// Send all of our windows to the back of the Z order for resuming
+	// a game in progress.
+	void SendToBackForResumeGame();
+
 	// Revert the pre-run TOPMOST status for the main window.  If desired,
 	// we can set the playfield window to TOPMOST style, meaning that it 
 	// stays in front of windows from other apps that don't have TOPMOST

@@ -8571,6 +8571,37 @@ void PlayfieldView::EndRunningGameMode()
 	UpdateJsUIMode();
 }
 
+void PlayfieldView::SendToBackForResumeGame()
+{
+	// send the main playfield window to the back of the Z order
+	SetWindowPos(GetParent(hWnd), HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+	// do the same for each non-topmost secondary window
+	auto SendWin = [](SecondaryView *v)
+	{
+		// proceed only if this window still exists
+		if (v != nullptr)
+		{
+			// Get the parent frame HWND, and proceed only if it exists and 
+			// it's not a TOPMOST window.  Windows set to continue showing
+			// PinballY media during game execution are set to TOPMOST, and
+			// they're meant to stay like this throughout execution, so we
+			// don't want to send them anywhere else.
+			auto frame = GetParent(v->GetHWnd());
+			if (frame != NULL && (GetWindowLong(frame, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0)
+			{
+				// send it to the back
+				SetWindowPos(frame, HWND_BOTTOM, -1, -1, -1, -1, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			}
+		}
+	};
+	auto app = Application::Get();
+	SendWin(app->GetBackglassView());
+	SendWin(app->GetDMDView());
+	SendWin(app->GetTopperView());
+	SendWin(app->GetInstCardView());
+}
+
 void PlayfieldView::JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc)
 {
 	// set up the native draw function, which will invoke the JS
