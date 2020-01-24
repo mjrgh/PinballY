@@ -20,7 +20,7 @@
    The COM VARIANT type is essentially the native-code (C/C++) representation
    of the Visual Basic "ANY" type, which can hold any VB value.
    VARIANT is so named because the type of data stored in a particular
-   VARIANT varies at run-time.  Any type value can be stored there, and the type
+   VARIANT varies at run-time.  Any type of value can be stored there, and the type
    of value in a particular VARIANT can be changed dynamically
    each time a new value is stored.  
 </p>
@@ -42,7 +42,9 @@
    native type mechanisms provided by the DLL Importer.  But you
    wouldn't want to, because the raw VARIANT C struct is complex, tedious
    to work with, and demands careful handling to manage its memory properly.
-   So instead, PinballY provides this built-in type that makes it much
+   Microsoft really didn't design it to be human-programmer-friendly;
+   it was designed only for internal use by computer language processors.
+   As such, PinballY's Javascript provides the built-in "Variant" type that makes it much
    easier to work with VARIANTs when you need them for COM calls or
    other purposes.  The Javascript Variant object provides properties
    for convenient conversion between Javascript and native types,
@@ -96,7 +98,7 @@ v.value = 100;
    the element from the C struct, so we use the same name for the sake of
    people used to the C version.)  This lets you determine the native type
    being used for the current value.  You can also assign a value to .vt,
-   which has the effect of deleting any old value in the native VARIANT
+   which has the effect of deleting any prior value in the native VARIANT
    struct and replacing it with a "default" value of the new type, usually
    zero for numeric types and null or empty for other types.  Some COM
    interfaces that return values through a VARIANT expect the caller to
@@ -127,7 +129,7 @@ v.value = 100;
 </p>
 <table class="dataTable">
    <tr><th>Javascript Type Assigned to .value</th><th>Resulting Variant Type</th><th>Example</th></tr>
-   <tr><td>Number</td><td>VT_R8 (double-precision floating point)</td><td>v.value = 100</td></tr>
+   <tr><td>Number</td><td>VT_R8 (double-precision "real number")</td><td>v.value = 100</td></tr>
    <tr><td>String</td><td>VT_BSTR (Basic string)</td><td>v.value = "string"</td></tr>
    <tr><td>Boolean</td><td>VT_BOOL (Variant Boolean)</td><td>v.value = true</td></tr>
    <tr><td>Date</td><td>VT_DATE (Variant Date)</td><td>v.value = Date.now()</td></tr>
@@ -346,9 +348,19 @@ $(function(){
    types other than simple integer and float types) aren't supported
 
    <li>The CURRENCY and DECIMAL types are supported, but they're
-   represented in Javascript as simple Javascript numbers.  This
-   could result in loss of precision and/or rounding errors
-   when converting to Javascript and back to Variant.
+   represented in Javascript as ordinary Javascript numbers, so
+   there can be a loss of precision when converting to or from
+   VARIANT.  (The  CURRENCY and DECIMAL types use decimal coding for fractional
+   numbers, whereas Javascript uses binary coding.  Some fractions
+   that can be represented as exact values in decimal coding
+   can't be represented exactly with binary coding, and vice versa, so conversions
+   from one to the other can require rounding to the nearest
+   value with a representation in the new coding.  That's where
+   the potential loss of precision comes from in these conversions.
+   Loss of precision isn't a foregone conclusion, since many values
+   <i>can</i> be exactly represented in both codings.  But it's always
+   a possibility, because it depends on the specific numbers you're
+   trying to convert.)
 </ul>
 
 </body>

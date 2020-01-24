@@ -178,7 +178,7 @@ if (SUCCESS(obj->QueryInterface(IID_PPV_ARGS(ips)))) ...
 </p>
 <div class="code">
 let ips = dllImport.create("IPersistStream*");
-let hr = obj->QueryInterface(ips);
+let hr = obj.QueryInterface(ips);
 </div>
 
 <h2>Calling COM methods</h2>

@@ -61,11 +61,14 @@
    property.  The callback has to monitor the "readyState" property
    of the request object and wait until it changes to the special
    state "4", meaning "done".  Our version is a little simpler and
-   cleaner.
+   nicer, since it's based on the Promise mechanism, which was
+   added to Javascript specifically so that there'd be a clean
+   and consistent way to handle asynchronous tasks like this.
 </p>
 <p>
-   With HttpRequest, instead of setting up a callback ahead
-   of time, you use the Promise object that send() returns.
+   With HttpRequest, you don't have to set up a state-change
+   callback ahead of time.  Instead, the send() method returns
+   a Promise object, and you use that to handle the completion event.
    The Promise object is a standard ES6 feature, so you can find
    lots of information about it on the Web, but the basics are
    pretty simple.  Promise has two main methods that you use to set
@@ -75,9 +78,8 @@
 </p>
 <p>
    The actual handling of the completion event is up to you,
-   and that part is just like in a browser.  The only difference
-   with the Promise approach is that the syntax is a little
-   simpler.
+   and that part is just like in a browser.  The main difference
+   with the Promise approach is that the syntax is simpler.
 </p>
 
 <p>
@@ -166,9 +168,12 @@ request.send().then(function(reply) {
    <b>readyState:</b>  A read-only property indicating how much
    progress the request has made so far: 0 (uninitialized), 1 (loading),
    2 (response headers received), 3 (partial body received), 4 (completed).
-   In most cases, you won't need to monitor this, since you won't have
-   to do anything with a request until it signals completion by
+   In most cases, you won't need to monitor this, since you probably won't
+   need to do anything with a request until it signals completion by
    calling the "then" handler via the Promise returned from send().
+   However, some applications use the ready state to update incremental
+   status indicators in the UI; you could do that, for example, by
+   checking this property periodically in a timer callback.
 </p>
 
 <p>
@@ -187,9 +192,10 @@ request.send().then(function(reply) {
 <p>
    <b>status:</b>  A read-only property giving the numeric HTTP status
    code returned from the server.  Only valid after the request has
-   completed.  200 is the standard status code for successful completion.
-   Most other codes indicate errors (e.g., 404 = not found, 500 = internal
-   server error, etc).
+   completed.  200 is the standard status code for normal, successful completion.
+   Codes 400 and above indicate errors (e.g., 404 = not found, 500 = internal
+   server error, etc).  The full set of HTTP status codes can be found
+   in numerous tutorials and references online.
 </p>
 
 <p>

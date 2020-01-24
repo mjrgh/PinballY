@@ -148,7 +148,7 @@ dict.CompareMode = 1;
 ' "Item" is a property of the Scripting.Dictionary object
 ' that can take arguments, so we access it like an array.
 dict.Item("red") = 72
-MsgBox "The 'red' value is" + dict.Item("red")
+MsgBox "The 'red' value is " + dict.Item("red")
 </div>
 <p>
    Now, given that these sorts of properties are meant to resemble arrays
@@ -161,7 +161,7 @@ MsgBox "The 'red' value is" + dict.Item("red")
 <div class="code">
 // Javascript equivalent of the above?  NO!  This won't work!!!
 dict.Item["red"] = 72;   // WRONG!!!
-alert("The 'red' value is" + dict.Item["red"]);  // WRONG!!!
+alert("The 'red' value is " + dict.Item["red"]);  // WRONG!!!
 </div>
 <p>
    The problem is that these properties aren't actually arrays.  What's
@@ -177,7 +177,7 @@ alert("The 'red' value is" + dict.Item["red"]);  // WRONG!!!
    is easy: you just write it exactly like in Visual Basic:
 </p>
 <div class="code">
-alert("The 'red' value is" + dict.Item("red"));
+alert("The 'red' value is " + dict.Item("red"));
 </div>
 <p>
    The <i>writing</i> part is a little trickier.  Javascript doesn't
@@ -215,8 +215,7 @@ dict.put_Item("red", 72);  // equivalent to VB's dict.Item("red") = 72
    arguments that the callee uses to return data to the caller.
 </p>
 <p>
-   There's no direct equivalent of "Out" parameters in normal Javascript, as
-   Javascript <i>always</i> passes arguments by value.
+   Javascript has no direct equivalent of "Out" parameters.
    The data transfer in Javascript is always one-way, from caller to callee.
    When calling an automation method that returns information through an "Out"
    parameter, therefore, we have to do something a little unusual.
@@ -235,12 +234,11 @@ autoObj.FuncThatChangesArgument(v);
 </div>
 
 <p>
-   The Javascript engine doesn't require Variants for OUT arguments,
-   but if you don't use a Variant, any updated value will simply be discarded.
-   In such a case, the Javascript engine creates a dummy Variant to
-   pass to the callee, so the callee doesn't know the difference.  Any
-   change the callee makes to the OUT parameter will only affect the
-   dummy Variant, which is discarded on return.
+   The Javascript engine doesn't require Variants for OUT arguments; you
+   can use any other value type instead.  But passing a Variant is the only
+   way to retrieve the updated value if the callee changes the OUT
+   parameter.  If you don't use a Variant, any update to the value will simply
+   be discarded.
 </p>
    
    

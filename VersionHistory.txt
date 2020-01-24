@@ -1,5 +1,23 @@
 PinballY Update History
 
+? (1.0.0 Beta 20)
+
+* When PinballY is in "Paused Game" mode, meaning that you've used the
+Pause Game command to suspend a game and bring PinballY to the
+foreground, the main menu is now automatically any time there's
+nothing else going on (no other menu or popup display).  In the past,
+the menu came up automatically when you first paused the game, but it
+didn't reappear on its own after that.  For example, if you brought up
+the game's flyer, and then dismissed it, you'd just see the blank
+"Game Running" screen, and you'd have to press the Start button to
+bring up the menu again.  This change is meant to make the Pause mode
+a little more convenient and intuitive, and there was really no reason
+*not* to re-display the menu automatically, since there's really
+nothing else you can do in Pause mode apart from bringing the menu
+back up.
+
+
+
 01-21-2020 (1.0.0 Beta 19)
 
 * Made some further tweaks to the way windows are rearranged when
@@ -53,9 +71,9 @@ depending on the font selected for the "Wheel" font in the options.
 * When writing XML files for table databases, apostrophes in game
 titles are now left as literal apostrophes in the XML text, rather
 than being converted to the XML "&apos;" entity format (as they were
-in the past).  The "&apos;" format is valid XML, but PinballX didn't
+in the past).  The "&apos;" format is valid XML, but PinballX doesn't
 parse it properly, which caused a couple of problems if you tried to
-shared the files with PinballX or the PBX Game Manager.  The "&apos;"
+share files with PinballX or the PBX Game Manager.  The "&apos;"
 conversion isn't technically required for XML purposes, so this change
 won't affect the validity of the XML, and will let PinballX read the
 files more easily. (Issue #108 on github.)

@@ -3748,6 +3748,17 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case cleanupTimerID:
 		// process pending audio/video player deletions
 		AudioVideoPlayer::ProcessDeletionQueue();
+
+		// If we're in Pause Game mode, and there's no menu and no popup 
+		// showing, bring up the default menu
+		if (runningGameMsgPopup != nullptr
+			&& Application::IsInForeground()
+			&& popupSprite == nullptr
+			&& curMenu == nullptr)
+		{
+			// we seem to be idling - show the pause menu
+			ShowPauseMenu(false);
+		}
 		return true;
 
 	case mediaDropTimerID:
