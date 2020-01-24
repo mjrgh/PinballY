@@ -4,17 +4,18 @@ PinballY Update History
 
 * When PinballY is in "Paused Game" mode, meaning that you've used the
 Pause Game command to suspend a game and bring PinballY to the
-foreground, the main menu is now automatically any time there's
-nothing else going on (no other menu or popup display).  In the past,
-the menu came up automatically when you first paused the game, but it
-didn't reappear on its own after that.  For example, if you brought up
-the game's flyer, and then dismissed it, you'd just see the blank
-"Game Running" screen, and you'd have to press the Start button to
-bring up the menu again.  This change is meant to make the Pause mode
-a little more convenient and intuitive, and there was really no reason
-*not* to re-display the menu automatically, since there's really
-nothing else you can do in Pause mode apart from bringing the menu
-back up.
+foreground, the main menu is now automatically displayed any time
+there's nothing else going on (that is, when no other menu or popup is
+being displayed).  In the past, the menu came up automatically when
+you first paused the game, but it didn't reappear on its own after
+that.  For example, if you brought up the game's flyer, and then
+dismissed it, you'd just see the blank "Game Running" screen, and
+you'd have to press the Start button to bring up the menu again.  This
+change is meant to make the Pause mode a little more convenient and
+intuitive.  Some people weren't sure what they were supposed to do
+with the blank "Running" screen, and there's really nothing else you
+can do there apart from bringing the menu back up, so the system might
+as well do that for you automatically.
 
 
 

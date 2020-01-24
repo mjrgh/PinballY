@@ -61,6 +61,10 @@ void RefTableList::GetFilenameMatches(const TCHAR *filename, int n, std::list<Ta
 	TSTRING lcName = filename;
 	std::transform(lcName.begin(), lcName.end(), lcName.begin(), _totlower);
 
+	// strip any filename extension
+	static const std::basic_regex<TCHAR> extPat(_T("\\.[^.]+$"));
+	lcName = std::regex_replace(lcName, extPat, _T(""));
+
 	// build the bigram set for the name
 	DiceCoefficient::BigramSet<TCHAR> bg;
 	DiceCoefficient::BuildBigramSet(bg, lcName.c_str());

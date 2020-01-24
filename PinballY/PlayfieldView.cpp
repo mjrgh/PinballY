@@ -6741,7 +6741,11 @@ void PlayfieldView::ShowGameInfo()
 
 		// add the game file, if present
 		if (game->filename.length() != 0)
-			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, game->filename.c_str()), detailsFont, &detailsBr);
+		{
+			GameListItem::ResolvedFile rf;
+			game->ResolveFile(rf);
+			gds.DrawString(MsgFmt(IDS_GAMEINFO_FILENAME, rf.file.c_str()), detailsFont, &detailsBr);
+		}
 
 		// add the media file name
 		if (game->mediaName.length() != 0)
@@ -13412,12 +13416,15 @@ void PlayfieldView::EditGameInfo()
 	public:
 		EditGameDialog(PlayfieldView *pfv, GameListItem *game) : 
 			DialogWithSavedPos(ConfigVars::GameInfoDialogPos),
-			pfv(pfv), game(game), gameFile(game->filename), saved(false)
+			pfv(pfv), game(game), saved(false)
 		{ 
-			// build the full path to the table file
-			TCHAR path[MAX_PATH];
-			PathCombine(path, game->tableFileSet->tablePath.c_str(), game->filename.c_str());
-			gamePath = path;
+			// get the fully resolved table file
+			GameListItem::ResolvedFile rf;
+			game->ResolveFile(rf);
+
+			// store the full game path and filename portion
+			gamePath = rf.path;
+			gameFile = rf.file;
 
 			// load the custom checkbox bitmap
 			bmpKeepWinCkbox.reset(GPBitmapFromPNG(IDB_KEEP_WIN_CKBOX));
@@ -14335,7 +14342,7 @@ void PlayfieldView::EditGameInfo()
 		void InitFields()
 		{
 			// set the filename static text
-			SetDlgItemText(hDlg, IDC_TXT_FILENAME, game->filename.c_str());
+			SetDlgItemText(hDlg, IDC_TXT_FILENAME, gameFile.c_str());
 
 			// populate the system list
 			HWND cbSys = GetDlgItem(IDC_CB_SYSTEM);
