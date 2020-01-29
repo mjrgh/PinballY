@@ -2795,6 +2795,7 @@ protected:
 	void FireStatusLineEvent(JsValueRef statusLineObj, const TSTRING &rawText, TSTRING &expandedText);
 	bool FireHighScoresRequestEvent(GameListItem *game);
 	void FireHighScoresReadyEvent(GameListItem *game, bool success, const TCHAR *source);
+	bool FireDOFEventEvent(const WCHAR *name, UINT8 val, bool fromJs);
 
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode

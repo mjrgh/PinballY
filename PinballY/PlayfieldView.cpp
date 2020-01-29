@@ -19052,14 +19052,45 @@ void PlayfieldView::OnDOFTimer()
 		KillTimer(hWnd, dofPulseTimerID);
 }
 
+// Fire an event in DOF, notifying Javascript if applicable
 void PlayfieldView::FireDOFEvent(const WCHAR *name, UINT8 val, bool fromJs)
 {
-	// fire the event in DOF
+	// get the DOF client
 	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
-		dof->SetNamedState(name, val);
+	{
+		// fire the Javascript notification
+		if (FireDOFEventEvent(name, val, fromJs))
+		{
+			// set the named state for the event in DOF
+			dof->SetNamedState(name, val);
+		}
+	}
 
 	// note the last event time
 	lastDOFEventTime = GetTickCount64();
+}
+
+// Notify Javascript of a DOF event we're about to fire.  The notification
+// is only sent for DOF events synthesized by PinballY, NOT for events
+// triggered by Javascript itself.  Returns true if the DOF event should
+// proceed, false if the Javascript event handler canceled the system
+// default processing.
+bool PlayfieldView::FireDOFEventEvent(const WCHAR *name, UINT8 val, bool fromJs)
+{
+	// don't notify Javascript on events originating from Javascript
+	if (fromJs)
+		return true;
+
+	// get the JS context
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		// pass the event to Javascript
+		if (!js->FireEvent(jsMainWindow, jsDOFEventEvent, name, static_cast<int>(val)))
+			return false;
+	}
+
+	// the JS handler didn't cancel - let the default proceed
+	return true;
 }
 
 void PlayfieldView::JsDOFPulse(WSTRING name)
@@ -19084,11 +19115,11 @@ void PlayfieldView::DOFIfc::OnDOFReady()
 	{
 		// set the UI context
 		if (context.length() != 0)
-			dof->SetNamedState(context.c_str(), 1);
+			pfv->FireDOFEvent(context.c_str(), 1, false);
 
 		// set the game ROM state
 		if (rom.length() != 0)
-			dof->SetNamedState(rom.c_str(), 1);
+			pfv->FireDOFEvent(rom.c_str(), 1, false);
 	}
 }
 
@@ -19102,14 +19133,14 @@ void PlayfieldView::DOFIfc::SetContextItem(const WCHAR *newVal, WSTRING &itemVar
 		{
 			// turn off the current state, if any
 			if (itemVar.length() != 0)
-				dof->SetNamedState(itemVar.c_str(), 0);
+				pfv->FireDOFEvent(itemVar.c_str(), 0, false);
 
 			// remember the new state
 			itemVar = newVal != nullptr ? newVal : _T("");
 
 			// turn it on, if we have a new state
 			if (itemVar.length() != 0)
-				dof->SetNamedState(newVal, 1);
+				pfv->FireDOFEvent(newVal, 1, false);
 		}
 	}
 	else
@@ -19151,7 +19182,7 @@ void PlayfieldView::DOFIfc::SetKeyEffectState(const TCHAR *effect, bool keyDown)
 		
 		// update DOF, if active
 		if (auto dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
-			dof->SetNamedState(effect, keyDown ? 1 : 0);
+			pfv->FireDOFEvent(effect, keyDown ? 1 : 0, false);
 	}
 }
 
@@ -19167,7 +19198,7 @@ void PlayfieldView::DOFIfc::KeyEffectsOff()
 			if (k.second)
 			{
 				k.second = false;
-				dof->SetNamedState(k.first.c_str(), 0);
+				pfv->FireDOFEvent(k.first.c_str(), 0, false);
 			}
 		}
 	}

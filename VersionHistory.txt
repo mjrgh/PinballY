@@ -29,6 +29,9 @@ as soon as the DOF reset occurs.)
 and mainWindow.DOFSet().  See the help under Javascript scripting >
 System Objects > Window Objects > mainWindow.
 
+* Javascript code can now receive notifications of DOF events, via
+the new "dofevent" event.  See the help under 
+
 * The Manual Capture Start/Stop button options weren't being respected
 properly when using the "PinballY Admin Mode" version of the program.
 That version always assumed you were using the default setting of

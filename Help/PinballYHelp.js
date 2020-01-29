@@ -60,6 +60,7 @@ var contents = [
                 "+++AttractModeEvent.html AttractModeEvent [event:mainWindow]",
                 "+++CommandEvent.html CommandEvent [event:mainWindow]",
                 "+++CommandButtonEvent.html CommandButtonEvent [event:mainWindow]",
+                "+++DOFEventEvent.html DOFEvent [event:mainWindow]",
                 "+++FilterSelectEvent.html FilterSelectEvent [event:gameList]",
                 "+++GameSelectEvent.html GameSelectEvent [event:gameList]",
                 "+++HighScoresEvent.html HighScoresEvent [event:gameList]",
