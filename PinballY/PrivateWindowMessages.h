@@ -54,6 +54,7 @@ const UINT PFVMsgShowSysError = WM_USER + 209;		// WPARAM = TCHAR *friendly, LPA
 const UINT PFVMsgShowFlashError = WM_USER + 210;    // LPARAM = const ErrorList *errorList
 const UINT PFVMsgPlayElevReqd = WM_USER + 211;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
 const UINT PFVMsgJsDebugMessage = WM_USER + 212;    // Javascript debug request received from debugger UI
+const UINT PFVMsgTakeFocusPostLaunch = WM_USER + 213; // take focus after game launch exits
 
 
 // PFVShowMessage parameters struct

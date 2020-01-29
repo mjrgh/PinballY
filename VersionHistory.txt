@@ -17,6 +17,24 @@ with the blank "Running" screen, and there's really nothing else you
 can do there apart from bringing the menu back up, so the system might
 as well do that for you automatically.
 
+* Added a new DOF event that fires when PinballY starts up:
+PBYProgramStartup.  You can use this in the DOF Config Tool to trigger
+DOF effects each time you run the program.  (There's no corresponding
+"program exit" event, because DOF automatically resets all devices
+when the host program terminates, which would make a "program exit"
+event useless.  Any effects such an event triggered would be canceled
+as soon as the DOF reset occurs.)
+
+* Javascript code can now fire DOF events, via mainWindow.DOFPulse()
+and mainWindow.DOFSet().  See the help under Javascript scripting >
+System Objects > Window Objects > mainWindow.
+
+* The Manual Capture Start/Stop button options weren't being respected
+properly when using the "PinballY Admin Mode" version of the program.
+That version always assumed you were using the default setting of
+"press both flipper buttons".  It now respects the actual option
+setting.
+
 
 
 01-21-2020 (1.0.0 Beta 19)

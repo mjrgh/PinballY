@@ -45,7 +45,7 @@ bool DShowAudioPlayer::Error(HRESULT hr, ErrorHandler &eh, const TCHAR *where)
 {
 	WindowsErrorMessage winErr(hr);
 	eh.SysError(LoadStringT(IDS_ERR_AUDIOPLAYERSYSERR),
-			MsgFmt(_T("Opening audio file %s: %s: %s"), path.c_str(), where, winErr.Get()));
+			MsgFmt(_T("Opening audio file %s: %s: %s (HRESULT %lx)"), path.c_str(), where, winErr.Get(), hr));
 		return false;
 }
 

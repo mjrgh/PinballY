@@ -14,26 +14,22 @@
 
 <p>
    PinballY includes a full Javascript engine for user scripting customizations.
-   This is a new feature in the v1.0.0 Beta 2 release.  It's preliminary
-   and experimental, so be aware that:
+   Many of the things that PinballY does automatically can be overridden
+   or customized through Javascript code.
 </p>
-<ul>
-   <li>It's not fully fleshed out yet
-   <li>It hasn't been field-tested
-   <li>Details of the programming interface might change
-</ul>
-
 <p>
-   If there's something you'd like to customize from Javascript, and
-   you can't find a way to do it, let me know.  The Javascript interface
+   The Javascript engine has access to a lot of PinballY events and features,
+   but not all of them, since the system has to provide Javascript hooks
+   for the specific features that are to be made scriptable.
+   If there's something we've missed that you'd
+   like to customize from Javascript, let me know.  The Javascript interface
    can be extended to almost any area of the program, so capabilities
    that aren't currently there could be added in the future according
    to interest.
 </p>
 
 <p>
-   The idea of Javascript support in PinballY is preliminary and experimental, but the
-   underlying Javascript engine isn't.  Javascript is implemented via ChakraCore,
+   The underlying Javascript engine is ChakraCore,
    Microsoft's high-performance, standards-compliant Javascript engine.  Microsoft
    built ChakraCore for the Edge  browser and released it as open source.  It has
    top-tier performance and implements modern Javascript standards.  You can use all
@@ -94,12 +90,13 @@
 <h2>How to enable scripting</h2>
 
 <p>
-   Scripting is enabled if there's a file called <b>main.js</b> in
+   Scripting is always enabled.  To activate it, you simply
+   have to place a file called <b>main.js</b> in
    the <b>Scripts</b> folder within your main PinballY folder.
    The program checks automatically for this file; there are no
    extra options to set.  At startup, PinballY checks to see if
-   Scripts\main.js exists, and if so, the program enables scripting,
-   and loads and executes the file.
+   Scripts\main.js exists, and if so, PinballY loads and executes
+   the file.
 </p>
 <p>
    What goes in main.js?  In general terms, any valid
@@ -144,13 +141,14 @@
    You should avoid any operations in Javascript that will take a long
    time to complete, especially things like timing loops or waiting
    for external calls (such as network reads) to complete.  Javascript
-   runs as part of the main user interface thread, so operations that
-   involve long waits are a no-no.  Long waits in Javascript can make the UI
-   windows appear to be frozen.
+   runs as part of the main user interface thread, so any long wait
+   in Javascript will stall the UI - the video will freeze or stutter,
+   and button input won't be processed until the Javascript wait ends.
+   Long waits in Javascript can make the UI windows appear to be frozen.
 </p>
 <p>
-   Any timed waits should be done via a timeout or interval.  Waits
-   for external events should be handled with asynchronous mechanisms,
+   Instead of timing loops or waits, use a timeout or interval.  Wait
+   for external events (like network requests) should be handled with asynchronous mechanisms,
    ideally through Javascript Promise objects.  If you have a long-running,
    CPU-intensive task to perform, try to break it up into smaller
    tasks, and use intervals to spread out the subtasks over time.

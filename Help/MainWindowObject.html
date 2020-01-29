@@ -105,12 +105,75 @@
 </p>
 
 <p>
+   <a name="DOFPulse"></a>
+   <b>mainWindow.DOFPulse(<i>name</i>):</b>  Pulses the named DOF event.  This
+   turns the effect "on" (by setting its "brightness" level in DOF to the
+   maximum value of 255), then turns the effect back off (by setting the
+   DOF brightness value to 0) after a brief interval.  This is the normal
+   way in DOF to trigger the lighting or tactile effects associated with an
+   "event".  In a simulated pinball game, a DOF event would represent a
+   specific, momentary action in the game, such as "the ball hit the Extra Ball target".
+   In a PinballY context you might use this to represent a discrete user action, such as
+   "pressed the left flipper button" or "navigated to a new game".
+</p>
+<p>
+   You can connect events fired with this method to actions in your
+   DOF Config Tool configuration by using the same event name in the
+   Config Tool, adding the <b>$</b> prefix in the Config Tool rule.
+   For example, if you write <tt>mainWindow.DOFPulse("MyEvent")</tt>
+   in Javascript, the corresponding rule in the DOF Config Tool syntax
+   would refer to the event as <tt>$MyEvent</tt>, because the Config Tool
+   uses the <b>$</b> prefix to refer to named events.
+   See <a href="DOFEvents.html">DOF Events</a> for more.
+</p>
+
+<p>
+   <a name="DOFSet"></a>
+   <b>mainWindow.DOFSet(<i>name</i>, <i>value</i>):</b>  Sets the given
+   named DOF event to the given value, from 0 (off) to 255 (full "brightness").
+   The setting stays in effect until you change it with another call to
+   DOFEffect() using the same name and a different value.
+</p>
+<p>
+   You can connect events fired with this method to actions in your
+   DOF Config Tool configuration by using the same event name in the
+   Config Tool, adding the <b>$</b> prefix in the Config Tool rule.
+   For example, if you write <tt>mainWindow.DOFSet("MyEvent", 255)</tt>
+   in Javascript, the corresponding rule in the DOF Config Tool syntax
+   would refer to the event as <tt>$MyEvent</tt>, because the Config Tool
+   uses the <b>$</b> prefix to refer to named events.
+   See <a href="DOFEvents.html">DOF Events</a> for more.
+</p>
+<p>
+   Be careful about timing.  DOF effects require a little time padding between
+   consecutive changes to a given effect's value, because DOF operates on its
+   own "clock", and only checks for updates periodically.  If you update the
+   same named event twice in a row too quickly, DOF might not notice the
+   change and might not trigger the desired hardware effects.
+   For cases where you want to represent a momentary action in the UI, such
+   as "user pressed left flipper button", it's almost always better to use
+   DOFPulse(), since that automatically paces the ON-OFF sequence at a speed
+   that DOF can handle.
+</p>
+<p>
+   This function doesn't coordinate at all with PinballY's own DOF event
+   generation, so it's easiest to use this for your own custom events, using
+   unique names that aren't part of PinballY's own named DOF event set
+   (see <a href="DOFEvents.html">DOF Events</a>).  You can use any names
+   you want for named DOF events, so you're free to invent as many new
+   events as you like representing whatever actions you like.
+   You <i>can</i> also use this to update PinballY's own named
+   events, but since PinballY updates those events itself, this
+   could cause unpredictable interactions.
+</p>
+
+<p>
    <a name="endAttractMode"></a>
    <b>mainWindow.endAttractMode():</b>  Exits "Attract Mode" if it's currently
    active.  There's no effect if the program isn't already in attract mode.
    The <a href="AttractModeEvent.html"><b>attractmodeend</b></a> event isn't
    fired when you use this method.
-
+</p>
 <p>
    <a name="getActiveWindow"></a>
    <b>mainWindow.getActiveWindow():</b>  Returns the <a href="WindowObjects.html">window object</a> (mainWindow,

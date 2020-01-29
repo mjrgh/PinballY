@@ -2159,9 +2159,10 @@ protected:
 	// satisfy DOF without blocking the UI thread.
 	struct QueuedDOFEffect
 	{
-		QueuedDOFEffect(const TCHAR *name, UINT8 val) : name(name), val(val) { }
+		QueuedDOFEffect(const TCHAR *name, UINT8 val, bool fromJs) : name(name), val(val), fromJs(fromJs) { }
 		TSTRING name;	// effect name
 		UINT8 val;		// value to set the effect to
+		bool fromJs;    // queued by Javascript code
 	};
 	std::list<QueuedDOFEffect> dofQueue;
 
@@ -2170,19 +2171,23 @@ protected:
 
 	// Queue a DOF ON/OFF pulse.   This queues an ON/OFF event pair
 	// for the effect.
-	void QueueDOFPulse(const TCHAR *name);
+	void QueueDOFPulse(const WCHAR *name, bool fromJs = false);
 
 	// Queue a DOF event.  Pushes the event onto the end of the DOF
 	// queue, and starts the timer if the queue was empty.
-	void QueueDOFEvent(const TCHAR *name, UINT8 val);
+	void QueueDOFEvent(const WCHAR *name, UINT8 val, bool fromJs);
 
 	// Fire a DOF event immediately.
-	void FireDOFEvent(const TCHAR *name, UINT8 val);
+	void FireDOFEvent(const WCHAR *name, UINT8 val, bool fromJs);
 
 	// Handle the DOF queued event timer.  Pulls an event off the
 	// front of the queue and sends it to DOF.  Stops the timer if 
 	// the queue is empty after pulling this effect.
 	void OnDOFTimer();
+
+	// Javascript DOF access
+	void JsDOFPulse(WSTRING name);
+	void JsDOFSet(WSTRING name, int val);
 	
 	// DOF initialization status from the last initialization attempt.
 	// We suppress DOF initialization errors if the last attempt to
@@ -2195,8 +2200,8 @@ protected:
 	class DOFIfc
 	{
 	public:
-		DOFIfc();
-		~DOFIfc();
+		DOFIfc(PlayfieldView *pfv) : pfv(pfv) { }
+		~DOFIfc() { }
 
 		// Set the UI context:  wheel, menu, popup, etc.  This allows DOF
 		// to set different effects depending on the main UI state.  The
@@ -2261,6 +2266,12 @@ protected:
 		// be held down at once.
 		std::unordered_map<TSTRING, bool> keyEffectState;
 
+		// Containing PlayfieldView.  (This is an uncounted ref, since
+		// we're an embedded object; counting the ref would create a
+		// circular ref that would prevent the view from being destroyed,
+		// and is unnecessary anyway since we're embedded, hence the
+		// view can't be deleted until we're deleted.)
+		PlayfieldView *pfv;
 	} dof;
 
 	// PINemHi version number string, if available.  We try to
@@ -2471,6 +2482,7 @@ protected:
 	{
 		const TCHAR *configName;   // name in the configuration file
 		CaptureManualGoButton id;  // internal ID
+		int nButtons;              // number of buttons in the gesture
 		int nameStrResId;          // resource ID for name string
 	};
 	static const CaptureManualGoButtonMap captureManualGoButtonMap[];
@@ -2483,6 +2495,9 @@ protected:
 	// needed.
 	bool manualGoLeftDown = false;
 	bool manualGoRightDown = false;
+
+	// flag: "Manual Go" is a single-button gesture
+	bool manualGoSingleButton = false;
 
 	// Check for a "Manual Go" gesture.  This is called whenever one
 	// of the Next/Prev buttons changes state.
@@ -2752,6 +2767,7 @@ protected:
 	JsValueRef jsLaunchOverlayShowEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchOverlayHideEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchOverlayMessageEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsDOFEventEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the

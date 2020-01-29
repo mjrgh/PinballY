@@ -214,7 +214,8 @@ const PlayfieldView::KeyCommand PlayfieldView::NoCommand(_T("NoOp"), &PlayfieldV
 PlayfieldView::PlayfieldView() : 
 	BaseView(IDR_PLAYFIELD_CONTEXT_MENU, ConfigVars::PlayfieldWinPrefix),
 	playfieldLoader(this),
-	underlayLoader(this)
+	underlayLoader(this),
+	dof(this)
 {
 	// clear variables, reset modes
 	fpsDisplay = false;
@@ -640,6 +641,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsLaunchOverlayShowEvent, "LaunchOverlayShowEvent")
 				|| !GetObj(jsLaunchOverlayHideEvent, "LaunchOverlayHideEvent")
 				|| !GetObj(jsLaunchOverlayMessageEvent, "LaunchOverlayMessageEvent")
+				|| !GetObj(jsDOFEventEvent, "DOFEventEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -774,7 +776,9 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "playButtonSound", &PlayfieldView::JsPlayButtonSound, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFPulse", &PlayfieldView::JsDOFPulse, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh))
 				return;
 
 			// Get the status lines
@@ -3378,6 +3382,9 @@ void PlayfieldView::OnIdleEvent()
 	// finished.  Now that we've received the one notification, remove
 	// our idle event subscription.
 	D3DView::UnsubscribeIdleEvents(this);
+
+	// Fire the DOF startup event
+	QueueDOFPulse(L"PBYProgramStartup");
 
 	// Schedule the initial keyboard focus grab, if desired
 	auto cfg = ConfigManager::GetInstance();
@@ -8534,7 +8541,7 @@ void PlayfieldView::EndRunningGameMode()
 	// Remove any game inactivity timeout timer
 	KillTimer(hWnd, gameTimeoutTimerID);
 
-	// fire the "hide" event
+	// fire the "hide launch overlay" event
 	auto game = GameList::Get()->GetByInternalID(runningGameID);
 	FireLaunchOverlayEvent(jsLaunchOverlayHideEvent, game);
 
@@ -8554,15 +8561,26 @@ void PlayfieldView::EndRunningGameMode()
 	if (!IsForegroundProcess())
 		BetterSetForegroundWindow(GetParent(hWnd), hWnd);
 
-	// Also do a mouse click in our window.  On Windows 7, at least,
-	// there seems to be some weird window ordering that can happen
-	// after a game exits, where the *next* launch will send our
-	// window to the bottom of the stack, which messily brings any
-	// other running app windows to the foreground briefly while
-	// the game is starting up.  The mouse click seems to clear 
-	// that up.  (Mostly, anyway; it still seems to happen once in
-	// a while, but much more rarely this way.)
-	// $$$ ForceTakeFocus();
+	// Note: at one point, it looked like it might be useful to simulate
+	// a mouse click in our window here, to force the window to the top
+	// and make it active.  We just did the equivalent at the API level
+	// via the call to BetterSetForegroundWindow() above, but Windows
+	// treats focus changes made via the API differently from focus
+	// changes made via user mouse gestures, and we were trying to get
+	// the mouse-specific handling.  The point was to work around a
+	// weird layering issue that I sometimes saw on the NEXT launch
+	// after the one whose completion we're processing here.  On Win 7,
+	// I was sometimes seeing Windows bring random desktop windows to
+	// the foreground while that next launch took place.  A mouse click 
+	// here *usually* cleared that up, for reasons that are unclear;
+	// evidently it affects some hidden Windows internal state in some
+	// undocumented way.  At any rate, I seem to have found a superior
+	// solution by manipulating the layering during the launch itself,
+	// and since this never worked 100% anyway, I'm removing it.  But
+	// this stuff is always fiddly, so I'm leaving this note about it, 
+	// to help jog my memory in the future and maybe provide an idea 
+	// of something to try if something like this crops up again.
+	// ForceTakeFocus();
 
 	// Set a timer to reinstate our DOF client after a short delay.
 	// Don't do this immediately, because DOF doesn't do anything to
@@ -8988,6 +9006,28 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		if (auto js = JavascriptEngine::Get(); js != nullptr)
 			js->OnDebugMessageQueued();
 		break;
+
+	case PFVMsgTakeFocusPostLaunch:
+		// After a game launch thread exits, it sends us this messages a
+		// few times at brief intervals (3x at 1-second intervals currently).
+		// This is intended to let us force PinballY back to the front in a
+		// few oddball cases where the Windows desktop grabs focus, which
+		// seems to happen in certain cases when the EXIT GAME button is
+		// used while the game is still in the middle of the launch.
+		// There's probably some edge case where the child process destroys
+		// its main window immediately after creating it, while the initial
+		// creation messages are still in the message queue, and Windows
+		// handles the dangling HWND in the queued focus/activation messages 
+		// by activating the desktop window instead.  Or something like that.
+		// In any case, this deferred focus grab fixes it in most cases.
+		// 
+		// Don't do this if we've already launched another game.  We don't
+		// want to try to grab focus back if the user already launched a
+		// new game manually, or we're processing a batch capture.
+		//
+		if (!IsForegroundProcess() && Application::Get()->GetGameState() == Application::GameMonitorState::GameMonitorDone)
+			BetterSetForegroundWindow(GetParent(hWnd), hWnd);
+		return true;
 	}
 
 	// inherit the default handling
@@ -11427,11 +11467,11 @@ void PlayfieldView::OnConfigPostSave(bool succeeded)
 
 // Manual start/stop button list
 const PlayfieldView::CaptureManualGoButtonMap PlayfieldView::captureManualGoButtonMap[] = {
-	{ _T("flippers"), CaptureManualGoButton::Flippers, IDS_CAPSTAT_BTN_FLIPPERS },
-	{ _T("magnasave"), CaptureManualGoButton::MagnaSave, IDS_CAPSTAT_BTN_MAGNASAVE },
-	{ _T("launch"), CaptureManualGoButton::Launch, IDS_CAPSTAT_BTN_LAUNCH },
-	{ _T("info"), CaptureManualGoButton::Info, IDS_CAPSTAT_BTN_INFO },
-	{ _T("instructions"), CaptureManualGoButton::Instructions, IDS_CAPSTAT_BTN_INSTR },
+	{ _T("flippers"), CaptureManualGoButton::Flippers, 2, IDS_CAPSTAT_BTN_FLIPPERS },
+	{ _T("magnasave"), CaptureManualGoButton::MagnaSave, 2, IDS_CAPSTAT_BTN_MAGNASAVE },
+	{ _T("launch"), CaptureManualGoButton::Launch, 1, IDS_CAPSTAT_BTN_LAUNCH },
+	{ _T("info"), CaptureManualGoButton::Info, 1, IDS_CAPSTAT_BTN_INFO },
+	{ _T("instructions"), CaptureManualGoButton::Instructions, 1, IDS_CAPSTAT_BTN_INSTR },
 };
 
 int PlayfieldView::GetCaptureManualGoButtonNameResId() const
@@ -11575,9 +11615,18 @@ void PlayfieldView::OnConfigChange()
 	captureManualGoButton = CaptureManualGoButton::Flippers;
 	for (size_t i = 0; i < countof(captureManualGoButtonMap); ++i)
 	{
+		// check for a match
 		if (_tcsicmp(captureManualGoButtonMap[i].configName, capbtns) == 0)
 		{
+			// remember the ID and button count
 			captureManualGoButton = captureManualGoButtonMap[i].id;
+			manualGoSingleButton = (captureManualGoButtonMap[i].nButtons == 1);
+
+			// tell the Admin Host about it
+			const TCHAR *req[] = { _T("manualGoKeys"), captureManualGoButtonMap[i].configName };
+			Application::Get()->PostAdminHostRequest(req, countof(req));
+
+			// no need to keep looking
 			break;
 		}
 	}
@@ -11585,20 +11634,6 @@ void PlayfieldView::OnConfigChange()
 	// if the manual start/stop gesture uses a single button, count
 	// the "right" button as always down
 	manualGoLeftDown = manualGoRightDown = false;
-	switch (captureManualGoButton)
-	{
-	case CaptureManualGoButton::Flippers:
-	case CaptureManualGoButton::MagnaSave:
-		// these are two-button gestures - use both variables
-		break;
-
-	default:
-		// others are single-button gestures - count the "right" button as
-		// always down, so that the single "left" button will act as the
-		// trigger by itself
-		manualGoRightDown = true;
-		break;
-	}
 
 	// load the instruction card location; lower-case it for case-insensitive comparisons
 	instCardLoc = cfg->Get(ConfigVars::InstCardLoc, _T(""));
@@ -12700,10 +12735,33 @@ void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 	// update this button's status
 	thisButtonDown = ((key.mode & (KeyDown | KeyBgDown)) != 0);
 
-	// if we're pressing the button (it's not an auto-repeat), and the
-	// other button is down, count it as a "Manual Go" for capture mode
-	if (manualGoLeftDown && manualGoRightDown && key.mode == KeyBgDown)
+	// never trigger the Manual Go on a repeat
+	if (key.mode != KeyBgDown)
+		return;
+
+	// Check if this is a single-button or two-button gesture
+	bool trigger = false;
+	if (manualGoSingleButton)
+	{
+		// It's a single-button gesture - trigger it on this key press.
+		trigger = thisButtonDown;
+	}
+	else
+	{
+		// It's a two-button gesture.  Trigger when both buttons are down.
+		trigger = manualGoLeftDown && manualGoRightDown;
+	}
+
+	// check if we're triggering the command
+	if (trigger)
+	{
+		// send the Go signal
 		Application::Get()->ManualCaptureGo();
+
+		// reset the buttons, so that the user has to release and press
+		// the whole sequence again to trigger the next Go/Stop
+		manualGoLeftDown = manualGoRightDown = false;
+	}
 }
 
 void PlayfieldView::DoCmdPrev(bool fast)
@@ -18881,11 +18939,16 @@ void PlayfieldView::ShowDOFClientInitErrors()
 	}
 }
 
-void PlayfieldView::QueueDOFPulse(const TCHAR *name)
+void PlayfieldView::QueueDOFPulse(const WCHAR *name, bool fromJs)
 {
 	// Skip this if DOF isn't ready
 	if (!DOFClient::IsReady())
 		return;
+
+	// Presume that the OFF event has the same provenance as the ON 
+	// event.  This might change if we end up replacing an event that
+	// was already queued.
+	bool offFromJs = fromJs;
 
 	// Check to see if this pulse is already queued.  If it is, don't
 	// queue a new event, but instead extend the current event:
@@ -18907,24 +18970,38 @@ void PlayfieldView::QueueDOFPulse(const TCHAR *name)
 			foundOn = true;
 
 		// check for an OFF event - if we find it, replace it with
-		// a null event
+		// a null event, so that the OFF event we'll add at the
+		// end of the queue below will effectively replace the old
+		// one.
 		if (e.name == name && e.val == 0)
+		{
+			// replace it with a null event
 			e.name = _T("");
+
+			// Figure the effective source of the replacement event.
+			// If EITHER the old event OR the new event comes from the
+			// system, treat the OFF event as a system event, so that
+			// it generates a Javascript notification.  If both are
+			// from Javascript, neither one should generate a 
+			// notification, so treat the replacement event as coming
+			// from Javascript.
+			offFromJs = fromJs && e.fromJs;
+		}
 	}
 
 	// if we didn't find a pending ON for the same event, queue one now
 	if (!foundOn)
-		QueueDOFEvent(name, 1);
+		QueueDOFEvent(name, 1, fromJs);
 
 	// queue an OFF for the event (do this even if we found a pending
 	// event already in the queue, as we just replaced that with a
 	// null event to extend the ON duration of this event to the end
 	// of the current queue)
-	QueueDOFEvent(name, 0);
+	QueueDOFEvent(name, 0, offFromJs);
 }
 
 const DWORD dofPulseTimerInterval = 20;
-void PlayfieldView::QueueDOFEvent(const TCHAR *name, UINT8 val)
+void PlayfieldView::QueueDOFEvent(const WCHAR *name, UINT8 val, bool fromJs)
 {
 	// only proceed if DOF is ready
 	if (DOFClient::IsReady() && DOFClient::Get() != nullptr)
@@ -18936,7 +19013,7 @@ void PlayfieldView::QueueDOFEvent(const TCHAR *name, UINT8 val)
 			// since the last event, we can fire this event immediately.
 			if (GetTickCount64() - lastDOFEventTime > dofPulseTimerInterval)
 			{
-				FireDOFEvent(name, val);
+				FireDOFEvent(name, val, fromJs);
 				return;
 			}
 
@@ -18948,7 +19025,7 @@ void PlayfieldView::QueueDOFEvent(const TCHAR *name, UINT8 val)
 		}
 
 		// queue the event
-		dofQueue.emplace_back(name, val);
+		dofQueue.emplace_back(name, val, fromJs);
 	}
 }
 
@@ -18964,7 +19041,7 @@ void PlayfieldView::OnDOFTimer()
 		// consuming this timer event.
 		auto &event = dofQueue.front();
 		if (event.name.length() != 0)
-			FireDOFEvent(event.name.c_str(), event.val);
+			FireDOFEvent(event.name.c_str(), event.val, event.fromJs);
 
 		// discard the event
 		dofQueue.pop_front();
@@ -18975,7 +19052,7 @@ void PlayfieldView::OnDOFTimer()
 		KillTimer(hWnd, dofPulseTimerID);
 }
 
-void PlayfieldView::FireDOFEvent(const TCHAR *name, UINT8 val)
+void PlayfieldView::FireDOFEvent(const WCHAR *name, UINT8 val, bool fromJs)
 {
 	// fire the event in DOF
 	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
@@ -18985,18 +19062,21 @@ void PlayfieldView::FireDOFEvent(const TCHAR *name, UINT8 val)
 	lastDOFEventTime = GetTickCount64();
 }
 
+void PlayfieldView::JsDOFPulse(WSTRING name)
+{
+	QueueDOFPulse(name.c_str(), true);
+}
+
+void PlayfieldView::JsDOFSet(WSTRING name, int val)
+{
+	if (DOFClient *dof = DOFClient::Get(); dof != nullptr && DOFClient::IsReady())
+		dof->SetNamedState(name.c_str(), val);
+}
+
 // -----------------------------------------------------------------------
 //
 // DOF interaction
 //
-
-PlayfieldView::DOFIfc::DOFIfc()
-{
-}
-
-PlayfieldView::DOFIfc::~DOFIfc()
-{
-}
 
 void PlayfieldView::DOFIfc::OnDOFReady()
 {

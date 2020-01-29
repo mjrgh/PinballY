@@ -1224,7 +1224,7 @@ this.LaunchOverlayEvent = class LaunchOverlayEvent extends Event
 };
 this.LaunchOverlayShowEvent = class LaunchOverlayShowEvent extends LaunchOverlayEvent
 {
-    constructor(game, ) { super("launchoverlayshow", true, game); }
+    constructor(game) { super("launchoverlayshow", true, game); }
 };
 this.LaunchOverlayHideEvent = class LaunchOverlayHideEvent extends LaunchOverlayEvent
 {
@@ -1237,6 +1237,21 @@ this.LaunchOverlayMessageEvent = class LaunchOverlayMessageEvent extends LaunchO
         super("launchoverlaymessage", true, game);
         this.id = id;
         this.message = message;
+    }
+};
+
+// "DOF Event" events
+this.DOFEvent = class DOFEvent extends Event
+{
+    constructor(type, cancelable) { super(type, { cancelable: cancelable }); }
+};
+this.DOFEventEvent = class DOFEventEvent extends DOFEvent
+{
+    constructor(name, value)
+    {
+        super("dofevent", true);
+        this.name = name;
+        this.value = value;
     }
 };
 

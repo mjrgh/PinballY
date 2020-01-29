@@ -117,7 +117,7 @@ void SecondaryView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 
 	// update frame items via the parent
 	HWND hwndParent = GetParent(hWnd);
-	if (fromWin != 0 && fromWin->GetHWnd() != hwndParent)
+	if (fromWin != nullptr && fromWin->GetHWnd() != hwndParent)
 		::SendMessage(hwndParent, BWMsgUpdateMenu, (WPARAM)hMenu, (LPARAM)this);
 }
 

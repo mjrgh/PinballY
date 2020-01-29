@@ -2297,16 +2297,22 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 		// monitor thread is exiting.
 		PlayfieldView::LaunchReport report(self->cmd, self->launchFlags, self->gameId, self->gameSys.configIndex, NULL);
 		self->playfieldView->SendMessage(PFVMsgLaunchThreadExit, 0, reinterpret_cast<LPARAM>(&report));
+	}
 
-		// Sigh, there still seem to be a couple of timing windows where
-		// killing a game that's still launching will force the Windows
-		// desktop to the foreground and leave it there.  Particularly on
-		// Windows 7.  It might be impossible to fix every possible
-		// case of that, since we can't predict the timing of when the
-		// desktop will barge in and take over, but it seems to happen
-		// within a few seconds in the cases I've seen.  So let's try
-		// to take focus back a few times over a few seconds after the
-		// game monitor thread finishes.
+	// thread exiting - set the state to Done for observers
+	self->state = GameMonitorDone;
+
+	// Sigh, there still seem to be a couple of timing windows where
+	// killing a game that's still launching will force the Windows
+	// desktop to the foreground and leave it there.  Particularly on
+	// Windows 7.  It might be impossible to fix every possible
+	// case of that, since we can't predict the timing of when the
+	// desktop will barge in and take over, but it seems to happen
+	// within a few seconds in the cases I've seen.  So let's try
+	// to take focus back a few times over a few seconds after the
+	// game monitor thread finishes.
+	if (self->playfieldView != nullptr)
+	{
 		auto hwnd = self->playfieldView->GetHWnd();
 		for (int i = 0; i < 3; ++i)
 		{
@@ -2315,14 +2321,10 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 			if (WaitForSingleObject(self->shutdownEvent, 1000) != WAIT_TIMEOUT)
 				break;
 
-			// try to take focus back
-			if (!IsForegroundProcess())
-				BetterSetForegroundWindow(GetParent(hwnd), hwnd);
+			// tell the main window to try to take focus back
+			self->playfieldView->SendMessage(PFVMsgTakeFocusPostLaunch);
 		}
 	}
-
-	// thread exiting - set the state to Done for observers
-	self->state = GameMonitorDone;
 
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
@@ -3309,7 +3311,7 @@ DWORD Application::GameMonitorThread::Main()
 								// stage, so it's best to treat the whole launch as an atomic
 								// operation for the purposes of the Close signal.
 								HANDLE waitHandles[] = { shutdownEvent };
-								if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 500) != WAIT_TIMEOUT)
+								if (WaitForMultipleObjects(countof(waitHandles), waitHandles, FALSE, 500) != WAIT_TIMEOUT)
 								{
 									LogFile::Get()->Write(LogFile::TableLaunchLogging,
 										_T("+ table launch: interrupted waiting for first child process window to open; aborting launch\n"));
@@ -3368,7 +3370,7 @@ DWORD Application::GameMonitorThread::Main()
 			// since we haven't identified the process yet and thus can't
 			// explicitly shut it down yet.
 			HANDLE waitHandles[] = { shutdownEvent };
-			if (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 1000) != WAIT_TIMEOUT)
+			if (WaitForMultipleObjects(countof(waitHandles), waitHandles, FALSE, 1000) != WAIT_TIMEOUT)
 			{
 				// shutting down the app; abort immediately
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
@@ -3385,7 +3387,7 @@ DWORD Application::GameMonitorThread::Main()
 	{
 		// pause briefly
 		HANDLE waitHandles[] = { shutdownEvent, closeEvent };
-		switch (WaitForMultipleObjects(countof(waitHandles), waitHandles, false, 50))
+		switch (WaitForMultipleObjects(countof(waitHandles), waitHandles, FALSE, 50))
 		{
 		case WAIT_TIMEOUT:
 			break;
