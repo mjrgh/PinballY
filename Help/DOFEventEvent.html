@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>DOFEvent</h1>
+
+<p>
+   This Event class represents DOF-related events.
+</p>
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+<p>
+   There's currently only one subtype of this event:
+<ul>
+   <li><b>dofevent:</b> Fires when the system is about to change the
+   value of a DOF named event.  See <a href="DOFEvents.html">DOF Events</a>
+   for a full list of the named events that PinballY generates.
+   <p>
+      This event is fired at each <i>change</i> to a DOF named event, so you'll
+      get one notification when PinballY turns the event ON, and another when
+      PinballY turns the event OFF.  Most of the DOF events that PinballY
+      generates are momentary "pulsed" events, meaning that PinballY turns
+      the event ON briefly and then turns it right back OFF.  For example,
+      the events representing key presses, menu selections, and other discrete
+      UI actions are all "pulsed".  For such events, you'll see two <b>dofevent</b>
+      notifications in quick succession, one for the change to ON status, and
+      one for the change to OFF status.  The DOF named events that represent
+      the current UI state (PBYWheel, PBYMenu, etc) are left ON as long as the
+      state is in effect, as are the named events that represent the current
+      game ROM selection in the wheel UI.
+   </p>
+   <p>
+      This event is cancelable.  If you call preventDefault() on the event object
+      passed to the handler, PinballY won't update the DOF named event
+      after all.
+   </p>
+</ul>
+
+<p>
+   DOF-related events are only fired if DOF is installed in your system and
+   PinballY is connected to it.  PinballY doesn't bother firing the events if
+   DOF isn't being used.
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the additional
+   properties listed below.
+</p>
+
+<ul>
+   <li><b>name:</b> For <b>dofevent</b> events, a string giving the name
+   of the DOF event being turned on or off.  See <a href="DOFEvents.html">DOF Events</a>
+   for a list of the DOF event names that PinballY uses.
+
+   <li><b>value:</b>  For <b>dofevent</b> events, a number from 0 to 255 giving
+   the updated value of the named event.  PinballY uses 0 for "OFF" and 1 for "ON"
+   for most events.
+
+</ul>
+
+</body>
+</html>
