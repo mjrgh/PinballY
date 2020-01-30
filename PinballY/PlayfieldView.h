@@ -316,6 +316,9 @@ public:
 	// context
 	void JsDraw(Sprite *sprite, int width, int height, JsValueRef drawFunc);
 
+	// Fire a Javascript end-of-video event
+	void FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping);
+
 protected:
 	// destruction - called internally when the reference count reaches zero
 	~PlayfieldView();
@@ -2768,6 +2771,7 @@ protected:
 	JsValueRef jsLaunchOverlayHideEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsLaunchOverlayMessageEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsDOFEventEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsVideoEndEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the

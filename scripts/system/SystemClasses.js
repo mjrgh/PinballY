@@ -16,15 +16,19 @@ function sprintf(...args)
     return trySprintf(...args).expansion;
 }
 
-// "try sprintf": attempts to format the arguments sprintf-style, and
-// returns details on .  Returns
-// an object { ok: boolean, fields: int, expansion: string }.  'ok' is true
-// if the formatting fully succeeded, false if not.  Fully success means
-// that all "%" fields were properly constructed and had matching arguments
-// in the argument list.  On failure, 'expansion' will contain the first
-// argument string with as many fields substituted as possible, and fields
-// that couldn't be expanded left with their "%" codes unchanged.  In any
-// case, 'fields' returns with the number of substitution fields found.
+// "try sprintf": attempts to format the arguments sprintf-style, and returns
+// an object describing the results, in the format
+//
+//   { ok: boolean, fields: int, expansion: string }
+//
+// 'ok' is true if the formatting fully succeeded, false if not.  "Fully
+// succeeded" means that all '%' fields were properly formed and had matching
+// arguments in the argument list.  On failure, 'expansion' will contain the
+// first argument string with as many fields substituted as possible.  Fields
+// that couldn't be expanded, due to ill-formed '%' codes or because we ran
+// out of arguments, are left with their '%' codes unchanged.  In any case,
+// 'fields' returns with the number of '%' substitution fields in the format
+// string.
 function trySprintf(...args)
 {
     if (args.length == 0)
@@ -1255,6 +1259,21 @@ this.DOFEventEvent = class DOFEventEvent extends DOFEvent
     }
 };
 
+// Video events (event target = DrawingLayer)
+this.VideoEvent = class VideoEvent extends Event
+{
+    constructor(type, cancelable) { super(type, { cancelable: cancelable }); }
+};
+this.VideoEndEvent = class VideoEndEvent extends VideoEvent
+{
+    constructor(looping)
+    {
+        super("videoend", false);
+        this.looping = looping;
+    }
+};
+
+
 // ------------------------------------------------------------------------
 //
 // This object represents the current program settings.  Properties and
@@ -1293,6 +1312,16 @@ this.FilterInfo = class FilterInfo
 
 // ------------------------------------------------------------------------
 //
+// Drawing layer class.  This is the base class for all drawing layers;
+// each window has its own subclass, which the system populates with
+// native code that points back to the native window object.
+//
+class DrawingLayer extends EventTarget
+{
+}
+
+// ------------------------------------------------------------------------
+//
 // Main window object
 //
 // Events:
@@ -1304,18 +1333,31 @@ this.FilterInfo = class FilterInfo
 //
 this.mainWindow = new EventTarget();
 this.mainWindow.name = "playfield";
+this.mainWindow.drawingLayerClass = class extends DrawingLayer { };
 
 // Backglass window object
-this.backglassWindow = { name: "backglass" };
+this.backglassWindow = {
+    name: "backglass",
+    drawingLayerClass: class extends DrawingLayer { }
+};
 
 // DMD window
-this.dmdWindow = { name: "dmd" };
+this.dmdWindow = {
+    name: "dmd",
+    drawingLayerClass: class extends DrawingLayer { }
+};
 
 // Topper window
-this.topperWindow = { name: "topper" };
+this.topperWindow = {
+    name: "topper",
+    drawingLayerClass: class extends DrawingLayer { }
+};
 
 // Instruction card window
-this.instCardWindow = { name: "instCard" };
+this.instCardWindow = {
+    name: "instCard",
+    drawingLayerClass: class extends DrawingLayer { }
+};
 
 
 // SetWindowPosition flags.  These are just a few of the most frequently

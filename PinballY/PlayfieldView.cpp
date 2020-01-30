@@ -642,6 +642,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsLaunchOverlayHideEvent, "LaunchOverlayHideEvent")
 				|| !GetObj(jsLaunchOverlayMessageEvent, "LaunchOverlayMessageEvent")
 				|| !GetObj(jsDOFEventEvent, "DOFEventEvent")
+				|| !GetObj(jsVideoEndEvent, "VideoEndEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -684,19 +685,22 @@ void PlayfieldView::InitJavascript()
 					|| !js->DefineObjPropFunc(jswinobj, name, "removeDrawingLayer", &BaseView::JsRemoveDrawingLayer, view, eh))
 					return false;
 
-				// Set up the mainWindow.launchOverlay object methods
-				JsValueRef drawingLayerProto;
-				if (!js->CreateObj(drawingLayerProto))
+				// Create the window's DrawingLayer class prototype
+				JsValueRef drawingLayerClass, drawingLayerProto;
+				if ((err = js->GetProp(drawingLayerClass, jswinobj, "drawingLayerClass", where)) != JsNoError
+					|| (err = js->GetProp(drawingLayerProto, drawingLayerClass, "prototype", where)) != JsNoError)
 				{
-					LogFile::Get()->Write(LogFile::JSLogging, _T(". creating DrawingLayer prototype"));
+					LogFile::Get()->Write(LogFile::JSLogging, 
+						_T(". getting window's DrawingLayer class and prototype, %s: %s"),
+						where, js->JsErrorToString(err));
 					return false;
 				}
 
 				// Save the prototype in the view.  Each view has its own prototype,
 				// since the prototype methods need to point back to that view's
 				// C++ object.
-				view->jsDrawingLayerProto = drawingLayerProto;
-				JsAddRef(drawingLayerProto, nullptr);
+				view->jsDrawingLayerClass = drawingLayerClass;
+				JsAddRef(drawingLayerClass, nullptr);
 
 				// set up the LaunchOverlayLayer prototype methods
 				if (!js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadImage",
@@ -729,11 +733,12 @@ void PlayfieldView::InitJavascript()
 
 			// populate mainWindow.launchOverlayLayer's fg and bg objects
 			JsValueRef launchOverlayLayer, fgOverlay, bgOverlay;
+			JsValueRef ctorArgs[] = { jsDrawingLayerClass };
 			if (js->GetProp(launchOverlayLayer, jsMainWindow, "launchOverlay", where) != JsNoError
-				|| !js->CreateObjWithProto(fgOverlay, jsDrawingLayerProto)
+				|| JsConstructObject(jsDrawingLayerClass, ctorArgs, 1, &fgOverlay) != JsNoError
 				|| js->SetReadonlyProp(fgOverlay, "id", JavascriptEngine::NativeToJs(L"fg"), where) != JsNoError
 				|| js->SetReadonlyProp(launchOverlayLayer, "fg", fgOverlay, where) != JsNoError
-				|| !js->CreateObjWithProto(bgOverlay, jsDrawingLayerProto)
+				|| JsConstructObject(jsDrawingLayerClass, ctorArgs, 1, &bgOverlay) != JsNoError
 				|| js->SetReadonlyProp(bgOverlay, "id", JavascriptEngine::NativeToJs(L"bg"), where) != JsNoError
 				|| js->SetReadonlyProp(launchOverlayLayer, "bg", bgOverlay, where) != JsNoError)
 			{
@@ -1154,6 +1159,13 @@ void PlayfieldView::InitJavascript()
 }
 
 static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
+
+void PlayfieldView::FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping)
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->FireEvent(drawingLayerObj, jsVideoEndEvent, looping);
+}
+
 
 bool PlayfieldView::FireCommandEvent(int cmd)
 {

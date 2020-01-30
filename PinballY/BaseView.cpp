@@ -247,6 +247,14 @@ bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// check for the end of the overlay video
 		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
 			OnEndOverlayVideo();
+
+		// also check for DrawingLayer end-of-video notifications
+		DrawingLayerEndVideoEvent(msg, wParam);
+		break;
+
+	case AVPMsgLoopNeeded:
+		// check for DraingLayer end-of-video notifications
+		DrawingLayerEndVideoEvent(msg, wParam);
 		break;
 	}
 
@@ -258,6 +266,33 @@ void BaseView::OnEndOverlayVideo()
 	// if the startup video is ending, remove it
 	if (videoOverlayID == _T("Startup"))
 		OnEndStartupVideo();
+}
+
+void BaseView::DrawingLayerEndVideoEvent(UINT msg, WPARAM cookie)
+{
+	// only proceed if Javascript is running
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		// look for a drawing layer playing this video
+		for (auto &l : jsDrawingLayers)
+		{
+			// check for a video sprite matching the event cookie
+			if (auto vs = dynamic_cast<VideoSprite*>(l.sprite.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == cookie)
+			{
+				// dispatch a Javascript "videoend" notification through
+				// the playfield window
+				if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+					pfv->FireVideoEndEvent(l.jsObj, msg == AVPMsgLoopNeeded);
+
+				// Stop searching on a successful match.  There can be only
+				// one match, since the cookies are unique; and even if there
+				// could be more than one match, it's not safe to continue
+				// the search, since the Javascript event processor might
+				// have deleted the drawing layer.
+				break;
+			}
+		}
+	}
 }
 
 void BaseView::AsyncSpriteLoader::AsyncLoad(
@@ -272,8 +307,8 @@ void BaseView::AsyncSpriteLoader::AsyncLoad(
     // with the video renderers and their D3D usage to load them
     // on a background thread.
 	//
-	// Fortunately, the async loader interface adapts trivially to
-	// synchronous operation: we simply call the 'load' and 'done'
+	// Fortunately, the async loader interface degenerates trivially
+	// to synchronous operation: we simply call the 'load' and 'done'
 	// callbacks in sequence.  This lets us leave the async design
 	// in place in the callers in case we ever want to reinstate 
 	// actual async loading.  In principal, async loading should
@@ -957,7 +992,7 @@ JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
 
 	// Insert before this item, or at the end of the list
 	auto id = jsDrawingLayerNextID++;
-	jsDrawingLayers.emplace(it, id, zIndex);
+	auto &drawingLayer = jsDrawingLayers.emplace(it, id, zIndex);
 
 	// update the drawing list to incorporate the new sprite
 	UpdateDrawingList();
@@ -968,9 +1003,22 @@ JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
 	auto js = JavascriptEngine::Get();
 	try
 	{
+		// create the object
 		JavascriptEngine::JsObj obj;
-		obj = JavascriptEngine::JsObj::CreateObjectWithPrototype(jsDrawingLayerProto);
+		JsValueRef args[] = { jsDrawingLayerClass };
+		if (auto err = JsConstructObject(jsDrawingLayerClass, args, 1, &obj.jsobj); err != JsNoError)
+			return js->Throw(err, _T("<window>.createDrawingLayer()"));
+
+		// set the ID, so that we can find the C++ object from the js object
 		obj.Set("id", id);
+
+		// And remember the js object from the C++ object.  Note that we have
+		// to add an explicit reference, so that the js object won't be collected
+		// as long as the C++ object is around.
+		drawingLayer->jsObj = obj.jsobj;
+		JsAddRef(obj.jsobj, nullptr);
+
+		// success
 		return obj.jsobj;
 	}
 	catch (JavascriptEngine::CallException exc)
@@ -978,6 +1026,13 @@ JsValueRef BaseView::JsCreateDrawingLayer(int zIndex)
 		exc.Log(_T("<window>.createDrawingLayer()"));
 		return js->Throw(exc.jsErrorCode, _T("<window>.createDrawingLayer()"));
 	}
+}
+
+BaseView::JsDrawingLayer::~JsDrawingLayer()
+{
+	// remove our reference on the js object
+	if (jsObj != JS_INVALID_REFERENCE)
+		JsRelease(jsObj, nullptr);
 }
 
 void BaseView::JsRemoveDrawingLayer(JavascriptEngine::JsObj obj)

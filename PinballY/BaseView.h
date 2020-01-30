@@ -320,11 +320,15 @@ protected:
 	struct JsDrawingLayer
 	{
 		JsDrawingLayer(double id, int zIndex);
+		~JsDrawingLayer();
 
 		// ID for Javascript.  We store this ID in a property of the
 		// associated Javascript object, so that we can connect the
 		// Javascript 'this' to the C++ drawing layer object.
 		double id;
+
+		// The Javascript object
+		JsValueRef jsObj = JS_INVALID_REFERENCE;
 
 		// Z index, specified by the scripting code.  Higher Z is
 		// drawn in front of lower Z.
@@ -401,7 +405,7 @@ protected:
 	double jsDrawingLayerNextID = 1.0;
 
 	// Javascript access to drawing layers
-	JsValueRef jsDrawingLayerProto = JS_INVALID_REFERENCE;
+	JsValueRef jsDrawingLayerClass = JS_INVALID_REFERENCE;
 	bool JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename);
 	bool JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, JavascriptEngine::JsObj options);
 	void JsDrawingLayerLoadDMDText(JsValueRef self, WSTRING text, JavascriptEngine::JsObj options);
@@ -411,6 +415,12 @@ protected:
 	void JsDrawingLayerSetAlpha(JsValueRef self, float alpha);
 	void JsDrawingLayerSetScale(JsValueRef self, JavascriptEngine::JsObj scale);
 	void JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING align);
+
+	// Process an end-of-video (AVPMsgEndOfPresentation) or video-loop
+	// (AVPMsgLoopNeeded) notification through our drawing layers.  This
+	// finds the drawing layer associated with the ending/looping video,
+	// if any, and dispatches a Javascript event.
+	void DrawingLayerEndVideoEvent(UINT msg, WPARAM cookie);
 
 	// handle a DMD image completion message (BVMsgDMDImageReady)
 	void DMDImageReady(WPARAM seqno, LPARAM imageList);

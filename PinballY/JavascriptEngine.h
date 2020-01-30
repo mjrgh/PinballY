@@ -196,6 +196,9 @@ public:
 		return this->GetProp(val, g, prop, errWhere);
 	}
 
+	// convert a JsErrorCode value to a string representation, for error logging purposes
+	static const TCHAR *JsErrorToString(JsErrorCode err);
+
 	// "Throw" an error.  This doesn't actually throw in the sense of
 	// interrupting the C++ execution flow, but it does interrupt the
 	// javascript execution flow when control returns to the interpreter.
@@ -963,12 +966,19 @@ public:
 			JsValueRef eventObj;
 			return FireAndReturnEvent(eventObj, eventTarget, eventType, args...);
 		}
-		catch (...)
+		catch (CallException callex)
 		{
 			// Return true to indicate that system default processing for 
 			// the event should proceed.  Since the Javascript event handler
 			// seems to be faulty, we'll just act like there's no event
-			// handler in the first place.
+			// handler in the first place.  But at least log it, to help
+			// diagnose script errors.
+			callex.Log();
+			return true;
+		}
+		catch (...)
+		{
+			// ignore other exceptions entirely
 			return true;
 		}
 	}
@@ -2001,9 +2011,6 @@ protected:
 
 	// promise continuation callback
 	static void CALLBACK PromiseContinuationCallback(JsValueRef task, void *ctx);
-
-	// convert a JsErrorCode value to a string representation, for error logging purposes
-	static const TCHAR *JsErrorToString(JsErrorCode err);
 
 	// Script cookie struct.  Each time we parse a script, we pass a cookie 
 	// to the JS engine to serve as a host context object that the JS engine
