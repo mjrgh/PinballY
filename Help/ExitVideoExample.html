@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Play a video and DOF effects at program exit</h1>
+
+<p>
+   PinballY has a built-in option to play an introductory video when the
+   program starts up, but it doesn't currently have a corresponding option for
+   playing a video when you quit the program.  I could add something like
+   that in the future, but when you start thinking about all of the
+   possible variations (what about system shutdown? or rebooting?
+   different videos for each window?), it seems better to leave it to
+   Javascript, since that's so much more flexible than a "checkbox"
+   option setting could ever be.  Fortunately, Javascript's
+   <a href="DrawingLayer.html">Custom Drawing Layers</a> feature
+   makes it really easy to play custom videos any time you want to.
+   So playing a video before quitting is just one specific way we
+   can use that general mechanism.
+</p>
+<p>
+   Another custom task that you might want to do at program exit,
+   which dovetails nicely with playing an exit video, is triggering a
+   special DOF effect at program exit.  Once again, PinballY has a way
+   to play DOF effects at program startup (the <b>PBYProgramStartup</b>
+   DOF event), which you can learn more about in the section
+   on <a href="DOFEvents.html">DOF Events</a>.  But, oddly, there's
+   no corresponding "Program Quit" event for DOF.  Well, not <i>so</i>
+   oddly; there's actually a good reason for omitting it, which is
+   that such an event wouldn't work as you'd want it to.  The problem
+   is that DOF, by design, always resets all of the physical devices
+   when the host program that's controlling it (PinballY, in this case)
+   exits.  So even if PinballY did fire off a "Program Quit" event to
+   DOF just before exiting, DOF would just ignore it, because DOF
+   would be more concerned with its overriding mandate to return
+   everything to neutral conditions as soon as the controlling
+   program terminates.
+</p>
+<p>
+   So how do we overcome this DOF limitation, and how does a DOF exit
+   event dovetail (as we promised) with an exit video?  Well, the
+   obstacle with the DOF "program exit" event is that DOF stops playing
+   effects as soon as the program exits.  So the way to overcome this
+   obstacle is to delay the program exit until the DOF light show is
+   finished.  But it would be awfully clunky if the program just kind
+   of stopped working while waiting for the DOF effect to finish; the
+   user might wonder why the program isn't obeying the Quit command.
+   The "dovetail" is that playing an exit video is an excellent way
+   to fill the extra time, in a way that lets the user know that the
+   Quit command was received and understood.
+</p>
+<p>
+   There's one more DOF limitation that's relevant here that I should point
+   out.  DOF doesn't have any mechanism to let the host program find out
+   what's it's up to, in terms of the physical effects its playing.
+   The communications between the host program (PinballY) and DOF
+   are strictly one-way, from host to DOF: the host tells DOF about
+   events, and DOF plays effects in response.  What I'm getting at is
+   that PinballY and Javascript have absolutely no way to know how long
+   the programmed DOF light show for the "exit program" event will take,
+   so there's no way to know when the light show is over.  You'll just
+   have to time your exit video so that it takes roughly the same amount
+   of time as the light show you set up (or vice versa).  That's not very elegant, I know, and
+   it's fragile - if you ever re-program the DOF light show, you'll have
+   to edit your video to adjust its play time accordingly.  But it's
+   a limitation we can't do anything about in PinballY, and it wouldn't
+   be at all straightforward to add such a capability to DOF.  So it's
+   something we have to live with.
+</p>
+
+<h2>Hooking into the Quit command</h2>
+<p>
+   We can trigger our special handling for the Quit command by setting
+   up an event listener for the <a href="CommandEvent.html"><b>command</b> event</a>,
+   and checking the command being executed to see if it's <b>command.Quit</b>
+   (see <a href="Commands.html">Commands</a> for a full list of the
+   command codes).  If you've read through any of the other worked
+   examples, you're already familiar with this pattern.
+</p>
+<p>
+   The system fires a <b>command</b> event when the user presses a button
+   associated with the command or selects the command from a menu, and
+   <i>before</i> the system actually carries out the command's action.
+   This gives Javascript a chance to preempt the normal command action,
+   by canceling the event by calling <a href="Event.html#preventDefault">preventDefault()</a>
+   on the <a href="Event.html">Event object</a> passed to the event handler.
+</p>
+<p>
+   With that in mind, here's the general outline for how we'll intercept
+   the Quit command and replace the system's normal processing with our
+   own.
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == command.Quit) {
+        // tell the system NOT to carry out its standard Quit processing
+        ev.preventDefault();
+
+        // *** do our custom Quit handling here ***
+    }
+});
+</div>
+<p>
+   The system's default handling for the Quit command is to exit the
+   program, so preventing the default handling will prevent the program
+   from actually quitting.  That's exactly what we want in this case,
+   since we want to keep the program running until the video finishes.
+   But it also makes it impossible for the user to exit PinballY (short
+   of resorting to external measures, like terminating the process via
+   the Windows Task Manager).  So we'll want our custom handler
+   to <i>eventually</i> carry out the Quit command for real - we don't
+   want to prevent quitting entirely, we just want to slow down the
+   process so that the program keeps running long enough to play the
+   video and/or DOF effects.  When we're finally ready to quit for
+   real, we can do that from Javascript, by invoking the Quit command
+   from the script code:
+</p>
+<div class="code">
+mainWindow.doCommand(command.Quit);
+</div>
+<p>
+   Invoking a command from a script as shown above doesn't trigger another
+   <b>command</b> event; it just directly invokes the system's internal
+   handling for the command.
+</p>
+   
+
+
+<h2>Playing the custom video</h2>
+<p>
+   Now that we have the basic framework for intercepting the Quit command,
+   let's get the video going.  We do this using a <a href="DrawingLayer.html">Drawing Layer</a>.
+   Briefly, a drawing layer is a canvas that you can create in any PinballY
+   window to display graphics, including still images, videos, and complex
+   graphics drawn from scripting code.
+</p>
+<p>
+   We create a drawing layer via the <a href="WindowObjects.html#createDrawingLayer">createDrawingLayer()</a>
+   method of the window where we want to create the layer.  For this example,
+   we'll do everything in the main playfield window.  You can use the same
+   technique to show videos at the same time in any or all of the other windows,
+   if you like.
+</p>
+<div class="code">
+let layer = mainWindow.createDrawingLayer(10000);
+</div>
+<p>
+   The argument value that we pass, 10000, is the "Z index" of the new drawing
+   layer, which specifies how it's layered relative to other graphics in the
+   same window.  We've chosen 10000 because it places the video in front of
+   all of PinballY's own native graphics in the window, meaning that it blocks
+   out all of the other graphics.  It's like placing a piece of paper with the
+   new drawing on the top of a stack of other pictures.  The user will only
+   see the exit video.  See <a href="MainWindowObject.html#drawingLayers">Drawing layer ordering</a>
+   in the <a href="MainWindowObject.html">mainWindow object</a> chapter for
+   details on the Z index values of the built-in graphics.
+</p>
+<p>
+   To play a video in the layer, we use the <a href="DrawingLayer.html#loadVideo">loadVideo()</a>
+   method of the drawing layer object.
+</p>
+<div class="code">
+let video = gameList.resolveMedia("Videos", "Quit Video", "video");
+layer.loadVideo(video, { loop: false });
+</div>
+<p>
+   Note that we've used <a href="GameList.html#resolveMedia">gameList.resolveMedia()</a> to
+   find the video file within our Media folder tree.  You <i>could</i> just hard-code a
+   filename path directly, rather than going through the extra step of searching with
+   resolveMedia(), but the search makes the script a little more robust by avoiding any
+   hard-coded folder locations.  If you move your PinballY setup to a different drive
+   letter or folder location at some point in the future, this approach will make the
+   script automatically adapt, without any need for you to go back and fix up paths
+   coded into the script code.
+</p>
+
+<h2>Quitting when the video ends</h2>
+<p>
+   Remember the warning earlier about how overriding the Quit command will prevent
+   the program from exiting, and how it's up to the script to trigger the actual
+   exit at some point?  Let's look at how we do that.
+</p>
+<p>
+   Since the whole point of this exercise is to play a video as the program exits,
+   the time when we want the real program termination to occur is when the video
+   finishes playing.  One simple way to accomplish that would be to use
+   the <a href="SystemFunctions.html#setTimeout">setTimeout()</a> function, which
+   lets us schedule a task to occur after a certain delay time has elapsed.
+   So if we know that our exit video is exactly 5 seconds long, we could use
+   setTimeout() to schedule the program exit to occur after 5 seconds.
+   setTimeout() works in terms of <b>milliseconds</b>, and there are 1000 of
+   those per second, so our 5-second delay is equivalent to a 5000ms timeout:
+</p>
+<div class="code">
+setTimeout(() => mainWindow.doCommand(command.Quit), 5000);
+</div>
+<p>
+   That's easy, but it's not the ideal way to accomplish our real goal of
+   synchronizing with the end of the video.  It's not ideal because it hard-codes
+   a dependency on the length of the video, which means that you'd have to change
+   the code if you ever wanted to switch to a different video.  Fortunately,
+   there's a way of finding out when the video finishes: the
+   <a href="VideoEvent.html"><b>videoend</b> event</a>.  That event fires
+   on a drawing layer when a video playing in the layer finished playing
+   (or, if the video is playing on loop, each time one full cycle completes).
+   Writing the event handler to catch the end of the video is almost exactly
+   like writing the timeout handler:
+</p>
+<div class="code">
+layer.on("videoend", ev => mainWindow.doCommand(command.Quit));
+</div>
+
+<h2>Activating a DOF light show</h2>
+<p>
+   The standard setup for PinballY in the DOF Config Tool doesn't have anything
+   programmed for when PinballY exits, since, as we mentioned earlier, PinballY
+   doesn't have a native DOF event for "quit program".  The main reason there's
+   no such native event is that it wouldn't work properly, because of the way
+   DOF resets everything as soon as the host program exits.  But now that we're
+   delaying PinballY's actual program exit by playing back a video, we could
+   take advantage of this time to also play back some DOF effects while the
+   video is playing.
+</p>
+<p>
+   Triggering custom effects in DOF is just a matter of sending a custom event
+   name to DOF via <a href="MainWindowObject.html#DOFSet">mainWindow.DOFSet()</a>:
+</p>
+<div class="code">
+mainWindow.DOFSet("MyPBYProgramExit", 1);
+</div>
+<p>
+   You can use whatever name you want for the event.  I'd avoid using names
+   that start with <b>PBY</b>, to avoid creating the impression when you look
+   at the script later on that the event is some kind of native PinballY
+   event.  I'd use a prefix to suggest that it's something you made up,
+   like "MyPBY" or "PBYCustom".  But that's up to you; as far as PinballY
+   and DOF are concerned, it's just an arbitrary label, so you can use whatever
+   name you like.
+</p>
+<p>
+   Now, since you're making up a new event name here, DOF obviously isn't going
+   to know what to do with it on its own.  You'll <i>also</i> have to go into
+   the DOF Config Tool and set up your custom light show programming for the
+   event.  Programming effects in the Config Tool is a big subject, beyond
+   what we want to get into here, but here's the basic ouline:
+</p>
+<ul>
+   <li>Open the <a target="_blank" href="http://configtool.vpuniverse.com">DOF Config Tool</a>
+   <li>Log in
+   <li>Select the <b>Table Configs</b> tab at the top
+   <li>Select <b>PinballY</b> in the Table Name drop list
+   <li>Find the devices you want to fire when your custom event occurs
+   <li>Add triggers to those toys for <b>$MyPBYProgramExit</b> (or whatever you called the event),
+   noting that you have to add the <b>$</b> prefix to the event name when using it in the Config Tool rules
+   (but <b>not</b> in the Javascript code)
+</ul>
+<p>
+   For more on programming custom DOF effects, see
+   <a target="_blank" href="http://localhost/pinscape/BuildGuideV2/BuildGuide.php?sid=dofEventCodes">DOF Event Codes</a> in the
+   <a target="_blank" href="http://localhost/pinscape/BuildGuideV2/">Pinscape Build Guide</a>.
+</p>
+
+<h2>Suppressing other commands and button presses</h2>
+<p>
+   One more little detail that we might want to handle is preventing the
+   user from doing anything else while waiting for the program to exit.
+   We don't want the user to change games or launch a game, or even bring
+   up other menus.
+</p>
+<p>
+   We can do this by intercepting two types of events:
+   <a href="CommandEvent.html"><b>command</b></a> and
+   <a href="CommandButtonEvent.html"><b>commandbuttondown</b></a>.  Between
+   those two event types, we'll cover just about everything the user can
+   do through the UI.  All we have to do with them is suppress the system
+   handling, by using preventDefault() on the event object as usual.
+</p>
+<p>
+   To be even more certain that we take over the handling of these events,
+   we can call <a href="EventTarget.html#off">mainWindow.off()</a> to remove
+   any <i>other</i> Javascript handlers for these events that are defined
+   elsewhere in our scripts.  (That's pretty unfriendly to other scripts
+   that you might want to mix into your system, so I wouldn't do this
+   in most cases.  But it's perfectly okay for this Quit scenario, since
+   the other scripts aren't going to run again at this point anyway
+   now that we're locked onto a trajectory of exiting the whole session.)
+</p>
+<div class="code">
+mainWindow.off("command commandbuttondown");
+mainWindow.on("command commandbuttondown", ev => ev.preventDefault());
+</div>
+   
+<h2>Complete script</h2>
+
+<p>
+   Putting all of that together, here's the complete script!
+</p>
+<div class="code">
+mainWindow.on("command", ev => {
+    if (ev.id == command.Quit) {
+        // stop the system from actually quitting yet
+        ev.preventDefault();
+
+        // start our custom DOF light show for exiting
+        mainWindow.DOFSet("MyPBYProgramExit", 1);
+
+        // block other commands and command buttons while quitting
+        mainWindow.off("command commandbuttondown");
+        mainWindow.on("command commandbuttondown", ev => ev.preventDefault());
+
+        // start the exit video
+        let layer = mainWindow.createDrawingLayer(10000);
+        layer.loadVideo(gameList.resolveMedia("Videos", "Quit Video", "video"), { loop: false });
+
+        // when the exit video finishes, quit for real
+        layer.on("videoend", ev => { mainWindow.doCommand(command.Quit); });
+    }
+});
+</div>
+
+
+</body>
+</html>

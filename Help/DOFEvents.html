@@ -405,8 +405,8 @@
 <p>
    If you want to create program exit effects, a little Javascript
    scripting would be needed.  The key would be to intercept the
-   <a href="Commands.html#Quit">command.Quit</a> command, via an
-   event handler like this:
+   "Quit" command, via an event handler like this, and then carry
+   out some special handling to show the desired DOF light show.
 </p>
 <div class="code">
 mainWindow.on("command", ev => {
@@ -417,24 +417,14 @@ mainWindow.on("command", ev => {
 </div>
 <p>
    I can think of two approaches that would work, depending on the
-   type of effect you wanted to create.  There are undoubtedly lots
-   of other ways to do this as well, but here are my ideas:
+   type of effect you wanted to create.  There are undoubtedly
+   other approaches, too, but here are my ideas:
 </p>
 <ul>
    <li>Keep PinballY running while the DOF effect plays out, perhaps
    showing a custom "exiting" video in the main window while it's
-   going on.  The "place your special handling here" code above would
-   look something like this:
-   <ul>
-      <li>Prevent the standard handling (which would just immediately exit the program)
-      <li>Use <a href="MainWindowObject.html#DOFPulse">mainWindow.DOFPulse()</a> to fire a custom "program exiting"
-      DOF event of your own creation
-      <li>Do something in the UI to let the user know that the program is shutting down,
-      such as playing a custom video in the main window in a <a href="DrawingLayer.html">custom drawing layer</a>
-      <li>Use <a href="SystemFunctions.html#setTimeout">setTimeout()</a> to set a timer for the duration of the DOF effect
-      <li>When the timout fires, <i>actually</i> exit the program, via
-      <a href="MainWindowObject.html#doCommand">mainWindow.doCommand(command.Quit)</a>
-   </ul>
+   going on.  See <a href="ExitVideoExample.html">Play an exit video</a>
+   for a full example of how to do this.
 
    <li>Let PinballY exit as normal, but before it does, fire up
    a separate program that plays back your custom DOF effect.  For example, you
