@@ -45,7 +45,11 @@ public:
 	// graphic media (e.g., Flash objects).  It's ignored for raster
 	// images (e.g., JPEG, PNG), which are loaded at the native size
 	// for the media.
-	bool Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+	//
+	// msgHwnd is a window that will receive AVPxxx messages related
+	// to animation playback, if desired.  This can be null if these
+	// messages aren't needed for this image site.
+	bool Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, HWND msgHwnd, ErrorHandler &eh);
 
 	// Load from an HBITMAP
 	bool Load(HDC hdc, HBITMAP hbitmap, ErrorHandler &eh, const TCHAR *descForErrors);
@@ -117,6 +121,25 @@ public:
 	// Clear the sprite.  This frees any exeternal resources currently 
 	// in use, such as video playback streams.
 	virtual void Clear();
+	
+	// Get my media cookie.  This returns an identifier for the loaded
+	// media that's unique over the session, to identify it in event
+	// callbacks.  This is a simple global serial number that's 
+	// incremented for each media object that uses one.  We use this
+	// rather than the object pointer because we have no way to
+	// guarantee that an object pointer actually points to the same
+	// object over time, since the C++ memory manager can reclaim the
+	// memory used by a deleted object and use it for a new object.
+	virtual DWORD GetMediaCookie() const { return animCookie; }
+
+	// Service an AVPMsgLoopNeeded message generated from the underlying
+	// media.  This message is used by audio and video players that need
+	// the main thread to handle looped playback; the player generates
+	// the message, sending it to the container window, and the window
+	// message queue (which runs on the main UI thread) services it by
+	// calling this method.  The base Sprite only deals in still images
+	// and animated GIFs, which don't require this service.
+	virtual void ServiceLoopNeededMessage(ErrorHandler&) { }
 
 protected:
 	virtual ~Sprite();
@@ -231,10 +254,20 @@ protected:
 	bool isAnimation = false;
 
 	// current animation frame index
-	UINT curAnimFrame = 0;
+	int curAnimFrame = 0;
 
 	// ending time of the current frame, in system ticks
 	UINT64 curAnimFrameEndTime = 0;
+
+	// If we have an animated image, we'll allocate a media cookie
+	// for it, as though it were using a video or audio player.
+	// This lets us generate AVP messages related to the animation
+	// playback.
+	DWORD animCookie = 0;
+
+	// Message HWND.  This is the target window for any AVPxxx 
+	// messages we generate for animated media.
+	HWND msgHwnd;
 
 	// world transform matrix
 	DirectX::XMMATRIX world;

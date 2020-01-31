@@ -330,7 +330,7 @@ void SecondaryView::SyncCurrentGame()
 			{
 				// try loading the image
 				CapturingErrorHandler ceh;
-				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, ceh)))
+				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, ceh)))
 				{
 					// if this is an SWF file, log the error specially
 					ImageFileDesc desc;
@@ -347,7 +347,7 @@ void SecondaryView::SyncCurrentGame()
 
 			// load a default image if we didn't load anything custom
 			if (!ok)
-				sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, eh);
+				sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, eh);
 		};
 
 		auto done = [this, game](VideoSprite *sprite)
@@ -580,7 +580,7 @@ bool SecondaryView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 	case AVPMsgFirstFrameReady:
 		// If this is the incoming background's video player, start the
 		// cross-fade for the new background.
-		if (incomingBackground.sprite != nullptr && incomingBackground.sprite->GetVideoPlayerCookie() == wParam)
+		if (incomingBackground.sprite != nullptr && incomingBackground.sprite->GetMediaCookie() == wParam)
 			StartBackgroundCrossfade();
 		break;
 	}

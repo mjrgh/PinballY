@@ -724,10 +724,10 @@ bool D3DView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		for (auto &s : sprites)
 		{
 			// if this is a video sprite, match it against the cookie
-			if (auto vs = dynamic_cast<VideoSprite*>(s.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
+			if (s != nullptr && s->GetMediaCookie() == wParam)
 			{
 				// restart playback
-				vs->GetVideoPlayer()->Replay(SilentErrorHandler());
+				s->ServiceLoopNeededMessage(SilentErrorHandler());
 
 				// no need to keep looking
 				break;

@@ -40,8 +40,16 @@ public:
 	AudioVideoPlayer *GetVideoPlayer() const { return videoPlayer; }
 
 	// get my video player cookie
-	DWORD GetVideoPlayerCookie() const 
-		{ return videoPlayer != nullptr ? videoPlayer->GetCookie() : 0; }
+	virtual DWORD GetMediaCookie() const override
+		{ return videoPlayer != nullptr ? videoPlayer->GetCookie() : __super::GetMediaCookie(); }
+
+	// service an AVPMsgLoopNeeded message
+	virtual void ServiceLoopNeededMessage(ErrorHandler &eh) override
+	{
+		if (videoPlayer != nullptr)
+			videoPlayer->Replay(eh);
+	}
+
 
 protected:
 	virtual ~VideoSprite();

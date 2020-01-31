@@ -54,10 +54,13 @@ void Sprite::UpdateWorld()
 	worldT = XMMatrixTranspose(world);
 }
 
-bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
+bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, HWND msgHwnd, ErrorHandler &eh)
 {
 	// release any previous resources
 	Clear();
+
+	// remember the message window
+	this->msgHwnd = msgHwnd;
 
 	// set up a new load context
 	loadContext.Attach(new LoadContext());
@@ -382,10 +385,18 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
 		return false;
 
-	// initialize the animation
+	// Initialize the animation.  Start out at frame "negative 1", meaning
+	// "before the first frame", since we haven't decoded the first frame yet.
+	// Set the expiration time for the current frame to now, so that the
+	// renderer knows it needs to advance to the next frame before doing
+	// anything else, which will trigger the first frame decoding.
 	isAnimation = true;
-	curAnimFrame = 0;
+	curAnimFrame = -1;
 	curAnimFrameEndTime = GetTickCount64();
+
+	// allocate a media player cookie, so that we can generate AVPXxx messages
+	// related to the playback
+	animCookie = AudioVideoPlayer::AllocMediaCookie();
 
 	// success
 	return true;
@@ -944,12 +955,27 @@ void Sprite::Render(Camera *camera)
 				gifLoaderState.DecodeFrame(this);
 
 			// advance to the next frame; loop after the last frame
-			if (++curAnimFrame >= animFrames.size())
+			if (++curAnimFrame >= static_cast<int>(animFrames.size()))
+			{
+				// return to the first frame
 				curAnimFrame = 0;
+
+				// If we have a message window, post an end-of-loop message.
+				// (Do this with a Post rather than a Send, so that we don't
+				// have to the processing inline with the rendering.)
+				//
+				// Note that we use the "Loop Needed" message even though we
+				// don't actually need a looping callback, simply so that the 
+				// caller knows we're going to loop the playback.  We always
+				// loop animated images indefinitely, so there's really no 
+				// such thing as "end of playback" in this context.
+				if (msgHwnd != NULL)
+					::PostMessage(msgHwnd, AVPMsgLoopNeeded, animCookie, 0);
+			}
 			
 			// Stop if we don't have a frame available.  (This can only
 			// occur if decoding fails, but that's always a possibility.)
-			if (curAnimFrame > animFrames.size())
+			if (curAnimFrame >= static_cast<int>(animFrames.size()))
 				break;
 
 			// figure the frame end time
@@ -957,7 +983,7 @@ void Sprite::Render(Camera *camera)
 		}
 
 		// use the current frame's shader resource view
-		if (curAnimFrame < animFrames.size())
+		if (curAnimFrame < static_cast<int>(animFrames.size()))
 			rvToRender = animFrames[curAnimFrame]->rv;
 	}
 
@@ -1068,6 +1094,9 @@ void Sprite::Clear()
 	// clear the animation frame list
 	curAnimFrame = 0;
 	animFrames.clear();
+
+	// forget any message target window
+	msgHwnd = NULL;
 
 	// if we have a Flash site, release it
 	DetachFlash();

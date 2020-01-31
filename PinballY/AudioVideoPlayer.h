@@ -133,6 +133,12 @@ public:
 		UINT height;
 	};
 
+	// Allocate a media cookie.  This can be used by unrelated classes
+	// to allocate unique identifiers for audio/video-like objects that
+	// don't use the full AV player interface but still generate some
+	// of the AVPXxx event messages.
+	static DWORD AllocMediaCookie() { return InterlockedIncrement(&nextCookie); }
+
 protected:
 	// reference counted -> protected destructor
 	virtual ~AudioVideoPlayer();

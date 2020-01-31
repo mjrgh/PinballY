@@ -411,17 +411,19 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
    image.
 </p>
 <p>
-   <i>options</i> is an optional object that you can use to specify additional
+   <i>options</i>, if present, is an object specifying additional
    layout details for the underlay.  This lets you override the normal layout
    parameters for an individual underlay file, in case you want to customize
    the size or position of each underlay file separately.  If the <i>options</i>
    object is omitted entirely, all of the layout parameters use the settings
-   from the configuration.  If any of the properties listed below are missing,
-   the values are individually taken from the configuration.  Any values you
+   from the configuration.  If you do provide an <i>options</i> object, you
+   don't have to include all of the properties listed below - just the ones
+   you want to override.  Any properties not included in your  <i>options</i>
+   object use the defaults, taken from the configuration.  Any values you
    specify in the <i>options</i> object override the settings for duration of
    this underlay display (so the overrides remain in effect even if the
    user edits the option settings or resizes the window).  The options only
-   last for the duration of this underlay display - they aren't persistently
+   last for the duration of this single underlay display; they aren't persistently
    attached to the file or anything crazy like that.  The following properties
    can be specified:
 </p>
@@ -441,14 +443,14 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
    the underlay vertically, as a percentage of the window height.
 </ul>
 <p>
-   See also <a href="UnderlayEvent.html">UnderlayEvent</a>, which describe the event
+   See also <a href="UnderlayEvent.html">UnderlayEvent</a>, which describes the event
    fired when the system is about to initiate its own change to the underlay because
    of a new game selection in the wheel UI.
 </p>
 
 <p>
    <a name="showMenu"></a>
-   <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Display a custom
+   <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Displays a custom
    menu in the main window, in the same style as the main menu, exit menu, etc.
    See <a href="Menus.html">Menus</a> for more details.  The <a href="MenuEvent.html"><b>menuopen</b></a>
    event isn't fired when you use this method.
@@ -456,7 +458,7 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
 
 <p>
    <a name="showPopup"></a>
-   <b>mainWindow.showPopup(<i>desc</i>):</b>  Display a custom popup dialog
+   <b>mainWindow.showPopup(<i>desc</i>):</b>  Displays a custom popup dialog
    in the main window, in the style of the standard system popups (e.g., game
    information, high scores, ratings entry).   See
    <a href="Popups.html#custom">Custom Popups</a> for more details.
@@ -475,9 +477,13 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
 <p>
    <a name="startAttractMode"></a>
    <b>mainWindow.startAttractMode():</b>  Enters "Attract Mode", the screen saver
-   mode that normally kicks in automatically after a period without any user input
-   (the exact amount of time is configurable in the settings).  This function
-   lets you create your own conditions for entering attract mode. 
+   mode that normally kicks in automatically when there hasn't been any keyboard
+   or mouse input for some amount of time (the exact amount of time is configurable
+   in the settings).  This function lets you explicitly enter Attract Mode from
+   Javascript code, so that you can create your own custom conditions for
+   triggering the mode, separately from the system's normal handling.  For
+   example, you could use this to enter attract mode when a certain key
+   is pressed, or from a custom menu selection.
    The <a href="AttractModeEvent.html"><b>attractmodestart</b></a> event isn't
    fired when you use this method.
 </p>

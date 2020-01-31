@@ -5350,7 +5350,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 	// load the image at the calculated size
     Application::InUiErrorHandler eh;
 	popupSprite.Attach(new Sprite());
-	if (!popupSprite->Load(flyer->c_str(), normalizedSize, pixSize, eh))
+	if (!popupSprite->Load(flyer->c_str(), normalizedSize, pixSize, hWnd, eh))
 	{
 		popupSprite = nullptr;
 		UpdateDrawingList();
@@ -7546,7 +7546,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 				ok = true;
 
 			// If there's no video, try a static image
-			auto LoadImage = [szLayout, &sprite, &eh](const TCHAR *path)
+			auto LoadImage = [szLayout, &sprite, &eh, hWnd](const TCHAR *path)
 			{
 				// Get the image's native size, and figure the aspect
 				// ratio.  Playfield images are always stored "sideways",
@@ -7562,7 +7562,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 				SIZE pixSize = { (int)(normSize.y * szLayout.cy), (int)(normSize.x * szLayout.cx) };
 
 				// load the image into a new sprite
-				return sprite->Load(path, normSize, pixSize, eh);
+				return sprite->Load(path, normSize, pixSize, hWnd, eh);
 			};
 			if (!ok && image.length() != 0)
 				ok = LoadImage(image.c_str());
@@ -7799,7 +7799,7 @@ bool PlayfieldView::LoadUnderlay(const TCHAR *filename, const UnderlayOptions *o
 	{
 		// load the image at its native size
 		Application::InUiErrorHandler eh;
-		if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, eh))
+		if (!incomingUnderlay.sprite->Load(filename, normSize, incomingUnderlay.pixSize, hWnd, eh))
 		{
 			incomingUnderlay.Clear();
 			UpdateDrawingList();
@@ -8027,7 +8027,7 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 		SIZE pixSize = { (int)(width * szLayout.cx), (int)(height * szLayout.cy) };
 
 		// Load the image
-		ok = sprite->Load(path.c_str(), normSize, pixSize, eh);
+		ok = sprite->Load(path.c_str(), normSize, pixSize, hWnd, eh);
 	}
 
 	// if we didn't load a sprite, synthesize a default image
@@ -9055,7 +9055,7 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		{
 			auto UpdateFormat = [this, wParam, lParam](VideoSprite *sprite)
 			{
-				if (sprite != nullptr && sprite->GetVideoPlayerCookie() == wParam)
+				if (sprite != nullptr && sprite->GetMediaCookie() == wParam)
 				{
 					// Update the sprite's load size to match the actual video frame size.
 					// Note that playfield videos are by convention rotated 90 degrees CW,
@@ -9089,7 +9089,7 @@ bool PlayfieldView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// switched to a new playfield by the time this notification
 		// arrives.
 		if (incomingPlayfield.sprite != nullptr 
-			&& incomingPlayfield.sprite->GetVideoPlayerCookie() == wParam)
+			&& incomingPlayfield.sprite->GetMediaCookie() == wParam)
 			StartPlayfieldCrossfade();
 		break;
 

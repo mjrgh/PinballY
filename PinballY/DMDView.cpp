@@ -1517,7 +1517,7 @@ bool DMDView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		&& !Application::Get()->IsGameActive()
 		&& currentBackground.sprite != nullptr
 		&& currentBackground.sprite->IsVideo()
-		&& currentBackground.sprite->GetVideoPlayerCookie() == wParam)
+		&& currentBackground.sprite->GetMediaCookie() == wParam)
 	{
 		// stop the video
 		currentBackground.sprite->GetVideoPlayer()->Stop(SilentErrorHandler());

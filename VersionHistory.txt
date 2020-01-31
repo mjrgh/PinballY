@@ -36,6 +36,13 @@ the new "dofevent" event.  See the help under
 playing in a Drawing Layer.  See Javascript scripting > Events > Event
 Types > VideoEvent in the help.
 
+* Fixed a problem that sometimes caused the program to "freeze" after
+returning from a launched game session or a media capture session.
+This only seemed to happen on some machines, although it was sporadic
+enough that it might have just been random luck that kept it from
+appearing on other machines.  The problem only affected releases Beta
+18 and Beta 19.
+
 * The Manual Capture Start/Stop button options weren't being respected
 properly when using the "PinballY Admin Mode" version of the program.
 That version always assumed you were using the default setting of

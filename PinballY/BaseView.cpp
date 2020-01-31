@@ -166,7 +166,7 @@ Sprite *BaseView::PrepInstructionCard(const TCHAR *filename)
 	// load the image at the calculated size
 	CapturingErrorHandler eh;
 	RefPtr<Sprite> sprite(new Sprite());
-	if (!sprite->Load(filename, normSize, pixSize, eh))
+	if (!sprite->Load(filename, normSize, pixSize, hWnd, eh))
 	{
 		// Load failed.  If the file is an SWF (Shockwave Flash), handle
 		// it with a special error in the main window, to give the user
@@ -220,7 +220,7 @@ bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		// now that we know the true load size.
 		for (auto &l : jsDrawingLayers)
 		{
-			if (auto vs = dynamic_cast<VideoSprite*>(l.sprite.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == wParam)
+			if (l.sprite.Get() != nullptr && l.sprite->GetMediaCookie() == wParam)
 			{
 				// Update the sprite's load size to match the new aspect ratio
 				auto desc = reinterpret_cast<const AudioVideoPlayer::FormatDesc*>(lParam);
@@ -245,7 +245,7 @@ bool BaseView::OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case AVPMsgEndOfPresentation:
 		// check for the end of the overlay video
-		if (videoOverlay != nullptr && videoOverlay->GetVideoPlayerCookie() == wParam)
+		if (videoOverlay != nullptr && videoOverlay->GetMediaCookie() == wParam)
 			OnEndOverlayVideo();
 
 		// also check for DrawingLayer end-of-video notifications
@@ -277,7 +277,7 @@ void BaseView::DrawingLayerEndVideoEvent(UINT msg, WPARAM cookie)
 		for (auto &l : jsDrawingLayers)
 		{
 			// check for a video sprite matching the event cookie
-			if (auto vs = dynamic_cast<VideoSprite*>(l.sprite.Get()); vs != nullptr && vs->GetVideoPlayerCookie() == cookie)
+			if (l.sprite != nullptr && l.sprite->GetMediaCookie() == cookie)
 			{
 				// dispatch a Javascript "videoend" notification through
 				// the playfield window
@@ -1194,7 +1194,7 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 
 		// load the image
 		ok = sprite->Load(WSTRINGToTSTRING(filename).c_str(),
-			POINTF{ static_cast<float>(sz.cx)/1920.f, static_cast<float>(sz.cy)/1920.f }, sz,
+			POINTF{ static_cast<float>(sz.cx)/1920.f, static_cast<float>(sz.cy)/1920.f }, sz, hWnd,
 			LogFileErrorHandler(_T("Javascript call to mainWindow.launchOverlay.loadImage failed: ")));
 
 		// rescale the drawing layer for the new image
