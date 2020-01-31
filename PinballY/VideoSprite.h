@@ -36,6 +36,30 @@ public:
 	// Do we have a video?
 	bool IsVideo() const { return videoPlayer != nullptr; }
 
+	// Get/set the looping status
+	virtual bool IsLooping() const override
+		{ return videoPlayer != nullptr ? videoPlayer->IsLooping() : __super::IsLooping(); }
+	virtual void SetLooping(bool f) override
+	{
+		if (videoPlayer != nullptr)
+			videoPlayer->SetLooping(f);
+		__super::SetLooping(f);
+	}
+
+	// Play/stop the video
+	virtual void Play(ErrorHandler &eh) override
+	{
+		if (videoPlayer != nullptr)
+			videoPlayer->Play(eh);
+		__super::Play(eh);
+	}
+	virtual void Stop(ErrorHandler &eh) override
+	{
+		if (videoPlayer != nullptr)
+			videoPlayer->Stop(eh);
+		__super::Stop(eh);
+	}
+
 	// get my player
 	AudioVideoPlayer *GetVideoPlayer() const { return videoPlayer; }
 

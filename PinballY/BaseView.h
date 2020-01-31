@@ -415,6 +415,12 @@ protected:
 	void JsDrawingLayerSetAlpha(JsValueRef self, float alpha);
 	void JsDrawingLayerSetScale(JsValueRef self, JavascriptEngine::JsObj scale);
 	void JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING align);
+	void JsDrawingLayerPlay(JsValueRef self);
+	void JsDrawingLayerPause(JsValueRef self);
+	int JsDrawingLayerGetVol(JsValueRef self) const;
+	void JsDrawingLayerSetVol(JsValueRef self, int vol);
+	bool JsDrawingLayerGetMute(JsValueRef self) const;
+	void JsDrawingLayerSetMute(JsValueRef self, bool mute);
 
 	// Process an end-of-video (AVPMsgEndOfPresentation) or video-loop
 	// (AVPMsgLoopNeeded) notification through our drawing layers.  This

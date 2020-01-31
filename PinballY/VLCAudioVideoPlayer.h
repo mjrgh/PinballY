@@ -94,9 +94,11 @@ public:
 
 	// Set looping playback mode
 	virtual void SetLooping(bool f) override;
+	virtual bool IsLooping() const override { return looping; }
 
 	// Mute audio
 	virtual void Mute(bool f) override;
+	virtual bool IsMute() const override { return muted; }
 
 	// Get/set audio volume
 	virtual int GetVolume() const override { return volume; }

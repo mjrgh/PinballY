@@ -718,7 +718,15 @@ void PlayfieldView::InitJavascript()
 					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setPos",
 						&BaseView::JsDrawingLayerSetPos, view, eh)
 					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "alpha",
-						&BaseView::JsDrawingLayerGetAlpha, &BaseView::JsDrawingLayerSetAlpha, view, eh))
+						&BaseView::JsDrawingLayerGetAlpha, &BaseView::JsDrawingLayerSetAlpha, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "play",
+						&BaseView::JsDrawingLayerPlay, view, eh)
+					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "pause",
+						&BaseView::JsDrawingLayerPause, view, eh)
+					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "volume",
+						&BaseView::JsDrawingLayerGetVol, &BaseView::JsDrawingLayerSetVol, view, eh)
+					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "mute",
+						&BaseView::JsDrawingLayerGetMute, &BaseView::JsDrawingLayerSetMute, view, eh))
 					return false;
 
 				// success 

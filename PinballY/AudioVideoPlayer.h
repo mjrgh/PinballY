@@ -111,9 +111,11 @@ public:
 	// restart the video from the beginning whenever we reach
 	// the end.
 	virtual void SetLooping(bool f) = 0;
+	virtual bool IsLooping() const = 0;
 
 	// Mute audio
 	virtual void Mute(bool f) = 0;
+	virtual bool IsMute() const = 0;
 
 	// Get/set the current audio volume of playback for this track, as
 	// a percentage (0..100) of the nominal recorded volume.

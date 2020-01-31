@@ -489,12 +489,47 @@ overlay.clear(0x00000000);
    once or plays continuously in a loop
    <li><b>mute:</b> boolean, default false, specifying if the video is played
    back with sound muted
+   <li><b>play:</b> boolean, default true, specifying if the video should start
+   playing immediately after loading; if false, the video will be paused at its
+   first frame
    <li><b>volume:</b> integer from 0 to 100, default 100, specifying the audio
    volume (ignored if the video is muted)
 </ul>
 <p>
-   Note that animated GIF files count as images, not videos.  To load an
-   animated GIF, use loadImage() instead of loadVideo().
+   Animated GIF files are a special case for this method, because PinballY
+   technically treats them as images rather than videos (which it has to
+   do because libvlc, the codec layer that we use for other videos, doesn't
+   work properly with GIF animation).  Because PinballY treats all GIFs as images,
+   even animated ones, you can load an animated GIF through the <b>loadImage()</b>
+   method.  But you can also use this method, since it has special handling
+   to detect GIFs and load them as images.  So GIFs will load properly with
+   either method.  But there is one situation where you might want to use this
+   method explicitly:  if you want to specify the <b>play</b> or <b>loop</b>
+   options, you can do that with this method, but not with loadImage().
+   (The volume and mute options are ignored, though, since GIFs inherently
+   can't have audio tracks.)
+</p>
+
+<a name="mute"></a>
+<p>
+   <b>mute:</b>  This is a read/write boolean property that gets or sets the
+   current muting status for video playback in the layer.  True means that the
+   video's audio track is muted.  If no video is loaded, this always reads as
+   false, and setting it to a new value has no effect.  Animated GIFs don't
+   have audio tracks, so they have the same behavior as if no video is loaded.
+</p>
+
+<a name="pause"></a>
+<p>
+   <b><i>layer</i>.pause():</b>  If a video or animated GIF is playing, pauses
+   playback at the current frame.  This has no effect for a still image (including
+   custom-drawn graphics and background color fill).
+</p>
+
+<a name="play"></a>
+<p>
+   <b><i>layer</i>.play():</b>  If a video or animated GIF is loaded, and
+   playback is paused, this resumes playback.  This has no effect for a still image.
 </p>
 
 <a name="setPos"></a>
@@ -587,6 +622,15 @@ overlay.clear(0x00000000);
    graphics.  When loading media or drawing, the scale settings currently
    in effect are applied, but you can change to different scaling rules later
    while keeping the current contents.
+</p>
+
+<a name="volume"></a>
+<p>
+   <b>volume:</b>  This is a read/write integer property that gets or sets the
+   current volume level for video playback in the layer, from 0 (silent) to 100
+   (full volume).  If no video is loaded, this always reads as 100, and setting
+   it to a new value has no effect.  Animated GIFs don't have audio tracks,
+   so they have the same behavior as if no video is loaded.
 </p>
 
 </body>

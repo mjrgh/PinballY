@@ -385,14 +385,17 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
 		return false;
 
-	// Initialize the animation.  Start out at frame "negative 1", meaning
-	// "before the first frame", since we haven't decoded the first frame yet.
-	// Set the expiration time for the current frame to now, so that the
-	// renderer knows it needs to advance to the next frame before doing
-	// anything else, which will trigger the first frame decoding.
+	// decode the first frame; if that doesn't leave us with one frame in the 
+	// frame list, the decoding failed, so fail the whole load
+	gifLoaderState.DecodeFrame(this);
+	if (animFrames.size() == 0)
+		return false;
+
+	// Initialize the animation.  Start at the first frame, and set the end time
+	// for the frame to the current time plus the frame's display time.
 	isAnimation = true;
-	curAnimFrame = -1;
-	curAnimFrameEndTime = GetTickCount64();
+	curAnimFrame = 0;
+	curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
 
 	// allocate a media player cookie, so that we can generate AVPXxx messages
 	// related to the playback
@@ -942,40 +945,43 @@ void Sprite::Render(Camera *camera)
 	// check for animation
 	if (isAnimation)
 	{
-		// Check if it's time to advance to the next frame.  Note that we
-		// might have to advance past multiple frames, because it's possible
-		// for a frame to have a zero delay, which means that it's only
-		// there for composition purposes and won't actually be on the
-		// screen for finite time.
+		// If the animation is running, check if it's time to advance to the 
+		// next frame.  We might have to advance past multiple frames, because
+		// it's possible in a GIF for a frame to have a delay time of zero,
+		// which means that the frame only contains a fragment, for composing
+		// with the next frame to make a complete frame, and isn't meant to
+		// be displayed as a separate frame.  So we skip these frames on
+		// rendering.
 		UINT64 now = GetTickCount64();
-		while (now >= curAnimFrameEndTime)
+		while (animRunning && now >= curAnimFrameEndTime)
 		{
 			// If decoding is still in progress, decode the next frame
 			if (animFrames.size() < gifLoaderState.nFrames)
 				gifLoaderState.DecodeFrame(this);
 
 			// advance to the next frame; loop after the last frame
-			if (++curAnimFrame >= static_cast<int>(animFrames.size()))
+			if (++curAnimFrame >= animFrames.size())
 			{
-				// return to the first frame
-				curAnimFrame = 0;
-
 				// If we have a message window, post an end-of-loop message.
 				// (Do this with a Post rather than a Send, so that we don't
 				// have to the processing inline with the rendering.)
-				//
-				// Note that we use the "Loop Needed" message even though we
-				// don't actually need a looping callback, simply so that the 
-				// caller knows we're going to loop the playback.  We always
-				// loop animated images indefinitely, so there's really no 
-				// such thing as "end of playback" in this context.
 				if (msgHwnd != NULL)
-					::PostMessage(msgHwnd, AVPMsgLoopNeeded, animCookie, 0);
+					::PostMessage(msgHwnd, animLooping ? AVPMsgLoopNeeded : AVPMsgEndOfPresentation, animCookie, 0);
+
+				// If we're looping, return to the first frame; otherwise,
+				// pause the animation and stay on the last frame.
+				if (animLooping)
+					curAnimFrame = 0;
+				else
+				{
+					curAnimFrame = animFrames.size() > 0 ? static_cast<UINT>(animFrames.size() - 1) : 0;
+					animRunning = false;
+				}
 			}
 			
 			// Stop if we don't have a frame available.  (This can only
 			// occur if decoding fails, but that's always a possibility.)
-			if (curAnimFrame >= static_cast<int>(animFrames.size()))
+			if (curAnimFrame >= animFrames.size())
 				break;
 
 			// figure the frame end time
@@ -983,7 +989,7 @@ void Sprite::Render(Camera *camera)
 		}
 
 		// use the current frame's shader resource view
-		if (curAnimFrame < static_cast<int>(animFrames.size()))
+		if (curAnimFrame < animFrames.size())
 			rvToRender = animFrames[curAnimFrame]->rv;
 	}
 

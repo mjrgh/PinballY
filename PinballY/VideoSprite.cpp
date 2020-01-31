@@ -115,7 +115,13 @@ bool VideoSprite::LoadVideo(
 	// handles those.
 	if (ImageFileDesc desc; GetImageFileInfo(filename.c_str(), desc, false)
 		&& desc.imageType == ImageFileDesc::GIF)
-		return __super::LoadGIF(filename.c_str(), sz, desc.dispSize, eh);
+	{
+		// set the play/pause status for animated image rendering
+		animRunning = play;
+
+		// load it as a GIF
+		return __super::Load(filename.c_str(), sz, desc.dispSize, hwnd, eh);
+	}
 
 	// create a new video player
 	RefPtr<AudioVideoPlayer> v(new VLCAudioVideoPlayer(hwnd, hwnd, false));

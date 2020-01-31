@@ -121,6 +121,15 @@ public:
 	// Clear the sprite.  This frees any exeternal resources currently 
 	// in use, such as video playback streams.
 	virtual void Clear();
+
+	// Play/Stop an image or video.  This has no effect (and is harmless)
+	// for still images.
+	virtual void Play(ErrorHandler&) { animRunning = true; }
+	virtual void Stop(ErrorHandler&) { animRunning = false; }
+
+	// Get/set the looping status
+	virtual void SetLooping(bool f) { animLooping = f; }
+	virtual bool IsLooping() const { return animLooping; }
 	
 	// Get my media cookie.  This returns an identifier for the loaded
 	// media that's unique over the session, to identify it in event
@@ -253,8 +262,14 @@ protected:
 	// is an animation active?
 	bool isAnimation = false;
 
+	// is the animation (if any) running?
+	bool animRunning = true;
+
+	// is the animation played on a loop?
+	bool animLooping = true;
+
 	// current animation frame index
-	int curAnimFrame = 0;
+	UINT curAnimFrame = 0;
 
 	// ending time of the current frame, in system ticks
 	UINT64 curAnimFrameEndTime = 0;

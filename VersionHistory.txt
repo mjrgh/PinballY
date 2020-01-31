@@ -32,6 +32,13 @@ System Objects > Window Objects > mainWindow.
 * Javascript code can now receive notifications of DOF events, via
 the new "dofevent" event.  See the help under 
 
+* Javascript code can now pause and resume videos playing in custom
+drawing layers, via the new methods pause() and play(), can set the
+volume via the new "volume" property, can set muting via the new
+"mute" property, and can load a video initially paused via the new
+"play" property in the loadVideo() options argument.  See the help
+under Javascript Scripting > Drawing Layers for details.
+
 * A new Javascript event, videoend, fires at the end of a video
 playing in a Drawing Layer.  See Javascript scripting > Events > Event
 Types > VideoEvent in the help.

@@ -35,11 +35,13 @@ public:
 	// is a frame ready?
 	virtual bool IsFrameReady() const override { return true; }
 
-	// set looping mode
+	// get/set looping mode
+	virtual bool IsLooping() const override { return looping; }
 	virtual void SetLooping(bool looping) override;
 
 	// mute
 	virtual void Mute(bool mute) override;
+	virtual bool IsMute() const override { return muted; }
 
 	// get/set the volume
 	virtual int GetVolume() const override;

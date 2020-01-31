@@ -804,7 +804,7 @@ bool BaseView::LoadStartupVideo()
 			videoOverlayID = _T("Startup");
 
 			// the video sprite loops by default; we only want to play once
-			videoOverlay->GetVideoPlayer()->SetLooping(false);
+			videoOverlay->SetLooping(false);
 
 			// udpate the drawing list to include the video overlay sprite
 			UpdateDrawingList();
@@ -1220,6 +1220,7 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 	bool loop = true;
 	bool mute = false;
 	int vol = 100;
+	bool play = true;
 	try
 	{
 		if (!options.IsNull())
@@ -1230,6 +1231,8 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 				mute = options.Get<bool>("mute");
 			if (options.Has("volume"))
 				vol = options.Get<int>("volume");
+			if (options.Has("play"))
+				play = options.Get<bool>("play");
 		}
 	}
 	catch (JavascriptEngine::CallException exc)
@@ -1245,21 +1248,22 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 	// a video sprite to use this function.
 	if (auto sprite = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); sprite != nullptr)
 	{
-		// load the video
+		// load the video - don't play it yet, so that we can set options first
 		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
 		LogFileErrorHandler eh;
 		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, POINTF{ width, 1.0f },
-			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), loop, vol);
+			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), false, vol);
 
-		// set options
 		if (ok)
 		{
+			// set options
+			sprite->SetLooping(loop);
 			if (auto player = sprite->GetVideoPlayer(); player != nullptr)
-			{
-				player->SetLooping(loop);
 				player->Mute(mute);
-				player->Play(eh);
-			}
+
+			// if desired, start playback
+			if (play)
+				sprite->Play(eh);
 		}
 	}
 
@@ -1441,6 +1445,47 @@ void BaseView::JsDrawingLayerSetPos(JsValueRef self, float x, float y, WSTRING a
 		ScaleDrawingLayerSprite(*l);
 	}
 }
+
+void BaseView::JsDrawingLayerPlay(JsValueRef self)
+{
+	if (auto l = JsThisToDrawingLayer(self); l != nullptr && l->sprite != nullptr)
+		l->sprite->Play(SilentErrorHandler());
+}
+
+void BaseView::JsDrawingLayerPause(JsValueRef self)
+{
+	if (auto l = JsThisToDrawingLayer(self); l != nullptr && l->sprite != nullptr)
+		l->sprite->Stop(SilentErrorHandler());
+}
+
+int BaseView::JsDrawingLayerGetVol(JsValueRef self) const
+{
+	if (auto vs = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); vs != nullptr && vs->GetVideoPlayer() != nullptr)
+		return vs->GetVideoPlayer()->GetVolume();
+	else
+		return 100;
+}
+
+void BaseView::JsDrawingLayerSetVol(JsValueRef self, int vol)
+{
+	if (auto vs = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); vs != nullptr && vs->GetVideoPlayer() != nullptr)
+		return vs->GetVideoPlayer()->SetVolume(vol < 0 ? 0 : vol > 100 ? 100 : vol);
+}
+
+bool BaseView::JsDrawingLayerGetMute(JsValueRef self) const
+{
+	if (auto vs = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); vs != nullptr && vs->GetVideoPlayer() != nullptr)
+		return vs->GetVideoPlayer()->IsMute();
+	else
+		return false;
+}
+
+void BaseView::JsDrawingLayerSetMute(JsValueRef self, bool mute)
+{
+	if (auto vs = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); vs != nullptr && vs->GetVideoPlayer() != nullptr)
+		vs->GetVideoPlayer()->Mute(mute);
+}
+
 
 Sprite *BaseView::JsThisToDrawingLayerSprite(JsValueRef self) const
 {
