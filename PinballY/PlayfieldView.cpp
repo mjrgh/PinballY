@@ -3780,6 +3780,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		// showing, bring up the default menu
 		if (runningGameMsgPopup != nullptr
 			&& Application::IsInForeground()
+			&& Application::Get()->GetGameState() == Application::GameMonitorState::GameMonitorRunning
 			&& popupSprite == nullptr
 			&& curMenu == nullptr)
 		{

@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 20)
+01-31-2020 (1.0.0 Beta 20)
 
 * When PinballY is in "Paused Game" mode, meaning that you've used the
 Pause Game command to suspend a game and bring PinballY to the
