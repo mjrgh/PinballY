@@ -8,7 +8,6 @@
 #include "Resource.h"
 #include "MouseButtons.h"
 #include "Application.h"
-#include "DShowAudioPlayer.h"
 
 // window class registration
 bool BaseWin::baseWinClassRegistered = FALSE;
@@ -564,15 +563,6 @@ bool BaseWin::OnUserMessage(UINT message, WPARAM wParam, LPARAM lParam)
 
 bool BaseWin::OnAppMessage(UINT message, WPARAM wParam, LPARAM lParam)
 {
-	switch (message)
-	{
-	case DSMsgOnEvent:
-		// DirectShow event ready.  Call the DirectShow object to process
-		// the event.
-		DShowAudioPlayer::OnEvent(lParam);
-		return true;
-	}
-
 	// not handled
 	return false;
 }

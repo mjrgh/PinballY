@@ -38,7 +38,6 @@
 #include "AudioManager.h"
 #include "DOFClient.h"
 #include "AudioVideoPlayer.h"
-#include "DShowAudioPlayer.h"
 #include "VLCAudioVideoPlayer.h"
 #include "HighScores.h"
 #include "RefTableList.h"
@@ -3439,7 +3438,7 @@ void PlayfieldView::OnIdleEvent()
 	{
 		// create a player and load the audio track
 		LogFileErrorHandler eh(_T("Startup audio: "));
-		RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
+		RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
 		if (player->Open(startupAudio, eh))
 		{
 			// set the initial volume to the video volume level
@@ -5067,7 +5066,7 @@ void PlayfieldView::LaunchQueuedGame()
 			// Sound Manager, because the latter can only handle uncompressed
 			// PCM formats like WAV.  Launch audio clips are typically MP3s.
 			SilentErrorHandler eh;
-			RefPtr<AudioVideoPlayer> player(new DShowAudioPlayer(hWnd));
+			RefPtr<AudioVideoPlayer> player(new VLCAudioVideoPlayer(hWnd, hWnd, true));
 			if (player->Open(audio.c_str(), eh))
 			{
 				// set the volume level to the global video level
@@ -7485,7 +7484,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// Load the audio
 	if (audio.length() != 0)
 	{
-		incomingPlayfield.audio.Attach(new DShowAudioPlayer(hWnd));
+		incomingPlayfield.audio.Attach(new VLCAudioVideoPlayer(hWnd, hWnd, true));
 		if (incomingPlayfield.audio->Open(audio.c_str(), uieh))
 		{
 			// set the game-specific media volume level
@@ -7999,6 +7998,19 @@ void PlayfieldView::OnEnableVideos(bool enable)
 		UpdateDrawingList();
 		LoadIncomingPlayfieldMedia(GameList::Get()->GetNthGame(0));
 	}
+}
+
+void PlayfieldView::OnUpdateVideoMute(bool mute)
+{
+	// do the base class handling to update our own video sprites
+	__super::OnUpdateVideoMute(mute);
+
+	// mute/unmute the table audio track
+	MuteTableAudio(mute || Application::Get()->IsMuteTableAudio());
+
+	// update the real DMD, if any
+	if (realDMD != nullptr)
+		realDMD->OnUpdateVideoMute(mute);
 }
 
 Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
@@ -18892,7 +18904,7 @@ void PlayfieldView::OnStartAttractMode()
 	CloseMenusAndPopups();
 
 	// update video muting for the new attract mode status
-	Application::Get()->UpdateVideoVolume();
+	Application::Get()->UpdateVideoMute();
 
 	// update the javascript UI mode
 	UpdateJsUIMode();
@@ -18915,7 +18927,7 @@ void PlayfieldView::OnEndAttractMode()
 	UpdateInfoBox();
 		
 	// update video muting, in case videos were muted in attract mode
-	Application::Get()->UpdateVideoVolume();
+	Application::Get()->UpdateVideoMute();
 
 	// update the javascript UI mode
 	UpdateJsUIMode();

@@ -845,6 +845,12 @@ void RealDMD::ApplyWorkingAudioVolume(int volPct)
 		videoPlayer->SetVolume(volPct);
 }
 
+void RealDMD::OnUpdateVideoMute(bool mute)
+{
+	if (videoPlayer != nullptr)
+		videoPlayer->Mute(mute);
+}
+
 void RealDMD::UpdateGame()
 {
 	// do nothing if the DLL isn't loaded

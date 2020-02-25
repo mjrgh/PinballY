@@ -57,7 +57,7 @@ bool DShowAudioPlayer::Open(const WCHAR *path, ErrorHandler &eh)
 	// create the graph manager
 	RefPtr<IGraphBuilder> pGraph;
 	HRESULT hr;
-	if (!SUCCEEDED(hr = CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, (void **)&pGraph)))
+	if (!SUCCEEDED(hr = CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC_SERVER, IID_IGraphBuilder, reinterpret_cast<void**>(&pGraph))))
 		return Error(hr, eh, _T("Creating filter graph"));
 
 	// query interfaces

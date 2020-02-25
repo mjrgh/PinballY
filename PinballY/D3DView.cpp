@@ -311,6 +311,18 @@ void D3DView::ForDrawingList(std::function<void(Sprite*)> callback)
 		callback(s);
 }
 
+void D3DView::OnUpdateVideoMute(bool mute)
+{
+	ForDrawingList([mute](Sprite *sprite) {
+		if (auto video = dynamic_cast<VideoSprite*>(sprite); video != nullptr)
+		{
+			if (auto player = video->GetVideoPlayer(); player != nullptr)
+				player->Mute(mute);
+		}
+	});
+}
+
+
 bool D3DView::OnActivate(int waCode, int minimized, HWND hWndOther)
 {
 	// see what to do based on the activation state

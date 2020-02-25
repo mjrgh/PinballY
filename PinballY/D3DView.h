@@ -82,6 +82,10 @@ public:
 	// any video-capable sprites to reflect the new status.
 	virtual void OnEnableVideos(bool enable) = 0;
 
+	// Handle a change to the global video mute status.  By default, 
+	// we update the status on all of our video sprites.
+	virtual void OnUpdateVideoMute(bool mute);
+
 protected:
 	// ref-counted -> protected destructor (destructor is only called 
 	// from self via Release())

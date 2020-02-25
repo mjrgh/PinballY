@@ -1592,23 +1592,7 @@ void Application::MuteVideos(bool mute)
 		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteVideos, mute);
 
 		// update the muting status for running videos
-		UpdateVideoVolume();
-	}
-}
-
-void Application::SetVideoVolume(int pctVol)
-{
-	// update playing videos if it's changing
-	if (pctVol != videoVolume)
-	{
-		// remember the new setting
-		videoVolume = pctVol;
-
-		// save it in the config
-		ConfigManager::GetInstance()->Set(ConfigVars::VideoVolume, pctVol);
-
-		// update the volume for running videos
-		UpdateVideoVolume();
+		UpdateVideoMute();
 	}
 }
 
@@ -1639,33 +1623,20 @@ void Application::MuteAttractMode(bool mute)
 		ConfigManager::GetInstance()->SetBool(ConfigVars::MuteAttractMode, mute);
 
 		// update the muting status for running videos
-		UpdateVideoVolume();
+		UpdateVideoMute();
 	}
 }
 
-void Application::UpdateVideoVolume()
+void Application::UpdateVideoMute()
 {
 	// get the active muting status
 	bool mute = IsMuteVideosNow();
-	int vol = videoVolume;
 
 	// update any playing videos in the windows that host them
-	auto Update = [mute, vol](D3DView *view)
+	auto Update = [mute](D3DView *view)
 	{
-		auto callback = [mute, vol](Sprite *sprite)
-		{
-			if (auto video = dynamic_cast<VideoSprite*>(sprite); video != nullptr)
-			{
-				if (auto player = video->GetVideoPlayer(); player != nullptr)
-				{
-					player->Mute(mute);
-					if (!vol)
-						player->SetVolume(vol);
-				}
-			}
-		};
 		if (view != nullptr)
-			view->ForDrawingList(callback);
+			view->OnUpdateVideoMute(mute);
 	};
 	Update(GetPlayfieldView());
 	Update(GetBackglassView());

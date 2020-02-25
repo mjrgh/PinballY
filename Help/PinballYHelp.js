@@ -4,10 +4,14 @@ document.write("<script src=\"highlightjs/highlight.pack.js\" type=\"text/javasc
 $("head").prepend("<link rel=\"stylesheet\" type=\"text/css\" href=\"highlightjs/styles/vs.css\">");
 
 var contents = [
-   "Install.html Installation",
+    "Install.html Installation",
         "+SWF.html Flash Player",
-   "Troubleshooting.html Troubleshooting",
-   "OptionSettings.html Option Settings",
+    "Community.html Community Links",
+    "Troubleshooting.html Troubleshooting",
+    "UsageTips.html Usage Tips",
+    "NewTableSetup.html New Table Setup",
+    "MediaCapture.html Media Capture",
+    "OptionSettings.html Option Settings",
         "+AttractModeOptions.html Attract Mode",
         "+AudioVideoOptions.html Audio/Video",
         "+ButtonOptions.html Buttons",
@@ -29,9 +33,6 @@ var contents = [
         "+SystemOptions.html Systems",
             "++SystemOptionsBrowseSubfolder.html System Setup - Browse Subfolders",
         "+WindowOptions.html Windows",
-    "MediaCapture.html Media Capture",
-    "UsageTips.html Usage Tips",
-    "NewTableSetup.html New Table Setup",
     "Customizing.html Customizing",
         "+ButtonSounds.html Button Sounds",
         "+DefaultBackgrounds.html Default Backgrounds",

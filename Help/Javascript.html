@@ -47,16 +47,19 @@
    But the programming environment is somewhat different.
    Some of the common objects and functions that you might think of as
    "native Javascript" aren't actually that.  They're really "native
-   Web browser" things.  For example, the "document" and "window" objects,
-   the HTML DOM tree, and events like "onclick" and "onchar" all come
-   from the browser, not from Javascript.  PinballY isn't a Web browser.
-   It doesn't have all of the standard browser elements.
+   Web browser" things.  For example, the "document" and "window" objects
+   in browser Javascript come from the browser, not from Javascript, so
+   you won't find them in PinballY, nor will you find an HTML DOM tree,
+   nor common Web browser events like "onclick" and "onchar".
    Instead, PinballY provides its own, somewhat different set of objects
    that represent the PinballY user interface environment.  With that in
-   mind, we've tried to maintain familiar names and familiar behaviors
-   wherever there's good overlap in functionality.  For example, PinballY's
-   event system is similar to a browser's, and a number of common
-   browser-like functions are available, such as timeouts and intervals.
+   mind, we've tried to maintain familiar names and concepts wherever
+   we can.  For example, PinballY's event system is similar to a browser's,
+   and a number of common browser-like functions are available, such as
+   timeouts and intervals.  At the same time, we've intentionally used
+   new names for things that might resemble browser features but aren't
+   quite the same conceptually, to avoid creating the false impression
+   that they'd work exactly the same way.
 </p>
 
 <h2>Javascript language documentation</h2>

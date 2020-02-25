@@ -13,48 +13,33 @@
 <h1>Troubleshooting Tips</h1>
 
 <p>
-   This section is a collection of tips for troubleshooting any
-   problems you run into with PinballY.
+   This section is a collection of miscellaneous troubleshooting ideas
+   to help diagnose and (hopefully) fix any problems you run into with PinballY.
 </p>
 
-<h2>General troubleshooting advice</h2>
+<h2>General troubleshooting tips</h2>
 
-In case your specific issue isn't listed elsewhere in this section,
-here are a few general tips that might help diagnose or solve the
-problem.
+Later in this section, we have a list of the most common problems that
+people have run into in the past, with specific solutions, so check
+through the list to see if you can find your particular issue.
+However, if you can't find any information here on the specific issue
+you're having, here are a few basic troubleshooting techniques that
+can be applied to many sorts of problems.
 
-<h3>Resetting to factory settings</h3>
-
-<p>
-   If you feel like you've screwed up your settings beyond repair and
-   you just want to reset everything to the standard defaults, it's
-   usually <b>not</b> necessary to go to the trouble of reinstalling the whole program.
-</p>
-<p>
-   In most cases, all you have to do is delete the file <b>Settings.txt</b>,
-   found in your main PinballY install folder.
-</p>
-<p>
-   That file contains all of your option settings.  I've been careful to avoid the
-   unfortunately common practice in other Windows software of scattering settings
-   all over the registry and hidden files and so on.  PinballY keeps all user
-   settings in that file.  Deleting it is usually enough to
-   restore factory settings.  By the way, that file is a simple text file in
-   human-readable format - it even has lots of comments explaining what's going on.
-   Don't be afraid of opening it in Notepad if you want to see what's there.
-</p>
-   
 <h3>Check the log file</h3>
 
 <p>
-   Many problems can be solved by checking PinballY's log file.  Every
+   Many problems can be solved (or at least diagnosed) by checking PinballY's log file.  Every
    time you run PinballY, it creates a log file called <b>PinballY.log</b>
    in its main program folder.  As the program runs, it writes a bunch
    of miscellaneous status reports to the log file about what it's
-   trying to do.  It also record technical details about many sorts
-   of system errors here.   The point is to save extra details that might
-   be important in case of problems, without barraging you with
-   technical status messages in the graphical UI.
+   trying to do.  It also records technical details here about any Windows system
+   errors that are encountered.  These sorts of technical details are usually omitted from on-screen
+   error messages, since most people find the Windows error codes to be largely
+   useless techno-gibberish, but once in a while it's helpful to know exactly
+   what's going wrong under the covers.  So the log file tries to keep track
+   of many of the technical details that are intentionally hidden from
+   the on-screen UI, just in case they're needed.
 </p>
 <p>
    You've probably experienced situations where too much information
@@ -89,13 +74,34 @@ problem.
    find and fix the problem.
 </p>
 
+<h3>Resetting to factory settings</h3>
+
+<p>
+   If you feel like you've screwed up your settings beyond repair and
+   you just want to reset everything to the standard defaults, it's
+   usually <b>not</b> necessary to go to the trouble of reinstalling the whole program.
+</p>
+<p>
+   In most cases, all you have to do is delete the file <b>Settings.txt</b>,
+   found in your main PinballY install folder.
+</p>
+<p>
+   That file contains all of your option settings.  I've been careful to avoid the
+   unfortunately common practice in other Windows software of scattering settings
+   all over the registry and hidden files and so on.  PinballY keeps all user
+   settings in that file.  Deleting it is usually enough to
+   restore factory settings.  By the way, that file is a simple text file in
+   human-readable format - it even has lots of comments explaining what's going on.
+   Don't be afraid of opening it in Notepad if you want to see what's there.
+</p>
+   
 
 <h2>Some common problems (and suggested solutions)</h2>
 
 The topics below list some of the more common problems that I've heard
 about, with suggestions for fixes or ways to gather more information.
 Scan through the list to see if you can find anything that sounds
-similar to any problems you're having.
+similar to any issues you're having.
 
 <h3>PinballY doesn't have keyboard focus at system startup</h3>
 
@@ -168,6 +174,42 @@ similar to any problems you're having.
    focus again.
 </p>
 
+<h3>Errors messages about missing DirectX components</h3>
+<p>
+   If PinballY shows an error message about missing DirectX components
+   as soon as you launch the program, you probably need to upgrade to the
+   latest version of Microsoft's DirectX.  This should never be necessary
+   on Windows 8 or later, because those come with the necessary
+   components pre-installed.  But if you're on Windows 7, you might need to update DirectX,
+   <i>even if you already have DirectX 11 installed</i>,
+   because Windows 7 originally came with an earlier version of DirectX 11
+   that's not compatible with PinballY.  Update instructions can be
+   found on the Microsoft website:
+</p>
+<div class="indented">
+   <a target="_blank" href="https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx">https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx</a>
+</div>
+   
+
+<h3>Error message saying "MFPlat.DLL not found"</h3>
+
+<p>
+   This refers to a Windows system file that's normally installed by default
+   as part of the operating system on Windows 7 through 10, but which Microsoft
+   apparently changed to "optional" status in a newer Windows 10 update.
+   Some people have had it disappear from their system as a result.  You
+   can add it back by enabling the "Media Feature Pack" in the system settings:
+</p>
+<ul>
+   <li>Open the Windows system control panel
+   <li>Go to <b>Apps</b> &gt; <b>Apps and features</b> &gt; <b>Optional features</b> &gt; <b>Add a feature</b>
+   <li>Find <b>Media Feature Pack</b> in the list
+   <li>Click <b>Install</b>
+   <li>According to the Microsoft support site, you'll need to reboot the computer
+   to complete the installation, even though there might not be any message to this effect
+</ul>
+
+
 <h3>I'm running PinballY in Admin mode, and something's not working</h3>
 
 <p>
@@ -209,23 +251,6 @@ similar to any problems you're having.
    its Admin Mode launch, without forcing everything else to run in Admin Mode too.
 </ul>
 
-
-<h3>Errors about missing DirectX components immediately at start-up</h3>
-<p>
-   If PinballY shows an error message about missing DirectX components
-   as soon as you launch the program, you probably need to upgrade to the
-   latest version of Microsoft's DirectX.  This should only be necessary
-   on Windows 7, because Windows 8 and later come with the necessary
-   components pre-installed.  But you might need to update DirectX if
-   you're running Windows 7, even if you already have DirectX 11,
-   because Windows 7 originally came with an earlier version of DirectX 11
-   that's not compatible with PinballY.  Update instructions can be
-   found on the Microsoft website:
-</p>
-<div class="indented">
-   <a target="_blank" href="https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx">https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx</a>
-</div>
-   
 
 <h3>PinballY isn't finding my tables</h3>
 

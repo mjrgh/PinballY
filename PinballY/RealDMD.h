@@ -40,6 +40,9 @@ public:
 	// apply a working audio level to playing media
 	void ApplyWorkingAudioVolume(int volPct);
 
+	// update the global video muting
+	void OnUpdateVideoMute(bool mute);
+
 	// Enter/exit running game mode.  If possible, we'll close our
 	// session with the DMD while a game is running, to avoid any
 	// contention with the game over access to the physical device.

@@ -178,6 +178,9 @@ public:
 	// change video enabling status
 	virtual void OnEnableVideos(bool enable) override;
 
+	// handle a global change to the video mute status
+	virtual void OnUpdateVideoMute(bool mute) override;
+
 	// mute/unmute table audio
 	void MuteTableAudio(bool mute);
 
