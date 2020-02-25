@@ -1,5 +1,27 @@
 PinballY Update History
 
+02-25-2020 (1.0.0 Beta 21)
+
+* In the past, the real DMD video wasn't included among the videos
+that were muted when entering Attract Mode (assuming the options were
+so configured), so its audio track incorrectly continued to play.  The
+real DMD video is now muted along with the others.  (Issue #118 on
+github.)
+
+* MP3 playback is now handled through libvlc (the same codec layer
+that we use for video playback), rather than DirectShow (as it was in
+the past).  The main reason for this change is that libvlc has better
+MP3 support than DirectShow does; DirectShow can't play some types of
+valid MP3 files due to limitations in its codecs.  Since we're already
+incorporating libvlc for video playback anyway, this change has the
+beneficial side effect of reducing our external dependencies, and the
+dependency we're eliminating in this case is an especially good one to
+eliminate, as DirectShow is an older technology that Microsoft is no
+longer developing.  (Addresses issue #116 in github, and should fix
+playback for any other MP3 files that weren't playing in past
+versions.)
+
+
 01-31-2020 (1.0.0 Beta 20)
 
 * When PinballY is in "Paused Game" mode, meaning that you've used the
@@ -46,32 +68,13 @@ Types > VideoEvent in the help.
 * Fixed a problem that sporadically caused the program to "freeze"
 (stop responding to input) after returning from a launched game
 session or a media capture session.  The problem only affected
-releases Beta 18 and Beta 19.
+releases Beta 18 and Beta 19.  (Issue #111 on github.)
 
 * The Manual Capture Start/Stop button options weren't being respected
 properly when using the "PinballY Admin Mode" version of the program.
 That version always assumed you were using the default setting of
 "press both flipper buttons".  It now respects the actual option
 setting.
-
-* In the past, the real DMD video wasn't included among the videos
-that were muted when entering Attract Mode (assuming the options were
-so configured), so its audio track incorrectly continued to play.  The
-real DMD video is now muted along with the others.  (Issue #118 on
-github.)
-
-* MP3 playback is now handled through libvlc (the same codec layer
-that we use for video playback), rather than DirectShow (as it was in
-the past).  The main reason for this change is that libvlc has better
-MP3 support than DirectShow does; DirectShow can't play some types of
-valid MP3 files due to limitations in its codecs.  Since we're already
-incorporating libvlc for video playback anyway, this change has the
-beneficial side effect of reducing our external dependencies, and the
-dependency we're eliminating in this case is an especially good one to
-eliminate, as DirectShow is an older technology that Microsoft is no
-longer developing.  (Addresses issue #116 in github, and should fix
-playback for any other MP3 files that weren't playing properly in
-past versions.)
 
 
 
