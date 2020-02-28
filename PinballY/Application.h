@@ -406,6 +406,7 @@ public:
 	// Get the active muting status.  This takes into account the
 	// global config settings and the current night mode status.
 	bool IsMuteVideosNow() const;
+	bool IsMuteTableAudioNow() const;
 
 	// Update the global muting status
 	void UpdateVideoMute();

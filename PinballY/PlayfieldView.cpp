@@ -7463,6 +7463,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// combine the game-specific volume with the global video volume level
 	volumePct = volumePct * Application::Get()->GetVideoVolume() / 100;
 
+	// check if audio is muted for attract mode
+	bool muteAudio = Application::Get()->IsMuteTableAudioNow();
+
 	// If the outgoing game has a database record but is still marked
 	// as unconfigured, the game details must have been added just now.
 	// The nominally unconfigured status lasts as long as it's the
@@ -7495,6 +7498,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 				incomingPlayfield.audio->Mute(true);
 
 			// start playback
+			incomingPlayfield.audio->Mute(muteAudio);
 			incomingPlayfield.audio->SetLooping(true);
 			incomingPlayfield.audio->Play(uieh);
 		}

@@ -240,7 +240,7 @@ protected:
 	VideoMode videoMode = None;
 
 	// load a video
-	bool LoadVideo(const TCHAR *path, bool looping, bool play, VideoMode mode, ErrorHandler &eh, int volPct);
+	bool LoadVideo(const TCHAR *path, bool play, bool looping, int volPct, bool mute, VideoMode mode, ErrorHandler &eh);
 
 	// Set the oclor scheme for a game
 	void SetColorScheme(GameListItem *game);

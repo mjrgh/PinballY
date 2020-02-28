@@ -1658,6 +1658,20 @@ bool Application::IsMuteVideosNow() const
 	return mute;
 }
 
+bool Application::IsMuteTableAudioNow() const
+{
+	// Start with the global muting status
+	bool mute = muteTableAudio;
+
+	// If Attract Mode is active, and attract mode is set to mute, apply
+	// muting even if muting isn't normally in effect.
+	if (auto pfv = GetPlayfieldView(); pfv != nullptr && pfv->IsAttractMode() && muteAttractMode)
+		mute = true;
+
+	// return the result
+	return mute;
+}
+
 bool Application::UpdatePinscapeDeviceList()
 {
 	// update the device list
