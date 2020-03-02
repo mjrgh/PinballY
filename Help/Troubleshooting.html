@@ -623,5 +623,57 @@ similar to any issues you're having.
    disable the Aero elements that affect performance.
 </p>
 
+<h3>PinballY keeps taking control a few seconds after I launch a game</h3>
+<p>
+   Symptom: Shortly after launching a game, PinballY brings itself
+   back to the foreground, as though the game had already ended, even though
+   the game only just started!
+</p>
+<p>
+   If the game in question is a commercial game based on Steam, or
+   it's Future Pinball with BAM, or it uses any other "two-stage" launch
+   procedure, the problem might be in the option settings for the system.
+</p>
+<p>
+   Steam games and FP BAM games use a complicated launch procedure where
+   you launch one .EXE program, which then launches another .EXE program
+   that represents the actual game.  For example, with Pinball FX3, PinballY
+   has to launch the main Steam program file <b>Steam.exe</b> to get the ball rolling (as it
+   were), but Steam.exe then launches a separate program called <b>Pinball FX2.exe</b>.
+   Once that's going, Steam.exe quits and lets Pinball FX2.exe take over.
+</p>
+<p>
+   The thing that makes this tricky for PinballY is that PinballY wants to
+   monitor the launched game program, so that it can figure out when the
+   game is over and it's appropriate for PinballY to take over the screen
+   again.  With Steam (and BAM, and probably a few others), the program
+   that PinballY actually launches exits after a few seconds, even though
+   the game is still running in that second process.  But PinballY doesn't
+   just magically know that!  When it sees the directly launched program
+   quit, it thinks that the game is over and it's time to take over again.
+</p>
+<p>
+   The solution is to explicitly tell PinballY about this
+   two-stage launch setup.  PinballY has a special provision for this,
+   because it's pretty common, but PinballY can't figure it out on its
+   own; you have to tell it.  The way to do this is to go to the settings
+   dialog, navigate to the page for the system in question, and enter
+   the "final" program name in the <b>Process Name</b> box.  The "final"
+   program is the one that's actually left running after the multi-stage
+   launch has finished and the game is really going.
+</p>
+<p>
+   The name you enter in the Process Name box must <b>not</b> include
+   a path, but must <b>include</b> the .EXE suffix.  For Pinball FX3,
+   for example, you'd enter <b>Pinball FX3.exe</b>.
+</p>
+<p>
+   See <a href="SystemOptions.html#ProcessNameBox">Process Name</a>
+   in <a href="SystemOptions.html">System Options</a> for more on
+   this topic.
+</p>
+
+   
+
 </body>
 </html>

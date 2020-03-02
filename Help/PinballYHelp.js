@@ -31,6 +31,7 @@ var contents = [
         "+StartupOptions.html Startup",
         "+StatuslineOptions.html Statusline",
         "+SystemOptions.html Systems",
+            "++NewSystemSetup.html New System Setup",
             "++SystemOptionsBrowseSubfolder.html System Setup - Browse Subfolders",
         "+WindowOptions.html Windows",
     "Customizing.html Customizing",
