@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>New System Setup</h1>
+
+<p>
+   To a first approximation, adding a new pinball player system to PinballY
+   is straightforward:  bring up the <a href="OptionSettings.html">Option Settings</a>
+   dialog, navigate to the <b>Systems</b> section in the list on the left,
+   click the <b>Add a new system</b> button to create a blank options page
+   for a new system, and then fill in the details on the new system page.
+   The trick is in figuring out those "details".
+</p>
+<p>
+   Before you set about re-inventing the wheel, please check the list of
+   <a href="SystemOptions.html#standardRecipes">Recipes for common systems</a>
+   in the main <a href="SystemOptions.html">System Options</a> section.
+   Most of the pinball game systems that people use on pin cabs are
+   listed there.  If the system you're looking to add isn't there, though,
+   the information below should help.  If you do have to add a brand new system,
+   please send me the details once you have it working reliably, and I'll
+   be happy to add it to the common recipe list.
+</p>
+
+<h2>What <i>not</i> to do</h2>
+
+<p>
+   You shouldn't have to manually edit any of the XML "Database" files
+   or PinballY's internal ".csv" game list file.  PinballY will take
+   care of editing those files automatically if you follow the
+   procedures below.  It's safer to let PinballY maintain those files
+   instead of editing them manually, because they're very picky about
+   getting the syntax exactly right.
+</p>
+
+
+<h2>Finding the new system's games</h2>
+
+<p>
+   The first potentially tricky part of setting up a new system is: how
+   do you get PinballY to recognize the new system's games and add them
+   to the "wheel" UI that shows all of your available games?
+</p>
+<p>
+   To understand how to accomplish this, we have to understand what
+   PinballY thinks of as a "game".  To PinballY, every game is represented by
+   a file on your hard disk that it calls a "table file".  In most
+   cases, <i>this isn't a file you have to create</i> - it's a file
+   that you'll already have, and that PinballY finds.
+</p>
+<p>
+   The concept of a "table file" comes from the design of the most
+   popular free programs, Visual Pinball and Future Pinball.
+   Those programs both use a file on your hard disk to store everything
+   about a particular game.  In the case of VP, these files have names
+   ending with <b>.vpx</b> (for version 10 of VP, also known as VPX)
+   and <b>.vpt</b> (for VP versions 9 and earlier).  Future Pinball
+   uses a suffix of <b>.fpt</b> for its table files.
+   For example, when you download a copy of <i>Funhouse</i> for Visual Pinball,
+   it'll consist of a file called something like <b>Funhouse_v3.vpx</b>.
+   That's what PinballY calls the "table file" - that main file that
+   you open with Visual Pinball when you want to edit or play that game.
+</p>
+<p>
+   (Games designed for Visual Pinball and other systems might <i>also</i> have
+   a bunch of other associated files, such as the <b>.directb2s</b>
+   files that many VP games use for backglass displays, and the ROM
+   <b>.zip</b> files that VPinMAME loads when playing a game.  PinballY
+   doesn't really care about those; it just cares about that <i>main</i>
+   file for each game that we call the table file.)
+</p>
+<p>
+   The table file is what PinballY uses to detect the existence of a
+   game.  This works great for Visual Pinball and similar systems,
+   because it means that PinballY can find all of your installed
+   games almost by magic, without any work on your part to slog
+   through your table folders and manually enter all of the games.
+   For any system like VP that uses table files, you only have to
+   provide two pieces of information in the system settings dialog,
+   and PinballY will automatically find all of your games:
+</p>
+<ul>
+   <li><b>Table folder</b>: the folder location where all of your games for that system are installed
+   <li><b>Table extension</b>: the filename suffix for all of the table files for the system
+</ul>
+<p>
+   Each time you run PinballY, it scans the Table Folder for each system
+   and looks for all files matching the system's filename extension.
+   For each file it finds, it automatically adds an entry for that
+   game to the wheel UI.  As a result, there's no need to manually
+   create a list of your games anywhere.  PinballY just figures it
+   out automatically by scanning for matching files.
+</p>
+
+<h3>Table files for systems that don't use them</h3>
+<p>
+   The snag with the table file scheme is that some pinball game
+   systems - particularly some of the commercial games - don't
+   use table files at all.  Some game systems have all of the games
+   built in to the program, or stored online, or something else entirely.
+</p>
+<p>
+   So how are you supposed to tell PinballY what tables exist for a system that doesn't
+   have any table files?
+</p>
+<p>
+   The answer is that you <i>still</i> need the table files.  But in
+   this case, they don't need to be "real" table files that actually
+   came with the game.  They can be "dummy" files that you create
+   manually:
+</p>
+<ul>
+   <li>Create a folder that will hold your dummy files.  This folder
+   can be located anywhere you want, such as in the PinballY program
+   folder or in your Windows Documents folder.  It doesn't matter.
+   Give it a recognizable name related to the product name of the
+   game, so that you can remember what it's for.  Enter this folder
+   location in the <b>Table Folder</b> box in the system's page
+   in the PinballY settings dialog.
+
+   <li>Make up a filename suffix for the dummy files.  Again, this
+   can be any suffix you want.  Let's use <b>.game</b> for the
+   sake of this example.  Enter this suffix in the <b>Table Extension</b>
+   box in the settings dialog, <i>including</i> the leading "dot".
+
+   <li>Go to the dummy file folder you created.  For each of the
+   system's games that you want to include in PinballY, create an
+   empty text file for the game.  Be sure to use the filename
+   suffix you selected above for each file.  So for a game
+   called <i>Funhouse</i>, you might create a file called
+   <b>Funhouse.game</b>.
+   <p>Again, these are just dummy files. All that matters
+      is that the <i>exist</i> and have the right folder
+      location and right filename suffix, so that PinballY
+      can find them during its folder scans.  PinballY
+      won't need to look inside them,  nor will the game, so they just can be empty.
+      Or you use them to record notes on the game, for example.</p>
+
+   <li>The next time you run PinballY, you should see a wheel entry
+   appear for each game for which you create a dummy .game file.
+   You can now complete setup for each game as normal using the
+   Game Setup menu.  Use the <a href="EditGameDetails.html">Edit Game Details</a>
+   command to set up the metadata, and use the <a href="MediaCapture.html">Media Capture</a>
+   commands to create table videos, backglass videos, and other media.
+</ul>
+
+
+<h2>Database files and media files</h2>
+
+<p>
+   In addition to the basic "table file" that in effect declares the
+   existence of a game to PinballY, the system also keeps several other
+   pieces of information about each game:
+</p>
+<ul>
+   <li>A "database" entry with the game's metadata (title, year, manufacturer, etc)
+   <li>"Media files" for the game (table video, backglass image, etc)
+</ul>
+<p>
+   To set up a new system, you actually don't have to think too much
+   about these, because PinballY will take care of them automatically
+   for the most part.  The system will select default locations for the
+   database and media files based on the name of the system that you
+   enter in the new system's settings page when you first create it.
+   PinballY will also automatically create the database files
+   as needed when you use the <a href="EditGameDetails.html">Edit Game Details</a>
+   dialog to set up an individual game that's associated with the new system,
+   and it'll automatically create media files for the system's games
+   when you use the <a href="MediaCapture.html">Media Capture</a> commands.
+</p>
+<p>
+   So, in most cases, you can just leave the <b>Database folder</b>
+   and <b>Media folder</b> entries blank when setting up a new system,
+   and let PinballY select defaults based on the system name that
+   you enter.  You should only enter values in these boxes if you
+   have some reason to override the defaults.  See
+   <a href="DirectoryInfo.html">Files &amp; Folders</a> for more
+   details on how these locations work.
+</p>
+
+<h2>Special settings for Steam games (and some others)</h2>
+<p>
+   Many of the commercial pinball games these days are based on Steam.
+   Steam games use a two-step launch process that requires some special
+   attention in the PinballY setup.  Some other game systems, including
+   Future Pinball with the BAM extension, use the same approach, and
+   need the same sort of special handling in PinballY.
+</p>
+<p>
+   "Two-stage launch" means that the game program starts up with not
+   one but two .EXE program launches in Windows.  You start the game by
+   launching the Steam executable, Steam.exe, with a parameter telling
+   Steam which actual game you're trying to start.  Steam then fires up
+   a second process using the actual .EXE program that contains the
+   game's programming.  After Steam starts up the real game program,
+   Steam exits, leaving the game program running.
+</p>
+<p>
+   This requires some special setup in PinballY because of the way
+   PinballY monitors the launched game to determine when it quits.
+   Normally, PinballY assumes that the program you tell it to launch
+   is the actual game program.  So to figure out when the game is
+   over, PinballY monitors that launched program process, and assumes
+   that the game has ended when the program exits.  This doesn't work
+   for a two-stage launch process, however, because the program that
+   PinballY launches initially doesn't keep running for long - it
+   only runs long enough to start the second phase, and then exits.
+   With PinballY's default assumption that the launched program is
+   the game itself, this makes PinballY take control again prematurely,
+   since it thinks the game is done as soon as that first "launcher"
+   stage exits.
+</p>
+<p>
+   This two-stage arrangement is fairly common, so PinballY has
+   special handling for it.  But PinballY can't figure out on its
+   own when the special handling is needed; you have to say so
+   explicitly.  The way you do this is via the <b>Process Name</b>
+   box in the settings page for the system in the PinballY
+   options dialog.
+</p>
+<p>
+   For any Steam-based game, the standard recipe for setting up the
+   two-stage launch is as follows:
+</p>
+<ul>
+   <li>Set the <b>System class</b> to <b>Steam</b>
+   <li>Set the <b>Program EXE</b> to <b>[STEAM]</b> (enter those square bracket literally)
+
+   <li>Set the <b>Parameters</b> to <b>-applaunch 123456</b>, replacing the number with the
+   appropriate Steam identification number for the particular game.  Unfortunately, I don't know of
+   any master list of these special numbers; it's something you have to "know" for each
+   game.  It's usually pretty easy to find them on gamer forums, if you search for
+   the name of the game plus "applaunch".
+
+   <li>Depending on the game, you might also have to add some more magic words to the
+   <b>Parameters</b> line, such as to select game options or to tell it which pinball
+   table to launch.  For FX3, for example, you have to add <b>"[TABLEFILEBASE]"</b>
+   to the string to tell FX3 which table you want to play, because FX3 has many
+   tables in one program .EXE file.  Again, the options are peculiar to each
+   game, so I can't give you a simple recipe here.  This is another bit of magic
+   that you have to look up somewhere on the Internet, your best bet being gamer
+   forums where other people have already figured out the right keywords.
+
+   <li>Set <b>Process Name</b> to the "final" executable for the game.  Yet again,
+   this is special to each game, so you just have to "know" somehow.  One way is
+   to run the game from the desktop, and <i>while it's running</i>, use the Windows
+   Task Manager to inspect the list of active processes and identify the .EXE file
+   for the one that represents the running game.
+</ul>
+
+
+   
+
+</html>
+</body>
+

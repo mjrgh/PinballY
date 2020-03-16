@@ -7,6 +7,15 @@ time the problem was that they wouldn't stay muted when the automatic
 game switching occurred.  The same thing happened with table audio
 tracks, which has been fixed as well.  (Issue #120 on github.)
 
+* Fixed a problem with the audio/video playback where the audio volume
+and mute settings were forgotten at the end of each playback loop and
+reset to unmuted full volume.  The volume and mute status should
+remain the same across looped playback cycles now.  (This seemed to be
+due to a bug in the third-party libvlc layer, and it appears that it
+might be timing-related, so it's hard to be sure whether it's fixed
+for real or if I just masked it on my machine with timing changes.
+Let me know if you see any recurrence.)
+
 
 02-25-2020 (1.0.0 Beta 21)
 
