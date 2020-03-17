@@ -10,11 +10,14 @@ tracks, which has been fixed as well.  (Issue #120 on github.)
 * Fixed a problem with the audio/video playback where the audio volume
 and mute settings were forgotten at the end of each playback loop and
 reset to unmuted full volume.  The volume and mute status should
-remain the same across looped playback cycles now.  (This seemed to be
-due to a bug in the third-party libvlc layer, and it appears that it
-might be timing-related, so it's hard to be sure whether it's fixed
-for real or if I just masked it on my machine with timing changes.
-Let me know if you see any recurrence.)
+remain the same across looped playback cycles now.  (The problem was
+due to an apparent bug in libvlc, and unfortunately the bug occurs in
+a background thread, so the timing is unpredictable.  The workaround I
+added is therefore itself time-dependent.  That makes it hard to know
+if it will be 100% reliable on every machine or with every video
+track.  It seems reliable in my testing, but the timing might need to
+be adjusted to make it reliable universally.  So let me know if you
+see any recurrence.)
 
 
 02-25-2020 (1.0.0 Beta 21)

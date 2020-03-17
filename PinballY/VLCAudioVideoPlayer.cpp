@@ -294,6 +294,7 @@ void VLCAudioVideoPlayer::Shutdown()
 	// release the VLC objects
 	if (player != nullptr)
 	{
+		CriticalSectionLocker lock(playerLock);
 		libvlc_media_player_release_(player);
 		player = nullptr;
 	}
@@ -316,6 +317,7 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 	// release any existing media player
 	if (player != nullptr)
 	{
+		CriticalSectionLocker lock(playerLock);
 		libvlc_media_player_release_(player);
 		player = nullptr;
 	}
@@ -429,6 +431,7 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 	{
 		if (player != nullptr)
 		{
+			CriticalSectionLocker lock(playerLock);
 			libvlc_media_player_release_(player);
 			player = nullptr;
 		}
@@ -460,8 +463,9 @@ bool VLCAudioVideoPlayer::Play(ErrorHandler &eh)
 	// the first frame hasn't been presented yet
 	firstFramePresented = false;
 
-	// set muting mode
-	libvlc_audio_set_mute_(player, muted);
+	// Set muting mode and volume.  The libvlc documentation says that the muting
+	// function is unreliable, so we'll just set the volume to zero insetad.
+	libvlc_audio_set_volume_(player, muted ? 0 : volume);
 
 	// start playback
 	libvlc_media_player_play_(player);
@@ -490,12 +494,57 @@ bool VLCAudioVideoPlayer::Replay(ErrorHandler &eh)
 	// start playback
 	libvlc_media_player_play_(player);
 
-	// reset the audio volume and muting mode - these don't carry over across repeats
-	libvlc_audio_set_volume_(player, volume);
-	libvlc_audio_set_mute_(player, muted);
-
-	// playback started
+	// playback (re-)started
 	isPlaying = true;
+
+	// libvlc has a truly egregious bug with looped video.  When we restart
+	// playback, libvlc will forget the audio volume and mute status, resetting
+	// to unmuted full volume.  It would be one thing if we could just restore
+	// the audio settings here, but it's worse than that: the reset happens in
+	// the playback thread, asynchronously, some time after playback resumes.
+	// Empirically this takes about 30ms on my machine, but that undoubtedly
+	// varies from machine to machine and by phase of the moon.  It's not
+	// acceptble to take a 30-50ms delay here, as that would stall the UI for
+	// a noticeable period.  Instead, set up a background thread to do the 
+	// work after a suitable delay.
+	auto RestoreThread = [](LPVOID param) -> DWORD
+	{
+		// get my self-reference from the parameter
+		RefPtr<VLCAudioVideoPlayer> self(static_cast<VLCAudioVideoPlayer*>(param));
+
+		// Restore the audio settings on a delay.  Do this several times to
+		// account for the inherent unpredictability of when the background
+		// thread actually wakes up.  Since we're only restoring the desired
+		// current settings each time, it's harmless to do this redundantly.
+		for (int tries = 0; tries < 6; ++tries)
+		{
+			// pause to let the playback thread start up
+			Sleep(10);
+
+			// critical section
+			{
+				// if we're not still playing, abort
+				CriticalSectionLocker lock(self->playerLock);
+				if (!self->isPlaying || self->player == nullptr)
+					break;
+
+				// reset the audio status
+				libvlc_audio_set_volume_(self->player, self->muted ? 0 : self->volume);
+			}
+		}
+
+		// done
+		return 0;
+	};
+	DWORD tid;
+
+	// add a reference on behalf of the thread, and start the thread
+	AddRef();
+	HandleHolder hThread(CreateThread(NULL, 0, RestoreThread, this, 0, &tid));
+
+	// if the thread failed, forget its added reference
+	if (hThread == NULL)
+		Release();
 
 	// success
 	return true;
@@ -528,16 +577,19 @@ void VLCAudioVideoPlayer::Mute(bool f)
 	// remember the new muting mode internally
 	muted = f;
 
-	// set muting on the player, if present
+	// Set muting on the player, if present.  Note that the libvlc muting
+	// function (libvlc_audio_set_mute) isn't reliable (the documentation
+	// says so and experience bears this out; it sometimes works but often
+	// doesn't).  Setting the volume to zero seems more reliable.
 	if (player != nullptr)
-		libvlc_audio_set_mute_(player, f);
+		libvlc_audio_set_volume_(player, muted ? 0 : volume);
 }
 
 void VLCAudioVideoPlayer::SetVolume(int pctVol)
 {
 	volume = pctVol;
 	if (player != nullptr)
-		libvlc_audio_set_volume_(player, pctVol);
+		libvlc_audio_set_volume_(player, muted ? 0 : volume);
 }
 
 void VLCAudioVideoPlayer::SetLooping(bool f)

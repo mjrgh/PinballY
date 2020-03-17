@@ -158,14 +158,14 @@ protected:
 
 
 	// is playback running?
-	bool isPlaying;
+	volatile bool isPlaying;
 
 	// do we loop playback?
 	bool looping;
 
 	// audio volume (linear scale, 0..100) and muting status
-	int volume;
-	bool muted;
+	volatile int volume;
+	volatile bool muted;
 
 	// Frame buffers for the video decoder and renderer.  These are
 	// the memory buffers that we return to libvlc from our "lock
@@ -286,6 +286,11 @@ protected:
 	// the UI, as the renderer runs in the main UI thread.
 	CriticalSection renderLock;
 
+	// Critical section locker for the player object.  This is 
+	// to prevent the foreground thread from disposing of the
+	// player object while a background thread is accessing it.
+	CriticalSection playerLock;
+
 	// Current presented frame
 	RefPtr<FrameBuffer> presentedFrame;
 
@@ -301,7 +306,7 @@ protected:
 
 	// VLD media player instance.  This is the interface to our
 	// video decoder/player.
-	libvlc_media_player_t *player;
+	libvlc_media_player_t *volatile player;
 
     // Global libvlc instance.  This is the top-level context 
     // for VLC operations.  We create this on demand on the first
