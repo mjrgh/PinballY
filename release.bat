@@ -5,6 +5,9 @@
 @rem
 @echo off
 
+rem create folders
+if not exist Builds mkdir Builds
+
 rem  Use the git README.md as README.txt
 mkdir release_temp
 copy README.md release_temp\README.txt

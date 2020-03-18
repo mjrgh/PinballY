@@ -3,7 +3,11 @@ Build Environment Setup
 1. Visual Studio 2017
 
 I'm building using Visual Studio 2017.  As of this writing, I'm on
-15.6.1, but other nearby versions should work.
+15.6.1, but other nearby or later versions should work.  (Updating to
+a newer major version might require some edits to the C++ code, as
+Microsoft always updates to the latest C++ language standard on major
+versions, and the C++ language specs haven't been shy about making
+code-breaking changes lately.)
 
 
 2. DirectX SDK June 2010
@@ -72,3 +76,34 @@ Core itself to build PinballY.  However, if you wish to update to a
 newer Chakra Core, or you want the source around for debugging, you
 can build it from source, which is quite simple to do.  Instructions
 are in Notes\ChakraCore.txt.
+
+
+5. Install other needed Windows Platform SDK versions (if necessary)
+
+Visual Studio normally installs the current Windows Platform SDK
+automatically as part of the development environment setup.  However,
+each Project configuration calls for a SPECIFIC Platform SDK version,
+so the one that VS installs might not match what the PinballY project
+settings require.  If you get any errors about missing Platform SDK
+headers when you try to build, you can get the required versions here:
+
+  https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/
+
+It's okay to have several different SDK versions installed on your
+machine, so installing another version won't affect your existing SDK
+installs or other projects.
+
+To figure out which SDK version is needed for a given Visual Studio
+project, open the solution (.sln) file in Visual Studio, then
+right-click on the project in the Solution Explorer panel and select
+Properties.  On the "General" page, look for the line saying "Windows
+SDK Version".  That will tell you the specific version that project
+requires.  You can either install that version from the Microsoft site
+above, OR you can try changing the "Windows SDK Version" in the
+project properties to match a version you already have installed.  In
+most cases, PinballY should be perfectly happy to work with newer SDK
+versions, since Microsoft goes to pretty heroic lengths to keep their
+SDKs backwards-compatible.  But they sometimes do make incompatible
+changes, so if you get compiler errors after changing the SDK version
+setting in the project properties, try changing back it back in the
+properties, and install the old SDK from the link above.
