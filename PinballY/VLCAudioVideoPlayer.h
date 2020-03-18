@@ -167,6 +167,16 @@ protected:
 	volatile int volume;
 	volatile bool muted;
 
+	// Audio volume/mute initializer.  libvlc has an odd quirk (bug?)
+	// where it resets the audio volume to unmuted/100% on replay,
+	// *in the player thread*.  That means that the timing of the reset
+	// is unpredictable, so we have to do it on a delay timer shortly
+	// after starting a replay.  Empirically, the delay needed is
+	// something on the order of 30ms, which is too long to stall the
+	// UI thread.  So we set up a background thread that does the work
+	// after a slight delay.
+	void LaunchVolInitThread();
+
 	// Frame buffers for the video decoder and renderer.  These are
 	// the memory buffers that we return to libvlc from our "lock
 	// buffer" callback.  Libvlc decodes video frames directly into

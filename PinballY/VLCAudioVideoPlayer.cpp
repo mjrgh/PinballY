@@ -473,6 +473,16 @@ bool VLCAudioVideoPlayer::Play(ErrorHandler &eh)
 	// playback started
 	isPlaying = true;
 
+	// The libvlc bug that affects audio volume on replays might also be
+	// causing volume problems on *first* plays on some machines, where
+	// we seem to have muted initial plays in some cases.  I'm thinking
+	// that the anamolous volume reset that we know occurs on replay might
+	// also occur on the first play, and in that case it might be using
+	// uninitialized data that on some machines manifests as a muted
+	// first play.  So we'll do our explicit volume setting the first
+	// time through as well.
+	LaunchVolInitThread();
+
 	// success
 	return true;
 }
@@ -507,6 +517,14 @@ bool VLCAudioVideoPlayer::Replay(ErrorHandler &eh)
 	// acceptble to take a 30-50ms delay here, as that would stall the UI for
 	// a noticeable period.  Instead, set up a background thread to do the 
 	// work after a suitable delay.
+	LaunchVolInitThread();
+
+	// success
+	return true;
+}
+
+void VLCAudioVideoPlayer::LaunchVolInitThread()
+{
 	auto RestoreThread = [](LPVOID param) -> DWORD
 	{
 		// get my self-reference from the parameter
@@ -545,9 +563,6 @@ bool VLCAudioVideoPlayer::Replay(ErrorHandler &eh)
 	// if the thread failed, forget its added reference
 	if (hThread == NULL)
 		Release();
-
-	// success
-	return true;
 }
 
 bool VLCAudioVideoPlayer::Stop(ErrorHandler &eh)
