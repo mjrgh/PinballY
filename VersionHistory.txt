@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.0 Beta 22)
+03-19-2020 (1.0.0 Beta 22)
 
 * Fixed (again) muting of real DMD videos muting in Attract Mode; this
 time the problem was that they wouldn't stay muted when the automatic
