@@ -90,7 +90,7 @@ const SDC_APPLY           = 0x00000080;
 </p>
 <div class="code">
 mainWindow.on("gamestarted", ev => {
-    if (isClonedSystem(ev.game.system) {
+    if (isClonedSystem(ev.game.system)) {
         // switch the desktop to "clone" mode
         User32.SetDisplayConfig(0, null, 0, null, SDC_TOPOLOGY_CLONE | SDC_APPLY);
     }
