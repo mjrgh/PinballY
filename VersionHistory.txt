@@ -1,5 +1,15 @@
 PinballY Update History
 
+
+? (1.0.0 Beta 23)
+
+* When you renamed a game and opted to rename existing media files to
+match the new name, the system didn't include the real DMD media files
+and launch audio files in the files to be renamed.  This has been
+fixed.  (Issue #123 on github.)
+
+
+
 03-19-2020 (1.0.0 Beta 22)
 
 * Fixed (again) muting of real DMD videos muting in Attract Mode; this

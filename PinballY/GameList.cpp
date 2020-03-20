@@ -4091,6 +4091,11 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 			AddItems(launchAudioType);
 			AddItems(instructionCardImageType);
 			AddItems(flyerImageType);
+			AddItems(launchAudioType);
+			AddItems(realDMDImageType);
+			AddItems(realDMDColorImageType);
+			AddItems(realDMDVideoType);
+			AddItems(realDMDColorVideoType);
 		}
 
 		// store the new name
