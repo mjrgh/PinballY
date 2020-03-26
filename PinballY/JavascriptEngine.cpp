@@ -10,8 +10,8 @@
 #include "LogFile.h"
 #include "DialogResource.h"
 
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
+#include "../Utilities/std_filesystem.h"
+namespace fs = std::filesystem;
 
 
 #pragma comment(lib, "ChakraCore.lib")

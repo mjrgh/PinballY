@@ -96,6 +96,9 @@
     <ClInclude Include="PngUtil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="std_filesystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

@@ -17,8 +17,8 @@
 #include "LogFile.h"
 #include "DialogResource.h"
 
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
+#include "../Utilities/std_filesystem.h"
+namespace fs = std::filesystem;
 
 // include the capture-related variables
 #include "CaptureConfigVars.h"
@@ -1075,7 +1075,8 @@ bool GameList::InitFromPinballX(ErrorHandler &eh)
 			system->exe = exe;
 
 			// scan the .XML files for the lists
-			for (auto &file : fs::directory_iterator(path))
+			std::error_code ec;
+			for (auto &file : fs::directory_iterator(path, ec))
 			{
 				// check if it's an XML file
 				const wchar_t *fname = file.path().c_str();
@@ -1514,7 +1515,8 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			// Search the system's database directory for .XML files.  These 
 			// contain the table metadata for the system's tables.
 			Log(_T("+ searching folder %s for table database .XML files\n"), sysDbDir);
-			for (auto &file : fs::directory_iterator(sysDbDir))
+			std::error_code ec;
+			for (auto &file : fs::directory_iterator(sysDbDir, ec))
 			{
 				// check if it's an XML file
 				const wchar_t *fname = file.path().c_str();
@@ -4863,7 +4865,8 @@ void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
 		bool dotStar = (_tcscmp(ext, _T(".*")) == 0);
 
 		// build the list of files in this folder that match *.<defExt>
-		for (auto &file : fs::directory_iterator(path))
+		std::error_code ec;
+		for (auto &file : fs::directory_iterator(path, ec))
 		{
 			// skip directories
 			if (file.status().type() == fs::file_type::directory)
@@ -5043,7 +5046,8 @@ bool MediaType::SaveBackup(const TCHAR *filename, TSTRING &newName, ErrorHandler
 	// search the folder for previous backups - <base>.old[n].<ext>
 	int nMax = 0;
 	std::basic_regex<WCHAR> filePat(L"(.*)(\\.old\\[(\\d+)\\])(\\.[^.]+)",	std::regex_constants::icase);
-	for (auto &file : fs::directory_iterator(path))
+	std::error_code ec;
+	for (auto &file : fs::directory_iterator(path, ec))
 	{
 		// get the name and parse it into our sections
 		WSTRING fname = file.path().filename();

@@ -10,8 +10,8 @@
 #include "../Utilities/PBXUtil.h"
 #include "../Utilities/Dialog.h"
 
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
+#include "../Utilities/std_filesystem.h"
+namespace fs = std::filesystem;
 
 
 IMPLEMENT_DYNAMIC(SystemDialog, OptionsPage)
@@ -754,7 +754,8 @@ void SystemDialog::BrowseSubfolder(int editID, int folderTypeID, const TCHAR *pa
 
 				// populate the list
 				int idx = 0;
-				for (auto &file : fs::directory_iterator(parentFolder))
+				std::error_code ec;
+				for (auto &file : fs::directory_iterator(parentFolder, ec))
 				{
 					// only include folders
 					if (file.status().type() == fs::file_type::directory)

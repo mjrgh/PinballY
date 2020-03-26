@@ -5,7 +5,6 @@
 
 #include "stdafx.h"
 #include <mmsystem.h>
-#include <filesystem>
 #include <Dwmapi.h>
 #include <d3d11_1.h>
 #include <gdiplus.h>
@@ -20,6 +19,7 @@
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/GraphicsUtil.h"
+#include "../Utilities/std_filesystem.h"
 #include "PlayfieldView.h"
 #include "Resource.h"
 #include "DialogResource.h"
@@ -8010,7 +8010,7 @@ void PlayfieldView::OnUpdateVideoMute(bool mute)
 	__super::OnUpdateVideoMute(mute);
 
 	// mute/unmute the table audio track
-	MuteTableAudio(mute || Application::Get()->IsMuteTableAudio());
+	MuteTableAudio(Application::Get()->IsMuteTableAudioNow());
 
 	// update the real DMD, if any
 	if (realDMD != nullptr)
@@ -10686,8 +10686,9 @@ bool PlayfieldView::GetManufacturerLogo(TSTRING &result, const GameManufacturer 
 	int highestEndingYear = 0;
 
 	// scan files in the media folder
-	namespace fs = std::experimental::filesystem;
-	for (auto &f : fs::directory_iterator(folder))
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	for (auto &f : fs::directory_iterator(folder, ec))
 	{
 		// only consider ordinary files with appropriate image extensions
 		static const std::basic_regex<wchar_t> extPat(L"(.*)\\.(png)", std::regex_constants::icase);
@@ -10788,8 +10789,9 @@ bool PlayfieldView::GetSystemLogo(TSTRING &result, const GameSystem *system)
 	WSTRING prefixMatch;
 
 	// scan files in the media folder
-	namespace fs = std::experimental::filesystem;
-	for (auto &f : fs::directory_iterator(folder))
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	for (auto &f : fs::directory_iterator(folder, ec))
 	{
 		// only consider ordinary files with appropriate image extensions
 		static const std::basic_regex<WCHAR> extPat(_T("(.*)\\.(png)"), std::regex_constants::icase);

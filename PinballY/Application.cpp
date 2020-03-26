@@ -5397,8 +5397,8 @@ DWORD WINAPI Application::NewFileScanThread::SMain(LPVOID lParam)
 }
 
 // 'filesystem' access, for our directory scan
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
+#include "../Utilities/std_filesystem.h"
+namespace fs = std::filesystem;
 
 DWORD Application::NewFileScanThread::Main()
 {

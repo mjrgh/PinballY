@@ -11,8 +11,8 @@
 #include "DOFClient.h"
 #include "LogFile.h"
 
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
+#include "../Utilities/std_filesystem.h"
+namespace fs = std::filesystem;
 
 HighScores::HighScores() :
 	inited(false)
@@ -387,7 +387,8 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 				LogFile::Get()->Write(LogFile::HiScoreLogging,
 					_T("+ Guessing based on DOF ROM name = %s; scanning for matching files\n"), nvramFile.c_str());
 
-				for (auto &file : fs::directory_iterator(nvramPath))
+				std::error_code ec;
+				for (auto &file : fs::directory_iterator(nvramPath, ec))
 				{
 					// if it matches the pattern, stash it and count it
 					TSTRING fname = file.path().filename();
