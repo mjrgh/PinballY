@@ -5409,7 +5409,7 @@ DWORD Application::NewFileScanThread::Main()
 	// scan each directory in our list
 	for (auto &d : dirs)
 	{
-		// scan this folder for files matching the extension for this set
+		// Scan this folder for files matching the extension for this set
 		const TCHAR *ext = d.ext.c_str();
 		TableFileSet::ScanFolder(d.path.c_str(), d.ext.c_str(), [&d](const TCHAR *filename)
 		{
@@ -5417,29 +5417,47 @@ DWORD Application::NewFileScanThread::Main()
 			TSTRING key(filename);
 			std::transform(key.begin(), key.end(), key.begin(), ::_totlower);
 
+			// add it to the set of live files for this folder
+			d.liveFiles.emplace(key);
+
 			// if it's not in the old file set, add it to the new file list
 			if (d.oldFiles.find(key) == d.oldFiles.end())
 			{
 				GameList::Log(_T("+ New file found: %s\n"), filename);
-				d.newFiles.emplace_back(filename);
+				d.addedFiles.emplace_back(filename);
 			}
 		});
+
+		// Scan the old set for files that are no longer in the live set
+		for (auto &f : d.oldFiles)
+		{
+			if (d.liveFiles.find(f) == d.liveFiles.end())
+			{
+				GameList::Log(_T("+ Old file no longer present: %s\n"), f.c_str());
+				d.removedFiles.emplace_back(f);
+			}
+		}
 	}
 
-	// If we found any new files, load them into the UI.  Do this on
-	// the main UI thread rather than in the background thread, to
-	// ensure that there are no conflicts with concurrent access to
-	// the global game list.
-	CallOnMainThread(hwndPlayfieldView, [this]() -> LRESULT
+	// If we found any new files, load them into the UI.  Likewise, if
+	// any files from the old list are no longer present, and they're
+	// not configured with database records, remove them from the UI.
+	// Do thsi work on the main UI thread, to ensure that there are no
+	// conflicts with concurrent access to the global game list.
+	auto UpdateUI = [this]() -> LRESULT
 	{
 		// Add all of the new files we found in each directory
 		auto gl = GameList::Get();
-		int nAdded = 0;
+		int nAdded = 0, nRemoved = 0;
 		for (auto &d : dirs)
-			nAdded += gl->AddNewFiles(d.path, d.ext, d.newFiles);
+		{
+			nAdded += gl->AddNewFiles(d.path, d.ext, d.addedFiles);
+			nRemoved += gl->RemoveMissingFiles(d.path, d.ext, d.removedFiles);
+		}
 
-		// If we added any new files, finalize the updates
-		if (nAdded != 0)
+		// If we added any new files or removed any old ones, refresh the
+		// UI for the new internal database
+		if (nAdded != 0 || nRemoved != 0)
 		{
 			// rebuild the title index to add the new entries
 			gl->BuildTitleIndex();
@@ -5461,7 +5479,8 @@ DWORD Application::NewFileScanThread::Main()
 
 		// done
 		return 0;
-	});
+	};
+	CallOnMainThread(hwndPlayfieldView, UpdateUI);
 
 	// done (the thread return value isn't used)
 	return 0;

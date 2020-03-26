@@ -1556,6 +1556,25 @@ public:
 	int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext, 
 		const std::list<TSTRING> newFiles);
 
+	// Remove unconfigured games from the UI for game files that are
+	// no longer present in the file system.  Each time the program
+	// switches from the background to the foreground, the main app
+	// logic rescans all table file folders to look for new and removed
+	// game files; this is called after one of those scans determines
+	// that one or more game files that we found on *previous* scans
+	// is no longer present in the file system.  This can happen if
+	// the user deletes or renames an old table file, such as when
+	// installing a new version of a table or just clearing out old
+	// files that are no longer needed.
+	//
+	// Configured games are kept even if their game files are removed,
+	// since a database entry can represent a table independently of
+	// the existence of its table file.
+	//
+	// Returns the number of items actually removed.
+	int GameList::RemoveMissingFiles(const TSTRING &path, const TSTRING &ext,
+		const std::list<TSTRING> missingFiles);
+
 	// Logging for system setup events
 	static void Log(const TCHAR *msg, ...);
 	static void LogGroup();

@@ -1854,6 +1854,9 @@ void GameList::AddUnconfiguredGames()
 
 				// initialize its Hidden status
 				newGame.SetHidden(IsHidden(&newGame), false);
+
+				// point the table file record back to the game
+				file.game = &newGame;
 			}
 		}
 	}
@@ -1889,6 +1892,9 @@ int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext,
 				// initialize its Hidden status
 				newGame.SetHidden(IsHidden(&newGame), false);
 
+				// point the table file set item back to the game
+				tf->game = &newGame;
+
 				// count it
 				++nAdded;
 			}
@@ -1897,6 +1903,61 @@ int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext,
 
 	// return the number of added games
 	return nAdded;
+}
+
+int GameList::RemoveMissingFiles(const TSTRING &path, const TSTRING &ext,
+	const std::list<TSTRING> missingFiles)
+{
+	// Find the table file set described by the path and extension.  If
+	// there isn't such a table file set, ignore the files: we must have
+	// launched a file scan and then loaded a new configuration that
+	// doesn't include this folder before the scan completed.  Any files
+	// found in a folder we're no longer monitoring are of no interest.
+	int nRemoved = 0;
+	auto it = tableFileSets.find(TableFileSet::GetKey(path.c_str(), ext.c_str()));
+	if (it != tableFileSets.end())
+	{
+		// get the table file set object
+		auto &ts = it->second;
+
+		// process each removed file
+		for (auto &missing : missingFiles)
+		{
+			// Look up the file in the table file set
+			if (auto f = ts.FindFile(missing.c_str(), nullptr, false); f != nullptr)
+			{
+				// Only proceed if it's unconfigured.  A configured game is
+				// (by definition) one with a database entry, and a database
+				// entry can represent a game without any table file being
+				// present, so we don't remove configured games even if their
+				// table files are removed.
+				if (f->game == nullptr || !f->game->isConfigured)
+				{
+					// if we found the game, remove it from the game list
+					if (f->game != nullptr)
+					{
+						for (auto gi = games.begin(); gi != games.end(); ++gi)
+						{
+							if (&*gi == f->game)
+							{
+								games.erase(gi);
+								break;
+							}
+						}
+					}
+
+					// remove the game from the table file set
+					ts.files.erase(missing);
+
+					// count the deletion
+					++nRemoved;
+				}
+			}
+		}
+	}
+
+	// return the number of games we removed
+	return nRemoved;
 }
 
 GameSystem *GameList::CreateSystem(

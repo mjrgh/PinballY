@@ -597,10 +597,18 @@ protected:
 			// this from the table file set before the thread starts.
 			std::unordered_set<TSTRING> oldFiles;
 
-			// New files.  This is the list of files matching our
+			// Live files.  This is the list of all files currently
+			// in the folder at the time of the scan.
+			std::unordered_set<TSTRING> liveFiles;
+
+			// Added files.  This is the list of files matching our
 			// search pattern (path\*.ext) that we find in our new
 			// scan of the folder that aren't in the oldFiles list.
-			std::list<TSTRING> newFiles;
+			std::list<TSTRING> addedFiles;
+
+			// Removed files.  This is the list of files from our
+			// OLD list that are no longer in the live set.
+			std::list<TSTRING> removedFiles;
 		};
 		std::list<Directory> dirs;
 	};

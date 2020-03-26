@@ -8,6 +8,22 @@ match the new name, the system didn't include the real DMD media files
 and launch audio files in the files to be renamed.  This has been
 fixed.  (Issue #123 on github.)
 
+* When you switch PinballY back to the foreground after using other
+programs, any table files you deleted from the file system will now be
+automatically removed from the on-screen wheel.  (With one exception:
+if you enter a game's details via the Game Details dialog or by
+manually editing the XML database files, the game will remain in wheel
+UI even if you delete its underlying table file.  This is so that
+database records can exist independently of table files, and so that
+the same details can be re-used for a different table file later.)
+
+PinballY has always scanned for *new* table files whenever you switch
+the program back into the foreground, but in the past, it didn't scan
+for deleted files.  This change makes the behavior more consistent
+when adding, deleting, or renaming table files, so that the on-screen
+wheel automatically keeps in sync with the table files currently
+installed (with the exception mentioned above about games with details
+entered).
 
 
 03-19-2020 (1.0.0 Beta 22)
