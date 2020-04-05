@@ -2191,7 +2191,7 @@ bool GameList::LoadGameDatabaseFile(
 			}
 
 			// if the entry has a valid filename and title, add it
-			if (name != 0 && desc != 0)
+			if (name != nullptr && desc != nullptr)
 			{
 				// The "description" in the PinballX database is conventionally in the 
 				// form "Title (Manufacturer YYYY)".  That's redundant with the separate

@@ -433,7 +433,7 @@
 </p>
 <pre>
     &lt;menu&gt;
-        &lt;game name="Hot Shot (Gottlieb) (1973)"&gt;
+        &lt;game name="Hot_Shot"&gt;
             &lt;description&gt;Hot Shot (Gottlieb 1973)&lt;/description&gt;
             &lt;rom&gt;&lt;/rom&gt;
             &lt;manufacturer&gt;Gottlieb&lt;/manufacturer&gt;
@@ -458,7 +458,48 @@
    if you're trying to troubleshoot a problem.  You can view
    their contents with any text editor.
 </p>
-   
+
+<h3>Game name</h3>
+<p>
+   The &lt;game name="xxx"&gt; field in the XML specifies the table
+   file name.  This must not include a directory/folder path, since
+   the system uses the system settings to determine the directory
+   location for table files.  The player system's filename suffix 
+   is optional (e.g., <b>.vpx</b> for Visual Pinball 10 games),
+   but it's usually omitted.
+</p>
+
+<h3>Game title</h3>
+<p>
+   The title of the game that's displayed in the wheel UI comes
+   from the &lt;description&gt; field.  This should use the
+   format <b>Title (Manufacturer 1980)</b>, where <b>1980</b>
+   is the release year.
+</p>
+<p>
+   Why do we include the manufacturer and release year in the
+   &lt;description&gt; field, when they're also specified
+   separately in the &lt;manufacturer&gt; and &lt;year&gt; fields?
+   Because that's the way HyperPin and PinballX do it.  PinballY
+   generates its XML using the same redundant format so that
+   those other programs will still be able to read the XML.
+   And PinballY accepts the redundant information when reading
+   the files, so that you can directly use XML files that were
+   originally created for the other programs.  PinballY will
+   also accept &lt;description&gt; text that only has the title,
+   using the separate XML fields to get the manufacturer and
+   release year data.  However, it's better to use the
+   full form, because that's more compatible with the other
+   programs (in case you ever want to switch), and it will also
+   avoid any ambiguity if the game title itself happens to contain
+   a parenthetical at the end.
+</p>
+<p>
+   If there's no &lt;description&gt; field, the filename from
+   the &lt;game name="xxx"&gt; attribute will be used as the
+   display title.
+</p>
+
 
 <a name="gameStatsCsv"></a>
 <h2>Table Statistics</h2>
