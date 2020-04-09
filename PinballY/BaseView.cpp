@@ -1248,10 +1248,21 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 	// a video sprite to use this function.
 	if (auto sprite = dynamic_cast<VideoSprite*>(JsThisToDrawingLayerSprite(self)); sprite != nullptr)
 	{
-		// load the video - don't play it yet, so that we can set options first
+		// by default, scale the video to the window size
 		const float width = static_cast<float>(NormalizedWidth() / 1920.0f);
+		POINTF normSize = { width, 1.0f };
+
+		// Check the type.  If it's an animated GIF, we have to figure the normalized
+		// size based on the GIF size, rather than waiting for the video player to call
+		// us back with the size from the stream, which won't happen with a GIF since
+		// we're not actually using the video player.
+		ImageFileDesc desc;
+		if (GetImageFileInfo(filename.c_str(), desc, true) && desc.imageType == ImageFileDesc::GIF)
+			normSize = { static_cast<float>(desc.size.cx) / 1920.f, static_cast<float>(desc.size.cy) / 1920.0f };
+
+		// load the video - don't play it yet, so that we can set options first
 		LogFileErrorHandler eh;
-		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, POINTF{ width, 1.0f },
+		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, normSize,
 			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), false, vol);
 
 		if (ok)
@@ -1260,6 +1271,15 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 			sprite->SetLooping(loop);
 			if (auto player = sprite->GetVideoPlayer(); player != nullptr)
 				player->Mute(mute);
+
+			// if it's a GIF, we won't get a callback from the video player to set the
+			// size, so scale the sprite explicitly now
+			if (desc.imageType == ImageFileDesc::GIF)
+			{
+				if (auto layer = JsThisToDrawingLayer(self); layer != nullptr)
+					ScaleDrawingLayerSprite(*layer);
+			}
+
 
 			// if desired, start playback
 			if (play)

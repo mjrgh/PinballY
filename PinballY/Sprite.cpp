@@ -1100,6 +1100,9 @@ void Sprite::Clear()
 	// clear the animation frame list
 	curAnimFrame = 0;
 	animFrames.clear();
+	isAnimation = false;
+	animRunning = false;
+	gifLoaderState.Clear();
 
 	// forget any message target window
 	msgHwnd = NULL;
