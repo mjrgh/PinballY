@@ -1,4 +1,4 @@
-@echo off
+@echo on
 if %1# == # goto usageExit
 if %2# == # goto usageExit
 
