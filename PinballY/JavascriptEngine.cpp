@@ -6477,7 +6477,7 @@ JsValueRef CALLBACK JavascriptEngine::XInt64Data<T>::Compare(JsValueRef callee, 
 			{
 				// compare(signed, unsigned): if a < 0, a < b; otherwise a fits
 				// in an unsigned, so cast it and compare two unsigneds
-				return a < 0 ? ToJsInt(-1) : Cmp(static_cast<std::make_unsigned<T>::type>(a), b->i);
+				return a < 0 ? ToJsInt(-1) : Cmp(static_cast<typename std::make_unsigned<T>::type>(a), b->i);
 			}
 		}
 		else
