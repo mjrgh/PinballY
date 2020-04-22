@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-? (1.0.0 Beta 23)
+04-22-2020 (1.0.0 Beta 23)
 
 * On game launch, any table audio and video tracks playing are now
 muted immediately.  In the past, they kept playing until the videos
