@@ -948,7 +948,7 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameInfoGetter<JsValueRef>("dbFile",
 					[](GameListItem *game) { return game->dbFile != nullptr ? JE::NativeToJs(game->dbFile->filename) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<bool>("isConfigured", [](GameListItem *game) { return game->isConfigured; }, eh)
-				|| !AddGameInfoGetter<bool>("isHidden", [](GameListItem *game) { return game->IsHidden(); }, eh)
+				|| !AddGameInfoGetter<bool>("isHidden", [](GameListItem *game) { return game->IsHidden() || GameList::Get()->IsHidden(game); }, eh)
 				|| !AddGameInfoStatsGetter<JsValueRef>("lastPlayed",
 					[](GameListItem *game) { auto d = GameList::Get()->GetLastPlayed(game); return d != nullptr && d[0] != 0 ? JE::NativeToJs(DateTime(d)) : JsUndef; }, eh)
 				|| !AddGameInfoStatsGetter<JsValueRef>("dateAdded",
@@ -2594,7 +2594,10 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 
 		// update the hidden status
 		if (isHidden.isDefined)
+		{
 			gl->SetHidden(game, isHidden.value);
+			game->SetHidden(isHidden.value);
+		}
 
 		// update the capture flag
 		if (isMarkedForCapture.isDefined)
@@ -8547,6 +8550,9 @@ void PlayfieldView::EndRunningGameMode()
 	KillTimer(hWnd, runFreezeTimerID);
 	runFreezeTimerPending = false;
 
+	// kill the audio fadeout timer if it's running
+	KillTimer(hWnd, audioFadeoutTimerID);
+
 	// Only proceed if we're in running game mode
 	if (runningGameMsgPopup == nullptr)
 		return;
@@ -10846,6 +10852,40 @@ void PlayfieldView::UpdateAudioFadeout()
 {
 	// presume we won't need to keep running
 	bool keepRunning = false;
+
+	// fade table audio tracks
+	int baseVol = workingAudioVolume * Application::Get()->GetVideoVolume() / 100;
+	auto FadeTableAudio = [baseVol, &keepRunning](GameMedia<VideoSprite> &m)
+	{
+		// reduce the volume by 2%
+		m.fade -= .02f;
+		if (m.fade < 0.0f)
+			m.fade = 0.0f;
+
+		// figure the true volume based on the global volume and working volume
+		int vol = static_cast<int>(m.fade * baseVol);
+
+		// set the volume in the table video, if running
+		if (m.sprite != nullptr && m.sprite->IsVideo())
+		{
+			if (auto vp = m.sprite->GetVideoPlayer(); vp != nullptr)
+			{
+				vp->SetVolume(vol);
+				if (vol != 0.0f)
+					keepRunning = true;
+			}
+		}
+
+		// set the volume in the table audio, if running
+		if (m.audio != nullptr)
+		{
+			m.audio->SetVolume(vol);
+			if (vol != 0.0f)
+				keepRunning = true;
+		}
+	};
+	FadeTableAudio(incomingPlayfield);
+	FadeTableAudio(currentPlayfield);
 
 	// scan for audio tracks needing fadeout
 	for (auto it = activeAudio.begin(); it != activeAudio.end(); )
@@ -13470,7 +13510,7 @@ void PlayfieldView::ShowGameSetupMenu()
 	if (game->gameXmlNode != nullptr)
 		md.emplace_back(LoadStringT(IDS_MENU_DEL_GAME_INFO), ID_DEL_GAME_INFO);
 	md.emplace_back(LoadStringT(IDS_MENU_HIDE_GAME), ID_HIDE_GAME,
-		gl->IsHidden(game) ? MenuChecked : 0);
+		gl->IsHidden(game) || game->IsHidden() ? MenuChecked : 0);
 	md.emplace_back(LoadStringT(IDS_MENU_SET_CATEGORIES), ID_SET_CATEGORIES);
 	md.emplace_back(_T(""), -1);
 
@@ -17778,7 +17818,7 @@ void PlayfieldView::ToggleHideGame()
 	if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
 	{
 		// toggle its hidden status
-		game->SetHidden(!game->IsHidden());
+		game->SetHidden(!(GameList::Get()->IsHidden(game) || game->IsHidden()));
 
 		// Whichever direction we're going, this will always remove the
 		// game from the current view, because we can only be operating

@@ -3,6 +3,18 @@ PinballY Update History
 
 ? (1.0.0 Beta 23)
 
+* On game launch, any table audio and video tracks playing are now
+muted immediately.  In the past, they kept playing until the videos
+were stopped - which, starting in Beta 17, doesn't happen until a few
+seconds after the game process has started, to give the game a chance
+to draw its initial graphics before the PinballY videos stop.  The
+overlap was intended for a more seamless graphics display during game
+launch, but the continuing video playback also meant continuing audio
+playback, which sometimes caused unwanted overlap between the PinballY
+audio and the game's audio.  With this change, videos continue playing
+as before, but all background audio is now muted immediately on
+launch.
+
 * When you renamed a game and opted to rename existing media files to
 match the new name, the system didn't include the real DMD media files
 and launch audio files in the files to be renamed.  This has been
@@ -17,13 +29,17 @@ UI even if you delete its underlying table file.  This is so that
 database records can exist independently of table files, and so that
 the same details can be re-used for a different table file later.)
 
-PinballY has always scanned for *new* table files whenever you switch
-the program back into the foreground, but in the past, it didn't scan
-for deleted files.  This change makes the behavior more consistent
-when adding, deleting, or renaming table files, so that the on-screen
-wheel automatically keeps in sync with the table files currently
-installed (with the exception mentioned above about games with details
-entered).
+(PinballY has always scanned for *new* table files whenever you switch
+the program back into the foreground, so the idea of keeping the wheel
+display in sync with the live file system isn't new.  The new part
+here is the check for files that were just deleted.)
+
+* The program now accepts the "Yes", "Y", "True", "T", and "1" as
+affirmative values for <enabled> item in the XML database files.  In
+the past, only "True" was accepted.  This is to improve compatibility
+with hand-edited XML files or files manipulated by other programs,
+since there appears to be some variation in the format that different
+people and different programs use for this tag.
 
 
 03-19-2020 (1.0.0 Beta 22)

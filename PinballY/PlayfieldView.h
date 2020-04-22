@@ -1384,17 +1384,23 @@ protected:
 			game = nullptr;
 			sprite = nullptr;
 			audio = nullptr;
+			fade = 1.0f;
 		}
 
 		void ClearVideo()
 		{
 			game = nullptr;
 			sprite = nullptr;
+			fade = 1.0f;
 		}
 		
 		GameListItem *game;
 		RefPtr<SpriteType> sprite;
 		RefPtr<AudioVideoPlayer> audio;
+
+		// Audio fade timer, for fading out the audio volume on the table audio
+		// and video tracks during game launch.
+		float fade = 1.0f;
 	};
 	GameMedia<VideoSprite> currentPlayfield, incomingPlayfield;
 	

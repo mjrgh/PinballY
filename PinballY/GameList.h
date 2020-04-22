@@ -1431,10 +1431,15 @@ public:
 
 	// Get/set the Hidden status for a game.  
 	//
-	// Note that these methods only read/write the Stats DB "Hidden"
-	// column for the game.  For compatibility with PinballX, we have
-	// to keep the <enabled> status in the game's XML record in sync
-	//hidden == not enabled)
+	// *** Be careful about using GameList::IsHidden and SetHidden! ***
+	// These methods only read/write the Hidden column in the GameStats.csv
+	// file.  There's a separate "hidden" status in the XML, the <enabled>
+	// property.  To maintain PinballX compatibility for configured games,
+	// we have to update the XML whenever updating the CSV.  We also have
+	// to respect the XML when we're importing data from PinballX.  Most
+	// accesses/updates to the "hidden" status should therefore go through
+	// GameItem::IsHidden()/SetHidden() instead of the GameList method, as
+	// the latter only operate on the CSV portion.
 	bool IsHidden(GameListItem *game) { return hiddenCol->GetBool(GetStatsDbRow(game)); }
 	void SetHidden(GameListItem *game, bool f) { hiddenCol->SetBool(GetStatsDbRow(game, true), f); }
 

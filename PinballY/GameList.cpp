@@ -757,7 +757,16 @@ bool GameList::FilterIncludes(GameListFilter *filter, GameListItem *game, bool h
 {
 	// If this game is hidden or disabled, check to see if the filter passes
 	// hidden games.  If not, skip it.
-	if (game->IsHidden() && !filter->IncludeHidden())
+	//
+	// Note that the test for "hidden" status requires checking the game as
+	// well as the game list entry for the game.  The game keeps track of its
+	// XML <enabled> status, which is a PinballX property that we map as
+	// visible/hidden.  The game list keeps track of our own explicit Hidden
+	// status in the GameStats.csv.  We have to take both into account,
+	// because a user might import an XML file that was created using PinballX,
+	// and that might have <enabled> properties that aren't reflected in our
+	// CSV yet.
+	if ((game->IsHidden() || IsHidden(game)) && !filter->IncludeHidden())
 		return false;
 
 	// If the game is unconfigured, and the config options are set to hide
@@ -1852,7 +1861,7 @@ void GameList::AddUnconfiguredGames()
 				// the display name and media name.
 				auto &newGame = games.emplace_back(file.filename.c_str(), &tfs);
 
-				// initialize its Hidden status
+				// initialize its Hidden status from the CSV record
 				newGame.SetHidden(IsHidden(&newGame), false);
 
 				// point the table file record back to the game
@@ -1889,7 +1898,7 @@ int GameList::AddNewFiles(const TSTRING &path, const TSTRING &ext,
 				// add a game list item for the file
 				auto &newGame = games.emplace_back(f.c_str(), &ts);
 
-				// initialize its Hidden status
+				// initialize its Hidden status from the CSV record
 				newGame.SetHidden(IsHidden(&newGame), false);
 
 				// point the table file set item back to the game
@@ -2169,6 +2178,7 @@ bool GameList::LoadGameDatabaseFile(
 			float rating = 0.0f;
 			for (node *n = game->first_node(); n != 0; n = n->next_sibling())
 			{
+				static const std::regex trueOrYesPat("true|t|yes|y|1", std::regex_constants::icase);
 				char *id = (char *)n->name();
 				if (_stricmp(id, "description") == 0)
 					desc = n->value();
@@ -2177,7 +2187,7 @@ bool GameList::LoadGameDatabaseFile(
 				else if (_stricmp(id, "year") == 0)
 					year = atoi((char *)n->value());
 				else if (_stricmp(id, "enabled") == 0)
-					enabled = (_stricmp(n->value(), "true") == 0);
+					enabled = std::regex_match(n->value(), trueOrYesPat);
 				else if (_stricmp(id, "rom") == 0)
 					rom = n->value();
 				else if (_stricmp(id, "rating") == 0)
@@ -4631,7 +4641,7 @@ bool FavoritesFilter::Include(GameListItem *game)
 
 bool HiddenGamesFilter::Include(GameListItem *game) 
 {
-	return game->IsHidden();
+	return game->IsHidden() || GameList::Get()->IsHidden(game);
 }
 
 // -----------------------------------------------------------------------
