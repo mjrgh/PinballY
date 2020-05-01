@@ -1,6 +1,31 @@
 PinballY Update History
 
 
+? (1.0.0 Beta 24)
+
+* PinballY can now store a title for each game in the XML database
+independently of the media name.  In the past, the <description> tag
+served both purposes, via the convention that the media name is
+formatted as "Title (Manufacturer Year)".  This was for the sake of
+full compatibility with the original HyperPin/PinballX XML schema, but
+it was problematic in some cases, given that PinballY internally
+treats the title and media name as independent, and lets you change
+them independently.  If you explicitly changed the title and/or media
+name in such a way that the media name no longer matched the "Title
+(Manufacturer Name)" format, PinballY had no way to store both changes
+in the XML, so the updated title was lost the next time you restarted
+the program.  To address this, PinballY now stores an added <title>
+tag in the XML whenever the media name doesn't match the standard
+convention.  PinballY *only* stores the added <title> tag when it's
+necessary (that is, when <description> can't do double duty as usual),
+so the XML will stick to the HP/PBX schema unless you go out of your
+way to break the link between the media name and title.  There's no
+sign that PBX has any problem with added XML tags that it doesn't
+recognize, but even so, the best way to avoid surprises is to match
+the file format as exactly as possible.
+
+
+
 04-22-2020 (1.0.0 Beta 23)
 
 * On game launch, any table audio and video tracks playing are now

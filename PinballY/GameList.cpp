@@ -2140,15 +2140,24 @@ bool GameList::LoadGameDatabaseFile(
 	// remember the category in the XML source file
 	xml->category = category;
 
-	// The PinballX XML schema:
+	// Our schema is based on the PinballX/HyperPin XML schema, with some
+	// added tags of our own.  We originally tried to stick to their schema
+	// exactly, but we've since changed that policy to allow minimal new tags,
+	// where required for functionality.  PinballX appears to be tolerant of
+	// extensions as far as some basic testing goes (although it's impossible
+	// to know for sure since it's closed-source); I haven't tested HyperPin.
+	//
+	// Here's the PinballX/HyperPin schema, with PinballY additions marked
+	// with (*):
 	//
 	//   <menu>
 	//     <game name="Game_filename">
-	//       <description>Game Title (Manufacturer year)</description>
-	//       <rom>Rom Name</rom>						 // VPinMAME ROM name, or DOF effects and high score retrieval
+	//       <description>Game Title (Manufacturer year)</description>   // media name - see note below
+	//       <title>Game Title</title>                   // table title (*)
 	//       <manufacturer>Williams</manufacturer>		 // manufacturer name
 	//       <year>1980</year>                           // YYYY format; year of original arcade game release
-	//       <type>SS</type>                             // SS=solid state, EM=electromechanical, ME=pure mechanical
+	//       <rom>Rom Name</rom>						 // VPinMAME ROM name, or DOF effects and high score retrieval
+	//       <type>SS</type>                             // IPDB type code: SS=solid state, EM=electromechanical, ME=pure mechanical
 	//       <hidedmd>True</hidedmd>                     // boolean
 	//       <hidetopper>True</hidetopper>               // boolean
 	//       <hidebackglass>True</hidebackglass>         // boolean
@@ -2157,6 +2166,24 @@ bool GameList::LoadGameDatabaseFile(
 	//       <ipdbid>1234</ipdbid>                       // PinballY extension: the IPDB ID for the game, if known
 	//     </game>
 	//   </menu>
+	//
+	// The <description> tag is PRIMARILY used as the media name.  It also
+	// implies the table title, manufacturer name, and release year, IF those
+	// values aren't specified separately by their respective tags.  If the 
+	// other tags are also present, they override the implied values from the
+	// <description>.
+	//
+	// PinballY extensions:
+	//
+	//   <title> - the table title.  With PinballX/HyperPin, the base title can
+	//   only be inferred from the <description> field.  We do that as well, but
+	//   since the <description> field also serves as the media name, and since
+	//   we allow setting the media name and title separately in our internal
+	//   "live" representation, we need a way to save the title separately in
+	//   the XML.  Thus this tag.  If present, it overrides the title inferred
+	//   from the <description> tag.  On save, we store this only if it's
+	//   different from the implied title in the media name.
+	//
 	if (node *menu = xml->doc.first_node("menu"); menu != nullptr)
 	{
 		// visit the <game> nodes
@@ -2172,6 +2199,7 @@ bool GameList::LoadGameDatabaseFile(
 			const char *gridPos = nullptr;
 			const char *rom = nullptr;
 			const char *tableType = nullptr;
+			const char *explicitTitle = nullptr;
 			int year = 0;
 			TSTRING ipdbId;
 			bool enabled = true;
@@ -2182,6 +2210,8 @@ bool GameList::LoadGameDatabaseFile(
 				char *id = (char *)n->name();
 				if (_stricmp(id, "description") == 0)
 					desc = n->value();
+				else if (_stricmp(id, "title") == 0)
+					explicitTitle = n->value();
 				else if (_stricmp(id, "manufacturer") == 0)
 					manufName = AnsiToTSTRING(n->value());
 				else if (_stricmp(id, "year") == 0)
@@ -2203,15 +2233,21 @@ bool GameList::LoadGameDatabaseFile(
 			// if the entry has a valid filename and title, add it
 			if (name != nullptr && desc != nullptr)
 			{
-				// The "description" in the PinballX database is conventionally in the 
-				// form "Title (Manufacturer YYYY)".  That's redundant with the separate
-				// fields provided for the manufacturer and year, but it's the way they
-				// did it, so we're stuck with it if we want to parse their files.  It
-				// does have the advantage that we can use the description elements as
-				// fallbacks in case the separate fields weren't specified.  
+				// The <description> field in the PinballX/HyperPin format is overloaded
+				// as the media name and on-screen display title for the game.  By
+				// convention, this is in the format "Title (Manufacturer YYYY)".
 				//
-				// This can also be just "Title (Manufacturer)" or "Title (Year)" when
-				// only one of the items is known, so check for the three formats.
+				// For our purposes, we treat <description> as PRIMARILY the media name
+				// for the game.  We also use it for "implied" values of the base title,
+				// manufacturer name, and release year, if the string conforms to one
+				// of the following formats:
+				//
+				//   Title (Manufacturer YYYY)
+				//   Title (Manufacturer)
+				//   Title (Year)
+				//
+				// If the <title>, <manufacturer>, and/or <year> tags are present, they
+				// override the implied values from the <description>.
 				//
 				// First, try parsing out a parenthetical suffix, respecting nested
 				// parentheses.  Scan backwards from the right of the string to see if
@@ -2268,8 +2304,8 @@ bool GameList::LoadGameDatabaseFile(
 							{
 								// We matched the "Title (Manufacturer Year)" pattern.  Pull out the
 								// base title stripped of the suffix, and use the manufacturer and
-								// year in the suffix to infer the corresponding metadata items if
-								// they weren't explicitly specified.
+								// year in the suffix to infer the corresponding metadata items IF
+								// they weren't explicitly specified with separate tags.
 								title.assign(p, titleEnd - p);
 								if (manufName.length() == 0)
 									manufName = AnsiToTSTRING(m[1].str().c_str());
@@ -2304,6 +2340,11 @@ bool GameList::LoadGameDatabaseFile(
 				// title.
 				if (title.length() == 0)
 					title = desc;
+
+				// Whatever we decided about the title implied by the <description> tag,
+				// an explicit <title> tag overrides it.
+				if (explicitTitle != nullptr)
+					title = explicitTitle;
 
 				// look up or create the manufacturer object
 				GameManufacturer *manuf = FindOrAddManufacturer(manufName.c_str());
@@ -2340,11 +2381,14 @@ bool GameList::LoadGameDatabaseFile(
 		}
 	}
 
-	// Hand over the XML file to the system.  The system object
-	// will own the file object from now on.  This allows the
-	// system to rewrite the XML file if we make any changes,
-	// such as adding tem or moving a game to a different
-	// category file.
+	// Hand over the XML file to the game system object.  The game system object
+	// will own the XML file from now on.  This allows it to rewrite the XML
+	// file if we make any changes, such as adding a new game or moving an
+	// existing game to a different category file.  (Note that "system" here 
+	// refers to the game player program, e.g. VP or FP, *not* to the whole
+	// computer or OS as the term is generally used in more generic contexts.)
+	// The reason that we organize this under the game system object is that the
+	// XML files are likewise organized in the folder hierarchy by game system.
 	system->dbFiles.emplace_back(xml.release());
 
 	// success 
@@ -3480,6 +3524,76 @@ void GameList::FlushToXml(GameListItem *game)
 
 	// store the description (what we call the media name)
 	UpdateChildT("description", game->mediaName.c_str());
+
+	// The PinballX/HyperPin XML schema uses <description> as the game's
+	// full display title in the UI, *and* as the media name.  The schema
+	// breaks out the <manufacturer> and <year> into separate tags as well,
+	// and also encodes them by convention into the <description>, using
+	// the format "Title (Manufacturer Year)".  The base title portion,
+	// however, doesn't have a separate tag in the PBX/HP schema.  That's
+	// okay for PBX/HP, because they don't have any concept of a base
+	// title; they just display whatever's in <description> without
+	// parsing it.
+	//
+	// In contrast, PinballY treats the base title as a separate field
+	// internally.  Because the PBX/HP schema doesn't represent the base
+	// title separately, we originally treated the <description> field as
+	// always implying the title, by parsing the title portion out of the
+	// "Title (Manufacturer Year)" format.  That's fine for reading XML
+	// that was originally created for PBX/HP, but it doesn't always work
+	// for writing back XML updates, because we explicitly treat the base
+	// title and media name as independent fields internally, and we
+	// allow the user to update them separately via the Game Details
+	// metadata dialog as well as through Javascript.  That means that
+	// the user can set the internal base title and media name fields
+	// to values that can't be combined into a <description> field.
+	//
+	// So: for our purposes, <description> is primarily the media name.
+	// It's *also* the default source of the title (as well as the default
+	// manufacturer name and release year) when reading the XML.  But we
+	// also have to be able to specify an explicit title separately, in
+	// case the user sets the the title and media fields to values that
+	// can't be reconciled in <description>.  Curiously, the PBX/HP schema
+	// already has separate <manufacturer> and <year> tags, but not a
+	// separate tag for the title.  So we add a <title> tag as a private
+	// extension to the schema.
+	//
+	// Because PBX/HP don't have a <title> tag, we'll only include one
+	// in the XML if it's necessary in order to preserve the title set
+	// in the internal database.  If the internal title value matches
+	// the one that would be inferred from the standard <description>
+	// format, we'll omit <title> from the XML.  That will ensure that
+	// the XML is 100% compatible with PBX/HP whenever we don't need to
+	// store the extra information.  The private tag doesn't appear to
+	// bother PBX as far as I've tested it (I haven't tested it with HP),
+	// but it's still better to use the most identical schema we can.
+	//
+	// Figure the default media name, based on the title, manufacturer,
+	// and year values.  We need a <title> tag if and only if the implied
+	// media name doesn't match the actual media name.
+	auto titleNode = par->first_node("title");
+	if (game->GetDefaultMediaName() == game->mediaName)
+	{
+		// The default media name exactly matches the explicit media name.
+		// This means there's no need for a <title> tag, since we can infer
+		// the same title from <description> when re-reading the XML.
+		//
+		// Since we don't need a <title> tag, delete any existing one.  We
+		// *could* keep it and update it to the new title, but it's better
+		// to just get rid of it, because <title> is a private extension
+		// that's not part of the PBX/HP schema.  It's better to avoid
+		// private extensions when they're not necessary, since that's the
+		// only sure way to avoid surprises if the user loads the updated
+		// XML into one of the other programs.
+		if (titleNode != nullptr)
+			par->remove_node(titleNode);
+	}
+	else
+	{
+		// The default media name doesn't match the explicit media name, so
+		// we have to store the title separately in a <title> tag.
+		UpdateChildT("title", game->title.c_str());
+	}
 
 	// store the table type
 	UpdateChildT("type", game->tableType.c_str());

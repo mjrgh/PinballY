@@ -3823,7 +3823,10 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		GameList::Get()->RefreshFilter();
 		UpdateSelection();
 		UpdateAllStatusText();
+
+		// refresh the info box, to pick up any metadata changes affecting its contents
 		infoBox.game = nullptr;
+		SyncInfoBox();
 
 		// this is a one-shot timer
 		KillTimer(hWnd, timer);
@@ -7438,6 +7441,9 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 	// we haven't loaded anything yet
 	bool ok = false;
+
+	// clear any media in the incoming playfield (to stop audio and video playback)
+	incomingPlayfield.Clear();
 
 	// remember the new game
 	incomingPlayfield.game = game;
