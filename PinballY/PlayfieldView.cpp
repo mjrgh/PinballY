@@ -10603,39 +10603,6 @@ void PlayfieldView::UpdateInfoBoxAnimation()
 	}
 }
 
-bool PlayfieldView::LoadManufacturerLogo(Gdiplus::Image* &image, const GameManufacturer *manuf, int year)
-{
-	// fail if there's no manufacturer
-	if (manuf == nullptr)
-		return nullptr;
-
-	// try a cache lookup first
-	if (auto it = manufacturerLogoMap.find(manuf->manufacturer); it != manufacturerLogoMap.end())
-	{
-		image = it->second.get();
-		return true;
-	}
-
-	// look up the file
-	TSTRING filename;
-	if (GetManufacturerLogo(filename, manuf, year))
-	{
-		// try loading the image
-		if (auto i = Gdiplus::Bitmap::FromFile(filename.c_str()); i != nullptr)
-		{
-			// add it to the cache
-			manufacturerLogoMap.emplace(manuf->manufacturer, i);
-
-			// return the image pointer
-			image = i;
-			return true;
-		}
-	}
-
-	// not found or failed to load
-	return false;
-}
-
 bool PlayfieldView::LoadSystemLogo(Gdiplus::Image* &image, const GameSystem *system)
 {
 	// fail if there's no system
@@ -10660,6 +10627,108 @@ bool PlayfieldView::LoadSystemLogo(Gdiplus::Image* &image, const GameSystem *sys
 			systemLogoMap.emplace(system->displayName, i);
 
 			// return it
+			image = i;
+			return true;
+		}
+	}
+
+	// not found or failed to load
+	return false;
+}
+
+bool PlayfieldView::GetSystemLogo(TSTRING &result, const GameSystem *system)
+{
+	// if there's no system, there's no logo
+	if (system == nullptr)
+		return false;
+
+	// get the System Logos media folder
+	TCHAR folder[MAX_PATH];
+	PathCombine(folder, GameList::Get()->GetMediaPath(), _T("System Logos"));
+
+	// Prefix match.  If we find a file whose name is a leading
+	// substring of the system name, keep it as a partial match.
+	// This allows matching a generic "Visual Pinball.png" file
+	// to "Visual Pinball 9.2" and other similar versioned system
+	// names.
+	WSTRING prefixMatch;
+
+	// scan files in the media folder
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	for (auto &f : fs::directory_iterator(folder, ec))
+	{
+		// only consider ordinary files with appropriate image extensions
+		static const std::basic_regex<WCHAR> extPat(_T("(.*)\\.(png)"), std::regex_constants::icase);
+		std::match_results<std::wstring::const_iterator> m;
+		WSTRING path = f.path().filename().wstring();
+		if (f.status().type() == fs::file_type::regular
+			&& std::regex_match(path, m, extPat))
+		{
+			// check for an exact match
+			TSTRING basename = WSTRINGToTSTRING(m[1].str());
+			if (_tcsicmp(basename.c_str(), system->displayName.c_str()) == 0)
+			{
+				result = WideToTSTRING(f.path().c_str());
+				return true;
+			}
+
+			// check for a prefix match
+			if (tstriStartsWith(system->displayName.c_str(), basename.c_str()))
+				prefixMatch = f.path().c_str();
+		}
+	}
+
+	// no exact match found; if we found a prefix match, use that
+	if (prefixMatch.length() != 0)
+	{
+		result = WSTRINGToTSTRING(prefixMatch);
+		return true;
+	}
+
+	// no match
+	return false;
+}
+
+bool PlayfieldView::LoadManufacturerLogo(Gdiplus::Image* &image, const GameManufacturer *manuf, int year)
+{
+	// fail if there's no manufacturer
+	if (manuf == nullptr)
+		return nullptr;
+
+	// Try a cache lookup first, based on the manufacturer name and year.  The
+	// manufacturer logo can vary by year, so we have to consider the year as
+	// part of the key.  This is a little inefficient in that we might load the
+	// same logo several times for years within the range it covers, but these
+	// tend to be small files, and we won't make that many copies, so it seems
+	// best to keep it simple and just keep a match for each year we look up.
+	// We *could* be more sophisticated about it by caching each logo only
+	// once and keeping track of the year range the logo covers, but the problem
+	// is that the rules for matching the table's year to the logo's year range
+	// are non-trivial, and I don't want to duplicate them here and in the file
+	// lookup.  So I'm just going to let the file lookup handle the matching
+	// rules, and keep one hit per year that we've actually looked up.  That
+	// makes the cache lookup dead simple and isolates the year range matching
+	// rules to the file lookup code only.
+	MsgFmt cacheKey(_T("%s.%d"), manuf->manufacturer.c_str(), year);
+	if (auto it = manufacturerLogoMap.find(cacheKey.Get()); it != manufacturerLogoMap.end())
+	{
+		// got it - return the cached logo
+		image = it->second.get();
+		return true;
+	}
+
+	// look up the file
+	TSTRING filename;
+	if (GetManufacturerLogo(filename, manuf, year))
+	{
+		// try loading the image
+		if (auto i = Gdiplus::Bitmap::FromFile(filename.c_str()); i != nullptr)
+		{
+			// add it to the cache
+			manufacturerLogoMap.emplace(cacheKey.Get(), i);
+
+			// return the image pointer
 			image = i;
 			return true;
 		}
@@ -10712,7 +10781,7 @@ bool PlayfieldView::GetManufacturerLogo(TSTRING &result, const GameManufacturer 
 			WSTRING basename = m[1].str();
 
 			// Check for a year span pattern
-			static const std::basic_regex<wchar_t> yearPat(L"(.*)\\s*\\((\\d{4})?(-)?(\\d{4})?\\)");
+			static const std::basic_regex<wchar_t> yearPat(L"(.*?)\\s*\\((\\d{4})?(-)?(\\d{4})?\\)");
 			if (std::regex_match(basename.c_str(), m, yearPat))
 			{
 				// reject this one out of hand if the name doesn't match
@@ -10780,60 +10849,6 @@ bool PlayfieldView::GetManufacturerLogo(TSTRING &result, const GameManufacturer 
 	}
 
 	// no results found
-	return false;
-}
-
-bool PlayfieldView::GetSystemLogo(TSTRING &result, const GameSystem *system)
-{
-	// if there's no system, there's no logo
-	if (system == nullptr)
-		return false;
-
-	// get the System Logos media folder
-	TCHAR folder[MAX_PATH];
-	PathCombine(folder, GameList::Get()->GetMediaPath(), _T("System Logos"));
-
-	// Prefix match.  If we find a file whose name is a leading
-	// substring of the system name, keep it as a partial match.
-	// This allows matching a generic "Visual Pinball.png" file
-	// to "Visual Pinball 9.2" and other similar versioned system
-	// names.
-	WSTRING prefixMatch;
-
-	// scan files in the media folder
-	namespace fs = std::filesystem;
-	std::error_code ec;
-	for (auto &f : fs::directory_iterator(folder, ec))
-	{
-		// only consider ordinary files with appropriate image extensions
-		static const std::basic_regex<WCHAR> extPat(_T("(.*)\\.(png)"), std::regex_constants::icase);
-		std::match_results<std::wstring::const_iterator> m;
-		WSTRING path = f.path().filename().wstring();
-		if (f.status().type() == fs::file_type::regular
-			&& std::regex_match(path, m, extPat))
-		{
-			// check for an exact match
-			TSTRING basename = WSTRINGToTSTRING(m[1].str());
-			if (_tcsicmp(basename.c_str(), system->displayName.c_str()) == 0)
-			{
-				result = WideToTSTRING(f.path().c_str());
-				return true;
-			}
-
-			// check for a prefix match
-			if (tstriStartsWith(system->displayName.c_str(), basename.c_str()))
-				prefixMatch = f.path().c_str();
-		}
-	}
-
-	// no exact match found; if we found a prefix match, use that
-	if (prefixMatch.length() != 0)
-	{
-		result = WSTRINGToTSTRING(prefixMatch);
-		return true;
-	}
-
-	// no match
 	return false;
 }
 

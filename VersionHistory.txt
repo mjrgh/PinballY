@@ -24,6 +24,9 @@ sign that PBX has any problem with added XML tags that it doesn't
 recognize, but even so, the best way to avoid surprises is to match
 the file format as exactly as possible.
 
+* Fixed a problem with matching manufacturer logos with year ranges
+attached.
+
 
 
 04-22-2020 (1.0.0 Beta 23)

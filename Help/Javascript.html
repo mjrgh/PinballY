@@ -141,20 +141,31 @@
 <h2>Avoid long-running operations</h2>
 
 <p>
-   You should avoid any operations in Javascript that will take a long
-   time to complete, especially things like timing loops or waiting
-   for external calls (such as network reads) to complete.  Javascript
-   runs as part of the main user interface thread, so any long wait
-   in Javascript will stall the UI - the video will freeze or stutter,
-   and button input won't be processed until the Javascript wait ends.
-   Long waits in Javascript can make the UI windows appear to be frozen.
+   Avoid operations in Javascript that will take a long time to complete,
+   especially things like timing loops or waiting for external calls
+   (such as network reads) to complete.  "A long time" means anything
+   long enough for you to perceive on a human scale, which is anything
+   longer than about 30 to 50 milliseconds.   Javascript
+   runs as part of the main user interface thread, so any lengthy operation
+   in Javascript can make the UI appear to be frozen for as long as the operation
+   takes to complete.  This can cause the video to momentarily freeze or
+   stutter, and can also delay the processing of button inputs enough
+   to make the response feel sluggish or laggy.
 </p>
 <p>
-   Instead of timing loops or waits, use a timeout or interval.  Wait
-   for external events (like network requests) should be handled with asynchronous mechanisms,
-   ideally through Javascript Promise objects.  If you have a long-running,
-   CPU-intensive task to perform, try to break it up into smaller
-   tasks, and use intervals to spread out the subtasks over time.
+   Instead of using timing loops or waits, use a timeout or interval.
+   That'll let PinballY run the UI while waiting for the scheduled time.
+   If you have a long-running, CPU-intensive task to perform, try to
+   break it up into smaller tasks, and use intervals to spread the
+   subtasks out over time.
+</p>
+<p>
+   When waiting for an external event, such as a network request,
+   always use some kind of asynchronous mechanism, rather than
+   polling for completion.  Javascript Promise objects were designed
+   specifically for such situations, but you can also use ad
+   hoc approaches, such as checking periodically with timeouts
+   or intervals.
 </p>
 
 <h2>Events</h2>
