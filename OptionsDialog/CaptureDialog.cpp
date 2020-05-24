@@ -63,6 +63,8 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
 	
 	varMap.emplace_back(new ManualStartButtonMap(_T("Capture.ManualStartStopButton"), IDC_CB_MANUAL_START_BUTTON));
+
+	varMap.emplace_back(new CkBoxEnumMap(_T("Capture.VideoResolutionLimit"), IDC_CK_LIMIT_TO_HD, _T("none"), _T("hd"), false));
 }
 
 afx_msg void CaptureDialog::OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult)

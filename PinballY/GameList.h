@@ -216,6 +216,9 @@ struct MediaType
 	};
 	Format format;
 
+	// Is this some kind of video format?
+	bool IsVideo() const { return format == SilentVideo || format == VideoWithAudio; }
+
 	// Standard rotation for the stored media of this format, in
 	// degrees clockwise.  This is a fixed rotation always applied 
 	// when loading media of this type.  This is zero for most media

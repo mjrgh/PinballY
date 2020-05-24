@@ -3479,7 +3479,7 @@ void PlayfieldView::ForceTakeFocus()
 	int dtwid = GetSystemMetrics(SM_CXVIRTUALSCREEN);
 	int dtht = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
-	// oigure our window location in normalized virtual desktop coordinates
+	// figure our window location in normalized virtual desktop coordinates
 	int x = static_cast<int>(round((rcWin.left - dtx) * 65535.0) / dtwid);
 	int y = static_cast<int>(round((rcWin.top - dty) * 65535.0) / dtht);
 

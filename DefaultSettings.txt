@@ -1186,6 +1186,30 @@ Capture.TopperVideo.Time = 35
 # your single-pass captures look too choppy.
 Capture.TwoPassEncoding = 0
 
+# Captured video resolution limit.  By default, videos created
+# using the screen capture function have exactly the same pixel
+# dimensions as the window area being captured.  However, if you
+# have a 4K monitor or another large-format computer monitor, you
+# might find that the full-resolution videos are too taxing for
+# your system to play back smoothly, especially if you have an
+# older or lower-end system.  This option lets you limit the
+# resolution of captured videos to a more manageable size that
+# your system will be able to play back more smoothly.  Possible
+# settings are:
+#
+#   none = no limit; the full native resolution will be used
+#          (this is the default setting)
+#
+#   hd   = limit to HD resolution, 1920x1080 pixels
+#
+# Note that this only sets an upper limit on resolution.  When
+# the source window is smaller than this limit, it'll still be
+# captured at the smaller native resolution.  So if you have a
+# 4K playfield monitor and a sub-HD backglass monitor, setting
+# an HD limit will only affect the playfield videos.
+#
+Capture.VideoResolutionLimit = none
+
 
 # Coin slot pricing.  This is just a novelty feature for the sake
 # of its entertainment value, as we don't have any real practical

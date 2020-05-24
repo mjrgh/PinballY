@@ -3,6 +3,17 @@ PinballY Update History
 
 ? (1.0.0 Beta 24)
 
+* A new option in the media capture settings lets you limit the
+resolution of captured videos to HD (1920x1080).  By default, the
+media capture function creates videos with exactly the same pixel size
+as the screen area being captured.  If you have a 4K or similar large
+monitor, though, the resulting videos might be too taxing for your
+system to play back smoothly, especially if you have an older or
+lower-end system.  The new option lets you reduce the resolution of
+the captured videos to HD.  The new setting is accessed via a checkbox
+on the Media Capture page of the settings dialog, "Limit captured
+videos to HD resolution".
+
 * PinballY can now store a title for each game in the XML database
 independently of the media name.  In the past, the <description> tag
 served both purposes, via the convention that the media name is
@@ -14,18 +25,26 @@ them independently.  If you explicitly changed the title and/or media
 name in such a way that the media name no longer matched the "Title
 (Manufacturer Name)" format, PinballY had no way to store both changes
 in the XML, so the updated title was lost the next time you restarted
-the program.  To address this, PinballY now stores an added <title>
-tag in the XML whenever the media name doesn't match the standard
-convention.  PinballY *only* stores the added <title> tag when it's
-necessary (that is, when <description> can't do double duty as usual),
-so the XML will stick to the HP/PBX schema unless you go out of your
-way to break the link between the media name and title.  There's no
-sign that PBX has any problem with added XML tags that it doesn't
-recognize, but even so, the best way to avoid surprises is to match
-the file format as exactly as possible.
+the program.  To address this, PinballY now adds the new tag <title>
+to the XML whenever the media name doesn't match the standard
+convention.  This lets it keep track of the title and media names
+separately when they don't match.  <title> isn't part of the original
+HP/PBX schema, so those programs will ignore it if present.  To
+minimize the risk of any compatibility issues in case you want to use
+the resulting XML with HP or PBX, PinballY only generates the new
+<title> tags when necessary.
 
-* Fixed a problem with matching manufacturer logos with year ranges
-attached.
+* Fixed two problems with searching for era-specific manufacturer logo
+files (e.g., "Bally (1970-1975).png").  The first problem prevented
+era-specific logo files from being displayed at all if they contained
+a space between the manufacturer name and the parentheses enclosing
+the year range; spaces (one or more) are now accepted.  The second
+problem was a caching issue that caused the year-range file displayed
+for the first visited game from a given manufacturer to be displayed
+for all subsequently visited games from the same manufacturer,
+ignoring the release year of the other games.  Both of these bugs
+should now be fixed.  (See "Manufacturer logos" in the help section
+for Settings > Info Box Options.)
 
 
 

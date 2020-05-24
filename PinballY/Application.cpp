@@ -2098,6 +2098,11 @@ void Application::GameMonitorThread::Prepare(
 		// remember the two-pass encoding option
 		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
 
+		// remember the video resolution limit
+		const TCHAR *videoResLimit = cfg->Get(ConfigVars::CaptureVideoResLimit, _T("none"));
+		if (_tcsicmp(videoResLimit, _T("hd")) == 0)
+			capture.videoResLimit = CaptureInfo::ResLimitHD;
+
 		// build our local list of capture items
 		bool audioNeeded = false;
 		for (auto &cap : *captureList)
@@ -4067,9 +4072,9 @@ DWORD Application::GameMonitorThread::Main()
 			// media type and the window rotation.  And then we have to apply
 			// that rotation in the opposite direction.  Our display transforms
 			// are all clockwise, so we need counter-clockwise rotations for
-			// the reversals.
-			int rotate = item.mediaRotation - item.windowRotation;
-			switch ((rotate + 360) % 360)
+			// the reversals.  Note that we normalize to 0..359 degrees.
+			int rotate = ((item.mediaRotation - item.windowRotation) + 360) % 360;
+			switch (rotate)
 			{
 			case 90:
 				AddTransform(_T("transpose=2"));  // 90 degrees counter-clockwise
@@ -4082,6 +4087,77 @@ DWORD Application::GameMonitorThread::Main()
 			case 270:
 				AddTransform(_T("transpose=1"));  // 90 degrees clockwise
 				break;
+			}
+
+			// limit the video resolution if desired
+			if (item.mediaType.IsVideo())
+			{
+				// presume both dimensions are free (i.e., no resolution limit by default)
+				int xscale = -2, yscale = -2;
+				
+				// figure the capture dimensions
+				int width = item.rc.right - item.rc.left;
+				int height = item.rc.bottom - item.rc.top;
+
+				// assume the limit will be the natural size
+				int maxWidth = width, maxHeight = height;
+
+				// check the resolution limit type
+				switch (capture.videoResLimit)
+				{
+				case CaptureInfo::ResLimitHD:
+					// HD limit
+					maxWidth = 1920;
+					maxHeight = 1080;
+					break;
+
+				case CaptureInfo::ResLimitNone:
+					// no limit - no scaling transform
+					break;
+				}
+
+				// if we're rotating the video, rotate the dimensions accordingly
+				if (rotate == 90 || rotate == 270)
+				{
+					// rotate the screen width to get the video width
+					int t = width;
+					width = height;
+					height = t;
+
+					// also rotate the limits
+					t = maxWidth;
+					maxWidth = maxHeight;
+					maxHeight = t;
+				}
+
+				// if we exceed the maximum width, limit the width
+				if (width > maxWidth)
+				{
+					// figure the scaling transform width
+					xscale = maxWidth;
+
+					// figure the new width height that results from applying the new width
+					// and maintaining the aspect ration
+					height = height * maxWidth / width;
+					width = maxWidth;
+				}
+
+				// If we exceed the maximum height, limit the height.  Note that the height
+				// has already been adjusted to match the width limit, if we had to limit
+				// the width, so the height limit will only apply if we have to further
+				// reduce the height to fit in an HD frame.  This can happen if we have
+				// a narrow aspect ratio than 16:9.
+				if (height > maxHeight)
+				{
+					// the height limit is stricter than the width limit, so apply it
+					// instead of the width limit
+					yscale = maxHeight;
+					xscale = -2;
+				}
+
+				// if we limited one of the dimensions, set the transform
+				if (xscale > 0 || yscale > 0)
+					AddTransform(MsgFmt(_T("scale=%d:%d"), xscale, yscale));
 			}
 
 			// add the close quote to the transforms if applicable

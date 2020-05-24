@@ -40,4 +40,5 @@ namespace ConfigVars
 	static const TCHAR *CaptureTPVideoTime = _T("Capture.TopperVideo.Time");
 
 	static const TCHAR *CaptureTwoPassEncoding = _T("Capture.TwoPassEncoding");
+	static const TCHAR *CaptureVideoResLimit = _T("Capture.VideoResolutionLimit");
 }

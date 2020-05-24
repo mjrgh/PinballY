@@ -823,7 +823,7 @@ protected:
 		};
 		struct CaptureInfo
 		{
-			CaptureInfo() : startupDelay(5000), twoPassEncoding(false) { }
+			CaptureInfo() : startupDelay(5000), twoPassEncoding(false), videoResLimit(ResLimitNone) { }
 			
 			// initialization time (ms)
 			static const DWORD initTime = 3000;
@@ -836,6 +836,14 @@ protected:
 
 			// two-pass encoding mode
 			bool twoPassEncoding;
+
+			// captured video resolution limit
+			enum ResLimit
+			{
+				ResLimitNone,  // no limit; use native resolution
+				ResLimitHD     // limit to HD resolution (1920x1080)
+			};
+			ResLimit videoResLimit;
 
 			// capture list
 			std::list<CaptureItem> items;
