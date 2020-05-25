@@ -46,7 +46,7 @@ Subfolder:  "Images"
 
 File names:
 
-   "Default Playfield.png"
+   "Default Playfield.png"   (or other extensions below)
    "Default Backglass.png"
    "Default DMD.png"
    "Default Real DMD.png"
@@ -76,7 +76,7 @@ Subfolder:  "Videos"
 
 File names:
 
-   "Default Playfield.mp4"
+   "Default Playfield.mp4"    (or other extensions below)
    "Default Backglass.mp4"
    "Default DMD.mp4"
    "Default Real DMD.mp4"
@@ -140,3 +140,22 @@ Extensions:  .mp3, .wav, .ogg
 If you supply both a startup audio track and one or more startup
 videos, the audio and video files will play concurrently.
 
+
+== Game Launch Backgrounds ==
+
+When a game is being launched, the system normally fills the playfield
+window with a dark gray background, with text messages giving the status
+of the launch superimposed over the background.  You can replace the
+plain gray background with your own custom media as follows:
+
+Subfolder: "Images" (for static images)
+           "Videos" (for videos)
+
+File name: "Game Launch Background.png"  (or other extensions as appropriate)
+
+Extensions: .mpg, .png, .gif for images
+            .mp4, .mpg, .f4v, .mkv, .wmv, .avi for videos
+
+Much more extensive customization of the launch screens can be accomplished
+via Javascript.  See the help under Javascript scripting > Worked Examples >
+"Seamless" Game Launch for examples.

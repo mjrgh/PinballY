@@ -394,6 +394,7 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	// Initialize the animation.  Start at the first frame, and set the end time
 	// for the frame to the current time plus the frame's display time.
 	isAnimation = true;
+	animRunning = true;
 	curAnimFrame = 0;
 	curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
 

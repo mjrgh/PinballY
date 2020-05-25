@@ -367,7 +367,10 @@ public:
 	static inline bool IsInForeground() { return isInForeground; }
 
 	// Play videos at full speed while in the background?
-	static inline bool PlayVideosInBackground() { return playVideosInBackground; }
+	static inline bool PlayVideosInBackground() { return playVideosInBackground || pfPlayVideosInBackground; }
+
+	// Set the playfield play-videos-in-background flag
+	static inline void SetPfPlayVideosInBackground(bool f) { pfPlayVideosInBackground = f; }
 
 	// Get the first run time
 	DateTime GetFirstRunTime() const { return firstRunTime; }
@@ -1148,8 +1151,36 @@ protected:
 	// Is the application the foreground?
 	static bool isInForeground;
 
-	// Continue playing videos at full speed in the background?
+	// Continue playing videos at full speed in the background?  We keep two flags
+	// for this, and if either one is true, we continue to play videos.   The main
+	// flag is for the whole collection of windows, and the 'pf' flag is for the
+	// playfield window in particular.  The overall result of the propostion
+	// "continue playing videos" is true if either flag is true.
+	//
+	// It's extremely inelegant that these are global static flags, and that there
+	// are two of them, but there's a rationale for each hack.
+	//
+	// They're global statics for the sake of performance.  We have to interrogate
+	// these on every video frame update, so we need the interrogation to be
+	// extremely fast.  These flags are effectively cached results of a series
+	// of conditions in the various windows.  It would be far better in terms of
+	// robustness to avoid caching the values and instead compute them on demand
+	// on each video frame.  But the computations are fairly complex, and because
+	// we need the values in every video frame update, we want to avoid the
+	// overhead of repeating the calculations so frequently.  And in practice, we
+	// can get away with this without too much risk of the cached values getting
+	// out of sync with the underlying dependencies, because the underlying
+	// dependencies can only change at a few well-defined points in the game
+	// launching process.  That makes it reasonably easy to get the updates right.
+	//
+	// We have two variables because we have different timing of the dependencies
+	// in the main playfield window and in the other windows.  So we separate the
+	// derived values into these two components and store/cache them separately.
+	// This lets us update each variable at the appropriate point in the launch
+	// process without having to recompute the other dependencies each time.
+	//
 	static bool playVideosInBackground;
+	static bool pfPlayVideosInBackground;
 
 	// Pinscape device list
 	std::list<PinscapeDevice> pinscapeDevices;

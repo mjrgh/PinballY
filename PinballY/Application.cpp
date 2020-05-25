@@ -133,6 +133,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 Application *Application::inst;
 bool Application::isInForeground = true;
 bool Application::playVideosInBackground = false;
+bool Application::pfPlayVideosInBackground = false;
 HCURSOR Application::emptyCursor;
 
 
@@ -1342,7 +1343,7 @@ void Application::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 	if (auto ic = GetInstCardView(); ic != nullptr)
 		ic->BeginRunningGameMode(game, system, icvideo);
 
-	// note if any of the windows shows video in the background, so
+	// note if any of the windows show video in the background, so
 	// that the message loop will know that we need full-speed updates
 	playVideosInBackground = bgvideo || dmvideo || fpvideo || icvideo;
 

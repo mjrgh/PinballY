@@ -38,6 +38,7 @@ var contents = [
         "+ButtonSounds.html Button Sounds",
         "+DefaultBackgrounds.html Default Backgrounds",
         "+StartupAudioVideo.html Startup Audio/Video",
+        "+LaunchBackgrounds.html Game Launch Backgrounds",
     "OperatorMenu.html Operator Menu",
     "GameSetupMenu.html Game Setup Menu",
         "+EditGameDetails.html Editing a Game's Details",

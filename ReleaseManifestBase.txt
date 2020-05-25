@@ -1,5 +1,6 @@
 -r assets
 Media\Readme.txt
+Media\Transparent.png
 "Media\Button Sounds"
 "Media\Images"
 "Media\Startup Videos"

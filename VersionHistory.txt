@@ -3,6 +3,24 @@ PinballY Update History
 
 ? (1.0.0 Beta 24)
 
+* You can now provide a custom background image or video that's
+displayed in the playfield window during the game launch process.
+Normally, the system covers the playfield window with a simple dark
+gray background.  You can override this by placing an image file
+called "Game Launch Background.png" (or .jpg or .gif) in the Media >
+Images subfolder (under the main PinballY install folder), OR a video
+file in Media > Videos called "Game Launch Background.mp4" (or any of
+the other supported video format extensions - .avi, .f4v, etc).  Much
+more extensive customizations are possible via Javascript, but this
+new feature is easier when you only want to replace the background.
+
+Tip: if you merely want to keep the game's background video or image
+showing during launch, for a "seamless" launch effect, all you have to
+do is provide a transparent PNG file for the launch background.  For
+your convenience, a suitable file called "Transparent.png" is included
+in the Media file.  Simply copy this file into the Media > Images
+folder and rename it to "Game Launch Background.png".
+
 * A new option in the media capture settings lets you limit the
 resolution of captured videos to HD (1920x1080).  By default, the
 media capture function creates videos with exactly the same pixel size

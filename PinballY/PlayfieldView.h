@@ -1534,6 +1534,16 @@ protected:
 	RefPtr<VideoSprite> runningGameMsgPopup;
 	RefPtr<VideoSprite> runningGameBkgPopup;
 
+	// Are we using the default running game background?  This is only
+	// meaningful while a game is running or being launched.  We set this
+	// to true if we fill runningGameBkgPopup with the default opaque
+	// gray background, false if Javascript intervened or a user image
+	// or video was loaded.
+	bool runningGameBkgIsDefault;
+
+	// Did we load a custom video into the running game background layer?
+	bool runningGameBkgIsVideo;
+
 	// Custom drawing layer lookup.  We expose the running game popups 
 	// to Javascript using the drawing layer interface, so we need to
 	// find them on drawing callbacks into that interface.

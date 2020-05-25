@@ -218,6 +218,32 @@
    its own based on the different name.
 </p>
 
+<h4>Why can't PinballY figure this out on its own?</h4>
+<p>
+   Because Windows doesn't provide a standard device driver for
+   this function, and Microsoft didn't even bother to specify
+   a standard name for the driver.  You'd think that Windows
+   would offer an audio capture function automatically, but it
+   doesn't; Microsoft left it up to the sound card manufacturers
+   to provide drivers, and left it up to them to name the
+   devices.  So there's no way for PinballY to know the name
+   of this driver on your system, and in fact no way to even
+   know if there's one installed.
+</p>
+<p>
+   "Stereo Mix" is a common name for this driver only because
+   it's the name that Realtek uses for its loopback driver,
+   and Realtek chips are ubiquitous, especially in
+   the built-in audio in many motherboards these
+   days.  If your system has integrated audio on the
+   motherboard, chances are that it uses the Realtek chips,
+   so its driver will probably be called "Stereo Mix".
+   But the name might be the translated equivalent of
+   "Stereo Mix" if your system is localized to a language
+   other than English, or it might be something else entirely.
+</p>
+   
+
 <h4>What if the audio device list only shows "Default"?</h4>
 <p>
    If "Default" is the only device you see in the audio capture

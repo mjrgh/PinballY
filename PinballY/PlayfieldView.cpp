@@ -8408,13 +8408,40 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 	runningGameMsgPopup->alpha = 0.0f;
 	UpdateDrawingList();
 
+	// presume that we won't be using the default background layer for the launch overlay
+	runningGameBkgIsDefault = false;
+	runningGameBkgIsVideo = false;
+
 	// fire a Launch Overlay Show event
 	if (FireLaunchOverlayEvent(jsLaunchOverlayShowEvent, game))
 	{
-		// show the default background screen - just an opaque
-		// dark fill
-		DrawingLayerClear(runningGameBkgPopup, Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
+		// Search for a user video for the background layer
+		auto gl = GameList::Get();
+		bool ok = false;
+		TCHAR path[MAX_PATH];
+		LogFileErrorHandler lfeh;
+		if (gl->FindGlobalVideoFile(path, _T("Videos"), _T("Game Launch Background")))
+			ok = runningGameBkgIsVideo = runningGameBkgPopup->LoadVideo(path, hWnd, { 1.0f, 1.0f }, lfeh, _T("Game launch background video"));
+
+		// If we didn't find a video, or it didn't load properly, look for an image instead
+		if (!ok && gl->FindGlobalImageFile(path, _T("Images"), _T("Game Launch Background")))
+			ok = runningGameBkgPopup->Load(path, { 1.0f, 1.0f }, GetLayoutSize(), hWnd, lfeh);
+
+		// If we didn't load user media, show the default opaque dark fill
+		if (!ok)
+		{
+			DrawingLayerClear(runningGameBkgPopup, Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
+			runningGameBkgIsDefault = true;
+		}
 	}
+	
+	// If we're not using the default background, continue full-speed video updates
+	// for now.  That will keep the table background video playing in case the user
+	// provided a transparent or partially transparent launch overlay (either via
+	// a custom image/video file or via Javascript), and also will keep ensure 
+	// proper display for any custom video that the user displayed in the overlay.
+	// We'll clear this flag when the game finishes launching.
+	Application::SetPfPlayVideosInBackground(true);
 
 	// show the initial blank message screen
 	runningGameMode = RunningGameMode::Starting;
@@ -8535,9 +8562,18 @@ void PlayfieldView::EnterRunFreezeMode()
 	// minimize GPU usage
 	freezeBackgroundRendering = true;
 
+	// we no longer need background video updates for our own account
+	Application::SetPfPlayVideosInBackground(false);
+
 	// clear our playfield video
 	currentPlayfield.Clear();
 	incomingPlayfield.Clear();
+
+	// If the user supplied a custom loading video, clear it
+	if (runningGameBkgIsVideo)
+		runningGameBkgPopup = nullptr;
+
+	// update the drawing list for the sprite changes
 	UpdateDrawingList();
 }
 
@@ -8834,7 +8870,7 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			// timeout will still trigger.
 			ResetGameTimeout();
 
-			// set running game mode in the other windows
+			// Set running game mode in the other windows
 			Application::Get()->BeginRunningGameMode(game, system);
 
 			// Fire the Javascript "gamestarted" event
