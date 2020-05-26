@@ -36,6 +36,7 @@ void FontDialog::InitVarMap()
 	varMap.emplace_back(new FontVarMap(&allFonts, _T("InfoBoxDetailFont"), IDC_CB_INFOBOXDETAIL_FONT, IDC_CB_INFOBOXDETAIL_FONT_PTS, IDC_CB_INFOBOXDETAIL_FONT_WT));
 	varMap.emplace_back(new FontVarMap(&allFonts, _T("StatusFont"), IDC_CB_STATUS_FONT, IDC_CB_STATUS_FONT_PTS, IDC_CB_STATUS_FONT_WT));
 	varMap.emplace_back(new FontVarMap(&allFonts, _T("CreditsFont"), IDC_CB_CREDITS_FONT, IDC_CB_CREDITS_FONT_PTS, IDC_CB_CREDITS_FONT_WT));
+	varMap.emplace_back(new FontVarMap(&allFonts, _T("LaunchStatusFont"), IDC_CB_LAUNCHMSG_FONT, IDC_CB_LAUNCHMSG_FONT_PTS, IDC_CB_LAUNCHMSG_FONT_WT));
 
 	varMap.emplace_back(new ColorButtonMap(_T("MenuTextColor"), IDC_CLR_MENUS, RGB(0xff, 0xff, 0xff)));
 	varMap.emplace_back(new ColorButtonMap(_T("MenuBackgroundColor"), IDC_CLR_MENUBKG, RGB(0x00, 0x00, 0x00)));
@@ -58,4 +59,6 @@ void FontDialog::InitVarMap()
 	varMap.emplace_back(new ColorButtonMap(_T("StatusLineTextColor"), IDC_CLR_STATUSLINETEXT, RGB(0xff, 0xff, 0xff)));
 	varMap.emplace_back(new ColorButtonMap(_T("StatusLineShadowColor"), IDC_CLR_STATUSLINESHADOW, RGB(0x00, 0x00, 0x00)));
 	varMap.emplace_back(new ColorButtonMap(_T("CreditsTextColor"), IDC_CLR_CREDITSTEXT, RGB(0xff, 0xff, 0xff)));
+	varMap.emplace_back(new ColorButtonMap(_T("LaunchStatusTextColor"), IDC_CLR_LAUNCHMSGTEXT, RGB(0xff, 0xff, 0xff)));
+	varMap.emplace_back(new ColorButtonMap(_T("LaunchStatusBackgroundColor"), IDC_CLR_LAUNCHMSGBKG, RGB(0x1E, 0x1E, 0x1E)));
 }

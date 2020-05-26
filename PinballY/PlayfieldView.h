@@ -391,6 +391,7 @@ protected:
 	FontPref infoBoxTitleFont{ this, 38 };    // info box title font
 	FontPref infoBoxDetailFont{ this, 16 };   // info box fine print
 	FontPref creditsFont{ this, 42 };         // credits message font
+	FontPref launchStatusFont{ this, 48 };    // launch status message font
 
 	// text font colors
 	COLORREF menuTextColor;
@@ -414,6 +415,8 @@ protected:
 	COLORREF statusLineTextColor;
 	COLORREF statusLineShadowColor;
 	COLORREF creditsTextColor;
+	COLORREF launchStatusTextColor;
+	COLORREF launchStatusBackgroundColor;
 
 	// name of the playfield window startup video
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video"); }

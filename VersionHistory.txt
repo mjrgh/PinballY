@@ -21,6 +21,10 @@ your convenience, a suitable file called "Transparent.png" is included
 in the Media file.  Simply copy this file into the Media > Images
 folder and rename it to "Game Launch Background.png".
 
+* A new font option lets you set the display style for launch status
+messages, as well as the color of the default background displayed
+during launches.
+
 * A new option in the media capture settings lets you limit the
 resolution of captured videos to HD (1920x1080).  By default, the
 media capture function creates videos with exactly the same pixel size

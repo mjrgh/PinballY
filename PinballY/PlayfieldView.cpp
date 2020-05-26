@@ -148,6 +148,7 @@ namespace ConfigVars
 	static const TCHAR *InfoBoxDetailFont = _T("InfoBoxDetailFont");
 	static const TCHAR *StatusFont = _T("StatusFont");
 	static const TCHAR *CreditsFont = _T("CreditsFont");
+	static const TCHAR *LaunchStatusFont = _T("LaunchStatusFont");
 
 	static const TCHAR *MenuTextColor = _T("MenuTextColor");
 	static const TCHAR *MenuBackgroundColor = _T("MenuBackgroundColor");
@@ -170,6 +171,8 @@ namespace ConfigVars
 	static const TCHAR *StatusLineTextColor = _T("StatusLineTextColor");
 	static const TCHAR *StatusLineShadowColor = _T("StatusLineShadowColor");
 	static const TCHAR *CreditsTextColor = _T("CreditsTextColor");
+	static const TCHAR *LaunchStatusTextColor = _T("LaunchStatusTextColor");
+	static const TCHAR *LaunchStatusBackgroundColor = _T("LaunchStatusBackgroundColor");
 
 	static const TCHAR *SimultaneousSync = _T("SimultaneousWindowUpdate");
 	static const TCHAR *CrossfadeTime = _T("CrossfadeTime");
@@ -8430,7 +8433,7 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 		// If we didn't load user media, show the default opaque dark fill
 		if (!ok)
 		{
-			DrawingLayerClear(runningGameBkgPopup, Gdiplus::Color(0xFF, 0x1E, 0x1E, 0x1E));
+			DrawingLayerClear(runningGameBkgPopup, GPColorFromCOLORREF(launchStatusBackgroundColor));
 			runningGameBkgIsDefault = true;
 		}
 	}
@@ -8533,10 +8536,10 @@ void PlayfieldView::ShowRunningGameMessage(const WCHAR *id, const TCHAR *msg)
 			}
 
 			// draw the text, centered above the wheel image
-			Gdiplus::SolidBrush fg(GPColorFromCOLORREF(popupTitleColor));
+			Gdiplus::SolidBrush fg(GPColorFromCOLORREF(this->launchStatusTextColor));
 			Gdiplus::RectF bbox;
-			g.MeasureString(msg, -1, popupTitleFont, Gdiplus::PointF(0, 0), &bbox);
-			g.DrawString(msg, -1, popupTitleFont, Gdiplus::PointF(
+			g.MeasureString(msg, -1, this->launchStatusFont, Gdiplus::PointF(0, 0), &bbox);
+			g.DrawString(msg, -1, this->launchStatusFont, Gdiplus::PointF(
 				(float)(width - bbox.Width) / 2.0f,
 				(float)(height - wheelImageSize.cy) / 2.0f - bbox.Height - 60),
 				&fg);
@@ -11657,6 +11660,7 @@ void PlayfieldView::OnConfigChange()
 	infoBoxFont.ParseConfig(ConfigVars::InfoBoxFont);
 	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont);
 	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont);
+	launchStatusFont.ParseConfig(ConfigVars::LaunchStatusFont);
 
 	// load the font color settings
 	menuTextColor = cfg->GetColor(ConfigVars::MenuTextColor, RGB(0xff, 0xff, 0xff));
@@ -11680,6 +11684,8 @@ void PlayfieldView::OnConfigChange()
 	statusLineTextColor = cfg->GetColor(ConfigVars::StatusLineTextColor, RGB(0xff, 0xff, 0xff));
 	statusLineShadowColor = cfg->GetColor(ConfigVars::StatusLineShadowColor, RGB(0x00, 0x00, 0x00));
 	creditsTextColor = cfg->GetColor(ConfigVars::CreditsTextColor, RGB(0xff, 0xff, 0xff));
+	launchStatusTextColor = cfg->GetColor(ConfigVars::LaunchStatusTextColor, RGB(0xFF, 0xFF, 0xFF));
+	launchStatusBackgroundColor = cfg->GetColor(ConfigVars::LaunchStatusBackgroundColor, RGB(0x1E, 0x1E, 0x1E));
 
 	// load the media capture mode defaults
 	RestoreLastCaptureModes();

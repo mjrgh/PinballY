@@ -565,6 +565,7 @@ CrossfadeTime = 120
 # InfoBoxDetailFont = small font for fine print in info box displays (16pt)
 # StatusFont = status line font (36pt)
 # CreditsFont = credits message font (42pt)
+# LaunchStatusFont = launch status messages (48pt)
 #
 MenuFont = * * *
 MenuHeaderFont = * * *
@@ -580,6 +581,7 @@ InfoBoxFont = * * *
 InfoBoxDetailFont = * * *
 StatusFont = * * *
 CreditsFont = * * *
+LaunchStatusFont = * * *
 
 # Text message colors.
 #
@@ -603,6 +605,8 @@ CreditsFont = * * *
 # StatusLineTextColor - status line text
 # StatusLineShadowColor - status line text drop shadow
 # CreditsTextColor - coin/credit message text
+# LaunchStatusTextColor - launch status message text
+# LaunchStatusBackgroundColor - background fill color during launch
 #
 MenuHeaderColor = #FFFFFF
 MenuTextColor = #FFFFFF
@@ -624,7 +628,8 @@ InfoBoxDetailTextColor = #C0C0C0
 StatusLineTextColor = #FFFFFF
 StatusLineShadowColor = #000000
 CreditsTextColor = #FFFFFF
-
+LaunchStatusTextColor = #FFFFFF
+LaunchStatusBackgroundColor = #1E1E1E
 
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 
