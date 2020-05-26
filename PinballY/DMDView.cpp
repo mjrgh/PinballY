@@ -340,9 +340,9 @@ static const UINT alphaSegmentMask[] = {
 // which makes it a good placeholder and error indicator.
 static const UINT alphaSegmentMissingCharMask = 0x7F7F;
 
-// Alphanumeric display "fonts".  This isn't really a font in the
-// usual sense, but rather a collection of outlines for the 
-// individual segments that make up a character cell in the 
+// Alphanumeric display "fonts".  These aren't really fonts in
+// the usual sense, but rather a collection of outlines for the
+// individual segments that make up a character cell in the
 // alphanumeric display.  To draw a character:
 //
 // 1. Look up the segment mask for the character in alphaSegmentsMask[]
@@ -353,7 +353,9 @@ static const UINT alphaSegmentMissingCharMask = 0x7F7F;
 //
 // The segment polygons below were mechanically translated from
 // the SVG layouts for alphanumeric display segments in Freezy's 
-// dmd-extensions.
+// dmd-extensions.  (The original SVG files amount to lists of
+// vertex coordinates that define the polygons, so these are just
+// C++ representations of the same vertex lists.)
 //
 struct AlphanumFont
 {
@@ -528,12 +530,12 @@ struct HighScoreGraphicsGenThread
 			InterlockedDecrement(&dmdview->nHighScoreThreads);
 	}
 
-	// View window that requested the sprite generation.  This is normally
-	// the DMD view, but it could be one of the other views thanks to 
-	// Javascript, as we expose DMD message generation in any window for
-	// custom graphics.  The DMD message generator is really just a special
-	// drawing style, so there's no techcnial reason it has to be restricted
-	// to the DMD window.
+	// The view window that requested the sprite generation.  PinballY itself
+	// only ever uses this code from the DMD view, but the DMD images are just
+	// specialized sprites, so there's no technical reason to limit them to the
+	// DMD window.  And since we expose the DMD sprites through Javascript,
+	// they can in fact be drawn in any window that Javascript can access 
+	// (which is all of our main windows).
 	RefPtr<BaseView> view;
 
 	// high score request sequence number
@@ -926,7 +928,7 @@ struct HighScoreGraphicsGenThread
 		for (auto &group : slides)
 		{
 			// create the image
-			DrawToImage(group, pixWid, pixHt, [this, &group, font, pixWid, pixHt,
+			DrawToImage(group, viewSize.cx, viewSize.cy, [this, &group, font, viewSize,
 				charCellWid, charCellHt, alphaGridWid, alphaGridHt, scale, x0, y0, &xform]
 				(Gdiplus::Graphics &gMain, BYTE *dibits)
 			{
@@ -934,17 +936,17 @@ struct HighScoreGraphicsGenThread
 				// draw unconditionally for this layer; this is OR'd with the segments
 				// for the characters in the layer's message strings.  This is used
 				// to draw the unlit segments onto the background layer.
-				auto DrawLayer = [this, &gMain, &group, pixWid, pixHt, charCellWid, charCellHt,
+				auto DrawLayer = [this, &gMain, &group, charCellWid, charCellHt, viewSize,
 					alphaGridHt, alphaGridWid, scale,  font, &xform, x0, y0](
 						const DMDView::AlphanumOptions::Layer &layerDesc, UINT fixedSegmentMask)
 				{
 					// create a DIB for our working surface for this layer
-					std::unique_ptr<Gdiplus::Bitmap> layerBitmap(new Gdiplus::Bitmap(pixWid, pixHt, PixelFormat32bppARGB));
+					std::unique_ptr<Gdiplus::Bitmap> layerBitmap(new Gdiplus::Bitmap(viewSize.cx, viewSize.cy, PixelFormat32bppARGB));
 					Gdiplus::Graphics g(layerBitmap.get());
 
 					// clear the background to solid transparent
 					Gdiplus::SolidBrush trbr(Gdiplus::Color(0, 0, 0, 0));
-					g.FillRectangle(&trbr, 0, 0, pixWid, pixHt);
+					g.FillRectangle(&trbr, 0, 0, viewSize.cx, viewSize.cy);
 
 					// use anti-aliasing for our polygon drawing
 					g.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
@@ -1071,7 +1073,7 @@ struct HighScoreGraphicsGenThread
 						blur.SetParameters(&params);
 
 						// apply it
-						RECT rcEffect = { 0, 0, pixWid, pixHt };
+						RECT rcEffect = { 0, 0, viewSize.cx, viewSize.cy };
 						layerBitmap->ApplyEffect(&blur, &rcEffect);
 					}
 
@@ -1081,7 +1083,7 @@ struct HighScoreGraphicsGenThread
 
 				// fill the background layer with the background color
 				Gdiplus::SolidBrush bkg(Gdiplus::Color(bgAlpha, bgColor.rgbRed, bgColor.rgbGreen, bgColor.rgbBlue));
-				gMain.FillRectangle(&bkg, 0, 0, pixWid, pixHt);
+				gMain.FillRectangle(&bkg, 0, 0, viewSize.cx, viewSize.cy);
 
 				// Draw the unlit segments layer.  This layer is special because
 				// we draw all of the segments instead of the lit segments.

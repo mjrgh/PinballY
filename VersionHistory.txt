@@ -52,6 +52,14 @@ minimize the risk of any compatibility issues in case you want to use
 the resulting XML with HP or PBX, PinballY only generates the new
 <title> tags when necessary.
 
+* Fixed a problem with high-score displays using the alphanumeric
+style, which caused the image to be displayed at the wrong position
+(not properly centered) in the DMD window if the window didn't have a
+4:1 aspect ratio.  The positioning was further off-center the further
+your window layout was away from a 4:1 ratio.  This has been fixed;
+the image should be properly centered now regardless of the window
+layout.
+
 * Fixed two problems with searching for era-specific manufacturer logo
 files (e.g., "Bally (1970-1975).png").  The first problem prevented
 era-specific logo files from being displayed at all if they contained
