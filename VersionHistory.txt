@@ -36,6 +36,15 @@ the captured videos to HD.  The new setting is accessed via a checkbox
 on the Media Capture page of the settings dialog, "Limit captured
 videos to HD resolution".
 
+* A new option in the Folders section of the options dialog lets you
+tell PinballY to sort the contents of the XML database files (in order
+of table title, alphabetically) whenever saving changes.  By default,
+PinballY preserves the original ordering of the file when saving
+changes, in case you intentionally ordered the entries in a particular
+way.  If you prefer, you can set this option to make PinballY re-sort
+the file alphabetically by table title on each update.  This might be
+preferable if you need to hand-edit the files outside of PinballY.
+
 * PinballY can now store a title for each game in the XML database
 independently of the media name.  In the past, the <description> tag
 served both purposes, via the convention that the media name is

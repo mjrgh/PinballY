@@ -283,6 +283,48 @@ void GameList::SaveGameListFiles()
 					std::ofstream os;
 					os.open(tmpfile.c_str());
 
+					// If desired, sort alphabetically by game title
+					if (ConfigManager::GetInstance()->GetBool(_T("SortTableDatabases")))
+					{
+						if (auto menuNode = d->doc.first_node("menu"); menuNode != nullptr)
+						{
+							// count top-level nodes
+							int cnt = 0;
+							for (auto chi = menuNode->first_node(); chi != nullptr; chi = chi->next_sibling(), ++cnt);
+
+							// create a vector of the top-level nodes
+							typedef rapidxml::xml_node<char> node;
+							std::vector<node*> vec;
+							vec.reserve(cnt);
+							for (auto chi = menuNode->first_node(); chi != nullptr; vec.push_back(chi), chi = chi->next_sibling());
+
+							// sort it by title
+							std::sort(vec.begin(), vec.end(), [](const node *a, const node *b)
+							{
+								auto getTitle = [](const node *node) -> const char*
+								{
+									if (auto titleNode = node->first_node("title"); titleNode != nullptr)
+										return titleNode->value();
+									if (auto descNode = node->first_node("description"); descNode != nullptr)
+										return descNode->value();
+									if (auto nameAttr = node->first_attribute("name"); nameAttr != nullptr)
+										return nameAttr->value();
+
+									return "";
+								};
+
+								auto aTitle = getTitle(a);
+								auto bTitle = getTitle(b);
+								return lstrcmpiA(aTitle, bTitle) < 0;
+							});
+
+							// rebuild the <menu> tree using the sorted top-level node list
+							menuNode->remove_all_nodes();
+							for (auto node : vec)
+								menuNode->append_node(node);
+						}
+					}
+
 					// Print the XML.  The PinballX game list editor wrote empty tags
 					// as full begin-end tag pairs ("<tag></tag>", rather than using 
 					// the more typical XML empty-tag shorthand "<tag/>".  So we'll

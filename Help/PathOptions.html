@@ -123,5 +123,42 @@
 
 </ul>
 
+<h2>Sort the XML database files by table title</h2>
+<p>
+   If you check this box, PinballY will rearrange the &lt;game&gt; tags
+   in the XML database files into alphabetical order, by table title,
+   whenever it saves changes to the XML files.
+</p>
+<p>
+   By default (if this box is <b>not</b> checked), PinballY simply
+   preserves the original ordering of the tags in the files, to minimize
+   the changes it makes, in case you arranged the tags by hand into a
+   particular order on purpose.
+</p>
+<p>
+   If you hand-edit the files outside of PinballY, it might (or might
+   not) be more convenient to have PinballY rearrange the tags into
+   sorted order by table name.  You can use this option to select
+   which way works better for your situation.
+</p>
+<p>
+   If you don't have any need to hand-edit the XML files, you
+   probably don't care what order they're in.  In that case, it's
+   better to leave the box un-checked, since the sorting process
+   takes a little extra time each time the files must be updated.
+</p>
+<p>
+   Note that PinballY will only rearrange the files into sorted
+   order when it needs to save changes.  PinballY tries to avoid
+   re-writing the XML files unless it's actually necessary, which
+   means that you've made some sort of change to table metadata
+   that requires updating the files.  So checking this box by itself
+   won't have any immediate effect on the XML files; they'll only be
+   rearranged into sorted order the next time they need to be
+   saved due to metadata changes, such as changes made through
+   the Edit Game Details dialog.
+</p>
+   
+
 </body>
 </html>

@@ -33,6 +33,8 @@ void PathsDialog::InitVarMap()
 		IDC_RB_PBY_DB_FOLDER, IDC_RB_PBX_DB_FOLDER, IDC_RB_CUSTOM_DB_FOLDER,
 		IDC_EDIT_DB_FOLDER, IDC_BTN_DB_FOLDER, 
 		_T("Databases")));
+
+	varMap.emplace_back(new CkBoxMap(_T("SortTableDatabases"), IDC_CK_SORT_XML, false));
 }
 
 BOOL PathsDialog::OnInitDialog()

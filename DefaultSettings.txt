@@ -128,6 +128,17 @@ MediaPath =
 #
 TableDatabasePath =
 
+# Sort the XML database files when saving changes.  By default, PinballY
+# preserves the original order of the XML files when saving changes.  Set
+# this option to 1 if you'd prefer to have the XML files sorted 
+# alphabetically by game title.  (Note that the sorting will only occur
+# when you make changes that require updating the XML files.  This option
+# by itself won't make PinballY update the files; you have to make some
+# change to the metadata that forces PinballY to save updates to the XML
+# files, such as changing the title of a game defined within the file.)
+#
+SortTableDatabases = 0
+
 
 # Should PinballY automatically launch at system startup?
 #

@@ -74,14 +74,21 @@
    strings of alphanumeric characters and a limited set of punctuation
    characters, including "." and "_".
 </p>
-<p>All variable names are "global": all of the names share a single
-   namespace with no nesting or hierarchy structure, so every variable's
+<p>
+   For a list of all of the variables, please refer to your <b>Settings.txt</b>
+   file, or the template settings file, <b>DefaultSettings.txt</b>.  Both
+   files are in your main PinballY folder.  Those files
+   list all of the variables, and include extensive comments
+   describing their functions and the expected formats for the values.
+</p>
+<p>All variable names are "global".  The names all share a single
+   namespace with no nesting or hierarchy, so every variable's
    name has to be unique.  The system uses a convention of "dotted"
    prefixes for related variables (e.g., all of the capture-related
-   settings start with "Capture."), but be aware that there's no actual
-   formal structure to this.  The "." characters in the dotted names are
-   just parts of the names, not some kind of special namespace
-   qualifiers.
+   settings start with "Capture."), but be aware that there's no
+   formal structure to this.  The dots are just literal characters
+   that are part of the name strings; they're
+   not some kind of "operator" that separates tokens.
 </p>
 <p>
    If you add new custom variables of your own, it's a good idea to
@@ -164,8 +171,8 @@
    get settings changes to take effect.  It's not necessary to exit and
    restart the program.  Instead, you can dynamically reload the
    settings at any time.  This deletes and re-creates all of the
-   derived objects, updating their snapshots of the settings data
-   to something more modern.
+   derived objects, updating their snapshots so that they match
+   the current settings variables.
 </p>
 <p>
    The procedure to do this is simple: call
@@ -174,12 +181,14 @@
    to load the file and re-create all derived objects.
 </p>
 <p>
-   Saving and reloading is usually quite fast (it only takes a few
+   Saving and reloading is usually fast (it should only take a few
    milliseconds), but it has a number of visible side effects in the UI,
    such as interrupting video playback.  So it shouldn't be undertaken
-   lightly.  It's best to do this only in response to a suitable,
-   explicit user action, preferably one that's significant enough
-   from a user's perspective to justify a UI refresh.  For reference,
+   lightly, and should be infrequent.  It's best to do this only in response to an
+   explicit user action where it makes sense to synchronize the
+   disk data.  Preferably, this user action should be significant enough
+   from a user's perspective to justify a UI refresh - something that's
+   conceptually similar to a "Save" command.  For reference,
    the only time the program itself reloads the settings is when the
    user clicks the Apply or OK button in the settings dialog.
 </p>
