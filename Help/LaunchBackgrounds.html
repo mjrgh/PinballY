@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Launch Backgrounds</h1>
+
+<p>
+   When you launch a game, PinballY normally displays a series of status
+   messages ("Loading game", "Running", etc) in the main playfield window,
+   drawn with a plain gray background.  If you prefer, you can replace
+   the gray background with a custom image or video, simply by dropping
+   an image or video file into one of the Media subfolders, as outlined
+   below.
+</p>
+<p>
+   If you use a PNG image that's completely transparent as the custom
+   background image, it'll have the effect of making PinballY continue
+   to show the current table's background video or image while the game
+   loads.  The gray background that PinballY shows by default is actually
+   superimposed in front of the table background, so substituting a
+   transparent image will allow the table background to remain visible
+   through the loading process.  For your convenience, the PinballY
+   distribution includes a simple transparent PNG file, called
+   <b>Transparent.png</b>, located in the main Media folder.  To
+   use it as a transparent background for the launch screen, you can
+   simply copy this file into the Media &gt; Images folder and rename
+   it as shown below.
+</p>
+<p>
+   PNG images can also be partially
+   transparent or translucent, so you can use this feature to superimpose
+   images on top of the table background.
+</p>
+<p>
+   Using a custom background image or video is a simple way to achieve
+   some simple effects, but you can do much more extensive customizations
+   to the launch screens using Javascript.  See <a href="SeamlessLoadingExample.html">Seamless
+   Game Launch</a> in the <a href="WorkedExamples.html">Worked Examples</a>
+   section for some examples.
+</p>
+
+<h2>Folder location</h2>
+<p>
+   Custom background images go in the <b>Images</b> folder within your
+   main Media folder.
+</p>
+<p>
+   Custom background videos go in the <b>Videos</b> folder within your
+   main Media folder.
+</p>
+<p>
+   See <a href="Customizing.html#mediaFolder">Media folder location</a>
+   for more on where that folder is located.
+</p>
+<p>
+   A video file takes precedence.  If you supply both a custom video file
+   and a custom image, the video will be displayed and the image will be
+   ignored.
+</p>
+
+<h2>File names</h2>
+
+<p>
+   The filename for a custom launch video or image is always
+   <b>Game Launch Background.<i>ext</i></b>, where <i>.ext</i>
+   is one of the standard image file or video file extensions.
+</p>
+
+<h2>File types</h2>
+<p>
+   For image files, the extension can be any of the standard
+   image file suffixes: .png, .jpg, .jpeg, or .gif.
+</p>
+<p>
+   For video files, the extension <i>.ext</i> can be any of the
+   supported video file suffixes:  .mpg, .f4v, .mkv, .wmv, .m4v, or .avi.
+</p>
+
+</body>
+</html>
