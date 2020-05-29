@@ -39,6 +39,7 @@ var contents = [
         "+DefaultBackgrounds.html Default Backgrounds",
         "+StartupAudioVideo.html Startup Audio/Video",
         "+LaunchBackgrounds.html Game Launch Backgrounds",
+        "+TTHighScoreBackgrounds.html \"TT\" High Score Backgrounds",
     "OperatorMenu.html Operator Menu",
     "GameSetupMenu.html Game Setup Menu",
         "+EditGameDetails.html Editing a Game's Details",

@@ -577,6 +577,7 @@ CrossfadeTime = 120
 # StatusFont = status line font (36pt)
 # CreditsFont = credits message font (42pt)
 # LaunchStatusFont = launch status messages (48pt)
+# TTHighScoreFont = font for typewriter-style high scores in DMD window
 #
 MenuFont = * * *
 MenuHeaderFont = * * *
@@ -593,6 +594,7 @@ InfoBoxDetailFont = * * *
 StatusFont = * * *
 CreditsFont = * * *
 LaunchStatusFont = * * *
+TTHighScoreFont = * * *
 
 # Text message colors.
 #
@@ -618,6 +620,7 @@ LaunchStatusFont = * * *
 # CreditsTextColor - coin/credit message text
 # LaunchStatusTextColor - launch status message text
 # LaunchStatusBackgroundColor - background fill color during launch
+# TTHighScoreTextColor - text color for typewriter-style high scores in DMD window
 #
 MenuHeaderColor = #FFFFFF
 MenuTextColor = #FFFFFF
@@ -641,6 +644,7 @@ StatusLineShadowColor = #000000
 CreditsTextColor = #FFFFFF
 LaunchStatusTextColor = #FFFFFF
 LaunchStatusBackgroundColor = #1E1E1E
+TTHighScoreTextColor = #000000
 
 
 # Mute videos.  Turns off sound playback on all videos (playfield, 

@@ -16,6 +16,7 @@
 #include "PerfMon.h"
 #include "BaseView.h"
 #include "SecondaryView.h"
+#include "FontPref.h"
 
 class Sprite;
 class VideoSprite;
@@ -38,7 +39,7 @@ protected:
 	BYTE bgAlpha;
 };
 
-class DMDView : public SecondaryView
+class DMDView : public SecondaryView, public ConfigManager::Subscriber
 {
 	friend struct HighScoreGraphicsGenThread;
 
@@ -237,13 +238,16 @@ public:
 		// pass it to the shader through a constant buffer.
 		RGBQUAD bgColor = { 0, 0, 0, 0 };
 		BYTE bgAlpha = 255;
-
-		// Display options
-
 	};
 	std::list<HighScoreImage> highScoreImages;
 
 protected:
+	// ConfigManager::Subscriber implementation
+	virtual void OnConfigReload() override { OnConfigChange(); }
+
+	// update internal variables for a config change
+	void OnConfigChange();
+
 	// private application message (WM_APP to 0xBFFF)
 	virtual bool OnAppMessage(UINT msg, WPARAM wParam, LPARAM lParam) override;
 
@@ -302,6 +306,10 @@ protected:
 	// it's non-empty, this points to the current image being
 	// displayed.
 	decltype(highScoreImages)::iterator highScorePos;
+
+	// Font preference parser for the typewriter-style high score font
+	FontPref ttHighScoreFont{ 24, _T("Courier New") };
+	COLORREF ttHighScoreTextColor;
 
 	// Set the high score image list.  When we switch to a new game, we kick
 	// off a thread to generate the high score images.  We use a thread rather

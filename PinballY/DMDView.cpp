@@ -76,12 +76,26 @@ static const int dmdWidth = 128, dmdHeight = 32;
 namespace ConfigVars
 {
 	static const TCHAR *DMDWinVarPrefix = _T("DMDWindow");
+	static const TCHAR *TTHighScoreFont = _T("TTHighScoreFont");
+	static const TCHAR *TTHighScoreTextColor = _T("TTHighScoreTextColor");
 };
 
 // construction
 DMDView::DMDView() : SecondaryView(IDR_DMD_CONTEXT_MENU, ConfigVars::DMDWinVarPrefix),
 	highScorePos(highScoreImages.end())
 {
+	// process the initial configuration settings
+	OnConfigChange();
+
+	// subscribe for future config updates
+	ConfigManager::GetInstance()->Subscribe(this);
+}
+
+void DMDView::OnConfigChange()
+{
+	auto cfg = ConfigManager::GetInstance();
+	ttHighScoreFont.ParseConfig(ConfigVars::TTHighScoreFont, _T("Courier New"));
+	ttHighScoreTextColor = cfg->GetColor(ConfigVars::TTHighScoreTextColor, RGB(0x20, 0x20, 0x20));
 }
 
 // get the background media info
@@ -515,12 +529,25 @@ struct HighScoreGraphicsGenThread
 		txtColor(txtColor),
 		style(style)
 	{
-		// count the thread
+		// get the DMD view, if available
 		if (auto dmdview = Application::Get()->GetDMDView(); dmdview != nullptr)
+		{
+			// count the thread
 			InterlockedIncrement(&dmdview->nHighScoreThreads);
+
+			// remember the default font for the typewriter-style display
+			ttHighScoreFont = dmdview->ttHighScoreFont;
+			ttHighScoreTextColor = dmdview->ttHighScoreTextColor;
+		}
 
 		// initialize the alphanumeric options with the text color
 		alphanumOptions.InitFromSegColor(txtColor);
+
+		// if we're in TT mode, look for a custom background image
+		TCHAR ttImg[MAX_PATH];
+		if (_tcsicmp(this->style.c_str(), _T("tt")) == 0
+			&& GameList::Get()->FindGlobalImageFile(ttImg, _T("Images"), _T("TT High Score Background")))
+			ttBkgImageFile = ttImg;
 	}
 
 	virtual ~HighScoreGraphicsGenThread()
@@ -561,6 +588,13 @@ struct HighScoreGraphicsGenThread
 
 	// Alphanumeric display options
 	DMDView::AlphanumOptions alphanumOptions;
+
+	// For the TT (typewriter) display style, the background image file name
+	TSTRING ttBkgImageFile;
+
+	// Default font for the TT display style
+	FontPref ttHighScoreFont{ 24 };
+	COLORREF ttHighScoreTextColor;
 
 	// Messages to display.  Each slide is a set of strings to
 	// display together on one screen; the overall list is the set 
@@ -1107,10 +1141,21 @@ struct HighScoreGraphicsGenThread
 		// process each slide
 		for (auto &group : slides)
 		{
-			// load the index card background image
-			std::unique_ptr<Gdiplus::Bitmap> ttBkgImage;
-			ttBkgImage.reset(GPBitmapFromPNG(IDB_INDEX_CARD));
+			// Load the background image.  If we found a user media file, try loading
+			// that first.
+			std::unique_ptr<Gdiplus::Image> ttBkgImage;
+			if (ttBkgImageFile.size() != 0)
+			{
+				// We have a file - try loading it.  If that fails, discard the image.
+				ttBkgImage.reset(Gdiplus::Image::FromFile(ttBkgImageFile.c_str(), TRUE));
+				if (ttBkgImage != nullptr && ttBkgImage->GetLastStatus() != Gdiplus::Status::Ok)
+					ttBkgImage.reset();
+			}
 
+			// if we didn't successfully load a user background image, load the default
+			// index card background
+			if (ttBkgImage == nullptr)
+				ttBkgImage.reset(GPBitmapFromPNG(IDB_INDEX_CARD));
 
 			// size the image to match the background
 			int wid = ttBkgImage.get()->GetWidth();
@@ -1123,10 +1168,12 @@ struct HighScoreGraphicsGenThread
 				g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
 
 				// Get the font.  If the caller specified a font list, use that,
-				// otherwise use Courier New by default, since it's a typewriter
-				// font that should be installed on all Windows systems.
-				const TCHAR *f = fontName.length() != 0 ? fontName.c_str() : _T("Courier New");
-				std::unique_ptr<Gdiplus::Font> font(CreateGPFontPixHt(f, ht / 8, 400, false));
+				// otherwise use the font from the settings.
+				std::unique_ptr<Gdiplus::Font> font;
+				if (fontName.length() != 0)
+					font.reset(CreateGPFontPixHt(fontName.c_str(), ht / 8, 400, false));
+				else
+					font.reset(CreateGPFontPixHt(ttHighScoreFont.family.c_str(), ht / 8, ttHighScoreFont.weight, ttHighScoreFont.italic));
 
 				// combine the text into a single string separated by line breaks
 				TSTRING txt;
@@ -1141,7 +1188,7 @@ struct HighScoreGraphicsGenThread
 				Gdiplus::StringFormat fmt(Gdiplus::StringFormat::GenericTypographic());
 				fmt.SetAlignment(Gdiplus::StringAlignmentCenter);
 				fmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-				Gdiplus::SolidBrush br(Gdiplus::Color(32, 32, 32));
+				Gdiplus::SolidBrush br(GPColorFromCOLORREF(ttHighScoreTextColor));
 				g.DrawString(txt.c_str(), -1, font.get(), Gdiplus::RectF(0, 0, (float)wid, (float)ht), &fmt, &br);
 			});
 		}

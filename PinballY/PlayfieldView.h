@@ -26,6 +26,7 @@
 #include "HighScores.h"
 #include "GameList.h"
 #include "JavascriptEngine.h"
+#include "FontPref.h"
 
 class Sprite;
 class TextureShader;
@@ -331,67 +332,22 @@ protected:
 	virtual void OnConfigPostSave(bool succeeded) override;
 	virtual void OnConfigReload() override { OnConfigChange(); }
 
-	// font options
-	struct FontPref
-	{
-		FontPref(PlayfieldView *pfv, int defaultPtSize, const TCHAR *defaultFamily = nullptr, 
-			int defaultWeight = 400, bool defaultItalic = false) :
-			pfv(pfv),
-			defaultPtSize(defaultPtSize), 
-			defaultFamily(defaultFamily), 
-			defaultWeight(defaultWeight),
-			defaultItalic(defaultItalic)
-		{ }
-
-		PlayfieldView *pfv;
-
-		// font description
-		TSTRING family;
-		int ptSize = 0;
-		int weight = 0;
-		bool italic = false;
-
-		// Defaults for the font.  defaultName can be null, in which case the
-		// global DefaultFontFamily preference is used.
-		const TCHAR *defaultFamily;
-		int defaultPtSize;
-		int defaultWeight;
-		bool defaultItalic;
-
-		// Parse a font option string.  If the string doesn't match the
-		// standard format, we'll apply defaults if useDefault is true,
-		// otherwise we'll leave the font settings unchanged.
-		void Parse(const TCHAR *text, bool useDefaults = true);
-
-		// parse the config setting; applies defaults automatically if
-		// the config variable is missing or isn't formatted correctly
-		void ParseConfig(const TCHAR *varname);
-
-		// get the font from this descriptor, creating the cached font if needed
-		Gdiplus::Font *Get();
-
-		operator Gdiplus::Font*() { return Get(); }
-		Gdiplus::Font* operator->() { return Get(); }
-
-		// cached font
-		std::unique_ptr<Gdiplus::Font> font;
-	};
 	TSTRING defaultFontFamily;                // default font family for all fonts
-	FontPref popupTitleFont{ this, 48 };      // title font for popups
-	FontPref popupFont{ this, 24 };           // base text font for popup dialogs
-	FontPref popupSmallerFont{ this, 20 };    // small font for popups
-	FontPref popupDetailFont{ this, 18 };     // detail font for popups
-	FontPref mediaDetailFont{ this, 12 };     // line items in media file listings
-	FontPref wheelFont{ this, 80 };           // wheel titles (in lieu of icons)
-	FontPref menuFont{ this, 42 };            // base font for menus
-	FontPref menuHeaderFont{ this, 36 };      // font for menu header text
-	FontPref statusFont{ this, 36 };          // status line font
-	FontPref highScoreFont{ this, 24 };       // high score list font
-	FontPref infoBoxFont{ this, 28 };         // info box main text
-	FontPref infoBoxTitleFont{ this, 38 };    // info box title font
-	FontPref infoBoxDetailFont{ this, 16 };   // info box fine print
-	FontPref creditsFont{ this, 42 };         // credits message font
-	FontPref launchStatusFont{ this, 48 };    // launch status message font
+	FontPref popupTitleFont{ 48 };      // title font for popups
+	FontPref popupFont{ 24 };           // base text font for popup dialogs
+	FontPref popupSmallerFont{ 20 };    // small font for popups
+	FontPref popupDetailFont{ 18 };     // detail font for popups
+	FontPref mediaDetailFont{ 12 };     // line items in media file listings
+	FontPref wheelFont{ 80 };           // wheel titles (in lieu of icons)
+	FontPref menuFont{ 42 };            // base font for menus
+	FontPref menuHeaderFont{ 36 };      // font for menu header text
+	FontPref statusFont{ 36 };          // status line font
+	FontPref highScoreFont{ 24 };       // high score list font
+	FontPref infoBoxFont{ 28 };         // info box main text
+	FontPref infoBoxTitleFont{ 38 };    // info box title font
+	FontPref infoBoxDetailFont{ 16 };   // info box fine print
+	FontPref creditsFont{ 42 };         // credits message font
+	FontPref launchStatusFont{ 48 };    // launch status message font
 
 	// text font colors
 	COLORREF menuTextColor;
@@ -417,6 +373,7 @@ protected:
 	COLORREF creditsTextColor;
 	COLORREF launchStatusTextColor;
 	COLORREF launchStatusBackgroundColor;
+	COLORREF ttHighScoreTextColor;
 
 	// name of the playfield window startup video
 	virtual const TCHAR *StartupVideoName() const override { return _T("Startup Video"); }

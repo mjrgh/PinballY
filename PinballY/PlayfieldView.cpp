@@ -6094,8 +6094,8 @@ bool PlayfieldView::JsDrawSetFontFromPrefs(WSTRING varname)
 	}
 
 	// Set up a FontPref object to parse the value
-	FontPref f(this, 24, defaultFontFamily.c_str());
-	f.Parse(val);
+	FontPref f(24, defaultFontFamily.c_str());
+	f.Parse(val, defaultFontFamily.c_str());
 	
 	// set the characteristics from this font
 	jsDC->fontName = f.family;
@@ -11646,21 +11646,21 @@ void PlayfieldView::OnConfigChange()
 		defaultFontFamily = _T("Tahoma");
 
 	// load the individual task-specific font preferences
-	popupFont.ParseConfig(ConfigVars::PopupFont);
-	popupTitleFont.ParseConfig(ConfigVars::PopupTitleFont);
-	popupSmallerFont.ParseConfig(ConfigVars::PopupSmallerFont);
-	popupDetailFont.ParseConfig(ConfigVars::PopupDetailFont);
-	mediaDetailFont.ParseConfig(ConfigVars::MediaDetailFont);
-	wheelFont.ParseConfig(ConfigVars::WheelFont);
-	menuFont.ParseConfig(ConfigVars::MenuFont);
-	menuHeaderFont.ParseConfig(ConfigVars::MenuHeaderFont);
-	statusFont.ParseConfig(ConfigVars::StatusFont);
-	creditsFont.ParseConfig(ConfigVars::CreditsFont);
-	highScoreFont.ParseConfig(ConfigVars::HighScoreFont);
-	infoBoxFont.ParseConfig(ConfigVars::InfoBoxFont);
-	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont);
-	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont);
-	launchStatusFont.ParseConfig(ConfigVars::LaunchStatusFont);
+	popupFont.ParseConfig(ConfigVars::PopupFont, defaultFontFamily.c_str());
+	popupTitleFont.ParseConfig(ConfigVars::PopupTitleFont, defaultFontFamily.c_str());
+	popupSmallerFont.ParseConfig(ConfigVars::PopupSmallerFont, defaultFontFamily.c_str());
+	popupDetailFont.ParseConfig(ConfigVars::PopupDetailFont, defaultFontFamily.c_str());
+	mediaDetailFont.ParseConfig(ConfigVars::MediaDetailFont, defaultFontFamily.c_str());
+	wheelFont.ParseConfig(ConfigVars::WheelFont, defaultFontFamily.c_str());
+	menuFont.ParseConfig(ConfigVars::MenuFont, defaultFontFamily.c_str());
+	menuHeaderFont.ParseConfig(ConfigVars::MenuHeaderFont, defaultFontFamily.c_str());
+	statusFont.ParseConfig(ConfigVars::StatusFont, defaultFontFamily.c_str());
+	creditsFont.ParseConfig(ConfigVars::CreditsFont, defaultFontFamily.c_str());
+	highScoreFont.ParseConfig(ConfigVars::HighScoreFont, defaultFontFamily.c_str());
+	infoBoxFont.ParseConfig(ConfigVars::InfoBoxFont, defaultFontFamily.c_str());
+	infoBoxTitleFont.ParseConfig(ConfigVars::InfoBoxTitleFont, defaultFontFamily.c_str());
+	infoBoxDetailFont.ParseConfig(ConfigVars::InfoBoxDetailFont, defaultFontFamily.c_str());
+	launchStatusFont.ParseConfig(ConfigVars::LaunchStatusFont, defaultFontFamily.c_str());
 
 	// load the font color settings
 	menuTextColor = cfg->GetColor(ConfigVars::MenuTextColor, RGB(0xff, 0xff, 0xff));
@@ -11921,151 +11921,6 @@ void PlayfieldView::OnConfigChange()
 
 	// notify Javascript
 	FireConfigEvent(jsSettingsReloadEvent);
-}
-
-void PlayfieldView::FontPref::Parse(const TCHAR *text, bool useDefaults)
-{
-	// try matching the standard format: <size> <weight> <name>
-	static const std::basic_regex<TCHAR> pat(_T("\\s*(\\d+(pt)?|\\*)\\s+(\\S+)\\s+(.*)"), std::regex_constants::icase);
-	std::match_results<const TCHAR*> m;
-	if (std::regex_match(text, m, pat))
-	{
-		// read the size
-		ptSize = defaultPtSize;
-		auto ptSizeStr = m[1].str();
-		if (int n = _ttoi(ptSizeStr.c_str()); n > 0)
-		{
-			// non-zero point size specified - use that
-			ptSize = n;
-		}
-
-		// read the weight and style
-		weight = defaultWeight;
-		italic = defaultItalic;
-		auto weightStyleStr = m[3].str();
-		static const std::basic_regex<TCHAR> weightStylePat(_T("([^/]+)(?:/(.+))?"));
-		std::match_results<TSTRING::const_iterator> mw;
-		if (weightStyleStr.length() != 0 && weightStyleStr != _T("*") && std::regex_match(weightStyleStr, mw, weightStylePat))
-		{
-			// check what kind of weight spec we have
-			auto weightStr = mw[1].str();
-			if (int n = _ttoi(weightStr.c_str()); n >= 100 && n <= 900)
-			{
-				// numeric weight value, 100 to 900 scale
-				weight = n;
-			}
-			else if (weightStr.length() != 0 && weightStr != _T("*"))
-			{
-				// try a standard weight keyword
-				static const struct
-				{
-					const TCHAR *name;
-					int weight;
-				}
-				names[] = {
-					{ _T("thin"), 100 },
-					{ _T("hairline"), 100 },
-					{ _T("xlight"), 200 },
-					{ _T("extralight"), 200 },
-					{ _T("extra-light"), 200 },
-					{ _T("ultralight"), 200 },
-					{ _T("ultra-light"), 200 },
-					{ _T("light"), 300 },
-					{ _T("normal"), 400 },
-					{ _T("medium"), 500 },
-					{ _T("semibold"), 600 },
-					{ _T("semi-bold"), 600 },
-					{ _T("bold"), 700 },
-					{ _T("extrabold"), 800 },
-					{ _T("extra-bold"), 800 },
-					{ _T("xbold"), 800 },
-					{ _T("black"), 900 },
-					{ _T("heavy"), 900 },
-				};
-				bool matched = false;
-				for (size_t i = 0; i < countof(names); ++i)
-				{
-					if (_tcsicmp(weightStr.c_str(), names[i].name) == 0)
-					{
-						weight = names[i].weight;
-						matched = true;
-						break;
-					}
-				}
-
-				// If we didn't match a weight name, check for a style name,
-				// in case they used a style without specifying a weight.
-				// This is treated as equivalent to "*/style", meaning that
-				// the default weight is inherited.
-				if (!matched)
-				{
-					if (_tcsicmp(weightStr.c_str(), _T("italic")) == 0)
-						italic = true;
-					else if (_tcsicmp(weightStr.c_str(), _T("regular")) == 0)
-						italic = false;
-				}
-			}
-
-			// Check for a style spec, for "regular" or "italic"
-			if (mw[2].matched)
-			{
-				auto styleStr = mw[2].str();
-				if (_tcsicmp(styleStr.c_str(), _T("italic")) == 0)
-					italic = true;
-				else if (_tcsicmp(styleStr.c_str(), _T("regular")) == 0)
-					italic = false;
-			}
-		}
-
-		// get the family
-		auto familyStr = m[4].str();
-		if (familyStr.length() != 0 && familyStr != _T("*"))
-		{
-			// use the explicit family name
-			family = familyStr;
-		}
-		else
-		{
-			// use our use-specific default family if specified, otherwise use the
-			// global default family from the preferences
-			if (defaultFamily != nullptr)
-				family = defaultFamily;
-			else
-				family = pfv->defaultFontFamily;
-		}
-
-		// clear any cached font object
-		font.reset();
-	}
-	else if (useDefaults)
-	{
-		// it's not in the standard format, and the caller directed us to
-		// apply defaults in this case, so apply the defaults
-		ptSize = defaultPtSize;
-		weight = defaultWeight;
-		if (defaultFamily != nullptr)
-			family = defaultFamily;
-		else
-			family = pfv->defaultFontFamily;
-
-		// clear any cached font object
-		font.reset();
-	}
-}
-
-void PlayfieldView::FontPref::ParseConfig(const TCHAR *varname)
-{
-	// Parse the config variable value.  If it's not defined, just parse an
-	// empty string, which will set the defaults for the font.
-	Parse(ConfigManager::GetInstance()->Get(varname, _T("")));
-}
-
-Gdiplus::Font* PlayfieldView::FontPref::Get()
-{
-	if (font == nullptr)
-		font.reset(CreateGPFont(family.c_str(), ptSize, weight, italic));
-
-	return font.get();
 }
 
 void PlayfieldView::AddJsCommand(int unit, int button, const KeyCommand &cmd)

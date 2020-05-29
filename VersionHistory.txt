@@ -45,6 +45,14 @@ way.  If you prefer, you can set this option to make PinballY re-sort
 the file alphabetically by table title on each update.  This might be
 preferable if you need to hand-edit the files outside of PinballY.
 
+* It's now easier to customize the display style for the "tt"
+(typewriter) style of high score display used for electromechanical
+(EM) games.  First, you can provide your own custom background image,
+to override the default "index card" background, by placing an image
+file named "TT High Score Background.png" (or .jpg, etc) in the Media
+> Images folder.  Second, a new item in the Fonts page in the settings
+dialog lets you specify the font and color for the text.
+
 * PinballY can now store a title for each game in the XML database
 independently of the media name.  In the past, the <description> tag
 served both purposes, via the convention that the media name is
