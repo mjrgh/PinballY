@@ -159,10 +159,28 @@ public:
 			IniFileUpdateFailed,
 			CreatePipeFailed,
 			ProcessLaunchFailed,
-			NoReplyFromProcess
+			NoReplyFromProcess,
+			FileReadFailed
 		} status;
 
-		// output captured from PINemHi
+		// source of the results
+		enum Source
+		{
+			None,     // no source/not applicable
+			PINemHi,  // results from PINemHi process
+			File      // results from an ad hoc scores file
+		} source = None;
+
+		// interpret the source code into a name string for Javascript
+		const TCHAR *GetSourceName() const
+		{
+			return source == None ? _T("none") :
+				source == PINemHi ? _T("pinemhi") :
+				source == File ? _T("file") :
+				_T("?");
+		}
+
+		// output captured from PINemHi or ad hoc scores file
 		TSTRING results;
 	};
 
@@ -175,6 +193,12 @@ protected:
 
 	// initialization is complete
 	bool inited;
+
+	// Try getting scores from the NVRAM file via PINemHi
+	bool GetScoresFromNVRAM(GameListItem *game, HWND hwndNotify, std::unique_ptr<NotifyContext> &notifyContext);
+
+	// Try getting scores from our own ad hoc scores file
+	bool GetScoresFromFile(GameListItem *game, HWND hwndNotify, std::unique_ptr<NotifyContext> &notifyContext);
 
 	// Global VPinMAME NVRAM path.  This is the path from the VPM
 	// config vars in the registry.  This can be overridden per system
@@ -257,27 +281,35 @@ protected:
 	// Lock for resources accessed from the background thread
 	CriticalSection threadLock;
 
-	// Background thread to read the high score file
+	// Base class for our background threads
 	class Thread
 	{
 	public:
-		Thread(const TCHAR *cmdline, QueryType queryType,
-			GameListItem *game,	const TSTRING &nvramPath, const TSTRING &nvramFile,
-			HighScores *hs, PathEntry *pathEntry,
-			HWND hwndNotify, NotifyContext *notifyContext);
+		Thread(HighScores *hs, QueryType queryType, GameListItem *game, HWND hwndNotify, NotifyContext *ctx) :
+			hs(hs, RefCounted::DoAddRef),
+			queryType(queryType),
+			game(game),
+			hwndNotify(hwndNotify),
+			notifyContext(ctx)
+		{
+		}
+
+		virtual ~Thread() { }
 
 		// main entrypoint
 		static DWORD WINAPI SMain(LPVOID param);
-		void Main();
+		virtual void Main() = 0;
 
-		// Command line to send to PINemHi
-		TSTRING cmdline;
+		// high scores object
+		RefPtr<HighScores> hs;
 
 		// query type
 		QueryType queryType;
 
-		// high scores object
-		RefPtr<HighScores> hs;
+		// Game we're retrieving information on.  This can be null
+		// if we're doing a general query, such as a PINemHi program
+		// version check.
+		GameListItem *game;
 
 		// notification window - we send this window a message
 		// when finished to give it the new high score information
@@ -285,11 +317,22 @@ protected:
 
 		// context object for notification message
 		std::unique_ptr<NotifyContext> notifyContext;
+	};
 
-		// Game we're retrieving information on.  This can be null
-		// if we're doing a general query, such as a PINemHi program
-		// version check.
-		GameListItem *game;
+	// Background thread to read the NVRAM file
+	class NVRAMThread : public Thread
+	{
+	public:
+		NVRAMThread(const TCHAR *cmdline, QueryType queryType,
+			GameListItem *game,	const TSTRING &nvramPath, const TSTRING &nvramFile,
+			HighScores *hs, PathEntry *pathEntry,
+			HWND hwndNotify, NotifyContext *notifyContext);
+
+		// main entrypoint
+		virtual void Main() override;
+
+		// Command line to send to PINemHi
+		TSTRING cmdline;
 
 		// NVRAM path and filename
 		TSTRING nvramPath;
@@ -299,6 +342,24 @@ protected:
 		// if we're running PINemHi for a general query, such as
 		// a program version check.
 		PathEntry *pathEntry;
+	};
+
+	// Background thread to read our ad hoc scores file
+	class FileThread : public Thread
+	{
+	public:
+		FileThread(HighScores *hs, QueryType queryType, GameListItem *game,
+			HWND hwndNotify, NotifyContext *ctx, const TCHAR *filename) :
+			Thread(hs, queryType, game, hwndNotify, ctx),
+			filename(filename)
+		{
+		}
+
+		// main entrypoint
+		virtual void Main() override;
+
+		// High scores file we're reading
+		TSTRING filename;
 	};
 
 	// Enqueue a thread

@@ -633,7 +633,7 @@ bool HighScores::GetVersion(HWND hwndNotify, NotifyContext *notifyContext)
 {
 	// enqueue a version request, with the "-v" option
 	TSTRING empty;
-	EnqueueThread(new Thread(_T(" -v"), ProgramVersionQuery,
+	EnqueueThread(new NVRAMThread(_T(" -v"), ProgramVersionQuery,
 		nullptr, empty, empty, this, nullptr, hwndNotify, notifyContext));
 
 	// success
@@ -645,6 +645,21 @@ bool HighScores::GetScores(GameListItem *game, HWND hwndNotify, NotifyContext *n
 	// wrap the notify context in a unique_ptr to ensure it's disposed of
 	std::unique_ptr<NotifyContext> notifyContextPtr(notifyContext);
 
+	// try PINemHi first
+	if (GetScoresFromNVRAM(game, hwndNotify, notifyContextPtr))
+		return true;
+
+	// try our ad hoc scores file if that failed
+	if (GetScoresFromFile(game, hwndNotify, notifyContextPtr))
+		return true;
+
+	// no scores found
+	return false;
+}
+
+
+bool HighScores::GetScoresFromNVRAM(GameListItem *game, HWND hwndNotify, std::unique_ptr<NotifyContext> &notifyContext)
+{
 	// We can't proceed if initialization hasn't finished yet
 	if (!IsInited())
 		return false;
@@ -675,9 +690,46 @@ bool HighScores::GetScores(GameListItem *game, HWND hwndNotify, NotifyContext *n
 	// Enqueue the request.  The command line is simply the name of the 
 	// NVRAM file, but note that PINemHi seems to require the command line
 	// to be constructed with a space before the first token.
-	EnqueueThread(new Thread(
+	EnqueueThread(new NVRAMThread(
 		MsgFmt(_T(" %s"), nvramFile.c_str()), HighScoreQuery,
-		game, nvramPath, nvramFile, this, pathEntry, hwndNotify, notifyContextPtr.release()));
+		game, nvramPath, nvramFile, this, pathEntry, hwndNotify, notifyContext.release()));
+
+	// the request was successfully submitted
+	return true;
+}
+
+bool HighScores::GetScoresFromFile(GameListItem *game, HWND hwndNotify, std::unique_ptr<NotifyContext> &notifyContext)
+{
+	// try resolving the game's table file
+	GameListItem::ResolvedFile rf;
+	game->ResolveFile(rf);
+
+	// look for a file with the same base name, with the extension replaced
+	// with .pinballyHighScores
+	std::basic_regex<TCHAR> pat(_T("\\.[^.\\\\/:]+$"));
+	TSTRING filename = std::regex_replace(rf.path, pat, _T(".pinballyHighScores"));
+	if (!FileExists(filename.c_str()))
+		return false;
+
+	// Enqueue a thread to read the file.  Note that there's no performance
+	// reason that this is necessary, since this should be a small text file
+	// that we can load almost instantly.  The only reason to do this in a
+	// thread is that we *do* have to use a thread for the NVRAM reading,
+	// since that's a little less than instantaneous given that it requires
+	// launching the PINemHi subprocess.  And since we have to do that work
+	// asynchronously, the whole mechanism for receiving the results has to
+	// be designed to work asynchronously, via a message callback from the
+	// worker thread.  The caller thus expects the request to return without
+	// having completed.  To avoid surprises, then, we need the file reader
+	// to work the same way.  That means we have to create a background
+	// thread that sends the results to the main thread via a message call.
+	// As long as we need the thread anyway for the results transfer, we
+	// might as well do the file reading work there, too, just in case we
+	// ever encounter a file that's slower to read for some reason (network
+	// drive, floppy disk, who knows?).  That gives us the benefit of
+	// robustness against slow devices, practically for free, since we
+	// needed the background thread anyway.
+	EnqueueThread(new FileThread(this, HighScoreQuery, game, hwndNotify, notifyContext.release(), filename.c_str()));
 
 	// the request was successfully submitted
 	return true;
@@ -736,23 +788,6 @@ void HighScores::LaunchNextThread(Thread *exitingThread)
 	}
 }
 
-HighScores::Thread::Thread(
-	const TCHAR *cmdline, QueryType queryType,
-	GameListItem *game, const TSTRING &nvramPath, const TSTRING &nvramFile,
-	HighScores *hs, PathEntry *pathEntry, HWND hwndNotify, NotifyContext *notifyContext) :
-	cmdline(cmdline),
-	queryType(queryType),
-	hwndNotify(hwndNotify),
-	game(game),
-	nvramPath(nvramPath),
-	nvramFile(nvramFile),
-	pathEntry(pathEntry),
-	notifyContext(notifyContext)
-{
-	// explicitly assign the high score object so that we count the reference
-	this->hs = hs;
-}
-
 DWORD HighScores::Thread::SMain(LPVOID param)
 {
 	// For debugging purposes, make sure we're the only PinEMHi thread
@@ -765,7 +800,7 @@ DWORD HighScores::Thread::SMain(LPVOID param)
 	static ULONG threadCounter = 0;
 	InterlockedIncrement(&threadCounter);
 	if (threadCounter != 1)
-		OutputDebugString(_T("Warning! Multiple concurrent PinEMhi launches detected!\n"));
+		OutputDebugString(_T("Warning! Multiple concurrent high score threads detected!\n"));
 
 	// get a unique pointer to the thread, so that we delete it on exit
 	std::unique_ptr<Thread> self(reinterpret_cast<Thread*>(param));
@@ -777,7 +812,7 @@ DWORD HighScores::Thread::SMain(LPVOID param)
 	// the concurrent process launcher
 	InterlockedDecrement(&threadCounter);
 	if (threadCounter != 0)
-		OutputDebugString(_T("Warning! PinEMHi thread counter is not zero at thread exit\n"));
+		OutputDebugString(_T("Warning! High score background thread counter is not zero at thread exit\n"));
 
 	// before exiting, launch the next thread
 	self->hs->LaunchNextThread(self.get());
@@ -786,7 +821,19 @@ DWORD HighScores::Thread::SMain(LPVOID param)
 	return 0;
 }
 
-void HighScores::Thread::Main()
+HighScores::NVRAMThread::NVRAMThread(
+	const TCHAR *cmdline, QueryType queryType,
+	GameListItem *game, const TSTRING &nvramPath, const TSTRING &nvramFile,
+	HighScores *hs, PathEntry *pathEntry, HWND hwndNotify, NotifyContext *notifyContext) :
+	Thread(hs, queryType, game, hwndNotify, notifyContext),
+	cmdline(cmdline),
+	nvramPath(nvramPath),
+	nvramFile(nvramFile),
+	pathEntry(pathEntry)
+{
+}
+
+void HighScores::NVRAMThread::Main()
 {
 	// Set up the results object to send to the notifier window.
 	// We'll send a notification whether we succeed or fail.
@@ -961,6 +1008,9 @@ void HighScores::Thread::Main()
 			ni.results.append(AnsiToTSTRING(buf));
 		}
 
+		// results are from PINemHi
+		ni.source = NotifyInfo::Source::PINemHi;
+
 		// log the results
 		LogFile::Get()->Write(LogFile::HiScoreLogging,
 			_T("PinEMHi completed successfully; results:\n>>>\n%s\n>>>\n"), ni.results.c_str());
@@ -984,6 +1034,39 @@ void HighScores::Thread::Main()
 	// close the process handles
 	CloseHandle(pinfo.hThread);
 	CloseHandle(pinfo.hProcess);
+}
+
+void HighScores::FileThread::Main()
+{
+	// Set up the results object to send to the notifier window.
+	// We'll send a notification whether we succeed or fail.
+	NotifyInfo ni(queryType, game, notifyContext.get());
+
+	// send the result message to the notification window
+	auto SendResult = [&ni, this](NotifyInfo::Status status)
+	{
+		ni.status = status;
+		SendMessage(hwndNotify, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
+	};
+
+	// try reading the file
+	long len;
+	std::unique_ptr<BYTE> b(ReadFileAsStr(filename.c_str(), SilentErrorHandler(), len, 0));
+	if (b == nullptr || len > INT_MAX)
+	{
+		// failed
+		SendResult(NotifyInfo::Status::FileReadFailed);
+		return;
+	}
+
+	// pass back the results as a TSTRING
+	ni.results = AnsiToWideCnt(reinterpret_cast<const CHAR*>(b.get()), static_cast<int>(len));
+
+	// indicate that the results came from a file
+	ni.source = NotifyInfo::Source::File;
+
+	// send the successful results
+	SendResult(NotifyInfo::Status::Success);
 }
 
 HighScores::NotifyInfo::NotifyInfo(QueryType queryType, GameListItem *game, NotifyContext *notifyContext) :

@@ -58,6 +58,10 @@
    which usually happens as soon as you exit the game and return
    to the PinballY window.
 </p>
+<p>
+   See <a href="HighScores.html">High Scores</a> for more on the
+   high score detection system.
+</p>
 
 <h2>Where does PinEMHi find score information?</h2>
 <p>
@@ -169,6 +173,9 @@
 
    <ul>
       <li>"cache": the scores were already cached in memory for this game
+
+      <li>"file": the data came from a <b>.pinballyHighScores</b> file
+      associated with the game
 
       <li>"javascript": the data came from a <b>highscoresready</b> event
       that was canceled via <b>preventDefault()</b>

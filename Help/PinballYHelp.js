@@ -116,6 +116,7 @@ var contents = [
             "++Variant.html Variant",
     "AdminMode.html Administrator Mode",
     "Underlay.html Underlay",
+    "HighScores.html High Scores",
     "DirectoryInfo.html Files &amp; Folders",
     "AlphaVideo.html Transparent videos",
     "DOFEvents.html DOF Events",

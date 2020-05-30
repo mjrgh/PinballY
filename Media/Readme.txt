@@ -153,9 +153,29 @@ Subfolder: "Images" (for static images)
 
 File name: "Game Launch Background.png"  (or other extensions as appropriate)
 
-Extensions: .mpg, .png, .gif for images
+Extensions: .jpg, .jpeg, .png, .gif for images
             .mp4, .mpg, .f4v, .mkv, .wmv, .avi for videos
 
 Much more extensive customization of the launch screens can be accomplished
 via Javascript.  See the help under Javascript scripting > Worked Examples >
 "Seamless" Game Launch for examples.
+
+
+== Typewriter style high scores ==
+
+For tables from the electromechanical (EM) era, the high scores displayed in
+the video-DMD window use a "typewriter" or "TT" style by default, to simulate
+a paper high score note that might have been stuck to a machine of that era
+to commemorate record-setting scores.  The generated display format uses an
+image of a paper index card as the background, with the score information
+formatted with black text in a typewriter font (Courier New).  You can
+replace the default index card background image as follows:
+
+Subfolder: "Images"
+
+File name: "TT High Score Background.png" (or other image extensions)
+
+Extensions: .jpg, .jpeg, .png, .gif
+
+You can also change the text font and color used in the displays, via the
+Fonts & Colors page of the Settings dialog.

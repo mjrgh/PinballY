@@ -137,6 +137,7 @@
 		<DirectoryRef Id="MEDIADIR">
 			<Component Id="MediaFolder" Guid="55118B19-A4BE-49D0-A8C8-88C147F9F8E4">
 				<File Id="MediaReadme" Source="$(var.SolutionDir)Media\Readme.txt" />
+				<File Id="TransparentPNG" Source="$(var.SolutionDir)Media\Transparent.png" />
 			</Component>
 		</DirectoryRef>
 

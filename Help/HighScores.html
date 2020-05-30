@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>High Scores</h1>
+
+<p>
+   PinballY automatically displays the "live" high score information
+   for the currently selected game.  The high scores are displayed
+   in the video DMD window and on the real DMD device, if you have
+   one. 
+</p>
+<p>
+   Scores are displayed in rotation with the game's regular
+   background media for the DMD window or device.  If you've supplied
+   a static image for the DMD, the image will be displayed for about
+   7 seconds at a time, and then the high scores will be displayed,
+   then the image will be displayed again, etc.  If the game has a
+   DMD video, the video will be displayed all the way through, then
+   the scores will be displayed, then the video will play again,
+   and so on.
+</p>
+
+<h2>How PinballY reads high scores, part I: PINemHI</h2>
+<p>
+   For most games, PinballY uses a separate program called
+   <a href="http://www.pinemhi.com/">PINemHi</a>, written by vpforums member DnaDisturber.
+   (PINemHi is included in the PinballY distribution with the author's
+   permission, so there's no need to install it separately.)
+</p>
+<p>
+   PINemHi reads special files known as NVRAM (for Non-Volatile RAM) files.
+   These are created by Visual Pinball (more technically, by VPinMAME) and
+   by Future Pinball when you play games through those systems, and they
+   store information that the simulated pinball machines would have stored
+   in real life in their on-board memory chips.  The stored information
+   includes things like operator settings (for example, whether or not
+   the game is in Free Play mode, how many balls per game it's configured
+   to use, and so on) and audit counts (how many times the game has
+   been played, how many coins it's collected), as well as the latest
+   high scores.  PINemHi is programmed to parse the NVRAM files for almost
+   all of the VPinMAME and Future Pinball games in existence to pick out
+   the high score information and format it for display.
+</p>
+<p>
+   PINemHi works with almost all games that use VPinMAME to play back
+   original ROMs, and with almost all Future Pinball games.  PINemHi
+   doesn't work with Visual Pinball games that don't use ROMs, such as
+   original VP creations, and re-creations of games from the electromechanical
+   (EM) era.
+</p>
+
+<h2>How PinballY reads high scores, part II: ad hoc score files</h2>
+<p>
+   For games that PINemHi doesn't work with, PinballY provides its own
+   supplemental way to provide the high scores, using ad hoc score
+   files.  This requires specific code to be added to each table to
+   write the ad hoc file, so it will only work with tables that have
+   been specifically programmed to support it.
+</p>
+<p>
+   Here's how this works:
+</p>
+<ul>
+   <li>PinballY always starts by trying PINemHi.  If that works,
+   the PINemHi results are used, skipping the rest of the steps below.
+
+   <li>If PINemHi can't retrieve high scores for the game, PinballY
+   looks for a file that has the exact <b>same name and location</b> as the
+   <b>table file</b> for the game (for example, the <b>.vpx</b> file
+   for a Visual Pinball X game), but with the filename extension
+   replaced with <b>.pinballyHighScores</b>.  For example, if the
+   table file is <tt>c:\VisualPinball\Tables\Fireball_v2_7.vpx</tt>,
+   PinballY will look for the scores in a file called
+   <tt>c:\VisualPinball\Tables\Fireball_v2_7.pinballyHighScores</tt>.
+
+   <li>If the high scores file exists, PinballY reads it into memory
+   as a plain ASCII text file.  Each line in the file corresponds to
+   one line on the DMD high score display.  Blank lines separate
+   groups of messages that are shown together on one screen.
+</ul>
+
+<h2>Display styles</h2>
+<p>
+   PinballY offers three display styles for the generated high
+   score graphics:
+</p>
+<ul>
+   <li>DMD style.  This simulates the 128x32 dot matrix display
+   used in most machines from the 1990s onwards.  By default, the
+   dots are displayed in an amber color simulating the original
+   plasma displays in the 1990s machines.  For games with VPinMAME
+   ROMs, however, any color customizations you've made in the
+   VPinMAME settings will be respected and used instead.  This
+   should make the generated high-score screens harmonize with
+   captured DMD video.
+   
+   <li>Alphanumeric style.  This simulates the 16-segment plasma
+   LED displays used in most games from the late 1980s.
+   
+   <li>Typewriter style.  This simulates a paper note card printed
+   with the high score information.  This is meant to provide
+   something appropriate to the era for electromechanical tables,
+   which didn't (usually) have any way to record the high scores
+   themselves.  The closest equivalent of a high score display
+   for those old machines was for someone to stick a paper note
+   to the machine commemorating champion scores.  This format is
+   designed to simulate that approach.
+</ul>
+
+<p>
+   By default, the program picks the display style for each game
+   automatically based on the table's metadata, as stored in the
+   XML table database.  (You can edit this information via the
+   Game Details dialog.)
+</p>
+<ul>
+   <li>Any table from before 1978 uses the Typewriter style,
+   since virtually all known games up to that point were EM tables
+
+   <li>Machines from 1978 to 1990 use the Alphanumeric style,
+   since almost all of the real machines produced during these
+   years used either 7-segment numeric displays or 16-segment
+   alphanumeric displays
+
+   <li>Any machine from 1990 or earlier that's set to table type "SS"
+   (solid state) in its metadata uses the Alphanumeric style
+
+   <li>Games from 1991 with any of the titles "Funhouse",
+   "Harley-Davidson", and "The Machine: Bride of Pinbot" use the
+   Alphanumeric style; these three titles are special cases, because
+   they're the only games from 1991 or later that I know of that didn't
+   have full DMDs
+
+   <li>Anything else uses the DMD style
+</ul>
+
+<p>
+   You can override the default style on a game-by-game basis in
+   the Edit Game Details dialog.  That lets you fix any games that
+   the rules above classify in the wrong category, or any that you
+   just want to change for other reasons.
+</p>
+   
+
+<h2>Customizing the "Typewriter" display style</h2>
+<p>
+   The Typewriter style normally uses an image of an index card
+   as the background, with black text in the Courier New font to
+   display the score information.  You can customize both of
+   these aspects of the display:
+</p>
+<ul>
+   <li>See <a href="TTHighScoreBackgrounds.html">"TT" High Score Backgrounds</a>
+   to find out how to change the background image
+
+   <li>The font and text color can be customized using the
+   <a href="FontOptions.html">Fonts &amp; Colors</a> section in the Settings dialog
+</ul>
+
+
+<h2>Editing captured DMD video</h2>
+<p>
+   If you're creating your own DMD video for a game based on 
+   captured video from the game's "live" DMD,
+   you can get the best effect in PinballY by editing the captured
+   video to <b>clip out the portion that shows the high scores</b>.
+</p>
+<p>
+   Most electronic games from the late 1980s onward display a series of
+   "attract mode" messages between games, and these usually include
+   the high scores.  So if you capture video from the DMD during
+   the game's attract mode, it will probably include the high scores.
+   Those high scores will be the ones that were current at the time
+   you captured the video, though!  If you leave them in the video,
+   the video playback will forever show those same scores, even if
+   you beat them on later games.  That's why it's best to edit them
+   out.
+</p>
+<p>
+   Since PinballY automatically generates graphics with the <b>current</b>
+   high scores, and interleaves them with the captured DMD video, you can
+   create an almost seamless effect showing the live scores.  The trick
+   is to edit the captured video so that it starts just <i>after</i> the
+   high scores are displayed in the video, and ends just <i>before</i>
+   the high scores are displayed again on the next cycle.  That way,
+   PinballY will insert the live high score screens at just the right
+   point in the video, simulating the original rotation, but always up
+   to date with the latest high scores saved on disk.
+</p>
+
+<h2>Customizing high scores through Javascript</h2>
+<p>
+   The Javascript system includes an event class, <a href="HighScoresEvent">HighScoresEvent</a>,
+   that lets you intercept PinballY's communications with PINemHi to supplement or
+   replace the high scores that PINemHi provides.  This could be used to change
+   the format of the high scores for certain games, for example, or to provide
+   your own external source of high scores for games that PINemHi doesn't work
+   with.  See the event class documentation for more details.
+</p>
+   
+
+</body>
+</html>

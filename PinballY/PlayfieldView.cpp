@@ -7192,7 +7192,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 
 				// fire the High Scores Ready event
 				if (auto ctx = dynamic_cast<HighScoreRequestContext*>(ni->context); ctx == nullptr || ctx->notifyJavascript)
-					FireHighScoresReadyEvent(game, success, L"pinemhi");
+					FireHighScoresReadyEvent(game, success, ni->GetSourceName());
 			}
 
 			// update any notification callbacks
