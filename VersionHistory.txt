@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-? (1.0.0 Beta 24)
+05-31-2020 (1.0.0 Beta 24)
 
 * You can now provide a custom background image or video that's
 displayed in the playfield window during the game launch process.
@@ -35,6 +35,14 @@ lower-end system.  The new option lets you reduce the resolution of
 the captured videos to HD.  The new setting is accessed via a checkbox
 on the Media Capture page of the settings dialog, "Limit captured
 videos to HD resolution".
+
+The resolution limit option applies to the capture process, so it
+doesn't have any effect on existing videos.  Existing videos files
+will continue to play back at whatever resolution they were captured
+at - 4K videos will continue to play at 4K, for example.  If you want
+to reduce the resolution on an existing video file, you'll have to
+replace the old video file with a new capture, after enabling the
+resolution limit option.
 
 * A new option in the Folders section of the options dialog lets you
 tell PinballY to sort the contents of the XML database files (in order

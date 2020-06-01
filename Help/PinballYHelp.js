@@ -46,6 +46,7 @@ var contents = [
     "Backups.html Backups",
     "Javascript.html Javascript scripting",
         "+WorkedExamples.html Worked Examples",
+            "++CustomButtonCommand.html Add a Custom Button Command",
             "++CustomPlayModesExample.html Custom Play Modes",
             "++TopGamesExample.html A \"Top 10\" Filter",
             "++SeamlessLoadingExample.html \"Seamless\" Game Launch",

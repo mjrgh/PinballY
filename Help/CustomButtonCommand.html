@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Button Command</h1>
+<p>
+<p>
+   PinballY's user interface is designed to be fully operable with just
+   the basic set of four buttons that are pretty much mandatory for
+   any pin cab just to play simulated pinball games: the flipper buttons,
+   the Start button, and an Exit button.  That minimalism in the UI
+   design ensures that all functions are accessible even on virtually
+   any cab, even with the bare minimum of buttons.
+</p>
+<p>
+   But if you're not so minimalist, and your cab has a bunch of extra
+   buttons beyond the core four, you probably want to put them to some
+   use.  PinballY lets you map a number of commands beyond the
+   minimal set through the <a href="ButtonOptions.html">Button Options</a>
+   page in the settings, but that dialog doesn't include every possible
+   command in the program.  Fortunately, there is a way to go beyond
+   the fixed set of commands available in the settings dialog and
+   map almost any button to almost any command.  I'm sure you already
+   guessed what it is: Javascript.
+</p>
+<p>
+   Mapping a button to a command through Javascript is a simple matter of
+   combining two Javascript capabilities:
+</p>
+<ul>
+   <li><a href="KeyEvent.html">Keyboard events</a> and
+   <a href="JoystickButtonEvent.html">Joystick button events</a>, which let you
+   intercept button presses and program custom actions in response
+
+   <li><a href="Commands.html">Commands</a>, which let you execute program
+   commands from scripting code
+</ul>
+
+<h2>Keyboard key handlers</h2>
+<p>
+   The basic code template for mapping a keyboard key to a custom command
+   looks like this:
+</p>
+<div class="code">
+mainWindow.on("keydown", ev => {
+    if (ev.code == "F7") {
+        mainWindow.doCommand(command.Flyer);
+        ev.preventDefault();
+    }
+});
+</div>
+
+<p>
+   This creates an event listener for the <b>keydown</b> event, which fires
+   each time a key is pressed.  The listener checks which key was actually
+   pressed by looking at the <b>code</b> property in the event descriptor
+   object (the variable <b>ev</b>) that PinballY passes to the event handler
+   when firing the event.  The <b>code</b> value is a string that identifies
+   which key was pressed, using a standard set of key names that most
+   Internet browsers use in their Javascript event system.  For this
+   example, we used the function key F7.  You can find out more about the
+   available keys and their code strings in the <a href="KeyEvent.html">KeyEvent</a>
+   section.
+</p>
+<p>
+   If the key matches the one we're looking for, the event handler calls
+   <a href="MainWindowObject.html#doCommand"><b>mainWindow.doCommand()</b></a>
+   to carry out the command.  For this example, we're executing the
+   "Flyer" command, which shows the current game's flyer.
+   See the <a href="Commands.html">Commands</a>
+   section for a full list of the available command codes.
+</p>
+<p>
+   The final step in the event handler calls <a href="Event.html#preventDefault">preventDefault()</a>
+   on the event descriptor object, which cancels any built-in handling the
+   system would have applied to the key event after the Javascript handler
+   returns.  This isn't really necessary for keys that aren't mapped to
+   other functions already, since PinballY's built-in handling for unmapped
+   keys is simply to ignore them, but I still think it's a good idea because
+   it prevents any surprises should the key take on a default meaning in
+   some future PinballY version.
+</p>
+
+<h2>Joystick button presses</h2>
+<p>
+   The template for a joystick button handler is almost exactly the same
+   as for keyboard keys.  We just listen for the <b>joystickbuttondown</b>
+   event instead of the <b>keydown</b> event.
+</p>
+<div class="code">
+mainWindow.on("joystickbuttondown", ev => {
+    if (ev.button == 7) {
+        mainWindow.doCommand(command.Flyer);
+        ev.preventDefault();
+    }
+});
+</div>
+
+<p>
+   Joystick buttons are identified by their button number, so here we're
+   looking for joystick button #7.  That will match button #7 on any joystick
+   device.  If you have more than one joystick device in your system, you
+   might want to also test for the "unit" number to distinguish your
+   different devices.  See <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+   for more details.
+</p>
+
+
+<h2>Customizing the examples</h2>
+<p>
+   To adapt this example to any other keyboard key, simply pick out which
+   key you want to map, and replace the "F7" key code in the example with
+   the key code for the key you want to map.  See the <a href="KeyEvent.html">KeyEvent</a>
+   section for details on how to identify the different keyboard keys.
+</p>
+<p>
+   To adapt it to other joystick buttons, pick out the joystick button
+   you want to use and change the button test to match.  See the
+   <a href="JoystickEvent.html">JoystickEvent</a> section for details
+   on how to identify the joystick buttons.
+</p>
+<p>
+   To fire a different command, change the command ID used in the call to
+   <b>mainWindow.doCommand()</b> to the one you want to execute instead.
+   See <a href="Commands.html">Commands</a> for the full list of available
+   command codes.
+</p>
+
+<h2>Multiple key command handlers</h2>
+<p>
+   You can set up as many custom keyboard key and joystick button handlers
+   along these lines as you like.  There are two ways to handle multiple
+   button customizations:
+</p>
+<ul>
+   <li>You can create a separate handler for each button, following the
+   same templates shown above.  This is the best way if you want to keep the
+   customizations separate, since each handler stands on its own.
+
+   <li>You can add <b>else if</b> tests within the templates above to
+   test for different keys/buttons.  That's a little more efficient
+   than using a separate handler per button, because it doesn't require
+   the overhead of a separate function call for each button.  It has
+   the downside of tangling up the code for the different buttons,
+   though.
+</ul>
+
+</body>
+</html>

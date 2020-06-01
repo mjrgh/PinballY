@@ -268,7 +268,7 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		return false;
 
 	LogFile::Get()->Write(LogFile::HiScoreLogging,
-		_T("High score retrieval: determining NVRAM path for %s\n"), game->title.c_str());
+		_T("NVRAM file search: determining NVRAM path for %s\n"), game->title.c_str());
 
 	// check if the current file is populated and the file exists
 	auto Valid = [&nvramPath, &nvramFile]()
@@ -280,7 +280,14 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 		// build the full path and check if the file exists
 		TCHAR path[MAX_PATH];
 		PathCombine(path, nvramPath.c_str(), nvramFile.c_str());
-		return FileExists(path);
+		bool found = FileExists(path);
+
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("+ NVRAM file %s %s\n"), nvramFile.c_str(), 
+			found ? _T("exists") : _T("not found"));
+
+		// return true if the file exists
+		return found;
 	};
 
     // The NVRAM file arrangement varies by system
@@ -645,6 +652,11 @@ bool HighScores::GetScores(GameListItem *game, HWND hwndNotify, NotifyContext *n
 	// wrap the notify context in a unique_ptr to ensure it's disposed of
 	std::unique_ptr<NotifyContext> notifyContextPtr(notifyContext);
 
+	// log what we're doing
+	const TCHAR *gameTitle = game != nullptr ? game->title.c_str() : _T("<null game>");
+	LogFile::Get()->Write(LogFile::HiScoreLogging,
+		_T("High score retrieval: getting high scores for %s\n"), gameTitle);
+
 	// try PINemHi first
 	if (GetScoresFromNVRAM(game, hwndNotify, notifyContextPtr))
 		return true;
@@ -654,6 +666,8 @@ bool HighScores::GetScores(GameListItem *game, HWND hwndNotify, NotifyContext *n
 		return true;
 
 	// no scores found
+	LogFile::Get()->Write(LogFile::HiScoreLogging,
+		_T("+ No high score source found for %s\n"), gameTitle);
 	return false;
 }
 
@@ -666,7 +680,11 @@ bool HighScores::GetScoresFromNVRAM(GameListItem *game, HWND hwndNotify, std::un
 
 	// If the game doesn't have a system, we can't proceed
 	if (game == nullptr || game->system == nullptr)
+	{
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("High score retrieval: can't use PINemHi because this game isn't configured for a particular game player system\n"));
 		return false;
+	}
 
 	// Get the NVRAM file; fail if we can't identify one
 	TSTRING nvramPath, nvramFile;
@@ -681,7 +699,11 @@ bool HighScores::GetScoresFromNVRAM(GameListItem *game, HWND hwndNotify, std::un
 
 	// we need a path entry to proceed
 	if (pathEntry == nullptr)
+	{
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("High score retrieval: can't use PINemHi because the system class for this game isn't VP, VPX, or FP\n"));
 		return false;
+	}
 
 	// The PINemHi convention is to end the NVRAM path with a '\'
 	if (!tstrEndsWith(nvramPath.c_str(), _T("\\")))
@@ -708,8 +730,17 @@ bool HighScores::GetScoresFromFile(GameListItem *game, HWND hwndNotify, std::uni
 	// with .pinballyHighScores
 	std::basic_regex<TCHAR> pat(_T("\\.[^.\\\\/:]+$"));
 	TSTRING filename = std::regex_replace(rf.path, pat, _T(".pinballyHighScores"));
+
+	LogFile::Get()->Write(LogFile::HiScoreLogging,
+		_T("High score retrieval: looking for ad hoc scores file %s\n"), filename.c_str());
+
+	// check to see if the file exists
 	if (!FileExists(filename.c_str()))
+	{
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("+ ad hoc scores file %s doesn't exist\n"), filename.c_str());
 		return false;
+	}
 
 	// Enqueue a thread to read the file.  Note that there's no performance
 	// reason that this is necessary, since this should be a small text file
@@ -1055,12 +1086,20 @@ void HighScores::FileThread::Main()
 	if (b == nullptr || len > INT_MAX)
 	{
 		// failed
+		LogFile::Get()->Write(LogFile::HiScoreLogging,
+			_T("Ad hoc high score file read failed for %s\n"), filename.c_str());
+
+		// send the failure status
 		SendResult(NotifyInfo::Status::FileReadFailed);
 		return;
 	}
 
 	// pass back the results as a TSTRING
 	ni.results = AnsiToWideCnt(reinterpret_cast<const CHAR*>(b.get()), static_cast<int>(len));
+
+	LogFile::Get()->Write(LogFile::HiScoreLogging,
+		_T("Ad hoc high score file %s contents:\n>>>\n%s\n>>>\n"), 
+		filename.c_str(), ni.results.c_str());
 
 	// indicate that the results came from a file
 	ni.source = NotifyInfo::Source::File;
