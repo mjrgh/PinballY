@@ -308,7 +308,7 @@ protected:
 	decltype(highScoreImages)::iterator highScorePos;
 
 	// Font preference parser for the typewriter-style high score font
-	FontPref ttHighScoreFont{ 24, _T("Courier New") };
+	FontPref ttHighScoreFont{ 0, _T("Courier New") };
 	COLORREF ttHighScoreTextColor;
 
 	// Set the high score image list.  When we switch to a new game, we kick

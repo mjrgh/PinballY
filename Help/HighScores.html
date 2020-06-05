@@ -54,8 +54,9 @@
    PINemHi works with almost all games that use VPinMAME to play back
    original ROMs, and with almost all Future Pinball games.  PINemHi
    doesn't work with Visual Pinball games that don't use ROMs, such as
-   original VP creations, and re-creations of games from the electromechanical
-   (EM) era.
+   original VP creations, and VP re-creations of games from the electromechanical
+   (EM) era.  PINemHi also doesn't work for games based on other player
+   systems, such as commercial games.
 </p>
 
 <h2>How PinballY reads high scores, part II: ad hoc score files</h2>
@@ -90,8 +91,9 @@
 
 <h2>Display styles</h2>
 <p>
-   PinballY offers three display styles for the generated high
-   score graphics:
+   For the video DMD window, PinballY offers three display styles
+   for generated high score graphics, to cover the three main
+   display styles used in real pinball machines over the decades:
 </p>
 <ul>
    <li>DMD style.  This simulates the 128x32 dot matrix display
@@ -123,22 +125,30 @@
    Game Details dialog.)
 </p>
 <ul>
-   <li>Any table from before 1978 uses the Typewriter style,
+   <li>Any table with a release year before 1978 uses the Typewriter style,
    since virtually all known games up to that point were EM tables
 
-   <li>Machines from 1978 to 1990 use the Alphanumeric style,
+   <li>A machine with a release year from 1978 to 1990 uses the Alphanumeric style,
    since almost all of the real machines produced during these
    years used either 7-segment numeric displays or 16-segment
    alphanumeric displays
 
-   <li>Any machine from 1990 or earlier that's set to table type "SS"
+   <li>Any machine with a release year of 1990 or earlier that's set to table type "SS"
    (solid state) in its metadata uses the Alphanumeric style
 
-   <li>Games from 1991 with any of the titles "Funhouse",
-   "Harley-Davidson", and "The Machine: Bride of Pinbot" use the
-   Alphanumeric style; these three titles are special cases, because
-   they're the only games from 1991 or later that I know of that didn't
-   have full DMDs
+   <li>A table whose release year is 1991 <i>and</i> whose title is "Funhouse",
+   "Harley-Davidson", or "The Machine: Bride of Pinbot" uses the
+   Alphanumeric style.  We have to treat these three machines as special
+   cases, because 1991 was a transition year that included both Alphanumeric
+   and DMD-based machines, so we can't tell which it is based on the year
+   alone.  The IPDB table type doesn't help either, since both Alphanumeric and DMD games are
+   considered "Solid State".  (In contrast, the transitional years in the late 1970s
+   between mechanical score-reel games and digital displays are distinguishable
+   by the IPDB table types "EM" and "SS", so those years don't need any
+   special title-by-title cases - which is nice, because that transition
+   covered several years.)  Fortunately, these three titles are the only
+   Alphanumeric games released in 1991 (as far as I know), so we don't need
+   a gigantic list of special cases to settle the question, just this short list.
 
    <li>Anything else uses the DMD style
 </ul>
@@ -148,6 +158,14 @@
    the Edit Game Details dialog.  That lets you fix any games that
    the rules above classify in the wrong category, or any that you
    just want to change for other reasons.
+</p>
+<p>
+   The display styles only apply to a <b>video</b> DMD window - that is,
+   a regular video monitor that's showing a simulated DMD image in a window.
+   If you're using a <b>real</b> DMD device (a physical DMD, such as a PinDMD or a Pin2DMD),
+   PinballY just uses a plain "dots" font for high score displays, since
+   the dot resolution on those devices is too low to simulate the
+   other styles effectively.
 </p>
    
 
@@ -186,8 +204,8 @@
    out.
 </p>
 <p>
-   Since PinballY automatically generates graphics with the <b>current</b>
-   high scores, and interleaves them with the captured DMD video, you can
+   Since PinballY automatically generates graphics with the latest
+   high scores from the NVRAM files, and interleaves them with the captured DMD video, you can
    create an almost seamless effect showing the live scores.  The trick
    is to edit the captured video so that it starts just <i>after</i> the
    high scores are displayed in the video, and ends just <i>before</i>
@@ -199,12 +217,18 @@
 
 <h2>Customizing high scores through Javascript</h2>
 <p>
-   The Javascript system includes an event class, <a href="HighScoresEvent">HighScoresEvent</a>,
+   The Javascript system includes an event class, <a href="HighScoresEvent.html">HighScoresEvent</a>,
    that lets you intercept PinballY's communications with PINemHi to supplement or
    replace the high scores that PINemHi provides.  This could be used to change
    the format of the high scores for certain games, for example, or to provide
    your own external source of high scores for games that PINemHi doesn't work
    with.  See the event class documentation for more details.
+</p>
+<p>
+   Javascript can also access the high score information that the system has
+   retrieved for a game, via <a href="GameInfo.html#getHighScores">gameInfo.getHighScores()</a>.
+   For example, you could use that to create custom graphics that incorporate a list of
+   high scores.
 </p>
    
 

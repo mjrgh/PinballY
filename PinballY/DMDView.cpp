@@ -1167,13 +1167,33 @@ struct HighScoreGraphicsGenThread
 				// copy the background
 				g.DrawImage(ttBkgImage.get(), 0, 0, wid, ht);
 
-				// Get the font.  If the caller specified a font list, use that,
-				// otherwise use the font from the settings.
+				// Figure the font name.  If the caller specified a font list, use that
+				// with default weight and style, otherwise use the TTHighScoresFont
+				// setting (with the weight and style specified there).
+				const TCHAR *family = fontName.c_str();
+				int weight = 400;
+				int ptSize = 0;
+				bool italic = false;
+				if (fontName.length() == 0)
+				{
+					family = ttHighScoreFont.family.c_str();
+					weight = ttHighScoreFont.weight;
+					italic = ttHighScoreFont.italic;
+					ptSize = ttHighScoreFont.ptSize;
+				}
+
+				// If a non-default font size was specified in the settings (indicated
+				// by a non-zero size in the FontPref), draw the text in the specified
+				// point size.  Otherwise draw it at a pixel height of 1/8 of the
+				// background image height, so that we can fit about 8 lines of text
+				// into the image.  That harmonizes well with the default "index card"
+				// background image.  (But not necessarily with a custom background,
+				// which is why we make this an option.)
 				std::unique_ptr<Gdiplus::Font> font;
-				if (fontName.length() != 0)
-					font.reset(CreateGPFontPixHt(fontName.c_str(), ht / 8, 400, false));
+				if (ptSize != 0)
+					font.reset(CreateGPFont(family, ptSize, weight, italic));
 				else
-					font.reset(CreateGPFontPixHt(ttHighScoreFont.family.c_str(), ht / 8, ttHighScoreFont.weight, ttHighScoreFont.italic));
+					font.reset(CreateGPFontPixHt(family, ht / 8, weight, italic));
 
 				// combine the text into a single string separated by line breaks
 				TSTRING txt;

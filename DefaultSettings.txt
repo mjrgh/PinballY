@@ -502,9 +502,6 @@ InstructionCardLocation = Backglass
 # 
 InstructionCards.EnableFlash = 1
 
-# Default font family for most UI elements.
-DefaultFontFamily = Tahoma
-
 
 # Timing for game selection updates in the different windows.  This
 # controls how new images and videos are loaded into the windows when
@@ -532,6 +529,9 @@ SimultaneousWindowUpdate = 0
 # crossfade effect in the various windows when switching to a new
 # game in the wheel UI.
 CrossfadeTime = 120
+
+# Default font family for most UI elements.
+DefaultFontFamily = Tahoma
 
 # Fonts for UI elements.  Specify as <point size> <weight/style> <family>.
 #
@@ -577,7 +577,7 @@ CrossfadeTime = 120
 # StatusFont = status line font (36pt)
 # CreditsFont = credits message font (42pt)
 # LaunchStatusFont = launch status messages (48pt)
-# TTHighScoreFont = font for typewriter-style high scores in DMD window
+# TTHighScoreFont = font for typewriter-style high scores in DMD window (Courier New, auto sized to fit)
 #
 MenuFont = * * *
 MenuHeaderFont = * * *

@@ -1,5 +1,18 @@
 PinballY Update History
 
+? (1.0.0 Beta 25)
+
+* Slight tweak to the "typewriter" high score font settings: you can
+now specify a point size for the font in the options.  In the past,
+the font size was always scaled automatically so that about 8 lines of
+text would fit into the background image; that created the look I was
+after for the default "index card" background, but wasn't necessarily
+the right look for arbitrary custom backgrounds.  So now you can set a
+specific point size instead of letting the system scale the font
+automatically.  If you leave the point size as default ("*") in the
+options, the auto-scaling will still apply, but you can also select a
+specific point size instead if you prefer.
+
 
 05-31-2020 (1.0.0 Beta 24)
 
@@ -60,6 +73,13 @@ to override the default "index card" background, by placing an image
 file named "TT High Score Background.png" (or .jpg, etc) in the Media
 > Images folder.  Second, a new item in the Fonts page in the settings
 dialog lets you specify the font and color for the text.
+
+* PinballY can now read high scores from an ad hoc text file, for
+games that don't work with the PINemHi program.  This can be used to
+supply live high score information for re-creations of EM-era tables
+in VP, for example, since those don't use VPinMAME ROMs and thus
+aren't compatible with PINemHi.  See "High Scores" in the help for
+details.
 
 * PinballY can now store a title for each game in the XML database
 independently of the media name.  In the past, the <description> tag

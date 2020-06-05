@@ -128,7 +128,8 @@ BOOL OptionsPage::OnCommand(WPARAM wParam, LPARAM lParam)
 	if (HIWORD(wParam) == CBN_SELCHANGE
 		|| (HIWORD(wParam) == BN_CLICKED
 			&& (GetWindowLongPtr((HWND)lParam, GWL_STYLE) & ckStyles) != 0)
-		|| HIWORD(wParam) == EN_CHANGE)
+		|| HIWORD(wParam) == EN_CHANGE
+		|| HIWORD(wParam) == CBN_EDITCHANGE)
 	{
 		// Windows edit controls send EN_CHANGE messages when the text
 		// changes by way of user edits OR programmatic changes.  The

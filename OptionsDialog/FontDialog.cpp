@@ -63,8 +63,4 @@ void FontDialog::InitVarMap()
 	varMap.emplace_back(new ColorButtonMap(_T("LaunchStatusTextColor"), IDC_CLR_LAUNCHMSGTEXT, RGB(0xff, 0xff, 0xff)));
 	varMap.emplace_back(new ColorButtonMap(_T("LaunchStatusBackgroundColor"), IDC_CLR_LAUNCHMSGBKG, RGB(0x1E, 0x1E, 0x1E)));
 	varMap.emplace_back(new ColorButtonMap(_T("TTHighScoreTextColor"), IDC_CLR_TTHISCORETEXT, RGB(0x00, 0x00, 0x00)));
-
-	// the TT High Scores font size setting is ignored, so hide the control for it to
-	// avoid suggesting otherwise
-	::ShowWindow(GetDlgItem(IDC_CB_TTHISCORE_FONT_PTS)->GetSafeHwnd(), SW_HIDE);
 }
