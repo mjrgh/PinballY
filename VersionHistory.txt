@@ -13,6 +13,23 @@ automatically.  If you leave the point size as default ("*") in the
 options, the auto-scaling will still apply, but you can also select a
 specific point size instead if you prefer.
 
+* Fixed a problem in the Javascript system scripts for HttpRequest.
+(Specifically, the script code needed to be updated to match a change
+in Beta 19 to how OLE Automation object properties were accessed; this
+caused scripting errors when sending requests using the object.)
+
+* In the past, the status lines were loaded from the config file twice
+during the initial program startup, due to a fluke in the way the
+initialization was processed.  This had no visible effect in the UI,
+but it complicated things for Javascript code that wanted to stuff
+messages into the status rotation during startup, because the second
+system initialization step had the effect of erasing any messages
+Javascript startup code had added up to that point.  The unnecessary
+second initialization step has been removed, so Javascript can safely
+add status messages during startup and expect them to be visible, at
+least until the next explicit user action that reloads settings (such
+as making changes in the Settings dialog).
+
 
 05-31-2020 (1.0.0 Beta 24)
 

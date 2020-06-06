@@ -1847,28 +1847,28 @@ this.HttpRequest = (function()
                     // schedule the client callback.  The client code will
                     // be safely postponed until any current code finishes,
                     // ensuring that no client code is ever re-entered.
-                    this.onreadystatechange(() =>
+                    obj.onreadystatechange = () =>
                     {
                         // if the readyState is 4, the request is finished
-                        if (this.readyState == 4)
+                        if (obj.readyState == 4)
                         {
                             // Resolve or reject the promise, according to the
                             // HTTP status (200 is success, anything else is
                             // failure)
-                            if (this.status == 200)
-                                resolve(this.responseText);
+                            if (obj.status == 200)
+                                resolve(obj.responseText);
                             else
-                                reject(new Error(this.statusText));
+                                reject(new Error(obj.statusText));
 
                             // De-register our callback, so that the IDispatch
                             // that's implicitly wrapping the callback can be
                             // deleted, which in turn will allow the lambda to
                             // be collected on the Javascript side.
-                            this.onreadystatechange(null);
+                            obj.onreadystatechange = null;
                         }
-                    });
+                    };
 
-                    super_send.call(this, ...args);
+                    super_send.call(obj, ...args);
                 });
             };
             return obj;

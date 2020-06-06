@@ -3572,9 +3572,6 @@ void PlayfieldView::OnEndExtStartupVideo()
 
 void PlayfieldView::ShowInitialUI(bool showAboutBox)
 {
-	// initialize the status lines
-	InitStatusLines();
-
 	// load the initial selection
 	UpdateSelection();
 

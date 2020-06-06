@@ -2783,12 +2783,13 @@ protected:
 	// Current UI mode, for Javascript purposes
 	enum JSUIMode
 	{
+		jsuiNone,    // initial startup, invalid/unknown
 		jsuiWheel,
 		jsuiPopup,
 		jsuiMenu,
 		jsuiAttract,
 		jsuiRun
-	} jsuiMode = jsuiWheel;
+	} jsuiMode = jsuiNone;
 
 	// Last game selection reported to Javascript
 	LONG jsLastGameSelectReport = 0;
