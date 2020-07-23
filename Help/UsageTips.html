@@ -89,6 +89,22 @@
    category filter menu, which you can reach from the 
    Main Menu via the Filter by Category command.
 </p>
+<p>
+   If you're migrating from PinballX, you might have been using PinballX's
+   "Lists" feature to create ad hoc groupings of games.  PinballX handled
+   "Lists" by grouping games into separate XML database files; each "List"
+   was a separate XML file.  PinballY recognizes that method of organizing
+   the XML files and automatically translates each "List" entry into a
+   Category.  So you should find that your games are already tagged with
+   your existing list names if you're using XML files you created with PinballX.
+   If you're accustomed to using PinballX to "filter by list", you can use
+   "filter by category" in PinballY to do the same thing.  The Categories
+   feature gives you some additional flexibility, too: you can assign any
+   number of categories to a single game, and you can do it through the
+   wheel UI, without the need to edit the XML files or switch to a separate
+   editor program.
+</p>
+
 
 <h2>Unconfigured table files</h2>
 <p>
@@ -137,39 +153,55 @@
 
 <h2>Admin mode</h2>
 <p>
-   A lot of pin cab users are accustomed
-   to having to run some or all of their software in "Administrator
-   Mode", meaning that you give the software full system privileges
-   as though it were a core operating system component.  It's
-   best to minimize this, since Admin Mode opens up your system to
-   more risks from malware and program bugs, but many pin cab users
-   just give up and run everything in Admin mode to work around
-   weird problems.
+   A lot of pin cab users are accustomed to running some or all of
+   their software in "Administrator Mode".  You really shouldn't do
+   this, since it makes your system more vulnerable to damage by
+   malware, or even by bugs in otherwise benign software, but some
+   pin cab people do it anyway.
 </p>
 <p>
-   PinballY has some features can will help you at least
-   reduce Admin mode usage.  Ideally, you should be able to
-   eliminate Admin mode entirely, but you might have some programs
-   that really do require it for one reason or another.
+   Most people who run everything in Admin Mode do it because someone
+   told them they should.  In most cases, that's bad advice that people
+   on the forums hand out because they don't know what else to try,
+   and you even find it repeated in a number of FAQs and setup guides.
+   If that's the only reason you're using Admin Mode -  because
+   someone told you to - my advice would
+   be to stop it.  You should only use Admin Mode if you have a special
+   situation that really requires it.  Those special situations are
+   increasingly rare, because they were mostly caused by bugs that
+   have been getting fixed as time goes on.  Most of the software
+   in the pin cab ecosystem that <i>formerly</i> required Admin Mode has
+   been fixed at this point, so even if you can articulate the exact
+   reason you needed Admin Mode at some point in the past, you might
+   want to check again, since that problem might have been fixed in
+   a recent update.
+</p>
+<p>
+   If you're unfortunate enough to have a real need for Admin Mode
+   for a particular program, you should still try to minimize Admin
+   Mode usage by restricting it to the particular program or combination
+   of programs that are causing problems.   PinballY has some features
+   can help, which you can read about in <a href="AdminMode.html">Admin Mode</a>.
 </p>
 <p>
    The big thing that you <i>shouldn't</i> do with PinballY
    is to run the main PinballY.exe program in Admin mode.  You might
-   be used  to doing that with other front ends, but don't do it
-   with PinballY.  Instead, if you find that you must use
-   Admin mode, run the separate <b>PinballY Admin Mode.exe</b>
-   program instead.  That program identifies itself to Windows
+   be used to doing that with other front ends, but there's a better way
+   with PinballY.  Instead of running PinballY.exe in Admin Mode, 
+   run the separate <b>PinballY Admin Mode.exe</b>
+   program.  That program identifies itself to Windows
    as requiring Admin privileges, so you don't have to explicitly
-   set the "Run as Admin" checkbox in the properties and you
+   set the "Run as Admin" checkbox in the properties, and you
    don't have to use the "Run as Admin" command from the desktop.
    Just run it like a normal program and it'll automatically
-   use Admin mode.  (You'll still see a User Access Control
+   use Admin mode.  (You'll still see the usual User Access Control
    [UAC] warning from Windows asking for your permission to do
-   this, so this isn't some kind of end run around the Windows
-   security system.)
-</p>
-<p>
-   See <a href="AdminMode.html">Admin Mode</a> for full details.
+   this.)  When you use this approach, PinballY will be able
+   to launch games that don't need Admin Mode in regular user mode,
+   rather than being forced
+   to launch everything in Admin Mode, which is what happens when
+   you run the whole front end in Admin Mode.  Only the minimal set of programs that you designate
+   as actually needing Admin Mode will be launched in Admin Mode.
 </p>
 
 </body>

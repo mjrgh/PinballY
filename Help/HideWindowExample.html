@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Hide a Window During Play</h1>
+
+<p>
+   When you launch a game, PinballY normally leaves its windows open,
+   allowing the launched game to bring its windows up in front of the
+   PinballY windows.  The idea is to make the launch process a little
+   smoother, visually, by keeping the PinballY windows in view until
+   the game gets around to displaying its own windows.
+</p>
+<p>
+   In most cases, this ends up with the right windows on the screen,
+   because Windows by default tries to place a newly launched application's
+   windows in front of any windows that were already on the screen.
+   So the PinballY backglass window remains visible until the game opens
+   its window in the same area, at which point that window should be in
+   front of the PinballY window, hiding it until the game ends.
+</p>
+<p>
+   But this doesn't always work out so automatically.  The game you're
+   launching might explicitly rearrange the window layering, defeating
+   the automatic placement that Windows provides at launch, and possibly
+   bringing the PinballY window back to the foreground.
+   This can be particularly problematic with Visual Pinball, since
+   what we think of as VP is really a collection of programs that
+   work together: VP itself, the B2S backglass window program, 
+   the VPinMAME ROM emulator, and possibly some third-party add-ons
+   you've installed, such as Pinup Player or Freezy's dmd-extensions.
+   When you have multiple programs launching together like that, the
+   normal Windows rules ("latest program's windows go on top")
+   don't always produce the right result, because the different components
+   can open their windows in an unpredictable order.  What's more, the
+   components sometimes try to "fix" this by explicitly rearranging
+   the windows, and since they don't always coordinate perfectly on
+   that, they can end up working at cross-purposes.
+</p>
+<p>
+   There's one particular problem that a couple of people have mentioned,
+   involving "two-screen" cabinets - meaning you have one screen for the
+   playfield, and a second for the backglass, but <i>not</i> a third
+   screen for the DMD.  In this setup, you might want to display both
+   the backglass and DMD windows on the second monitor.  The snag
+   is that if you have both windows on the same monitor, you probably
+   want the DMD to stay in front of the backglass.  That's exactly
+   the sort of situation that causes window layering conflicts among
+   the VP components.   Now, keep in mind that we're
+   talking about VP windows here (or, more precisely, a combination
+   of VP, B2S, and VPinMAME windows).  None of these are controlled
+   by PinballY, so there's not much PinballY can do about their
+   layering.  However, the options that VP/B2S/VPinMAME offer for
+   controlling the layering can cause a side effect that does involve
+   a PinballY window: specifically, depending on how you have the VP/B2S/VPM
+   options set up, you might end up with the PinballY backglass window
+   staying in front of one of the game windows.
+</p>
+<p>
+   The ideal solution would be to figure out the right set of VP/B2S/VPinMAME
+   options to keep the window layering right on your system.  But this is
+   notoriously twitchy, and VP/B2S/VPM only offer limited options for it,
+   so some people can't find a working set of settings.  One thing that
+   can help is getting the PinballY window entirely out of the mix, to
+   reduce the number of variables.  A simple
+   way to do this is to hide the PinballY window while a game is running.
+   PinballY doesn't have a "checkbox" option for this, but
+   you can do it through Javascript.
+</p>
+<p>
+   The Javascript code to hide a window is pretty simple.
+   You just need to make a call to the <a href="WindowObjects.html#showWindow">showWindow()</a>
+   method of the <a href="BackglassWindow.html">backglassWindow</a> object.   
+   For this situation, we want the window hiding to occur when a game is launched.
+   So we're going to set up an event listener for the <a href="LaunchEvent.html"><b>gamestarted</b></a>
+   event, which fires whenever a newly launched game starts running.
+</p>
+<div class="code">
+mainWindow.on("gamestarted", ev => { backglassWindow.showWindow(false); });
+</div>
+
+<p>
+   We can also add Javascript code to re-show the PinballY window after the game
+   is over.  It shouldn't actually be necessary to do this, because PinballY
+   tries to restore its pre-launch window setup automatically when a game
+   exits.  But for the sake of completeness (and in case the automatic
+   un-hiding doesn't work for you for some reason), here's how we can
+   restore the hidden window explicitly through Javascript:
+</p>
+<div class="code">
+mainWindow.on("gameover", ev => { backglassWindow.showWindow(true); });
+</div>
+<p>
+   That's essentially the mirror image of how we hid the window in the first
+   place: we set up a listener for the <b>gameover</b> event, which is the
+   end-of-game counterpart of <b>gamestarted</b>, and we use that to make
+   the backglass window visible again.
+</p>
+
+</body>
+</html>

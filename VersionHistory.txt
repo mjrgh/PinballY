@@ -1,6 +1,19 @@
 PinballY Update History
 
-? (1.0.0 Beta 25)
+07-23-2020 (1.0.0 Release)
+
+* This is the first official "Release" version of PinballY!  The last
+several Beta releases have had only small changes other than bug
+fixes, plus the most recent Beta has been in circulation for a couple
+of months, so I felt this is a good point to declare a stable release.
+
+This being an open-source project, the distinction between Beta and
+Official Release is purely symbolic; it ultimately makes no tangible
+difference to anyone what we call it.  (Unlike a commercial product,
+where it often determines who has access and what level of support
+they get.)  But even so, it's a useful bit of symbolism, in that it
+lets users know how stable and complete the developers believe the
+project to be.
 
 * Slight tweak to the "typewriter" high score font settings: you can
 now specify a point size for the font in the options.  In the past,
@@ -18,10 +31,10 @@ specific point size instead if you prefer.
 in Beta 19 to how OLE Automation object properties were accessed; this
 caused scripting errors when sending requests using the object.)
 
-* In the past, the status lines were loaded from the config file twice
-during the initial program startup, due to a fluke in the way the
-initialization was processed.  This had no visible effect in the UI,
-but it complicated things for Javascript code that wanted to stuff
+* In the past, the status line text messages were loaded from the
+settings file twice during the initial program startup, due to a fluke
+in the initialization procedures.  This had no visible effect in the
+UI, but it complicated things for Javascript code that wanted to stuff
 messages into the status rotation during startup, because the second
 system initialization step had the effect of erasing any messages
 Javascript startup code had added up to that point.  The unnecessary

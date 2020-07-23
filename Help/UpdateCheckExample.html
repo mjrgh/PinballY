@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Check for PinballY Updates</h1>
+
+<p>
+   Javascript is known first and foremost as the programming language
+   of Web applications and browsers, so it's reasonable to think of
+   ways we could use it in PinballY to access Internet servers.
+   As a simple example, let's see how we could contact the Web
+   server where PinballY downloads are hosted and find out if a new
+   update is available.
+</p>
+
+<h2>HttpRequest</h2>
+   The way you access Web data from PinballY's Javascript is similar
+   to the way you do it in a regular Web browser, but not exactly
+   the same.  The PinballY way is actually a little easier and
+   cleaner than the browser way, since the browser way was invented
+   in the very earliest days of Javascript, before some better
+   and more modern Javascript conventions were developed.  In
+   browsers, you use an object called XMLHttpRequest.  In PinballY,
+   you use a very similar object called HttpRequest.  We changed
+   the name in part because the "XML" part in the browser version was
+   always a bit of misnomer, and in part as a reminder that our
+   version doesn't have exactly the same semantics as the browser version.
+</p>
+<p>
+   We have a  <a href="HttpRequest.html">whole separate chapter</a>,
+   on the HttpRequest object, so we won't reiterate all of that here.
+   We'll just show how to use it as we develop the example.
+</p>
+
+<h2>The PinballY version history page</h2>
+<p>
+   Web applications that send HTTP requests usually access "services"
+   on the Web, which are basically Web pages that contain some kind
+   of structured program data, rather than human-readable text and
+   photos of cats.  If we were developing a full Web Service example
+   here, we'd have to create a server program to go with our PinballY
+   code.  But that's beyond the scope; we don't want to get into
+   writing server-side Python or php or any of that.  Instead, we're
+   going to keep it simple by accessing a regular text page on
+   the PinballY Web site, and doing some simple searching through
+   the page to find the version information we're looking for.
+</p>
+<p>
+   In particular, we're going to make our Javascript code download
+   the PinballY "version history" file.  This is a file that you
+   might have come across in the PinballY install folder.  It's
+   a plain text file that I use to keep notes about all of the changes
+   made in each release of PinballY - new features added, bugs fixed,
+   etc.  That file isn't only in the install folder, though; it's
+   also on the PinballY Web site.  The one in your install folder
+   is obviously the one that goes with the version you currently
+   have installed, whereas the one on the Web site is always
+   the latest release.  So if we can grab the one on the Web site
+   and somehow scan it for the latest release date, we can find
+   out if there's a more recent version available on the Web
+   site than the one you currently have installed.
+</p>
+<p>
+   It turns out that it's pretty easy to perform that scan, because
+   the file uses a consistent format to list each release's date
+   and version number.  So we can use a simple regular expression
+   search to find the latest release date.
+   You can open up the local version info file yourself and look
+   at the format - it's called VersionHistory.txt, and you should
+   find it in your main PinballY install folder.  But to save you
+   the trouble, I'll give you a quick summary of how the versions
+   are listed.  The latest version is always listed first, and
+   every version's list of changes is preceded by a line giving
+   the release date and version number, in this format:
+</p>
+<p style="font-family: Courier New, typewriter; padding-left: 1em;">
+   05-31-2020 (1.0.0 Beta 24)
+</p>
+<p>
+   So all we need to do is scan the file for lines that
+   match that format, which is easy using Javascript regular
+   expressions.  Since the releases are always arranged in
+   the file from the newest to oldest, all we have to do is find
+   the first line matching that format.  And then to find out if this is
+   newer than the version that you've got installed locally, we
+   can consult the <a href="SystemInfoObject.html">System Information object</a>,
+   which PinballY provides to Javascript to let it find out things
+   like what kind of computer we're running on and what version
+   of PinballY is running.
+</p>
+
+<h2>The code</h2>
+
+<p>
+   Here's the Javascript code to carry out the version check.  We'll
+   do this at the "top level" of the script, so that it simply runs
+   when the script first loads at PinballY startup.
+   That will make the version check happen automatically every time
+   you run the program.
+</p>
+<p>
+   HTTP requests are carried out asynchronously, so the time it takes
+   for the PinballY Web site to send the file won't affect your
+   program startup time.  The Web transaction will simply proceed in
+   the background until the page is returned from the server.  Once
+   it's returned, the "then" handler will be called, and it'll parse
+   the file and check the new release date.  If there is in fact a
+   new version available, the script will add a message about it
+   to the status line.
+</p>
+   
+<div class="code">
+let request = new HttpRequest();
+request.open("GET", "http://mjrnet.org/pinscape/downloads/PinballY/VersionHistory.txt", true);
+request.send().then(reply =>
+{
+    // We got a reply.  Find the first line containing a release date 
+    // and version string.  These are formatted as MM-DD-YYYY (x.y.z...)
+    //
+    // The file is always arranged with the newest release first, so
+    // we only have to look for the first match, since that'll always
+    // be the newest.
+    //
+    // Note that we have to use the "m" flag because we're searching
+    // through data with embedded newlines ("m" is for "multi-line mode").
+    // One important thing that "m" mode does is to make the regular
+    // expression parser think of "^" as the start of a line rather than
+    // as the start of the whole string.
+    //
+    if (/^(\d\d)-(\d\d)-(\d\d\d\d) \(\d+\.\d+\.\d+ .+\)$/mi.test(reply))
+    {
+        // Extract the elements of the date from the online file, and
+        // convert them into a Javascript Date value.  Note that the
+        // Javascript date constructor uses 0 to represent January,
+        // so we have to adjust the "mm" part accordingly.  Treat
+        // the date in the file as UTC to avoid any dependency on the
+        // local machine's time zone.
+        //
+        // We use the date rather than the version string as the basis
+        // for our comparison, just because it's easier.  Comparing
+        // version strings correctly is rather tricky because of the
+        // complex internal structure, with the dots and the "beta"
+        // suffixes and so on.  It's not impossible, just not worth
+        // the hassle, given that we have the dates to work with
+        // instead.  And anyway, what we're really after is a "newer"
+        // version, so the release date is what's truly definitive.
+        //
+        let mm = +RegExp.$1 - 1, dd = +RegExp.$2, yyyy = +RegExp.$3;
+        let onlineDate = new Date(Date.UTC(yyyy, mm, dd));
+
+        // Compare the online program date with the running program's
+        // build date.  If the online version is newer, add a message
+        // about it to the status line.  You could change this to
+        // display a popup message via mainWindow.message(), if you
+        // prefer a one-time message that requires acknowledgment,
+        // but I prefer a less obtrusive approach for this sort of
+        // notification.  The existence of an update doesn't demand
+        // any immediate action, so I don't think it merits an
+        // interruption to the UI flow by requiring the user to
+        // acknowledge the message.
+        //
+        // Note that an added status line message like this will only
+        // last until the next settings reload, so the message will
+        // disappear after the user edits the options, plays a game,
+        // or does anything else that triggers a settings reload.
+        // If you want to make the message "stick", you could add
+        // a listener for the "settingsreload" event (see Events >
+        // EventTypes > SettingsEvent in the help), and stuff the
+        // message back into the status line at that point.
+        //
+        if (onlineDate > systemInfo.version.buildDate)
+            mainWindow.statusLines.upper.add("A new version of PinballY is available!");
+    }
+}).catch(error => {
+    // just write the message to the log file - don't both the user
+    // with an on-screen error message, since this check isn't
+    // really critical to what the user is doing
+    logfile.log(
+        "The Javascript version update checker ran into a problem!\nJavascript error: %s\nStack:\n%s",
+        error.message, error.stack);
+});
+</div>
+
+
+</body>
+</html>

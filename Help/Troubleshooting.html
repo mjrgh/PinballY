@@ -148,6 +148,50 @@ similar to any issues you're having.
    before starting PinballY").
 </p>
 
+<h3>The PinballY backglass window is blocking the game's backglass</h3>
+<p>
+   Symptom: When you launch a game, from PinballY, PinballY's backglass
+   window shows up as a blank, black expanse that blocks out the game's
+   live backglass window.
+</p>
+<p>
+   I've heard from a couple of people who experienced this problem using
+   Visual Pinball in a "two-monitor" system, where they have both the backglass and DMD
+   windows placed on the same monitor (in other words, they don't have
+   a separate, third monitor for the DMD window).  In this situation,
+   the game's backglass window can sometimes end up behind the PinballY
+   backglass window, which shows nothing but a black background while
+   the game is running.
+</p>
+<p>
+   The reason that the PinballY backglass window is on the screen at
+   all while a game is playing is that it allows for a smoother visual
+   appearance during launch.  The PinballY backglass window
+   fills the screen until the game has placed its own window in front
+   of it, so you don't see a bunch of flashes and redraws switching
+   back and forth between PinballY, the Windows desktop, and the
+   new game.  This <i>usually</i> works out the right way, with the
+   game's live backglass in the foreground, because Windows by default
+   places a newly launched program's windows in front of any windows
+   that were already on the screen.  The problems come in when you
+   start messing with the options in VP to control the layering
+   between the game's DMD and backglass windows, which you might
+   have to do to get the game's DMD window to stay in front of
+   the game's backglass window.
+</p>
+<p>
+   There's a fairly simple solution that you can implement with a
+   little bit of Javascript, which is to hide the PinballY backglass
+   window whenever a game is running.  That should get it out of the
+   fight over who's in front that's raging among the VP windows,
+   hopefully letting VP sort out its window layering without the
+   PinballY windows getting in the way.  See
+   <a href="HideWindowExample.html">Hide a Window During Play</a>
+   in the <a href="Javascript.html">Javascript</a> &gt;
+   <a href="WorkedExamples.html">Worked Examples</a> section.
+</p>
+
+
 <h3>PinballY loses keyboard focus after finishing a game</h3>
 <p>
    Symptom: PinballY stops responding to button or key presses until you
@@ -174,17 +218,47 @@ similar to any issues you're having.
    focus again.
 </p>
 
+<h3>One of my monitors goes into sleep mode after PinballY starts</h3>
+<p>
+   Symptom: One of your monitors goes completely blank, shuts off, or goes into
+   power-save mode or sleep mode, a few second after PinballY starts up.
+</p>
+<p>
+   A couple of people have reported seeing this when they enable the option
+   "Force keyboard focus to PinballY at startup" (in the Startup section
+   of the settings dialog).  That option tries to force keyboard focus
+   into the PinballY window by sending a synthetic mouse click to the
+   main PinballY window a few seconds after the program starts.  My
+   best guess about why a mouse click could make a monitor go into
+   sleep mode is that there's an interaction with some other program
+   that happens to be installed on the affected systems.  There's
+   probably a hidden icon being created by that other program for "power
+   down this monitor" that the synthesized mouse click is hitting.
+   Until someone can identify the specific source of the problem, the
+   simple solution, if you're running into this, is to turn off the
+   "Force keyboard focus" option in the settings.
+</p>
+
 <h3>Errors messages about missing DirectX components</h3>
 <p>
-   If PinballY shows an error message about missing DirectX components
-   as soon as you launch the program, you probably need to upgrade to the
-   latest version of Microsoft's DirectX.  This should never be necessary
-   on Windows 8 or later, because those come with the necessary
-   components pre-installed.  But if you're on Windows 7, you might need to update DirectX,
-   <i>even if you already have DirectX 11 installed</i>,
-   because Windows 7 originally came with an earlier version of DirectX 11
-   that's not compatible with PinballY.  Update instructions can be
-   found on the Microsoft website:
+   If PinballY shows an error message about missing or outdated
+   DirectX components as soon as you launch the program, it usually means that
+   you have to update to the latest DirectX 11 from Microsoft.
+</p>
+<p>
+   I hear a lot of people say "But I already have DirectX 11!" when
+   they see these messages, which makes them waste a lot of time trying
+   to find some other solution besides updating DirectX.  But you should
+   take this message at face value.  You might need an updaet <i>even if you already have
+   DirectX11 installed</i>, because there are multiple versions of DirectX 11.
+   Windows 7 originally came with an early version of DX11 that's not compatible
+   with PinballY, so you're especially likely to run into this on a Windows 7
+   machine.  This really shouldn't be an issue on Windows 8 or 10, since those
+   systems come with a newer DX11 pre-installed, but I wouldn't rule it out;
+   core system components can sometimes get lost or damaged.
+</p>
+<p>
+   Update instructions for DirectX can be found on the Microsoft website:
 </p>
 <div class="indented">
    <a target="_blank" href="https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx">https://support.microsoft.com/en-gb/help/179113/how-to-install-the-latest-version-of-directx</a>
@@ -210,13 +284,31 @@ similar to any issues you're having.
 </ul>
 
 
-<h3>I'm running PinballY in Admin mode, and something's not working</h3>
+<h3>PinballY makes my video card fans run too loudly/too often</h3>
+
+<p>
+   By default, PinballY sends updates to the video card as fast as the
+   video card can process them.  If you have a high-performance video card,
+   the processing rate can be very fast indeed, perhaps hundreds of frames
+   per second.  On some video cards, the chips get very hot when processing
+   peak loads, which triggers the fans.
+</p>
+<p>
+   You can reduce the video card processing load by selecting the option <b>Lock frame rate to
+   monitor refresh rate</b> in the <a href="AudioVideoOptions.html">Audio/Video Options</a>
+   section in the settings.  This tells PinballY to reduce its video frame rate to match the
+   physical refresh rate of your monitors.  If you have a high-end video card, that should
+   reduce the load on the card to a fraction of its full power, which should reduce the
+   amount of heat it generates.
+</p>
+
+<h3>I'm running PinballY in Admin mode (and something's not working)</h3>
 
 <p>
   Simple answer: Don't run PinballY in Admin mode.  If you're running
   PinballY by right-clicking the program file and selecting "Run as Administrator",
   or you check the box for "Run as Administrator" in the .EXE file's property
-  page, it's going to cause a bunch of problems, because the program
+  page, it's likely to cause a bunch of problems.  The program
   isn't designed to run that way.  There <i>is</i> a way to run in Admin mode if necessary, but
   not by using "Run as Administrator".  See the help section on
   <a href="AdminMode.html">Administrator Mode</a> for the right approach.
@@ -224,11 +316,11 @@ similar to any issues you're having.
 <p>
    But more importantly, you ideally shouldn't need to use Admin
    Mode at all with PinballY.  There are two main reasons that most
-   people think they need to use Admin Mode:
+   pin cab people who use Admin Mode think they need to use Admin Mode:
 </p>
 <ul>
    <li>Because you read some advice on the forums or in a tutorial saying
-   you should just run <i>everything</i> in Admin mode all the time.
+   you should run everything all the time in Admin mode.
    People mean well when they say that, but it's generally bad advice.
    See <a href="http://mjrnet.org/pinscape/BuildGuideV2/BuildGuide.php?sid=software#AdminModeAllTheTime">
          Should I use "Run as Administrator" for everything?</a> in the
@@ -237,8 +329,15 @@ similar to any issues you're having.
    </p>
    <p>
       If this kind of blanket advice is the only reason you're using Admin Mode
-      with PinballY (rather than an attempt to solve a specific problem), you should
-      try undoing it and running everything without Admin Mode instead.
+      with PinballY (rather than as an attempt to solve a specific problem), you should
+      try undoing it and running everything without Admin Mode instead.  If you
+      set up universal Admin Mode a long time ago because it seemed to solve
+      some other problem, you might revisit the whole issue, because it might
+      never have been the right solution in the first place - and even if it was,
+      that might have been fixed by a more recent update to some of your other software.
+      "You have to use Admin Mode with this" is usually a bug, and many of the pin
+      cab programs that formerly had that as part of their instructions have since been
+      fixed.
    </p>
 
    <li>Because some program you're launching from PinballY can only run in Admin Mode.  In
@@ -673,6 +772,149 @@ similar to any issues you're having.
    this topic.
 </p>
 
+<a name="PinUpIsntExiting"></a>
+<h3>PinUp Player doesn't close when a game ends (or won't restart after the first game)</h3>
+
+<p>
+   Symptom: You're using PinUp Player to show topper videos while running
+   a game with VP.  When you exit the game, the PinUp window doesn't close.
+   Or the window might appear to close, but it won't open again if you
+   launch a new game that uses PinUp.
+</p>
+<p>
+   Cause:  The basic problem here is that when you run a VP game that
+   uses PinUp, you're actually running multiple Windows programs: VP
+   itself, and PinUp.  PinUp is a separate program that runs
+   alongside VP.  As such, the PinUp process has a lifetime of its own
+   that's separate from VP's, and most importantly, Windows doesn't have
+   any way to automatically end the PinUp process when VP ends, because
+   Windows doesn't know the two are related.  So PinUp can be left running
+   after VP exits.
+</p>
+<p>
+   So how is PinUp supposed to know when to exit?   It has to be <i>told</i> when to exit.
+   What's <i>supposed</i> to happen is that the VP table script sends a
+   command to PinUp just before VP exits to tell PinUp to exit at the same time.
+   This requires special scripting code in every VP table that uses PinUp.
+   This arrangement is a bit fragile, unfortunately, because there are
+   a couple of obvious things that can go wrong.  One is that some table
+   authors don't know that they're supposed to add that special scripting code
+   to tell PinUp to exit.  Another is that VP sometimes crashes, and
+   VP scripts sometimes crash, in which case the special scripting code
+   might never run.
+</p>
+<p>
+   Solution:
+   There are two ways to deal with this.  The "right" way is to make
+   sure that every VP game that uses PinUp has that special scripting
+   code that tells PinUp when it's time to quit.  This is unfortunately
+   something that has to be done <i>separately in every individual game</i>,
+   so the only way to be sure it's there in every game is to look at each
+   game's script.  Ideally, table authors would include the necessary
+   scripting before they release their games, so everything would "just work",
+   but if you've ever used a computer, you know that it's kind of a miracle
+   when anything "just works".  A lot of
+   table authors don't realize that they're supposed to add the shutdown
+   code, or they just forget.  At any rate, if you want to do things
+   the right way, you should go through your PinUp-enabled VP games
+   and check.
+</p>
+<p>
+   To access a VP game's script, open the game in the VP editor, and
+   select <b>View</b> &gt; <b>Script</b> from the menu in VP X, or <b>Edit</b> &gt; <b>Script</b>
+   in VP 9.  What you need to do is scan each script for the special
+   shutdown code; if you find it, great, and if you don't, you should
+   add it.  The required code looks <b>approximately</b> like this:
+</p>
+<div class="code">
+Sub Table1_Exit()
+    Controller.Stop
+End Sub
+</div>
+<p>
+   The exact code needed can be slightly different, because some tables use
+   a different name for the table object.  Notice how the Sub (subroutine) is
+   named <b>Table1_Exit</b>.  That's the name in most VP tables - but not all!
+   The <b>Table1</b> prefix corresponds to the name the script uses for the
+   table itself, which is <b>Table1</b> by default, but which some table authors
+   change to something else, usually the title of the game.  For example, the
+   name might end up being <b>Funhouse_Exit</b> instead.  How do you find out?
+   The best way is to search the script for a similar <b>Sub xxx_Init()</b> section.
+   Virtually all VP tables include an Init subroutine.  The Exit subroutine should
+   be named with the same prefix you find on the Init subroutine.  So if you find
+   a <b>Table1_Init()</b> subroutine, the exit routine should be called
+   <b>Table1_Exit()</b>; but if you find <b>Funhouse_Init()</b>, you have to
+   name the exit routine <b>Funhouse_Exit()</b>.  Just use the same prefix
+   you find for the Init subroutine, whatever that prefix is.
+</p>
+<p>
+   The other thing you have to be careful about is to make sure that there's not
+   already a <b>Sub xxx_Exit()</b> section in the script.  If there is, you can't
+   add another one - there can be only one.  If you find one, check it
+   to see if it already has the line saying <b>Controller.Stop</b>; if it's there,
+   you're all set, and if not, you should add that one line somewhere between
+   the <b>Sub</b> and <b>End Sub</b> lines.  I'd add it at the very end,
+   just before the <b>End Sub</b>.  If the <b>Sub xxx_Exit()</b>
+   section isn't there at all,
+   you can just add the whole new Sub as shown above, with the proviso that you
+   might have to change the name to match the <b>Sub xxx_Init()</b> section you find in the
+   table script.
+</p>
+<p>
+   I said there were two ways to deal with the PinUp-not-exiting problem.
+   The "right" way is to fix each table's script as shown above.  You should
+   definitely do that for all of your tables.  But there's also a heavy-handed
+   kludge that you can add if you still have problems even after making sure
+   all of your tables have the <b>Controller.Stop</b> instructions, and
+   that's to make PinballY seek and destroy the PinUp process after each
+   VP game exits.  That's not as good as fixing the VP table scripts as
+   described above, because killing any process on Windows can have bad
+   side effects that can destabilize the whole Windows system.  So definitely try fixing the
+   table scripts first.  But some people have found they also need the
+   kill-process approach.  That might be because they have something
+   else wrong with their setups, or they didn't get the Controller.Stop
+   scripts right, so there might be a deeper problem they
+   should be fixing instead.  Be that as it may, the "kill process" approach
+   is a solution of last resort if you can't get it working the other way.
+</p>
+<p>
+   If you want to add the "kill process" instructions on the PinballY side,
+   here's the procedure:
+</p>
+<ul>
+   <li>Create a file called ClosePinUp.bat in your PinballY folder, containing
+   the following:
+   <div class="code" style="margin-bottom: 0px;">
+taskkill /f /im PinUpPlayer.exe
+taskkill /im PinUpDisplay.exe</div>
+
+   <li>Go to the PinballY Settings dialog, and select the page for VP
+
+   <li>In the "Run After 1" box, enter:
+   <div class="code" style="margin-bottom: 0px;">
+[HIDE] cmd /c [PINBALLY]\ClosePinUp.bat</div>
+
+   <li>If you have multiple versions of VP installed, and you use PinUp
+   games with each VP version, repeat the procedure for the different
+   VP versions in your PinballY settings
+</ul>
+
+<p>
+   I should point out that the author of PinUp doesn't think you should use
+   the "kill process" approach at all.  He thinks that you should always rely
+   on the VP table scripts.  I agree to a point; you should definitely make
+   sure the scripts are doing their job.  The problem is that VP scripts aren't
+   always perfectly reliable, so relying entirely on the scripts is a bit too
+   fragile for some people's taste.  So you might still want to include the
+   "kill process" instructions as a catch-all, to make absolutely sure that
+   PinUp gets terminated even when VP crashes, the table script crashes, etc.
+   I see the "kill process" scripts as a failsafe - a fallback - to catch those crash cases.
+   They'll have no effect as long as PinUp actually does exit properly, since
+   the PinUp processes that the scripts look for will already be gone;
+   but they'll be there to clean things up in any
+   unusual cases where PinUp does for whatever reason get left stuck open.
+</p>
+   
    
 
 </body>
