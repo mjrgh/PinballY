@@ -1716,12 +1716,12 @@ const VT_TYPEMASK = 0xfff;              // [    ] mask for element types (removi
 // Prototype for HANDLE objects.  These are created by the dllImport
 // native code for HANDLE values returned by native DLL calls.
 this.HANDLE = class HANDLE {
-    constructor(...args) { return HANDLE_.new(...args); }
+    constructor(...args) { return HANDLE._new(...args); }
 };
 
-// Prototype for HWND objects.  HWND is a suclass of HANDLE
+// Prototype for HWND objects.  HWND is a subclass of HANDLE.
 this.HWND = class HWND extends HANDLE {
-    constructor(...args) { return HWND_.new(...args); }
+    constructor(...args) { return HWND._new(...args); }
 };
 
 // Prototype for NativePointer objects.  These are created by the

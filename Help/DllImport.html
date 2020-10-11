@@ -395,6 +395,52 @@ alert("The result from GetInfo is " + i.value);
    in Javascript.
 </p>
 
+<h2>HANDLE and HWND variables as "out" parameters</h2>
+
+<p>
+   Some Windows APIs return handle values as "out" parameters rather than
+   as the function return value.  In such a situation, the API will take
+   a HANDLE* or HWND* pointer as an argument, with the intention that
+   the caller will pass in the address of a HANDLE variable, where the
+   callee will store the requested handle value before returning.
+</p>
+<p>
+   You can code these calls same way as other "out" parameter calls:
+</p>
+<ul>
+   <li>First, create a Javascript variable containing an empty HANDLE or
+   HWND object, using "new" to create the appropriate empty handle type
+   <li>Then pass that variable in the argument slot where the
+   HANDLE* or HWND* is required.  Javascript will automatically pass
+   the address of the HANDLE object's internal native handle element
+   to the native API, which will allow the API to store the return
+   value at the appropriate memory location.
+   <li>After the function returns,
+   the Javascript HANDLE/HWND object will contain the native handle
+   value stored by the function.
+</ul>
+<p>
+   For example, the OpenThreadToken() API returns a thread token as
+   a HANDLE value in its fourth argument, which is specified in the
+   API as a HANDLE* "out" variable.  Here's how you can call the
+   function to obtain the token handle.
+</p>
+<div class="code">
+// create an empty HANDLE object to receive the token handle
+let hToken = new HANDLE();
+
+// ask Windows for the token handle
+if (Advapi32.OpenThreadToken(Advapi32.GetCurrentThread(), TOKEN_QUERY, 1, hToken)) {
+    // Success - hToken now contains the thread token
+}
+</div>
+
+<p>
+   You can use the same technique when an HWND* out parameter is used.  In
+   that case, use <tt>new HWND()</tt> to create the empty window handle object
+   that will hold the result.
+</p>
+   
 
 <a name="dllImportDefine"></a>
 <h2>Defining C struct types</h2>
@@ -576,7 +622,7 @@ let p = dllImport.create("int*");
 <p>
    When you first create a pointer type, it will be initialized with
    a null pointer, so attempting to get the underlying value with .at
-   will throw an error.  You can assign another point to it by
+   will throw an error.  You can assign another pointer value to it by
    setting its value:
 </p>
 <div class="code">

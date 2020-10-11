@@ -26,6 +26,67 @@ However, if you can't find any information here on the specific issue
 you're having, here are a few basic troubleshooting techniques that
 can be applied to many sorts of problems.
 
+<h3>Try reverting to default settings</h3>
+
+<p>
+   A few people have run into problems that turned out to be due to
+   unintended settings changes.  So an easy first step in troubleshooting
+   is to reset everything to the default "factory settings", to see if
+   the problem goes away with default settings.  It's easy to do this,
+   and what's more, it's easy to do it <i>temporarily</i>, as a test, without
+   losing your custom settings.
+</p>
+<p>
+   Here's what makes it easy to revert to defaults (temporarily
+   or permanently):
+   All of PinballY's settings are stored in a file in the PinballY
+   install folder called <b>Settings.txt</b>.
+</p>
+<p>
+   If you want to discard all of your custom settings entirely, simply
+   delete Settings.txt.  This is an easy fix if you think you've
+   screwed up the settings beyond repair, or you just don't want to
+   bother going through everything individually to figure out what's
+   wrong.  If Settings.txt is missing when PinballY starts up, PinballY
+   will use factory defaults for all settings.
+</p>
+<p>
+   It's also easy to <i>temporarily</i> revert to default settings,
+   without losing all of your custom settings.  This lets you do a quick
+   test to see if a problem is related to a settings change, without
+   losing anything and without having to tediously set everything back
+   the way you like it.  Here's the procedure to temporarily revert
+   to defaults:
+</p>
+<ul>
+   <li>Quit out of PinballY (if it's running)
+   <li>Rename Settings.txt (in the PinballY install folder) to some other name, say <b>SavedSettings.txt</b>
+   <li>Run PinballY - since there's no Settings.txt file now, this session will be using entirely default settings,
+   so you can test to see if the problem you're trying to solve still occurs with factory settings
+   <li>Quit out of PinballY
+   <li>There will be a new Settings.txt file from the session you just ran, so simply delete it
+   <li>Rename the file you saved earlier (e.g., <b>SavedSettings.txt</b>) back to <b>Settings.txt</b>
+   <li>PinballY will go back to your custom settings the next time you run it
+</ul>
+
+<p>
+   All of PinballY's settings are stored in <b>Settings.txt</b>, so you don't
+   have to worry about hunting around for other files, registry settings, etc.
+   No one can quite believe that when I tell them, because we all know from
+   experience that Windows programs like to scatter their settings far and
+   wide and secret them away in hidden corners of the operating system.
+   But I was very careful in PinballY <i>not</i> to do that, because I know what
+   misery that causes in other programs.
+</p>
+<p>
+   By the way, <b>Settings.txt</b> is a simple text file in human-readable format,
+   so you can easily look at it with Notepad or any other plain-text editor.  It
+   even has lots of comments explaining the various settings variables.
+   Don't be afraid to open it in Notepad if you want to see what's inside.
+   It's a good way to see all of the settings in one view, rather than having to
+   page through the different sections of the options dialog.
+</p>
+   
 <h3>Check the log file</h3>
 
 <p>
@@ -74,28 +135,6 @@ can be applied to many sorts of problems.
    find and fix the problem.
 </p>
 
-<h3>Resetting to factory settings</h3>
-
-<p>
-   If you feel like you've screwed up your settings beyond repair and
-   you just want to reset everything to the standard defaults, it's
-   usually <b>not</b> necessary to go to the trouble of reinstalling the whole program.
-</p>
-<p>
-   In most cases, all you have to do is delete the file <b>Settings.txt</b>,
-   found in your main PinballY install folder.
-</p>
-<p>
-   That file contains all of your option settings.  I've been careful to avoid the
-   unfortunately common practice in other Windows software of scattering settings
-   all over the registry and hidden files and so on.  PinballY keeps all user
-   settings in that file.  Deleting it is usually enough to
-   restore factory settings.  By the way, that file is a simple text file in
-   human-readable format - it even has lots of comments explaining what's going on.
-   Don't be afraid of opening it in Notepad if you want to see what's there.
-</p>
-   
-
 <h2>Some common problems (and suggested solutions)</h2>
 
 The topics below list some of the more common problems that I've heard
@@ -138,14 +177,16 @@ similar to any issues you're having.
 <p>
    If you're using a pre-Windows 10 system, Task Scheduler normally
    does give focus to newly launched tasks.  The most common thing that
-   can prevent PinballY from having keyboard is another program
-   "stealing" focus by starting up shortly after PinballY does.
-   In most cases, the most recently launched program gets focus,
-   so if something launches after PinballY during your system
-   startup process, it usually gets focus by taking it away from
-   PinballY.  To deal with this, try increasing the startup delay
+   can interfere with PinballY's keyboard input is another program
+   "stealing focus" by starting up shortly after PinballY does.
+   In most cases, Windows gives focus to the most recently launched program.
+   That means that if another program launches shortly after PinballY during your system
+   startup process, the other program usually gets focus, taking focus away from
+   PinballY.  To deal with this, you can try increasing the starting delay
    parameter in the Startup options dialog ("After logon, pause
-   before starting PinballY").
+   before starting PinballY").  The idea is to delay PinballY's launch
+   long enough that it's always the last thing launched during
+   system startup.
 </p>
 
 <h3>The PinballY backglass window is blocking the game's backglass</h3>
@@ -249,7 +290,7 @@ similar to any issues you're having.
    I hear a lot of people say "But I already have DirectX 11!" when
    they see these messages, which makes them waste a lot of time trying
    to find some other solution besides updating DirectX.  But you should
-   take this message at face value.  You might need an updaet <i>even if you already have
+   take this message at face value.  You might need an update <i>even if you already have
    DirectX11 installed</i>, because there are multiple versions of DirectX 11.
    Windows 7 originally came with an early version of DX11 that's not compatible
    with PinballY, so you're especially likely to run into this on a Windows 7

@@ -4309,6 +4309,14 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 						Error(_T("Incompatible pointer type conversion"));
 				}
 			}
+			else if (auto h = HandleData::Recover<HandleData>(jsval, nullptr); h != nullptr)
+			{
+				// Native handle.  Pass in a pointer to the HANDLE element in the struct.
+				if (*tp == 'H' || *tp == 'h')
+					Store(&h->h);
+				else
+					Error(_T("Incompatible pointer type conversion (HANDLE required)"));
+			}
 			else if (auto v = VariantData::Recover<VariantData>(jsval, nullptr); v != nullptr)
 			{
 				if (toSig.sig == L"V")
@@ -5958,9 +5966,9 @@ T JavascriptEngine::XInt64Data<T>::FromJavascript(JsValueRef jsval)
 			void *extdata;
 			if ((err = JsGetExternalData(jsval, &extdata)) == JsNoError)
 			{
-				if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(extdata, nullptr); b != nullptr)
+				if (auto b = XInt64Data<INT64>::Recover<XInt64Data<INT64>>(jsval, nullptr); b != nullptr)
 					return static_cast<T>(b->i);
-				else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(extdata, nullptr); b != nullptr)
+				else if (auto b = XInt64Data<UINT64>::Recover<XInt64Data<UINT64>>(jsval, nullptr); b != nullptr)
 					return static_cast<T>(b->i);
 			}
 
