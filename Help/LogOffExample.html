@@ -10,7 +10,7 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>Log Off at Shutdown</h1>
+<h1>Log Off (or Sleep) at Shutdown</h1>
 
 <p>
    One of the standard commands in PinballY is "Power Off" (you can
@@ -37,6 +37,20 @@
    to the user to press the power button to complete the shutdown after
    the logoff succeeds.
 </p>
+<p>
+   Another variation that some people prefer is to put the machine
+   into "Sleep" mode rather than doing a full shutdown.  Sleep mode is
+   a low-power mode that keeps all running programs in memory, which
+   makes it much faster to restart the system next time you want to use
+   it.  I pretty much always use sleep mode for my main desktop system
+   instead of powering completely off, so I can easily imagine why
+   you'd want to do the same thing with your pin cab.  We'll
+   cover how to change the normal full power off to sleep mode later
+   in this section.
+</p>
+   
+
+<h2>Logging off</h2>
 <p>
    If you've read through any of the other examples, you've seen the
    basic approach for changing the way any command works: we write
@@ -157,8 +171,140 @@ mainWindow.on("menuopen", ev => {
     });
 });
 </div>
-   
-   
+
+
+<h2>Sleep mode</h2>
+
+<p>
+   If you want to change the normal full power-off command to a Sleep
+   command instead, to put the system in its low-power standby mode,
+   the procedure is similar.  We still have to intercept the normal
+   power-off command, but this time we'll replace it with a different
+   Windows API call to put the system into standby mode.
+</p>
+<p>
+   The standby mode API itself is quite simple, but there's a snag,
+   which is that it requires the calling program to enable a special
+   "privilege" mode before the API can be used.  The sequence of
+   calls to enable the privilege is rather verbose, but it's also
+   pretty rote, so I'll just give you the code below without going
+   into a lot of explanation.  If you're interested in the internals,
+   the code has some comments explaining the step-by-step actions.
+</p>
+<div class="code">
+// Windows API bindings required for the standby and privilege functions
+let Advapi32 = dllImport.bind("Advapi32.dll", `
+    typedef struct _LUID {
+        DWORD LowPart;
+        DWORD HighPart;
+    } LUID, *PLUID;
+    typedef struct _LUID_AND_ATTRIBUTES {
+        LUID Luid;
+        DWORD Attributes;
+    } LUID_AND_ATTRIBUTES, *PLUID_AND_ATTRIBUTES;
+    typedef struct _TOKEN_PRIVILEGES {
+        DWORD PrivilegeCount;
+        LUID_AND_ATTRIBUTES Privileges[1];
+    } TOKEN_PRIVILEGES, *PTOKEN_PRIVILEGES;    
+    BOOL WINAPI OpenThreadToken(HANDLE ThreadHandler, DWORD DesiredAccess, BOOL OpenAsSelf, HANDLE *pToken);
+    BOOL WINAPI ImpersonateSelf(int ImpersonationLevel);
+    BOOL WINAPI LookupPrivilegeValueA(LPCSTR lpSystemName, LPCSTR lpName, PLUID lpLuid);
+    BOOL WINAPI AdjustTokenPrivileges(HANDLE TokenHandle, BOOL DisableAllPrivileges, PTOKEN_PRIVILEGES NewState,
+        DWORD BufferLength, PTOKEN_PRIVILEGES PreviousState, DWORD *ReturnLength);
+`);
+let Kernel32 = dllImport.bind("Kernel32.dll", `
+    HANDLE WINAPI GetCurrentThread();
+`);
+let PowrProf = dllImport.bind("PowrProf.dll", `
+    BOOL WINAPI SetSuspendState(BOOL bHibernate, BOOL bForce, BOOL bWakeupEventsDisabled);
+`);
+
+// Enable the shutdown privilege on the current thread.  This privilege
+// is required for Windows APIs that shut down the system (ExitWindowsEx,
+// SetSuspendState).
+//
+// Returns null on success, or a string with an error message if something
+// went wrong.  Sample usage:
+//
+//   let err = enableShutdownPrivilege();
+//   if (err)
+//      alert("Error trying to enable shutdown: " + err);
+//   else
+//      proceed_with_shutdown...
+//
+function enableShutdownPrivilege()
+{
+    // The first step is to open the thread security token with ADJUST
+    // PRIVILEGES access mode.  This will let us enable privileges for
+    // the thread.
+    const TOKEN_QUERY = 0x0008;
+    const TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    const SecurityImpersonation = 2;
+    let hToken = new HANDLE();
+    if (!Advapi32.OpenThreadToken(Kernel32.GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, 1, hToken)) 
+    {
+        // The initial attempt to retrieve the thread token failed.  In some
+        // cases, it's necessary to "impersonate self" first, which sets the
+        // thread security token to match the containing process's token.  So
+        // try setting the impersonation mode, and then try the open again.
+        if (!Advapi32.ImpersonateSelf(SecurityImpersonation))
+            return "ImpersonateSelf failed";
+        if (!Advapi32.OpenThreadToken(Kernel32.GetCurrentThread(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, 1, hToken))
+            return "OpenThreadToken failed, even after ImpersonateSelf";
+    }
+
+    // Now we need to get the current internal ID for the privilege
+    // we're seeking (the "shutdown" privilege), which we do by
+    // looking up the value for the well-known name of the priv.
+    let luid = dllImport.create("LUID");
+    if (!Advapi32.LookupPrivilegeValueA(null, "SeShutdownPrivilege", luid))
+        return "LookupPrivilegeValue(SeShutdownPrivilege) failed";
+
+    // We're set to actually request the privilege, which we do by
+    // adjusting the token's privilege to enable the one we want.
+    const SE_PRIVILEGE_ENABLED = 0x00000002;
+    let tp = dllImport.create("TOKEN_PRIVILEGES");
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid.LowPart = luid.LowPart;
+    tp.Privileges[0].Luid.HighPart = luid.HighPart;
+    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    if (!Advapi32.AdjustTokenPrivileges(hToken, 0, tp, dllImport.sizeof("TOKEN_PRIVILEGES"), null, null))
+        return "AdjustTokenPrivileges failed";
+
+    // Success!  Return null to indicate that no errors occurred.
+    return null;
+}
+
+// Set Windows standby power mode (also known as Sleep mode)
+function setStandbyPowerMode()
+{
+    // enable system shutdown privileges, so that we can set sleep mode
+    let err = enableShutdownPrivilege();
+    if (err) {
+        mainWindow.message("Unable to go into sleep mode (error enabling shutdown privileges: " + err + ")");
+        return;
+    }
+    
+    // set sleep mode
+    PowrProf.SetSuspendState(0, 0, 0);
+}
+
+// Take over the Power Off Confirm command to go into sleep mode instead
+mainWindow.on("command", ev => {
+    if (ev.id == command.PowerOffConfirm) {
+        // save any settings changes
+        if (optionSettings.isDirty())
+            optionSettings.save();
+
+        // put the system in standby mode
+        setStandbyPowerMode();
+
+        // skip the normal Power Off command processing
+        ev.preventDefault();
+    }
+});
+</div>
+
 
 </body>
 </html>

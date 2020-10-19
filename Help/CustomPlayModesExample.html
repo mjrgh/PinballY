@@ -424,7 +424,7 @@ mainWindow.on("command", ev => {
 </p>
 <div class="code">
 mainWindow.on("command", ev => {
-    if (ev.id == command.PlayGame {
+    if (ev.id == command.PlayGame) {
         // it's the Play command - check the current game's system
         let game = gameList.getWheelGame(0) || { };
         let sys = game.system || { };
