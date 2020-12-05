@@ -2317,6 +2317,16 @@ DWORD WINAPI Application::GameMonitorThread::SMain(LPVOID lpParam)
 		}
 	}
 
+	// Explicitly clear the game process handle, to close the OS handle. 
+	// In most cases, we'll close the handle anyway shortly after the thread
+	// exits, because the main program will delete the monitor object.
+	// However, the monitor object can remain in memory for the duration
+	// of a batch capture, and keeping the handle open for all of that
+	// time can consume a lot of memory, since Windows might keep some or
+	// all of the game process's resources active as long as we have an
+	// active handle to the process, even after the process has exited.
+	self->hGameProc = nullptr;
+
 	// The caller (in the main thread) adds a reference to the 'this'
 	// object on behalf of the thread, to ensure that the object can't
 	// be deleted as long as the thread is running.  Now that the
@@ -4867,6 +4877,15 @@ bool Application::GameMonitorThread::Shutdown(ErrorHandler &eh, DWORD timeout, b
 	// if desired, terminate the thread forcibly
 	if (force)
 		TerminateThread(hThread, 0);
+
+	// Explicitly clear the game process handle, in case the thread didn't exit normally.
+	// We have no more use for the game process handle after a shutdown, and keeping it
+	// open can keep the game process's resources in memory, so we want to close it as
+	// soon as possible.  In most cases, the process handle would be closed anyway either
+	// by the normal monitor thread exit, or when we delete the monitor object.  But
+	// the monitor object can stay around for the duration of a batch capture, so it's
+	// best to close it out explicitly as soon as we're done with it.
+	hGameProc = nullptr;
 
 	// return failure, since the thread didn't terminate on its own
 	return false;

@@ -567,13 +567,13 @@ mainWindow.on("command", ev => {
             // figure out the extra options based on the current mode
             let extra = "";
             if (currentFX3Mode == "classic")
-                extra = "-class ";
+                extra = " -class";
             else if (currentFX3Mode == "new")
                 extra = "";
 
             // launch it with the extra options
             mainWindow.playGame(game, {
-                overrides: { params: extra + sys.params }
+                overrides: { params: sys.params + extra }
             });
 
             // skip the default action, since we did the launch here instead
@@ -582,7 +582,35 @@ mainWindow.on("command", ev => {
     }
 });
 </div>
-   
+
+<p>
+   There's one more thing you should be aware of, which is that the order of
+   the added command-line parameters might have to change, depending on which
+   pinball program you're launching.  Every program has its own unique command-line
+   syntax.  In FX3's case, it should always work to add extra option flags
+   at the end of the normal parameters, as we did in the example above.
+   However, some systems might need new parameters to be added before the
+   original parameters, which you can do by rewriting the <b>overrides</b>
+   part of the code above like so:
+</p>
+
+<div class="code">
+mainWindow.playGame(game, {
+    overrides: { params: extra + sys.params }
+});
+</div>
+
+<p>
+   Some systems might need more complex rearrangements - you might have
+   to insert new parameters somewhere in the middle of the normal command line, for
+   example, or remove one option flag and replace it with another.
+   The best approach for something like that would be to use the Javascript
+   string <b>replace()</b> method, which makes it (relatively) easy
+   to perform complex substitutions in text strings, using regular expression
+   pattern matching.  That's a standard element of Javascript, so you can
+   find documentation and examples on the Web; try searching
+   for <b>Javascript regular expression replace</b>.
+</p>
 
 </body>
 </html>

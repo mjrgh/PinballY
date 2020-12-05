@@ -185,11 +185,19 @@ mainWindow.on("menuopen", ev => {
 <p>
    The standby mode API itself is quite simple, but there's a snag,
    which is that it requires the calling program to enable a special
-   "privilege" mode before the API can be used.  The sequence of
-   calls to enable the privilege is rather verbose, but it's also
+   "privilege" mode before the API can be used (although see the note below).
+   The sequence of calls to enable the privilege is rather verbose, but it's also
    pretty rote, so I'll just give you the code below without going
    into a lot of explanation.  If you're interested in the internals,
    the code has some comments explaining the step-by-step actions.
+</p>
+<p>
+   Note: the Microsoft documentation for the standby mode API says
+   that the shutdown privilege is required to use the API, but in
+   practice this doesn't always seem to be the case; some people have
+   found that it works on their machines without all of the extra
+   code to enable the privilege.  We're including the extra code
+   anyway, to conform to the documentation.
 </p>
 <div class="code">
 // Windows API bindings required for the standby and privilege functions
@@ -278,15 +286,40 @@ function enableShutdownPrivilege()
 // Set Windows standby power mode (also known as Sleep mode)
 function setStandbyPowerMode()
 {
-    // enable system shutdown privileges, so that we can set sleep mode
+    // Enable system shutdown privileges, so that we can set sleep mode.
+    // If any errors occur enabling the privilege, note the error message,
+    // but proceed anyway.  The "sleep" call seems to work on some systems
+    // with or without the privilege being enabled, so it might not matter
+    // on the local system if the attempt to set the privilege fails.
     let err = enableShutdownPrivilege();
-    if (err) {
-        mainWindow.message("Unable to go into sleep mode (error enabling shutdown privileges: " + err + ")");
-        return;
-    }
     
-    // set sleep mode
-    PowrProf.SetSuspendState(0, 0, 0);
+    // Set sleep mode
+    if (!PowrProf.SetSuspendState(0, 0, 0)) {
+        // SetSuspendState() returned false, which means it failed.  If
+        // an error occurred attempting to enable the shutdown privilege,
+        // that's probably why the sleep attempt failed, so show the
+        // error message from the privilege attempt.  Otherwise, just
+        // say that the sleep failed.
+        if (err)
+            mainWindow.message("Unable to set the necessary system "
+                + "privilege status for the Sleep operation ("
+                + err + ")", "error");
+        else
+            mainWindow.message("The Sleep operation failed.", "error");
+    }
+
+    // Note that if SetSuspendState() succeeded, the system will go
+    // into sleep mode *inside the API call*.  All program code
+    // (including this Javascript code) is frozen while the system is
+    // in sleep mode, so when SetSuspendState() returns, it means that
+    // the system has gone into sleep mode AND woken back up!  So when
+    // we get here, the user has returned to the machine and reawoken
+    // it.  We're going to assume that they want PinballY to still be
+    // running when they return, so we're just going to return like
+    // nothing happened.  If you wanted PinballY to terminate after
+    // a Sleep command, you could add some extra code here to exit
+    // the program (by calling mainWindow.doCommand(command.Quit),
+    // for example).
 }
 
 // Take over the Power Off Confirm command to go into sleep mode instead
