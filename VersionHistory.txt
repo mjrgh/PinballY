@@ -4,10 +4,12 @@ PinballY Update History
 
 * Javascript code can now use HANDLE and HWND types as "out"
 parameters, for Windows APIs that return handle values in pointer
-variables.  You can now use handle variables as "out" params the same
-way as other native types, simply by passing a variable containing a
-HANDLE or HWND object as an argument where a HANDLE* or HWND*
-parameter is specified in the API parameter list.
+variables.  This means that handle variables act the same way as other
+native types when used as pointer parameters in Windows APIs where a
+handle is returned via the pointer param.  Simply pass a variable
+containing a HANDLE or HWND object as an argument where a HANDLE* or
+HWND* parameter is specified in the API parameter list, and the
+variable will contain the returned handle after the API returns.
 
 * Fixed a problem in the Javascript interpreter that prevented
 creating handle objects via "new HANDLE()" with Int64 or UInt64
@@ -17,7 +19,7 @@ This is now fixed.
 
 * Fixed an error in the Javascript system classes that caused a
 runtime error on attempting to use "new HANDLE()" or "new HWND()" to
-create a handle object.
+explicitly create a handle object.
 
 
 07-23-2020 (1.0.0 Release)

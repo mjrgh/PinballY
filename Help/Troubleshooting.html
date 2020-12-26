@@ -239,20 +239,28 @@ similar to any issues you're having.
    click the mouse in one of its windows.
 </p>
 <p>
-   As I'm sure you know, Windows has concept called "keyboard focus" where
-   it only sends keyboard input to one application at a time - usually the
-   application with the active window.  This is usually seamless on a desktop
-   PC, since you just use the mouse to choose the window you want to work
-   with.  On a pin cab PC, though, you probably don't want to keep the mouse
-   handy all the time.  So PinballY <i>tries</i> to manage focus as automatically
+   As I'm sure you know, Windows has a concept called "keyboard focus", where
+   it only sends keyboard input to one application at a time.  The window
+   that receives keyboard input is, in most cases, simply the frontmost
+   window on the screen.  On a desktop PC, this is usually so intuitive
+   and automatic that you don't have to think about it; you just use the mouse to
+   click on the window you want to work with, and that window comes
+   to the front and gets control over the keyboard.  However, 
+   with a virtual pin cab, you probably don't want to
+   keep a mouse handy all the time.  That removes the usual way
+   that we manually change keyboard focus.  To make up for the
+   missing mouse, PinballY tries to manage focus as automatically
    as it can, by switching focus between itself and the running game as games
-   start and exit.  But focus is always a point of contention on Windows,
-   and it's possible for other applications (or Windows itself) to steal
-   focus away, making PinballY stop responding to keyboard input.
+   start and exit.  But this isn't always perfect, because other programs
+   you're running might also be trying to manage focus in their own way,
+   so PinballY's idea of where focus should go at any given time might
+   sometimes get overruled by another program or by Windows itself.
 </p>
 <p>
-   Starting with the Beta 18 release, there's a "mouseless" workaround if PinballY ever loses
-   keyboard focus.  Simply <b>press and hold</b> the EXIT GAME button for about
+   If PinballY ever does seem to lose focus - that is, it doesn't respond to
+   key presses even though it's in the foreground - there's a way to
+   restore focus to PinballY without using the mouse.
+   Simply <b>press and hold</b> the EXIT GAME button for about
    five seconds.  (The EXIT GAME button is usually the Escape key, but you can
    change this in the settings under <a href="ButtonOptions.html">Buttons</a>.)
    This should force PinballY back into the foreground and give it keyboard
@@ -419,6 +427,75 @@ similar to any issues you're having.
 <p>
    For a detailed explanation of exactly where PinballY looks for tables,
    see <a href="DirectoryInfo.html">Files &amp; Folders</a>.
+</p>
+
+
+<h3>I just downloaded a new game, but PinballY didn't add it to my XML files</h3>
+
+<p>
+   Symptom: You just downloaded a new Visual Pinball ".vpx" table file
+   (or a new game for whatever other system), and you installed it in the
+   correct Tables folder, but the new game isn't appearing anywhere
+   in your XML files.
+</p>
+<p>
+   Explanation: That's as it should be.  The XML files don't get updated
+   just because you download a new .vpx file.  You have to tell PinballY
+   to add new tables to the XML files.
+</p>
+<p>
+   Does that mean you have to open the XML files in Notepad and patch them up by hand?
+   Absolutely not!  It just means that you have to
+   use the <b>Edit Game Details</b> command from the Game Setup menu.
+   What the XML files actually contain is the bibliographic information
+   for your tables (title, manufacturer, year of release, etc).
+   PinballY can't guess at that stuff based on a .vpx file, so to get
+   that information into the XML files, you have to enter the
+   information yourself.  The Edit Game Details dialog lets you do
+   that without having to open (or even know about) the XML files.
+</p>
+<p>
+   If you download and install a new table file (.vpx or whatever else),
+   the new game should immediately appear as an "unconfigured" table in the game
+   wheel, using the <b>filename</b> as the title.  For example, if
+   you download <b>Funhouse_v2_mod_07.vpx</b> and install it in
+   your Visual Pinball Tables folder, you should see a new wheel
+   entry with the title <b>Funhouse_v2_mod_08</b> when you return
+   to PinballY.  (There's no need to exit out of PinballY and
+   restart it; PinballY scans for new files whenever you
+   bring it back to the foreground after using other Windows
+   applications.)  Here's how to add the XML entry for a new game:
+</p>
+<ul>
+   <li>Navigate to the new game in the wheel (again, look for
+   the game by its <b>filename</b>)
+
+   <li>Bring up the main menu
+
+   <li>Select <b>Game Setup</b>
+
+   <li>Select <b>Edit Game Details</b>
+</ul>
+</p>
+<p>
+   If you can't find the new game anywhere in the wheel, after the table
+   file is properly installed in the appropriate Tables folder, check
+   the option setting for <b>Hide unconfigured games</b> in the
+   <b>Game Wheel</b> section of the settings dialog.  If you checked
+   that box, PinballY hides games that don't already have XML
+   entries.  You can un-check that box to restore the display of
+   games without XML entries.  Or, if you prefer not to show
+   unconfigured tables routinely, you can selectively show <i>just</i> the
+   current set of unconfigured tables using a game wheel filter.
+   Bring up the <a href="OperatorMenu.html">Operator Menu</a>
+   and select <b>Show Unconfigured Games</b>.  If you still can't
+   find the new game, try the steps under the topic
+   <b>PinballY isn't finding my tables</b> above.
+</p>
+<p>
+   See <a href="UsageTips.html#UnconfiguredTableFiles">Unconfigured Table Files</a>
+   in the <a href="UsageTips.html">Usage Tips</a> section for more
+   on viewing and setting up new games.
 </p>
 
 

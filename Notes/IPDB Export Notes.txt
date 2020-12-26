@@ -1,4 +1,64 @@
 IPDB Table List Notes
+---------------------
+
+Update - 12/26/2020: The original source of PinballY's IPDB file was
+essentially a "screen scrape" of the IPDB Web site, using the ad hoc
+and somewhat manual methods described below.  Now, there's a separate
+open-source project by Xantari that performs a more automated IPDB
+screen scrape to produce a JSON file:
+
+https://github.com/xantari/Ipdb.Database
+
+Xantari's JSON importer does some of the same data normalization that
+my process below does (e.g., it converts the manufacturing dates to a
+consistent format), so it's probably a better starting point for
+future updates/syncs.  However, Xantari's version isn't exactly
+equivalent to mine (e.g., his formulation of the manufacturer short
+name is different, he doesn't have an equivalent of the Alternate
+Title field, and I don't think he normalized the Theme format the way
+I did), so manual review will still be necessary.
+
+My advice to anyone who wants to perform an update/sync to the latest
+IPDB data would be to proceed as follows.  First, either perform a new
+screen scrape of the IPDB list as described in the original notes
+below, or start with Xantari's JSON data, and convert it to the same
+format.  Sort alphabetically by title.  Diff this against my last
+capture "ipdb/IPDB Alphabetical Game Listing capture.csv" in the git
+tree.  New rows represent new games that didn't exist in the version I
+captured.  Rows that appear in both but have differences must
+represent corrections or additions of missing items to the IPDB source
+data since my last capture.  In either case, make the same manual
+adjustments to the data as described below (add an appropriate
+manufacturer short name, normalize the manufacturing date, etc).
+Merge the results into the existing CSV - add the new rows, replace
+the existing rows with diffs.  Leave all of the other rows unchanged.
+
+After performing this synchronization/update process, be sure to
+update "ipdb/IPDB Alphabetical Game Listing capture.csv" in the git
+repository, so that the next person who wants to perform an update to
+the data you just updated has the right reference point to diff
+against the then-current IPDB source data.
+
+The approach outlined above should minimize the amount of manual
+fix-up work, because you'll only have to look at new and modified rows
+relative to the last IPDB sync, without having to review all of the
+rows that didn't change.  Since IPDB's underlying information is all
+historical data, the only changes in principle should be additions of
+new tables that weren't in the database previously, additions of
+missing information from existing entries, and corrections of errors
+in existing entries.  Since IPDB has been around for a long time and
+most of the tables in it have been around for decades, the rate of
+error correction is presumably exceedingly low, so we'd expect
+virtually all of the changes in any given update to be additions of
+new tables.  And even that should happen at quite a low rate: there
+can't be many historical tables left to discover that aren't already
+in the database, and actual new releases from commercial pinball
+manufacturers are only appearing at a rate of perhaps five to ten per
+year these days.  I should think that updating once a year or so
+should be adequate.
+
+
+---------------------
 
 The distribution includes a list of most of the real pinball tables
 ever manufactured, based on the list of tables from IPDB, aka the
