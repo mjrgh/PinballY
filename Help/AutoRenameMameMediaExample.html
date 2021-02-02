@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Auto Rename MAME Media Files</h1>
+
+<p>
+   I've heard from a couple of people who had very large collections
+   of MAME games set up in PinballX, and wanted to try running
+   them with PinballY, but found that PinballY wasn't finding
+   the media files for the MAME games because they were named
+   according to the MAME ROM file names.  PinballX looks for
+   media files under several naming conventions, including the
+   ROM file names, so a lot of people set up their PinballX
+   collections using the ROM naming convention.
+</p>
+<p>
+   When I wrote PinballY, I intentionally chose to use a single naming
+   convention for media files, rather than looking under multiple
+   naming conventions the way that PinballX does.  I prefer to keep
+   this sort of thing to be as simple as possible - so one naming rule,
+   not many - because it's easier to learn, easier to explain,
+   and less to go wrong in the software.  PinballY simply uses the
+   "Title (Manufacturer Year)" naming pattern for all media files;
+   users don't have to guess what PinballY is looking for,
+   since you can count on that single naming rule always
+   applying.  But there is one downside
+   in this case, which is that some people migrating from PinballX
+   might have chosen to use one of PinballX's other naming
+   conventions, so PinballY won't find those media files until
+   they're renamed to follow the uniform PinballY convention.
+</p>
+<p>
+   If you have a media file collection already set up using
+   one of PinballX's other naming rules, such as the ROM names,
+   it might not be that big a deal to rename the files manually
+   if you have a small collection of games.  But if you have a
+   large or very large collection, as some people do, it might
+   be completely out of the question to rename the files by hand.
+</p>
+<p>
+   Fortunately, the renaming that's necessary is pretty mechanical
+   in most cases, so it's something that we can automate.  To help
+   out people in this situation, I wrote a little Javascript script
+   that does the following:
+</p>
+<ul>
+   <li>Each time you visit a game in the wheel UI, the script
+   looks to see if the game has any media files under the
+   "standard" PinballY media naming convention.
+
+   <li>If not, the script looks to see if there are any media
+   files under the "alternative" name that PinballX looks for
+   based on the ROM name
+
+   <li>If there are media files under the "alternative" name,
+   and no media files under the "standard" name, the script
+   renames all of the alternative-named files to use the standard
+   name instead
+</ul>
+
+<p>
+   Since the script operates by renaming media files as you visit
+   games, you just have to go through each game in the UI once
+   to rename everything.  Then you can disable or remove the
+   script (which you really should do when you're done with it,
+   since the script slows down the UI a little bit by doing all
+   of those extra file searches each time you visit a game).
+</p>
+
+<p>
+   This script is so specialized that I'm not going to try to explain
+   its workings in detail; I don't think most of what it does will
+   be very applicable to other situations.  So I'll just present
+   the script without further explanation.  However, I did at least
+   include a lot of comments within the script, so you should be able
+   to get a good idea of how it works by reading through it.
+</p>
+
+<div class="code">
+// Automatic media file renamer
+//
+// Copy this into a file called Main.js in your PinballY\Scripts folder.
+// Exit out of PinballY if it's running, and restart it.  As you scroll
+// through your games, this script will check each game as it's selected
+// in the wheel to see if the game has any media files under the expected
+// media file name, using the "Title (Manufacturer Year)" naming rule.
+// If no such files are found, it'll look to see if the game has any media
+// files under the alternative PinballX convention, which lets you name
+// media files the same as the raw table file name (in the case of MAME
+// video games, this is typically the name of the MAME ROM file).  If
+// so, the script will automatically rename the files to match the
+// "Title (Manufacturer Year)" convention.
+//
+// Note that this might slow down scrolling through the wheel UI a bit,
+// so you'll probably want to install this script only long enough to go
+// through all of your games once (one at a time).  The file renaming is
+// permanent, so you should only need to make one pass through an existing
+// collection.  You can then remove the script for normal use.
+//
+gameList.on("gameselect", ev =>
+{
+    // get the game
+    let game = ev.game;
+
+    // If this game is configured (i.e., it has an XML database entry),
+    // check for media.
+    if (game.isConfigured)
+    {
+        // Note the current, "standard" media name.
+        let stdMediaName = game.mediaName;
+        
+        // Figure the "alternative" PinballX naming convention for the
+        // game's media, based on the table file name.  The table file
+        // name sometimes includes the system extension and sometimes
+        // doesn't (PinballX's setup tool seems to be inconsistent
+        // about this, so PBY allows it either way).  So check for the
+        // default extension, and remove it if present.
+        let altMediaName = game.filename;
+        let ext = (game.system || {}).defExt;
+        if (ext && altMediaName.endsWith(ext))
+            altMediaName = altMediaName.substr(0, altMediaName.length - ext.length);
+
+        // If the alt media name doesn't match the standard media name
+        // (using the "Title (Manufacturer Year)" convention), check for
+        // media that need to be renamed.  There's no point in checking
+        // for media if the alt name and standard name are the same, as
+        // we'd just be renaming from X to X.
+        if (altMediaName != stdMediaName)
+        {
+            // Let's find out if there are any existing media files under
+            // the "right" media name, via a sneaky trick.  Changing the
+            // media name in the GameInfo object will hand us back a list
+            // of the game's existing media files under the *old* name,
+            // to give us a chance to rename them.  If this list has any
+            // entries, we'll know that there are existing files.  We
+            // don't *really* want to change the game's media name - this
+            // is purely to probe for the existence of the files.  However,
+            // it also has a handy side effect, which is that if we change
+            // the name to the "alt" name, and then change it *back*, the
+            // change back will give us the same information about extant
+            // media files under the "alt" name.  So, step 1: change the
+            // media name to the "alt" name, WITHOUT actually renaming any
+            // existing files, purely to probe for existing files.
+            let update = game.update({mediaName: altMediaName}, {renameMedia: false});
+
+            // Step 2: let's see if the game has any existing media under
+            // the "normal" name.  If it did, the update results will have
+            // a list of one or more files that need to be renamed to match
+            // the media name change we just made.
+            if ((update.renamedMediaFiles || []).length > 0)
+            {
+                // The game DOES have media files under the "standard"
+                // name, so we don't want to rename anything after all!
+                // Simply restore the original media name, and we're done.
+                game.update({mediaName: stdMediaName}, {renameMedia: false});
+            }
+            else
+            {
+                // The game DOESN'T have any media files under the "standard"
+                // name.  So the question now is: does it have any media
+                // files under the "alternate" name?  If so, we'll want to
+                // rename those files to the "standard" name.  Luckily,
+                // thanks to the media name change we just made, the next
+                // step is practically trivial.  Since the game's media name
+                // is now the "alt" name, renaming it BACK to the "standard"
+                // name will have the effect of searching for extant media
+                // files under the "alt" name and renaming them to the
+                // "standard" name.  In this case, we'll let the update()
+                // function do the renaming for us.  Note that we don't even
+                // have to make any extra checks for extant files here; the
+                // mere act of updating the media name from "alt" to "std"
+                // will have the desired side effect of renaming any media
+                // files that exist under the "alt" name, and won't do
+                // anything if not.  And it also puts things back in their
+                // original state for the game's metadata, so two birds, one
+                // stone!
+                game.update({mediaName: stdMediaName}, {renameMedia: true});
+            }
+        }
+    }
+});
+</div>
+
+<h2>Anther approach</h2>
+
+<p>
+   There's an alternative to renaming all of your files, if that seems
+   cumbersome or undesirable to you.  (You might prefer not to do that,
+   for example, if you plan to switch back and forth between PinballX
+   and PinballY, or if you're only trying out PinballY temporarily.)
+</p>
+<p>
+   Instead of renaming the files, we can override the media name that
+   PinballY looks for, on a per-game basis.  A script that does that is
+   <i>almost</i> the same as the script above, since the key to accomplishing
+   it is to change the <b>mediaName</b> property of each game.  When
+   <b>mediaName</b> has a custom value, PinballY will use that custom
+   value to look for media files, instead of using the default
+   "Title (Manufacturer Year)" pattern.
+</p>
+<p>
+   To get the script above to do this, we'd just have make a couple
+   of changes:
+</p>
+<ul>
+   <li>In the last step, where we use <b>{renameMedia: true}</b> to
+   carry out the file renaming step, we'd instead use <b>{renameMedia: false}</b>
+   to change the name back <i>without</i> renaming any files.
+
+   <li>We'd <i>also</i> capture the return value from that last <b>update()</b>
+   call, just like we did earlier with the first <b>update()</b> result.
+
+   <li>We'd then check the return value from the last <b>update()</b> to see
+   if any existing files would have been affected by the media name change,
+   by checking <b>(update.renamedMediaFiles || []).length &gt; 0)</b>.
+
+   <li>If files were affected, we'd do yet another <b>update()</b> just like
+   the first one, to put the alternative ROM media name into effect,
+   leaving files unchanged.  This final update will leave the alternative
+   ROM media name in effect permanently for the game.  PinballY will now
+   look for your existing media files whose names are based on the ROM
+   name each time this game is selected.
+</ul>
+
+<p>
+   This approach has the advantage that it doesn't mess with your files.
+   Renaming your files en masse might have some unwanted side effects;
+   for example, if you use a backup program, this might force your
+   backup program to make new (and redundant) backup copies of all of
+   those media files, since it might not recognize that they're actually
+   existing files with new names.
+</p>
+<p>   
+   The only reason I didn't write the script to use this approach in the
+   first place is that it overrides the PinballY defaults, which
+   means your system will have an unusual setup from that point on.
+   I always think it's preferable to use the
+   default rules as much as possible, because my own experience - not
+   with PinballY specifically, just with all software in general - is
+   that you're always asking for trouble when you go outside the
+   defaults.  The defaults are what most people use, so they're what
+   gets tested the most and what gets fixed first when something goes wrong.
+   The more "custom" you make your system, the more likely you are to
+   encounter an obscure bug that's there just because no one thought
+   to test that particular case before.  So I think the most reliable
+   approach here is to go with the flow by renaming the files to fit
+   PinballY's default expectations, rather than changing PinballY's
+   defaults to fit your existing files.  But as I said
+   above, you might have good reasons not to want to rename hundreds
+   or thousands of files, and those reasons might be good enough
+   to justify going outside the defaults here.
+</p>
+   
+
+</body>
+</html>

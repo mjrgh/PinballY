@@ -61,6 +61,7 @@ var contents = [
             "++ExitVideoExample.html Play a Video on Quit",
             "++UpdateCheckExample.html Check for PinballY Updates",
             "++ExitByLongKeyPressExample.html Exit Game by Long Key Press",
+            "++AutoRenameMameMediaExample.html Auto Rename MAME Media Files",
         "+Commands.html Commands",
         "+CustomDrawing.html Custom Drawing",
         "+DrawingLayer.html Drawing Layers",

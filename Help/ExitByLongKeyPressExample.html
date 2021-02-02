@@ -27,25 +27,37 @@
 </p>
 <p>
    There are a few ways to operate a cab without an Exit button.
-   The most obvious is to <i>actually</i> include an Exit button,
-   just putting it somewhere hidden, like on the bottom of the
-   cabinet.  Another way is to use special features in your key
-   encoder to simulate extra buttons; for example, some key
-   encoders let you create "Shift" buttons that give all of
-   your other buttons a second meaning.  So you could make your
-   Start button do double duty as both the Start and Exit button,
-   by assigning Exit to its shifted function.
+   The most obvious way is to cheat, by really having an Exit
+   button after all, but putting it someplace hidden, such as
+   on the bottom of the cabinet, or inside the coin door.  Another
+   option is to use special features in your key encoder to
+   simulate extra buttons; for example, some key encoders let you
+   create "Shift" buttons that give all of your other buttons a
+   second meaning.  So you could make your Start button do double
+   duty as both the Start and Exit button, by assigning Exit to
+   its shifted function.
 </p>
 <p>
-   This script offers another alternative: it turns a "long press"
-   on one of your other buttons into a simulated Exit button press.
-   A "long press" simply means that you press and hold the button
-   for a few seconds.  The Start button seems to me to be the obvious
-   choice, since there's a nice symmetry to pressing it to start a game,
-   and pressing it again (with a long hold) to exit the game.  It
-   also happens to work well with most tables, since I don't think
-   I've seen any tables where a long press on the start button had
-   any special meaning within the table itself.
+   Hidden buttons and shifted buttons can be a little cumbersome
+   to use, though.  Another possibility that you might find a
+   little more convenient is to use a "long press" with one of
+   your regular buttons.  That means that you pick one of the
+   standard buttons (the Start button, say), and hold it down
+   for a few seconds to activate the Exit Game function.  The
+   Start button seems like the right choice to me, since there's
+   a nice symmetry to using the same button to start and end
+   a game.  The Start button is also a good choice for practical
+   reasons, in that I can't think of any pinball tables where
+   you'd need to press and hold the Start button while playing -
+   so you won't accidentally exit the game when you meant to do
+   something else within the game.  (In contrast, you wouldn't
+   want to use the flipper buttons for a long-press gesture,
+   since it's perfectly normal to hold down a flipper button for a long
+   time while playing, such as when you want to trap a ball.)
+</p>
+<p>
+   PinballY doesn't have any notion of a "long press" built in,
+   but it's something that we can easily implement with Javascript.
 </p>
 
 <h2>Key event listeners and timers</h2>
