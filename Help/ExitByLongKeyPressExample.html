@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Exit the Game by a Long Key Press</h1>
+
+<p>
+   The usual way of exiting a game and returning to PinballY
+   is to press the "Exit" button
+   on your cabinet.  PinballY lets you map the Exit function to any
+   keyboard key or joystick button, so as long as you have a dedicated
+   button on your cab labeled Exit, you can assign it in PinballY
+   as the "end game" button.
+</p>
+<p>
+   But what if your cab doesn't have a separate Exit button?  Some
+   cab builders prefer a very minimal set of buttons, to better
+   replicate the spare look of a real pinball machine.
+</p>
+<p>
+   There are a few ways to operate a cab without an Exit button.
+   The most obvious is to <i>actually</i> include an Exit button,
+   just putting it somewhere hidden, like on the bottom of the
+   cabinet.  Another way is to use special features in your key
+   encoder to simulate extra buttons; for example, some key
+   encoders let you create "Shift" buttons that give all of
+   your other buttons a second meaning.  So you could make your
+   Start button do double duty as both the Start and Exit button,
+   by assigning Exit to its shifted function.
+</p>
+<p>
+   This script offers another alternative: it turns a "long press"
+   on one of your other buttons into a simulated Exit button press.
+   A "long press" simply means that you press and hold the button
+   for a few seconds.  The Start button seems to me to be the obvious
+   choice, since there's a nice symmetry to pressing it to start a game,
+   and pressing it again (with a long hold) to exit the game.  It
+   also happens to work well with most tables, since I don't think
+   I've seen any tables where a long press on the start button had
+   any special meaning within the table itself.
+</p>
+
+<h2>Key event listeners and timers</h2>
+<p>
+   Our approach to implementing the long press is pretty simple, especially
+   if you've read any of the other worked examples that involve keyboard
+   events.  We really just need three elements:
+</p>
+<ul>
+   <li>A key event listener that fires when you <b>press</b> the button
+   that we're going to use for the long press.  This listener will start
+   a timer each time you press the button; when the timer expires, it'll
+   fire a Kill Game command to terminate the running game and return to
+   PinballY, as though you had pressed a physical Exit button on the
+   cabinet.
+
+   <li>Another key event listener that fires when you <b>release</b> the
+   button.  This simply cancels the timer, if it's running, so that
+   short presses (below the desired hold interval) don't also exit the
+   running game.
+
+   <li>The timer function, which simply fires the Kill Game command.
+   The timer function will only execute when the timer runs to completion,
+   which will only happen when the player presses and holds the button
+   for longer than the timeout interval.
+</ul>
+
+<p>
+   For more details on keyboard events, see <a href="KeyEvent.html">KeyEvent</a>.
+   For details on timers, see setTimeout() and clearTimeout() in
+   <a href="SystemFunctions.html">System Functions</a>.
+</p>
+
+<h3>The script</h3>
+
+<p>
+   Here's the script that puts this all together.  To make it easier to
+   adapt to different situations, we defined the button that triggers
+   the command and the long-press hold time with constants at the top.
+   Just change those constants to customize either element.
+</p>
+
+<div class="code">
+// The key code to use for the long press.  Set this to one of the
+// standard Web browser KeyboardEvent key codes: see, for example,
+// https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values
+const StartButtonCode = "Digit1";
+
+// Long key press time.  This is the time in milliseconds for the long
+// press.  Hold down the key for this long to exit the game.
+const LongPressTime = 3000;
+
+// When a key timer is running, we remember it here
+let timer = undefined;
+
+// When the start button is pressed, start a timer.  When the timer
+// expires, send a KILL GAME command to the main window, to simulate
+// the effect of the EXIT button.
+mainWindow.on("keydown keybgdown", ev => {
+    if (!ev.repeat && ev.code == StartButtonCode && mainWindow.getUIMode().runMode) {
+        cancelTimer();
+        timer = setTimeout(function() {
+            mainWindow.doCommand(command.KillGame);
+            timer = undefined;
+        }, LongPressTime);
+    }
+});
+
+// If the start button is released while our long-press timer is
+// running, cancel the timer.
+mainWindow.on("keyup keybgup", ev => {
+    if (ev.code == StartButtonCode)
+        cancelTimer();
+});
+
+// Cancel the timer, if it's running.
+function cancelTimer()
+{
+    if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+    }
+}
+</div>
+
+
+</body>
+</html>
