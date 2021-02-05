@@ -10,7 +10,7 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>Custom game launch options for media capture</h1>
+<h1>Custom Game Command Line for Media Capture</h1>
 
 <p>
    In some cases, you might want to use different command-line options
@@ -167,6 +167,107 @@ mainWindow.on("prelaunch", ev => {
    end" or whatever else.  New options go where the particular
    program says they go.
 </p>
+
+<h2>Adapting the script to other game systems</h2>
+
+<p>
+   The "Exclusive Full Screen" media capture issue will apply to any
+   game system that uses Exclusive Full Screen mode.  The same technique
+   we used in the script above should be adaptable to other systems.
+   Javascript lets you have as many <b>prelaunch</b> event listeners
+   as you want, so you can just add another event listener based on the
+   one above for each system that needs one.
+</p>
+<p>
+   The first step in adapting the event listener to a new system is
+   to recognize the new system.  If the system has a sufficiently
+   unique filename extension that identifies its games, that should
+   be a reliable way to identify it:
+</p>
+<div class="code">
+if (command == command.CaptureGo && game.system.defExt == ".somepin")
+</div>
+<p>
+   If the system doesn't use game files, or doesn't have a unique
+   enough default extension, you could rely on the executable filename.
+   The <b>exe</b> property of the GameSysInfo object gives us the
+   full name, with drive letter and directory path prefix, so you
+   might want to use a regular expression to just look for the
+   main file name portion:
+</p>
+<div class="code">
+if (command == command.CaptureGo && /\\somepinplayer\.exe$/i.test(game.system.exe))
+</div>
+
+<p>
+   Once you've identified the system, all that remains is to 
+   tell the program being launched not to use Exclusive Full Screen mode
+   for the current session.  Exactly how you do that is up to the particular
+   player program you're using:
+</p>
+<ul>
+   <li>If the system has a command-line option similar to VPX's
+   /disableTrueFullScreen, it's a simple matter of inserting the option
+   into the default parameters using <b>ev.overrides.params</b>, just
+   like the example above.  You just have to replace VP's /disableTrueFullScreen
+   with the corresponding option flag for the particular program.  You
+   might also have to change where it's inserted into the original
+   parameters; VPX is happy to have the parameter tacked onto the
+   end, but other systems might need it inserted at the beginning
+   of the other parameters, or at some point in the middle.  Each
+   program defines its own command-line syntax, so there's no general
+   rule to follow here; you just have to figure out how the program
+   you're working with expects the parameter.
+
+   <li>Some programs might not have a command-line option for this
+   at all, but might instead store the option in a settings file,
+   for example, or in the Windows registry.  In that case, you'd have
+   to write Javascript code to update the program's setting file,
+   registry keys, etc.  PinballY's Javascript has access to all
+   of the Windows API functions, so this is all doable: see
+   <a href="DllImport.html">Calling Native DLLs from Javascript</a>
+   for details on how to access native Windows functions.  File
+   system access is easiest through the Windows "Scripting.FileSystemObject"
+   interface; see <a href="OLEAutomation.html">OLE Automation Objects</a> for
+   more on accessing that sort of thing.
+   <p>
+      Note that if you do have to change the contents of a settings file,
+      registry key, or something of that sort, you'll probably also
+      want to restore the original settings after the game finishes.
+      You can do that by setting up a separate event listener
+      for the <b>postlaunch</b> event, which you can read about in the
+      <a href="LaunchEvent.html">LaunchEvent</a> chapter.  That event
+      is the end-of-game counterpart of <b>prelaunch</b>, so it gives
+      you a chance to "clean up" anything that you did before launching
+      the game.  The most elegant way to handle this would be via a
+      "once" event listener, since that sets up a handler that's called
+      exactly once and then discarded.  So the <b>prelaunch</b>
+      handler would look something like this:
+   </p>
+   <div class="code">
+mainWindow.on("prelaunch", ev => {
+    if (command == command.CaptureGo && game.system.defExt == ".somepin") {
+
+        // *** make the settings change here ***
+
+        // ...and then set up an event listener to undo the settings
+        // changes after the game exits
+        mainWindow.once("postlaunch", ev => {
+
+            // *** restore the original settings here ***
+
+        });
+   });</div>
+   <p>
+      That will neatly install the cleanup event listener only when it's needed,
+      and automatically remove the event listener after it runs.  That
+      eliminates any need for the event handler to check global variables
+      or anything like that to see if it needs to do its work; the fact
+      that it's running is enough to know that it should go ahead and
+      undo the changes.
+   </p>
+
+</ul>
 
    
 </body>

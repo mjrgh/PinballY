@@ -614,6 +614,33 @@ similar to any issues you're having.
    of changing the PinballY settings to match the folder names you're using.
 </p>
 
+<h3>Capture doesn't work with "Exclusive Full Screen Mode"</h3>
+
+<p>
+   Symptom: When you run a media capture, you just get a blank image or
+   video, or just error messages, if Visual Pinball (or any other game system)
+   is running in Exclusive Full Screen Mode.
+</p>
+<p>
+   Cause: "Exclusive" mode is so named because it means that the game has
+   exclusive access to the video display; in other words, the game is the
+   only program that's allowed to access the display while the game is
+   in the foreground.  This prevents PinballY from being able to access
+   the display to take a screen shot of the game in action.
+</p>
+<p>
+   Solution: Disable Exclusive Full Screen mode in the Visual Pinball
+   options (or whichever other game player program you're capturing from)
+   before running the capture.
+</p>
+<p>
+   That's a bit inconvenient, I know!  But you can automate it with a
+   little Javascript.  See <a href="CaptureCommandLineChangeExample.html">Custom Game Command Line for Media Capture</a>
+   for the script code needed for Visual Pinball.  The Javascript code required
+   actually is pretty simple, so you should be able to adapt it for any other
+   game system as well if needed.
+</p>
+
 
 <h3>The capture screen location is wrong for the playfield/backglass/other window</h3>
 
