@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2021 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom game launch options for media capture</h1>
+
+<p>
+   In some cases, you might want to use different command-line options
+   when launching Visual Pinball (or another game system) for a media
+   capture session, vs. the regular options for a regular game play
+   session.
+</p>
+<p>
+   I know of one special case where this is particularly useful, which
+   is VP's "true full screen" mode.  Many people normally run VP in
+   Exclusive Full Screen mode, because the version of DirectX that
+   VP is based on can achieve better GPU performance in that mode.
+   But this creates a problem for media capture operations: by its
+   very nature, "exclusive" mode means that only one program can
+   access the video display.  So putting the display in "exclusive"
+   mode means that FFMPEG can't capture the video, defeating the
+   whole purpose of the media capture operation.
+</p>
+<p>
+   At least one person has proposed adding a special feature to PinballY
+   to turn off VP's exclusive mode when running a capture.  But I can't
+   see a way to do that without building knowledge of that very specific
+   feature of VP into PinballY.  I try to avoid making PinballY know
+   special things about VP, because I want PinballY to work with <i>any</i>
+   game system you want to use it with.  Special handling for VP
+   violates that principle of generality.
+</p>
+<p>
+   So instead of building special knowledge of VP into PinballY, I'll
+   provide this worked example showing how you can use Javascript
+   to perform this kind of extremely specific customization.  This
+   is the only way I see that makes it general enough to apply the
+   same idea to other systems that might need something similar.
+</p>
+
+<h2>Launch events and command lines</h2>
+
+<p>
+   The approach we're going to use is to listen for a <b>prelaunch</b>
+   event.  That event fires when a game is about to be launched, and
+   it gives Javascript a chance to do all of the following:
+</p>
+<ul>
+   <li>Determine which game is being launched
+   <li>Find out which game system is going to be used (VP, FP, etc)
+   <li>See whether we're launching for a regular game session or a media capture operation
+   <li>Change the command line as needed
+</ul>
+
+<p>
+   So this lets us accomplish our goal here: when we see a VP X game
+   being launched for a media capture operation, we'll sneak in and
+   add the "disableTrueFullScreen" option to the VP command line.
+</p>
+
+<p>
+   This example uses a number of system objects, which you can find
+   full details on in other chapters:
+</p>
+<ul>
+   <li>The <b>prelaunch</b> event is part of the <a href="LaunchEvent.html">LaunchEvent</a> group
+   <li>The <a href="GameInfo.html">GameInfo</a> object contains information on the game being launched
+   <li>The <a href="GameSysInfo.html">GameSysInfo</a> object contains information the game system
+       (in other words, the program that we launch to play the game, such as Visual Pinball)
+   <li><a href="Commands.html">Commands</a> has a list of the command codes, which is what we use to
+   distinguish regular "play" launches from media capture launches
+</ul>
+
+
+<p>
+   Here's the script:
+</p>
+
+<div class="code">
+// Intercept the prelaunch event, which fires each time a game is
+// about to be launched.  This fires BEFORE the launch process starts,
+// so it gives us an opportunity to edit the command line that will be
+// used to launch the program.
+mainWindow.on("prelaunch", ev => {
+    // check to see if we're in Media Capture mode AND this is VP X
+    if (ev.command == command.CaptureGo && game.system.systemClass == "VPX") {
+        // We're launching a Visual Pinball X game in media capture mode.
+        // Edit the command line to add the /disableTrueFullScreen option flag.
+        ev.overrides.params = gameSysInfo.params + " /disableTrueFullScreen";
+    }
+});
+</div>
+
+<p>
+   The overall body of the code is simply an event listener for the
+   <b>prelaunch</b> event.  As mentioned above, a listener for this event has the ability
+   to modify anything about the command line for the game that's about to
+   be launched.
+</p>
+<p>
+   The first thing the event listener does is check the command to see
+   if it's a media capture command (command.CaptureGo) and that the
+   game system is Visual Pinball X.  The special command-line option
+   that we want to insert only applies to that particular situation -
+   we wouldn't want to add it to a Future Pinball launch, for example.
+</p>
+<p>
+   Note that we detect that the game is a Visual Pinball X game by
+   checking the "system class" of the game system that we're about
+   to launch.  The "game system" is simply PinballY's internal data
+   record describing the program.  This corresponds exactly to one
+   of the game systems that you can edit in the Settings dialog.
+   The "system class" is one of the game system properties that you
+   can select in the dialog.  Even though I made a big deal earlier
+   about how PinballY tries to avoid special knowledge of Visual
+   Pinball (or any other particular game system), there are a <i>few</i>
+   special cases that PinballY does have to handle, which is why it lets
+   you specify that a particular system is VP, VPX, FP, or Steam-based.
+   The script takes advantage of the fact that we have this way to
+   specially designate VPX among the system data records.  If you
+   wanted to create a similar script that detects launches for some
+   <i>other</i> game system that <i>doesn't</i> have a special system
+   class in PinballY, you could use one of the other GameSysInfo
+   properties to detect the system.  One way would be to identify
+   it by name, using the <b>displayName</b> property of the GameSysInfo
+   object.  I consider that a little unreliable because you can
+   really set it to anything you want to for any system; it's just
+   there for display purposes, not for absolute identification.
+   A better way might be to check the <b>defExt</b> property,
+   which tells you the filename extension used by the system's games;
+   that might be unique enough to be reliable.  Another option
+   would be to look at the <b>exe</b> property, which tells you
+   the EXE program file's name; that might also be unique enough
+   to reliably identify the system.
+</p>
+<p>
+   Once we've identified the system as VPX, and identified the
+   command as a Media Capture operation, we spring into action.
+   The goal here is to get VP <i>not</i> to use exclusive
+   full-screen mode for this session.  VP helpfully provides a
+   command-line option that does exactly that, <b>/disableTrueFullScreen</b>.
+   So all we have to do is append that option to the command line
+   options that we were going to provide for a normal launch.
+   To get the original options, we just look at the <b>params</b>
+   property of the system's GameSysInfo object.  That gives us
+   the exact text that you typed into the Settings dialog for
+   this system.  In the case of VPX, we can add new option flags
+   simply by stringing them along at the end of the rest of the
+   command line, so we use the Javascript string "+" operator
+   to append the option at the end.
+</p>
+<p>
+   Note that some other systems might need options to be inserted
+   at the beginning of the command line, or pasted into the middle.
+   This is one more reason that it's not easy to generalize this
+   into something that we could have built into PinballY itself.
+   Command-line syntax on Windows is inherently idiosyncratic,
+   so we can't say in general that "new options always go at the
+   end" or whatever else.  New options go where the particular
+   program says they go.
+</p>
+
+   
+</body>
+</html>

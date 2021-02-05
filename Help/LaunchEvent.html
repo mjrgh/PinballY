@@ -20,7 +20,14 @@
    <li><b>prelaunch:</b>  Fired just before a game is about to be launched.
    This event occurs before any part of the launch process begins, so
    you can cancel the event (via <a href="Event.html#preventDefault">preventDefault()</a>)
-   to prevent the launch.
+   to prevent the launch.  This event also has the unique ability to
+   modify anything about the command line that will be used to launch
+   the game, including the executable path and command-line options,
+   by setting properties of the <b>overrides</b> object in the event
+   object (explained below, under the event properties).  For example,
+   you can use <b>overrides</b> to add special command-line parameters
+   that depend upon the particular game being launched or the command
+   that was used to launch it.
 
    <li><b>gamestarted:</b>  Fired when PinballY detects that the launched
    game has successfully started and opened a window.  The exact timing of

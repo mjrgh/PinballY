@@ -25,6 +25,16 @@ already.  So given that there's no security value in making the launch
 less convenient, I decided it was worthwhile to make the launch more
 convenient by adding this "trust always" option.)
 
+* A new worked example in the help ("Custom game launch options for
+media capture") shows how to edit the game system's command line
+specifically for a media capture operation.  This is useful in
+particular for VPX users who normally run in Exclusive Full-Screen
+Mode, since exclusive mode by its nature prevents media capture from
+working.  The example shows how you can automatically disable VPX's
+Exclusive mode just for the duration of a media capture launch, so
+that you don't have to manually toggle it on and off when performing
+captures.  (Issue #146 on github.)
+
 * Fixed a few rough edges in the UI with launching and exiting games
 that run in Admin Mode.  (E.g., the "Paused Game" menu sometimes
 popped up unnecessarily when you terminated an Admin Mode game with
