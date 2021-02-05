@@ -446,17 +446,27 @@ bool PlayfieldView::InitWin()
 	// setup has been completed.
 	D3DView::SubscribeIdleEvents(this);
 
-	// register for Capture Manual Go notifications from the Admin Host, if present
+	// Register for notifiactions from the Admin Host, if present
 	if (auto app = Application::Get(); app->IsAdminHostAvailable())
 	{
+		// Set up the Capture Manual Go notifier
 		MsgFmt shwnd(_T("%ld"), (long)(INT_PTR)hWnd);
-		MsgFmt smsg(_T("%d"), PFVMsgManualGo);
-		const TCHAR *req[] = {
-			_T("regStartStopMsg"),
+		MsgFmt manualGoMsg(_T("%d"), PFVMsgAdminManualGo);
+		const TCHAR *req1[] = {
+			_T("regManualGoNotifier"),
 			shwnd,
-			smsg
+			manualGoMsg
 		};
-		app->PostAdminHostRequest(req, countof(req));
+		app->PostAdminHostRequest(req1, countof(req1));
+
+		// Set up the Exit Game notifier
+		MsgFmt exitGameMsg(_T("%d"), PFVMsgAdminExitGame);
+		const TCHAR *req2[] = {
+			_T("regExitGameNotifier"),
+			shwnd,
+			exitGameMsg
+		};
+		app->PostAdminHostRequest(req2, countof(req2));
 	}
 
 	// success
@@ -3931,9 +3941,14 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_APPROVE_ELEVATION:
+	case ID_APPROVE_ELEVATION_ALWAYS:
 		// The user has approved launching the current game in Admin mode.
-		// Make sure we have a game to launch...
-		if (auto game = GameList::Get()->GetNthGame(0); game != nullptr)
+		// Make sure a game is selected in the UI and that it matches the game
+		// that we approved for elevation.  We process this approval asynchronously,
+		// so it's possible that the user has already navigated to a different game
+		// in the UI, which we'll interpret as a desire to cancel the launch.
+		if (auto game = GameList::Get()->GetNthGame(0); 
+			game != nullptr && game->internalID == lastGameRequestingElevation)
 		{
 			// Find the system we're going to run the game with.  If
 			// the game has a configured system, we'll always use that.
@@ -3964,6 +3979,22 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 				// session, so this implicitly approves future launches on
 				// this same system.
 				system->elevationApproved = true;
+
+				// If the command was "approve always", it means that we're going to
+				// trust this particular program from now on.  Indicate this in the
+				// configuration by setting the config variable SystemN.TrustedExe
+				// to the (fully resolved) executable filename.  This ensures that
+				// we ask again for approval in the future if the executable ever
+				// changes, such as after installing a new version of the program.
+				// This is also an admittedly weak security precaution to make it
+				// slightly more difficult for a malicious program to tamper with
+				// the settings, by requiring this bit of internal consistency.
+				if (cmd == ID_APPROVE_ELEVATION_ALWAYS)
+				{
+					auto cfg = ConfigManager::GetInstance();
+					MsgFmt trustedVar(_T("System%d.TrustedExe"), system->configIndex);
+					cfg->Set(trustedVar, system->exe.c_str());
+				}
 
 				// Try launching the game again.  Use the same command and the
 				// same system index as the original launch attempt (the most
@@ -8634,6 +8665,10 @@ void PlayfieldView::EndRunningGameMode()
 	StartAnimTimer(runningGamePopupStartTime);
 	runningGamePopupMode = RunningGamePopupClose;
 
+	// if the pause-game menu is showing, dismiss it
+	if (curMenu != nullptr && curMenu->id == L"pause game")
+		StartMenuAnimation(false);
+
 	// restore status line updates
 	EnableStatusLine();
 
@@ -9032,55 +9067,79 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 			return true;
 		}
 
-		// Check whether we need an Admin Host or just need approval
-		// for the current system
-		if (Application::Get()->IsAdminHostAvailable())
 		{
-			// The Admin Host is running, so the issue is that the game
-			// system hasn't been approved for elevation yet.  Show the
-			// menu asking for approval for this system.
+			// get the system
+			auto sysConfigIndex = static_cast<int>(wParam);
+			auto sys = GameList::Get()->GetSystem(sysConfigIndex);
+			const TCHAR *sysName = sys != nullptr ? sys->displayName.c_str() : _T("(Unknown System)");
 
-			// Get the name of the system from the WPARAM
-			auto sysName = reinterpret_cast<const TCHAR*>(wParam);
+			// Check whether we need an Admin Host or just need approval
+			// for the current system
+			if (Application::Get()->IsAdminHostAvailable())
+			{
+				// The Admin Host is running, so the issue is that the game
+				// system hasn't been approved for elevation yet.  Show the
+				// menu asking for approval for this system.
 
-			// Remember the game ID, so that we can be sure to launch the
-			// same game on approval.  The current game selection in the
-			// UI could have changed since the launch attempt, since the
-			// launch process runs asynchronously.
+				// Remember the game ID, so that we can be sure to launch the
+				// same game on approval.  The current game selection in the
+				// UI could have changed since the launch attempt, since the
+				// launch process runs asynchronously.
+				lastGameRequestingElevation = static_cast<LONG>(lParam);
 
-			// set up the menu
-			std::list<MenuItemDesc> md;
-			md.emplace_back(MsgFmt(IDS_ERR_NEED_ELEVATION, sysName), -1);
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_RUN_GAME_ADMIN), ID_APPROVE_ELEVATION);
-			md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_GAME_ADMIN), ID_MENU_RETURN, MenuSelected);
+				// set up the menu
+				std::list<MenuItemDesc> md;
+				md.emplace_back(MsgFmt(IDS_ERR_NEED_ELEVATION, sysName), -1);
+				md.emplace_back(_T(""), -1);
+				md.emplace_back(LoadStringT(IDS_MENU_RUN_GAME_ADMIN), ID_APPROVE_ELEVATION);
+				md.emplace_back(LoadStringT(IDS_MENU_RUN_GAME_ADMIN_ALWAYS), ID_APPROVE_ELEVATION_ALWAYS);
+				md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_GAME_ADMIN), ID_MENU_RETURN, MenuSelected);
 
-			// show the menu in "dialog" mode
-			ShowMenu(md, L"approve elevation", SHOWMENU_DIALOG_STYLE);
-		}
-		else
-		{
-			// The Admin Host isn't running.  Offer to start it.
+				// show the menu in "dialog" mode
+				ShowMenu(md, L"approve elevation", SHOWMENU_DIALOG_STYLE);
+			}
+			else
+			{
+				// The Admin Host isn't running.  Offer to start it.
 
-			// Get the name of the system from the WPARAM
-			auto sysName = reinterpret_cast<const TCHAR*>(wParam);
-		
-			// set up the menu
-			std::list<MenuItemDesc> md;
-			md.emplace_back(MsgFmt(IDS_ERR_NEED_ADMIN_HOST, sysName), -1);
-			md.emplace_back(_T(""), -1);
-			md.emplace_back(LoadStringT(IDS_MENU_RUN_ADMIN_HOST), ID_RESTART_AS_ADMIN);
-			md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_AS_ADMIN), ID_MENU_RETURN, MenuSelected);
+				// set up the menu
+				std::list<MenuItemDesc> md;
+				md.emplace_back(MsgFmt(IDS_ERR_NEED_ADMIN_HOST, sysName), -1);
+				md.emplace_back(_T(""), -1);
+				md.emplace_back(LoadStringT(IDS_MENU_RUN_ADMIN_HOST), ID_RESTART_AS_ADMIN);
+				md.emplace_back(LoadStringT(IDS_MENU_CXL_RUN_AS_ADMIN), ID_MENU_RETURN, MenuSelected);
 
-			// show the menu in "dialog" mode
-			ShowMenu(md, L"elevation required", SHOWMENU_DIALOG_STYLE);
+				// show the menu in "dialog" mode
+				ShowMenu(md, L"elevation required", SHOWMENU_DIALOG_STYLE);
+			}
 		}
 		return true;
 
-	case PFVMsgManualGo:
-		// Manual Capture Go notification - the Admin Host sends this when
-		// it detects the Next+Prev key combination.
+	case PFVMsgAdminManualGo:
+		// Admin Host Manual Capture Go notification.  The Admin Host sends 
+		// this notifiaction to us when it intercepts a Manual Go key combo. 
+		// Windows doesn't let a user-mode process intercept keystrokes while
+		// an Admin Mode program has focus, as a security measure (to prevent
+		// key logger malware from capturing system passwords, for example).
+		// But an Admin Mode program can intercept keyboard input going to
+		// another Admin Mode program, so our Admin Host is able to see keys
+		// while an Admin Mode game is running.  We therefore have to rely on
+		// the Admin Host to intercept the Manual Go keys.  But we still have
+		// work to do when the user presses those keys!  So the Admin Host
+		// sends us this notification, allowing us to carry out our work.
 		Application::Get()->ManualCaptureGo();
+		return true;
+
+	case PFVMsgAdminExitGame:
+		// As with the Manual Capture Go keys, we're unable to intercept
+		// the Exit Game button while an Admin Mode game is running.  So the
+		// Admin Host has to intercept the key.  In this case, the Admin
+		// Host also takes care of terminating the game, since that's a
+		// privileged operation in itself.  However, we still need to know
+		// about it, because lets us provide a cleaner UI transition as the
+		// game exits if we know that PinballY (through the user Exit Game
+		// command) initiated the termination.
+		Application::Get()->OnAdminHostKillGame();
 		return true;
 
 	case PFVMsgJsDebugMessage:

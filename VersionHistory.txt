@@ -2,6 +2,34 @@ PinballY Update History
 
 ? (1.0.1 Release)
 
+* When a game system needs to run in Administrator Mode, PinballY now
+offers an option to trust that particular program permanently when it
+asks for your approval to perform the Administrator Mode launch.  The
+menu asking for approval now gives you separate options to approve the
+launch just this once, or to always allow this program to launch in
+Administrator mode (plus an option to cancel, of course).  If you
+select the "always" option, the game program will be marked in the
+settings file as trusted, so PinballY won't ask again in future
+sessions.  (Issue #138 on github.)
+
+(In the past, the approval only lasted for the current PinballY
+session.  I didn't implement a way to mark a program as trusted in the
+settings because I was concerned about the possibility that a
+malicious program could manipulate the settings file to trick you into
+launching a piece of malware in Admin mode.  However, in retrospect,
+that isn't a meaningful risk, in that a malicious program with that
+kind of access to your hard disk could already just as well overwrite
+PinballY itself with a fake version; there's nothing they could do
+with the settings that they couldn't do more easily by other means
+already.  So given that there's no security value in making the launch
+less convenient, I decided it was worthwhile to make the launch more
+convenient by adding this "trust always" option.)
+
+* Fixed a few rough edges in the UI with launching and exiting games
+that run in Admin Mode.  (E.g., the "Paused Game" menu sometimes
+popped up unnecessarily when you terminated an Admin Mode game with
+the Exit Game button.)
+
 * Javascript code can now use HANDLE and HWND types as "out"
 parameters, for Windows APIs that return handle values in pointer
 variables.  This means that handle variables act the same way as other

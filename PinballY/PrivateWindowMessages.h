@@ -47,7 +47,7 @@ const UINT PFVMsgGameLaunchError = WM_USER + 202;   // LPARAM = LONG_PTR(&Playfi
 const UINT PFVMsgGameRunBefore = WM_USER + 203;     // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)
 const UINT PFVMsgGameRunAfter = WM_USER + 204;      // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)
 const UINT PFVMsgCaptureDone = WM_USER + 205;       // WPARAM = LONG_PTR(&PlayfieldView::CaptureDoneReport)
-const UINT PFVMsgManualGo = WM_USER + 206;          // manual start/stop event from Admin Host
+const UINT PFVMsgAdminManualGo = WM_USER + 206;     // manual start/stop event from Admin Host
 const UINT PFVMsgLaunchThreadExit = WM_USER + 207;  // LPARAM = LONG_PTR(&PlayfieldView::LaunchReport)
 const UINT PFVMsgShowError = WM_USER + 208;			// LPARAM = const PFVMsgShowErrorParams *params
 const UINT PFVMsgShowSysError = WM_USER + 209;		// WPARAM = TCHAR *friendly, LPARAM = const TCHAR *details
@@ -55,6 +55,7 @@ const UINT PFVMsgShowFlashError = WM_USER + 210;    // LPARAM = const ErrorList 
 const UINT PFVMsgPlayElevReqd = WM_USER + 211;      // WPARAM = TCHAR *systemName, LPARAM = game->internalID)
 const UINT PFVMsgJsDebugMessage = WM_USER + 212;    // Javascript debug request received from debugger UI
 const UINT PFVMsgTakeFocusPostLaunch = WM_USER + 213; // take focus after game launch exits
+const UINT PFVMsgAdminExitGame = WM_USER + 214;     // Exit Game event from Admin Host
 
 
 // PFVShowMessage parameters struct

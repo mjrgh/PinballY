@@ -1496,6 +1496,20 @@ void Application::KillGame()
 	}
 }
 
+void Application::OnAdminHostKillGame()
+{
+	// The Admin Host is terminating the current running game, in response to
+	// a user Exit Game button press.  For an Admin Mode game process, both the
+	// keyboard command interception and the process termination have to be
+	// handled on the Admin Host side, because they're both privileged
+	// operations when the target (game) process is running elevated.  So
+	// the game will exit as commanded without any action on our part.  The
+	// point of this notification is simply to let us perform a smooth
+	// transition in the UI as the game exits.
+	if (gameMonitor != nullptr)
+		gameMonitor->closeCommandIssued = true;
+}
+
 void Application::ResumeGame()
 {
 	// make sure the process is still running
@@ -3178,7 +3192,7 @@ DWORD Application::GameMonitorThread::Main()
 				case ERROR_ELEVATION_REQUIRED:
 					// elevation is required - offer options
 					playfieldView->SendMessage(PFVMsgPlayElevReqd,
-						reinterpret_cast<WPARAM>(gameSys.displayName.c_str()),
+						static_cast<WPARAM>(gameSys.configIndex),
 						static_cast<LPARAM>(gameId));
 					break;
 

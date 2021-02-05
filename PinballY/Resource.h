@@ -262,6 +262,7 @@
 #define IDS_MENU_CXL_RUN_AS_ADMIN       556
 #define IDS_MENU_RUN_GAME_ADMIN         557
 #define IDS_MENU_CXL_RUN_GAME_ADMIN     558
+#define IDS_MENU_RUN_GAME_ADMIN_ALWAYS  559
 
 #define IDS_ADJUST_AUDIO_CAPTION        565
 #define IDS_ADJUST_AUDIO_INSTR          566
@@ -594,6 +595,7 @@
 #define ID_SWF_ERROR_SUPPRESS           32874
 #define ID_SWF_ERROR_HELP               32875
 #define ID_SYNC_ALL_VIEWS               32876
+#define ID_APPROVE_ELEVATION_ALWAYS     32877
 
 
 // Next default values for new objects

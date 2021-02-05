@@ -1292,6 +1292,7 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			// extension, if defined in the configuration.
 			const TCHAR *sysClass = cfg->Get(MsgFmt(_T("%s.Class"), sysvar.Get()), _T(""));
 			const TCHAR *exe = cfg->Get(MsgFmt(_T("%s.Exe"), sysvar.Get()), _T(""));
+			const TCHAR *trustedExe = cfg->Get(MsgFmt(_T("%s.TrustedExe"), sysvar.Get()), nullptr);
 			const TCHAR *defExt = cfg->Get(MsgFmt(_T("%s.DefExt"), sysvar.Get()), _T(""));
 			TSTRING tablePath = cfg->Get(MsgFmt(_T("%s.TablePath"), sysvar.Get()), _T(""));
 
@@ -1551,6 +1552,11 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
 			system->keepOpen = cfg->Get(MsgFmt(_T("%s.ShowWindowsWhileRunning"), sysvar.Get()), _T(""));
+
+			// If the system has a TrustedExe config item that matches the actual (fully expanded)
+			// executable path/filename, mark the system as pre-approved for elevation.
+			if (trustedExe != nullptr && trustedExe[0] != 0 && _tcscmp(trustedExe, exe) == 0)
+				system->elevationApproved = true;
 			
 			// set the SW_SHOW mode for the launched app, using SW_SHOWMINIMIZED as the default
 			system->swShow = SW_SHOWMINIMIZED;

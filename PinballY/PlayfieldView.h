@@ -591,6 +591,14 @@ protected:
 	int lastPlayGameCmd;
 	DWORD lastPlayGameLaunchFlags;
 
+	// Last game requesting elevation via PFVPlayElevReqd.  This lets us make
+	// sure that the game approved when the menu was active is the same one
+	// that's current when we process the final launch.  That happens
+	// asynchronously, so it's possible for the user to navigate to a
+	// different game in the meantime, which we'll interpret as canceling
+	// the launch.
+	LONG lastGameRequestingElevation;
+
 	// remove the instructions card from other windows
 	void RemoveInstructionsCard();
 

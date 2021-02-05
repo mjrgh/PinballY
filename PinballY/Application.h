@@ -290,6 +290,14 @@ public:
 	// Kill the running game, if any
 	void KillGame();
 
+	// Receive notification that the Admin Host is killing the game, in
+	// response to an Exit Game command button press that it intercepted.
+	// The Admin Host takes care of actually terminating the game in this
+	// case, but it helps us perform a smooth UI transition to know that
+	// the termination was initiated on the PinballY side, so the Admin
+	// Host sends us a notification to let us know when this happens.
+	void OnAdminHostKillGame();
+	
 	// Has a Kill Game command been issued?
 	bool IsKillPending() const { return gameMonitor != nullptr && gameMonitor->closeCommandIssued; }
 
@@ -903,8 +911,8 @@ protected:
 		// this event when the user closes the game through the UI.
 		HandleHolder closeEvent;
 
-		// Flag: the Close command has been used during this game session.
-		// This is set to true when the user executes a Close command.
+		// Flag: the Exit Game command has been used during this game session.
+		// This is set to true when the user executes an Exit Game command.
 		//
 		// This isn't *quite* the same thing as closeEvent.  The event
 		// is used to exit out of waits for child processes to finish,
