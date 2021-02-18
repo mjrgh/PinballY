@@ -2,6 +2,10 @@ PinballY Update History
 
 ? (1.0.1 Release)
 
+* New Javascript method: gameList.setWheelGame(), for directly
+changing the game selection in the wheel UI.  See the Javascript
+section in the help for details.
+
 * When a game system needs to run in Administrator Mode, PinballY now
 offers an option to trust that particular program permanently when it
 asks for your approval to perform the Administrator Mode launch.  The

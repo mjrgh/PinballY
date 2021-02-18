@@ -674,7 +674,7 @@ GameListFilter *GameList::GetFilterByCommand(int cmdID)
 	return nullptr;
 }
 
-void GameList::RefreshFilter()
+bool GameList::RefreshFilter()
 {
 	// Remember the current selection, if any
 	const GameListItem *oldSel = GetNthGame(0);
@@ -788,6 +788,9 @@ void GameList::RefreshFilter()
 	// end the scan in the metafilters
 	for (auto &mf : *metaFilters.get())
 		mf->After();
+
+	// return true if the game selection changed
+	return oldSel != GetNthGame(0);
 }
 
 bool GameList::FilterIncludes(GameListFilter *filter, GameListItem *game)
@@ -957,13 +960,15 @@ int GameList::GetFilterGroupCommand(const TCHAR *group)
 	return 0;
 }
 
-void GameList::SetFilter(int cmdID)
+bool GameList::SetFilter(int cmdID)
 {
 	if (auto f = GetFilterByCommand(cmdID); f != nullptr)
-		SetFilter(f);
+		return SetFilter(f);
+	else
+		return false;
 }
 
-void GameList::SetFilter(GameListFilter *filter)
+bool GameList::SetFilter(GameListFilter *filter)
 {
 	// set the new filter
 	curFilter = filter;
@@ -973,7 +978,7 @@ void GameList::SetFilter(GameListFilter *filter)
 	pendingRestoredFilter.clear();
 
 	// Refresh the filter selection
-	RefreshFilter();
+	return RefreshFilter();
 }
 
 // Initialize from the PinballX .ini file.  This isn't currently used,

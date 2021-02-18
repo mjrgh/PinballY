@@ -903,7 +903,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "renameCategory", &PlayfieldView::JsRenameCategory, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "deleteCategory", &PlayfieldView::JsDeleteCategory, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getMediaDir", &PlayfieldView::JsGetMediaDir, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gameList", "resolveMedia", &PlayfieldView::JsResolveMediaFile, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "resolveMedia", &PlayfieldView::JsResolveMediaFile, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setWheelGame", &PlayfieldView::JsSetWheelGame, this, eh))
 				return;
 
 			// Set up the GameInfo methods
@@ -2240,6 +2241,81 @@ JsValueRef PlayfieldView::JsGetWheelGame(int n)
 	}
 }
 
+void PlayfieldView::JsSetWheelGame(int n, JsValueRef options)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// get options
+		bool animate = false;
+		bool fast = false;
+		if (!js->IsUndefinedOrNull(options))
+		{
+			JavascriptEngine::JsObj optionsObj(options);
+			animate = optionsObj.Get<bool>("animate");
+			fast = optionsObj.Get<bool>("fast");
+		}
+
+		// animate the change or go directly, as desired
+		if (animate)
+		{
+			// The wheel animation setup assumes that an animation isn't
+			// already in progress, so we have to skip straight to the end
+			// of any current animation.
+			if (wheelAnimMode != WheelAnimNone)
+			{
+				// figure the direction
+				int dn = animWheelDistance > 0 ? 1 : -1;
+
+				// update wheel positions to the completed state, at 100% or -100% progress
+				int n = animFirstInWheel;
+				for (auto& s : wheelImages)
+				{
+					SetWheelImagePos(s, n, 1.0f * dn);
+					++n;
+				}
+
+				// Discard the outgoing wheel images
+				while (animAddedToWheel-- != 0)
+				{
+					if (dn > 0)
+						wheelImages.pop_front();
+					else
+						wheelImages.pop_back();
+				}
+
+				// we've updated the sprite list
+				UpdateDrawingList();
+
+				// the animation is done
+				wheelAnimMode = WheelAnimNone;
+			}
+
+
+			// switch to the game as though by wheel animation
+			SwitchToGame(n, fast, true, false);
+		}
+		else
+		{
+			// note the old game selection
+			auto oldSel = GameList::Get()->GetNthGame(0);
+
+			// no animation is desired - just set the game in the game list
+			GameList::Get()->SetGame(n);
+
+			// If the game selection changed, update the wheel icons and load media.
+			// There's no need to fire the "gameselect" event here since the action was
+			// initiated from Javascript.
+			if (oldSel != GameList::Get()->GetNthGame(0))
+				UpdateSelection(false);
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
 JsValueRef PlayfieldView::JsGetAllWheelGames()
 {
 	auto js = JavascriptEngine::Get();
@@ -3051,11 +3127,11 @@ void PlayfieldView::JsSetCurFilter(WSTRING id)
 		|| ((cmd = _ttoi(id.c_str())) >= ID_FILTER_FIRST && cmd <= ID_FILTER_LAST && (filter = gl->GetFilterByCommand(cmd)) != nullptr))
 	{
 		// set the filter
-		GameList::Get()->SetFilter(filter);
+		bool gameChanged = GameList::Get()->SetFilter(filter);
 
-		// update the selection, in case the current game is filtered out
-		// by the new filter
-		UpdateSelection();
+		// update the selection, in case the previously selected game is
+		// filtered out by the new filter
+		UpdateSelection(gameChanged);
 
 		// update the status text, since it might mention the filter name
 		UpdateAllStatusText();
@@ -3065,10 +3141,10 @@ void PlayfieldView::JsSetCurFilter(WSTRING id)
 void PlayfieldView::JsRefreshFilter()
 {
 	// refresh the current filter
-	GameList::Get()->RefreshFilter();
+	bool gameChanged = GameList::Get()->RefreshFilter();
 
 	// update the selection and status text
-	UpdateSelection();
+	UpdateSelection(gameChanged);
 	UpdateAllStatusText();
 }
 
@@ -3276,8 +3352,8 @@ int PlayfieldView::JsCreateMetaFilter(JavascriptEngine::JsObj desc)
 		gl->AddMetaFilter(mf.get());
 
 		// update the selection and status text for the filter change
-		gl->RefreshFilter();
-		UpdateSelection();
+		bool gameChanged = gl->RefreshFilter();
+		UpdateSelection(gameChanged);
 		UpdateAllStatusText();
 
 		// return the new filter ID
@@ -3305,8 +3381,8 @@ void PlayfieldView::JsRemoveMetaFilter(int id)
 			javascriptMetaFilters.remove(it);
 
 			// update the selection and status text for the filter change
-			gl->RefreshFilter();
-			UpdateSelection();
+			bool gameChanged = gl->RefreshFilter();
+			UpdateSelection(gameChanged);
 			UpdateAllStatusText();
 			
 			// stop searching
@@ -3583,7 +3659,7 @@ void PlayfieldView::OnEndExtStartupVideo()
 void PlayfieldView::ShowInitialUI(bool showAboutBox)
 {
 	// load the initial selection
-	UpdateSelection();
+	UpdateSelection(true);
 
 	// Hide the cursor initially.  This makes the display a little 
 	// cleaner and more video-game like.  The mouse cursor isn't
@@ -3830,9 +3906,11 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case fullRefreshTimerID:
 		// Do a full UI update:  redo the filter, update the wheel selection,
 		// update the status text, and update the info box.
-		GameList::Get()->RefreshFilter();
-		UpdateSelection();
-		UpdateAllStatusText();
+		{
+			bool gameChanged = GameList::Get()->RefreshFilter();
+			UpdateSelection(gameChanged);
+			UpdateAllStatusText();
+		}
 
 		// refresh the info box, to pick up any metadata changes affecting its contents
 		infoBox.game = nullptr;
@@ -4242,8 +4320,8 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 			// the selection.
 			if (gl->GetCurFilter() == gl->GetFavoritesFilter())
 			{
-				gl->SetFilter(gl->GetFavoritesFilter());
-				UpdateSelection();
+				bool gameChanged = gl->SetFilter(gl->GetFavoritesFilter());
+				UpdateSelection(gameChanged);
 				UpdateAllStatusText();
 			}
 		}
@@ -4476,10 +4554,10 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 				if (FireFilterSelectEvent(gl->GetFilterByCommand(cmd)))
 				{
 					// set the new filter
-					GameList::Get()->SetFilter(cmd);
+					bool gameChanged = GameList::Get()->SetFilter(cmd);
 
 					// refresh the current game selection and wheel images
-					UpdateSelection();
+					UpdateSelection(gameChanged);
 
 					// update status line text
 					UpdateAllStatusText();
@@ -7426,16 +7504,17 @@ bool PlayfieldView::IsGameValid(const GameListItem *game)
 
 void PlayfieldView::OnGameListRebuild()
 {
-	UpdateSelection();
+	UpdateSelection(true);
 }
 
-void PlayfieldView::UpdateSelection()
+void PlayfieldView::UpdateSelection(bool fireEvents)
 {
 	// Get the current selection
 	GameListItem *curGame = GameList::Get()->GetNthGame(0);
 
 	// fire the javascript game selection event
-	FireGameSelectEvent(curGame);
+	if (fireEvents)
+		FireGameSelectEvent(curGame);
 
 	// get the playfield image into the incoming item
 	LoadIncomingPlayfieldMedia(curGame);
@@ -8207,7 +8286,7 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 	image->UpdateWorld();
 }
 
-void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
+void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand, bool fireEvent)
 {
 	// ignore switches to the same game
 	if (n == 0)
@@ -8270,7 +8349,7 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 	//   We *could* just load all of the intermediate games, but we
 	//   could be moving such a distance that the animation might get
 	//   jerky if we populated all of the games in between.  (It would
-	//   get jerky becuase we use a fixed time for the animation, no
+	//   get jerky because we use a fixed time for the animation, no
 	//   matter how far we're moving, hence the distance moved on each
 	//   frame increases as the span increases.)  So instead of loading
 	//   all intermediate games, load a fresh slate of five games
@@ -8302,9 +8381,10 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 
 	// If we don't already have five images in the wheel, something
 	// must be out of sync - repopulate the list so that we're starting
-	// from the correct baseline.
+	// from the correct baseline.  (Don't fire events; this is just for
+	// the sake of repopulating the wheel icons.)
 	if (wheelImages.size() < 5)
-		UpdateSelection();
+		UpdateSelection(false);
 
 	// add the selected items to the wheel
 	animAddedToWheel = 0;
@@ -8350,7 +8430,8 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand)
 	StartWheelAnimation(fast);
 
 	// update javascript
-	FireGameSelectEvent(GameList::Get()->GetNthGame(0));
+	if (fireEvent)
+		FireGameSelectEvent(GameList::Get()->GetNthGame(0));
 }
 
 // Start a wheel animation
@@ -8389,8 +8470,12 @@ void PlayfieldView::ClearMedia()
 
 void PlayfieldView::OnNewFilesAdded()
 {
-	// update the selection, to rebuild the wheel list
-	UpdateSelection();
+	// Update the selection, to rebuild the wheel icon list in case any of
+	// the newly added files sort into the wheel adjacent to the current
+	// game, meaning that their icons would show up in the nearby game
+	// icon arc.  But don't fire a gameselect event, since this wasn't
+	// triggered by a selection change.
+	UpdateSelection(false);
 }
 
 // Remove the pre-run TOPMOST status
@@ -12763,7 +12848,7 @@ void PlayfieldView::DoCmdNext(bool fast)
 	{
 		// Base mode - go to the next game
 		QueueDOFPulse(L"PBYWheelNext");
-		SwitchToGame(1, fast, true);
+		SwitchToGame(1, fast, true, true);
 	}
 }
 
@@ -12893,7 +12978,7 @@ void PlayfieldView::DoCmdPrev(bool fast)
 	{
 		// base mode - go to the previous game
 		QueueDOFPulse(L"PBYWheelPrev");
-		SwitchToGame(-1, fast, true);
+		SwitchToGame(-1, fast, true, true);
 	}
 }
 
@@ -12953,7 +13038,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 		{
 			// base state - advance by a letter group
 			QueueDOFPulse(L"PBYWheelNextPage");
-			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyRepeat, true);
+			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyRepeat, true, true);
 		}
 	}
 
@@ -13014,7 +13099,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		else
 		{
 			// base state - go backwards by a letter group
-			SwitchToGame(GameList::Get()->FindPrevLetter(), key.mode == KeyRepeat, true);
+			SwitchToGame(GameList::Get()->FindPrevLetter(), key.mode == KeyRepeat, true, true);
 			QueueDOFPulse(L"PBYWheelPrevPage");
 		}
 	}
@@ -15058,8 +15143,8 @@ void PlayfieldView::SaveCategoryEdits()
 	// list) and update the current game in the wheel if so.
 	if (dynamic_cast<const GameCategory*>(gl->GetCurFilter()) != nullptr)
 	{
-		gl->RefreshFilter();
-		UpdateSelection();
+		bool gameChanged = gl->RefreshFilter();
+		UpdateSelection(gameChanged);
 		UpdateAllStatusText();
 	}
 }
@@ -15791,7 +15876,7 @@ void PlayfieldView::DelMediaFile()
 		{
 			// success - sync media and re-show the media menu
 			SyncPlayfield(SyncDelMedia);
-			UpdateSelection();
+			UpdateSelection(false);
 			ShowMediaFiles(0);
 			break;
 		}
@@ -17112,7 +17197,7 @@ void PlayfieldView::MediaDropGo()
 		ShowErrorAutoDismiss(5000, EIT_Information, LoadStringT(IDS_MEDIA_DROP_ALL_SKIPPED));
 
 	// Make sure the on-screen media are updated with the new media
-	UpdateSelection();
+	UpdateSelection(false);
 
 	// forget the target game
 	mediaDropTargetGame = nullptr;
@@ -17803,7 +17888,7 @@ void PlayfieldView::ToggleHideGame()
 		// includes or excludes hidden games.  So we have to rebuild
 		// the filter list.
 		GameList::Get()->RefreshFilter();
-		UpdateSelection();
+		UpdateSelection(true);
 		UpdateAllStatusText();
 	}
 }
@@ -18774,7 +18859,7 @@ void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 			// the "Z" games.  So we'll end up going backwards, in a way,
 			// even with a forward-only random range.
 			int d = int(roundf((float(rand()) / float(RAND_MAX))*9.0f + 1.0f));
-			pfv->SwitchToGame(d, false, false);
+			pfv->SwitchToGame(d, false, false, true);
 
 			// reset the timer
 			t0 = GetTickCount();

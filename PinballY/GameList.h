@@ -1319,15 +1319,22 @@ public:
 	// not, we select a game that passes the new filter.  In any case,
 	// the adjacent wheel items should always be updated on the display,
 	// since those might change with the new filter.
-	void SetFilter(GameListFilter *filter);
+	//
+	// Returns true if the change of filter results in changing the
+	// currently selected game, which is necessary if the new filter
+	// doesn't include the previously selected game.
+	bool SetFilter(GameListFilter *filter);
 
-	// set a filter by command ID
-	void SetFilter(int cmdID);
+	// Set a filter by command ID.  Returns true if the change of filter
+	// results in changing the current game.
+	bool SetFilter(int cmdID);
 
 	// Refresh the current filter.  Call this when making a change
 	// to one or more games that could affect which games the current
-	// filter selects.
-	void RefreshFilter();
+	// filter selects.  Returns true if the change of filter requires
+	// changing the current game, which happens if the new filter
+	// doesn't include the previously selected game.
+	bool RefreshFilter();
 
 	// get a filter by config ID/command code
 	GameListFilter *GetFilterById(const TCHAR *id);

@@ -99,9 +99,9 @@
 
 <p>
    <a name="getAllFilters"></a>
-   <b>gameList.getAllFilters():</b>  Returns an array of filter IDs
-   for all available filters.  Each element is a <a href="FilterInfo.html">FilterInfo</a>
-   object describing the filter.
+   <b>gameList.getAllFilters():</b>  Returns all of the filters currently
+   defined, as an array of <a href="FilterInfo.html">FilterInfo</a>
+   objects.  Each object represents one filter.
 </p>
 
 <p>
@@ -191,6 +191,16 @@
    of games showing on the wheel (and by the same token, offset <i>-N</i>,
    2<i>N</i>, <i>-2N</i>, etc all wrap back to the current game).
 </p>
+<p>
+   This method is specifically restricted to the games that are included in the
+   current game wheel, taking into account the current active filter.  This is
+   the same as the list of games that the user can currently navigate through
+   via the Next and Previous command buttons.  If the user (or your Javascript
+   code) selects a different filter, it will naturally change the list of
+   games that this method can access.  If you want to directly access <i>all</i>
+   of the games that PinballY current knows about, use the getGame() method
+   instead; that gives you access to the entire current list of games.
+</p>
 
 <p>
    <a name="getWheelCount"></a>
@@ -268,6 +278,46 @@
    (see <a href="Commands.html">Commands</a>), identifying the filter by
    its associated menu command.  The <a href="FilterSelectEvent.html"><b>filterselect</b></a>
    event is <b>not</b> fired when you change the filter with this function.
+   However, a <a href="GameSelectEvent.html">gameselect</a> event <b>is</b>
+   fired if the current game selected in the wheel must be changed as a result
+   of the filter change.  This happens if the previously selected game isn't
+   included by the new filter, requiring the system to automatically switch
+   to a game that is included by the new filter.
+</p>
+
+<p>
+   <a name="setWheelGame"></a>
+   <b>gameList.setWheelGame(<i>n</i>, <i>options</i>):</b>  Changes to a
+   new game selection in the wheel UI.  <i>n</i> is a number giving the offset
+   from the currently selected game, in wheel slots: 1 is the next game to
+   the right, 2 is the next game after that, and so on, while -1 is the next
+   game to the left, -2 is the next game before that, etc.  Since your
+   Javascript code is initiating the game selection change, the
+   <a href="GameSelectEvent.html">gameselect</a> event is <b>not</b> fired.
+</p>
+<p>
+   The <i>options</i> argument, if provided, is an object with properties
+   that specify how the game change looks in the UI.  If this is omitted,
+   the defaults are used for all options:
+</p>
+<ul>
+   <li><b>animate:</b> boolean, default false.  If set to true, the game
+   change is animated with a visible wheel spin effect in the UI, as though
+   the user were navigating by pressing the left/right buttons.
+
+   <li><b>fast:</b> boolean, default false.  If set to true, the animation
+   effect (if used) runs faster.  The system normally uses the fast mode
+   during normal user button navigation when a button is held down long
+   enough to auto-repeat, so that the user can zip through the wheel
+   very quickly.
+</ul>
+<p>
+   Even when animation mode is used, this method doesn't trigger the sound
+   effects or DOF effects that are normally used when the user navigates
+   through the wheel with the buttons.  If you want to simulate the exact
+   effect of navigating by button presses, you can use
+   <a href="MainWindowObject.html#doButtonCommand">mainWindow.doButtonCommand()</a>
+   with the "Next" and "Prev" button codes.
 </p>
    
 

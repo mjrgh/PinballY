@@ -514,7 +514,7 @@ protected:
 	static const int forceToFgTimerID = 132;      // press-and-hold EXIT GAME button to bring app to foreground
 
 	// update the selection to match the game list
-	void UpdateSelection();
+	void UpdateSelection(bool fireEvents);
 
 	// Is the given game a real game?  Returns true if the game is
 	// non-null and isn't the special "No Game" entry in the game list.
@@ -538,7 +538,7 @@ protected:
 	void SetWheelImagePos(Sprite *image, int n, float rot);
 
 	// switch to the nth game from the current position
-	void SwitchToGame(int n, bool fast, bool byUserCommand);
+	void SwitchToGame(int n, bool fast, bool byUserCommand, bool fireEvent);
 
 	// about box
 	void ShowAboutBox();
@@ -3032,6 +3032,9 @@ protected:
 	int JsGetWheelCount();
 	JsValueRef JsGetWheelGame(int n);
 	JsValueRef JsGetAllWheelGames();
+
+	// set the current wheel selection
+	void JsSetWheelGame(int n, JsValueRef options);
 
 	// get/set/refresh the current game list filter
 	JsValueRef JsGetCurFilter();
