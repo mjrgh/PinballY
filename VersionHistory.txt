@@ -2,6 +2,19 @@ PinballY Update History
 
 ? (1.0.1 Release)
 
+* The generated high-score display now uses all of the VPinMAME color
+option settings stored in the registry when generating dot-style high
+score messages in the video DMD window.  In the past, the basic
+VPinMAME dot color setting was used, but the colorization options and
+brightness ramp settings were ignored.  All of these options are now
+taken into account, using the same algorithm that VPinMAME uses to
+figure the colors.  This should make PinballY's generated high score
+displays match the live VPinMAME displays (i.e., when a table is
+actually being played) more consistently.  (The VPinMAME options we're
+talking about are set through VPinMAME, not PinballY; to access the
+VPinMAME options, launch the game with Visual Pinball and bring up the
+VPinMAME options dialog by pressing F6.)  (Issue #161 on github.)
+
 * New Javascript method: gameList.setWheelGame(), for directly
 changing the game selection in the wheel UI.  See the Javascript
 section in the help for details.

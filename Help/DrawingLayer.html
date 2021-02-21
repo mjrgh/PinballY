@@ -354,13 +354,16 @@ overlay.clear(0x00000000);
 </p>
 <ul>
    <li><b>bgColor:</b> The background color, for the DMD and alphanumeric
-   styles.  This can
+   styles.  This is the color used to fill the empty space between the
+   DMD dots or alphanumeric display segments.  This can
    be specified as a hex number, in 0xAARRGGBB format (AA is the alpha
    transparency component), or as an HTML "#RRGGBB" or "#AARRGGBB" string.
    Setting the alpha to something less than FF will make the background
-   partially transparent; setting to it to 00 will make it entirely
-   transparent.  This is ignored for the "tt" style, which uses a
-   background image instead.
+   partially transparent, so that the generated image can be superimposed
+   over another background drawing layer. Setting the alpha to 00 will make
+   the generated image's background entirely transparent, so that only
+   the dots or alphanumeric segments occlude background material.  This
+   is ignored for the "tt" style, which uses a background image instead.
 
    <li><b>color:</b> This is the color of the dots making up the dot matrix
    for the "dmd" style, or the colors of the segments for the 16-segment
@@ -368,6 +371,19 @@ overlay.clear(0x00000000);
    The color can be specified as a hex number, in 0xRRGGBB format, or as an
    HTML "#RRGGBB" string.  This color is always fully opaque; any alpha
    component you specify is ignored.
+   <p>
+      If the color isn't specified, and the game has a VPinMAME ROM
+      associated with it, the color is taken from the VPinMAME settings
+      for the game.  (A particular game's VPinMAME settings can be
+      accessed when you're running the game with Visual Pinball, or by
+      running VPinMAME directly and loading the game.)  If the game has
+      a VPinMAME ROM, but you've never selected custom colors for the
+      game through VPinMAME, the default VPinMAME DMD color settings
+      are used.  If the game doesn't have a VPinMAME ROM at all, a
+      default amber color scheme is used, approximating the color of the
+      monochrome plasma displays originally used in most 1990s
+      pinball machines.
+   </p>
 
    <li><b>font:</b> The font to use for the text.  The interpretation of
    the font name depends on the drawing style.

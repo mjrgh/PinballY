@@ -523,10 +523,10 @@ struct HighScoreGraphicsGenThread
 {
 	typedef DMDView::HighScoreImage HighScoreImage;
 
-	HighScoreGraphicsGenThread(BaseView *view, DWORD seqno, const RGBQUAD &txtColor, const TCHAR *style) :
+	HighScoreGraphicsGenThread(BaseView *view, DWORD seqno, const DMDView::DMDPalette &palette, const TCHAR *style) :
 		view(view, RefCounted::DoAddRef),
 		seqno(seqno),
-		txtColor(txtColor),
+		palette(palette),
 		style(style)
 	{
 		// get the DMD view, if available
@@ -540,8 +540,12 @@ struct HighScoreGraphicsGenThread
 			ttHighScoreTextColor = dmdview->ttHighScoreTextColor;
 		}
 
-		// initialize the alphanumeric options with the text color
-		alphanumOptions.InitFromSegColor(txtColor);
+		// Initialize the alphanumeric options with the full ON color.  The
+		// alphanumeric format doesn't use the standard dots, so it doesn't
+		// use the full 16-shade monochrome palette that the dot generator
+		// needs, but we do want the alphanumeric segment color at 100%
+		// brightness match the 100% dot color.
+		alphanumOptions.InitFromSegColor(palette.color[15]);
 
 		// if we're in TT mode, look for a custom background image
 		TCHAR ttImg[MAX_PATH];
@@ -568,8 +572,10 @@ struct HighScoreGraphicsGenThread
 	// high score request sequence number
 	DWORD seqno;
 
-	// text color for the DMD or alpha display
-	RGBQUAD txtColor;
+	// VPinMAME 16-shade monochrome palette for generated dots; the 100%
+	// brightness entry is also used as the color for the simulated segments
+	// in the 16-segment alphanumeric display mode.
+	DMDView::DMDPalette palette;
 
 	// background color
 	RGBQUAD bgColor = { 0, 0, 0 };
@@ -748,11 +754,18 @@ struct HighScoreGraphicsGenThread
 		bmi.bmiHeader.biClrUsed = 0;
 		bmi.bmiHeader.biClrImportant = 0;
 
-		// Build a color index table, with a ramp of brightness values
-		// from the background color to the full-brightness text color.
-		// Note that step 0 is one step above the background color, so
-		// that pixels that are completely off still show faintly, to
-		// better simulate how the real displays look.
+		// Convert the DMD palette from RGBQUAD format to DIB palette format
+		int alphaSpan = 0xFF - bgAlpha;
+		DMDFont::Color colors[16];
+		for (int i = 0; i < 16; ++i)
+		{
+			RGBQUAD rgb = palette.color[i];
+			colors[i].Set(
+				static_cast<BYTE>(roundf(bgAlpha + alphaSpan * (i + 2.0f) / 17.0f)),
+				rgb.rgbRed, rgb.rgbGreen, rgb.rgbBlue);
+		}
+
+#if 0
 		int alphaSpan = 0xFF - bgAlpha;
 		int redSpan = txtColor.rgbRed - bgColor.rgbRed;
 		int greenSpan = txtColor.rgbGreen - bgColor.rgbGreen;
@@ -767,6 +780,7 @@ struct HighScoreGraphicsGenThread
 				static_cast<BYTE>(roundf(bgColor.rgbGreen + greenSpan * step)),
 				static_cast<BYTE>(roundf(bgColor.rgbBlue + blueSpan * step)));
 		}
+#endif
 
 		// process each group
 		for (auto &group : slides)
@@ -1230,12 +1244,14 @@ DWORD DMDView::GenerateDMDImage(
 	if (style == nullptr || _tcsicmp(style, _T("auto")) == 0)
 		style = GetCurGameHighScoreStyle();
 
-	// select the default text color if not specified
-	RGBQUAD txtColor = pTxtColor != nullptr ? *pTxtColor : GetCurGameHighScoreColor();
+	// build the color ramp based on the text and background color if provided,
+	// or based on the current game's VPinMAME colors if not
+	DMDPalette pal;
+	GetCurGameHighScoreColor(pal, pTxtColor, bgColor);
 
 	// create the thread object
 	std::unique_ptr<HighScoreGraphicsGenThread> th(new HighScoreGraphicsGenThread(
-		view, seqno, txtColor, style));
+		view, seqno, pal, style));
 
 	// set the font, if provided
 	if (fontName != nullptr)
@@ -1252,7 +1268,7 @@ DWORD DMDView::GenerateDMDImage(
 	if (alphanumOptions != nullptr)
 		th->alphanumOptions = *alphanumOptions;
 	else
-		th->alphanumOptions.InitFromSegColor(txtColor);
+		th->alphanumOptions.InitFromSegColor(pal.color[15]);
 
 	// create a slide and populate it with the messages
 	auto &slide = th->slides.emplace_back();
@@ -1288,14 +1304,15 @@ void DMDView::GenerateHighScoreImages()
 			return;
 
 		// get the default dot color
-		RGBQUAD txtColor = GetCurGameHighScoreColor();
+		DMDPalette pal;
+		GetCurGameHighScoreColor(pal);
 
 		// create the high score thread
 		HighScoreGraphicsGenThread *th = new HighScoreGraphicsGenThread(
-			this, pendingImageRequestSeqNo, txtColor, style);
+			this, pendingImageRequestSeqNo, pal, style);
 		
 		// capture the message list to the thread
-		game->DispHighScoreGroups([&th, &style, txtColor](const std::list<const TSTRING*> &group)
+		game->DispHighScoreGroups([&th, &style](const std::list<const TSTRING*> &group)
 		{
 			if (_tcsicmp(style, _T("alpha")) == 0 && group.size() > 2)
 			{
@@ -1460,21 +1477,26 @@ const TCHAR *DMDView::GetCurGameHighScoreStyle()
 	return _T("DMD");
 }
 
-RGBQUAD DMDView::GetCurGameHighScoreColor()
+void DMDView::GetCurGameHighScoreColor(DMDPalette &pal, RGBQUAD *pTxtColor, RGBQUAD *pBgColor)
 {
-	// start with the default plasma amber
+	// Start with a foreground (text) color set to an amber that approximates
+	// the hue of the original monochrome plasma displays in the 1990s machines,
+	// and a black background.
 	RGBQUAD txtColor = { 32, 88, 255 };
+	RGBQUAD bgColor = { 0, 0, 0 };
 
-	// Get the game.  If no game is selected, just return the default.
-	auto game = currentBackground.game;
-	if (game == nullptr)
-		return txtColor;
+	// if the caller supplied text and/or background colors, override the defaults
+	if (pTxtColor != nullptr)
+		txtColor = *pTxtColor;
+	if (pBgColor != nullptr)
+		bgColor = *pBgColor;
 
 	// Get the VPinMAME ROM key for the game, if possible
 	TSTRING rom;
 	HKEYHolder hkey;
 	bool keyOk = false;
-	if (VPinMAMEIfc::FindRom(rom, game))
+	auto game = currentBackground.game;
+	if (game != nullptr && VPinMAMEIfc::FindRom(rom, game))
 	{
 		// open the registry key for the game
 		MsgFmt romkey(_T("%s\\%s"), VPinMAMEIfc::configKey, rom.c_str());
@@ -1489,26 +1511,183 @@ RGBQUAD DMDView::GetCurGameHighScoreColor()
 		keyOk = (RegOpenKey(HKEY_CURRENT_USER, dfltkey, &hkey) == ERROR_SUCCESS);
 	}
 
-	// If we got a key, retrieve the VPM DMD color settings for the 
-	// game, so that we can use the same color scheme for our text. 
-	// (As a default, use an orange that approximates the color of
-	// the original plasma DMDs on the 1990s machines.)
+	// If we got a key (either game-specific or default), retrieve the VPM DMD color
+	// settings, so that we can replicate the VPM display colors.
+	//
+	// VPM has a complex set of variables for the DMD color scheme that evolved over
+	// several feature additions.  Each new feature basically replaced the previous
+	// scheme, so the variables look like they have redundant and potentially
+	// contradictory information, which they do.  The conflicts are resolved by
+	// giving the variables a precedence hierarchy.  A variable "exists" if at least
+	// one of the variables in its group has a positive RGB value.  (VPM could
+	// define variable existence more rigorously by distinguishing a "null" value
+	// for items that don't appear in the registry, but they don't bother; they
+	// just default missing items to RGB {0,0,0} values and use {0,0,0} as both
+	// black and null.  This makes color settings composed entirely of black
+	// impossible to represent, but I doubt this bothers anyone, since all-black
+	// would be a pathological case for this application.  The VPM code also
+	// treats negative component values as nulls, but I don't think it actually
+	// stores negative values.  Even so, we should tolerate negative values.)
+	struct VPMDMDVars
+	{
+		// Note: we'll use the VPM registry key names to clarify the correspondences.
+
+		// Colorization option flag.  Boolean (as integer 0 or 1).
+		bool dmd_colorize = false;
+
+		// 2-bit brightness ramp.  These give the intensities relative to the
+		// color value at the 0%, 33%, and 66% points.  Note that when we say
+		// "X%", we're talking about the NOMINAL brightness - what we really
+		// mean by "0%" is "brightness at palette level 0", and likewise for
+		// 33% = palette 1 and 66% = palette 2.  VPM thinks about these as
+		// percentage brightnesses because the original physical displays
+		// achieved different brightness levels by duty-cycle modulation, with
+		// duty cycles of approximately all-off, 1/3 time, 2/3 time, and all-on,
+		// or 0%, 33%, 67%, and 100%.  When translating to a video display, it
+		// was found to be desirable to tweak the levels a bit because of the
+		// different physical display properties (black level, dynamic range,
+		// gamma curve).  These are integer percentage values, 0..100.
+		int dmd_perc0 = 20, dmd_perc33 = 33, dmd_perc66 = 67;
+
+		// DMD monochrome base color.  This gives the "100%" color value, with
+		// the 0%, 33%, and 66% levels in the 2-bit ramp derived by applying a
+		// fixed brightness ramp to these values.  These are RGB component
+		// values, 00..FF.
+		int dmd_red = 255, dmd_green = 88, dmd_blue = 32;
+
+		// Colorized DMD: these give the individual 0%, 33%, and 66% levels
+		// for the 2-bit brightness ramp.  This allows turning the brightness
+		// levels into a full 2-bit color palette, to create colorization effects.
+		// RGB component values, 00..FF.
+		int dmd_red0 = 0, dmd_green0 = 0, dmd_blue0 = 0;
+		int dmd_red33 = 0, dmd_green33 = 0, dmd_blue33 = 0;
+		int dmd_red66 = 0, dmd_green66 = 0, dmd_blue66 = 0;
+	};
+	VPMDMDVars vars;
+
 	if (keyOk)
 	{
 		// query one of the values from the key
-		auto queryf = [&hkey](const TCHAR *valName, DWORD &val)
+		auto queryBool = [&hkey](const TCHAR *valName, bool &val)
 		{
-			DWORD typ, siz = sizeof(val);
-			return (RegQueryValueEx(hkey, valName, NULL, &typ, (BYTE*)&val, &siz) == ERROR_SUCCESS
-				&& typ == REG_DWORD);
+			DWORD typ, tmp, siz = sizeof(tmp);
+			if (RegQueryValueEx(hkey, valName, NULL, &typ, (BYTE*)&tmp, &siz) == ERROR_SUCCESS
+				&& typ == REG_DWORD)
+				val = (tmp != 0);
 		};
-		DWORD r, g, b;
-		if (queryf(_T("dmd_red"), r) && queryf(_T("dmd_green"), g) && queryf(_T("dmd_blue"), b))
-			txtColor = { (BYTE)b, (BYTE)g, (BYTE)r };
+		auto queryInt = [&hkey](const TCHAR *valName, int &val)
+		{
+			DWORD typ, tmp, siz = sizeof(tmp);
+			if (RegQueryValueEx(hkey, valName, NULL, &typ, (BYTE*)&tmp, &siz) == ERROR_SUCCESS
+				&& typ == REG_DWORD)
+				val = static_cast<int>(tmp);
+		};
+		queryBool(_T("dmd_colorize"), vars.dmd_colorize);
+		queryInt(_T("dmd_perc0"), vars.dmd_perc0);
+		queryInt(_T("dmd_perc33"), vars.dmd_perc33);
+		queryInt(_T("dmd_perc66"), vars.dmd_perc66);
+		queryInt(_T("dmd_red"), vars.dmd_red);
+		queryInt(_T("dmd_green"), vars.dmd_green);
+		queryInt(_T("dmd_blue"), vars.dmd_blue);
+		queryInt(_T("dmd_red0"), vars.dmd_red0);
+		queryInt(_T("dmd_green0"), vars.dmd_green0);
+		queryInt(_T("dmd_blue0"), vars.dmd_blue0);
+		queryInt(_T("dmd_red33"), vars.dmd_red33);
+		queryInt(_T("dmd_green33"), vars.dmd_green33);
+		queryInt(_T("dmd_blue33"), vars.dmd_blue33);
+		queryInt(_T("dmd_red66"), vars.dmd_red66);
+		queryInt(_T("dmd_green66"), vars.dmd_green66);
+		queryInt(_T("dmd_blue66"), vars.dmd_blue66);
 	}
 
-	// return the result
-	return txtColor;
+	// Now apply the VPM variables.  The algorithm is complex and ad hoc, so I
+	// won't try to explain it here; I'll just more or less reproduce the VPM
+	// code.  Refer to the VPM source code at src/wpc/core.c:PALETTE_INIT().
+	int rStart = 0xFF, gStart = 0xE0, bStart = 0x20;
+	int perc66 = 67, perc33 = 33, perc0 = 20;
+	if (vars.dmd_red > 0 || vars.dmd_green > 0 || vars.dmd_blue > 0)
+	{
+		rStart = vars.dmd_red;
+		gStart = vars.dmd_green;
+		bStart = vars.dmd_blue;
+	}
+	if (vars.dmd_perc0 > 0 || vars.dmd_perc33 > 0 || vars.dmd_perc66 > 0)
+	{
+		perc66 = vars.dmd_perc66;
+		perc33 = vars.dmd_perc33;
+		perc0 = vars.dmd_perc0;
+	}
+	
+	// Generate the monochrome color ramp entries for 0%, 33%, 66%, and 100%
+	// pal[0]  -> 0%
+	pal.color[0].rgbRed = static_cast<BYTE>(rStart * perc0 / 100);
+	pal.color[0].rgbGreen = static_cast<BYTE>(gStart * perc0 / 100);
+	pal.color[0].rgbBlue = static_cast<BYTE>(bStart * perc0 / 100);
+
+	// pal[5]  -> 33%
+	pal.color[5].rgbRed = static_cast<BYTE>(rStart * perc33 / 100);
+	pal.color[5].rgbGreen = static_cast<BYTE>(gStart * perc33 / 100);
+	pal.color[5].rgbBlue = static_cast<BYTE>(bStart * perc33 / 100);
+
+	// pal[10] -> 66%
+	pal.color[10].rgbRed = static_cast<BYTE>(rStart * perc66 / 100);
+	pal.color[10].rgbGreen = static_cast<BYTE>(gStart * perc66 / 100);
+	pal.color[10].rgbBlue = static_cast<BYTE>(bStart * perc66 / 100);
+
+	// pal[15] -> 100%
+	pal.color[15].rgbRed = static_cast<BYTE>(rStart);
+	pal.color[15].rgbGreen = static_cast<BYTE>(gStart);
+	pal.color[15].rgbBlue = static_cast<BYTE>(bStart);
+
+	// If colorization mode is set, treat it as a paletted display rather than
+	// a monochrome brightness ramp, using the individual palette entries from
+	// the options.
+	if (vars.dmd_colorize)
+	{
+		if (vars.dmd_red0 != 0 || vars.dmd_green0 != 0 || vars.dmd_blue0 != 0)
+		{
+			pal.color[0].rgbRed = static_cast<BYTE>(vars.dmd_red0);
+			pal.color[0].rgbGreen = static_cast<BYTE>(vars.dmd_green0);
+			pal.color[0].rgbBlue = static_cast<BYTE>(vars.dmd_blue0);
+		}
+		if (vars.dmd_red33 != 0 || vars.dmd_green33 != 0 || vars.dmd_blue33 != 0)
+		{
+			pal.color[5].rgbRed = static_cast<BYTE>(vars.dmd_red33);
+			pal.color[5].rgbGreen = static_cast<BYTE>(vars.dmd_green33);
+			pal.color[5].rgbBlue = static_cast<BYTE>(vars.dmd_blue33);
+		}
+		if (vars.dmd_red66 != 0 || vars.dmd_green66 != 0 || vars.dmd_blue66 != 0)
+		{
+			pal.color[10].rgbRed = static_cast<BYTE>(vars.dmd_red66);
+			pal.color[10].rgbGreen = static_cast<BYTE>(vars.dmd_green66);
+			pal.color[10].rgbBlue = static_cast<BYTE>(vars.dmd_blue66);
+		}
+	}
+
+	// Interpolate colors between the defined palette points (0%, 33%, 66%, 100%)
+	auto Interpolate = [&pal](int base)
+	{
+		// get the color at the starting position
+		float r = static_cast<float>(pal.color[base].rgbRed);
+		float g = static_cast<float>(pal.color[base].rgbGreen);
+		float b = static_cast<float>(pal.color[base].rgbBlue);
+
+		// figure the increment at each step from here to the next stop, on a linear ramp
+		float dr = static_cast<float>(pal.color[base + 5].rgbRed - pal.color[base].rgbRed) / 5.0f;
+		float dg = static_cast<float>(pal.color[base + 5].rgbGreen - pal.color[base].rgbGreen) / 5.0f;
+		float db = static_cast<float>(pal.color[base + 5].rgbBlue - pal.color[base].rgbBlue) / 5.0f;
+
+		// fill in the intermediate colors
+		for (int i = base + 1; i < base + 5; ++i)
+		{
+			pal.color[i].rgbRed = static_cast<BYTE>(roundf(r += dr));
+			pal.color[i].rgbGreen = static_cast<BYTE>(roundf(g += dg));
+			pal.color[i].rgbBlue = static_cast<BYTE>(roundf(b += db));
+		}
+	};
+	Interpolate(0);
+	Interpolate(5);
+	Interpolate(10);
 }
 
 void DMDView::WaitForHighScoreThreads(DWORD timeout)

@@ -295,8 +295,25 @@ protected:
 	// get the "auto" high score style for the current game
 	const TCHAR *GetCurGameHighScoreStyle();
 
-	// get the DMD dot color for high score displays for the current game
-	RGBQUAD GetCurGameHighScoreColor();
+	// DMD color palette holder.  This holds a 16-shade monochrome color
+	// ramp to use for generated text on the DMD, derived from the VPinMAME
+	// per-game color settings.
+	struct DMDPalette
+	{
+		// Color ramp - color[0] is the color for fully OFF pixels,
+		// color[15] is the color for 100% brightness pixels, and the
+		// values in between are a linear ramp of grayscale brightness.
+		RGBQUAD color[16];
+	};
+
+	// Get the DMD dot color for high score displays for the current game.  If
+	// the text and background colors are explicitly specified, we'll construct
+	// a custom color shade ramp based on those endpoints.  Otherwise, if the
+	// currently selected game has custom VPinMAME color settings, we'll use
+	// those.  If not, we'll use the VPinMAME default color settings, or a
+	// default amber approximating the original 1990s plasma displays if no
+	// VPM default is available.
+	void GetCurGameHighScoreColor(DMDPalette &pal, RGBQUAD *txtColor = nullptr, RGBQUAD *bgColor = nullptr);
 
 	// start the high score slideshow
 	void StartHighScorePlayback();
