@@ -958,6 +958,47 @@ StatusLine.Enable = 1
 UpperStatus.UpdateTime = 2513
 LowerStatus.UpdateTime = 2233
 
+# Wheel sizing and position. These variable adjust the sizing
+# and position of the wheel to get the layout you prefer.
+# 
+# The screen space for the wheel is in D3D space which makes
+# (0,0) is the middle of the window and (-0.5,0.5) at the top
+# left. The wheel is drawn as a circle with the center (window
+# horizontal center) at Wheel.YCenter.
+#
+#  (-0.5, 0.5) ------ ( 0.0, 0.5) ------ ( 0.5, 0.5)
+#       |                  |                 |
+#       |                  |                 |
+#       |      -x,+y       |     +x,+y       |
+#       |                  |                 |
+#  (-0.5, 0.0) ------ ( 0.0, 0.0) ------ ( 0.5, 0.0)
+#       |                  |                 |
+#       |                  |                 |
+#       |      -x,-y       |     +x,-y       |
+#       |                  |                 |
+#  (-0.5,-0.5) ------ ( 0.0,-0.5) ------ ( 0.5,-0.5)
+#
+#
+# YCenter: Vertical center of the wheel circle.
+#
+# Radius: The radius of the circle the wheel is laid out on.
+#
+# Angle: Angle between games on the wheel circle.
+#
+Wheel.YCenter = -0.803645833
+Wheel.Radius = 0.4760416667
+Wheel.Angle = 0.25
+
+#
+# ImageWidth: Width of selected wheel image. The wheel images
+# are stretched/shrunk to match this height when displayed on the
+# wheel.
+Wheel.ImageWidth = 0.14
+
+#
+# YSelected: Vertical location to place the currently selected
+# wheel image when idle (not animating).
+Wheel.YSelected = -0.07135
 
 # Enable the wheel underlay?  The underlay is an image that's 
 # displayed displayed near the bottom of the screen, in the area 

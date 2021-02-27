@@ -1483,6 +1483,49 @@ protected:
 	bool wheelVisible = true;
 	float wheelAlpha = 1.0f;
 
+	// Wheel layout settings 
+	struct WheelOptions
+	{
+		WheelOptions() { Clear(); }
+
+		// populate from a Javascript object
+		//WheelOptions(JavascriptEngine::JsObj &options);
+
+		float xCenter;		// horizontal center of wheel circle
+		float yCenter;		// vertical center of wheel circle (WHEEL_Y)
+		float radius;		// wheel circle radius (WHEEL_R)
+		float angle;		// angle between games (WHEEL_DTHETA)
+		float imageWidth;	// target width of main icon image (WHEEL_IMAGE_WIDTH)
+		float xSelected;	// center image x location at idle
+		float ySelected;	// center image y location at idle (WHEEL_Y0)
+
+		void Clear() { xCenter = yCenter = radius = angle = imageWidth = xSelected = ySelected = INFINITY; }
+
+		bool operator==(const WheelOptions &other) const
+		{
+			return this->xCenter == other.xCenter 
+				&& this->yCenter == other.yCenter
+				&& this->radius == other.radius
+				&& this->angle == other.angle
+				&& this->imageWidth == other.imageWidth
+				&& this->xSelected == other.xSelected
+				&& this->ySelected == other.ySelected;
+		}
+
+		void ApplyDefaults(const WheelOptions &defaults)
+		{
+			// Substitute the default for each missing element (indicated
+			// by the magic value INFINITY)
+			if (xCenter == INFINITY) xCenter = defaults.xCenter;
+			if (yCenter == INFINITY) yCenter = defaults.yCenter;
+			if (radius == INFINITY) radius = defaults.radius;
+			if (angle == INFINITY) angle = defaults.angle;
+			if (imageWidth == INFINITY) imageWidth = defaults.imageWidth;
+			if (xSelected == INFINITY) xSelected = defaults.xSelected;
+			if (ySelected == INFINITY) ySelected = defaults.ySelected;
+		}
+	} wheel;
+
 	// Game info box.  This is a popup that appears when we're idling
 	// with a game selected, showing the title and other metadata for
 	// the active selection.  This box is automatically removed when
