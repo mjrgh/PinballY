@@ -434,27 +434,11 @@ if (a.id == b.id) { /* a and b refer to the same game */ }
    <a name="resolveMedia"></a>
    <b><i>gameInfo</i>.resolveMedia(<i>type</i>, <i>mustExist</i>):</b>  Resolves the
    game's media file(s) of the given type.  <i>type</i> is a media type
-   name, which must match one of the following exactly:
+   name, which must exactly match the ID of an existing media type.  The system
+   has a number of pre-defined media types built in, and you can also define your
+   own custom media types via <a href="GameList.html#createMediaType">gameList.createMediaType</a>.
+   See <a href="MediaTypes.html">Media Types</a> for a list of the built-in types.
 </p>
-<ul class="compact">
-   <li>"bg image"
-   <li>"bg video"
-   <li>"dmd image"
-   <li>"dmd video"
-   <li>"flyer image"
-   <li>"inst card image"
-   <li>"launch audio"
-   <li>"real dmd color image"
-   <li>"real dmd color video"
-   <li>"real dmd image"
-   <li>"real dmd video"
-   <li>"table audio"
-   <li>"table image"
-   <li>"table video"
-   <li>"topper image"
-   <li>"topper video"
-   <li>"wheel image"
-</ul>
 
 <p>
    <i>mustExist</i> is a boolean indicating whether the function

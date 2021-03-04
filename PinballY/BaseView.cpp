@@ -136,6 +136,15 @@ bool BaseView::OnCommand(int cmd, int source, HWND hwndControl)
 		// reflect these to our parent frame
 		::SendMessage(GetParent(hWnd), WM_COMMAND, cmd, 0);
 		return true;
+
+	default:
+		// reflect ID_VIEW_CUSTOM_xxx commands to the parent frame
+		if (cmd >= ID_VIEW_CUSTOM_FIRST && cmd <= ID_VIEW_CUSTOM_LAST)
+		{
+			::SendMessage(GetParent(hWnd), WM_COMMAND, cmd, 0);
+			return true;
+		}
+		break;
 	}
 
 	// not handled - inherit default handling
@@ -527,7 +536,7 @@ void BaseView::DrawDropAreaList(POINT pt)
 			else if (a.mediaType != nullptr)
 			{
 				// generate a label from the media type name
-				typeLabel.Format(LoadStringT(IDS_MEDIA_DROP_TYPE_HERE), LoadStringT(a.mediaType->nameStrId).c_str());
+				typeLabel.Format(LoadStringT(IDS_MEDIA_DROP_TYPE_HERE), a.mediaType->nameStr.c_str());
 				label = typeLabel.c_str();
 			}
 
@@ -556,7 +565,7 @@ void BaseView::DrawDropAreaList(POINT pt)
 	UpdateDrawingList();
 }
 
-void BaseView::ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+void BaseView::ShowDropTargets(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
 {
 	// presume that we won't accept the drop
 	*pdwEffect = DROPEFFECT_NONE;
@@ -580,7 +589,7 @@ void BaseView::ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DW
 	}
 
 	// Process the file (we already know there's only one)
-	fd.EnumFiles([this, pdwEffect, pt](const TCHAR *fname)
+	fd.EnumFiles([this, pdwEffect, pt](const TCHAR *fname, IStream *)
 	{
 		// If it's an archive file of a type we can unpack, assume it's 
 		// acceptable.  Don't scan it now, since this test is done on the 
@@ -628,7 +637,7 @@ bool BaseView::BuildDropAreaList(const TCHAR *filename)
 	return false;
 }
 
-void BaseView::UpdateDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+void BaseView::UpdateDropTargets(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
 {
 	// if there's a drop area list, find the active area under the mouse
 	if (dropAreas.size() != 0)
@@ -668,7 +677,7 @@ void BaseView::RemoveDropTargets()
 	activeDropArea = nullptr;
 }
 
-void BaseView::DoMediaDrop(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
+void BaseView::DoMediaDrop(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect)
 {
 	// no files processed yet
 	int nFilesProcessed = 0;
@@ -687,10 +696,10 @@ void BaseView::DoMediaDrop(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD 
 	pfv->BeginFileDrop();
 
 	// process the dropped files
-	fd.EnumFiles([this, pfv, &nFilesProcessed, area](const TCHAR *fname)
+	fd.EnumFiles([this, pfv, &nFilesProcessed, area](const TCHAR *fname, IStream *stream)
 	{
 		// try processing it through the playfield view
-		if (pfv->DropFile(fname, dropTarget, area != nullptr ? area->mediaType : nullptr))
+		if (pfv->DropFile(fname, stream, dropTarget, area != nullptr ? area->mediaType : nullptr))
 			++nFilesProcessed;
 	});
 
@@ -1161,6 +1170,9 @@ void BaseView::JsDrawingLayerDraw(JsValueRef self, JsValueRef drawFunc, JsValueR
 			// if we're frozen in the background, force a refresh
 			if (freezeBackgroundRendering && !Application::IsInForeground())
 				InvalidateRect(hWnd, NULL, FALSE);
+
+			// rescale sprites, in case it changed shape during the draw
+			ScaleSprites();
 		}
 		catch (JavascriptEngine::CallException exc)
 		{

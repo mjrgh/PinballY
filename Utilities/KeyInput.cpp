@@ -37,7 +37,7 @@ const KeyInput::KeyLabel KeyInput::keyName[] =
 	{ _T("KANA"),         _T("Kana"),          _T("KanaMode"),      _T("KanaMode"),       0x15,  0,   20000  },   // 0x15 - VK_KANA - IME Kana mode/Hangul mode
 	{ 0,                  0,                   _T("Unidentified"),  _T("Unidentified"),   0,     0,   50012  },   // 0x16 - Undefined
 	{ _T("JUNJA"),        _T("Junja"),         _T("Lang1"),         _T("Lang1"),          0x17,  0,   20001  },   // 0x17 - VK_JUNJA - IME Junja mode
-	{ _T("FINAL"),        _T("Final"),         _T("Final"),         _T("Final"),          0x18,  20002  },   // 0x18 - VK_FINAL - IME final mode
+	{ _T("FINAL"),        _T("Final"),         _T("Final"),         _T("Final"),          0x18,  0,   20002  },   // 0x18 - VK_FINAL - IME final mode
 	{ _T("KANJI"),        _T("Kanji"),         _T("Lang2"),         _T("Lang2"),          0x19,  0,   20003  },   // 0x19 - VK_HANJA - IME Hanja mode/Kanji mode
 	{ 0,                  0,                   _T("Unidentified"),  _T("Unidentified"),   0,     0,   50013  },   // 0x1a -  Undefined
 	{ _T("ESCAPE"),       _T("Esc"),           _T("Escape"),        _T("Escape"),         0x1b,  0,   330    },   // 0x1b - VK_ESCAPE - ESC key

@@ -50,6 +50,14 @@ public:
 	// this aspect of its behavior is shared.)
 	static bool TestShowMediaWhenRunning(GameListItem *game, GameSystem *system, const TCHAR *windowID);
 
+	// Javascript access to Get/Set background scaling mode
+	WSTRING JsGetBgScalingMode() const;
+	void JsSetBgScalingMode(WSTRING mode);
+
+	// Javascript access to paged media
+	int JsGetPagedImageIndex() const;
+	void JsSetPagedImageIndex(int index);
+
 protected:
 	// Get the next window to update during a game transition.
 	// We update the windows one at a time to spread out the extra 
@@ -73,13 +81,17 @@ protected:
 	// in the backglass for every FX3 game.  But it can also vary
 	// per game, especially in VP, where some games provide
 	// backglass and DMD graphics and some don't.
-	bool ShowMediaWhenRunning(GameListItem *game, GameSystem *system) const;
+	virtual bool ShowMediaWhenRunning(GameListItem *game, GameSystem *system) const;
 
 	// window ID for "Show When Running" column in the game stats
 	virtual const TCHAR *ShowWhenRunningWindowId() const = 0;
 
 	// send the sync command to the next window
 	void SyncNextWindow();
+
+	// Load the current game's media.  Returns true if media were
+	// loaded, false if not.
+	virtual bool LoadCurrentGameMedia(GameListItem *game);
 
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }
@@ -151,6 +163,19 @@ protected:
 		RefPtr<VideoSprite> sprite;		// sprite
 	}
 	currentBackground, incomingBackground;
+
+	// Current image index, for paged/indexed media, such as Flyers and
+	// Instruction Cards.  Whenever we switch to a new game, this is reset
+	// to zero.  Javascript code can use this in custom windows to flip
+	// through the different pages of a Flyer set, for example.
+	int currentImageIndex = 0;
+
+	// Maintain the original media's aspect ratio on our background images.
+	// If this is false (the default), we stretch the background images to fit
+	// the window in both dimensions; if this is true, we maintain the aspect
+	// ratio of the original media, and scale it to fit exactly in whichever
+	// dimension doesn't cause the other dimension to overflow the frame.
+	bool maintainBackgroundAspect = false;
 
 	// async loader
 	AsyncSpriteLoader backgroundLoader;

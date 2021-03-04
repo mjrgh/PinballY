@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Windows</h1>
+
+<p>
+   This type of object represents a window that you create via
+   <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow</a>.
+   It's a specialization of the basic <a href="WindowObjects.html">Window Objects</a>
+   that the system provides for the main playfield window, the backglass window,
+   and so forth.  You can use custom windows to supplement the standard set
+   of windows if you have additional media types that you want to display.
+</p>
+<p>
+   For an example of how to create your own custom windows, see
+   <a href="CustomMediaWindowExample.html">Custom Media Window</a> in
+   the <a href="WorkedExamples.html">Worked Examples</a> section.
+</p>
+
+<h2>Properties and methods</h2>
+
+<p>
+   A custom window has all of the standard properties and methods
+   common to all windows, as described in <a href="WindowObjects.html">Window Objects</a>.
+   It also has some extended functionality of its own.
+</p>
+<p>
+   <a name="backgroundScalingMode"></a>
+   <b>backgroundScalingMode:</b>  This property controls how background images
+   and videos are scaled to fit the window.  You can change it by assigning one
+   of the string values below, and you can determine the current mode by
+   comparing it to these string values.  It has two possible settings:
+</p>
+<ul>
+   <li>"stretch": This is the default.  In stretch mode, the image or video
+   is stretched in both the horizontal and vertical directions to exactly
+   fill the window, without trying to preserve the original media's aspect ratio.
+   This can distort the image by making it look too tall or too wide, but
+   it guarantees that the window area is exactly covered.
+   
+   <li>"zoom": In zoom mode, the original aspect ratio of the media is
+   preserved, and the image is scaled to fill either the window's full height
+   or its full width, according to which one allows the full image to fit
+   without any cropping.  If this leaves blank areas, they're filled with
+   black, and the image is centered.  This mode avoids any geometrical
+   distortion, but it can leave blank black areas if the image doesn't
+   have the same aspect ratio as the window.
+</ul>
+</p>
+
+<p>
+   <a name="pagedImageIndex"></a>
+   <b>pagedImageIndex:</b>  This property lets you scroll through "paged"
+   and "indexed" image types, so that you can display different 
+   images from the game's collection on command.  Reading this property
+   retrieves the index of the media item currently displayed, starting at 0
+   for the first item in the list.  Writing this property changes the
+   display to show the item at the given index.  If the new value is past
+   the last available item or less than zero, the system automatically
+   "wraps" to the beginning or end of the list (respectively).
+</p>
+<p>
+   The simplest way to use this property is to increment it to scroll
+   forward to the next image, and decrement it to scroll back to
+   the previous item.  Because the system automatically "wraps" the
+   value into the valid range, you can simply increment and decrement
+   the current value without bothering to check bounds.
+</p>
+<p>
+   Note that this method only works with <b>image</b> types.  If a
+   window can show both video and image backgrounds, changing the
+   paged image index will always select an image, even if a video
+   is available.
+</p>
+<p>
+   Of the built-in types, this applies to Flyers and Instruction Cards.
+   By the conventions of the HyperPin Media Packs,
+   Flyers are "paged", meaning a single game can have multiple flyer
+   images associated with it, arranged into subfolders of the main
+   Flyers media folder, with names like "Front", "Back", "Inside1", etc.
+   The Instruction Cards are "indexed", meaning that they have numeric
+   suffixes attached to the filenames: "Sinbad (Gottlieb 1978) 1.png",
+   "Sinbad (Gottlieb 1978) 2.png", and so on.  If you define your own
+   custom media types, you can use paging and indexing for any type
+   you create that has a similar need for multiple images per game.
+</p>
+<p>
+   (I know it's inconsistent and complicating to have these two different
+   conventions, "Paged" and "Indexed", for essentially the same function.
+   PinballY only uses them because that's how the files are arranged in
+   the widely deployed HyperPin media packs.  Since those are the most
+   convenient source of front-end media, I wanted to make them easy to
+   use with PinballY.  I didn't want to force everyone to undertake a
+   renaming project every time they imported a media pack.)
+</p>
+
+<p>
+   <a name="showMediaWhenRunningFlag"></a>
+   <b>showMediaWhenRunningFlag:</b>  This property lets you control
+   whether or not the window continues to show media while a game is
+   running.  This is the custom window equivalent of the options
+   dialog checkboxes that let you control the same behavior for the
+   built-in windows.  This can take on three possible values:
+</p>
+<ul>
+   <li><b>true</b> means that the window continues to show its media
+   while a game is running
+
+   <li><b>false</b> means that the window is blanked out and sent to
+   the background while a game is running.  This is the default
+   behavior for custom windows, and it's also the default for all
+   of the system windows, except when you override it using the
+   options settings (the "Keep showing this game's media while
+   running" checkboxes in the Game Details box, the system setup
+   options pages, and the Launch options page).
+
+   <li><b>undefined</b> means that the normal "key" mechanism is
+   used.  The system windows use the key to store the per-game,
+   per-system, and global preferences set through the various
+   settings dialogs, by checking the status of the key in the
+   global settings file and the Game Stats file.  If you defined
+   a key for this window when creating it (see <b>showMediaWhenRunningKey</b>
+   undef <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow()</a>),
+   the system uses the same key search for this custom window.
+   If you didn't define a key string for the window when creating
+   it, <b>undefined</b> has the same meaning as <b>false</b>,
+   yielding the default behavior of blanking out the window while
+   a game is running.
+</ul>
+<p>
+   Note that values of <b>true</b> and <b>false</b> override any
+   "key" lookup, so you can use these to control the behavior
+   unconditionally in Javascript code.  For example, you could
+   use a <a href="GameSelectEvent.html"><b>gameselect</b></a>
+   event to decide on how to handle the window for the current
+   game each time a new game is selected, setting
+   <b>showMediaWhenRunningFlag</b> to the desired value.
+</p>
+
+
+</body>
+</html>

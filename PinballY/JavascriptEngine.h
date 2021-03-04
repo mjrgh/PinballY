@@ -151,6 +151,9 @@ public:
 	// Create an object with a prototype
 	bool CreateObjWithProto(JsValueRef &obj, JsValueRef proto);
 
+	// Create an object with the same prototype as another object
+	bool CreateObjWithSameProto(JsValueRef &newObj, JsValueRef sourceObj);
+
 	// create an array
 	bool CreateArray(JsValueRef &arr);
 
@@ -360,7 +363,7 @@ public:
 
 		JsErrorCode err;
 		JsValueRef strval;
-		const wchar_t *p;
+		const wchar_t *p; 
 		size_t len;
 		if ((err = JsConvertValueToString(jsval, &strval)) == JsNoError
 			&& (err = JsStringToPointer(strval, &p, &len)) == JsNoError)
@@ -407,6 +410,8 @@ public:
 	template<> static DateTime JsToNative<DateTime>(JsValueRef jsval) 
 		{ return JsToNative<DateTime>(jsval, DateTime(FILETIME { 0, 0 })); }
 
+	template<> static HWND JsToNative<HWND>(JsValueRef jsval) { return HWNDData::FromJavascript(jsval); }
+
 	// default values for common native types, used for 'undefined' in property gets
 	template<typename T> static T DefaultVal();
 	template<> static bool DefaultVal<bool>() { return false; }
@@ -418,6 +423,7 @@ public:
 	template<> static JsValueRef DefaultVal<JsValueRef>() { return JavascriptEngine::Get()->undefVal; }
 	template<> static DateTime DefaultVal<DateTime>() { return DateTime(FILETIME{ 0, 0 }); }
 	template<> static std::vector<JsValueRef> DefaultVal<std::vector<JsValueRef>>() { return std::vector<JsValueRef>(); }
+	template<> static HWND DefaultVal<HWND>() { return NULL; }
 
 	// Native representation of a Javascript object, as a map of JsValueRef
 	// values keyed by WSTRING property names.
@@ -724,8 +730,18 @@ public:
 
 		void Invoke(JsValueRef func, JsValueRef arg)
 		{
+			// invoke the callback
 			JsValueRef argv[2] = { promise, arg }, result;
 			JsCallFunction(func, argv, static_cast<unsigned short>(countof(argv)), &result);
+
+			// check for errors
+			auto js = JavascriptEngine::Get();
+			JsErrorCode err;
+			bool isExc;
+			if ((err = JsHasException(&isExc)) != JsNoError)
+				js->Throw(err, _T("Promise::Invoke, checking exception"));
+			else if (isExc && (err = js->LogAndClearException()) != JsNoError)
+				js->Throw(err, _T("Promise::Invoke, logging exception"));
 		}
 
 		// Promise object

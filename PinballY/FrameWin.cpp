@@ -7,6 +7,7 @@
 #include <VersionHelpers.h>
 #include "../Utilities/Config.h"
 #include "PlayfieldView.h"
+#include "CustomWin.h"
 #include "Resource.h"
 #include "PlayfieldWin.h"
 #include "Application.h"
@@ -1050,6 +1051,15 @@ bool FrameWin::DoCommand(int cmd)
 	case ID_RESTORE_VISIBILITY:
 		RestoreVisibility();
 		return true;
+
+	default:
+		// check for Show <Custom Window> commands
+		if (cmd >= ID_VIEW_CUSTOM_FIRST && cmd <= ID_VIEW_CUSTOM_LAST)
+		{
+			if (auto cw = CustomWin::GetBySerial(cmd - ID_VIEW_CUSTOM_FIRST + 1); cw != nullptr)
+				Application::Get()->ShowWindow(cw);
+		}
+		break;
 	}
 
 	// not handled

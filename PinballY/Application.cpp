@@ -33,6 +33,8 @@
 #include "PlayfieldView.h"
 #include "BackglassWin.h"
 #include "BackglassView.h"
+#include "CustomWin.h"
+#include "CustomView.h"
 #include "DMDWin.h"
 #include "DMDView.h"
 #include "TopperWin.h"
@@ -516,6 +518,7 @@ int Application::EventLoop(int nCmdShow)
 	DestroyWindow(dmdWin->GetHWnd());
 	DestroyWindow(topperWin->GetHWnd());
 	DestroyWindow(instCardWin->GetHWnd());
+	CustomWin::DestroyAll();
 
 	// release the window pointers
 	playfieldWin = nullptr;
@@ -734,6 +737,9 @@ Application::~Application()
 
 	// delete the game list
 	GameList::Shutdown();
+
+	// clear the media type lists
+	GameListItem::ClearMediaTypeList();
 
 	// shut down libvlc
 	VLCAudioVideoPlayer::OnAppExit();
@@ -1021,11 +1027,13 @@ bool Application::LoadStartupVideos()
 	// the callback results.
 	auto ForEachView = [this](std::function<bool(BaseView*)> func)
 	{
+		// process the built-in windows
 		return func(GetPlayfieldView())
 			&& func(GetBackglassView())
 			&& func(GetDMDView())
 			&& func(GetInstCardView())
-			&& func(GetTopperView());
+			&& func(GetTopperView())
+			&& CustomView::ForEachCustomView(func);
 	};
 
 	// try loading a video in each window
@@ -1147,7 +1155,8 @@ void Application::InitDialogPos(HWND hDlg, const TCHAR *configVar)
 			&& !TestWin(GetBackglassView())
 			&& !TestWin(GetDMDView())
 			&& !TestWin(GetTopperView())
-			&& !TestWin(GetInstCardView()))
+			&& !TestWin(GetInstCardView())
+			&& CustomView::ForEachCustomView([&TestWin](CustomView *cv) { return !TestWin(cv); }))
 			return;
 	}
 
@@ -1322,6 +1331,9 @@ void Application::ClearMedia()
 		tpv->ClearMedia();
 	if (auto ic = GetInstCardView(); ic != nullptr)
 		ic->ClearMedia();
+
+	// visit the custom views
+	CustomView::ForEachCustomView([](CustomView *cv) { cv->ClearMedia(); return true; });
 }
 
 void Application::BeginRunningGameMode(GameListItem *game, GameSystem *system)
@@ -1347,6 +1359,15 @@ void Application::BeginRunningGameMode(GameListItem *game, GameSystem *system)
 	// that the message loop will know that we need full-speed updates
 	playVideosInBackground = bgvideo || dmvideo || fpvideo || icvideo;
 
+	// visit the custom views
+	CustomView::ForEachCustomView([game, system](CustomView *cv) {
+		bool cvvideo = false;
+		cv->BeginRunningGameMode(game, system, cvvideo);
+		if (cvvideo)
+			playVideosInBackground = true;
+		return true; 
+	});
+
 	// Now start the media sync process for the secondary windows, by
 	// syncing the backglass window.  Each window will forward the
 	// request to the next window in the chain after it finishes with
@@ -1368,6 +1389,9 @@ void Application::EndRunningGameMode()
 		tpv->EndRunningGameMode();
 	if (auto ic = GetInstCardView(); ic != nullptr)
 		ic->EndRunningGameMode();
+
+	// visit custom videos
+	CustomView::ForEachCustomView([](CustomView *cv) { cv->EndRunningGameMode(); return true; });
 
 	// clear the videos-in-background flag, as we're no longer 
 	// running a game
@@ -1593,6 +1617,9 @@ void Application::UpdateEnableVideos()
 	GetBackglassView()->OnEnableVideos(enableVideos);
 	GetDMDView()->OnEnableVideos(enableVideos);
 	GetTopperView()->OnEnableVideos(enableVideos);
+
+	// visit custom views
+	CustomView::ForEachCustomView([this](CustomView *cv) { cv->OnEnableVideos(enableVideos); return true; });
 }
 
 void Application::MuteVideos(bool mute)
@@ -1657,6 +1684,7 @@ void Application::UpdateVideoMute()
 	Update(GetBackglassView());
 	Update(GetDMDView());
 	Update(GetTopperView());
+	CustomView::ForEachCustomView([&Update](CustomView *cv) { Update(cv); return true; });
 }
 
 bool Application::IsMuteVideosNow() const
@@ -1793,6 +1821,7 @@ Application::GameMonitorThread::GameMonitorThread() :
 	dmdView = Application::Get()->GetDMDView();
 	topperView = Application::Get()->GetTopperView();
 	instCardView = Application::Get()->GetInstCardView();
+	CustomView::ForEachCustomView([this](CustomView *cv) { customViews.emplace_back(cv, RefCounted::DoAddRef); return true; });
 }
 
 Application::GameMonitorThread::~GameMonitorThread()
@@ -3519,6 +3548,7 @@ DWORD Application::GameMonitorThread::Main()
 			{ _T("9"), 0x0A },
 			{ _T("0"), 0x0B },
 			{ _T("dash"), 0x0c },
+			{ _T("hyphen"), 0x0c },
 			{ _T("plus"), 0x0D },
 			{ _T("backslash"), 0x2B },
 			{ _T("backspace"), 0x0E },
@@ -3884,8 +3914,7 @@ DWORD Application::GameMonitorThread::Main()
 			nMediaItemsAttempted += 1;
 
 			// get the descriptor for the item, for status messages
-			TSTRINGEx itemDesc;
-			itemDesc.Load(item.mediaType.nameStrId);
+			const TSTRING &itemDesc = item.mediaType.nameStr;
 
 			// If the game has already exited, or a shutdown or close event
 			// is already pending, abort this capture before it starts
@@ -4013,17 +4042,10 @@ DWORD Application::GameMonitorThread::Main()
 			// Move the status window over the playfield window when capturing
 			// in any other window, and move it over the backglass window when
 			// capturing the playfield.
-			switch (item.mediaType.nameStrId)
-			{
-			case IDS_MEDIATYPE_PFPIC:
-			case IDS_MEDIATYPE_PFVID:
+			if (item.mediaType.javascriptId == L"table image" || item.mediaType.javascriptId == L"table video")
 				capture.statusWin->PositionOver(Application::Get()->GetBackglassWin());
-				break;
-
-			default:
+			else
 				capture.statusWin->PositionOver(Application::Get()->GetPlayfieldWin());
-				break;
-			}
 
 			// save (by renaming) any existing files of the type we're about to capture
 			TSTRING oldName;

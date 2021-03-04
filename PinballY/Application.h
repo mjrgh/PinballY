@@ -942,6 +942,7 @@ protected:
 		RefPtr<D3DView> dmdView;
 		RefPtr<D3DView> topperView;
 		RefPtr<D3DView> instCardView;
+		std::list<RefPtr<D3DView>> customViews;
 
 		// launch time
 		ULONGLONG launchTime;

@@ -70,6 +70,161 @@
 </p>
 
 <p>
+   <a name="createMediaWindow"></a>
+   <b>mainWindow.createMediaWindow(<i>desc</i>):</b>
+   Creates a new media window.  This lets you add custom media display windows of
+   your own alongside the standard backglass window, DMD window, topper window, and
+   instruction card window.  Custom media windows act just like the built-in windows,
+   the only difference being that you can specify exactly what kind of media to
+   show in a custom window.  Custom media windows also have full support for
+   <a href="DrawingLayer.html">drawing layers</a>, just like the built-in windows,
+   so you can further specialize these windows with your own custom-programmed graphics.
+</p>
+<p>
+   For an example of how to use this method, see
+   <a href="CustomMediaWindowExample.html">Custom Media Window</a> in
+   the <a href="WorkedExamples.html">Worked Examples</a> section.
+</p>
+<p>
+   The <i>desc</i> argument is an object, with a collection of properties
+   describing the new window.  All of the properties are optional, but in
+   most cases you'll want to at least specify the title and configuration
+   file prefix.
+</p>
+<ul>
+   <li><b>title:</b> a string giving the window's title, as displayed in
+   its Windows title bar and in system menus where it appears (such as the
+   right-click context menu in the main playfield window, where an item is
+   automatically added to show the window.
+
+   <li><b>configVarPrefix:</b> a string giving the prefix for the variables
+   in the PinballY settings file that store the window's location and layout
+   information between program sessions.  To work properly with the settings
+   mechanism, be sure to limit this to alphanumeric characters, underscores,
+   hyphens, and periods.  Don't use any other special characters, and don't
+   use spaces.  The variables in the settings file related to this window
+   will all start with this string, with various suffixes starting with a
+   period (".") attached.
+
+   <li><b>parent:</b> an HWND object (window handle) giving the "parent
+   window" for the new window.  If you omit this, the default parent is
+   the main playfield window, which is almost always what you'll want
+   this to be anyway, so you can just omit this property unless you're
+   trying to achieve some specific effect.  You can find out more about
+   the notion of parent windows in the Microsoft API documentation.
+   The main thing effect of the parent relationship in PinballY is
+   that a window is always kept in front of its parent window, even
+   when the parent window is the active window.  Using a null window
+   handle makes the window a top-level window, so it can be moved
+   in front of and behind any of the other windows.
+
+   <li><b>backgroundImageMediaType:</b> a string giving the media type
+   to use for the window's background image.  This lets you tell the
+   system to automatically search for and load a background image
+   associated with the currently selected game each time a new game
+   is selected.  You can use any of the pre-defined media types
+   (see <a href="MediaTypes.html">Media Types</a>
+   for a full list), but more interestingly, you can define your own
+   custom media types via <a href="GameList.html#createMediaType()">gameList.createMediaType()</a>.
+   A custom media type lets you create a new media folder hierarchy alongside
+   the standard ones - table images, backglass videos, and so on.
+   For example, you could create a custom media type for pictures
+   of the full original pinball machines, and then create a custom
+   media window to display the full machine picture for the
+   current game.
+   <p>If <b>backgroundVideoMediaType</b>
+   is also set, the window will look for a video first, and will
+   only look for a still image if no video is found.  If the video
+   type isn't set, the window will ignore videos and just look
+   for still images.
+   </p>
+   <p>If this property isn't set, the default is that the window
+   doesn't automatically load any background image at all.  This is
+   suitable if you plan to provide your own custom graphics in the
+   window using <a href="DrawingLayer.html">Drawing Layers</a>.
+
+   <li><b>backgroundVideoMediaType:</b> a string giving the media type
+   to use for the window's background video.
+
+   <li><b>defaultBackgroundImage:</b> a string giving the name of the
+   default image file to use if no background image matching the
+   media type specified in <b>backgroundImageMediaType</b> is found
+   for a selected game.  This defaults to "Default Custom".  The
+   system searches for an image file with this name in the same
+   places that the built-in windows look; see
+   <a href="DirectoryInfo.html#DefaultMediaFiles">Default media files</a>
+   in <a href="DirectoryInfo.html">Files &amp; Folders</a> for details.
+   This should be given as just the bare, root filename, with no
+   folder path and no extension.  The system has a standard set of
+   places to look and extensions to try when searching for this,
+   which it adds to this base name to form full filenames to seek.
+
+   <li><b>defaultBackgroundVideo:</b> a string giving the name of
+   the default video file to use if no background video is found
+   for a selected game.  This works like <b>defaultBackgroundImage</b>
+   above.  The default value is "Default Custom".
+
+   <li><b>startupVideo:</b> a string with the name of the startup
+   video to play in this window.  This is just the root filename
+   of the video, without any path prefix and without any extension
+   (that is, <b>don't</b> include .mp4 or .mov at the end).  The
+   system looks in the usual places for startup videos; see
+   <a href="StartupAudioVideo.html">Startup Audio and Video</a>.  In
+   order for a startup video to be displayed, the window must be
+   created before any startup videos start playing, which means
+   it has to happen during the initial Javascript loading process.
+
+   <li><b>isMediaCapturable:</b> an optional boolean value indicating
+   whether or not the window should be included in screen capture
+   operations, to create background image and video media by
+   capturing screen shots of a running game.  The default is false,
+   to disable media capture in this window.  This should only be
+   set to true for a window type that represents something that
+   a running game will display on-screen, since the point is to
+   create media by recording the running game's video displays.
+
+   <li><b>showMediaWhenRunningKey:</b> an optional string giving
+   the "key" to use to decide whether or not to continue showing
+   the window's media while a game is running.  This should be
+   a short string, and must not use any special characters.
+   For reference, the built-in windows use the keys
+   "bg", "dmd", "realdmd", "topper", and "instcard", so something
+   along those lines is recommended: descriptive and short.
+   This is stored in the settings file as well as the game
+   stats file to keep track of per-game and per-system
+   settings for the window.  This is optional; if not specified,
+   the window will use the default behavior of clearing to black
+   and moving into the background whenever a game is running.
+   You can also control this behavior through Javascript code,
+   via the <a href="CustomWindow.html#showMediaWhenRunningFlag">showMediaWhenRunningFlag</a>
+   property of the custom window object.
+</ul>
+<p>
+   The return value of the method is the newly created window object,
+   which has methods and properties described in
+   <a href="CustomWindow.html">Custom Windows</a>.
+</p>
+<p>
+   The descriptor <i>desc</i> doesn't contain any window position, size,
+   or visibility information.  That's intentional.  A custom media window
+   is a first-class window with all of the standard functionality that
+   comes with the built-in media windows, so one of the things that the
+   system will do automatically with this window is to save and restore
+   its layout information.  When you create the window, its layout
+   information will be restored from the settings file, so that the
+   window appears at the same location where the user left it at the
+   end of the last session.  Of course, there's no saved information
+   to be restored when you create a window for the first time, so the
+   window is simply shown at a default position.  If you want to
+   override the saved location every time you create the window in
+   a new session, you can use the <a href="OptionSettingsObject.html">optionSettings</a>
+   object to update the window's settings variables just before you
+   open the window.  Recall that the window's variables all start
+   with the <b>configVarPrefix</b> string you specify when creating
+   the window.
+</p>
+
+<p>
    <a name="doButtonCommand"></a>
    <b>mainWindow.doButtonCommand(<i>command</i>, <i>down</i>, <i>repeatCount</i>):</b>
    Simulates a key press, or more precisely, simulates a processed key event

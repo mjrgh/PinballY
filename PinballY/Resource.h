@@ -49,6 +49,7 @@
 #define IDB_MNU_HELP                    175
 #define IDB_MNU_WINDOW_BORDERS          176
 #define IDB_KEEP_WIN_CKBOX              177
+#define IDR_CUSTOMVIEW_CONTEXT_MENU     178
 
 #define IDS_APP_TITLE                   203
 #define IDD_ABOUTBOX                    204
@@ -495,6 +496,8 @@
 #define IDS_WINTTL_TOPPER               1003
 #define IDS_WINTTL_INSTCARD             1004
 
+#define IDS_VIEWCUSTOM_MENUCMD          1010
+
 #define ID_EXIT                         32777
 #define ID_OPTIONS                      32778
 #define ID_ABOUT                        32779
@@ -596,6 +599,9 @@
 #define ID_SWF_ERROR_HELP               32875
 #define ID_SYNC_ALL_VIEWS               32876
 #define ID_APPROVE_ELEVATION_ALWAYS     32877
+#define ID_SYNC_USERDEFINED             32878
+#define ID_VIEW_CUSTOM_FIRST            32879
+#define ID_VIEW_CUSTOM_LAST             32898
 
 
 // Next default values for new objects
@@ -604,7 +610,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        2000
-#define _APS_NEXT_COMMAND_VALUE         32877
+#define _APS_NEXT_COMMAND_VALUE         32899
 #define _APS_NEXT_CONTROL_VALUE         1200
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
@@ -656,19 +662,37 @@
 #define ID_PICKSYS_LAST                 42199
 
 
-// Command range for media capture items.  We only need as many
-// of these as there are media types, and there's a fixed set of
-// those that won't expand dynamically.  (Although we might add
-// more media types in future versions, so we allocate a larger
-// range here than we actually use at present, just so we don't
-// have to keep coming back and changing the limits.)
+// Command range for media capture items.  The upper bound is
+// one per media types, including custom types defined through
+// Javascript, so it's potentially open-ended.  In practice,
+// though, we only need to cover *capturable* types, which are
+// a subset of the overall type list.  A capturable type has to
+// correspond to something that a live game displays on screen,
+// and there just can't be that many different game displays
+// beyond the ones we already have built into the system.  The
+// predefined types only include eight that are capturable
+// (image and video for each of the playfield, backglass, DMD,
+// and topper windows), and it seems highly unlikely that any
+// games will have more than one or two unique display areas
+// beyondthis set that would be interesting to capture.
+// 
 #define ID_CAPTURE_FIRST                42200
 #define ID_CAPTURE_LAST                 42249
 
-// Command range for media drop selections.  As with capture items,
-// we only need one per media type.
+// Command range for media drop selections.  As with capture
+// items, the upper bound is the number of defined media types,
+// including user-defined custom types.  In this case, ANY
+// media type could be involved in a drop, so we need enough
+// to cover all of the types that might exist simultaneously
+// in a session.  I don't expect users to create large numbers
+// of custom types, since they more or less correspond to
+// custom windows; anything beyond two or three added windows
+// would make for an overly cluttered display, so I think we
+// can expect a handful of custom types.  Just in case any
+// unusual situations come up, though, leave a fairly large
+// space.
 #define ID_MEDIADROP_FIRST              42250
-#define ID_MEDIADROP_LAST               42299
+#define ID_MEDIADROP_LAST               42349
 
 // Command range reserved for user-written Javascript commands.
 // The number needed here is obviously completely unpredictable,
@@ -686,5 +710,5 @@
 // want to get with this.  So let's allocate a range with space
 // for a reasonably small N times a reasonably large number of
 // games.
-#define ID_USER_FIRST                   42300
-#define ID_USER_LAST                    44299
+#define ID_USER_FIRST                   42350
+#define ID_USER_LAST                    44349

@@ -62,18 +62,25 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 
 void SecondaryView::GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image)
 {
-	game->GetMediaItem(image, *mtype);
+	game->GetMediaItem(image, *mtype, false, true, currentImageIndex);
 }
 
 void SecondaryView::GetBackgroundVideoMedia(const GameListItem *game, const MediaType *mtype, TSTRING &video)
 {
-	game->GetMediaItem(video, *mtype);
+	game->GetMediaItem(video, *mtype, false, true, currentImageIndex);
 }
 
 void SecondaryView::UpdateDrawingList()
 {
 	// clear the list
 	sprites.clear();
+
+	// add negative-numbered drawing layers
+	for (auto const &it : jsDrawingLayers)
+	{
+		if (it.zIndex < 0)
+			AddToDrawingList(it.sprite);
+	}
 
 	// add the background images to the list
 	AddBackgroundToDrawingList();
@@ -82,9 +89,12 @@ void SecondaryView::UpdateDrawingList()
 	// add the video overlay
 	AddToDrawingList(videoOverlay);
 
-	// add the javascript overlays
+	// add the positive-numbered javascript overlays
 	for (auto const &it : jsDrawingLayers)
-		AddToDrawingList(it.sprite);
+	{
+		if (it.zIndex >= 0)
+			AddToDrawingList(it.sprite);
+	}
 
 	// add the drop effect overlay
 	AddToDrawingList(dropTargetSprite.Get());
@@ -101,9 +111,9 @@ void SecondaryView::AddBackgroundToDrawingList()
 // update sprite scaling
 void SecondaryView::ScaleSprites()
 {
-	// stretch the topper images to exactly fill the window
-	ScaleSprite(currentBackground.sprite, 1.0f, false);
-	ScaleSprite(incomingBackground.sprite, 1.0f, false);
+	// stretch the background images to exactly fill the window
+	ScaleSprite(currentBackground.sprite, 1.0f, maintainBackgroundAspect);
+	ScaleSprite(incomingBackground.sprite, 1.0f, maintainBackgroundAspect);
 	ScaleSprite(dropTargetSprite, 1.0f, true);
 
 	// do the base class work
@@ -264,8 +274,21 @@ void SecondaryView::SyncCurrentGame()
 		&& currentBackground.sprite != nullptr && currentBackground.game == game)
 		return;
 
+	// reset paged/indexed images to the first item
+	currentImageIndex = 0;
+
+	// load the current game's media
+	syncer.loadedMedia = LoadCurrentGameMedia(game);
+}
+
+
+bool SecondaryView::LoadCurrentGameMedia(GameListItem *game)
+{
+	// we haven't loaded any media yet
+	bool loadedMedia = false;
+
 	// get the audio volume for the game
-	int volPct = gl->GetAudioVolume(game);
+	int volPct = GameList::Get()->GetAudioVolume(game);
 
 	// combine it with the global video volume setting
 	volPct = volPct * Application::Get()->GetVideoVolume() / 100;
@@ -280,7 +303,7 @@ void SecondaryView::SyncCurrentGame()
 	// If there's no incoming game, and the new media file matches the media
 	// file for the current sprite, leave the current one as-is.  This can
 	// happen when both the current and incoming games use the same default
-	// background.  Only bother with this in the case of video; for images,
+	// background.  Only bother checking in the case of video; for images,
 	// a re-load won't be visible.  With videos, a re-load would start the
 	// video over from the beginning, so it's nicer to leave it running
 	// uninterrupted.
@@ -328,13 +351,22 @@ void SecondaryView::SyncCurrentGame()
 			// try the image if that didn't work
 			if (!ok && image.length() != 0)
 			{
+				// get the image file info
+				ImageFileDesc desc;
+				bool haveDesc = GetImageFileInfo(image.c_str(), desc);
+
+				// figure the image's native aspect ratio, in case we want to maintain it
+				// on display rather than stretching it to fill the whole window
+				POINTF normalizedSize = { 1.0f, 1.0f };
+				if (desc.dispSize.cy != 0)
+					normalizedSize.x = static_cast<float>(desc.dispSize.cx) / static_cast<float>(desc.dispSize.cy);
+					
 				// try loading the image
 				CapturingErrorHandler ceh;
-				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, ceh)))
+				if (!(ok = sprite->Load(image.c_str(), normalizedSize, szLayout, hWnd, ceh)))
 				{
 					// if this is an SWF file, log the error specially
-					ImageFileDesc desc;
-					if (GetImageFileInfo(image.c_str(), desc) && desc.imageType == ImageFileDesc::SWF)
+					if (haveDesc && desc.imageType == ImageFileDesc::SWF)
 						eh.FlashError(ceh);
 					else
 						eh.GroupError(EIT_Error, nullptr, ceh);
@@ -365,8 +397,11 @@ void SecondaryView::SyncCurrentGame()
 		};
 
 		backgroundLoader.AsyncLoad(false, load, done);
-		syncer.loadedMedia = true;
+		loadedMedia = true;
 	}
+
+	// return true if we loaded any media
+	return loadedMedia;
 }
 
 void SecondaryView::StartBackgroundCrossfade()
@@ -597,5 +632,68 @@ void SecondaryView::ShowContextMenu(POINT pt)
 
 	// use the normal handling
 	__super::ShowContextMenu(pt);
+}
+
+WSTRING SecondaryView::JsGetBgScalingMode() const
+{
+	return maintainBackgroundAspect ? L"zoom" : L"stretch";
+}
+
+void SecondaryView::JsSetBgScalingMode(WSTRING mode)
+{
+	if (mode == L"zoom")
+		maintainBackgroundAspect = true;
+	else if (mode == L"stretch")
+		maintainBackgroundAspect = false;
+}
+
+int SecondaryView::JsGetPagedImageIndex() const
+{
+	return currentImageIndex;
+}
+
+void SecondaryView::JsSetPagedImageIndex(int index)
+{
+	// Figure out which game we're currently displaying, by consulting
+	// the incoming background if there is one, or the current background
+	// if not.
+	GameListItem *game = incomingBackground.game;
+	if (game == nullptr)
+		game = currentBackground.game;
+
+	// if there's no game, there's nothing to do
+	if (game == nullptr)
+		return;
+
+	// get the background image media type; if there's no image type,
+	// there's nothing to do
+	auto bgType = GetBackgroundImageType();
+	if (bgType == nullptr)
+		return;
+
+	// Figure the number of available indexed items, by asking for
+	// a list of the current media, filtering for a single existing
+	// item at each page/index value by asking for the newest item
+	// at each position.  If we fail to find any items, there's
+	// nothing to do.
+	std::list<TSTRING> filenames;
+	if (!game->GetMediaItems(filenames, *bgType, GameListItem::GMI_EXISTS | GameListItem::GMI_NEWEST))
+		return;
+
+	// count the items
+	int n = static_cast<int>(filenames.size());
+
+	// Wrap the requested index so that it's in range.  This lets the
+	// caller easily step through the list as a circular list by
+	// incrementing or decrementing without worrying about when it
+	// falls off either end of the list.
+	index = Wrap(index, n);
+
+	// if this is a new selection, reload media
+	if (index != currentImageIndex)
+	{
+		currentImageIndex = index;
+		LoadCurrentGameMedia(game);
+	}
 }
 

@@ -34,9 +34,9 @@ public:
 	// feedback during the drag process for dropping different
 	// types of media.  The POINT is in local coordinates,
 	// adjusted for the window rotation and reflection.
-	virtual void ShowDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
-	virtual void UpdateDropTargets(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
-	virtual void DoMediaDrop(const MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void ShowDropTargets(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void UpdateDropTargets(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
+	virtual void DoMediaDrop(MediaDropTarget::FileDrop &fd, POINT pt, DWORD *pdwEffect);
 	virtual void RemoveDropTargets();
 
 	// Media information for the main background image/video

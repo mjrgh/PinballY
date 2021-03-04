@@ -111,19 +111,31 @@ overlay.clear(0x00000000);
    values.
 </p>
 <p>
-   For most of the windows, all of your custom layers are drawn in
-   front of the background image/video layer that the system uses
-   to draw the selected game's media for that window.  The only
-   thing you have to worry about with the Z index in those windows
-   is how it relates to other custom layers you've created, since
-   all of your layers will be in front of the system's background
-   graphics.
+   For most of the windows, there's only one "system" drawing
+   layer, which is the main background layer where the background
+   image or video or that window is drawn.  This is the layer
+   where the backglass image or video is drawn in the backglass
+   window, for example.  This standard system drawing layer has
+   a Z index of 0 (zero).  Any custom drawing layer you create
+   with a positive Z index is drawn in front of this main
+   background layer, and any layer you create with a negative
+   Z index is drawn behind it.  There's usually no point in
+   using a negative Z index, since the default layer is usually
+   opaque, and fills the entire window.  However, it might
+   be useful to create a negative Z layer for a custom window,
+   since you could conceivably want to load transparent or
+   partially transparent media, such as PNG files, into the
+   main layer.
 </p>
 <p>
-   The exception is the main window, where the system uses numerous
-   layers of its own to display the components of the standard UI.
-   In the main window, you can control where your added custom
-   layers go relative to the system layers.  For example, you could place a custom
+   The main window is a little different from the others in
+   that it has a whole stack of drawing layers of its own,
+   which it uses to overlay the numerous elements of the
+   main user interface.
+   In the main window, you can insert your custom layers between
+   system layers, by choosing Z index values between the
+   Z indices of the standard layers.
+  For example, you could place a custom
    layer immediately in front of or immediately behind the status
    line text.  The order of layers for the main window
    is listed in <a href="MainWindowObject.html#drawingLayers">Drawing

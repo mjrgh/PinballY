@@ -233,6 +233,8 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="CaptureStatusWin.cpp" />
     <ClCompile Include="CSVFile.cpp" />
+    <ClCompile Include="CustomView.cpp" />
+    <ClCompile Include="CustomWin.cpp" />
     <ClCompile Include="D3D.cpp" />
     <ClCompile Include="D3DView.cpp" />
     <ClCompile Include="D3DWin.cpp" />
@@ -296,6 +298,8 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="CommonVertex.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="CSVFile.h" />
+    <ClInclude Include="CustomView.h" />
+    <ClInclude Include="CustomWin.h" />
     <ClInclude Include="D3D.h" />
     <ClInclude Include="D3DView.h" />
     <ClInclude Include="D3DWin.h" />

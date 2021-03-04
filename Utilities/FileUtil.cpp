@@ -93,7 +93,7 @@ BYTE *ReadFileAsStr(const TCHAR *filename, class ErrorHandler &handler, long &le
 	if ((err = _tfopen_s(&fp, filename, _T("rb"))) != 0)
 	{
 		handler.Error(MsgFmt(IDS_ERR_OPENFILE, filename, FileErrorMessage(err).c_str()));
-		return 0;
+		return nullptr;
 	}
 
 	// get the size by seeking to the end and 'tell'ing
@@ -112,10 +112,10 @@ BYTE *ReadFileAsStr(const TCHAR *filename, class ErrorHandler &handler, long &le
 
 	// allocate the buffer
 	BYTE *buf = new (std::nothrow) BYTE[aloLen];
-	if (buf == 0)
+	if (buf == nullptr)
 	{
 		handler.Error(MsgFmt(IDS_ERR_OPENFILENOMEM,	filename, fileLen));
-		return 0;
+		return nullptr;
 	}
 
 	// read the data into the buffer
@@ -126,7 +126,7 @@ BYTE *ReadFileAsStr(const TCHAR *filename, class ErrorHandler &handler, long &le
 	{
 		handler.Error(MsgFmt(IDS_ERR_READFILE, filename, FileErrorMessage(errno).c_str()));
 		delete[] buf;
-		return 0;
+		return nullptr;
 	}
 
 	// add special termination

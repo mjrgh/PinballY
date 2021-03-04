@@ -3827,9 +3827,21 @@ void GameListItem::InitMediaTypeList()
 	allMediaTypes.push_back(&realDMDVideoType);
 	allMediaTypes.push_back(&realDMDColorVideoType);
 
-	// build the Javascript type map
+	// Build the Javascript type map and load the name strings
 	for (auto mt : allMediaTypes)
+	{
+		// add it to the Javascript type map
 		jsMediaTypes.emplace(mt->javascriptId, mt);
+
+		// load the name string from the resource file
+		const_cast<MediaType*>(mt)->nameStr.assign(LoadStringT(mt->nameStrId).c_str());
+	}
+}
+
+void GameListItem::AddMediaType(const MediaType *m)
+{
+	allMediaTypes.push_back(m);
+	jsMediaTypes.emplace(m->javascriptId, m);
 }
 
 GameListItem::GameListItem(
@@ -4059,74 +4071,120 @@ static const TCHAR *flyerPages[] = {
 // Define the media types.  Note that the media type subdirectory names 
 // are explicitly not localized, since they're internal names defined by
 // the HyperPin/PinballX media database structure.
-const MediaType GameListItem::wheelImageType = {
+MediaType GameListItem::wheelImageType = {
 	100, _T("Wheel Images"), true, _T(".png .gif"), IDS_MEDIATYPE_WHEELPIC, _T("WheelImage"), L"wheel image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::instructionCardImageType = {
+MediaType GameListItem::instructionCardImageType = {
 	200, _T("Instruction Cards"), false, ImageExtensions _T(" .swf"), IDS_MEDIATYPE_INSTR, _T("InstCardImage"), L"inst card image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, true };
-const MediaType GameListItem::flyerImageType = {
+MediaType GameListItem::flyerImageType = {
 	300, _T("Flyer Images"), false, ImageExtensions, IDS_MEDIATYPE_FLYERPIC, _T("FlyerImage"), L"flyer image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0, false, flyerPages };
-const MediaType GameListItem::launchAudioType = {
+MediaType GameListItem::launchAudioType = {
 	400, _T("Launch Audio"), true, AudioExtensions, IDS_MEDIATYPE_LAUNCHAUDIO, _T("LaunchAudio"), L"launch audio",
 	nullptr, nullptr, nullptr,
 	MediaType::Audio, 0 };
-const MediaType GameListItem::playfieldImageType = {
-	400, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, _T("PlayfieldImage"), L"table image",
+MediaType GameListItem::playfieldImageType = {
+	410, _T("Table Images"), true, ImageExtensions, IDS_MEDIATYPE_PFPIC, _T("PlayfieldImage"), L"table image",
 	ConfigVars::CapturePFImageStart, nullptr, nullptr,
 	MediaType::Image, 270 };
-const MediaType GameListItem::playfieldVideoType = {
-	401, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, _T("PlayfieldVideo"), L"table video",
+MediaType GameListItem::playfieldVideoType = {
+	420, _T("Table Videos"), true, VideoExtensions, IDS_MEDIATYPE_PFVID, _T("PlayfieldVideo"), L"table video",
 	ConfigVars::CapturePFVideoStart, ConfigVars::CapturePFVideoStop, ConfigVars::CapturePFVideoTime,
 	MediaType::VideoWithAudio, 270 };
-const MediaType GameListItem::playfieldAudioType = {
-	410, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, _T("PlayfieldAudio"), L"table audio",
+MediaType GameListItem::playfieldAudioType = {
+	430, _T("Table Audio"), true, AudioExtensions, IDS_MEDIATYPE_PFAUDIO, _T("PlayfieldAudio"), L"table audio",
 	ConfigVars::CapturePFAudioStart, ConfigVars::CapturePFAudioStop, ConfigVars::CapturePFAudioTime,
 	MediaType::Audio, 270 };
-const MediaType GameListItem::backglassImageType = {
+MediaType GameListItem::backglassImageType = {
 	500, _T("Backglass Images"), true, ImageExtensions, IDS_MEDIATYPE_BGPIC, _T("BackglassImage"), L"bg image",
 	ConfigVars::CaptureBGImageStart, nullptr, nullptr, 
 	MediaType::Image, 0 };
-const MediaType GameListItem::backglassVideoType = {
-	501, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, _T("BackglassVideo"), L"bg video",
+MediaType GameListItem::backglassVideoType = {
+	510, _T("Backglass Videos"), true, VideoExtensions, IDS_MEDIATYPE_BGVID, _T("BackglassVideo"), L"bg video",
 	ConfigVars::CaptureBGVideoStart, ConfigVars::CaptureBGVideoStop, ConfigVars::CaptureBGVideoTime,
 	MediaType::SilentVideo, 0 };
-const MediaType GameListItem::dmdImageType = {
+MediaType GameListItem::dmdImageType = {
 	600, _T("DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_DMPIC, _T("DMDImage"), L"dmd image",
 	ConfigVars::CaptureDMImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::dmdVideoType = {
-	601, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, _T("DMDVideo"), L"dmd video",
+MediaType GameListItem::dmdVideoType = {
+	610, _T("DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_DMVID, _T("DMDVideo"), L"dmd video",
 	ConfigVars::CaptureDMVideoStart, ConfigVars::CaptureDMVideoStop, ConfigVars::CaptureDMVideoTime,
 	MediaType::SilentVideo, 0 };
-const MediaType GameListItem::topperImageType = {
+MediaType GameListItem::topperImageType = {
 	700, _T("Topper Images"), true, ImageExtensions, IDS_MEDIATYPE_TPPIC, _T("TopperImage"), L"topper image",
 	ConfigVars::CaptureTPImageStart, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::topperVideoType = {
-	701, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, _T("TopperVideo"), L"topper video",
+MediaType GameListItem::topperVideoType = {
+	710, _T("Topper Videos"), true, VideoExtensions, IDS_MEDIATYPE_TPVID, _T("TopperVideo"), L"topper video",
 	ConfigVars::CaptureTPVideoStart, ConfigVars::CaptureTPVideoStop, ConfigVars::CaptureTPVideoTime,
 	MediaType::SilentVideo, 0 };
-const MediaType GameListItem::realDMDImageType = {
+MediaType GameListItem::realDMDImageType = {
 	800, _T("Real DMD Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDPIC, _T("RealDMDImage"), L"real dmd image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::realDMDColorImageType = {
-	801, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, _T("RealDMDColorImage"), L"real dmd color image",
+MediaType GameListItem::realDMDColorImageType = {
+	810, _T("Real DMD Color Images"), true, ImageExtensions, IDS_MEDIATYPE_REALDMDCLRPIC, _T("RealDMDColorImage"), L"real dmd color image",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::realDMDVideoType = {
-	810, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, _T("RealDMDVideo"), L"real dmd video",
+MediaType GameListItem::realDMDVideoType = {
+	820, _T("Real DMD Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDVID, _T("RealDMDVideo"), L"real dmd video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
-const MediaType GameListItem::realDMDColorVideoType = {
-	811, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, _T("RealDMDColorVideo"), L"real dmd color video",
+MediaType GameListItem::realDMDColorVideoType = {
+	830, _T("Real DMD Color Videos"), true, VideoExtensions, IDS_MEDIATYPE_REALDMDCLRVID, _T("RealDMDColorVideo"), L"real dmd color video",
 	nullptr, nullptr, nullptr,
 	MediaType::Image, 0 };
+
+const MediaType *GameListItem::MediaTypeByJsId(const WCHAR *id)
+{
+	if (auto it = jsMediaTypes.find(id); it != jsMediaTypes.end())
+		return it->second;
+	else
+		return nullptr;
+}
+
+void GameListItem::ClearMediaTypeList()
+{
+	// visit all types
+	for (auto it = allMediaTypes.begin(); it != allMediaTypes.end(); ++it)
+	{
+		// if it's user-defined, delete it
+		if ((*it)->isUserDefined)
+			delete const_cast<MediaType*>(*it);
+	}
+
+	// Empty the lists.  This isn't necessary for memory cleanup, since
+	// the native lists will do this implicitly when their destructors
+	// are called from the C++ runtime at program exit.  However, the
+	// loop above might have left dangling pointers in the lists, since
+	// it deleted any user-defined objects referenced from the lists.
+	// We *could* be smarter about just removing those entries, but
+	// there's no need for ANY of the list entries at this point,
+	// since we're preparing for program shutdown, hence it's easier
+	// and quicker to just clear out the lists indiscriminately.  But
+	// the main reason I prefer to do it this way is for debugging
+	// purposes down the road: if a situation should ever arise where
+	// someone accesses the lists AFTER this routine is called, I
+	// don't want them wondering why the user-defined items are
+	// missing and the rest are intact.  Clearing the entire lists
+	// should make it more obvious what's going on and lead said
+	// programmer to find this routine pretty quickly, at which
+	// point they'll understand that the issue isn't that some of
+	// the media types have mysteriously disappeared, but rather
+	// that the system is already shutting down past the point where
+	// access to ANY of the media types was expected.  The solution
+	// of such an issue would probably be to move the call to this
+	// routine somewhere later in the main entrypoint's control
+	// flow so that whatever it was that wanted to access the
+	// media types earlier on can still do so.
+	allMediaTypes.clear();
+	jsMediaTypes.clear();
+}
 
 
 bool GameListItem::MediaExists(const MediaType &mediaType) const
@@ -4352,20 +4410,34 @@ bool GameListItem::UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *media
 }
 
 bool GameListItem::GetMediaItem(TSTRING &filename,
-	const MediaType &mediaType, bool forCapture, bool enableSwf) const
+	const MediaType &mediaType, bool forCapture, bool enableSwf, int desiredIndex) const
 {
-	// if we're getting a name for capture purposes, the file
-	// doesn't have to exist; otherwise, we're looking for an
-	// extant file
+	// If we're getting a name for capture purposes, the file doesn't
+	// have to exist; otherwise, we're looking for an extant file.
+	// And since we're only able to return one file through this
+	// interface, use the newest existing file in cases of multiple
+	// matches (e.g., both a .png and .jpg matching the same name).
+	// The caller is probably going to use the item for display/
+	// playback purposes, so we want to pick what the user thinks of
+	// as the current item, which is probably whichever one they
+	// copied into the folder most recently.  It seems likely that
+	// if the user copied a .png into a folder where a .jpg of the
+	// same name already existed, they intended the newer .png to
+	// effectively overwrite the older .jpg - which doesn't
+	// actually happen at the file system level, since the full
+	// filenames aren't exactly the same, so it's up to us to
+	// make the "overwrite" effective by picking the newer one.
 	DWORD flags = 0;
 	if (!forCapture)
-		flags |= GMI_EXISTS;
+		flags |= GMI_EXISTS | GMI_NEWEST;
+
+	// set the "no SWF" flag if desired
 	if (!enableSwf)
 		flags |= GMI_NO_SWF;
 
 	// get the list of media items
 	std::list<TSTRING> lst;
-	if (!GetMediaItems(lst, mediaType, flags) || lst.size() == 0)
+	if (!GetMediaItems(lst, mediaType, flags, desiredIndex) || lst.size() == 0)
 		return false;
 
 	// log the lookup
@@ -4374,45 +4446,18 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 		TCHAR dir[MAX_PATH];
 		mediaType.GetMediaPath(dir, system != nullptr ? system->mediaDir.c_str() : nullptr);
 		LogFile::Get()->Group();
-		LogFile::Get()->Write(_T("Media file lookup for %s%s%s: %s, path %s, found %s\n"),
-			title.c_str(), 
+
+		TSTRINGEx plusMore;
+		if (lst.size() > 1)
+			plusMore.Format(_T(" (+ %d more)"), lst.size() - 1);
+			
+		LogFile::Get()->Write(_T("Media file lookup for %s%s%s: %s, path %s, found %s%s\n"),
+			title.c_str(),
 			forCapture ? _T(", for capture") : _T(""),
 			enableSwf ? _T("") : _T(", ignore .swf"),
-			LoadStringT(mediaType.nameStrId).c_str(),
-			dir, lst.size() == 0 ? _T("no matches") : lst.front().c_str());
+			mediaType.nameStr.c_str(),
+			dir, lst.size() == 0 ? _T("no matches") : lst.front().c_str(), plusMore);
 	}
-
-	// If we're not in capture mode, return the newest file in the list
-	// (newest in the sense of modification timestamp).  In cases where
-	// there are multiple matches with different formats (e.g., PNG and 
-	// JPG images), this will pick out the one most recently installed.
-	if (!forCapture && lst.size() > 1)
-	{
-		FILETIME newestTime = { 0, 0 };
-		const TSTRING *newest = nullptr;
-		for (auto const &f : lst)
-		{
-			// get the file's attributes
-			WIN32_FILE_ATTRIBUTE_DATA attrs;
-			if (GetFileAttributesEx(f.c_str(), GetFileExInfoStandard, &attrs))
-			{
-				// if this is the last modified so far, remember it
-				if (newest == nullptr || CompareFileTime(&attrs.ftLastWriteTime, &newestTime) > 0)
-				{
-					newest = &f;
-					newestTime = attrs.ftLastWriteTime;
-				}
-			}
-		}
-
-		// return the newest file
-		if (newest != nullptr)
-		{
-			filename = *newest;
-			return true;
-		}
-	}
-
 
 	// return the first item in the list
 	filename = lst.front();
@@ -4421,7 +4466,7 @@ bool GameListItem::GetMediaItem(TSTRING &filename,
 
 
 bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
-	const MediaType &mediaType, DWORD flags) const
+	const MediaType &mediaType, DWORD flags, int desiredIndex) const
 {
 	// get the media folder
 	TCHAR dir[MAX_PATH];
@@ -4433,33 +4478,53 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 	// only need to make one index pass.
 	int maxMediaIndex = mediaType.indexed ? 32 : 0;
 
-	// iterate over image index values
-	for (int mediaIndex = 0; mediaIndex <= maxMediaIndex; ++mediaIndex)
+	// The "result index" keeps track of where we are in the result
+	// list, by page:index group.  This is incremented each time we add
+	// an element in a new page:index group.  Note that we might find
+	// multiple items at a particular result index, because there can
+	// be files in the same page:index group that all match the same
+	// name but use different extensions (e.g., we might have both a
+	// .jpg and a .png at the same page:index).  That's why we have to
+	// keep track of this separately, rather than just counting the
+	// number of items in the filename list so far.
+	int resultIndex = -1;
+
+	// iterate over the page subfolders
+	for (int pageno = 0; ; ++pageno)
 	{
-		// iterate over the page subfolders
-		for (int pageno = 0; ; ++pageno)
+		// Check to see if we're at the last page.  For a paged media type,
+		// the last page is marked in the page folder list with a null pointer.
+		// For a non-paged type, the only page is page zero.
+		if (mediaType.pageList != nullptr)
 		{
-			// build the base filename sans extension
+			// paged media - stop if we've reached the last page
+			if (mediaType.pageList[pageno] == nullptr)
+				break;
+		}
+		else if (pageno > 0)
+		{
+			// no paged media - stop after the first page
+			break;
+		}
+
+		// iterate over image index values
+		for (int mediaIndex = 0; mediaIndex <= maxMediaIndex; ++mediaIndex)
+		{
+			// we haven't added anything in this page/index group yet
+			bool addedToGroup = false;
+			FILETIME lastFileTime;
+
+			// Build the base filename sans extension.  The format depends on
+			// whether or not this is a "paged" media type.
 			TCHAR relName[MAX_PATH];
 			if (mediaType.pageList != nullptr)
 			{
-				// This is a paged item type.  Stop if we've exhausted
-				// the page list.
-				if (mediaType.pageList[pageno] == nullptr)
-					break;
-
-				// Combine the media folder name and page subfolder, then
 				// add the media base name
 				PathCombine(relName, mediaType.pageList[pageno], mediaName.c_str());
 			}
 			else
 			{
-				// This isn't a paged type, so we only need to consider 
-				// a single item.  Stop the page iteration after that.
-				if (pageno > 0)
-					break;
-
-				// Combine the media folder name and media file base name
+				// This isn't a paged type, so simply use the media file name.
 				_tcscpy_s(relName, mediaName.c_str());
 			}
 
@@ -4515,7 +4580,7 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 				// .swf, and the file exists, check its contents to determine the actual
 				// format.  If the name ends in .swf and the file doesn't exist, treat
 				// it as SWF and exclude it.
-				if ((flags & GMI_NO_SWF) != 0 && _tcsicmp(curExt, _T(".swf")) == 0)
+				if (include && (flags & GMI_NO_SWF) != 0 && _tcsicmp(curExt, _T(".swf")) == 0)
 				{
 					// it ends with .swf, so assume it's SWF based on the name...
 					bool swf = true;
@@ -4533,9 +4598,77 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 						include = false;
 				}
 
+				// If the NEWEST flag is set, and we've already added an item for
+				// this page/index, check to see if this item is newer or older than
+				// the last item added.  If it's newer, replace the last item; if
+				// it's older, keep the last item and skip this item.
+				if (include && (flags & GMI_NEWEST) != 0)
+				{
+					// get this file's attributes
+					WIN32_FILE_ATTRIBUTE_DATA attrs;
+					if (GetFileAttributesEx(fullName, GetFileExInfoStandard, &attrs))
+					{
+						// If this is the first file of this group that we've found so far,
+						// include it, since there's nothing newer to consider yet.  If we've
+						// already seen something at this group, compare timestamps and pick
+						// the newer item.
+						if (addedToGroup)
+						{
+							if (CompareFileTime(&attrs.ftLastWriteTime, &lastFileTime) > 0)
+							{
+								// this file is newer - kick out the previous item and keep
+								// this item instead
+								filenames.pop_back();
+							}
+							else
+							{
+								// the previous file already added to the list is newer -
+								// skip this one
+								include = false;
+							}
+						}
+
+						// if we're keeping this item, remember its timestamp, in case we
+						// find another item at the same level and need to repeat this test
+						// on the next file
+						if (include)
+							lastFileTime = attrs.ftLastWriteTime;
+					}
+					else
+					{
+						// we couldn't get this file's attributes - don't include it after all
+						include = false;
+					}
+				}
+
+				// if we're including this item, and we haven't added anything to this
+				// page/index group yet, increment the page/index group
+				if (include && !addedToGroup)
+				{
+					// we've now found an item to add to this page/index group
+					addedToGroup = true;
+
+					// bump the result index
+					++resultIndex;
+				}
+
 				// if we decided to include the file, add it to the list
 				if (include)
-					filenames.emplace_back((flags & GMI_REL_PATH) != 0 ? relName : fullName);
+				{
+					// There's one more thing to check before actually emplacing the
+					// list item!  If the caller asked for a particular indexed item
+					// from a paged/indexed set, only include the item if the result
+					// index matched the desired index.  Note that this item still
+					// counts as "included" for all of our other accounting purposes,
+					// since it's still in the result set abstractly - it's just that
+					// the caller might want us to filter it out from the actual
+					// return list.
+					//
+					// A desired index of -1 means that all items at all result
+					// indices are included.
+					if (desiredIndex == -1 || desiredIndex == resultIndex)
+						filenames.emplace_back((flags & GMI_REL_PATH) != 0 ? relName : fullName);
+				}
 
 				// if we're at a space separator in the extension string, skip it
 				if (*ext == ' ')
@@ -5205,6 +5338,93 @@ TableFileSet::TableFile *TableFileSet::FindFile(
 // Media Type Descriptor
 //
 
+// Create a user-defined media type, and add it to the global list
+MediaType *MediaType::CreateUserDefined(
+	int menuOrder, const TCHAR *subdir, bool perSystem, const TCHAR *exts,
+	const TCHAR *name, const TCHAR *configId, const TCHAR *javascriptId,
+	const TCHAR *captureStartConfigVar, const TCHAR *captureStopConfigVar, const TCHAR *captureTimeConfigVar,
+	Format format, int rotation, bool indexed, const std::list<TSTRING> *pageList, bool hasDropButton)
+{
+	// create a blank new MediaType object
+	auto m = new MediaType();
+
+	// mark it as user-defined
+	m->isUserDefined = true;
+
+	// we'll have to allocate each string
+	auto NewStr = [](const TCHAR *src) {
+		TCHAR *dst = nullptr;
+		if (src != nullptr)
+		{
+			size_t alo = _tcslen(src) + 1;
+			dst = new TCHAR[alo];
+			_tcscpy_s(dst, alo, src);
+		}
+		return dst;
+	};
+	
+	// store parameters
+	m->menuOrder = menuOrder;
+	m->subdir = NewStr(subdir);
+	m->perSystem = perSystem;
+	m->exts = NewStr(exts);
+	m->nameStr.assign(name);
+	m->configId = NewStr(configId);
+	m->javascriptId = NewStr(javascriptId);
+	m->captureStartConfigVar = NewStr(captureStartConfigVar);
+	m->captureStopConfigVar = NewStr(captureStopConfigVar);
+	m->captureTimeConfigVar = NewStr(captureTimeConfigVar);
+	m->format = format;
+	m->rotation = rotation;
+	m->indexed = indexed;
+	m->hasDropHereButton = hasDropButton;
+
+	// if there's a page list, allocate space and copy it
+	if (pageList != nullptr && pageList->size() != 0)
+	{
+		// allocate space for the strings, plus an extra slot for
+		// a null string pointer to mark the end of the array
+		m->pageList = new const TCHAR*[pageList->size() + 1];
+
+		// store allocated copies of the strings in the array
+		int i = 0;
+		for (auto &s : *pageList)
+			m->pageList[i++] = NewStr(s.c_str());
+
+		// add the null terminator
+		m->pageList[i++] = nullptr;
+	}
+
+	// add it to the internal list
+	GameListItem::AddMediaType(m);
+
+	// return the new MediaType object
+	return m;
+}
+
+
+MediaType::~MediaType()
+{
+	// if this is a user-defined media type, free any allocated strings
+	if (isUserDefined)
+	{
+		delete[] const_cast<TCHAR*>(subdir);
+		delete[] const_cast<TCHAR*>(exts);
+		delete[] const_cast<TCHAR*>(configId);
+		delete[] const_cast<WCHAR*>(javascriptId);
+		delete[] const_cast<TCHAR*>(captureStartConfigVar);
+		delete[] const_cast<TCHAR*>(captureStopConfigVar);
+		delete[] const_cast<TCHAR*>(captureTimeConfigVar);
+
+		if (pageList != nullptr)
+		{
+			for (int i = 0; pageList[i] != nullptr; ++i)
+				delete[] const_cast<TCHAR*>(pageList[i]);
+			delete[] const_cast<TCHAR**>(pageList);
+		}
+	}
+}
+
 bool MediaType::GetMediaPath(TCHAR/*[MAX_PATH]*/ *buf, const TCHAR *systemMediaDir) const
 {
 	// check if the media for this type are stored per-system or generically
@@ -5320,7 +5540,7 @@ bool MediaType::SaveBackup(const TCHAR *filename, TSTRING &newName, ErrorHandler
 		// log the error
 		WindowsErrorMessage winErr;
 		eh.Error(MsgFmt(IDS_ERR_MEDIA_ITEM_RENAME,
-			LoadStringT(this->nameStrId).c_str(), filename, newExt.Get(), winErr.Get()));
+			this->nameStr.c_str(), filename, newExt.Get(), winErr.Get()));
 
 		// return failure
 		return false;

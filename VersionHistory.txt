@@ -1,6 +1,6 @@
 PinballY Update History
 
-? (1.0.1 Release)
+? (1.1.0 Release)
 
 * The generated high-score display now uses all of the VPinMAME color
 option settings stored in the registry when generating dot-style high
@@ -19,28 +19,52 @@ VPinMAME options dialog by pressing F6.)  (Issue #161 on github.)
 changing the game selection in the wheel UI.  See the Javascript
 section in the help for details.
 
+* New Javascript method: mainWindow.createMediaWindow(), which lets
+you create your own new media windows alongside the standard ones
+(playfield, backglass, DMD, topper, instruction card).
+
+* New Javascript method: gameList.createMediaType(), which lets you
+define new, custom media types.  This can be used in conjunction with
+the new custom window feature to set up your own extended media types
+to display in custom windows.
+
+* Javascript custom Drawing Layers can now be layered behind the main
+background layer in a window that the system uses to draw the window's
+primary media (e.g., the backglass video).  Use a negative Z index
+when creating the layer to place it behind the main system background
+layer.  This isn't useful in most of the standard windows, since the
+main media background usually is opaque and fills the entire window
+(so if you create a layer behind that, you'll never see it, since the
+main media will always completely occlude it).  But it could be useful
+in custom media windows where the main background media might be
+partially transparent, such as Wheel Image PNG files.
+
 * When a game system needs to run in Administrator Mode, PinballY now
 offers an option to trust that particular program permanently when it
 asks for your approval to perform the Administrator Mode launch.  The
 menu asking for approval now gives you separate options to approve the
-launch just this once, or to always allow this program to launch in
-Administrator mode (plus an option to cancel, of course).  If you
-select the "always" option, the game program will be marked in the
-settings file as trusted, so PinballY won't ask again in future
-sessions.  (Issue #138 on github.)
+Admin Mode launch just for this session, or "always".  There's also an
+option to cancel, of course.  If you select the "always" option, the
+game program will be marked as trusted in the settings file, and
+PinballY won't ask again in future sessions for this particular
+program.  (Issue #138 on github.)
 
-(In the past, the approval only lasted for the current PinballY
-session.  I didn't implement a way to mark a program as trusted in the
-settings because I was concerned about the possibility that a
-malicious program could manipulate the settings file to trick you into
-launching a piece of malware in Admin mode.  However, in retrospect,
-that isn't a meaningful risk, in that a malicious program with that
-kind of access to your hard disk could already just as well overwrite
-PinballY itself with a fake version; there's nothing they could do
-with the settings that they couldn't do more easily by other means
-already.  So given that there's no security value in making the launch
-less convenient, I decided it was worthwhile to make the launch more
-convenient by adding this "trust always" option.)
+(In the past, there was no "always" option, so it was only possible to
+approve the launch for the duration of the current PinballY session.
+I deliberately didn't provide an "always" option because Windows
+doesn't have a secure way to mark a program as trusted; in order to
+accomplish this, I had to rely on PinballY's own insecure settings
+file.  So I was concerned about the possibility that a malicious
+program could manipulate the settings file to bypass the warnings.
+However, after further consideration, I decided that this isn't a
+meaningful risk, in that a malicious program with that kind of access
+to your hard disk could already just as well overwrite PinballY itself
+with a fake version; there's nothing they could do via the settings
+file that they couldn't already do more easily by other means.  So I
+don't think this creates any new vulnerabilities.  As always, the real
+solution to the potential security risks here is to avoid using Admin
+Mode AT ALL for any pinball-related software - there's almost never a
+good reason to do so, and it inherently opens security holes.)
 
 * A new worked example in the help ("Custom game launch options for
 media capture") shows how to edit the game system's command line
@@ -56,6 +80,14 @@ captures.  (Issue #146 on github.)
 that run in Admin Mode.  (E.g., the "Paused Game" menu sometimes
 popped up unnecessarily when you terminated an Admin Mode game with
 the Exit Game button.)
+
+* You can now drag and drop images and videos directly from most Web
+browser windows into a PinballY window to install media.  In the past,
+this worked when dragging from the Windows desktop, but not
+necessarily from other programs such as Web browsers.  (Support in a
+particular Web browser depends upon the browser implementing the
+Windows drag/drop system using one of the common interchange formats,
+which most modern browsers should do as a matter of course.)
 
 * Javascript code can now use HANDLE and HWND types as "out"
 parameters, for Windows APIs that return handle values in pointer

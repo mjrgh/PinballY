@@ -1319,6 +1319,7 @@ this.FilterInfo = class FilterInfo
 class DrawingLayer extends EventTarget
 {
 }
+this.DrawingLayer = DrawingLayer;
 
 // ------------------------------------------------------------------------
 //

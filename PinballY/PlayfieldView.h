@@ -34,6 +34,7 @@ class GameListItem;
 class GameCategory;
 class MediaDropTarget;
 class RealDMD;
+class FrameWin;
 
 
 // Playfield view
@@ -206,7 +207,7 @@ public:
 	// mediaType value gives us that result.  Null means that the
 	// drop area didn't have an associated media type, which in turn
 	// normally means that they're dropping a Media Pack file.
-	bool DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, const MediaType *mediaType);
+	bool DropFile(const TCHAR *fname, IStream *stream, MediaDropTarget *dropTarget, const MediaType *mediaType);
 
 	// End a file drop operation
 	void EndFileDrop();
@@ -900,10 +901,11 @@ protected:
 	// Media drop list
 	struct MediaDropItem
 	{
-		MediaDropItem(const TCHAR *filename, int zipIndex, 
+		MediaDropItem(const TCHAR *filename, IStream *stream, int zipIndex, 
 			const TCHAR *impliedGameName, const TCHAR *destFile,
 			const MediaType *mediaType, bool exists) :
 			filename(filename), 
+			stream(stream, RefCounted::DoAddRef),
 			zipIndex(zipIndex), 
 			impliedGameName(impliedGameName),
 			destFile(destFile),
@@ -919,6 +921,9 @@ protected:
 		// Filename (with path).  For an item in a ZIP file, this is
 		// the ZIP file path.
 		TSTRING filename;
+
+		// Stream with the file's contents, if available
+		RefPtr<IStream> stream;
 
 		// Index of the item in a ZIP file, or -1 for a media file
 		// dropped directly.
@@ -2178,7 +2183,7 @@ protected:
 	// Javascript DOF access
 	void JsDOFPulse(WSTRING name);
 	void JsDOFSet(WSTRING name, int val);
-	
+
 	// DOF initialization status from the last initialization attempt.
 	// We suppress DOF initialization errors if the last attempt to
 	// intialize DOF also failed.  This avoids showing the same error
@@ -2863,6 +2868,18 @@ protected:
 	// Show/hide the wheel
 	void JsShowWheel(bool show);
 
+	// Initialize a Javascript window object.  This sets up the properties
+	// and methods on a Javascript object representing one of our system
+	// windows (mainWindow, backglassWindow, etc).  Returns true on success,
+	// false on error.  Logs any errors.
+	bool InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHAR *name, ErrorHandler &eh);
+
+	// Create a custom media window
+	JsValueRef JsCreateMediaWindow(JavascriptEngine::JsObj options);
+
+	// Insert a menu command into the main window's context menu for a new custom window
+	void AddShowWindowCmdForCustomWindow(int serial);
+
 	// Javascript drawing callback functions.  These are exposed on a "drawing
 	// context" prototype object for Javascript purposes.
 	JsValueRef jsDrawingContextProto = JS_INVALID_REFERENCE;
@@ -3035,6 +3052,9 @@ protected:
 
 	// set the current wheel selection
 	void JsSetWheelGame(int n, JsValueRef options);
+
+	// create a media type
+	void JsCreateMediaType(JavascriptEngine::JsObj options);
 
 	// get/set/refresh the current game list filter
 	JsValueRef JsGetCurFilter();

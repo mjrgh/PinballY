@@ -990,6 +990,18 @@ bool JavascriptEngine::CreateObjWithProto(JsValueRef &obj, JsValueRef proto)
 	return true;
 }
 
+bool JavascriptEngine::CreateObjWithSameProto(JsValueRef &newObj, JsValueRef sourceObj)
+{
+	JsErrorCode err;
+	JsValueRef proto;
+	if ((err = JsGetPrototype(sourceObj, &proto)) != JsNoError
+		|| (err = JsCreateObject(&newObj)) != JsNoError
+		|| (err = JsSetPrototype(newObj, proto)) != JsNoError)
+		return Throw(err, _T("CreateObjWithSameProto")), false;
+
+	return true;
+}
+
 bool JavascriptEngine::CreateArray(JsValueRef &arr)
 {
 	if (JsErrorCode err = JsCreateArray(0, &arr); err != JsNoError)
@@ -5347,6 +5359,10 @@ JsErrorCode JavascriptEngine::HWNDData::CreateFromNative(HWND h, JsValueRef &jsv
 
 HWND JavascriptEngine::HWNDData::FromJavascript(JsValueRef jsval)
 {
+	// If the value is null or undefined, return a null window handle
+	if (jsval == JavascriptEngine::Get()->undefVal || jsval == JavascriptEngine::Get()->nullVal)
+		return NULL;
+
 	// If the value is a HANDLE object, use the same underlying handle value. 
 	// Note that we can coerce any HANDLE value to an HWND.
 	if (auto handleObj = Recover<HandleData>(jsval, nullptr); handleObj != nullptr)

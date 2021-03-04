@@ -1,8 +1,6 @@
 // This file is part of PinballY
 // Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
-#pragma once
-
 // Instruction Card view window
 // This is a child window that serves as the D3D drawing surface for
 // the Instruction Card window.
@@ -25,13 +23,12 @@ class TextureShader;
 class GameListItem;
 
 class InstCardView : public SecondaryView, public ConfigManager::Subscriber
-
 {
 public:
 	InstCardView();
 
 protected:
-	virtual UINT GetNextWindowSyncCommand() const override { return 0; }
+	virtual UINT GetNextWindowSyncCommand() const override { return ID_SYNC_USERDEFINED; }
 
 	// Get the background media info
 	virtual const MediaType *GetBackgroundImageType() const override;

@@ -58,11 +58,12 @@ bool MediaDropTarget::FileDrop::Init(IDataObject *pDataObj)
 	// remember the data object
 	this->pDataObj = pDataObj;
 
-	// get the file drop handle
+	// Try getting a simple file drop handle (HDROP).  This is used for Windows
+	// desktop shell drag-drop operations.
 	STGMEDIUM stg;
 	stg.tymed = TYMED_HGLOBAL;
-	FORMATETC fmt = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-	if (SUCCEEDED(pDataObj->GetData(&fmt, &stg)))
+	FORMATETC fmt_hdrop = { CF_HDROP, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+	if (SUCCEEDED(pDataObj->GetData(&fmt_hdrop, &stg)))
 	{
 		// get the file drop handle
 		hDrop = (HDROP)stg.hGlobal;
@@ -73,27 +74,150 @@ bool MediaDropTarget::FileDrop::Init(IDataObject *pDataObj)
 		// success
 		return true;
 	}
-	else
+
+	// Try CFSTR_FILEDESCRIPTOR.  This is used by most other applications to
+	// perform file-like transfers.  In particular, browsers use this when
+	// dragging objects such as images.
+	auto CF_FILEDESCRIPTOR = static_cast<CLIPFORMAT>(RegisterClipboardFormat(CFSTR_FILEDESCRIPTOR));
+	FORMATETC fmt_fd = { CF_FILEDESCRIPTOR, NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+	if (SUCCEEDED(pDataObj->GetData(&fmt_fd, &stg)))
 	{
-		// no file drop information - forget the data object and return failure
-		this->pDataObj = nullptr;
-		return false;
+		// lock the global data object
+		auto fgd = static_cast<FILEGROUPDESCRIPTOR*>(GlobalLock(stg.hGlobal));
+
+		// remember the global handle and the number of files
+		nFiles = fgd->cItems;
+
+		// make a copy of the group descriptor and the array of file descriptors
+		// it contains
+		size_t fgdSize = sizeof(FILEGROUPDESCRIPTOR) + (nFiles - 1) * sizeof(fgd->fgd[0]);
+		fileGroupDesc.reset(static_cast<FILEGROUPDESCRIPTOR*>(malloc(fgdSize)));
+		memcpy(fileGroupDesc.get(), fgd, fgdSize);
+
+		// done with the data object for now
+		GlobalUnlock(stg.hGlobal);
+
+		// success
+		return true;
 	}
+
+	// no file drop information - forget the data object and return failure
+	this->pDataObj = nullptr;
+	return false;
 }
 
-void MediaDropTarget::FileDrop::EnumFiles(std::function<void(const TCHAR*)> func) const
+void MediaDropTarget::FileDrop::EnumFiles(std::function<void(const TCHAR*, IStream*)> func)
 {
 	for (UINT i = 0; i < nFiles; ++i)
 	{
-		// get this file's name length
-		if (UINT len = DragQueryFile(hDrop, i, NULL, 0); len != 0)
-		{
-			// allocate space and retrieve the filename
-			std::unique_ptr<TCHAR> fname(new TCHAR[++len]);
-			DragQueryFile(hDrop, i, fname.get(), len);
+		// get this file descriptor
+		auto fileDesc = &fileGroupDesc->fgd[i];
 
-			// process the file through the callback
-			func(fname.get());
+		// check the transfer type
+		if (hDrop != NULL)
+		{
+			// HDROP transfer
+			// get this file's name length
+			if (UINT len = DragQueryFile(hDrop, i, NULL, 0); len != 0)
+			{
+				// allocate space and retrieve the filename
+				std::unique_ptr<TCHAR> fname(new TCHAR[++len]);
+				DragQueryFile(hDrop, i, fname.get(), len);
+
+				// create a stream on the file
+				RefPtr<IStream> stream;
+				SHCreateStreamOnFileEx(fname.get(), STGM_READ | STGM_SHARE_DENY_WRITE, 0, FALSE, nullptr, &stream);
+
+				// process the file through the callback
+				func(fname.get(), stream);
+			}
+		}
+		else if (fileGroupDesc.get() != nullptr)
+		{
+			// CFSTR_FILEDESCRIPTOR transfer
+			// Retrieve the file contents for this item.  The API doc says that the
+			// file contents can be provided as an HGLOBAL, IStream, or IStorage.
+			// I'm not going to bother with the IStorage case beacuse I don't think
+			// it'll actually occur in the wild with any drag-and-drop sources that
+			// would be used in this context.  I expect we'll only get drops from
+			// the Windows desktop and from browsers.  The desktop doesn't use this
+			// mechanism to begin with (it uses HDROP transfers), and browsers will
+			// always (as far as I've seen) treat their downloads as blobs, so they
+			// can be expected to use HGLOBAL or IStream transfers.  I suppose that
+			// a browser trying to be fancy could provide an IStorage interface to
+			// a ZIP download or something like that, but I doubt it; we can always
+			// revisit IStorage if it's needed for some useful use case.
+			STGMEDIUM stg;
+			stg.tymed = TYMED_ISTREAM;
+			auto CF_FILECONTENTS = static_cast<CLIPFORMAT>(RegisterClipboardFormat(CFSTR_FILECONTENTS));
+			FORMATETC fmt = { CF_FILECONTENTS, NULL, DVASPECT_CONTENT, static_cast<LONG>(i), TYMED_ISTREAM | TYMED_HGLOBAL };
+			if (SUCCEEDED(pDataObj->GetData(&fmt, &stg)))
+			{
+				// set up reference-counting on the IUknown
+				RefPtr<IUnknown> stgRefPtr(stg.pUnkForRelease);
+
+				// check the type and get the IStream
+				RefPtr<IStream> stream;
+				if ((stg.tymed & TYMED_ISTREAM) != 0)
+				{
+					// there's already an IStream in the clipboard data, so just use that
+					stream = stg.pstm;
+				}
+				else if ((stg.tymed & TYMED_HGLOBAL) != 0)
+				{
+					// If the file size in the descriptor is zero, use the size of the
+					// HGLOBAL data block instead.  The SDK documentation ponits out that
+					// the HGLOBAL size is unreliable because the allocation size might be
+					// rounded to an allocation unit size, but in practice, some programs
+					// send us file descriptors with the size (and all of the other fields)
+					// zeroed out.  It seems that our only option is to use the memory
+					// block size, imprecise though it might be.
+					size_t fileSize = (fileDesc->nFileSizeHigh | fileDesc->nFileSizeLow) != 0 ?
+						(static_cast<size_t>(fileDesc->nFileSizeHigh) << 32) | fileDesc->nFileSizeLow :
+						GlobalSize(stg.hGlobal);
+
+					// Create a memory stream on the contents of the HGLOBAL.
+					// Note that memory streams only accept a 32-bit size for the data, so this
+					// won't work if the object is over 4GB.  Hopefully any program that sends
+					// us very large objects would send us an IStream instead, but if there
+					// actually does exist some pathological case where we get a transfer over
+					// 4GB as an HGLOBAL, we'll just have to ignore it.
+					//
+					// Note that there's a COM function that creates an IStream directly on an
+					// HGLOBAL (CreateStreamOnHGlobal).  That might seem more direct, and it
+					// might even be more efficient for large objects, because presumably it
+					// doesn't need to make a private copy of the data.  (Although the SDK
+					// documentation insists that memory streams have inherently better
+					// performance and should always be used over CreateStreamOnHGGlobal,
+					// which Microsoft seems to consider a mistake they'd like people to stop
+					// using.)  Apart from the SDK's advice that memory streams are always
+					// better, we have an important "correctness" reason to use memory streams:
+					// there's no way to prevent the originating program from deleting the
+					// HGLOBAL out from under us after we return from the present function,
+					// and we're going to supply an IStream to the caller that they might
+					// hold onto indefinitely.  An IStream from CreateStreamOnHGlobal is
+					// dependent upon the HGLOBAL staying around as long as the IStream is
+					// around, but it has no way to enforce that, so it's a dangling-pointer
+					// crash just waiting to happen.  Better to use the more modern and more
+					// correctly designed memory-stream approach.
+					if (fileSize <= UINT32_MAX)
+					{
+						// lock the HGLOBAL 
+						if (auto p = static_cast<BYTE*>(GlobalLock(stg.hGlobal)); p != nullptr)
+						{
+							// create the memory stream
+							stream = SHCreateMemStream(p, static_cast<UINT>(fileSize));
+
+							// we're done with the HGLOBAL
+							GlobalUnlock(stg.hGlobal);
+						}
+					}
+				}
+
+				// process the file through the callback
+				if (stream != nullptr)
+					func(fileGroupDesc->fgd[i].cFileName, stream);
+			}
 		}
 	}
 }
