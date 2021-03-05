@@ -1273,6 +1273,41 @@ this.VideoEndEvent = class VideoEndEvent extends VideoEvent
     }
 };
 
+// Media Sync events
+this.MediaSyncEvent = class MediaSyncEvent extends Event
+{
+    constructor(type, cancelable, game)
+    {
+        super(type, { cancelable: cancelable });
+        this.game = game;
+    }
+};
+this.MediaSyncBeginEvent = class MediaSyncBeginEvent extends MediaSyncEvent
+{
+    constructor(game) { super("mediasyncbegin", true, game); }
+};
+this.MediaSyncLoadEvent = class MediaSyncLoadEvent extends MediaSyncEvent
+{
+    constructor(game, video, image, defaultVideo, defaultImage)
+    {
+        super("mediasyncload", true, game);
+        this.video = video;
+        this.image = image;
+        this.defaultVideo = defaultVideo;
+        this.defaultImage = defaultImage;
+    }
+};
+this.MediaSyncEndEvent = class MediaSyncEndEvent extends MediaSyncEvent
+{
+    constructor(game, disposition)
+    {
+        super("mediasyncend", false, game);
+        this.disposition = disposition;
+    }
+};
+
+
+
 
 // ------------------------------------------------------------------------
 //
@@ -1323,6 +1358,22 @@ this.DrawingLayer = DrawingLayer;
 
 // ------------------------------------------------------------------------
 //
+// Media Window class.  This is the common base class for all of the
+// standard system windows (playfield, backglass, etc), and is also for
+// custom media windows created through Javascript.
+//
+class MediaWindow extends EventTarget
+{
+    constructor(name) {
+        super();
+        this.name = name;
+        this.drawingLayerClass = class extends DrawingLayer { };
+    }
+}
+this.MediaWindow = MediaWindow;
+
+// ------------------------------------------------------------------------
+//
 // Main window object
 //
 // Events:
@@ -1332,34 +1383,41 @@ this.DrawingLayer = DrawingLayer;
 //    joyup
 //    command
 //
-this.mainWindow = new EventTarget();
-this.mainWindow.name = "playfield";
-this.mainWindow.drawingLayerClass = class extends DrawingLayer { };
+this.mainWindow = new MediaWindow("playfield");
 
-// Backglass window object
-this.backglassWindow = {
-    name: "backglass",
-    drawingLayerClass: class extends DrawingLayer { }
-};
+// ------------------------------------------------------------------------
+//
+// Secondary windows - backglass, DMD, topper, instruction card
+//
+class SecondaryWindow extends MediaWindow
+{
+    constructor(name) { super(name); }
+}
+this.SecondaryWindow = SecondaryWindow;
 
-// DMD window
-this.dmdWindow = {
-    name: "dmd",
-    drawingLayerClass: class extends DrawingLayer { }
-};
+this.backglassWindow = new SecondaryWindow("backglass");
+this.dmdWindow = new SecondaryWindow("dmd");
+this.topperWindow = new SecondaryWindow("topper");
+this.instCardWindow = new SecondaryWindow("instCard");
 
-// Topper window
-this.topperWindow = {
-    name: "topper",
-    drawingLayerClass: class extends DrawingLayer { }
-};
-
-// Instruction card window
-this.instCardWindow = {
-    name: "instCard",
-    drawingLayerClass: class extends DrawingLayer { }
-};
-
+// ------------------------------------------------------------------------
+//
+// CustomWindow is the base class for custom windows created through
+// Javascript.
+//
+// Always create windows via mainWindow.createMediaWindow() rather than
+// by instantiating this class directly with 'new'.  'new' only creates
+// the Javsacript object, which merely *represents* the window for
+// Javascript's sake, and doesn't contain the real system resources that
+// cause a window to appear on screen.  createMediaWindow() is where the
+// actual system resources are created.  That method also creates the
+// Javascript object and links it to the system resources, so there's
+// no need to call 'new CustomWindow()' directly.
+class CustomWindow extends SecondaryWindow
+{
+    constructor(name) { super(name); }
+}
+this.CustomWindow = CustomWindow;
 
 // SetWindowPosition flags.  These are just a few of the most frequently
 // used flags; see the Windows SDK documentation for the full set.

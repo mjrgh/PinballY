@@ -19,6 +19,20 @@
    object that represents the overall PinballY application.
 </p>
 
+<h2>Class inheritance structure</h2>
+<p>
+   This object is an instance of the <a href="SecondaryWindow.html">common window base class</a>,
+   so it has all of the behavior defined in that class, in addition
+   to its own methods and properties (see below).
+</p>
+<div>
+   <a href="WindowObjects.html">Basic Window Object</a> &rarr;
+   <div class="indented">
+      mainWindow
+   </div>
+</div>
+
+
 <h2>Event target</h2>
 
 <p>
@@ -30,7 +44,7 @@
    mainWindow serves as the event target for the following event types:
 </p>
 
-<div class="eventTargetTOC" data-eventtarget="mainWindow"></div>
+<div class="eventTargetTOC" data-eventtarget="mainWindow BaseWindow"></div>
 
 <a name="drawingLayers"></a>
 <h2>Drawing layer ordering</h2>
@@ -202,7 +216,7 @@
 <p>
    The return value of the method is the newly created window object,
    which has methods and properties described in
-   <a href="CustomWindow.html">Custom Windows</a>.
+   <a href="CustomWindow.html">CustomWindow</a>.
 </p>
 <p>
    The descriptor <i>desc</i> doesn't contain any window position, size,

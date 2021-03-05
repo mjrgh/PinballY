@@ -306,8 +306,8 @@ void BaseView::DrawingLayerEndVideoEvent(UINT msg, WPARAM cookie)
 
 void BaseView::AsyncSpriteLoader::AsyncLoad(
 	bool sta,
-	std::function<void(VideoSprite*)> load,
-	std::function<void(VideoSprite*)> done)
+	std::function<bool(BaseView*, VideoSprite*)> load,
+	std::function<void(BaseView*, VideoSprite*, bool)> done)
 {
 #if 1
 	// The asynchronous loading doesn't actually seem to make the
@@ -340,10 +340,10 @@ void BaseView::AsyncSpriteLoader::AsyncLoad(
 	RefPtr<VideoSprite> sprite(new VideoSprite());
 
 	// load it
-	load(sprite);
+	loadResult = load(view, sprite);
 
 	// complete the loading
-	done(sprite);
+	done(view, sprite, loadResult);
 
 #else
 	// create the new async loader, replacing any previous one
@@ -408,7 +408,7 @@ DWORD BaseView::AsyncSpriteLoader::Thread::Main()
 	RefPtr<VideoSprite> sprite(new VideoSprite());
 
 	// call the loader callback
-	load(sprite);
+	load(view, sprite);
 
 	// Send a message to our window to tell it that we've finished
 	// loading.  This is our thread synchronization mechanism: the
@@ -468,7 +468,7 @@ void BaseView::AsyncSpriteLoader::OnAsyncSpriteLoadDone(VideoSprite *sprite, Thr
 	if (this->thread == thread)
 	{
 		// this thread is still active - invoke its callback
-		thread->done(sprite);
+		thread->done(view, sprite, loadResult);
 
 		// we're now done tracking this thread - forget it
 		thread = nullptr;

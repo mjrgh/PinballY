@@ -54,6 +54,12 @@ public:
 	// with no path or extension.
 	virtual const TCHAR *StartupVideoName() const = 0;
 
+	// Get/set the Javascript 'self' object.  This is the Javascript object
+	// representing the window in Javascript code (e.g., mainWindow, 
+	// backglassWindow).
+	JsValueRef GetJsSelf() const { return jsSelf; }
+	void SetJsSelf(JsValueRef v) { jsSelf = v; }
+
 	// Javascript drawing layer access
 	JsValueRef JsCreateDrawingLayer(int zIndex);
 	void JsRemoveDrawingLayer(JavascriptEngine::JsObj obj);
@@ -123,16 +129,23 @@ protected:
 		// If a previous sprite load is already in progress, we abandon it:
 		// the old sprite is harmlessly discarded once it finished loading.
 		// 
-		// The load callback must be thread-safe, as it runs in a separate
+		// The 'load' callback MUST be thread-safe, as it runs in a separate
 		// background thread.  The easiest way to accomplish this is to keep
 		// it self-contained, so that it only accesses its own locals, and
-		// not any object class members, globals, or static variables.
+		// not any object class members, globals, or static variables.  If
+		// it accesses anything global or static, it must protect against
+		// concurrent accesss via some kind of resource locking.
+		//
+		// The return value of the 'load' callback is a boolean indicating
+		// whether or not the load was successful.  Return true if the media
+		// file was successfully loaded, false if no media were loaded.
+		// This result is passed to the 'done' function as a parameter.
 		//
 		// After the loader returns, we call the 'done' callback.  This is
-		// called on the main UI thread, via a SendMessage() from the thread
-		// to the window.  That means the 'done' callback DOESN'T need to be
-		// thread-safe; it can directly access anything the main UI thread 
-		// can.
+		// guaranteed to be called on the main UI thread, via a SendMessage()
+		// from the thread to the window.  That means the 'done' callback
+		// DOESN'T need to be thread-safe.  It can directly access anything
+		// the main UI thread can without any locking.
 		//
 		// IMPORTANT:  Because the 'load' and 'done' callbacks might
 		// operate in separate threads, don't use reference captures to
@@ -151,12 +164,18 @@ protected:
 		//
 		void AsyncLoad(
 			bool sta,
-			std::function<void(VideoSprite*)> load,
-			std::function<void(VideoSprite*)> done);
+			std::function<bool(BaseView *view, VideoSprite *sprite)> load,
+			std::function<void(BaseView *view, VideoSprite *sprite, bool loadResult)> done);
+
 
 	protected:
 		// containing view
 		BaseView *view;
+
+		// Load result.  This is the value returned from the 'load' callback;
+		// true means that the media file was successfully loaded, false means
+		// that no attempt has been made yet or that the load failed.
+		bool loadResult = false;
 
 		// async loader thread
 		class Thread : public RefCounted
@@ -165,8 +184,8 @@ protected:
 			Thread(
 				bool sta,
 				AsyncSpriteLoader *loader,
-				std::function<void(VideoSprite*)> load,
-				std::function<void(VideoSprite*)> done);
+				std::function<bool(BaseView *view, VideoSprite*)> load,
+				std::function<void(BaseView *view, VideoSprite*, bool)> done);
 
 			// static thread entrypoint
 			static DWORD CALLBACK ThreadMain(LPVOID param)
@@ -197,10 +216,10 @@ protected:
 			HandleHolder hThread;
 
 			// loader callback function
-			std::function<void(VideoSprite*)> load;
+			std::function<bool(BaseView*, VideoSprite*)> load;
 
 			// 'done' callback function
-			std::function<void(VideoSprite*)> done;
+			std::function<void(BaseView*, VideoSprite*, bool)> done;
 		};
 
 		// current loader thread
@@ -312,6 +331,10 @@ protected:
 
 	// video overlay ID
 	TSTRING videoOverlayID;
+
+	// The Javascript object representing this window (mainWindow,
+	// backglassWindow, etc)
+	JsValueRef jsSelf = JS_INVALID_REFERENCE;
 
 	// Javascript custom drawing layers.  Javascript code can create
 	// sprite layers for its own use.  These are layered in front of

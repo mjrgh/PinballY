@@ -1083,6 +1083,8 @@ void Application::SyncSelectedGame()
 		topperWin->GetView()->SendMessage(WM_COMMAND, ID_SYNC_GAME);
 	if (instCardWin != 0 && instCardWin->GetView() != 0)
 		instCardWin->GetView()->SendMessage(WM_COMMAND, ID_SYNC_GAME);
+
+	CustomView::ForEachCustomView([](CustomView *cv) { cv->SendMessageW(WM_COMMAND, ID_SYNC_GAME); return true; });
 }
 
 void Application::InitDialogPos(HWND hDlg, const TCHAR *configVar)

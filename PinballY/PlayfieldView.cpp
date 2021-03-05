@@ -371,11 +371,8 @@ JsValueRef PlayfieldView::JsCreateMediaWindow(JavascriptEngine::JsObj options)
 			if (options.Has("showCommand")) nCmdShow = options.Get<int>("showCommand");
 		}
 
-		// create a Javascript object to represent the window, based on the same
-		// prototype as mainWindow
-		JsValueRef jsWinObj;
-		if (!js->CreateObjWithSameProto(jsWinObj, jsMainWindow))
-			return js->GetUndefVal();
+		// create the Javascript object to represent the window, as an instance of CustomWindow
+		JsValueRef jsWinObj = js->CallNew(jsCustomWindowClass, title);
 
 		// create the frame window
 		RefPtr<CustomWin> frame(new CustomWin(customWindowNum, jsWinObj, configVarPrefix.c_str(), title.c_str()));
@@ -796,13 +793,19 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsLaunchOverlayMessageEvent, "LaunchOverlayMessageEvent")
 				|| !GetObj(jsDOFEventEvent, "DOFEventEvent")
 				|| !GetObj(jsVideoEndEvent, "VideoEndEvent")
+				|| !GetObj(jsMediaSyncBeginEvent, "MediaSyncBeginEvent")
+				|| !GetObj(jsMediaSyncLoadEvent, "MediaSyncLoadEvent")
+				|| !GetObj(jsMediaSyncEndEvent, "MediaSyncEndEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
 				|| !GetObj(jsGameInfo, "GameInfo")
 				|| !GetObj(jsGameSysInfo, "GameSysInfo")
 				|| !GetObj(jsFilterInfo, "FilterInfo")
-				|| !GetObj(jsOptionSettings, "optionSettings"))
+				|| !GetObj(jsOptionSettings, "optionSettings")
+				|| !GetObj(jsMediaWindowClass, "MediaWindow")
+				|| !GetObj(jsSecondaryWindowClass, "SecondaryWindow")
+				|| !GetObj(jsCustomWindowClass, "CustomWindow"))
 				return;
 
 			// Initialize generic properties for a js window object.  Note that this has
@@ -1260,6 +1263,10 @@ bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHA
 	auto view = dynamic_cast<BaseView*>(frame->GetView());
 	auto view2 = dynamic_cast<SecondaryView*>(view);
 
+	// plug the Javascript window object into the view
+	if (view != nullptr)
+		view->SetJsSelf(jswinobj);
+
 	// set up the HWND properties
 	JsErrorCode err;
 	auto js = JavascriptEngine::Get();
@@ -1290,39 +1297,12 @@ bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHA
 		|| (!js->DefineGetterSetter(jswinobj, name, "pagedImageIndex", &SecondaryView::JsGetPagedImageIndex, &SecondaryView::JsSetPagedImageIndex, view2, eh)))
 		return false;
 
-	// Retrieve the window's DrawingLayer class 
-	JsValueRef drawingLayerClass;
-	if ((err = js->GetProp(drawingLayerClass, jswinobj, "drawingLayerClass", where)) != JsNoError)
+	// Retrieve the window's DrawingLayer class prototype
+	JsValueRef drawingLayerClass, drawingLayerProto;
+	if ((err = js->GetProp(drawingLayerClass, jswinobj, "drawingLayerClass", where)) != JsNoError
+		|| (err = js->GetProp(drawingLayerProto, drawingLayerClass, "prototype", where)) != JsNoError)
 	{
-		LogFile::Get()->Write(LogFile::JSLogging,
-			_T(". getting window's DrawingLayer class, %s: %s"),
-			where, js->JsErrorToString(err));
-		return false;
-	}
-
-	// If it has a DrawingLayer class defined, which is true of the bulit-in window
-	// types, simply retrieve tis prototype.  If not, create one.
-	if (js->IsUndefinedOrNull(drawingLayerClass))
-	{
-		// It doesn't have a DrawingLayer class of its own defined, so it must
-		// be a custom window.  Create an anonymous private class defined as
-		//
-		//    class extends DrawingLayer
-		//
-		LogFileErrorHandler feh;
-		if (!js->EvalScript(L"(class extends this.DrawingLayer { })", L"script:createPrivateDrawingLayerClass", &drawingLayerClass, feh))
-		{
-			LogFile::Get()->Write(LogFile::JSLogging, _T(". creating window's DrawingLayer class"));
-			return false;
-		}
-	}
-
-	// Retrieve the DrawingLayer class prototype
-	JsValueRef drawingLayerProto;
-	if ((err = js->GetProp(drawingLayerProto, drawingLayerClass, "prototype", where)) != JsNoError)
-	{
-		LogFile::Get()->Write(LogFile::JSLogging,
-			_T(". getting window's DrawingLayer class and prototype, %s: %s"),
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". getting window's DrawingLayer class, %s: %s"),
 			where, js->JsErrorToString(err));
 		return false;
 	}
@@ -1370,6 +1350,55 @@ void PlayfieldView::FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping)
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 		js->FireEvent(drawingLayerObj, jsVideoEndEvent, looping);
+}
+
+bool PlayfieldView::FireMediaSyncBeginEvent(BaseView *view, GameListItem *game)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(view->GetJsSelf(), jsMediaSyncBeginEvent, BuildJsGameInfo(game));
+
+	return ret;
+}
+
+bool PlayfieldView::FireMediaSyncLoadEvent(BaseView *view, GameListItem *game,
+	TSTRING *video, TSTRING *image, TSTRING *defaultVideo, TSTRING *defaultImage)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		auto StrArg = [](const TSTRING *str) { return str != nullptr && str->length() != 0 ? str->c_str() : nullptr; };
+		JsValueRef eventObjVal;
+		ret = js->FireAndReturnEvent(eventObjVal, view->GetJsSelf(), jsMediaSyncLoadEvent,
+			BuildJsGameInfo(game),	StrArg(video), StrArg(image), StrArg(defaultVideo), StrArg(defaultImage));
+
+		// if the event wasn't canceled, pass back changes to the strings
+		if (ret)
+		{
+			JavascriptEngine::JsObj eventObj(eventObjVal);
+			auto Update = [&eventObj, js](TSTRING *s, const CHAR *prop) {
+				if (s != nullptr && eventObj.Has(prop)) {
+					JsValueRef propVal = eventObj.Get<JsValueRef>(prop);
+					if (js->IsUndefinedOrNull(propVal))
+						s->clear();
+					else
+						s->assign(js->JsToNative<TSTRING>(propVal));
+				}
+			};
+			Update(video, "video");
+			Update(image, "image");
+			Update(defaultVideo, "defaultVideo");
+			Update(defaultImage, "defaultImage");
+		}
+	}
+
+	return ret;
+}
+
+void PlayfieldView::FireMediaSyncEndEvent(BaseView *view, GameListItem *game, const TCHAR *disposition)
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->FireEvent(view->GetJsSelf(), jsMediaSyncEndEvent, BuildJsGameInfo(game), disposition);
 }
 
 
@@ -7830,6 +7859,39 @@ void PlayfieldView::UpdateSelection(bool fireEvents)
 
 void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 {
+	// Send a MediaSyncBegin event
+	FireMediaSyncBeginEvent(this, game);
+
+	// this is the start of a global media sync
+	OnBeginMediaSync();
+
+	// Make sure that we fire a MediaSyncEnd event if we leave
+	// without initiating a media load
+	struct EndEventSentry
+	{
+		EndEventSentry(PlayfieldView *pfv, GameListItem *game) : pfv(pfv), game(game) { }
+
+		~EndEventSentry()
+		{
+			// if no load was started, send a MediaSyncEnd with a status of "skip",
+			// and initiate media loading in the next window
+			if (!loadStarted)
+			{
+				// send the Media Sync End event to Javascript
+				pfv->FireMediaSyncEndEvent(pfv, game, _T("skip"));
+
+				// if we're in sequential sync mode, explicitly kick off the sequencing
+				if (!pfv->simultaneousSync)
+					pfv->PostMessage(WM_COMMAND, ID_SYNC_BACKGLASS);
+			}
+		}
+
+		PlayfieldView *pfv;
+		GameListItem *game;
+		bool loadStarted = false;
+	};
+	EndEventSentry endEventSentry(this, game);
+
 	// Sync the underlay
 	SyncUnderlay();
 
@@ -7849,7 +7911,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 	// if there's a game, try loading its playfield media
 	Application::InUiErrorHandler uieh;
-	TSTRING video, image, audio;
+	TSTRING video, image, defaultVideo, defaultImage, audio;
 	bool videosEnabled = Application::Get()->IsEnableVideo();
 	int volumePct = 100;
 	if (IsGameValid(game))
@@ -7860,6 +7922,13 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		if (videosEnabled)
 			game->GetMediaItem(video, GameListItem::playfieldVideoType);
 		game->GetMediaItem(image, GameListItem::playfieldImageType);
+
+		// get the default video and image, in case we need a fallback
+		TCHAR buf[MAX_PATH];
+		if (videosEnabled && GameList::Get()->FindGlobalVideoFile(buf, _T("Videos"), _T("Default Playfield")))
+			defaultVideo = buf;
+		if (GameList::Get()->FindGlobalVideoFile(buf, _T("Images"), _T("Default Playfield")))
+			defaultImage = buf;
 
 		// look for an audio track for the table
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
@@ -7930,13 +7999,12 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		{
 			// figure out which new video we're going to use
 			const TCHAR *newPath = nullptr;
-			TCHAR defaultVideo[MAX_PATH];
 			if (video.length() != 0)
 				newPath = video.c_str();
 			else if (image.length() != 0)
 				newPath = nullptr;  // we're using the image, not a video
-			else if (GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
-				newPath = defaultVideo;
+			else if (defaultVideo.length() != 0)
+				newPath = defaultVideo.c_str();
 
 			// check if they're the same
 			if (newPath != nullptr && _tcsicmp(newPath, oldPath) == 0)
@@ -7947,10 +8015,15 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// if we're not staying with the same video, load the new one
 	if (!isSameVideo)
 	{
+		// We're going to attempt to load media, so fire a MediaSyncLoad event
+		// with the file details.  If that cancels the event, abort the sync.
+		if (!FireMediaSyncLoadEvent(this, game, &video, &image, &defaultVideo, &defaultImage))
+			return;
+
 		// Asynchronous loader function
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
+		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](BaseView*, VideoSprite *sprite)
 		{
 			// nothing loaded yet
 			bool ok = false;
@@ -8006,13 +8079,35 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// the Z axis, since D3D coordinates are left-handed.)
 			sprite->rotation.z = XM_PI / 2.0f;
 			sprite->UpdateWorld();
+
+			// return the result
+			return ok;
 		};
 
 		// Asynchronous loader completion
-		auto done = [this](VideoSprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
+		auto done = [this, game](BaseView *view, VideoSprite *sprite, bool ok) 
+		{
+			if (ok)
+			{
+				// media loaded - start the crossfade transition effect
+				IncomingPlayfieldMediaDone(sprite);
+			}
+			else
+			{
+				// load failed - send a Media Sync End event with an "error"
+				// disposition
+				if (auto pfv = dynamic_cast<PlayfieldView*>(view); pfv != nullptr)
+					pfv->FireMediaSyncEndEvent(view, game, _T("error"));
+			}
+		};
 
 		// Kick off the asynchronous load
 		playfieldLoader.AsyncLoad(false, load, done);
+
+		// Tell the event sentry that we've initiated media loading.  The
+		// loader is responsible for sending the Media Sync End event, so
+		// the sentry shouldn't send one of its own.
+		endEventSentry.loadStarted = true;
 	}
 
 	// update the status line text, in case it mentions the current game selection
@@ -10776,7 +10871,13 @@ void PlayfieldView::StartPlayfieldCrossfade()
 
 	// start the fade in the sprite
 	incomingPlayfield.sprite->StartFade(1, crossfadeTime);
-	
+
+	// initiate the sequential or simultaneous sync process
+	OnBeginMediaSync();
+}
+
+void PlayfieldView::OnBeginMediaSync()
+{
 	// if we're in simultaneous sync mode, sync the other windows immediately
 	if (simultaneousSync)
 		PostMessage(WM_COMMAND, ID_SYNC_ALL_VIEWS);
@@ -11466,6 +11567,9 @@ void PlayfieldView::UpdateAnimation()
 			// forget the old one.
 			currentPlayfield = incomingPlayfield;
 			updateDrawingList = true;
+
+			// fire a Media Sync End event with "success" disposition
+			FireMediaSyncEndEvent(this, currentPlayfield.game, _T("success"));
 
 			// clear the incoming playfield
 			incomingPlayfield.Clear();

@@ -16,15 +16,65 @@
    <b>dmdWindow</b> is a pre-defined PinballY object representing the
    DMD window in the user interface.  The DMD window (for "Dot Matrix Display") is
    the window that simulates the plasma score display on 1990s+ pinball machines.
-   It's also used to emulate the alphanumeric display on 1908s games.
+   It can also emulate the alphanumeric display on 1980s games.
+</p>
+<p>
+   Note that <b>dmdWindow</b> refers to the <b>video simulation</b> of the
+   dot matrix display, not to a physical DMD device (if you have one).  This
+   is just one more video window that displays images and videos from
+   your Media folder.  In this case, it's assumed that the images and videos
+   in the Media folder will look like dot matrix displays (or alphanumeric
+   displays, for older games), but that's not a "rule" - you can display
+   whatever type of graphics you want here.  For older games that predate
+   digital displays, for example, you could use this as an extension
+   of the backglass artwork.
+</p>
+<p>
+   The DMD window works like most of the <a href="SecondaryWindow.html">Secondary Windows</a>,
+   in that it displays image and video files in your Media folder tree designated
+   for the DMD window.  It has the additional special feature that it synthesizes
+   graphics to display the live high scores as recorded by the game player
+   system, when available, using a display style appropriate for the game's
+   era.  The synthesized high score graphics are automatically alternated
+   with the background images or videos from the Media folders, to approximate
+   the way that modern pinball machines display a series of animations and
+   high score screens while in attract mode.
 </p>
 
-<h2>Methods and properties</h2>
+<h2>Class inheritance structure</h2>
+<p>
+   This object is an instance of the <a href="SecondaryWindow.html">Secondary Window</a>
+   class, so it has all of the behavior defined in that class, as well
+   as in the <a href="WindowObjects.html">base window class</a>.
+</p>
+<div>
+   <a href="WindowObjects.html">Basic Window Object</a> &rarr;
+   <div class="indented">
+      <a href="SecondaryWindow.html">Secondary Window</a> &rarr;
+      <div class="indented">
+         dmdWindow
+      </div>
+   </div>
+</div>
+
+
+<h2>Event target</h2>
 
 <p>
-   This object provides the <a href="WindowObjects.html#common">common
-   window methods and properties</a>.  It doesn't currently have any additional
-   properties or methods beyond the common set.
+   The DMD window object is an event target, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.  This
+   window receives the following event types:
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="SecondaryWindow BaseWindow"></div>
+
+<h2>Methods and properties</h2>
+<p>
+   This object is a <a href="SecondaryWindow.html">Secondary Window</a>, so
+   it inherits the methods and properties defined for that class as well as
+   the <a href="WindowObjects.html#common">common window base class methods and properties</a>.
+   It doesn't currently have any additional properties or methods beyond the common set.
 </p>
 
 </body>

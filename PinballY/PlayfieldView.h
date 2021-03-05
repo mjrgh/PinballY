@@ -323,6 +323,12 @@ public:
 
 	// Fire a Javascript end-of-video event
 	void FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping);
+	
+	// Fire Javascript MediaSync events
+	bool FireMediaSyncBeginEvent(BaseView *view, GameListItem *game);
+	bool FireMediaSyncLoadEvent(BaseView *view, GameListItem *game,
+		TSTRING *video, TSTRING *image, TSTRING *defaultVideo, TSTRING *defaultImage);
+	void FireMediaSyncEndEvent(BaseView *view, GameListItem *game, const TCHAR *disposition);
 
 protected:
 	// destruction - called internally when the reference count reaches zero
@@ -1963,6 +1969,13 @@ protected:
 	// other animations, as it can run in parallel.
 	void StartPlayfieldCrossfade();
 
+	// Start a media sync process.  This is called when we start a playfield
+	// crossfade after successfully loading new playfield media, or when we
+	// decide to skip loading new playfield media in this window for one
+	// reason or another (e.g., Javascript canceled, or the same video was
+	// already playing), but we still need to check other windows.
+	void OnBeginMediaSync();
+
 	// Incoming playfield load time.  This is
 	DWORD incomingPlayfieldLoadTime;
 
@@ -2690,6 +2703,16 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
+	// Javascript object for the window base classes.  MediaWindow
+	// is the common base class for all of the built-in and custom
+	// windows; SecondaryWindow is the base class for everything
+	// except the main playfield window; and CustomWindow is the
+	// base class for custom windows created through javascript.
+	// class on the Javsacript side for all of the window classes.
+	JsValueRef jsMediaWindowClass = JS_INVALID_REFERENCE;
+	JsValueRef jsSecondaryWindowClass = JS_INVALID_REFERENCE;
+	JsValueRef jsCustomWindowClass = JS_INVALID_REFERENCE;
+
 	// Javascript object for the main window object
 	JsValueRef jsMainWindow = JS_INVALID_REFERENCE;
 
@@ -2764,6 +2787,9 @@ protected:
 	JsValueRef jsLaunchOverlayMessageEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsDOFEventEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsVideoEndEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncBeginEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncLoadEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncEndEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the

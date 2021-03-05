@@ -89,9 +89,12 @@ protected:
 	// send the sync command to the next window
 	void SyncNextWindow();
 
-	// Load the current game's media.  Returns true if media were
-	// loaded, false if not.
-	virtual bool LoadCurrentGameMedia(GameListItem *game);
+	// Load the current game's media.  If fireEvents is true, we'll
+	// fire the Javascript MediaSyncLoad event.  Returns true if a
+	// load was initiated, false if not.
+	//
+	// 
+	bool LoadCurrentGameMedia(GameListItem *game, bool fireEvents);
 
 	// Handle a change of current background image
 	virtual void OnChangeBackgroundImage() { }

@@ -79,9 +79,19 @@ CustomWin *CustomWin::GetBySerial(int n)
 // call a callback for each custom window
 bool CustomWin::ForEachCustomWin(std::function<bool(CustomWin*)> f)
 {
+	// The callback could potentially create or delete a custom window, so
+	// make a private copy of the list and iterate over that, to ensure that
+	// the iterator doesn't become invalid during the iteration.  Keep
+	// counted references on the windows while we're at it, to make sure
+	// that the pointers remain valid until we're done.
+	std::list<RefPtr<CustomWin>> l;
 	for (auto it : allCustomWins)
+		l.emplace_back(it.second, RefCounted::DoAddRef);
+
+	// now iterate the private copy
+	for (auto &it : l)
 	{
-		if (!f(it.second))
+		if (!f(it.Get()))
 			return false;
 	}
 	return true;

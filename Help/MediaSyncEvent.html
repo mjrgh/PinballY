@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>MediaSyncEvent</h1>
+
+<p>
+   This Event subclass represents media synchronization events,
+   which occur when a window loads new media due to a new game
+   selection, after returning from a launched game session, or
+   for any other reason.  Media synchronization events let you
+   intervene in the media loading process (for example, you
+   could change the image that a window loads, or prevent
+   loading a particular video), and also can be used to 
+   coordinate your own custom displays in a window (using
+   <a href="DrawingLayer.html">Drawing Layers</a>, for example)
+   with background media changes.
+</p>
+
+<p>
+   The basic media sync event type comes in the following subtypes:
+</p>
+<ul>
+   <a name="mediasyncbegin"></a>
+   <li><b>mediasyncbegin:</b>  Fires when something happens that
+   requires the window to check to see if new media should
+   be loaded.  This is the first step in the media sync process,
+   so at this point the system hasn't decided whether or not new
+   media will actually be required, and hasn't searched for
+   the appropriate media files yet.  This event can be canceled
+   (using <a href="Event.html#preventDefault">preventDefault()</a>),
+   which tells the window to skip the rest of the process,
+   keeping the current background media unchanged.
+
+   <a name="mediasyncload"></a>
+   <li><b>mediasyncload:</b>  Fires after a <b>mediasyncbegin</b>
+   event if the window determines that new media should be loaded.
+   At this point, the window has resolved the media files,
+   so the filenames are included in the event properties.
+   You can intervene by changing the filenames in the event
+   object, or by canceling the event entirely
+   (using <a href="Event.html#preventDefault">preventDefault()</a>),
+   which prevents any new media loading.
+   <p>
+      Immediately after your event handler returns, assuming
+      you don't cancel the event, the system will attempt to
+      load the media file.  Assuming this is successful,
+      the on-screen transition effect (cross-fading from the
+      old background media to the new background) will start
+      almost immediately.  A <b>mediasyncend</b> event will
+      follow when the transition effect completes, or
+      if an error occurs trying to load the media file.
+   </p>
+
+   <a name="mediasyncend"></a>
+   <li><b>mediasyncend:</b>  Fires when the sync process
+   has finished, which is <i>either</i> just after the media
+   file has been successfully loaded and the cross-fade
+   transition effect has finished, <i>or</i> after the media
+   load attempt failed or was canceled.  The <b>disposition</b>
+   property of the event object indicates which of these
+   outcomes occurred.
+   
+</ul>
+<p>
+   A <b>mediasyncbegin</b> event is always fired at the start of the
+   process, and a <b>mediasyncend</b> always fires at the end
+   of the process, no matter what the outcome.  You can count
+   on these events being paired, so you can use the "done" phase to unwind
+   any global state that you set up in the "begin" or "load" phase.
+</p>
+<p>
+   Media sync events are fired on the window object representing
+   the window that's loading a new background.  When a new game is
+   selected, the system visits each window in sequence and loads
+   its media, so the media sync events will occur in that same
+   sequence.
+</p>
+
+<h2>Properties</h2>
+
+<p>
+   This event type has all of the standard event properties and methods
+   (see the <a href="Event.html">Event class</a>), plus the following:
+</p>
+
+<ul>
+   <li><b>game:</b> A <a href="GameInfo.html">GameInfo</a> object
+   representing the current game, which determines which media files
+   will be loaded.  If no game is selected, this is null.  This
+   is provided in all phases of the event.
+
+   <li><b>disposition:</b> For <b>mediasyncend</b> only, this is
+   a string indicating the outcome of the media sync attempt:
+   <ul>
+      <li><b>"success":</b> the new media file was loaded successfully
+      <li><b>"error":</b> an error occurred loading the new media file
+      <li><b>"skip":</b> the system decided that it wasn't necessary
+      after all to load new media: no game was selected, or the correct media file
+      was already being displayed, or Javascript canceled the process
+   </ul>
+   
+   <li><b>video:</b> A string giving the name of the video file
+   that the system has chosen to use as the new background, or null
+   if no video file for the game could be resolved.  This is only provided
+   for the <b>mediasyncload</b> event.  You can change this value to
+   override the system's choice of file with your own.
+
+   <li><b>image:</b> A string giving the name of the image
+   file that the system has chosen, or null if no image file for
+   the game could be resolved.  This is only provided for the
+   <b>mediasyncload</b> event.  You can change this value to override
+   the system's choice of file with your own.
+
+   <li><b>defaultVideo:</b> A string with the name of <i>default</i>
+   video file to use as the background, as a fallback to the
+   <b>video</b> and <b>image</b> files.  This is only provided for
+   the <b>mediasyncload</b> event.  You can change this value to
+   override the system's choice of file with your own.
+   
+   <li><b>defaultImage:</b> A string with the name of <i>default</i>
+   image file to use as the background, as a fallback to the
+   <b>video</b> and <b>image</b> files.  This is only provided for
+   the <b>mediasyncload</b> event.  You can change this value to
+   override the system's choice of file with your own.
+
+</ul>
+<p>
+   All of the file properties (image, video, defaultImage, defaultVideo)
+   contain complete Windows filenames, with drive letter, folder path, and
+   extension.  If you change any of these, you must also use
+   the same absolute path format, since PinballY will simply pass
+   these strings to Windows directly to attempt to open the named
+   files.  You can set any of these to null to remove it from
+   consideration.
+</p>
+<p>
+   The reason that multiple file properties are present is that the
+   system treats these four as a series of back-up options if
+   any of them can't be found or if any errors occur trying to
+   load them.  The system visits the files in the following order,
+   stopping at the first one that successfully loads:
+</p>
+<ul class="compact">
+   <li>video
+   <li>image
+   <li>defaultVideo
+   <li>defaultImage
+</ul>
+<p>
+   If <b>video</b> is missing (meaning that the system couldn't
+   find any video files in the Media folder for the game), or if an
+   error occurs when PinballY attempts to load the video file
+   (e.g., the file doesn't contain valid video data, or can't be
+   opened for some reason), the system moves on to <b>image</b>
+   as the next best candidate.  If no image file was found for
+   the game, or an error occurs loading the file, PinballY
+   next tries <b>defaultVideo</b>, and finally <b>defaultImage</b>.
+</p>
+<p>
+   Note that video playback can be disabled by the user as an
+   option setting.  When videos are disabled, the <b>video</b>
+   and <b>defaultVideo</b> properties won't be present, since
+   the system doesn't consider those as candidates for the
+   background media.
+</p>
+
+</body>
+</html>

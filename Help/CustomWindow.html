@@ -18,91 +18,51 @@
    It's a specialization of the basic <a href="WindowObjects.html">Window Objects</a>
    that the system provides for the main playfield window, the backglass window,
    and so forth.  You can use custom windows to supplement the standard set
-   of windows if you have additional media types that you want to display.
+   of windows if you have additional media types that you want to display,
+   or to display entirely custom graphics using <a href="DrawingLayer.html">Drawing Layers</a>.
 </p>
 <p>
-   For an example of how to create your own custom windows, see
+   For some examples of how to create your own custom windows, see
    <a href="CustomMediaWindowExample.html">Custom Media Window</a> in
    the <a href="WorkedExamples.html">Worked Examples</a> section.
 </p>
 
+<h2>Class inheritance structure</h2>
+<div>
+   <a href="WindowObjects.html">Basic Window Object</a> &rarr;
+   <div class="indented">
+      <a href="SecondaryWindow.html">Secondary Window</a> &rarr;
+      <div class="indented">
+         Custom Window
+      </div>
+   </div>
+</div>
+
+<h2>Event target</h2>
+
+<p>
+   A custom window object is an event target, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.  This
+   window receives the following event types:
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="CustomWindow SecondaryWindow BaseWindow"></div>
+
 <h2>Properties and methods</h2>
 
 <p>
-   A custom window has all of the standard properties and methods
-   common to all windows, as described in <a href="WindowObjects.html">Window Objects</a>.
-   It also has some extended functionality of its own.
+   Since Custom Windows inherit from the Secondary Window base class,
+   they have all of the methods and properties that a Secondary Window
+   has, as described in <a href="SecondaryWindow.html">Secondary Windows</a>.
+   That class is itself a subclass of the basic common window
+   class, so a Custom Window also has the standard window
+   functions, described in <a href="WindowObjects.html">Window Objects</a>.
 </p>
 <p>
-   <a name="backgroundScalingMode"></a>
-   <b>backgroundScalingMode:</b>  This property controls how background images
-   and videos are scaled to fit the window.  You can change it by assigning one
-   of the string values below, and you can determine the current mode by
-   comparing it to these string values.  It has two possible settings:
+   In addition to the inherited functionality, Custom windows also
+   have some extended functions of their own, as listed below.
 </p>
-<ul>
-   <li>"stretch": This is the default.  In stretch mode, the image or video
-   is stretched in both the horizontal and vertical directions to exactly
-   fill the window, without trying to preserve the original media's aspect ratio.
-   This can distort the image by making it look too tall or too wide, but
-   it guarantees that the window area is exactly covered.
-   
-   <li>"zoom": In zoom mode, the original aspect ratio of the media is
-   preserved, and the image is scaled to fill either the window's full height
-   or its full width, according to which one allows the full image to fit
-   without any cropping.  If this leaves blank areas, they're filled with
-   black, and the image is centered.  This mode avoids any geometrical
-   distortion, but it can leave blank black areas if the image doesn't
-   have the same aspect ratio as the window.
-</ul>
-</p>
-
-<p>
-   <a name="pagedImageIndex"></a>
-   <b>pagedImageIndex:</b>  This property lets you scroll through "paged"
-   and "indexed" image types, so that you can display different 
-   images from the game's collection on command.  Reading this property
-   retrieves the index of the media item currently displayed, starting at 0
-   for the first item in the list.  Writing this property changes the
-   display to show the item at the given index.  If the new value is past
-   the last available item or less than zero, the system automatically
-   "wraps" to the beginning or end of the list (respectively).
-</p>
-<p>
-   The simplest way to use this property is to increment it to scroll
-   forward to the next image, and decrement it to scroll back to
-   the previous item.  Because the system automatically "wraps" the
-   value into the valid range, you can simply increment and decrement
-   the current value without bothering to check bounds.
-</p>
-<p>
-   Note that this method only works with <b>image</b> types.  If a
-   window can show both video and image backgrounds, changing the
-   paged image index will always select an image, even if a video
-   is available.
-</p>
-<p>
-   Of the built-in types, this applies to Flyers and Instruction Cards.
-   By the conventions of the HyperPin Media Packs,
-   Flyers are "paged", meaning a single game can have multiple flyer
-   images associated with it, arranged into subfolders of the main
-   Flyers media folder, with names like "Front", "Back", "Inside1", etc.
-   The Instruction Cards are "indexed", meaning that they have numeric
-   suffixes attached to the filenames: "Sinbad (Gottlieb 1978) 1.png",
-   "Sinbad (Gottlieb 1978) 2.png", and so on.  If you define your own
-   custom media types, you can use paging and indexing for any type
-   you create that has a similar need for multiple images per game.
-</p>
-<p>
-   (I know it's inconsistent and complicating to have these two different
-   conventions, "Paged" and "Indexed", for essentially the same function.
-   PinballY only uses them because that's how the files are arranged in
-   the widely deployed HyperPin media packs.  Since those are the most
-   convenient source of front-end media, I wanted to make them easy to
-   use with PinballY.  I didn't want to force everyone to undertake a
-   renaming project every time they imported a media pack.)
-</p>
-
 <p>
    <a name="showMediaWhenRunningFlag"></a>
    <b>showMediaWhenRunningFlag:</b>  This property lets you control

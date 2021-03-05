@@ -161,17 +161,18 @@ wheelIconWin.backgroundScalingMode = "zoom";
    is used as the prefix for all of the settings variables that
    pertain to this window - that's where PinballY stores the
    window's location, visibility, and layout information between
-   sessions.  I personally like using "customWindow" as a prefix
-   to the prefix, just to make it obvious when looking at the
-   settings file that it's one of our custom windows that we
-   defined through Javascript.  That's not a requirement, just
-   something I think might be helpful down the road if you
-   ever look at the settings file to troubleshoot some other
-   problem, say.  Then after that "customWindow" prefix, add
-   some description of the window, in this case "customWindow.WheelIcon".
+   sessions.  I personally like using something like "custom" or
+   "customWindow" as a prefix to the prefix, just to make it
+   obvious when looking at the settings file that it's a
+   custom window created through Javascript.  That's not a
+   requirement, just a convention that I think might be helpful
+   down the road, especially if you ever look at the settings
+   file to troubleshoot some other problem.  After the prefix,
+   add some description of the window, in this case
+   "customWindow.WheelIcon".
    Again, if you ever have to look at the settings file later
    on, it'll be helpful if you choose a name for this that
-   makes some kind of sense to you and that will job your
+   makes some kind of sense to you and that will jog your
    memory in the future.
 </p>
 <p>
@@ -200,11 +201,12 @@ wheelIconWin.backgroundScalingMode = "zoom";
    video) can show through.  The wheel icon <i>is</i> the background
    image in this case, so there's nothing behind it other than
    the default black background that the system draws.
-   If we wanted to choose a different background color, we
-   could use a custom drawing layer.  The trick is to use a
-   negative Z index so that the drawing layer goes behind
-   the main "system" media layer where the wheel icon will
-   be loaded.
+   A different background color might look a little more
+   interesting.  We can accomplish that using a
+   <a href="DrawingLayer.html">drawing layer</a>.  The trick is
+   to create a drawing layer with a negative Z index, so that the
+   drawing layer goes behind the window's built-in main layer where
+   the background media (the wheel icon, in this case) is drawn.
 </p>
 <div class="code">
 let wheelIconBackground = wheelIconWin.createDrawingLayer(-1);
@@ -218,6 +220,118 @@ wheelIconBackground.clear(0xffff00ff);
    each color component.  So we have maximum opacity, maximum
    red, maximum blue, and zero green.  That makes bright purple
    in the RGB color scheme.)
+</p>
+<p>
+   In playing around with this example, I thought it looked a
+   little boring to use a single, fixed background color, so I
+   came up with a further embellishment that rotates through
+   different colors as you switch games.  The idea is to use
+   <i>two</i> extra drawing layers, with an interval timer
+   that cross-fades between the two layers using alpha
+   transparency.  We initiate the background color change at
+   the same time that the window switches to a new icon by
+   triggering on the <a href="MediaSyncEvent.html"><b>mediasyncload</b></a>
+   event.  That event fires when the window is about to load
+   new background media, and start its own cross-fade to
+   the new image, so it's exactly the right time to start.
+   our own cross-fade effect.
+</p>
+
+<div class="code">
+// Rotating Color Background.  Create two background layers,
+// using negative Z-Indices to place them BEHIND the main
+// media layer where the wheel icon appears.  We'll accomplish
+// our color transitions by fading the foreground window in
+// and out, switching directions on each fade.
+// crossfade.
+let overlayfg = wheelIconWin.createDrawingLayer(-1);
+let overlaybg = wheelIconWin.createDrawingLayer(-2);
+
+// Background colors.  We rotate through this list of colors,
+// switching to the next color each time we load new media.
+//
+// The transitions work best when one RGB component changes and
+// the rest stay the same.  When two components both change, you
+// get a sort of wink-out/wink-in effect that looks like a double
+// fade.
+let colors = [0xff00ff, 0x0000ff, 0x00ffff, 0x00ff00, 0xffff00, 0xff0000];
+let colorIndex = 1;
+
+// Set up the initial conditions: background showing first color,
+// foreground fully transparent at the second color, and alpha
+// change (dAlpha) set to positive.  The number of steps determines
+// the timing of the overall transition; this is in terms of 1/60th
+// of a second redraws.
+overlaybg.clear(0xff000000 | colors[0]);
+let transitionFgColor = colors[1];
+overlayfg.clear(transitionFgColor);
+let transitionRunning;
+let transitionAlpha = 0;
+let transitionSteps = 15;
+let transitionDAlpha = 0xff / transitionSteps;
+
+// Start the cross-fade effect each time we're about to load new
+// background media into the window.
+wheelIconWin.on("mediasyncload", ev => {
+    // End the current transition, skipping straight to the end if we're
+    // only part of the way there.  Sets up the next transition.
+    function endTransition() {
+        if (transitionRunning) {
+            // stop the interval timer
+            clearInterval(transitionRunning);
+            transitionRunning = false;
+
+            // skip straight to the final foreground alpha
+            transitionAlpha = (transitionDAlpha > 0 ? 0xff : 0);
+            overlayfg.clear((transitionAlpha << 24) | transitionFgColor);
+
+            // get the next transition color
+            colorIndex = (colorIndex + 1) % colors.length;
+            let nextColor = colors[colorIndex];
+
+            // set up the next transition in the opposite direction
+            transitionDAlpha = -transitionDAlpha;
+            if (transitionDAlpha > 0) {
+                // foreground fading in - the foreground gets the next color,
+                // and the background stays the same color (since it's the one
+                // current showing)
+                transitionFgColor = nextColor;
+            }
+            else {
+                // foreground fading out - the background gets the next color,
+                // and the foreground stays the same color
+                overlaybg.clear(0xff000000 | nextColor);
+            }                
+        }
+    }
+
+    // if there's a transition running, end it immediately
+    endTransition();
+
+    // start the new transition
+    transitionRunning = setInterval(() => {
+        transitionAlpha += transitionDAlpha;
+        if (transitionAlpha > 0xff || transitionAlpha < 0) {
+            endTransition();
+            return;
+        }
+        overlayfg.clear((Math.floor(transitionAlpha) << 24) | transitionFgColor);
+    }, 16);
+});
+</div>
+   
+<p>
+   I can think of one more improvement: rather than cycling
+   through a series of generic colors, pick a color that's appropriate
+   for each game.  One way to do this would be to read the DOF settings
+   file and extract one of the color fields appropriate to the current
+   game; the Undercab RGB color might be a good choice.  The DOF settings
+   file format doesn't make it easy to extract that kind of information,
+   but it's possible with some work.  Another approach might be to
+   keep a custom color setting for each game in some other ad hoc
+   file that you maintain via Notepad.  I'll leave these ideas as
+   exercises; if anyone is motivated to implement one of them and
+   share it, I'd be happy to add it here as a further example.
 </p>
 
 
@@ -340,37 +454,41 @@ setInterval(() => { flyerWin.pagedImageIndex += 1; }, 5000);
 </p>
 <p>
    We could improve this timed approach slightly by taking note of
-   when a game switch occurs, and resetting the interval timer when
+   when a new flyer is loaded, and resetting the interval timer when
    that happens.  Without that, the running timer will just keep
    running every five seconds, so it might jump in and change to
-   the second page only a fraction of a second after a game switch,
+   the second page only a fraction of a second after switching to a new game,
    if that just happens to be its next scheduled run time.  We
    could make this a little smoother by clearing the old interval
    timer and setting up a new one each time a game switch occurs.
 </p>
 <div class="code">
 let flyerTimer;
-gameList.on("gameselect", ev => {
+flyerWin.on("mediasyncload", ev => {
     clearInterval(flyerTimer);
     flyerTimer = setInterval(() => { flyerWin.pagedImageIndex += 1; }, 5000);
 });
 </div>
+<p>
+   We use the <a href="MediaSyncEvent.html"><b>mediasyncload</b></a> event
+   to trigger the timer reset, because this event tells us when a new game's
+   flyer is about to be loaded, usually because we just switched to
+   a new game in the wheel UI.
+</p>
 
 <p>
    It's worth noting that this multiple media problem applies to PinballY's own
    Instruction Cards window, but that window ignores this issue completely.
-   In the case of the instructions, I assumed that the virtual cab
-   owner is going to treat the collection of cards provided in
-   the HyperPin pack exactly the same way that an arcade operator
-   would have treated the collection of cards that came with
-   a physical pinball machine: they're going to pick the one
-   with the rule set they prefer, and display that one card.
-   In the case of the arcade operator, you'd take the card
-   out of the pack and pop it into the machine's apron.
+   In the case of the instructions, I figured that the virtual cab
+   owner is going to do exactly what the arcade operator does with
+   a real pinball machine's instruction cards: install the one that
+   you want to use.  In the case of the arcade operator, you'd take
+   the card out of the pack and pop it into the machine's apron.
    For the virtual cab owner running PinballY, you just
    rename the version of the card that has your preferred
    instruction set so that it's the un-numbered card in
-   the folder.
+   the folder.  That approach doesn't work with a multi-page
+   flyer, though.
 </p>
 
 
@@ -490,7 +608,7 @@ cabPicWin.backgroundScalingMode = "zoom";
 // cab images for each game, set up an interval timer to flip
 // through them at a leisurely pace
 let cabPicTimer;
-gameList.on("gameselect", ev => {
+cabPicWin.on("mediasyncload", ev => {
     clearInterval(cabPicTimer);
     cabPicTimer = setInterval(() => { cabPicWin.pagedImageIndex += 1; }, 5000);
 });
@@ -627,28 +745,33 @@ let scoreCardWin = mainWindow.createMediaWindow({
    The drawing code gets a little long-winded, but it's
    straightforward, so I'll explain how that works via inline
    comments rather than boring you with a lengthy intro.
-   The only part that's tricky enough to mention up front
-   is the way it draws the score
-   card <i>twice</i>, as a way to figure the height of the
-   text.  I took that route because the best way to measure
-   the height of styled text with PinballY's drawing facilities
-   is to actually draw the text, and see where that leaves
-   the "text origin", which is sort of internal cursor.
-   The height measurement is important
-   because it lets us vertically center the overall text
-   layout in the window, and it lets us figure the size
-   of the canvas area we need to accommodate the text.  Some
-   games have extremely long high score rolls
-   (<i>Medieval Madness</i>, for example), so it's important
-   to adjust the height dynamically to fit the text.
+   The only thing that needs some up-front explanation
+   is why it draws the score card <i>twice</i> on every update.
+   The reason for the double drawing is that we need to measure
+   the height of the text as laid out, in order to make sure
+   that it fits into the available space and that it's
+   centered vertically.  Some games have extremely long
+   high score rolls (take a look at <i>Medieval Madness</i>,
+   for example), so we need a height reading to get an 
+   optimal fit.  The most reliable way to measure the height
+   of styled text with the available PinballY
+   drawing tools is to actually draw it, because the drawing code
+   keeps track of a "text origin" - a sort of internal cursor
+   for where the next text output goes.  So that's what the
+   two drawing passes are about: the first pass is a "dummy"
+   pass that we do only to measure the text size, and the
+   second pass creates the real image now that we know
+   enough to calculate the vertical layout.
 </p>
 
 <div class="code javascript">
 // Drawing layer for our generated score card image
 let scoreCardLayer = scoreCardWin.createDrawingLayer(1);
 
-// when a new game is selected, generate the score card image
-gameList.on("gameselect", ev => {
+// When it's time to update the Score Card Window media,
+// generate a new image based on the current game's high
+// scores
+scoreCardWin.on("mediasyncload", ev => {
     // Draw a score card, given the game title, a headline,
     // and the score text.  We'll invoke this when a newly
     // selected game's high scores are retrieved.
