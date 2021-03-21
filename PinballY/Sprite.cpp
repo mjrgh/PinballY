@@ -7,8 +7,8 @@
 #include <wincodec.h>
 #include "../Utilities/GraphicsUtil.h"
 #include "../Utilities/ComUtil.h"
-#include "DDSTextureLoader.h"
-#include "WICTextureLoader.h"
+#include "../DirectXTK/Inc/DDSTextureLoader.h"
+#include "../DirectXTK/Inc/WICTextureLoader.h"
 #include "../DirectXTex/DirectXTex/DirectXTex.h"
 #include "D3D.h"
 #include "Sprite.h"

@@ -15,29 +15,23 @@ talking about are set through VPinMAME, not PinballY; to access the
 VPinMAME options, launch the game with Visual Pinball and bring up the
 VPinMAME options dialog by pressing F6.)  (Issue #161 on github.)
 
-* New Javascript method: gameList.setWheelGame(), for directly
-changing the game selection in the wheel UI.  See the Javascript
-section in the help for details.
+* A new worked example in the help ("Custom game launch options for
+media capture") shows how to edit the game system's command line
+specifically for a media capture operation.  This is useful in
+particular for VPX users who normally run in Exclusive Full-Screen
+Mode, since exclusive mode by its nature prevents media capture from
+working.  The example shows how you can automatically disable VPX's
+Exclusive mode just for the duration of a media capture launch, so
+that you don't have to manually toggle it on and off when performing
+captures.  (Issue #146 on github.)
 
-* New Javascript method: mainWindow.createMediaWindow(), which lets
-you create your own new media windows alongside the standard ones
-(playfield, backglass, DMD, topper, instruction card).
-
-* New Javascript method: gameList.createMediaType(), which lets you
-define new, custom media types.  This can be used in conjunction with
-the new custom window feature to set up your own extended media types
-to display in custom windows.
-
-* Javascript custom Drawing Layers can now be layered behind the main
-background layer in a window that the system uses to draw the window's
-primary media (e.g., the backglass video).  Use a negative Z index
-when creating the layer to place it behind the main system background
-layer.  This isn't useful in most of the standard windows, since the
-main media background usually is opaque and fills the entire window
-(so if you create a layer behind that, you'll never see it, since the
-main media will always completely occlude it).  But it could be useful
-in custom media windows where the main background media might be
-partially transparent, such as Wheel Image PNG files.
+* You can now drag and drop images and videos directly from most Web
+browser windows into a PinballY window to install media.  In the past,
+this worked when dragging from the Windows desktop, but not
+necessarily from other programs such as Web browsers.  (Support in a
+particular Web browser depends upon the browser implementing the
+Windows drag/drop system using one of the common interchange formats,
+which most modern browsers should do as a matter of course.)
 
 * When a game system needs to run in Administrator Mode, PinballY now
 offers an option to trust that particular program permanently when it
@@ -66,28 +60,53 @@ solution to the potential security risks here is to avoid using Admin
 Mode AT ALL for any pinball-related software - there's almost never a
 good reason to do so, and it inherently opens security holes.)
 
-* A new worked example in the help ("Custom game launch options for
-media capture") shows how to edit the game system's command line
-specifically for a media capture operation.  This is useful in
-particular for VPX users who normally run in Exclusive Full-Screen
-Mode, since exclusive mode by its nature prevents media capture from
-working.  The example shows how you can automatically disable VPX's
-Exclusive mode just for the duration of a media capture launch, so
-that you don't have to manually toggle it on and off when performing
-captures.  (Issue #146 on github.)
-
 * Fixed a few rough edges in the UI with launching and exiting games
 that run in Admin Mode.  (E.g., the "Paused Game" menu sometimes
 popped up unnecessarily when you terminated an Admin Mode game with
 the Exit Game button.)
 
-* You can now drag and drop images and videos directly from most Web
-browser windows into a PinballY window to install media.  In the past,
-this worked when dragging from the Windows desktop, but not
-necessarily from other programs such as Web browsers.  (Support in a
-particular Web browser depends upon the browser implementing the
-Windows drag/drop system using one of the common interchange formats,
-which most modern browsers should do as a matter of course.)
+* Javascript code can now create its own custom windows, which operate
+just like the built-in "secondary" windows (the backglass window and
+so on).  The new mainWindow.createMediaWindow() method creates these
+windows, and the new gamelist.createMediaType() lets you define your
+own new media types.  Combining a custom window with a custom media
+type makes it pretty easy to define your own extensions to the
+standard set of windows, that operate almost as though they were built
+in.  Custom windows can also be controlled through scripting code to
+provide more complex behavior than just the standard background media
+display.  The new methods just mentioned are documented in the help
+under the respective objects (mainWindow, gameList).  You can find a
+number of examples of how to use custom windows and custom media types
+in Worked Examples > Custom Media Window.
+
+* The new Javascript HtmlLayout class makes it possible to draw
+complex text layouts that use mixed font styles and layout effects.
+HtmlLayout accepts a fairly full-featured subset of HTML/CSS to
+specify the layout, and the class provides methods to measure the
+resulting layout and draw it into a Drawing Layer or any other Custom
+Drawing context.  You can use any of the normal graphics primitives
+alongside HtmlLayout objects in the same context, so you can use these
+objects to create composite graphics from multiple elements.  See the
+help under Javascript > System Classes > HtmlLayout.
+
+* Javascript custom Drawing Layers can now be layered behind the main
+background layer in a window that the system uses to draw the window's
+primary media (e.g., the backglass video).  Use a negative Z index
+when creating the layer to place it behind the main system background
+layer.  This isn't useful in most of the standard windows, since the
+main media background usually is opaque and fills the entire window
+(so if you create a layer behind that, you'll never see it, since the
+main media will always completely occlude it).  But it could be useful
+in custom media windows where the main background media might be
+partially transparent, such as Wheel Image PNG files.
+
+* New Javascript event set: Media Sync Events, which let script code
+coordinate actions with changes of background media in the various
+windows.
+
+* New Javascript method: gameList.setWheelGame(), for directly
+changing the game selection in the wheel UI.  See the Javascript
+section in the help for details.
 
 * Javascript code can now use HANDLE and HWND types as "out"
 parameters, for Windows APIs that return handle values in pointer

@@ -5,8 +5,10 @@
 // Microsoft Visual C++ generated include file.
 //
 
+
 #define IDI_MAINICON                    100
 #define IDI_MAINICON_GRAY               101
+#define TEXTFILE_LITEHTML_DFLT_CSS      128
 #define IDCSR_EMPTY                     129
 #define IDR_PLAYFIELD_CONTEXT_MENU      136
 #define IDB_MNU_FULLSCREEN              137

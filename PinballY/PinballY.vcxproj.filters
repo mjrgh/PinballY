@@ -186,6 +186,9 @@
     <ClCompile Include="CustomView.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="LitehtmlHost.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Camera.h">
@@ -387,6 +390,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="CustomView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LitehtmlHost.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

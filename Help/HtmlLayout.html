@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>HtmlLayout</h1>
+
+<p>
+   HtmlLayout is a built-in class for arranging and displaying complex
+   text layouts, using standard HTML and CSS to specify the styling
+   and arrangement of the text.
+</p>
+<p>
+   This class is a supplement to the basic text drawing functions that
+   the <a href="CustomDrawing.html">Custom Drawing</a> system provides.
+   The basic text functions operate at the level of drawing glyphs
+   at pixel positions, so they're suitable for simple graphics
+   that incorporate plain text that's static enough that you can
+   position and arrange it in advance.  For more complex text,
+   though, the basic drawing functions quickly become unwieldy,
+   because they don't provide a way to mix different font
+   styles in a single run of text.  You <i>could</i> use the
+   Custom Drawing text primitives to compose mixed-style layouts
+   out of individual text strings, by measuring and positioning one
+   fragment at a time.  Indeed, an earlier version of
+   the Custom Drawing chapter rather unhelpfully suggested doing
+   just that.  But realistically, it would be too much effort
+   for all but the simplest cases, since the details of text
+   alignment, spacing, and word-wrapping can be quite complex
+   when mixed fonts and styles are involved.
+</p>
+<p>
+   The HtmlLayout class lets you construct a memory object containing
+   a text layout based on HTML markup with CSS styling.  This makes
+   it a lot easier to specify text that uses a mixture of styles than
+   with the basic Custom Drawing primitives, since you don't have to
+   make a long series of function calls to switch between different
+   styles; you just embed HTML markup commands directly in the text
+   to control the style and placement.  The HTML renderer also handles
+   the potentially complex details of alignment the text and word-wrapping
+   it to fit the available horizontal space.  And the renderer's CSS
+   capabilities make it easy to incorporate images, background
+   fill, borders, and other decorations.
+</p>
+<p>
+   Once you create an HtmlLayout object containing a text layout, you
+   can draw it onto any Custom Drawing surface, such as a Drawing
+   Layer.  That lets you mix HtmlLayout text with other graphics
+   primitives in the same window.  You can likewise combine multiple
+   HtmlLayout objects into the same drawing area.
+</p>   
+<p>
+   For an example of using HtmlLayout, see the "High Score Card"
+   example in the <a href="CustomMediaWindowExample.html">Custom Media
+   Window</a> section in the <a href="WorkedExamples.html">Worked Examples</a>.
+   That example uses HtmlLayout to format a high score listing using
+   a mixture of text sizes and styles.
+</p>
+
+<h2>How to use HtmlLayout</h2>
+<p>
+   The first step is to create a HtmlLayout object based on the
+   HTML markup that you want to display.  Do this by using the
+   Javascript <b>new</b> operator to create the object:
+</p>
+<div class="code">
+let layout = new HtmlLayout("This is an &lt;i>HTML Layout&lt;/i>!");
+</div>
+
+<p>
+   The constructor takes a string containing the text to display,
+   with standard HTML markup tags to specify the styling.  You can
+   use normal HTML and CSS syntax, as though you were creating a Web
+   page, although there's no need to create full HTML documents
+   with &lt;HTML&gt;, &lt;HEAD&gt;, and &lt;BODY&gt; tags; those
+   will be automatically assumed if not present.  You can also
+   use CSS to specify the visual style of the text and layout.
+</p>
+<p>
+   There are some limits to the CSS elements that HtmlLayout
+   can process; see <a href="#htmlAndCssSupport">HTML and CSS
+   support</a> below.  HTML and CSS are inherently forgiving
+   of unrecognized elements, so you won't trigger any errors
+   if you do try to use CSS features that aren't supported;
+   the unsupported features will simply be ignored.  Generally,
+   the renderer has good support for what I'd consider the
+   core text layout features, such as fonts, colors, backgrounds,
+   borders, alignment, padding, and margins.
+</p>
+<p>
+   It's important to understand that HtmlLayout is just a
+   <i>renderer</i>, not a full browser.  It doesn't have any
+   interactive capabilities, such as clicking on a hyperlink
+   or filling in a form.  It's a very simple display-only
+   object used to draw graphics on the screen.  This means
+   that the HTML you pass to the constructor can't contain
+   any Javascript code, for example.  (Actually, it's perfectly
+   okay for it to contain Javascript code, but HtmlLayout will
+   just ignore it, so there'd be no point.)  Likewise, you can
+   include hyperlinks, and they'll be <i>displayed</i> like
+   hyperlinks, but they won't be "live" - nothing will happen
+   if you click on them with the mouse.
+</p>
+   
+<p>
+   HtmlLayout objects are independent of any other drawing
+   objects - you don't need a Drawing Layer or Custom Drawing
+   context to create an HtmlLayout.  HtmlLayout is just an
+   encapsulation of the HTML text you pass in when creating it,
+   so it's not directly tied to any particular window or drawing
+   operation.  You can create an HtmlLayout at any time, even when
+   a drawing operation isn't in progress, and you can hold onto
+   it indefinitely for future use.  Likewise, you can reuse the
+   same HtmlLayout repeatedly to draw its contents in different
+   windows.
+</p>
+<p>
+   Once you've created an HtmlLayout object, you can use it for
+   two main purposes: measuring the pixel size of its overall
+   contents as it will appear on screen, and drawing the contents
+   into a window or other drawing context.
+</p>
+
+<p>
+   <b>Drawing:</b>  To draw the contents of the layout, you have to go
+   through the standard <a href="CustomDrawing.html">Custom Drawing</a>
+   procedure for drawing in a drawing layer or other suitable
+   context.  The HtmlLayout contents can then be drawn within
+   the "drawing callback function" you define.  Your drawing
+   function receives a <a href="CustomDrawing.html#drawingContext">drawing context</a>
+   object as its argument, and this object is needed to
+   draw the HtmlLayout.
+</p>
+<p>
+   Once you're in a custom drawing function and have a
+   drawing context object available, drawing the HtmlLayout
+   is just a matter of calling its <b>draw()</b> method.
+   The arguments to this method are the drawing context
+   object, and the boundaries of the rectangular area within the
+   window where you want to display the text: left coordinate,
+   top coordinate, width, and height, all in pixels.
+</p>
+<p>
+   For example, here's how you'd render some HTML in a Drawing
+   Layer object, positioning it at the top left of the layer's
+   drawing area, and giving it full run of the available space:
+</p>
+<div class="javascript code">
+let layout = new HtmlLayout("This is some &lt;b>HTML&lt;/b>!");
+myDrawingLayer.draw(dc => {
+    let size = dc.getSize();
+    layout.draw(dc, { x: 0, y: 0, width: size.width, height: size.height });
+}, 640, 480);
+</div>
+
+<p>
+   <b>Measuring the layout:</b>  One of the key abilities that
+   HtmlLayout gives you is automatic word-wrapping and text
+   alignment, taking into account all of the different styles
+   of the text it contains and the bounds of the area it'll be
+   drawn into.  You can measure the effect of the word-wrapping
+   using the <b>measure()</b> method, specifying the width,
+   and optionally the height, of the
+   available space.  That will do all of the HTML layout
+   calculations to determine how much vertical space is
+   needed to fit the resulting text.  It'll also
+   tell you the actual width needed, which might be a
+   little different from the bounding-box width you
+   specified, since the word breaks might fall in such
+   a way that none of the lines fully fill out the
+   available width (and, in some cases, text that can't
+   be broken across lines might exceed the available width).
+</p>
+<div class="code">
+// measure the layout bounds with a width of 250 pixels
+let layout = new HtmlLayout("This is some &lt;b>HTML&lt;/b>!");
+let size = layout.measure(250);
+</div>
+<p>
+   The measure() method returns an object containing two
+   properties, <b>width</b> and <b>height</b>, giving
+   the dimensions needed to contain the HTML contents.
+   The dimensions include space needed for everything
+   in the HTML, including things like padding
+   and borders, so this is the exact amount of space
+   needed to draw the entire thing.
+</p>
+
+<p>
+   <b>Interaction with other drawing primitives:</b>  HtmlLayout
+   does its actual drawing using a <a href="CustomDrawing.html">Custom Drawing</a>
+   graphics context, just like all of the Custom Drawing functions,
+   so you can freely combine it with the other drawing functions
+   to build up composite graphics out of different elements.
+   Drawing the layout object simply draws pixels into the in-memory
+   bitmap that the drawing function is constructing, just like
+   drawing a simple text string via the drawing context's
+   <a href="CustomDrawing.html#drawText">drawText()</a> method.
+   Drawing an HtmlLayout object into a drawing context is similar
+   to drawing an image file - it just draws pixels into the
+   drawing area, leaving the drawing area ready for you to
+   draw more pixels into it as desired.
+</p>
+<p>
+   The default background color for the HtmlLayout DOM tree
+   is transparent.  That makes it easy to use it to overlay text
+   on top of other background graphics.  The usual procedure to
+   draw a full window's contents would be to start by filling
+   the background with a solid color or with a loaded image file,
+   then to draw text and other graphics over the background.
+   You can include HtmlLayout objects in that iterative
+   sort of drawing process just like
+   any of the other graphics primitives.
+</p>
+<p>
+   HtmlLayout <i>isn't</i> a kind of "text", as far the drawing
+   context is concerned.  In particular, HtmlLayout doesn't in
+   any way affect (or use) any the text-related "status" elements
+   in the drawing context.  It doesn't use or affect
+   the text origin, text bounding box, of any of the font, size,
+   style, or color attributes in the drawing context.
+</p>
+
+<a name="propertiesAndMethods"></a>
+<h2>Properties and methods</h2>
+<p>
+   HtmlLayout has the following properties and methods:
+</p>
+<ul>
+   <li><b>new HtmlLayout(<i>htmlSourceCode</i>):</b>  Create a new
+   HtmlLayout object.  <i>htmlSourceCode</i> is a string with the
+   HTML markup information that the object will
+   display.  This uses standard HTML, with CSS <b>style</b>
+   attributes as desired to control visual styling.
+   <p>
+      Creating the object parses the HTML and creates a DOM tree
+      internally.  The DOM tree isn't currently accessible through
+      Javascript, so you can't go in and traverse the tree or
+      modify nodes.  But it's stored in the object so that you
+      can measure the layout and draw it into any drawing context.
+   </p>
+
+
+   <li><b><i>htmlLayout</i>.draw(<i>drawingContext</i>, <i>layoutRect</i>, <i>clipRect</i>):</b>
+   Draw the object's contents (defined when it was created with <b>new</b>) into
+   the <a href="CustomDrawing.html#drawingContext">drawing context</a>,
+   laying it out to fit the layout area given by <i>layoutRect</i>.
+   <p>
+      The <i>drawingContext</i> object is the argument that the system
+      passes to your custom drawing function when you use a
+      <a href="DrawingLayer.html">Drawing Layer</a> or other
+      <a href="CustomDrawing.html">Custom Drawing</a> mechanism.
+      As a result, you can only call the HtmlLayout <b>draw()</b> method from
+      within one a drawing function, since that's the only place where
+      a drawing context is valid.  (This restriction doesn't apply to
+      other HtmlLayout operations, though.  You can create an
+      HtmlLayout object at any time, and you can hold onto it
+      and use it in as many different drawing operations as
+      you want.  The HtmlLayout object itself isn't tied to
+      a particular window or drawing operation; it's just an
+      encapsulation of the DOM tree for the HTML.)
+   </p>
+   <p>
+      The layout rectangle is more of a suggestion than a hard
+      limit on the layout.  Text doesn't always fit where you want
+      it to; a single word, or even a single glyph, might be too wide to fit the available
+      width, for example, or there might be so much text that it
+      exceeds the specified height.
+   </p>
+   <p>
+      The layout rectangle is also the outer reference frame for
+      text alignment within the HTML.  It takes the place of the
+      "viewport" in a normal browser, which is in most cases
+      the browser window.
+      If you create a DIV with center alignment, for example,
+      its contents be drawn centered within the layout rectangle.
+      Likewise, text that's right-aligned in the markup will be drawn
+      aligned to the right side of the layout rectangle.
+   </p>
+   <p>
+      <i>clipRect</i> is optional.  If it's included, the drawing will
+      be "clipped" to this area, meaning that pixels outside of this
+      area will simply not be drawn.  Clipping doesn't attempt to
+      keep whole characters intact, since it's simply at the pixel
+      level; it can result in characters being chopped in half
+      vertically or horizontally if they spill outside of the
+      clipping boundaries.  If <i>clipRect</i> is omitted (the
+      argument is missing, or you explicitly pass <b>undefined</b>),
+      the drawing isn't clipped, so it can affect pixels outside of the layout
+      rectangle.
+   </p>
+   <p>
+      Both rectangles (<i>layoutRect</i> and <i>clipRect</i>) are
+      specified as objects, with properties { x, y, width, height },
+      giving the upper left corner of the rectangle, and its size.
+      As with all Custom Drawing coordinates, the rectangle coordinates
+      are all in terms of pixel positions within the Custom Drawing
+      surface, starting with (0,0) at the upper left corner of the
+      drawing surface.
+   </p>
+
+   <li><b><i>htmlLayout</i>.measure(<i>width</i>):</b>
+   Measure the space needed for the graphical layout of the DOM tree
+   in the object, including all of its contents as well as borders
+   and padding.  The space is calculated based on rendering the
+   contents to the specified width and height, given in pixels.
+   The <i>height</i> can be omitted, in which case the minimum
+   height needed to contain the DOM contents at the given rendering
+   width will be figured.
+   <p>
+      The method returns an object with properties <b>width</b>
+      and <b>height</b>, giving the dimensions of the rendered
+      contents, in pixels.  This is the bounding box of the
+      overall contents, including borders and padding.
+   </p>
+</ul>
+
+<a name="htmlAndCssSupport"></a>
+<h2>HTML and CSS support</h2>
+<p>
+<p>
+   HtmlLayout is based on an open-source HTML parsing and rendering engine
+   called <a target="_blank" href="https://github.com/mjrgh/litehtml">litehtml</a>.
+   Litehtml has full support for HTML5, and properly handles most
+   of the basic CSS2/CSS3 styling elements.  It doesn't have support
+   for the more advanced features of modern browsers, such as
+   animation, transitions, or transforms, but it does handle the
+   core text formatting functions: fonts, colors, backgrounds,
+   borders, alignment, padding, margins.
+</p>
+<p>
+   For a full list of supported CSS elements, see the
+   <a target="_blank" href="https://github.com/mjrgh/litehtml">litehtml project page</a>.
+   That includes a table of the CSS features currently supported.  (It
+   looks a little skimpy to me, as though the code author might have
+   started working on it but forgot finish it, so I'm not
+   sure it's all that comprehensive or up-to-date with the code.
+   But it should at least give you an idea of what's supposed to work.)
+</p>
+<p>
+   <b>&lt;IMG&gt; tags:</b>  Only local files are supported.
+   Simply use a local filename path in the <b>SRC</b> attribute.
+   Regular URLs aren't supported here - don't use an "http:" or "file:" prefix.
+</p>
+<p>
+   If you include an animated GIF image, it'll just display the first
+   frame, without any further animation.  This is another consequence
+   of the fact that HtmlLayout is just a renderer, not a live browser;
+   it just renders a static image of the laid-out HTML, so incorporating
+   an active object like an animated GIF will just display a still image
+   of that object.  Other more explicitly active objects, like video
+   players, aren't supported at all.
+</p>
+<p>
+   <b>url() images in CSS:</b>  The same things we said above about
+   &lt;IMG&gt; tags apply here.  You can use local image files simply by
+   specifying a local file system path in the url() specifier.  Don't
+   use an "http:" or "file:" URL prefix.
+</p>
+<p>
+   <b>Mouse and keyboard interaction:</b>  Not supported.  HtmlLayout is just
+   an HTML <i>renderer</i>: it merely draws the HTML text statically,
+   as though drawing a still image on the screen.  Nothing in the
+   drawing is interactive, so you can't click on links or anything
+   like that.
+</p>
+<p>
+   <b>Javascript DOM interaction:</b>  Not supported.  The HtmlLayout
+   object is just for drawing; it doesn't expose a live DOM tree for access
+   through Javascript.  The only things you can do with the HtmlLayout
+   object are exposed through the <a href="#propertiesAndMethods">properties and methods</a>
+   listed above.
+</p>
+
+</body>
+</html>
+

@@ -20,6 +20,7 @@
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/GraphicsUtil.h"
 #include "../Utilities/std_filesystem.h"
+#include "LitehtmlHost.h"
 #include "PlayfieldView.h"
 #include "SecondaryView.h"
 #include "CustomView.h"
@@ -950,6 +951,20 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineGetterSetter(jsDrawingContextProto, "DrawingContext", "defaultAlpha",
 					&PlayfieldView::JsDrawGetDefaultAlpha, &PlayfieldView::JsDrawSetDefaultAlpha, this, eh))
 				return;
+
+			// Create the HtmlLayout constructor
+			JsValueRef htmlLayoutConstructor;
+			where = _T("JsCreateFunction");
+			if ((err = JsCreateFunction(&PlayfieldView::JsHtmlLayoutConstructor, this, &htmlLayoutConstructor)) != JsNoError
+				|| !js->DefineObjPropFunc(js->GetGlobalObject(), "global", "HtmlLayout", &JsHtmlLayoutConstructor, this, eh)
+				|| (err = js->GetProp(jsHtmlLayoutProto, htmlLayoutConstructor, "prototype", where)) != JsNoError
+				|| (JsAddRef(jsHtmlLayoutProto, nullptr), where = _T("Setting up methods"), false)
+				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "draw", &PlayfieldView::JsHtmlLayoutDraw, this, eh)
+				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "measure", &PlayfieldView::JsHtmlLayoutMeasure, this, eh))
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing HtmlLayout: js error code %d, %s\n"), err, where);
+				return;
+			}
 
 			// Set up the game list methods.  These are nominally on the gameList Javascript
 			// object, but the actual implementations are still PlayfieldView:: methods.  We
@@ -6403,6 +6418,27 @@ PlayfieldView::JsDrawingContext::JsDrawingContext(
 	}
 }
 
+
+// -----------------------------------------------------------------------
+//
+// Javascript Custom Drawing interface.  Drawing methods work in terms of
+// a JS Drawing Context object, which is passed to a js drawing callback.
+// The drawing context object encapsulates a Gdiplus drawing context and
+// our own drawing state.  The drawing callback populates a memory bitmap,
+// which we turn into a D3D texture.  We use the drawing callback idiom
+// because of the one-way CPU-to-GPU nature of D3D textures: we need to
+// construct a whole texture in one go and send it to the GPU.  The usual
+// API idiom would be a series of drawing operations bounded by "Open"
+// and "Close" calls.  The callback approach does the same thing, but it
+// builds the Open and Close calls invisibly into the structure, which
+// makes the resulting js code more concise and encourages correct code
+// structure without the js programmer even having to know it's there.
+// The API idiom with explicit Open/Close calls places the burden on the
+// programmer to understand the structure and use it correctly; the
+// callback approach instead leads the programmer to use the right code
+// structure without even having to be aware of it.
+//
+
 void PlayfieldView::JsDrawingContext::InitFont()
 {
 	// create a font object if we don't already have one
@@ -6837,6 +6873,171 @@ JsValueRef PlayfieldView::JsDrawGetSize()
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
 }
+
+// -----------------------------------------------------------------------
+//
+// Javascript HtmlLayout drawing
+//
+// HtmlLayout is a Javascript External Object that encapsulates a
+// litehtml::document object, which contains a parsed HTML DOM tree.
+// We use this purely for rendering through the Custom Drawing system,
+// so we treat the DOM as an opaque static graphics object (as opposed
+// to a live browser window).  We expose methods for measuring the
+// rendered graphics size and drawing the DOM tree into a custom
+// drawing context.
+
+
+// HtmlLayout - Javascript External Object.  This is the object
+// passed back to Javascript when creating an HtmlLayout object.
+// This encapsulates a litehtml::document object containing the
+// parsed DOM tree.
+class JsHtmlLayout : public JavascriptEngine::ExternalObject 
+{
+public:
+	JsHtmlLayout(std::shared_ptr<litehtml::document> &doc) : doc(doc) { }
+
+	// Litehtml document.  This contains the parsed HTML and layout information.
+	std::shared_ptr<litehtml::document> doc;
+};
+
+
+JsValueRef PlayfieldView::JsHtmlLayoutConstructor(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// this can only be called as a constructor
+	if (!isConstructCall)
+		return js->Throw(_T("HtmlLayout() can only be called as a constructor (with 'new')"));
+
+	// Note: argv[0] is the 'this' object that ChakraCore created for the 'new'
+	// operator result.  We're going to replace that with our own object, since
+	// we need the result to be an External Object based on JsHtmlLayout.  So
+	// we're just going to ignore and discard argv[0].
+
+	// retrieve the text
+	WSTRING txt;
+	if (argc >= 2)
+		txt = JavascriptEngine::JsToNative<WSTRING>(argv[1]);
+
+	// If we haven't already created the litehtml host interface, do so now
+	if (pfv->litehtmlHost == nullptr)
+	{
+		// create the litehtml host interface
+		pfv->litehtmlHost = std::make_shared<LitehtmlHost>();
+
+		// load the system style sheet
+		ResourceLocker cssRes(TEXTFILE_LITEHTML_DFLT_CSS, _T("TEXTFILE"));
+		if (cssRes.GetData() != nullptr)
+		{
+			TSTRING css(static_cast<const TCHAR*>(cssRes.GetData()), cssRes.GetSize());
+			pfv->litehtmlHost->litehtmlContext.load_master_stylesheet(css.c_str());
+		}
+	}
+
+	// create a litehtml document from the text
+	auto doc = litehtml::document::createFromString(txt.c_str(), pfv->litehtmlHost, &pfv->litehtmlHost->litehtmlContext);
+
+	// if that failed, throw an error
+	if (doc == nullptr)
+		return js->Throw(_T("Error parsing HTML"));
+
+	// create the Javascript cover object
+	JsValueRef jsobj;
+	auto jst = new JsHtmlLayout(doc);
+	if (auto err = js->CreateExternalObjectWithPrototype(jsobj, pfv->jsHtmlLayoutProto, jst); err != JsNoError)
+		return js->Throw(err);
+
+	// return the cover object
+	return jsobj;
+}
+
+void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptEngine::JsObj jsrcLayout, JavascriptEngine::JsObj jsrcClip)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// validate the HtmlLayout object
+		auto pst = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.draw"));
+		if (pst == nullptr)
+			return;
+
+		// validate the drawing context
+		if (jsDC == nullptr || dc != jsDC->jsobj.jsobj)
+			return js->Throw(_T("HtmlLayout.draw: invalid drawing context")), static_cast<void>(0);
+
+		// Get the layout rectangle; use the whole Gdiplus surface by default
+		float inset = jsDC->borderWidth;
+		Gdiplus::RectF rcLayout = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		auto GetRect = [](Gdiplus::RectF &rc, JavascriptEngine::JsObj obj) {
+			if (!obj.IsNull())
+			{
+				if (obj.Has("x")) rc.X = obj.Get<float>("x");
+				if (obj.Has("y")) rc.Y = obj.Get<float>("y");
+				if (obj.Has("width")) rc.Width = obj.Get<float>("width");
+				if (obj.Has("height")) rc.Height = obj.Get<float>("height");
+			}
+		};
+		GetRect(rcLayout, jsrcLayout);
+
+        // make sure we have a litehtml parsed document object
+		if (pst->doc == nullptr)
+			return;
+
+		// render the document to the desired width
+		litehtmlHost->SetSurfaceSize(static_cast<int>(rcLayout.Width), static_cast<int>(rcLayout.Height));
+		pst->doc->media_changed();
+		pst->doc->render(static_cast<int>(rcLayout.Width));
+
+		// draw it
+		litehtml::position lclip(
+			static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), 
+			static_cast<int>(rcLayout.Width), static_cast<int>(rcLayout.Height));
+		pst->doc->draw(reinterpret_cast<litehtml::uint_ptr>(&jsDC->g), static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), &lclip);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsHtmlLayoutMeasure(JsValueRef self, JsValueRef width, JsValueRef height)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// recover the external object from Javascript
+		auto pst = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.measure"));
+		if (pst == nullptr)
+			return js->GetUndefVal();
+
+		// make sure we have a litehtml parsed HTML document
+		if (pst->doc == nullptr)
+			return js->GetUndefVal();
+
+		// render the document to the desired width
+		auto renderWidth = js->JsToNative<int>(width);
+		auto renderHeight = js->JsToNative<int>(height);
+		litehtmlHost->SetSurfaceSize(renderWidth, renderHeight);
+		pst->doc->media_changed();
+		pst->doc->render(renderWidth);
+
+		// return the document size
+		JavascriptEngine::JsObj retLayout(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("width", pst->doc->width());
+		retLayout.Set("height", pst->doc->height());
+		return retLayout.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+
+// -----------------------------------------------------------------------
 
 void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupDesc *replaceTypes)
 {

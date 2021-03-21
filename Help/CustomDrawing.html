@@ -103,7 +103,35 @@ function myDrawingFunction(dc)
 
    <li>For launch overlays (foreground or background layers), the
    return value isn't used.
-</ul>   
+</ul>
+
+<a name="drawingContext"></a>
+<h2>Drawing context</h2>
+<p>
+   When the system calls your custom drawing function, it passes
+   in an argument that we call the <b>drawing context</b>.  This
+   is a Javascript object that encapsulates the internal drawing
+   surface that all of the graphics primitives operate on.  The
+   drawing context provides a set of properties and methods that
+   you call to carry out drawing operations on the drawing surface.
+</p>
+<p>
+   The drawing surface contained in the context is, technically
+   speaking, an in-memory bitmap.  More intuitively, it's like
+   opening up a new, blank Photoshop image: it's a drawing
+   canvas with a certain pixel size, and you can use the
+   graphics primitives (the methods on the drawing context
+   object) to paint different sorts of graphics into the
+   blank image.
+</p>
+<p>
+   A drawing context is only valid within the custom drawing
+   function.  It stops being usable as soon as the drawing
+   function returns (so you shouldn't store it anywhere global,
+   to avoid accidentally using it in other scripts, where it
+   would cause errors if used).
+</p>
+
 
 <a name="colorParameters"></a>
 <h2>Color values</h2>
@@ -189,6 +217,27 @@ function myDrawingFunction(dc)
    the final coloring.
 </p>
 
+<h2>Text drawing</h2>
+<p>
+   The drawing context methods below include a number of primitives
+   related to drawing text strings.  Those are suitable for simple
+   text displays where you only need to display text in a single style
+   at a time; for simple tasks, they're easy to use and lightweight
+   in terms of performance impact.  However, they're not powerful
+   enough for more complex tasks where you want to display text
+   containing a mixture of styles, especially if the text needs
+   to be word-wrapped to display paragraphs or more complex
+   layouts.  For something like
+   that, you should instead use the <a href="HtmlLayout.html">HtmlLayout</a>
+   class, which provides a high-level interface for complex text
+   layout tasks.  HtmlLayout works seamlessly with the drawing
+   primitives discussed below, so you can freely mix it with
+   the other graphics primitives to build up composite displays.
+   On the other hand, the basic text primitives are still a
+   good choice for simple tasks, since HtmlLayout is slower
+   and needs more memory to operate.
+</p>
+
 
 <h2>Drawing context methods</h2>
 <p>
@@ -215,7 +264,8 @@ function myDrawingFunction(dc)
    this can be an absolute path, or can be a path relative to the PinballY program folder.
    <i>x</i> and <i>y</i> give the top left coordinates in pixels within the popup drawing area.
       
-   <li><b>drawText(<i>string</i>):</b>  Draws the text in <i>string</i>, starting at
+   <li><a name="drawText"></a><b>drawText(<i>string</i>):</b>
+   Draws the text in <i>string</i>, starting at
    the current text origin, within the current text area boundaries, using the
    current text font and color.  This automatically moves the text origin so that
    the next drawText() call will place its text after this text.  If <i>string</i>
@@ -224,14 +274,13 @@ function myDrawingFunction(dc)
    of the text area.  If <i>string</i> doesn't end in a newline, the text origin
    is positioned immediately to the right of the drawn text.
    <p>
-      This function automatically word-wraps the text if it exceeds the width of
-      the current text area.  However, this accesses a low-level Windows drawing
-      function with a primitive line-wrapping algorithm that wraps each line to
-      the horizontal position of the current <i>origin</i>, not the current
-      text area bounds.  This means that you can't use drawText() to draw a mixture
-      of styles with word wrapping, since each segment will wrap from its own
-      origin.  If you need to use word-wrapping with styled text, you'll have
-      to implement a higher level layout algorithm in Javascript.
+      See <a href="HtmlLayout.html">HtmlLayout</a> for an alternative method for
+      drawing more complex layouts that include mixed styles.  drawText() can only
+      draw text in one font style at a time, so it's difficult to use if
+      you want to mix multiple font styles within a single text display. HtmlLayout
+      provides a high-level interface for more complex layouts, and it inter-operates
+      readily with the rest of the Custom Drawing primitives, so it's like a
+      "super" version of drawText() suitable for more complex text.
    </p>
    
    <li><b>fillRect(<i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>, <i>color</i>):</b>  Fills

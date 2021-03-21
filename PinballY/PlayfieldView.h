@@ -35,6 +35,7 @@ class GameCategory;
 class MediaDropTarget;
 class RealDMD;
 class FrameWin;
+class LitehtmlHost;
 
 
 // Playfield view
@@ -2992,6 +2993,16 @@ protected:
 		JavascriptEngine::JsObj jsobj;
 	};
 	std::unique_ptr<JsDrawingContext> jsDC;
+
+	// Javascript HtmlLayout objects
+	JsValueRef jsHtmlLayoutProto;
+	static JsValueRef JsHtmlLayoutConstructor(JsValueRef callee, bool isConstructCall, 
+		JsValueRef *argv, unsigned short argc, void *ctx);
+	void JsHtmlLayoutDraw(JsValueRef self, JsValueRef jsdc, JavascriptEngine::JsObj rcLayout, JavascriptEngine::JsObj rcClip);
+	JsValueRef JsHtmlLayoutMeasure(JsValueRef self, JsValueRef width, JsValueRef height);
+
+	// litehtml host interface
+	std::shared_ptr<LitehtmlHost> litehtmlHost;
 
 	// Enter/exit attract mode via javascript
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }

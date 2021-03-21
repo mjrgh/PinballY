@@ -1912,6 +1912,156 @@ public:
 		}
 	};
 
+	// Base class for our external objects.  All objects we pass to the Javascript
+	// engine for use as external object data are of this class.
+	//
+	// An external object consists of a native C++ object (an instance of a subclas
+	// of ExternalObject) paired with a ChakraCore Javascript object.  ChakraCore
+	// pairs the objects by storing two pieces of data we provide when creating
+	// the js object:  a (void*) pointer to the C++ object, and a pointer to a
+	// static finalizer function.
+	//
+	// External objects are opaque, from ChakraCore's perspective: it only knows
+	// about the (void*) and the finalizer callback.  So when we ask ChakraCore
+	// to hand us the C++ object associated with a given js object, all we get
+	// back is the (void*).  So how can we tell the C++ type of a given external
+	// object, or indeed, how can we tell it's even a C++ object at all?  Well,
+	// as far as I understand it, ChakraCore's external object mechanism is
+	// purely for client use (i.e., CC doesn't create external objects of its
+	// own), so it follows that the only external objects we'll ever encounter
+	// will be objects we created.  Hence there's no need to distinguish our
+	// external objects from any other kind - every external object is one that
+	// we created.  Now, we want to create different kinds of external objects
+	// for different purposes, so we still have to distinguish among our own
+	// types, but we can easily do that by using a common base class and C++
+	// RTTI to do run-time down-casting.  We can safely cast any (void*) that
+	// ChakraCore gives us as an external object to (ExernalObject*), and from
+	// there we can dynamic_cast<> it to a final type.  The final type that
+	// we'll want to cast it to is implicit in the callback function that
+	// the Javascript code invoked to call back into native code, because all
+	// of the native callbacks we install are tied to the subtypes.  However,
+	// given Javascript's extensive introspection capabilities and its loose
+	// object typing (more "non-existent" than "loose", really), user script
+	// code could potentially mess with the properties that we set up in such
+	// a way that the wrong property gets plugged into the wrong object.  So
+	// we really should always validate downcasts.  The Recover() method
+	// accomplishes that, using C++ RTTI.
+	//
+	// Out of an abundance of caution, ExternalObject has its own ad hoc type
+	// signature in each object's struct header.  Before downcasting a (void*)
+	// obtained from ChakraCore to (ExternalObject*), we'll validate that the
+	// type signature matches what we expect.  This isn't actually necessary
+	// if the assumption is true that external objects are purely for client
+	// use (and as long as we're strict about using only ExternalObject
+	// subclasses for external objects we create).  But the CC documentation
+	// doesn't really say so explicitly, so I have a little bit of doubt left
+	// about the assumption; I can conceive of situations where the engine
+	// might use the external object mechanism for its own purposes.  I can
+	// also imagine situations where user native code externsions could
+	// contrive to call back into CC and create their own external objects.
+	// So it seems best to keep this little bit of extra overhead for the
+	// sake of more robust type safety.
+	//
+	class ExternalObject
+	{
+	public:
+		ExternalObject() { memcpy(typeTag, "PBY_EXT", 8); }
+
+		bool Validate() { return this != nullptr && memcmp(this->typeTag, "PBY_EXT", 8) == 0; }
+
+		virtual ~ExternalObject() { }
+
+		static void CALLBACK Finalize(void *data)
+		{
+			if (auto self = static_cast<ExternalObject*>(data); self->Validate())
+				delete self;
+		}
+
+		// Recover the C++ native object (an instance of a subclass of ExternalObject)
+		// associated with a Javascript object.  Native callback functions can use
+		// this to obtain the C++ ExternalObject instance associated with a
+		// Javascript object passed to a callback.  This is usually the Javascript
+		// 'this' parameter to the callback, since native callbacks are usually
+		// set up as methods on the object they apply to (or on the prototype of
+		// such objects).
+		//
+		// This is a type-safe conversion.  We check the type signature we stored in
+		// the struct header to ensure that the (void*) from ChakraCore really is an
+		// ExternalObject instance we created, and we further check the C++ RTTI to
+		// validate the downcast to the specific subclass type requested.
+		template<class Subclass>
+		static Subclass *Recover(JsValueRef dataObj, const TCHAR *where)
+		{
+			auto Error = [where](const TCHAR *fmt, ...)
+			{
+				// generate a javascript exception if there's an error location, 
+				// otherwise fail silently
+				if (where != nullptr)
+				{
+					// format the message
+					TSTRINGEx msg;
+					va_list ap;
+					va_start(ap, fmt);
+					msg.FormatV(fmt, ap);
+					va_end(ap);
+
+					// convert the message to a javascript string
+					JsValueRef str;
+					JsPointerToString(msg.c_str(), msg.length(), &str);
+
+					// throw an exception with the error message
+					JsValueRef exc;
+					JsCreateError(str, &exc);
+					JsSetException(exc);
+				}
+
+				// return null
+				return nullptr;
+			};
+
+			// retrieve the external object data from the engine
+			void *data;
+			if (JsErrorCode err = JsGetExternalData(dataObj, &data); err != JsNoError)
+				return Error(_T("%s: error retrieving external object data: %s"), where, JsErrorToString(err));
+
+			// convert it to the base type and validate it
+			auto extobj = static_cast<ExternalObject*>(data);
+			if (!extobj->Validate())
+				return Error(_T("%s: external object data is missing or invalid"), where);
+
+			// downcast to the subclass type - this will use C++ dynamic typing to
+			// validate that it's actually the subclass we need
+			auto obj = dynamic_cast<Subclass*>(extobj);
+			if (obj == nullptr)
+				return Error(_T("%s: external object data type mismatch"), where);
+
+			// success
+			return obj;
+		}
+
+		// Type tag.  This is stored at the start of the object as a
+		// crude way to validate that an object that we get from JS is
+		// in fact one of our objects.
+		CHAR typeTag[8];
+	};
+
+	// Create an external object.
+	//
+	// On success, the ExternalObject instance is associated with the newly
+	// created Javascript object, so the ExternalObject's lifetime is under
+	// the control the ChakraCore garbage collector.  The caller must not
+	// delete the object; the object will be automatically deleted when the
+	// associated Javascript object is collected.
+	//
+	// On failure, the ExternalObject is automatically destroyed, since it's
+	// effectively immediately unreachable from Javascript.
+	//
+	static JsErrorCode CreateExternalObject(JsValueRef &jsobj, ExternalObject *obj,
+		JsFinalizeCallback finalize = &ExternalObject::Finalize);
+	static JsErrorCode CreateExternalObjectWithPrototype(JsValueRef &jsobj, JsValueRef prototype,
+		ExternalObject *obj, JsFinalizeCallback finalize = &ExternalObject::Finalize);
+
+
 protected:
 	JavascriptEngine();
 	~JavascriptEngine();
@@ -2070,90 +2220,11 @@ protected:
 	    { return LookUpNativeType(WSTRING(p, len), sig, silent); }
 	bool LookUpNativeType(const WSTRING &s, std::wstring_view &sig, bool silent = false);
 
-	// Base class for our external objects.  All objects we pass to the Javascript
-	// engine for use as external object data are of this class.
-	class ExternalObject
-	{
-	public:
-		ExternalObject() { memcpy(typeTag, "PBY_EXT", 8); }
-
-		bool Validate() { return this != nullptr && memcmp(this->typeTag, "PBY_EXT", 8) == 0; }
-
-		virtual ~ExternalObject() { }
-		static void CALLBACK Finalize(void *data)
-		{
-			if (auto self = static_cast<ExternalObject*>(data); self->Validate())
-				delete self;
-		}
-		
-		template<class Subclass>
-		static Subclass *Recover(JsValueRef dataObj, const TCHAR *where)
-		{
-			auto Error = [where](const TCHAR *fmt, ...)
-			{
-				// generate a javascript exception if there's an error location, 
-				// otherwise fail silently
-				if (where != nullptr)
-				{
-					// format the message
-					TSTRINGEx msg;
-					va_list ap;
-					va_start(ap, fmt);
-					msg.FormatV(fmt, ap);
-					va_end(ap);
-
-					// convert the message to a javascript string
-					JsValueRef str;
-					JsPointerToString(msg.c_str(), msg.length(), &str);
-
-					// throw an exception with the error message
-					JsValueRef exc;
-					JsCreateError(str, &exc);
-					JsSetException(exc);
-				}
-
-				// return null
-				return nullptr;
-			};
-
-			// retrieve the external object data from the engine
-			void *data;
-			if (JsErrorCode err = JsGetExternalData(dataObj, &data); err != JsNoError)
-				return Error(_T("%s: error retrieving external object data: %s"), where, JsErrorToString(err));
-
-			// convert it to the base type and validate it
-			auto extobj = static_cast<ExternalObject*>(data);
-			if (!extobj->Validate())
-				return Error(_T("%s: external object data is missing or invalid"), where);
-
-			// downcast to the subclass type - this will use C++ dynamic typing to
-			// validate that it's actually the subclass we need
-			auto obj = dynamic_cast<Subclass*>(extobj);
-			if (obj == nullptr)
-				return Error(_T("%s: external object data type mismatch"), where);
-
-			// success
-			return obj;
-		}
-
-		// Type tag.  This is stored at the start of the object as a
-		// crude way to validate that an object that we get from JS is
-		// in fact one of our objects.
-		CHAR typeTag[8];
-	};
-
-	// Create an external object.  Destroys the external object on failure.
-	static JsErrorCode CreateExternalObject(JsValueRef &jsobj, ExternalObject *obj, 
-		JsFinalizeCallback finalize = &ExternalObject::Finalize);
-	static JsErrorCode CreateExternalObjectWithPrototype(JsValueRef &jsobj, JsValueRef prototype,
-		ExternalObject *obj, JsFinalizeCallback finalize = &ExternalObject::Finalize);
-
-
 	// External object data representing a DLL entrypoint.  We use this
 	// because there's no good way to represent a FARPROC in a Javascript
-	// native type.  The DLL and entrypoint names are stored purely for
-	// debugging purposes; the only thing we really need here is the
-	// proc address.
+	// native type, given that a FARPROC could be 64 bits.  The DLL and
+	// entrypoint names are stored purely for debugging purposes; the
+	// only thing we really need here is the proc address.
 	class DllImportData : public ExternalObject
 	{
 	public:

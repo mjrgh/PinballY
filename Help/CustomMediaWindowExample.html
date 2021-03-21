@@ -649,41 +649,58 @@ cabPicWin.on("mediasyncload", ev => {
    for help figuring out where the images are actually stored.
 </p>
 
-<h2>Second apron card</h2>
+<h2>Apron "Score Card" window</h2>
 <p>
-   Many pin cab builders install an
-   "apron" approximation at the bottom of their cab, below the
-   main TV, as a filler to make room for the plunger and so on.
-   A few cab builders have placed a small 6" or 7" monitor in
-   that area, where the instruction card would customarily go
-   on a real pinball machine.  That's where the idea for
-   PinballY's built-in Instruction Card window came from: it's
-   especially useful for these cabs with dedicated apron
-   monitors, since you can position the window there to get
-   a live instruction card view as you scroll through games
-   (and even while playing).  But what if you have a <i>second</i>
-   apron monitor, on the right side, where the pricing/replay score
-   card would normally go?  PinballY doesn't have anything like
-   that built in, but you could use a custom window to add a
-   second window for that area.
+   Many pin cab builders install a pseudo-"apron" at the bottom of their
+   cab, below the main TV, as a filler to make room for the plunger and so on.
+   We call it an apron because it fills roughly the same space as the
+   actual apron on a real pinball machine.
+</p>
+<p>
+   On a real machine, the apron traditionally holds a pair of index
+   cards, one at either side, showing the rules of the game and the pricing.
+   On my cab, I do the same thing with my pseudo-apron.  Some
+   cab builders get a little fancier by placing small 6" or 7"
+   monitors in place of the index cards, to make the space
+   more interactive and more visually interesting.
+   That's where the idea for PinballY's built-in Instruction Card
+   window came from:  it's designed so that you can position
+   the window in your apron monitor to see
+   a live Instruction Card view as you scroll through games
+   (and even while playing).
+</p>
+<p>
+   But what if you take this idea to its logical conclusion by
+   building in a <i>second</i> apron monitor, so that both index
+   card positions have live displays?  The only native PinballY window
+   that's really ideal for an apron monitor is the Instruction
+   Card window, so there's nothing ready-made to display in
+   that second monitor.
 </p>
 <p>
    This was actually the original use case
-   that got me thinking about adding custom windows!  A forum member on
+   that got me thinking about adding custom windows.  A forum member on
    vpforums asked if there was a way to add a second score card, to
    fit his custom cab setup with two small monitors in the apron area.
-   This is the first time I've heard of anyone installing <i>two</i> apron
-   monitors, so I hadn't considered the idea of a second
+   This is the first time I've heard of anyone installing two apron
+   monitors (including a single one seems pretty rare by itself),
+   so I hadn't even considered the idea of a second
    Instructions Card-like window before.  It seemed like a useful idea,
-   but it also seemed really specialized, which got me thinking that
-   what we really need is a way to create whatever additional
-   windows you can think up to fit your cab's unique features.
+   but it also seemed really specialized - something that only one
+   or two people would probably ever get any use out of.  That
+   got me thinking that what we really need is a way to create
+   whatever additional windows you can think up to fit your cab's
+   unique features, so that there's a way to address <i>all</i> of
+   those unique ideas that only get built into one or two cabs.
 </p>
 <p>
-   What should we display on a second apron monitor?  On a real
+   Now that we have the Custom Window feature, it's clearly
+   the way to address this second-apron-monitor case.
+   So what should we display on the second monitor?  On a real
    pinball machine, the apron traditionally has an instruction
    card on the left, and a pricing card on the right:
-   "1 Play = 75&cents;/3 balls per game", or something like that.
+   something along the lines of "1 Play = 75&cent;/3 balls per game",
+   plus the obligatory legal disclaimer, "For Amusement Only".
    We already have the Instructions Card covered, so that leaves
    the pricing card as the obvious choice.  But that probably
    isn't very interesting on a virtual pin cab, since it would
@@ -696,17 +713,17 @@ cabPicWin.on("mediasyncload", ev => {
    might not be something you'd see on a modern machine, but it's
    useful, and it's actually not
    completely out of place historically.  In the really old days
-   of electromechanical machines, some arcades commemorated high
+   of electromechanical machines, some arcades commemorated record-setting games
    with a hand-printed note placed on the apron - a precursor
    of the automatic high score displays on modern electronic games.
    It was also common until the mid-1980s for the pricing
-   card to include a list of Replay Score levels - not quite the
-   same thing as high scores, but related.  Replay scores
+   card to include a list of Replay Score levels. That's not quite the
+   same thing as high scores, but it's related.  Replay scores
    disappeared from the pricing cards after that, because it
    was easier to let the software announce them on the main
-   display instead, especially since newer games can be set
-   to automatically adjust the replay scores according to how
-   often players reach them.
+   display instead (especially since modern games can be set
+   to automatically raise the replay scores if players are
+   hitting them too often).
 </p>
 <p>
    PinballY already displays live high scores on the DMD using
@@ -714,7 +731,8 @@ cabPicWin.on("mediasyncload", ev => {
    <i>could</i> just replicate that on another monitor.  But
    that would be a little boring.  I think it would be nicer
    to follow the black-on-white text style of the instruction
-   card.
+   card, so that the pricing card on the one apron monitor harmonizes
+   visually with the Instruction Card window on the other monitor.
 </p>
 <p>
    Javascript has access to the high score information via the
@@ -742,30 +760,34 @@ let scoreCardWin = mainWindow.createMediaWindow({
 </div>
 
 <p>
-   The drawing code gets a little long-winded, but it's
-   straightforward, so I'll explain how that works via inline
-   comments rather than boring you with a lengthy intro.
-   The only thing that needs some up-front explanation
-   is why it draws the score card <i>twice</i> on every update.
-   The reason for the double drawing is that we need to measure
-   the height of the text as laid out, in order to make sure
-   that it fits into the available space and that it's
-   centered vertically.  Some games have extremely long
-   high score rolls (take a look at <i>Medieval Madness</i>,
-   for example), so we need a height reading to get an 
-   optimal fit.  The most reliable way to measure the height
-   of styled text with the available PinballY
-   drawing tools is to actually draw it, because the drawing code
-   keeps track of a "text origin" - a sort of internal cursor
-   for where the next text output goes.  So that's what the
-   two drawing passes are about: the first pass is a "dummy"
-   pass that we do only to measure the text size, and the
-   second pass creates the real image now that we know
-   enough to calculate the vertical layout.
+   To draw the instruction card, we're going to use the new
+   <a href="HtmlLayout.html">HtmlLayout</a> object, which lets
+   us display styled text using HTML markup.  We <i>could</i>
+   assemble all of the text using the Custom Drawing
+   text primitives, but that gets quite tedious for anything
+   with mixed styling.  (Indeed, a first draft of this
+   chapter took that approach, and writing that up convinced
+   me that a higher-level text widget was worth adding.)
+</p>
+<p>
+   HtmlLayout is pretty easy to use.  We just have to provide
+   it with a block of text using HTML markup to specify the
+   styling and layout, and we get back an object that we
+   can use to draw the specified text layout in a window.
+   We can also measure the size of the HTML text layout
+   before displaying it, so that
+   we know how big to make the drawing surface.  That's
+   important for this case, because the high score text
+   varies in length from game to game.  Older games
+   usually have just a single high score, whereas the
+   latest games have credit rolls that go on for pages
+   and pages. (Take a look at the high score readout for
+   <i>Medieval Madness</i> to see a particularly
+   lengthy credits roll.)
 </p>
 
 <div class="code javascript">
-// Drawing layer for our generated score card image
+// Create a drawing layer for our generated score card image
 let scoreCardLayer = scoreCardWin.createDrawingLayer(1);
 
 // When it's time to update the Score Card Window media,
@@ -777,121 +799,85 @@ scoreCardWin.on("mediasyncload", ev => {
     // selected game's high scores are retrieved.
     function drawScoreCard(title, headline, scores)
     {
-        // The color scheme, font, and vertical margin, in
-        // pixels.  Change these to tweak the style as desired.
-        let txtColor = 0xff000000, bgColor = 0xffffffff;
-        let font = "Arial";
-        let vertMargin = 16;
+        // translate the scores to HTML, changing special markup
+        // characters to "&amp;" equivalents, and then joining them
+        // all together with line break (BR) tags
+        scores = (scores || []).map(
+            s => s.replace(/&lt;/g, "&amp;lt;").replace(/&amp;/g, "&amp;")).join("&lt;BR>");
 
+        // set up the HTML layout
+        let layout = new HtmlLayout(`
+            &lt;style>
+            #outer {
+              text-align: center;
+              font: bold 16pt Arial;
+              padding: 16px;
+              color: black;
+            }
+            #outer div {
+              padding: 1em;
+              text-align: center;
+            }
+            #title { font-size: 30pt; }
+            #headline { font-size: 24pt; }
+            #scores { font-size: 18pt; }
+            #footer { font-size: 24pt; }
+            &lt;/style>
+            &lt;div id="outer">
+               &lt;div id="title">` + title + `&lt;/div>
+               &lt;div id="headline">` + headline + `&lt;/div>
+               &lt;div id="scores">` + scores + `&lt;/div>
+               &lt;div id="footer">FOR AMUSEMENT ONLY&lt;/div>
+            &lt;/div>`);
+
+        // By default, we'll display the graphics in a 640x480
+        // canvas.  But if the layout is too tall for that, we'll
+        // expand the window vertically to make room.  We'll keep
+        // the aspect ratio of the window the same so that the
+        // geometry isn't distorted, and we'll still fit the
+        // layout to the same 640-pixel width within the larger
+        // window, so that it maintains the same dimensions in
+        // the final display.  So start by figuring the height
+        // needed for the layout at 640 pixels wide.
+        let windowSize = { width: 640, height: 480 };
+        let layoutRect = {
+            x: 0,
+            y: 0,
+            width: windowSize.width,
+            height: windowSize.height
+        };
+        let layoutSize = layout.measure(windowSize.width);
+
+        // If the height is greater than our default 480 pixels,
+        // make the window proportionally larger.
+        if (layoutSize.height > windowSize.height)
+        {
+            windowSize.width *= layoutSize.height/windowSize.height;
+            windowSize.height = layoutSize.height;
+            layoutRect.height = layoutSize.height;
+        }
+
+        // Center the layout in the window
+        layoutRect.x = (windowSize.width - layoutSize.width)/2;
+        layoutRect.y = (windowSize.height - layoutSize.height)/2;
+    
         // Drawing function.  We pass this to the drawing
         // layer's draw() method to do the drawing work.
-        let yStart, yEnd;
         function drawFunc(dc)
         {
-            // Fill the background.  If you want to use custom
-            // graphics from a PNG or JPEG file instead for the
-            // background fill, you can replace this with a call
-            // to drawImage().
+            // Fill the background with solid opaque white.  If you
+            // prefer to use custom graphics from a PNG or JPEG file
+            // for the background fill, you can replace this with
+            // a call to drawImage().
             let sz = dc.getSize();
-            dc.fillRect(0, 0, sz.width, sz.height, bgColor);
+            dc.fillRect(0, 0, sz.width, sz.height, 0xffffffff);
 
-            // Set the text clipping area to a very tall height
-            // (effectively infinite).  This lets us measure the
-            // actual height if the text is too tall vertically
-            // for the current canvas.  The text renderer stops
-            // bothering to keep track once the text goes past
-            // the end of the clipping area, so we have to extend
-            // the clipping area if we want an accurate height
-            // overflow measurement.  We do clip to the actual
-            // canvas width, though, because we want the text
-            // to be centered horizontally in the canvas (so
-            // the renderer has to know the true desired layout
-            // width), and we also want the renderer to take
-            // care of word-wrapping if any lines are too long,
-            // which it can only do if it knows the width.
-            dc.setTextArea(0, 0, sz.width, 8000);
-
-            // Set the text origin - this is the initial "cursor"
-            // position where we start drawing text.  The text
-            // renderer advances this past each block of text,
-            // so we only have to do this once at the start of
-            // the text.  
-            dc.setTextOrigin(0, yStart + vertMargin);
-
-            // Center the text horizontally (0) and align at the
-            // top vertically (-1).  Note that we *really* want
-            // the text vertically centered, too, but we have to
-            // do that ourselves by doing the two-pass height
-            // calculation.  drawText() can only align a single
-            // piece of text, which isn't helpful when we want
-            // to align a mixture of styles, which we have to
-            // draw separately.  Since we already know the
-            // correct starting point for vertical centering,
-            // we want drawText() draw exactly at the current
-            // cursor vertically.
-            dc.setTextAlign(0, -1);
-
-            // Set the text color.  If you wanted to draw the
-            // various sections in different colors, you could
-            // add another setTextColor call just before drawing
-            // each section's text.
-            dc.setTextColor(txtColor);
-
-            // draw the title in large text
-            dc.setFont(font, 30, 700, false);
-            dc.drawText(title + "\n \n");
-
-            // draw the headline in a slightly smaller font
-            dc.setFont(font, 24, 700, false);
-            dc.drawText(headline + "\n \n");
-
-            // add the score text, if available
-            if (scores) {
-                dc.setFont(font, 18, 700, false);
-                dc.drawText(scores);
-            }
-
-            // add the customary disclaimer as a footer
-            dc.setFont(font, 24, 700, false);
-            dc.drawText("\nFOR AMUSEMENT ONLY\n");
-            
-            // Remember the vertical offset of the final text,
-            // so that we can determine if we need to resize the
-            // drawing surface to make more room.  
-            yEnd = dc.getTextOrigin().y + vertMargin;
+            // draw the HTML layout
+            layout.draw(dc, layoutRect);
         }
 
-        // We draw the card in two passes.  The first pass is
-        // a dry run that lets us measure the actual height of
-        // the text as laid out, so that we can (a) determine
-        // how big the canvas needs to be to accommodate all
-        // of the text, and (b) center the text vertically in
-        // the canvas.  The only accurate way to determine the
-        // text height with word-wrapping is to draw it.
-
-        // First pass: draw the card into a small canvas, to
-        // measure the height.  We make the canvas small on
-        // this pass to minimize the memory footprint of the
-        // internal bitmap, since we're just going to discard
-        // it anyway.
-        yStart = 0;
-        scoreCardLayer.draw(drawFunc, 640, 16);
-
-        // Now that we know the actual text height, figure the
-        // size of the canvas.  Start with 640x480, and scale it
-        // up if the text is too tall for that.
-        let ht = 480, wid = 640;
-        if (yEnd > ht) {
-            wid *= yEnd/ht;
-            ht = yEnd;
-        }
-
-        // figure the starting vertical position to center the
-        // whole thing vertically, by halving the leftover height
-        yStart = (ht - yEnd)/2;
-
-        // Now we can finally do the REAL card drawing pass
-        scoreCardLayer.draw(drawFunc, wid, ht);
+        // draw the window
+        scoreCardLayer.draw(drawFunc, windowSize.width, windowSize.height);
     }
 
     // If there's a game, get its high score list and use it
@@ -903,8 +889,7 @@ scoreCardWin.on("mediasyncload", ev => {
             scores => {
                 // got 'em - draw the score card graphics
                 drawScoreCard(ev.game.title.toUpperCase(),
-                    "FREE PLAY - PRESS START", 
-                    scores.join("\n"));
+                    "FREE PLAY - PRESS START", scores);
             },
             error => {
                 // error - just draw a generic Free Play card
@@ -926,14 +911,13 @@ scoreCardWin.on("mediasyncload", ev => {
    same style as the stock instruction cards and pricing cards
    on most real pinball machines, so it'll harmonize perfectly
    with your Instructions Card monitor for most games.  If you
-   prefer some more color, you could easily throw in a
-   call to <tt>dc.setTextColor()</tt> before each block of
-   text.  For even more color, you could provide some background
-   media for each card.  The still backglass image creates a
-   fairly nice effect for many games, and they're practically
-   no added work to use, since you probably already have
-   them from screen captures or HyperPin media packs.  Here's
-   how you could add an overlay effect that keeps the black-on-white
+   prefer some more color, you could easily add some <b>color</b>
+   directives to the DIV styles.  For even more color, you could
+   provide some custom background media for each card.  The still
+   backglass image creates a fairly nice effect for many games,
+   and you probably already have one for each game anyway, either from
+   screen captures or from HyperPin media packs.  Here's how you could
+   add an overlay effect that keeps the black-on-white
    look of the main text, but overlays it on top of a washed-out
    image of the backglass:
 </p>
@@ -941,9 +925,11 @@ scoreCardWin.on("mediasyncload", ev => {
    <li>In the custom window definition, add <tt>backgroundImageMediaType: "bg image"</tt>.
    The window will now automatically load the current game's backglass image into the background.
 
-   <li>In the drawing code, change the background color to <tt>bgColor = 0xE8FFFFFF</tt>.
+   <li>In the drawing code, change the color code in the call
+   to <b>fillRect</b> to a semi-transparent alpha, perhaps <tt>0xE8FFFFFF</tt>.
    That'll make the card image <i>slightly</i> transparent, which
-   lets the backglass image show through just enough to be visible, without obscuring the text.
+   lets the backglass image show through just enough to be visible, without
+   obscuring the text too much.
 
    <li>You can tweak the "alpha" opacity part (the E8 in the <tt>bgColor</tt> above) to
    adjust how strongly the backglass image shows through.  Use higher numbers to make

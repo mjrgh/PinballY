@@ -145,6 +145,7 @@ var contents = [
             "++GameInfo.html GameInfo",
             "++GameSysInfo.html GameSysInfo",
             "++HandleObject.html HANDLE",
+            "++HtmlLayout.html HtmlLayout",
             "++HttpRequest.html HttpRequest",
             "++HWNDObject.html HWND",
             "++Int64.html Int64 and Uint64",
