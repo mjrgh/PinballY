@@ -861,10 +861,9 @@ scoreCardWin.on("mediasyncload", ev => {
         layoutRect.x = (windowSize.width - layoutSize.width)/2;
         layoutRect.y = (windowSize.height - layoutSize.height)/2;
     
-        // Drawing function.  We pass this to the drawing
-        // layer's draw() method to do the drawing work.
-        function drawFunc(dc)
-        {
+        // draw the window
+        scoreCardLayer.draw(dc => {
+        
             // Fill the background with solid opaque white.  If you
             // prefer to use custom graphics from a PNG or JPEG file
             // for the background fill, you can replace this with
@@ -874,10 +873,8 @@ scoreCardWin.on("mediasyncload", ev => {
 
             // draw the HTML layout
             layout.draw(dc, layoutRect);
-        }
-
-        // draw the window
-        scoreCardLayer.draw(drawFunc, windowSize.width, windowSize.height);
+            
+        }, windowSize.width, windowSize.height);
     }
 
     // If there's a game, get its high score list and use it
@@ -911,12 +908,23 @@ scoreCardWin.on("mediasyncload", ev => {
    same style as the stock instruction cards and pricing cards
    on most real pinball machines, so it'll harmonize perfectly
    with your Instructions Card monitor for most games.  If you
-   prefer some more color, you could easily add some <b>color</b>
-   directives to the DIV styles.  For even more color, you could
-   provide some custom background media for each card.  The still
-   backglass image creates a fairly nice effect for many games,
-   and you probably already have one for each game anyway, either from
-   screen captures or from HyperPin media packs.  Here's how you could
+   prefer something more colorful, though, you could easily add
+   <b>color</b> directives to the DIV styles, to change the
+   text color to whatever you like.  You can just as easily 
+   select more decorative fonts; I just went with Arial because
+   it pretty well matches the plain sans-serif look of the
+   stock pricing cards.  CSS also lets you set backgrounds
+   and borders, so there are lots of possibilities you can
+   experiment with to get a look you like.
+</p>
+<p>
+   For even more visual interest, you could add custom background
+   media for each card.  It would be a lot of work to add your own
+   custom Score Card background per game, but here's an easy approach
+   that works pretty well: use each game's still backglass image.
+   You probably already have one of these in your media tree
+   for each game, either from screen captures or from HyperPin
+   media packs.  Here's how you could
    add an overlay effect that keeps the black-on-white
    look of the main text, but overlays it on top of a washed-out
    image of the backglass:
@@ -937,6 +945,15 @@ scoreCardWin.on("mediasyncload", ev => {
    saturated.  If you want a very saturated look, you might find that it looks
    better to switch to white text on a black background, which you can do by
    changing the <tt>txtColor</tt> and <tt>bgColor</tt> variables in the drawing code.
+
+   <li>Another color mix that I think looks nice is to invert the
+   color scheme, to white text (or other bright colors) against a dark
+   background.  Change all of the text colors in the HTML
+   layout to white (or similarly bright colors, like yellow and cyan),
+   and change the background overlay to something like <tt>0xE8000000</tt>.
+   That'll let a dimmed-out version of the backglass image show through,
+   rather than a washed-out version, which contrasts nicely with bright-colored
+   text.
 </ul>
    
 
