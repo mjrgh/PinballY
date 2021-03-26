@@ -24,6 +24,7 @@
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/AudioCapture.h"
 #include "../Utilities/GraphicsUtil.h"
+#include "../Utilities/DirectWriteUtil.h"
 #include "Application.h"
 #include "Resource.h"
 #include "D3D.h"
@@ -726,6 +727,9 @@ bool Application::Init()
 	if (!InputManagerWithConfig::Init())
 		return false;
 
+	// initialize DirectWrite
+	DirectWriteUtils::Init(LogFileErrorHandler());
+
 	// success
 	return true;
 }
@@ -743,6 +747,9 @@ Application::~Application()
 
 	// shut down libvlc
 	VLCAudioVideoPlayer::OnAppExit();
+
+	// clean up DirectWrite
+	DirectWriteUtils::Terminate();
 
 	// clean up the input subsystem
 	InputManager::Shutdown();

@@ -658,22 +658,25 @@ cabPicWin.on("mediasyncload", ev => {
 </p>
 <p>
    On a real machine, the apron traditionally holds a pair of index
-   cards, one at either side, showing the rules of the game and the pricing.
-   On my cab, I do the same thing with my pseudo-apron.  Some
-   cab builders get a little fancier by placing small 6" or 7"
-   monitors in place of the index cards, to make the space
+   cards, one at either side, one showing the rules of the game and
+   the other showing how many quarters to insert.
+   On my cab, I mimic this look with a card on the left offering
+   brief instructions on how to select and launch games, and a
+   card on the right announcing Free Play mode.  Just to be clear,
+   the cards on my apron are physical paper cards.  But some
+   cab builders get a little fancier by placing a small 6" or 7"
+   monitor in place of one of the index cards, to make the space
    more interactive and more visually interesting.
    That's where the idea for PinballY's built-in Instruction Card
-   window came from:  it's designed so that you can position
-   the window in your apron monitor to see
-   a live Instruction Card view as you scroll through games
-   (and even while playing).
+   window came from:  it's designed especially for cabs so equipped,
+   so that you can easily display a live instruction card in
+   your apron monitor as you scroll through games in PinballY.
 </p>
 <p>
    But what if you take this idea to its logical conclusion by
    building in a <i>second</i> apron monitor, so that both index
    card positions have live displays?  The only native PinballY window
-   that's really ideal for an apron monitor is the Instruction
+   that's really intended for an apron monitor is the Instruction
    Card window, so there's nothing ready-made to display in
    that second monitor.
 </p>
@@ -682,23 +685,25 @@ cabPicWin.on("mediasyncload", ev => {
    that got me thinking about adding custom windows.  A forum member on
    vpforums asked if there was a way to add a second score card, to
    fit his custom cab setup with two small monitors in the apron area.
-   This is the first time I've heard of anyone installing two apron
-   monitors (including a single one seems pretty rare by itself),
-   so I hadn't even considered the idea of a second
-   Instructions Card-like window before.  It seemed like a useful idea,
-   but it also seemed really specialized - something that only one
-   or two people would probably ever get any use out of.  That
+   That was the first time I've heard of anyone installing two apron
+   monitors, so I hadn't considered the idea of a second dedicated
+   PinballY window for the apron area.  It obviously would be a nice
+   addition for cabs with two apron monitors, but this seemed like
+   such a rarity that I hesitated to add a dedicated window that
+   only a few people would be able to use.  That
    got me thinking that what we really need is a way to create
-   whatever additional windows you can think up to fit your cab's
-   unique features, so that there's a way to address <i>all</i> of
-   those unique ideas that only get built into one or two cabs.
+   whatever additional special windows you can think up to fit your cab's
+   particular features, so that there's a way to address <i>all</i> of
+   those unique ideas, but without overloading PinballY with a glut
+   of oddball windows that would just get in everyone else's way.
 </p>
 <p>
    Now that we have the Custom Window feature, it's clearly
-   the way to address this second-apron-monitor case.
-   So what should we display on the second monitor?  On a real
-   pinball machine, the apron traditionally has an instruction
-   card on the left, and a pricing card on the right:
+   the way to address this second-apron-monitor case, which brings
+   us to the present example.
+   So what should we display on a second apron monitor?  Looking
+   to the real machines for ideas, we see that the apron traditionally
+   has an instruction card on the left, and a pricing card on the right:
    something along the lines of "1 Play = 75&cent;/3 balls per game",
    plus the obligatory legal disclaimer, "For Amusement Only".
    We already have the Instructions Card covered, so that leaves
@@ -706,33 +711,35 @@ cabPicWin.on("mediasyncload", ev => {
    isn't very interesting on a virtual pin cab, since it would
    say more or less the same thing for every game - "Free Play -
    Press Start".  That's not a very dynamic use for a monitor
-   that can display whatever we want.
+   that can display unique graphics for each game.
 </p>
 <p>
    A more interesting idea might be a High Scores display.  This
-   might not be something you'd see on a modern machine, but it's
-   useful, and it's actually not
-   completely out of place historically.  In the really old days
+   doesn't mimic anything you'd see on the apron on a modern
+   real machine, but it's useful, and it's not
+   completely out of place.  In the really old days
    of electromechanical machines, some arcades commemorated record-setting games
    with a hand-printed note placed on the apron - a precursor
    of the automatic high score displays on modern electronic games.
    It was also common until the mid-1980s for the pricing
    card to include a list of Replay Score levels. That's not quite the
-   same thing as high scores, but it's related.  Replay scores
-   disappeared from the pricing cards after that, because it
-   was easier to let the software announce them on the main
-   display instead (especially since modern games can be set
-   to automatically raise the replay scores if players are
-   hitting them too often).
+   same thing as high scores, but it's at least similar.  Replay scores
+   disappeared from the pricing cards in the 1990s, because someone
+   at Williams came up with the bright idea of abolishing fixed
+   replay levels in favor of scores that increase automatically
+   when players reach them too often, to avoid giving away too
+   many free games.
 </p>
 <p>
    PinballY already displays live high scores on the DMD using
    DMD-style graphics appropriate to the game's era, so we
-   <i>could</i> just replicate that on another monitor.  But
+   <i>could</i> just replicate that on the apron monitor.  But
    that would be a little boring.  I think it would be nicer
-   to follow the black-on-white text style of the instruction
-   card, so that the pricing card on the one apron monitor harmonizes
-   visually with the Instruction Card window on the other monitor.
+   to create a separate high scores window that looks like
+   an apron card, with the simple black-on-white text style
+   that the stock instruction cards use.  That'll make the
+   Score Card on the one apron monitor harmonize visually
+   with the Instruction Card window on the other monitor.
 </p>
 <p>
    Javascript has access to the high score information via the
@@ -764,7 +771,7 @@ let scoreCardWin = mainWindow.createMediaWindow({
    <a href="HtmlLayout.html">HtmlLayout</a> object, which lets
    us display styled text using HTML markup.  We <i>could</i>
    assemble all of the text using the Custom Drawing
-   text primitives, but that gets quite tedious for anything
+   text primitives, but that gets tedious for anything
    with mixed styling.  (Indeed, a first draft of this
    chapter took that approach, and writing that up convinced
    me that a higher-level text widget was worth adding.)

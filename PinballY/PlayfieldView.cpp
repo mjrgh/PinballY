@@ -19,6 +19,7 @@
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/GraphicsUtil.h"
+#include "../Utilities/DirectWriteUtil.h"
 #include "../Utilities/std_filesystem.h"
 #include "LitehtmlHost.h"
 #include "PlayfieldView.h"
@@ -433,7 +434,7 @@ void PlayfieldView::AddShowWindowCmdForCustomWindow(int serial)
 {
 	// if the window number is out of range of the available Show command IDs,
 	// we can't add a command, so ignore the request
-	if (serial < 1 || serial > ID_VIEW_CUSTOM_LAST - ID_VIEW_CUSTOM_LAST + 1)
+	if (serial < 1 || serial > ID_VIEW_CUSTOM_LAST - ID_VIEW_CUSTOM_FIRST + 1)
 		return;
 
 	// figure the command ID
@@ -952,13 +953,26 @@ void PlayfieldView::InitJavascript()
 					&PlayfieldView::JsDrawGetDefaultAlpha, &PlayfieldView::JsDrawSetDefaultAlpha, this, eh))
 				return;
 
-			// Create the HtmlLayout constructor
+			// Create the StyledText constructor and prototype
+			JsValueRef styledTextConstructor;
+			where = _T("JsCreateFunction");
+			if (!js->DefineObjPropFunc(js->GetGlobalObject(), "global", "StyledText", &JsStyledTextConstructor, this, eh)
+				|| (err = js->GetProp(styledTextConstructor, js->GetGlobalObject(), "StyledText", where)) != JsNoError
+				|| (err = js->GetProp(jsStyledTextProto, styledTextConstructor, "prototype", where)) != JsNoError
+				|| !js->DefineObjPropFunc(jsStyledTextProto, "StyledText.prototype", "add", &JsStyledTextAdd, this, eh)
+				|| !js->DefineObjMethod(jsStyledTextProto, "StyledText", "draw", &PlayfieldView::JsStyledTextDraw, this, eh)
+				|| !js->DefineObjMethod(jsStyledTextProto, "StyledText", "measure", &PlayfieldView::JsStyledTextMeasure, this, eh))
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing StyledText: js error code %d, %s\n"), err, where);
+				return;
+			}
+
+			// Create the HtmlLayout constructor and prototype
 			JsValueRef htmlLayoutConstructor;
 			where = _T("JsCreateFunction");
-			if ((err = JsCreateFunction(&PlayfieldView::JsHtmlLayoutConstructor, this, &htmlLayoutConstructor)) != JsNoError
-				|| !js->DefineObjPropFunc(js->GetGlobalObject(), "global", "HtmlLayout", &JsHtmlLayoutConstructor, this, eh)
+			if (!js->DefineObjPropFunc(js->GetGlobalObject(), "global", "HtmlLayout", &JsHtmlLayoutConstructor, this, eh)
+				|| (err = js->GetProp(htmlLayoutConstructor, js->GetGlobalObject(), "HtmlLayout", where)) != JsNoError
 				|| (err = js->GetProp(jsHtmlLayoutProto, htmlLayoutConstructor, "prototype", where)) != JsNoError
-				|| (JsAddRef(jsHtmlLayoutProto, nullptr), where = _T("Setting up methods"), false)
 				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "draw", &PlayfieldView::JsHtmlLayoutDraw, this, eh)
 				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "measure", &PlayfieldView::JsHtmlLayoutMeasure, this, eh))
 			{
@@ -6874,6 +6888,338 @@ JsValueRef PlayfieldView::JsDrawGetSize()
 	}
 }
 
+
+// -----------------------------------------------------------------------
+//
+// Javascript StyledText drawing
+//
+// StyledText is a Javascript External Object that encapsulates a text
+// stream with font and color formatting data, for drawing through the
+// DirectWrite IDWriteLayout interface.  This provides a widget for
+// drawing text with mixed styles that's easier to use than the Custom
+// Drawing text primitives but lighter weight than HtmlLayout.  The
+// StyledText class is essentially a Javascript cover for IDWriteLayout,
+// so it's well suited for simple paragraph-level layouts.
+//
+class JsStyledText : public JavascriptEngine::ExternalObject
+{
+public:
+	JsStyledText() { }
+
+	// parse a Javascript style descriptor
+	void ParseStyle(DirectWriteUtils::StyledText::SpanStyle &style, JsValueRef jsDesc)
+	{
+		// set up the descriptor object
+		auto js = JavascriptEngine::Get();
+		JavascriptEngine::JsObj desc(jsDesc);
+
+		// apply style elements
+		if (desc.Has("font"))
+			style.face = desc.Get<TSTRING>("font");
+		if (desc.Has("size"))
+			style.size = desc.Get<float>("size") * dipsPerPoint;
+		if (desc.Has("sizePx"))
+			style.size = desc.Get<float>("sizepx");
+		if (desc.Has("weight"))
+			style.weight = static_cast<DWRITE_FONT_WEIGHT>(desc.Get<int>("weight"));
+		if (desc.Has("stretch"))
+			style.stretch = static_cast<DWRITE_FONT_STRETCH>(desc.Get<int>("stretch"));
+		if (desc.Has("underline"))
+			style.underline = desc.Get<bool>("underline");
+		if (desc.Has("strikethrough"))
+			style.underline = desc.Get<bool>("strikethrough");
+		if (desc.Has("style"))
+		{
+			auto s = desc.Get<TSTRING>("style");
+			if (s == _T("italic"))
+				style.style = DWRITE_FONT_STYLE_ITALIC;
+			else if (s == _T("oblique"))
+				style.style = DWRITE_FONT_STYLE_OBLIQUE;
+			else if (s == _T("normal"))
+				style.style = DWRITE_FONT_STYLE_NORMAL;
+		}
+		if (desc.Has("color"))
+			style.textColor = desc.Get<unsigned int>("color");
+		if (desc.Has("backgroundColor"))
+			style.bgColor = desc.Get<unsigned int>("backgroundColor");
+	}
+
+	// set the text alignment from a Javascript keyword
+	void SetTextAlign(const WSTRING& align)
+	{
+		if (align == L"left")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_LEADING;
+		else if (align == L"right")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_TRAILING;
+		else if (align == L"center")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_CENTER;
+		else if (align == L"justified")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_JUSTIFIED;
+	}
+
+	// parse a Javascript add() descriptor
+	void ParseDesc(JsValueRef obj, DirectWriteUtils::StyledText::SpanStyle style)
+	{
+		// get the Javascript engine
+		auto js = JavascriptEngine::Get();
+
+		// process added style elements
+		ParseStyle(style, obj);
+
+		// check for contents (image, nbsp, text)
+		JavascriptEngine::JsObj desc(obj);
+		if (desc.Has("image"))
+		{
+			// get the image descriptor
+			JavascriptEngine::JsObj image(desc.Get<JsValueRef>("image"));
+			if (!image.Has("src"))
+			{
+				js->Throw(_T("StyledText: image.src required"));
+				return;
+			}
+			TSTRING src = image.Get<TSTRING>("src");
+			float width = image.Get<float>("width");
+			float height = image.Get<float>("height");
+			DirectWriteUtils::ImageVAlign valign = DirectWriteUtils::ImageVAlign::Center;
+			if (image.Has("verticalAlign"))
+			{
+				auto v = image.Get<TSTRING>("verticalAlign");
+				if (v == _T("top"))
+					valign = DirectWriteUtils::ImageVAlign::Top;
+				else if (v == _T("bottom"))
+					valign = DirectWriteUtils::ImageVAlign::Bottom;
+				else if (v == _T("baseline"))
+					valign = DirectWriteUtils::ImageVAlign::Baseline;
+				else if (v == _T("center") || v == _T("middle"))
+					valign = DirectWriteUtils::ImageVAlign::Center;
+			}
+
+			// add the image
+			st.AddImage(src.c_str(), style, valign, width, height, LogFileErrorHandler());
+		}
+		else if (desc.Has("nbsp"))
+		{
+			// add a non-breaking space
+			st.AddNBSP(style);
+		}
+		else if (desc.Has("text"))
+		{
+			// add the text as though it were a whole new argument, using
+			// the current style as its base style
+			ParseArg(desc.Get<JsValueRef>("text"), style);
+		}
+	};
+
+	// process a Javascript add() argument
+	void ParseArg(JsValueRef arg, DirectWriteUtils::StyledText::SpanStyle style)
+	{
+		// check the type
+		JsValueType type;
+		if (JsGetValueType(arg, &type) == JsNoError)
+		{
+			switch (type)
+			{
+			case JsValueType::JsObject:
+				// object - treat it as a descriptor
+				ParseDesc(arg, style);
+				break;
+
+			case JsValueType::JsArray:
+				// array - process each element as a descriptor
+				{
+					JavascriptEngine::JsObj arr(arg);
+					for (int i = 0, len = arr.Get<int>("length"); i < len; ++i)
+						ParseArg(arr.GetAtIndex<JsValueRef>(i), style);
+				}
+				break;
+
+			default:
+				// for anything else, convert it into a string and add it as plain text
+				// in the current style
+				st.AddSpan(JavascriptEngine::JsToNative<TSTRING>(arg), style);
+				break;
+			}
+		}
+	};
+
+	// base text style
+	DirectWriteUtils::StyledText::SpanStyle baseStyle;
+
+	// the styled text collection
+	DirectWriteUtils::StyledText st;
+};
+
+
+JsValueRef PlayfieldView::JsStyledTextConstructor(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// this can only be called as a constructor
+	if (!isConstructCall)
+		return js->Throw(_T("StyledText() can only be called as a constructor (with 'new')"));
+
+	// Note: argv[0] is the 'this' object that ChakraCore created for the 'new'
+	// operator result.  We're going to replace that with our own object, since
+	// we need the result to be an External Object based on JsStyledText.  So
+	// we're just going to ignore and discard argv[0].
+
+	// create the Javascript cover object
+	JsValueRef ret;
+	auto jst = new JsStyledText();
+	if (auto err = js->CreateExternalObjectWithPrototype(ret, pfv->jsStyledTextProto, jst); err != JsNoError)
+		return js->Throw(err);
+
+	// if a descriptor object argument was provided, parse it as the base style
+	if (argc >= 2 && !js->IsUndefinedOrNull(argv[1]))
+	{
+		// parse block-level styles
+		JavascriptEngine::JsObj desc(argv[1]);
+		if (desc.Has("textStyle"))
+			jst->ParseStyle(jst->baseStyle, desc.Get<JsValueRef>("textStyle"));
+		if (desc.Has("textAlign"))
+			jst->SetTextAlign(desc.Get<WSTRING>("textAlign"));
+		if (desc.Has("cornerRadius"))
+			jst->st.cornerRadius = desc.Get<float>("cornerRadius");
+		if (desc.Has("padding"))
+		{
+			auto padding = desc.Get<JsValueRef>("padding");
+			if (js->IsObject(padding))
+			{
+				JavascriptEngine::JsObj paddingObj(padding);
+				if (paddingObj.Has("left"))
+					jst->st.padding.left = paddingObj.Get<float>("left");
+				if (paddingObj.Has("right"))
+					jst->st.padding.right = paddingObj.Get<float>("right");
+				if (paddingObj.Has("top"))
+					jst->st.padding.top = paddingObj.Get<float>("top");
+				if (paddingObj.Has("bottom"))
+					jst->st.padding.bottom = paddingObj.Get<float>("bottom");
+			}
+			else
+				jst->st.padding.SetAll(JavascriptEngine::JsToNative<float>(padding));
+		}
+		if (desc.Has("backgroundColor"))
+			jst->st.bgColor = desc.Get<unsigned int>("backgroundColor");
+	}
+
+	// return the cover object
+	return ret;
+}
+
+JsValueRef PlayfieldView::JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// 'new add()' isn't allowed
+	if (isConstructCall)
+		return js->Throw(_T("StyledText.add() can't be used as a constructor"));
+	
+	try
+	{
+		// recover the 'this' external object from Javascript, passed as argv[0]
+		auto st = JsStyledText::Recover<JsStyledText>(argv[0], _T("StyledText.add"));
+		if (st == nullptr)
+			return js->GetUndefVal();
+
+		// process the text object arguments
+		for (unsigned short i = 1; i < argc; ++i)
+			st->ParseArg(argv[i], st->baseStyle);
+
+		// return 'this'
+		return argv[0];
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsStyledTextDraw(JsValueRef self, JsValueRef dc, JavascriptEngine::JsObj jsrcLayout, JavascriptEngine::JsObj jsrcClip)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// validate the StyledText object
+		auto st = JsStyledText::Recover<JsStyledText>(self, _T("StyledText.draw"));
+		if (st == nullptr)
+			return;
+
+		// validate the drawing context
+		if (jsDC == nullptr || dc != jsDC->jsobj.jsobj)
+			return js->Throw(_T("StyledText.draw: invalid drawing context")), static_cast<void>(0);
+
+		// Get the layout rectangle; use the whole Gdiplus surface by default
+		float inset = jsDC->borderWidth;
+		Gdiplus::RectF rcLayout = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		Gdiplus::RectF rcClip = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		auto GetRect = [](Gdiplus::RectF &rc, JavascriptEngine::JsObj obj) {
+			if (!obj.IsNull())
+			{
+				if (obj.Has("x")) rc.X = obj.Get<float>("x");
+				if (obj.Has("y")) rc.Y = obj.Get<float>("y");
+				if (obj.Has("width")) rc.Width = obj.Get<float>("width");
+				if (obj.Has("height")) rc.Height = obj.Get<float>("height");
+			}
+		};
+		GetRect(rcLayout, jsrcLayout);
+		GetRect(rcClip, jsrcClip);
+
+		// draw it
+		auto dw = DirectWriteUtils::Get();
+		dw->RenderStyledText(jsDC->g, &st->st, rcLayout, rcClip, LogFileErrorHandler());
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsStyledTextMeasure(JsValueRef self, float width)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// recover the external object from Javascript
+		auto st = JsStyledText::Recover<JsStyledText>(self, _T("StyledText.measure"));
+		if (st == nullptr)
+			return js->GetUndefVal();
+
+		// set up the layout rectangle
+		Gdiplus::RectF rcLayout(0.0f, 0.0f, width, 4096.0f);
+
+		// measure the text layout
+		auto dw = DirectWriteUtils::Get();
+		Gdiplus::RectF rcPositioning, rcInk;
+		dw->MeasureStyledText(rcPositioning, rcInk, &st->st, rcLayout, LogFileErrorHandler());
+
+		// set up the return object with the document size
+		JavascriptEngine::JsObj retLayout(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("width", rcPositioning.Width);
+		retLayout.Set("height", rcPositioning.Height);
+
+		// also return the drawing area (the ink rectangle)
+		JavascriptEngine::JsObj drawingArea(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("drawingArea", drawingArea.jsobj);
+		drawingArea.Set("x", rcInk.X);
+		drawingArea.Set("y", rcInk.Y);
+		drawingArea.Set("width", rcInk.Width);
+		drawingArea.Set("height", rcInk.Height);
+
+		// return the results
+		return retLayout.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+
 // -----------------------------------------------------------------------
 //
 // Javascript HtmlLayout drawing
@@ -6960,8 +7306,8 @@ void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptE
 	try
 	{
 		// validate the HtmlLayout object
-		auto pst = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.draw"));
-		if (pst == nullptr)
+		auto layout = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.draw"));
+		if (layout == nullptr)
 			return;
 
 		// validate the drawing context
@@ -6971,6 +7317,7 @@ void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptE
 		// Get the layout rectangle; use the whole Gdiplus surface by default
 		float inset = jsDC->borderWidth;
 		Gdiplus::RectF rcLayout = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		Gdiplus::RectF rcClip = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
 		auto GetRect = [](Gdiplus::RectF &rc, JavascriptEngine::JsObj obj) {
 			if (!obj.IsNull())
 			{
@@ -6981,21 +7328,22 @@ void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptE
 			}
 		};
 		GetRect(rcLayout, jsrcLayout);
+		GetRect(rcClip, jsrcClip);
 
         // make sure we have a litehtml parsed document object
-		if (pst->doc == nullptr)
+		if (layout->doc == nullptr)
 			return;
 
 		// render the document to the desired width
 		litehtmlHost->SetSurfaceSize(static_cast<int>(rcLayout.Width), static_cast<int>(rcLayout.Height));
-		pst->doc->media_changed();
-		pst->doc->render(static_cast<int>(rcLayout.Width));
+		layout->doc->media_changed();
+		layout->doc->render(static_cast<int>(rcLayout.Width));
 
 		// draw it
 		litehtml::position lclip(
-			static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), 
-			static_cast<int>(rcLayout.Width), static_cast<int>(rcLayout.Height));
-		pst->doc->draw(reinterpret_cast<litehtml::uint_ptr>(&jsDC->g), static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), &lclip);
+			static_cast<int>(rcClip.X), static_cast<int>(rcClip.Y), 
+			static_cast<int>(rcClip.Width), static_cast<int>(rcClip.Height));
+		layout->doc->draw(reinterpret_cast<litehtml::uint_ptr>(&jsDC->g), static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), &lclip);
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
@@ -7003,31 +7351,29 @@ void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptE
 	}
 }
 
-JsValueRef PlayfieldView::JsHtmlLayoutMeasure(JsValueRef self, JsValueRef width, JsValueRef height)
+JsValueRef PlayfieldView::JsHtmlLayoutMeasure(JsValueRef self, int width)
 {
 	auto js = JavascriptEngine::Get();
 	try
 	{
 		// recover the external object from Javascript
-		auto pst = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.measure"));
-		if (pst == nullptr)
+		auto layout = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.measure"));
+		if (layout == nullptr)
 			return js->GetUndefVal();
 
 		// make sure we have a litehtml parsed HTML document
-		if (pst->doc == nullptr)
+		if (layout->doc == nullptr)
 			return js->GetUndefVal();
 
 		// render the document to the desired width
-		auto renderWidth = js->JsToNative<int>(width);
-		auto renderHeight = js->JsToNative<int>(height);
-		litehtmlHost->SetSurfaceSize(renderWidth, renderHeight);
-		pst->doc->media_changed();
-		pst->doc->render(renderWidth);
-
+		litehtmlHost->SetSurfaceSize(width, 4096);
+		layout->doc->media_changed();
+		layout->doc->render(width);
+		
 		// return the document size
 		JavascriptEngine::JsObj retLayout(JavascriptEngine::JsObj::CreateObject());
-		retLayout.Set("width", pst->doc->width());
-		retLayout.Set("height", pst->doc->height());
+		retLayout.Set("width", layout->doc->width());
+		retLayout.Set("height", layout->doc->height());
 		return retLayout.jsobj;
 	}
 	catch (JavascriptEngine::CallException exc)

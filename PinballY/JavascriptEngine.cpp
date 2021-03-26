@@ -553,6 +553,7 @@ void JavascriptEngine::CallException::Log(const TCHAR *logFileDesc, ErrorHandler
 		js->LogAndClearException(eh);
 }
 
+// test for falsy type
 bool JavascriptEngine::IsFalsy(JsValueRef val) const
 {
 	JsValueRef boolval;
@@ -561,6 +562,28 @@ bool JavascriptEngine::IsFalsy(JsValueRef val) const
 		|| JsBooleanToBool(boolval, &b) != JsNoError
 		|| !b);
 }
+
+// test for object type
+bool JavascriptEngine::IsObject(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsObject);
+}
+
+// test for array type
+bool JavascriptEngine::IsArray(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsArray);
+}
+
+// test for numeric type
+bool JavascriptEngine::IsNumber(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsNumber);
+}
+
 
 JsErrorCode JavascriptEngine::ToString(TSTRING &s, const JsValueRef &val)
 {

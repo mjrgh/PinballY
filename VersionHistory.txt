@@ -79,15 +79,19 @@ under the respective objects (mainWindow, gameList).  You can find a
 number of examples of how to use custom windows and custom media types
 in Worked Examples > Custom Media Window.
 
-* The new Javascript HtmlLayout class makes it possible to draw
-complex text layouts that use mixed font styles and layout effects.
-HtmlLayout accepts a fairly full-featured subset of HTML/CSS to
-specify the layout, and the class provides methods to measure the
-resulting layout and draw it into a Drawing Layer or any other Custom
-Drawing context.  You can use any of the normal graphics primitives
-alongside HtmlLayout objects in the same context, so you can use these
-objects to create composite graphics from multiple elements.  See the
-help under Javascript > System Classes > HtmlLayout.
+* The new Javascript classes HtmlLayout and Styled Text make it easier
+to draw complex text layouts that use mixed font styles and layout
+effects.  HtmlLayout accepts a fairly full-featured subset of HTML/CSS
+to specify the layout, and provides methods to measure the resulting
+layout and draw it into a Drawing Layer or any other Custom Drawing
+context.  StyledText also provides mixed-style rendering, but uses a
+simple programming interface to build the text stream (instead of
+using a markup language).  You can use any of the normal graphics
+primitives alongside HtmlLayout and StyledText objects in the same
+drawing context, so you can use these objects to create composite
+graphics from multiple elements.  See the help under Javascript >
+System Classes > HtmlLayout and Javascript > System Classes >
+StyledText.
 
 * Javascript custom Drawing Layers can now be layered behind the main
 background layer in a window that the system uses to draw the window's

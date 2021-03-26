@@ -153,6 +153,7 @@ var contents = [
             "++NativePointer.html NativePointer",
             "++SecondaryWindow.html Secondary Windows",
             "++StatusLine.html StatusLine",
+            "++StyledText.html StyledText",
             "++Variant.html Variant",
     "AdminMode.html Administrator Mode",
     "Underlay.html Underlay",

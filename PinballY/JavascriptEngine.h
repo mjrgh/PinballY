@@ -116,8 +116,17 @@ public:
 	JsValueRef GetTrueVal() const { return trueVal; }
 	JsValueRef GetGlobalObject() const { return globalObj; }
 
-	// get for Falsy values
-	bool IsFalsy(JsValueRef) const;
+	// test for Falsy values
+	bool IsFalsy(JsValueRef val) const;
+
+	// test for object type
+	bool IsObject(JsValueRef val) const;
+
+	// test for array type
+	bool IsArray(JsValueRef val) const;
+
+	// test for numeric type
+	bool IsNumber(JsValueRef val) const;
 
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
@@ -416,6 +425,7 @@ public:
 	template<typename T> static T DefaultVal();
 	template<> static bool DefaultVal<bool>() { return false; }
 	template<> static int DefaultVal<int>() { return 0; }
+	template<> static unsigned int DefaultVal<unsigned int>() { return 0; }
 	template<> static double DefaultVal<double>() { return 0.0; }
 	template<> static float DefaultVal<float>() { return 0.0f; }
 	template<> static CSTRING DefaultVal<CSTRING>() { return ""; }

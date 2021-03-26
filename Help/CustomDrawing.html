@@ -228,14 +228,12 @@ function myDrawingFunction(dc)
    containing a mixture of styles, especially if the text needs
    to be word-wrapped to display paragraphs or more complex
    layouts.  For something like
-   that, you should instead use the <a href="HtmlLayout.html">HtmlLayout</a>
-   class, which provides a high-level interface for complex text
-   layout tasks.  HtmlLayout works seamlessly with the drawing
-   primitives discussed below, so you can freely mix it with
-   the other graphics primitives to build up composite displays.
-   On the other hand, the basic text primitives are still a
-   good choice for simple tasks, since HtmlLayout is slower
-   and needs more memory to operate.
+   that, you should instead use <a href="StyledText.html">StyledText</a>
+   or <a href="HtmlLayout.html">HtmlLayout</a>.  Those
+   classes provide higher-level interfaces for complex text
+   layout tasks, and they both readily inter-operate with the
+   primitives discussed below, so you can freely mix formatted text
+   layouts with the other graphics to build up composite displays.
 </p>
 
 
@@ -274,13 +272,15 @@ function myDrawingFunction(dc)
    of the text area.  If <i>string</i> doesn't end in a newline, the text origin
    is positioned immediately to the right of the drawn text.
    <p>
-      See <a href="HtmlLayout.html">HtmlLayout</a> for an alternative method for
+      See <a href="HtmlLayout.html">HtmlLayout</a> and <a href="StyledText.html">StyledText</a>
+      for alternative ways of
       drawing more complex layouts that include mixed styles.  drawText() can only
       draw text in one font style at a time, so it's difficult to use if
       you want to mix multiple font styles within a single text display. HtmlLayout
-      provides a high-level interface for more complex layouts, and it inter-operates
-      readily with the rest of the Custom Drawing primitives, so it's like a
-      "super" version of drawText() suitable for more complex text.
+      and StyledText provide higher-level interfaces for more complex layouts, and
+      they inter-operate with the rest of the Custom Drawing primitives, so they're
+      like "super" versions of drawText() that work on styled text instead of
+      plain text.
    </p>
    
    <li><b>fillRect(<i>x</i>, <i>y</i>, <i>width</i>, <i>height</i>, <i>color</i>):</b>  Fills

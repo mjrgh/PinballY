@@ -63,6 +63,15 @@
    That example uses HtmlLayout to format a high score listing using
    a mixture of text sizes and styles.
 </p>
+<p>
+   HtmlLayout is a more powerful alternative to
+   <a href="StyledText.html">StyledText</a>, which can also lay out
+   text with mixed styles, but using a more programming-oriented
+   interface than HtmlLayout's markup interface, and without as
+   many layout features.  StyledText might be more convenient to
+   use for some tasks, especially for simpler layouts.
+</p>
+
 
 <h2>How to use HtmlLayout</h2>
 <p>
@@ -166,9 +175,8 @@ myDrawingLayer.draw(dc => {
    alignment, taking into account all of the different styles
    of the text it contains and the bounds of the area it'll be
    drawn into.  You can measure the effect of the word-wrapping
-   using the <b>measure()</b> method, specifying the width,
-   and optionally the height, of the
-   available space.  That will do all of the HTML layout
+   using the <b>measure()</b> method, specifying the width of
+   the available space.  That will do all of the HTML layout
    calculations to determine how much vertical space is
    needed to fit the resulting text.  It'll also
    tell you the actual width needed, which might be a
@@ -310,10 +318,7 @@ let size = layout.measure(250);
    Measure the space needed for the graphical layout of the DOM tree
    in the object, including all of its contents as well as borders
    and padding.  The space is calculated based on rendering the
-   contents to the specified width and height, given in pixels.
-   The <i>height</i> can be omitted, in which case the minimum
-   height needed to contain the DOM contents at the given rendering
-   width will be figured.
+   contents to the specified display width, given in pixels.
    <p>
       The method returns an object with properties <b>width</b>
       and <b>height</b>, giving the dimensions of the rendered
