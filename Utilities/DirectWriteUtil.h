@@ -34,9 +34,9 @@ public:
 	{
 	public:
 		// basic IUnknown implementation
-		ULONG AddRef() override { return RefCounted::AddRef(); }
-		ULONG Release() override { return RefCounted::Release(); }
-		HRESULT QueryInterface(IID const &riid, void **ppvObject)
+		ULONG STDMETHODCALLTYPE AddRef() override { return RefCounted::AddRef(); }
+		ULONG STDMETHODCALLTYPE Release() override { return RefCounted::Release(); }
+		HRESULT STDMETHODCALLTYPE QueryInterface(IID const &riid, void **ppvObject)
 		{
 			if (ppvObject == nullptr)
 				return E_POINTER;

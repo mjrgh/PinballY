@@ -2996,14 +2996,14 @@ protected:
 
 	// Javascript StyledText objects
 	JsValueRef jsStyledTextProto;
-	static JsValueRef JsStyledTextConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
-	static JsValueRef JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	static JsValueRef CALLBACK JsStyledTextConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	static JsValueRef CALLBACK JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 	void JsStyledTextDraw(JsValueRef self, JsValueRef jsdc, JavascriptEngine::JsObj rcLayout, JavascriptEngine::JsObj rcClip);
 	JsValueRef JsStyledTextMeasure(JsValueRef self, float width);
 
 	// Javascript HtmlLayout objects
 	JsValueRef jsHtmlLayoutProto;
-	static JsValueRef JsHtmlLayoutConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	static JsValueRef CALLBACK JsHtmlLayoutConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
 	void JsHtmlLayoutDraw(JsValueRef self, JsValueRef jsdc, JavascriptEngine::JsObj rcLayout, JavascriptEngine::JsObj rcClip);
 	JsValueRef JsHtmlLayoutMeasure(JsValueRef self, int width);
 

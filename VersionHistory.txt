@@ -1,6 +1,13 @@
 PinballY Update History
 
-? (1.1.0 Release)
+03-26-2021 (1.1.0 Beta)
+
+* I'm calling this release a Beta, since it has some significant new
+features that could use some field testing, but mostly just in case
+any of the code changes for the new features happen to accidentally
+create any problems with existing functionality.  If you run into any
+serious problems, you can always switch back to the 1.0 release until
+they're fixed.
 
 * The generated high-score display now uses all of the VPinMAME color
 option settings stored in the registry when generating dot-style high

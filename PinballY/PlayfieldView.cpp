@@ -7050,7 +7050,7 @@ public:
 };
 
 
-JsValueRef PlayfieldView::JsStyledTextConstructor(
+JsValueRef CALLBACK PlayfieldView::JsStyledTextConstructor(
 	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	// get the javascript engine context and the playfield view
@@ -7109,7 +7109,7 @@ JsValueRef PlayfieldView::JsStyledTextConstructor(
 	return ret;
 }
 
-JsValueRef PlayfieldView::JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+JsValueRef CALLBACK PlayfieldView::JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	// get the javascript engine context and the playfield view
 	auto js = JavascriptEngine::Get();
@@ -7247,7 +7247,7 @@ public:
 };
 
 
-JsValueRef PlayfieldView::JsHtmlLayoutConstructor(
+JsValueRef CALLBACK PlayfieldView::JsHtmlLayoutConstructor(
 	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
 {
 	// get the javascript engine context and the playfield view

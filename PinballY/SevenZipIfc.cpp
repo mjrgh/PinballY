@@ -274,7 +274,7 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, IStream *fileStream, Error
 
 		MY_UNKNOWN_IMP1(IInStream);
 
-		HRESULT Seek(Int64 offset, UInt32 seekOrigin, UInt64 *pNewPos)
+		HRESULT STDMETHODCALLTYPE Seek(Int64 offset, UInt32 seekOrigin, UInt64 *pNewPos)
 		{
 			if (src == nullptr)
 				return E_FAIL;
@@ -290,7 +290,7 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, IStream *fileStream, Error
 			return S_OK;
 		}
 
-		HRESULT Read(void *data, UInt32 size, UInt32 *processedSize)
+		HRESULT STDMETHODCALLTYPE Read(void *data, UInt32 size, UInt32 *processedSize)
 		{
 			ULONG actual = 0;
 			HRESULT result = S_OK;

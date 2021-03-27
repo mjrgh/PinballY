@@ -172,8 +172,8 @@ void MediaDropTarget::FileDrop::EnumFiles(std::function<void(const TCHAR*, IStre
 					// send us file descriptors with the size (and all of the other fields)
 					// zeroed out.  It seems that our only option is to use the memory
 					// block size, imprecise though it might be.
-					size_t fileSize = (fileDesc->nFileSizeHigh | fileDesc->nFileSizeLow) != 0 ?
-						(static_cast<size_t>(fileDesc->nFileSizeHigh) << 32) | fileDesc->nFileSizeLow :
+					UINT64 fileSize = (fileDesc->nFileSizeHigh | fileDesc->nFileSizeLow) != 0 ?
+						(static_cast<UINT64>(fileDesc->nFileSizeHigh) << 32) | fileDesc->nFileSizeLow :
 						GlobalSize(stg.hGlobal);
 
 					// Create a memory stream on the contents of the HGLOBAL.
