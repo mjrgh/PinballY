@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Customizing the Wheel Layout</h1>
+
+<p>
+   You can change the geometry of the "game wheel" layout in the main
+   window by changing some variables in the settings file (Settings.txt).
+</p>
+<p>
+   The game wheel settings work in terms of the coordinate system that
+   the Windows Direct3D graphics system uses, which is a little different
+   from what you're probably to if you've done any "normal" 2D computer
+   graphics.  You're probably used to thinking of the computer screen
+   in terms of pixels.  D3D doesn't use pixels.  It uses an abstract
+   coordinate system that's more like what you probably used in your
+   high school algebra class.  In the D3D system, the whole window is
+   exactly 1 unit tall and 1 unit wide, and its exact center is at
+   the (x,y) coordinate (0,0).  These coordinates increase to the
+   right and in the upwards direction.  Think of it as an algebraic
+   graph positioned with the origin (coordinates 0,0) at the very center
+   of the screen:
+</p>
+<img class="example" src="d3d_coords.png">
+
+<p>
+   Apart from the abstract units, pay close attention to the way the
+   Y (vertical) axis is reversed from the normal 2D pixel coordinate
+   system.  Pixel coordinates usually start at 0 at the top row, and
+   increase in the <i>down</i> direction, so that the bottom of a
+   1000-pixel-tall window is at row 999.  In contrast, the Y coordinates
+   in the D3D system increase in the <i>upwards</i> direction.  The
+   X coordinates still increase to the right, which is the same as
+   the 2D convention, but of course they start at a negative value
+   (-0.5) at the left side of the screen rather than starting at zero.
+</p>
+
+<p>
+   With that coordinate system in mind, here are the Settings.txt
+   parameters that control the wheel layout.  Note that, as with all
+   Settings.txt parameters, capitalization is important - you have
+   to enter the names <b>exactly</b> as shown, using the exact same
+   upper- and lower-case letters.
+</p>
+
+<ul>
+
+   <li><b>Wheel.YCenter:</b>  The vertical position (in the D3D coordinate
+   system described above) of the <b>center of the circle</b> that defines
+   the wheel.  (The wheel is always centered in the window left-to-right,
+   so there's no "XCenter" parameter.)  The default is -0.803645833,
+   which is below the bottom of the window by about half the window's
+   height; this positions the visible portion of the wheel in the bottom
+   third of the window.
+
+   <li><b>Wheel.Radius:</b>  The radius of the wheel's overall circle, in
+   terms of the height of the window.  A radius of 1.0 makes the wheel's
+   radius the same as the window's height.  The default is 0.476041667,
+   makes the visible portion of the wheel appear as an arc.
+
+   <li><b>Wheel.Angle:</b>  The angle between game icons on the wheel,
+   in <b>radians</b>.  The default is 0.25 (about 15&deg;).
+
+   <li><b>Wheel.ImageWidth:</b>  The width of the wheel icon for the
+   center (selected) game, in D3D horizontal units.  The icons are
+   scaled to this width, maintaining the original aspect ratio of
+   the native image.  The default is 0.14.
+
+   <li><b>Wheel.YSelected:</b>  The vertical location (in D3D coordinates)
+   for the current selected game's icon.  This allows the current
+   selection to be moved vertically away from the wheel arc, to give
+   it a more prominent placement nearer the center of the screen.
+   The default is -0.07135, which is slightly below center.
+
+</ul>
+
+</body>
+</html>
+
