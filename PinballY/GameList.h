@@ -141,6 +141,30 @@ public:
 // Media type descriptor
 struct MediaType
 {
+	// Format type
+	enum Format
+	{
+		Image,                 // still image
+		SilentVideo,           // video with no audio track
+		VideoWithAudio,        // video with an optional audio track
+		Audio                  // audio
+	};
+
+	// Create a user-defined media type, and add it to the global list
+	static MediaType *CreateUserDefined(
+		int menuOrder, const TCHAR *subdir, bool perSystem, const TCHAR *exts,
+		const TCHAR *name, const TCHAR *configId, const TCHAR *javascriptID,
+		const TCHAR *captureStartConfigVar, const TCHAR *captureStopConfigVar, const TCHAR *captureTimeConfigVar,
+		Format format, int rotation, bool indexed, const std::list<TSTRING> *pageList, bool hasDropButton);
+
+	// The pre-defined (built-in) media type objects are statically
+	// allocated, and only contain references to static strings, so
+	// those don't need a destructor.  However, Javascript can also
+	// create media types dynamically, and these might contain
+	// references to allocated strings, so we need to clean those
+	// up at termination.
+	~MediaType();
+
 	// Save a backup copy of the given media file, by renaming it
 	// to <base name>.old[<N>].<ext>, where N is the next higher
 	// integer above any existing files of the same name pattern.
@@ -178,7 +202,14 @@ struct MediaType
 	// determine if a filename matches one of our extensions
 	bool MatchExt(const TCHAR *filename) const;
 
-	// Name string resource ID (IDS_MEDIATYPE_xxx)
+	// Name string resource ID (IDS_MEDIATYPE_xxx).  Note that you
+	// should almost always use nameStr instead - that's the actual
+	// text from the resource, loaded at program startup.  The
+	// resource ID will be zero for any user-defined resource, since
+	// the user Javascript code defines the name string directly
+	// for those.  So unless you know that you're dealing with a
+	// pre-defined static media type, the actual string is the one
+	// to use.
 	int nameStrId;
 
 	// Config file ID.  This is used to refer to the media type in
@@ -206,14 +237,7 @@ struct MediaType
 	const TCHAR *captureStopConfigVar;
 	const TCHAR *captureTimeConfigVar;
 
-	// Format type
-	enum Format
-	{
-		Image,                 // still image
-		SilentVideo,           // video with no audio track
-		VideoWithAudio,        // video with an optional audio track
-		Audio                  // audio
-	};
+	// Media format class
 	Format format;
 
 	// Is this some kind of video format?
@@ -239,8 +263,22 @@ struct MediaType
 	// Page list for the type.  Some types (notably Flyer Images)
 	// represent multiple pages as named subdirectories of the main
 	// media folder for the type.  The files in the subdirectories
-	// all have the base name.
+	// all have the base name.  This is an array of strings, with
+	// a null string pointer marking the end of the array.
 	const TCHAR **pageList;
+
+	// Is this a user-defined custom media type?
+	bool isUserDefined = false;
+
+	// Should this media type be included in the DROP HERE buttons
+	// offered in the main screen?
+	bool hasDropHereButton = false;
+
+	// The name of the media type.  For pre-defined system media
+	// types, this is loaded from the resource given by nameStrId.
+	// For user-defined media types created through Javascript, this
+	// is the name assigned by the user code.
+	TSTRING nameStr;
 };
 
 // Game list item.  This represents one game in the game list.
@@ -353,30 +391,43 @@ public:
 	bool UpdateMediaName(std::list<std::pair<TSTRING, TSTRING>> *fileRenameList, const TCHAR *newName);
 
 	// Media types
-	static const MediaType playfieldImageType;
-	static const MediaType playfieldVideoType;
-	static const MediaType playfieldAudioType;
-	static const MediaType backglassImageType;
-	static const MediaType backglassVideoType;
-	static const MediaType dmdImageType;
-	static const MediaType dmdVideoType;
-	static const MediaType topperImageType;
-	static const MediaType topperVideoType;
-	static const MediaType wheelImageType;
-	static const MediaType instructionCardImageType;
-	static const MediaType flyerImageType;
-	static const MediaType launchAudioType;
-	static const MediaType realDMDImageType;
-	static const MediaType realDMDColorImageType;
-	static const MediaType realDMDVideoType;
-	static const MediaType realDMDColorVideoType;
+	static MediaType playfieldImageType;
+	static MediaType playfieldVideoType;
+	static MediaType playfieldAudioType;
+	static MediaType backglassImageType;
+	static MediaType backglassVideoType;
+	static MediaType dmdImageType;
+	static MediaType dmdVideoType;
+	static MediaType topperImageType;
+	static MediaType topperVideoType;
+	static MediaType wheelImageType;
+	static MediaType instructionCardImageType;
+	static MediaType flyerImageType;
+	static MediaType launchAudioType;
+	static MediaType realDMDImageType;
+	static MediaType realDMDColorImageType;
+	static MediaType realDMDVideoType;
+	static MediaType realDMDColorVideoType;
 
 	// Master list of media types, and table of types indexed by Javascript ID
 	static std::list<const MediaType*> allMediaTypes;
 	static std::unordered_map<WSTRING, const MediaType*> jsMediaTypes;
 	static void InitMediaTypeList();
 
-	// Get media item filenames.
+	// Add a new (user-defined) media type
+	static void AddMediaType(const MediaType *m);
+
+	// Look up a media type by its Javascript ID
+	static const MediaType *MediaTypeByJsId(const WCHAR *id);
+
+	// Clear the media type lists, and delete any dynamically
+	// allocated media type objects.  This should be called just
+	// before program exit to clean up any user-defined media
+	// type objects allocated through Javascript.
+	static void ClearMediaTypeList();
+
+	// Media file resolution - get the file system filename(s)
+	// for a media item of the given type.
 	//
 	// If 'forCapture' is false, these search in the standard
 	// location for a media item of the given type for this game.
@@ -402,12 +453,62 @@ public:
 	// If 'enableSwf' is true, we'll include SWF (Shockwave Flash)
 	// files in the search; otherwise we'll skip these files.
 	//
-	bool GetMediaItem(TSTRING &filename,
-		const MediaType &mediaType, bool forCapture = false, bool enableSwf = true) const;
+	// 'index' specifies which item to return for indexed media
+	// (such as Instruction Cards) and paged media (such as Flyers).
+	// Pass zero to retrieve the first item from the set.  Values
+	// greater than zero will return false ("not found") for
+	// regular media types.  Pass -1 to retrieve items at all
+	// index values.  Note that the index doesn't correspond
+	// directly to Flyer Page N or Instruction Card N, because
+	// not all slots are necessarily populated.  Rather, it
+	// corresponds to the position in the result list.  So if
+	// an Instruction Card set has items number 1, 3, and 7,
+	// and we're limiting the results to existing items, we
+	// have a three-element result with 'index' values 0, 1,
+	// and 2.  This also applies comes into play if a media
+	// type is both indexed AND paged; in that case, the list
+	// is built in page-first order (Page 0 Index 0, Page 0
+	// Index 1, Page 0 Index 2, ... Page 1 Index 0, ...), and
+	// 'index' applies to the actual results in that order.
+	// In most cases, we expect that callers will simply want
+	// to step through media sequentially, so this provides an
+	// easy interface for that use case.
+	//
 
-	// Get the list of media items for the given type
+	// Get a single media item of the given type.  If there are
+	// multiple matches, the file with the lowest index is
+	// returned, and if there are multiple files with the same
+	// index, the one with the most recent 'modified' timestamp
+	// (in the file system metadata) is returned.  Multiple
+	// matches are possible if 'index' is -1 and the media type
+	// is paged or indexed, OR if there are multiple files with
+	// different extensions matching the media name (e.g., both
+	// a .jpg and .png file with the same root name).  We return
+	// the newest match in cases of multiple matches with
+	// different extensions on the assumption that the user
+	// probably *intended* the most recently added file to
+	// overwrite the older file of the same name, but didn't
+	// notice that the old file wasn't actually removed, since
+	// it has a different suffix and thus counts as a separate
+	// file as far as Windows is concerned.
+	bool GetMediaItem(TSTRING &filename, 
+		const MediaType &mediaType, 
+		bool forCapture = false, bool enableSwf = true,
+		int index = 0) const;
+
+	// Get the list of media items for the given type.
+	//
+	// 'flags' is a combination of the GMI_xxx flag constants
+	// defined below; see the comments there for the meanings of
+	// the bits.
+	//
+	// 'index' indicates which item we should return out of
+	// a set of paged or indexed media items, such as Flyers
+	// or Instruction Cards.  The default -1 means that we
+	// return all of the items for all pages/indices.
 	bool GetMediaItems(std::list<TSTRING> &filenames, 
-		const MediaType &mediaType, DWORD flags = GMI_EXISTS) const;
+		const MediaType &mediaType, DWORD flags = GMI_EXISTS,
+		int index = -1) const;
 
 	//
 	// GetMediaItems() flags
@@ -426,6 +527,22 @@ public:
 	// Ignore SWF files
 	static const DWORD GMI_NO_SWF = 0x0004;
 
+	// In cases of multiple file matches for a given index/page
+	// position, use the newest file (i.e., the one with the most
+	// recent 'modified' timestamp in the file system metadata).
+	// This applies when there are multiple files with the same
+	// root name and different extensions, such as a .jpg file
+	// and a .png file.  In this case, we resolve the conflict
+	// by only including the newest file.  This is meant to
+	// infer the user's intent on the basis that they probably
+	// intended whichever file they copied into the folder last
+	// to overwrite any previous copy, but didn't notice that
+	// the old file wasn't actually overwritten by the copy
+	// because its name differed in the extension.  This flag
+	// is only meaningful when combined with GWI_EXISTS, since
+	// non-existence items don't have file system metadata
+	// that we can use to break a tie.
+	static const DWORD GMI_NEWEST = 0x0008;
 
 	// Get the destination file for a given drop file
 	TSTRING GetDropDestFile(const TCHAR *droppedFile, const MediaType &mediaType) const;

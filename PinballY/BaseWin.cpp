@@ -158,10 +158,16 @@ LRESULT CALLBACK BaseWin::StaticWndProc(HWND hWnd, UINT message, WPARAM wParam, 
 		// stack a message descriptor
 		struct Stacker
 		{
-			// on creation, set up our internal curMsg, stack the old one, and make
-			// out internal curMsg the active one
+			// On creation, set up our internal curMsg, stack the old one, and make
+			// out internal curMsg the active one.
+			//
+			// In addition, this adds a counted reference to 'self', to ensure that
+			// the window object can't be deleted as long as this stacked reference
+			// exists.  This guarantees that the BaseWin object remains valid until
+			// we're finished processing the event, even if the event leads indirectly
+			// to the underlying HWND being closed or destroyed.
 			Stacker(BaseWin *self, UINT message, WPARAM wParam, LPARAM lParam)
-				: self(self), curMsg(message, wParam, lParam), prvMsg(self->curMsg)
+				: self(self, DoAddRef), curMsg(message, wParam, lParam), prvMsg(self->curMsg)
 			{
 				self->curMsg = &curMsg;
 			}
@@ -169,12 +175,12 @@ LRESULT CALLBACK BaseWin::StaticWndProc(HWND hWnd, UINT message, WPARAM wParam, 
 			// when we go out of scope, restore the stacked curMsg
 			~Stacker() { self->curMsg = prvMsg; }
 			
-			BaseWin *self;		// this window object
-			CurMsg curMsg;		// the current message
-			CurMsg *prvMsg;		// the stacked prior message
+			RefPtr<BaseWin> self;	// this window object
+			CurMsg curMsg;			// the current message
+			CurMsg *prvMsg;			// the stacked prior message
 		}
 		curMsg(self, message, wParam, lParam);
-		
+
 		// dispatch through the virtual window proc
 		return self->WndProc(message, wParam, lParam);
 	}

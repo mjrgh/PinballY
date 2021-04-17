@@ -93,13 +93,8 @@ GdiplusIniter::~GdiplusIniter()
 	Gdiplus::GdiplusShutdown(token);
 }
 
-static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, int weight, bool italic)
+static Gdiplus::Font *CreateGPFont0(const TCHAR *faceName, float emSize, Gdiplus::FontStyle style)
 {
-	// figure the style
-	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
-	if (italic)
-		style |= Gdiplus::FontStyleItalic;
-
 	// Try loading a font by name.  Returns a Gdiplus::Font* on success,
 	// nullptr on failure.
 	auto TryFont = [emSize, style](const TCHAR *name) -> Gdiplus::Font*
@@ -200,11 +195,15 @@ Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, bo
 	// figure the em size in pixels: 1 point = 1/72"
 	float emSize = (float)pointSize * (float)dpi / (float)72.0f;
 
+	// figure the Gdiplus style bits
+	int style = weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular;
+	if (italic) style |= Gdiplus::FontStyleItalic;
+
 	// create the font
-	return CreateGPFont0(faceName, emSize, weight, italic);
+	return CreateGPFont0(faceName, emSize, static_cast<Gdiplus::FontStyle>(style));
 }
 
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, bool italic, HDC hdc)
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, Gdiplus::FontStyle style, HDC hdc)
 {
 	// figure the pixel pitch in pix/inch: use the pixel pitch specific
 	// to the device if a DC was provided, otherwise use the reference 96dpi
@@ -214,7 +213,7 @@ Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weigh
 	float emSize = 96.0f/float(dpi) * float(pixHeight);
 
 	// create the font
-	return CreateGPFont0(faceName, emSize, weight, italic);
+	return CreateGPFont0(faceName, emSize, style);
 }
 
 void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,
@@ -245,7 +244,7 @@ void GPDrawStringAdv(Gdiplus::Graphics &g, const TCHAR *str,
 // GDI+ string drawing context
 //
 
-GPDrawString::GPDrawString(Gdiplus::Graphics &g, Gdiplus::RectF &bbox) :
+GPDrawString::GPDrawString(Gdiplus::Graphics &g, const Gdiplus::RectF &bbox) :
 	g(g),
 	bbox(bbox),
 	curOrigin(bbox.GetLeft(), bbox.GetTop())

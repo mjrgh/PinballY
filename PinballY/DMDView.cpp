@@ -1207,7 +1207,11 @@ struct HighScoreGraphicsGenThread
 				if (ptSize != 0)
 					font.reset(CreateGPFont(family, ptSize, weight, italic));
 				else
-					font.reset(CreateGPFontPixHt(family, ht / 8, weight, italic));
+				{
+					int gpStyleBits = (weight >= 700 ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular);
+					if (italic) gpStyleBits |= Gdiplus::FontStyleItalic;
+					font.reset(CreateGPFontPixHt(family, ht / 8, static_cast<Gdiplus::FontStyle>(gpStyleBits)));
+				}
 
 				// combine the text into a single string separated by line breaks
 				TSTRING txt;

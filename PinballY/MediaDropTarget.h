@@ -51,7 +51,7 @@ public:
 	class FileDrop
 	{
 	public:
-		FileDrop() : hDrop(NULL), nFiles(0) { }
+		FileDrop() : hDrop(NULL), fileGroupDesc(nullptr, ::free), nFiles(0) { }
 		
 		// initialize from an IDataObject interface
 		bool Init(IDataObject *pDataObj);
@@ -61,23 +61,28 @@ public:
 		{
 			pDataObj = nullptr;
 			hDrop = NULL;
+			fileGroupDesc.reset();
 			nFiles = 0;
 		}
 
 		// is it valid?
-		bool IsValid() const { return hDrop != NULL; }
+		bool IsValid() const { return hDrop != NULL || fileGroupDesc != nullptr; }
 
 		// get the number of files
 		int GetNumFiles() const { return nFiles; }
 
 		// iterate over the files
-		void EnumFiles(std::function<void(const TCHAR *filename)> func) const;
+		void EnumFiles(std::function<void(const TCHAR *filename, IStream *stream)> func);
 
 	protected:
-		// the file drop handle
+		// For CF_HDROP transfers, the file drop handle
 		HDROP hDrop;
 
-		// number of files
+		// For CFSTR_FILEDESCRIPTOR + CFSTR_FILECONTENT transfers, the 
+		// FILEGROUPDESCIPTOR data
+		std::unique_ptr<FILEGROUPDESCRIPTOR, decltype(&::free)> fileGroupDesc;
+
+		// the number of files being transferred
 		UINT nFiles;
 
 		// underlying pDataObj

@@ -19,8 +19,13 @@
 #include "../Utilities/DateUtil.h"
 #include "../Utilities/FileUtil.h"
 #include "../Utilities/GraphicsUtil.h"
+#include "../Utilities/DirectWriteUtil.h"
 #include "../Utilities/std_filesystem.h"
+#include "LitehtmlHost.h"
 #include "PlayfieldView.h"
+#include "SecondaryView.h"
+#include "CustomView.h"
+#include "CustomWin.h"
 #include "Resource.h"
 #include "DialogResource.h"
 #include "D3D.h"
@@ -341,6 +346,141 @@ bool PlayfieldView::Create(HWND parent)
 	return true;
 }
 
+// Create a new custom media window from Javascript
+JsValueRef PlayfieldView::JsCreateMediaWindow(JavascriptEngine::JsObj options)
+{
+	LogFileErrorHandler eh;
+	try
+	{
+		// Custom window number.  For the sake of reasonable defaults for the 
+		// window title and other strings needed to create the window, use a
+		// serial number for each window.  This at least makes sure that the
+		// defaults are unique within the session.
+		static int customWindowNum = 0;
+		customWindowNum += 1;
+
+		// parse the options
+		auto js = JavascriptEngine::Get();
+		TSTRING title(MsgFmt(_T("Custom Window %d"), customWindowNum));
+		TSTRINGEx configVarPrefix(MsgFmt(_T("CustomWindow%d"), customWindowNum));
+		HWND parent = GetHWnd();
+		int nCmdShow = SW_SHOW;
+		if (!options.IsNull())
+		{
+			if (options.Has("title")) title = options.Get<TSTRING>("title");
+			if (options.Has("configVarPrefix")) configVarPrefix = options.Get<TSTRING>("configVarPrefix");
+			if (options.Has("parent")) parent = options.Get<HWND>("parent");
+			if (options.Has("showCommand")) nCmdShow = options.Get<int>("showCommand");
+		}
+
+		// create the Javascript object to represent the window, as an instance of CustomWindow
+		JsValueRef jsWinObj = js->CallNew(jsCustomWindowClass, title);
+
+		// create the frame window
+		RefPtr<CustomWin> frame(new CustomWin(customWindowNum, jsWinObj, configVarPrefix.c_str(), title.c_str()));
+
+		// create the window
+		frame->CreateWin(parent, nCmdShow, title.c_str());
+
+		// set up the view window
+		if (auto view = dynamic_cast<CustomView*>(frame->GetView()); view != nullptr)
+		{
+			// set up options
+			if (!options.IsNull())
+			{
+				// set the media types
+				auto GetMediaTypeOption = [&options](const char *name) -> const MediaType* {
+					return options.Has(name) ? GameListItem::MediaTypeByJsId(options.Get<WSTRING>(name).c_str()) : nullptr;
+				};
+				view->SetBackgroundImageMediaType(GetMediaTypeOption("backgroundImageMediaType"));
+				view->SetBackgroundVideoMediaType(GetMediaTypeOption("backgroundVideoMediaType"));
+
+				// set the default media names
+				if (options.Has("defaultBackgroundImage"))
+					view->SetDefaultBackgroundImage(options.Get<TSTRING>("defaultBackgroundImage").c_str());
+				if (options.Has("defaultBackgroundVideo"))
+					view->SetDefaultBackgroundVideo(options.Get<TSTRING>("defaultBackgroundVideo").c_str());
+				if (options.Has("startupVideo"))
+					view->SetStartupVideoName(options.Get<TSTRING>("startupVideo").c_str());
+				if (options.Has("showMediaWhenRunningKey")) 
+					view->SetShowMediaWhenRunningId(options.Get<TSTRING>("showMediaWhenRunningKey").c_str());
+				if (options.Has("isMediaCapturable"))
+					view->SetMediaCapturable(options.Get<bool>("isMediaCapturable"));
+			}
+
+			// initialize common secondary window properties and methods
+			InitJsWinObj(frame, jsWinObj, "CustomWindow", eh);
+
+			// intialize CustomView properties and methods
+			if (!js->DefineGetterSetter(jsWinObj, "CustomView", "showMediaWhenRunningFlag",
+				&CustomView::JsGetShowMediaWhenRunningFlag, &CustomView::JsSetShowMediaWhenRunningFlag, view, eh))
+				return js->GetUndefVal();
+		}
+
+		// Success so far.  Add a command to the main window's context menu to
+		// show this window, based on its serial number.
+		AddShowWindowCmdForCustomWindow(customWindowNum);
+
+		// return the javascript object representing the window
+		return jsWinObj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return JavascriptEngine::Get()->Throw(exc.jsErrorCode, AnsiToTSTRING(exc.what()).c_str());
+	}
+}
+
+void PlayfieldView::AddShowWindowCmdForCustomWindow(int serial)
+{
+	// if the window number is out of range of the available Show command IDs,
+	// we can't add a command, so ignore the request
+	if (serial < 1 || serial > ID_VIEW_CUSTOM_LAST - ID_VIEW_CUSTOM_FIRST + 1)
+		return;
+
+	// figure the command ID
+	int commandId = ID_VIEW_CUSTOM_FIRST + serial - 1;
+
+	// get our context menu
+	HMENU menu = GetSubMenu(hContextMenu, 0);
+
+	// Search for the insertion position.  We want to insert this after
+	// all of the *other* ID_VIEW_xxx commands already in the menu.
+	bool foundViewCommand = false;
+	std::list<UINT> viewCommands = { ID_VIEW_PLAYFIELD, ID_VIEW_BACKGLASS, ID_VIEW_DMD, ID_VIEW_TOPPER, ID_VIEW_INSTCARD };
+	for (int i = 0, n = GetMenuItemCount(menu); i < n; ++i)
+	{
+		// get this menu item 
+		MENUITEMINFO mii;
+		mii.cbSize = sizeof(mii);
+		mii.fMask = MIIM_ID;
+		bool isViewCommand = (GetMenuItemInfo(menu, i, TRUE, &mii)
+			&& (findex(viewCommands, mii.wID) != viewCommands.end()
+				|| (mii.wID >= ID_VIEW_CUSTOM_FIRST && mii.wID <= ID_VIEW_CUSTOM_LAST)));
+
+		// If it's a view command, note that we've found at least one view command
+		// so far.  Otherwise, if we've found a view command, we must have reached
+		// the end of the view command group, so this is the insertion point.
+		if (isViewCommand)
+		{
+			// simply note that we're in the view command group
+			foundViewCommand = true;
+		}
+		else if (foundViewCommand)
+		{
+			// This is the insertion point.  Note that the the text is just a
+			// placeholder; we'll replace it with the live window title each time
+			// the menu is displayed.
+			mii.fMask = MIIM_ID | MIIM_STRING;
+			mii.wID = commandId;
+			mii.dwTypeData = _T("Show <Custom Window>");
+			InsertMenuItem(menu, i, TRUE, &mii);
+
+			// stop searching
+			break;
+		}
+	}
+}
+
 PlayfieldView::RealDMDStatus PlayfieldView::GetRealDMDStatus() const
 {
 	// Get the RealDMD configuration setting.  Possible settings are:
@@ -655,94 +795,32 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsLaunchOverlayMessageEvent, "LaunchOverlayMessageEvent")
 				|| !GetObj(jsDOFEventEvent, "DOFEventEvent")
 				|| !GetObj(jsVideoEndEvent, "VideoEndEvent")
+				|| !GetObj(jsMediaSyncBeginEvent, "MediaSyncBeginEvent")
+				|| !GetObj(jsMediaSyncLoadEvent, "MediaSyncLoadEvent")
+				|| !GetObj(jsMediaSyncEndEvent, "MediaSyncEndEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
 				|| !GetObj(jsGameInfo, "GameInfo")
 				|| !GetObj(jsGameSysInfo, "GameSysInfo")
 				|| !GetObj(jsFilterInfo, "FilterInfo")
-				|| !GetObj(jsOptionSettings, "optionSettings"))
+				|| !GetObj(jsOptionSettings, "optionSettings")
+				|| !GetObj(jsMediaWindowClass, "MediaWindow")
+				|| !GetObj(jsSecondaryWindowClass, "SecondaryWindow")
+				|| !GetObj(jsCustomWindowClass, "CustomWindow"))
 				return;
 
 			// Initialize generic properties for a js window object.  Note that this has
 			// to wait until after binding the DLL import subsystem, since we depend upon
 			// the native HANDLE object type.
-			auto InitWinObj = [&js, &GetObj, &eh](FrameWin *frame, JsValueRef &jswinobj, const CHAR *name)
+			auto InitWinObj = [this, &js, &GetObj, &eh](FrameWin *frame, JsValueRef &jswinobj, const CHAR *name)
 			{
 				// get the window object
 				if (!GetObj(jswinobj, name))
 					return false;
 
-				// get the view
-				auto view = dynamic_cast<BaseView*>(frame->GetView());
-
-				// set up the HWND properties
-				JsErrorCode err;
-				const TCHAR *where = _T("unknown");
-				JsValueRef propval;
-				if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
-					|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
-					|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
-					|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
-				{
-					LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
-					return false;
-				}
-				if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
-					|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "createDrawingLayer", &BaseView::JsCreateDrawingLayer, view, eh)
-					|| !js->DefineObjPropFunc(jswinobj, name, "removeDrawingLayer", &BaseView::JsRemoveDrawingLayer, view, eh))
-					return false;
-
-				// Create the window's DrawingLayer class prototype
-				JsValueRef drawingLayerClass, drawingLayerProto;
-				if ((err = js->GetProp(drawingLayerClass, jswinobj, "drawingLayerClass", where)) != JsNoError
-					|| (err = js->GetProp(drawingLayerProto, drawingLayerClass, "prototype", where)) != JsNoError)
-				{
-					LogFile::Get()->Write(LogFile::JSLogging, 
-						_T(". getting window's DrawingLayer class and prototype, %s: %s"),
-						where, js->JsErrorToString(err));
-					return false;
-				}
-
-				// Save the prototype in the view.  Each view has its own prototype,
-				// since the prototype methods need to point back to that view's
-				// C++ object.
-				view->jsDrawingLayerClass = drawingLayerClass;
-				JsAddRef(drawingLayerClass, nullptr);
-
-				// set up the LaunchOverlayLayer prototype methods
-				if (!js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadImage",
-					&BaseView::JsDrawingLayerLoadImage, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadVideo",
-						&BaseView::JsDrawingLayerLoadVideo, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "drawDMDText",
-						&BaseView::JsDrawingLayerLoadDMDText, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "draw",
-						&BaseView::JsDrawingLayerDraw, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "clear",
-						&BaseView::JsDrawingLayerClear, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setScale",
-						&BaseView::JsDrawingLayerSetScale, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setPos",
-						&BaseView::JsDrawingLayerSetPos, view, eh)
-					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "alpha",
-						&BaseView::JsDrawingLayerGetAlpha, &BaseView::JsDrawingLayerSetAlpha, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "play",
-						&BaseView::JsDrawingLayerPlay, view, eh)
-					|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "pause",
-						&BaseView::JsDrawingLayerPause, view, eh)
-					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "volume",
-						&BaseView::JsDrawingLayerGetVol, &BaseView::JsDrawingLayerSetVol, view, eh)
-					|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "mute",
-						&BaseView::JsDrawingLayerGetMute, &BaseView::JsDrawingLayerSetMute, view, eh))
-					return false;
-
-				// success 
-				return true;
+				// initialize the javascript object's methods and properties
+				return this->InitJsWinObj(frame, jswinobj, name, eh);
 			};
 			if (!InitWinObj(Application::Get()->GetPlayfieldWin(), jsMainWindow, "mainWindow")
 				|| !InitWinObj(Application::Get()->GetBackglassWin(), jsBackglassWindow, "backglassWindow")
@@ -803,7 +881,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFPulse", &PlayfieldView::JsDOFPulse, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "createMediaWindow", &PlayfieldView::JsCreateMediaWindow, this, eh))
 				return;
 
 			// Get the status lines
@@ -874,6 +953,33 @@ void PlayfieldView::InitJavascript()
 					&PlayfieldView::JsDrawGetDefaultAlpha, &PlayfieldView::JsDrawSetDefaultAlpha, this, eh))
 				return;
 
+			// Create the StyledText constructor and prototype
+			JsValueRef styledTextConstructor;
+			where = _T("JsCreateFunction");
+			if (!js->DefineObjPropFunc(js->GetGlobalObject(), "global", "StyledText", &JsStyledTextConstructor, this, eh)
+				|| (err = js->GetProp(styledTextConstructor, js->GetGlobalObject(), "StyledText", where)) != JsNoError
+				|| (err = js->GetProp(jsStyledTextProto, styledTextConstructor, "prototype", where)) != JsNoError
+				|| !js->DefineObjPropFunc(jsStyledTextProto, "StyledText.prototype", "add", &JsStyledTextAdd, this, eh)
+				|| !js->DefineObjMethod(jsStyledTextProto, "StyledText", "draw", &PlayfieldView::JsStyledTextDraw, this, eh)
+				|| !js->DefineObjMethod(jsStyledTextProto, "StyledText", "measure", &PlayfieldView::JsStyledTextMeasure, this, eh))
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing StyledText: js error code %d, %s\n"), err, where);
+				return;
+			}
+
+			// Create the HtmlLayout constructor and prototype
+			JsValueRef htmlLayoutConstructor;
+			where = _T("JsCreateFunction");
+			if (!js->DefineObjPropFunc(js->GetGlobalObject(), "global", "HtmlLayout", &JsHtmlLayoutConstructor, this, eh)
+				|| (err = js->GetProp(htmlLayoutConstructor, js->GetGlobalObject(), "HtmlLayout", where)) != JsNoError
+				|| (err = js->GetProp(jsHtmlLayoutProto, htmlLayoutConstructor, "prototype", where)) != JsNoError
+				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "draw", &PlayfieldView::JsHtmlLayoutDraw, this, eh)
+				|| !js->DefineObjMethod(jsHtmlLayoutProto, "HtmlLayout", "measure", &PlayfieldView::JsHtmlLayoutMeasure, this, eh))
+			{
+				LogFile::Get()->Write(LogFile::JSLogging, _T(". error initializing HtmlLayout: js error code %d, %s\n"), err, where);
+				return;
+			}
+
 			// Set up the game list methods.  These are nominally on the gameList Javascript
 			// object, but the actual implementations are still PlayfieldView:: methods.  We
 			// implement the methods here because the actual GameList instance can be deleted
@@ -904,7 +1010,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "deleteCategory", &PlayfieldView::JsDeleteCategory, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "getMediaDir", &PlayfieldView::JsGetMediaDir, this, eh)
 				|| !js->DefineObjPropFunc(jsGameList, "gameList", "resolveMedia", &PlayfieldView::JsResolveMediaFile, this, eh)
-				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setWheelGame", &PlayfieldView::JsSetWheelGame, this, eh))
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "setWheelGame", &PlayfieldView::JsSetWheelGame, this, eh)
+				|| !js->DefineObjPropFunc(jsGameList, "gameList", "createMediaType", &PlayfieldView::JsCreateMediaType, this, eh))
 				return;
 
 			// Set up the GameInfo methods
@@ -1179,12 +1286,148 @@ void PlayfieldView::InitJavascript()
 	}
 }
 
+bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHAR *name, ErrorHandler &eh)
+{
+	// get the view
+	auto view = dynamic_cast<BaseView*>(frame->GetView());
+	auto view2 = dynamic_cast<SecondaryView*>(view);
+
+	// plug the Javascript window object into the view
+	if (view != nullptr)
+		view->SetJsSelf(jswinobj);
+
+	// set up the HWND properties
+	JsErrorCode err;
+	auto js = JavascriptEngine::Get();
+	const TCHAR *where = _T("unknown");
+	JsValueRef propval;
+	if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
+		|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
+		|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
+		|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
+	{
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
+		return false;
+	}
+
+	// set up the FrameWin and BaseView methods
+	if (!js->DefineGetterSetter(jswinobj, name, "fullScreenMode", &FrameWin::IsFullScreen, &FrameWin::SetFullScreen, frame, eh)
+		|| !js->DefineGetterSetter(jswinobj, name, "borderlessMode", &FrameWin::IsBorderless, &FrameWin::SetBorderless, frame, eh)
+		|| !js->DefineObjPropFunc(jswinobj, name, "showWindow", &FrameWin::ShowHideFrameWindow, frame, eh)
+		|| !js->DefineObjPropFunc(jswinobj, name, "setWindowPos", &FrameWin::JsSetWindowPos, frame, eh)
+		|| !js->DefineObjPropFunc(jswinobj, name, "setWindowState", &FrameWin::JsSetWindowState, frame, eh)
+		|| !js->DefineObjPropFunc(jswinobj, name, "createDrawingLayer", &BaseView::JsCreateDrawingLayer, view, eh)
+		|| !js->DefineObjPropFunc(jswinobj, name, "removeDrawingLayer", &BaseView::JsRemoveDrawingLayer, view, eh))
+		return false;
+
+	// set up the SecondaryView methods, if this is a SecondaryView
+	if (view2 != nullptr &&
+		(!js->DefineGetterSetter(jswinobj, name, "backgroundScalingMode", &SecondaryView::JsGetBgScalingMode, &SecondaryView::JsSetBgScalingMode, view2, eh))
+		|| (!js->DefineGetterSetter(jswinobj, name, "pagedImageIndex", &SecondaryView::JsGetPagedImageIndex, &SecondaryView::JsSetPagedImageIndex, view2, eh)))
+		return false;
+
+	// Retrieve the window's DrawingLayer class prototype
+	JsValueRef drawingLayerClass, drawingLayerProto;
+	if ((err = js->GetProp(drawingLayerClass, jswinobj, "drawingLayerClass", where)) != JsNoError
+		|| (err = js->GetProp(drawingLayerProto, drawingLayerClass, "prototype", where)) != JsNoError)
+	{
+		LogFile::Get()->Write(LogFile::JSLogging, _T(". getting window's DrawingLayer class, %s: %s"),
+			where, js->JsErrorToString(err));
+		return false;
+	}
+
+	// Save the prototype in the view.  Each view has its own prototype,
+	// since the prototype methods need to point back to that view's
+	// C++ object.
+	view->jsDrawingLayerClass = drawingLayerClass;
+	JsAddRef(drawingLayerClass, nullptr);
+
+	// set up the LaunchOverlayLayer prototype methods
+	if (!js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadImage",
+		&BaseView::JsDrawingLayerLoadImage, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "loadVideo",
+			&BaseView::JsDrawingLayerLoadVideo, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "drawDMDText",
+			&BaseView::JsDrawingLayerLoadDMDText, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "draw",
+			&BaseView::JsDrawingLayerDraw, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "clear",
+			&BaseView::JsDrawingLayerClear, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setScale",
+			&BaseView::JsDrawingLayerSetScale, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "setPos",
+			&BaseView::JsDrawingLayerSetPos, view, eh)
+		|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "alpha",
+			&BaseView::JsDrawingLayerGetAlpha, &BaseView::JsDrawingLayerSetAlpha, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "play",
+			&BaseView::JsDrawingLayerPlay, view, eh)
+		|| !js->DefineObjMethod(drawingLayerProto, "DrawingLayer", "pause",
+			&BaseView::JsDrawingLayerPause, view, eh)
+		|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "volume",
+			&BaseView::JsDrawingLayerGetVol, &BaseView::JsDrawingLayerSetVol, view, eh)
+		|| !js->DefineGetterSetter(drawingLayerProto, "DrawingLayer", "mute",
+			&BaseView::JsDrawingLayerGetMute, &BaseView::JsDrawingLayerSetMute, view, eh))
+		return false;
+
+	// success 
+	return true;
+}
+
 static const TCHAR *jsbool(bool b) { return b ? _T("true") : _T("false"); }
 
 void PlayfieldView::FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping)
 {
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
 		js->FireEvent(drawingLayerObj, jsVideoEndEvent, looping);
+}
+
+bool PlayfieldView::FireMediaSyncBeginEvent(BaseView *view, GameListItem *game)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		ret = js->FireEvent(view->GetJsSelf(), jsMediaSyncBeginEvent, BuildJsGameInfo(game));
+
+	return ret;
+}
+
+bool PlayfieldView::FireMediaSyncLoadEvent(BaseView *view, GameListItem *game,
+	TSTRING *video, TSTRING *image, TSTRING *defaultVideo, TSTRING *defaultImage)
+{
+	bool ret = true;
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+	{
+		auto StrArg = [](const TSTRING *str) { return str != nullptr && str->length() != 0 ? str->c_str() : nullptr; };
+		JsValueRef eventObjVal;
+		ret = js->FireAndReturnEvent(eventObjVal, view->GetJsSelf(), jsMediaSyncLoadEvent,
+			BuildJsGameInfo(game),	StrArg(video), StrArg(image), StrArg(defaultVideo), StrArg(defaultImage));
+
+		// if the event wasn't canceled, pass back changes to the strings
+		if (ret)
+		{
+			JavascriptEngine::JsObj eventObj(eventObjVal);
+			auto Update = [&eventObj, js](TSTRING *s, const CHAR *prop) {
+				if (s != nullptr && eventObj.Has(prop)) {
+					JsValueRef propVal = eventObj.Get<JsValueRef>(prop);
+					if (js->IsUndefinedOrNull(propVal))
+						s->clear();
+					else
+						s->assign(js->JsToNative<TSTRING>(propVal));
+				}
+			};
+			Update(video, "video");
+			Update(image, "image");
+			Update(defaultVideo, "defaultVideo");
+			Update(defaultImage, "defaultImage");
+		}
+	}
+
+	return ret;
+}
+
+void PlayfieldView::FireMediaSyncEndEvent(BaseView *view, GameListItem *game, const TCHAR *disposition)
+{
+	if (auto js = JavascriptEngine::Get(); js != nullptr)
+		js->FireEvent(view->GetJsSelf(), jsMediaSyncEndEvent, BuildJsGameInfo(game), disposition);
 }
 
 
@@ -2036,38 +2279,44 @@ JsValueRef PlayfieldView::JsGetHighScores(JsValueRef self)
 
 			virtual void Ready(bool success, const WCHAR *source) override
 			{
-				if (success)
+				const TCHAR *logErrWhere = _T("GameInfo.getHighScores() promise resolver");
+				try
 				{
-					// recover the game object
-					if (auto game = GameList::Get()->GetByInternalID(gameID); game != nullptr)
+					if (success)
 					{
-						// create a Javascript array with the high score text, one element per line
-						auto arr = JavascriptEngine::JsObj::CreateArray();
-						for (auto &l : game->highScores)
-							arr.Push(l);
+						// recover the game object
+						if (auto game = GameList::Get()->GetByInternalID(gameID); game != nullptr)
+						{
+							// create a Javascript array with the high score text, one element per line
+							auto arr = JavascriptEngine::JsObj::CreateArray();
+							for (auto &l : game->highScores)
+								arr.Push(l);
 
-						// set the source, as the .source property of the array
-						arr.Set("source", source);
+							// set the source, as the .source property of the array
+							arr.Set("source", source);
 
-						// resolve the promise
-						promise->Resolve(arr.jsobj);
+							// resolve the promise
+							logErrWhere = _T("GameInfo.getHighScores(), resolving promise");
+							promise->Resolve(arr.jsobj);
+						}
+						else
+						{
+							logErrWhere = _T("GameInfo.getHighScores(), rejecting promise because game no longer exists");
+							promise->Reject(L"Game no longer exists");
+						}
 					}
 					else
-						promise->Reject(L"Game no longer exists");
-				}
-				else
-				{
-					// reject the promise
-					try
 					{
+						// reject the promise
 						auto e = JavascriptEngine::JsObj::CreateError(L"High scores not available");
 						e.Set("source", source);
+						logErrWhere = _T("GameInfo.getHighScores(), rejecting promise");
 						promise->Reject(e.jsobj);
 					}
-					catch (JavascriptEngine::CallException exc)
-					{
-						exc.Log(_T("GameInfo.getHighScores()"));
-					}
+				}
+				catch (JavascriptEngine::CallException exc)
+				{
+					exc.Log(logErrWhere);
 				}
 			}
 
@@ -2335,6 +2584,83 @@ JsValueRef PlayfieldView::JsGetAllWheelGames()
 	catch (JavascriptEngine::CallException exc)
 	{
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsCreateMediaType(JavascriptEngine::JsObj options)
+{
+	try
+	{
+		// parse the options
+		auto js = JavascriptEngine::Get();
+		static int menuOrderNextDefault = 1000;
+		int menuOrder = menuOrderNextDefault++;
+		bool perSystem = false;
+		TSTRING subdir;
+		TSTRING exts;
+		TSTRING name;
+		TSTRING configID;
+		WSTRING jsID;
+		TSTRING captureStartVar, captureStopVar, captureTimeVar;
+		TSTRING formatName;
+		int rotation = 0;
+		bool indexed = false;
+		bool hasDropButton = false;
+		std::list<TSTRING> pageList;
+		if (!options.IsNull())
+		{
+			if (options.Has("menuOrder")) menuOrder = options.Get<int>("menuOrder");
+			if (options.Has("folder")) subdir = options.Get<TSTRING>("folder");
+			if (options.Has("perSystem")) perSystem = options.Get<bool>("perSystem");
+			if (options.Has("extensions")) exts = options.Get<TSTRING>("extensions");
+			if (options.Has("name")) name = options.Get<TSTRING>("name");
+			if (options.Has("configId")) configID = options.Get<TSTRING>("configId");
+			if (options.Has("id")) jsID = options.Get<WSTRING>("id");
+			if (options.Has("format")) formatName = options.Get<TSTRING>("format");
+			if (options.Has("rotation")) rotation = options.Get<int>("rotation");
+			if (options.Has("isIndexed")) indexed = options.Get<bool>("isIndexed");
+			if (options.Has("captureStartConfigVar")) captureStartVar = options.Get<TSTRING>("captureStartConfigVar");
+			if (options.Has("captureStopConfigVar")) captureStopVar = options.Get<TSTRING>("captureStopConfigVar");
+			if (options.Has("captureTimeConfigVar")) captureTimeVar = options.Get<TSTRING>("captureTimeConfigVar");
+			if (options.Has("pageFolders"))
+			{
+				JavascriptEngine::JsObj pages(options.Get<JsValueRef>("pageFolders"));
+				int n = pages.Get<int>("length");
+				for (int i = 0; i < n; ++i)
+					pageList.emplace_back(pages.GetAtIndex<TSTRING>(i));
+			}
+			if (options.Has("hasDropButton")) hasDropButton = options.Get<bool>("hasDropButton");
+		}
+
+		// validate parameters
+		auto Error = [&js](const TCHAR *details)
+		{
+			MsgFmt msg(_T("GameList.createMediaType: parameter error: %s"), details);
+			js->Throw(msg);
+		};
+		if (subdir.size() == 0) return Error(_T("folder must be specified"));
+		if (exts.size() == 0) return Error(_T("extensions must be specfied"));
+		if (name.size() == 0) return Error(_T("name must be specified"));
+		if (configID.size() == 0) return Error(_T("configID must be specified"));
+		if (jsID.size() == 0) return Error(_T("id must be specified"));
+
+		// figure the format
+		MediaType::Format format;
+		if (formatName == _T("Image")) format = MediaType::Format::Image;
+		else if (formatName == _T("SilentVideo")) format = MediaType::Format::SilentVideo;
+		else if (formatName == _T("VideoWithAudio") || formatName == _T("Video")) format = MediaType::Format::VideoWithAudio;
+		else if (formatName == _T("Audio")) format = MediaType::Format::Audio;
+		else
+			return Error(_T("format is invalid or missing; must be one of Image, SilentVideo, VideoWithAudio, or Audio"));
+
+		// create the user-defined media type
+		MediaType::CreateUserDefined(menuOrder, subdir.c_str(), perSystem, exts.c_str(), name.c_str(),
+			configID.c_str(), jsID.c_str(), captureStartVar.c_str(), captureStopVar.c_str(), captureTimeVar.c_str(),
+			format, rotation, indexed, &pageList, hasDropButton);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		JavascriptEngine::Get()->Throw(exc.jsErrorCode, AnsiToTSTRING(exc.what()).c_str());
 	}
 }
 
@@ -3987,6 +4313,10 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		if (auto inst = Application::Get()->GetInstCardView(); inst != nullptr)
 			inst->SyncCurrentGame();
 
+		// sync all custom views
+		CustomView::SyncAllCustomViews();
+
+		// done
 		return true;
 
 	case ID_SYNC_BACKGLASS:
@@ -4016,6 +4346,23 @@ bool PlayfieldView::OnCommand(int cmd, int source, HWND hwndControl)
 		// sync the instruction card window
 		if (auto inst = Application::Get()->GetInstCardView(); inst != nullptr)
 			inst->SyncCurrentGame();
+		return true;
+
+	case ID_SYNC_USERDEFINED:
+		// Sync the user-defined CustomView windows.  This is a bit different
+		// from the others, because we can have multiple CustomView windows
+		// (whereas all of the built-in views are singletons).  So rather
+		// than syncing "the" custom view, we have to sync them all - but
+		// to maintain our one-window-at-a-time syncing rule, we can only
+		// sync one on each message.  We accomplish this via a static method
+		// in the CustomView class.  It'll find one unsynchronized window,
+		// kick off its media load, and return.  When that window is done
+		// with its media load, it'll re-send this same command to us, so
+		// that we'll repeat the process for the next window.  The static
+		// method will eventually reach all of the windows, at which point
+		// it'll simply return without sending another command, and the
+		// process will be done.
+		CustomView::SyncNextCustomView();
 		return true;
 
 	case ID_APPROVE_ELEVATION:
@@ -6085,6 +6432,27 @@ PlayfieldView::JsDrawingContext::JsDrawingContext(
 	}
 }
 
+
+// -----------------------------------------------------------------------
+//
+// Javascript Custom Drawing interface.  Drawing methods work in terms of
+// a JS Drawing Context object, which is passed to a js drawing callback.
+// The drawing context object encapsulates a Gdiplus drawing context and
+// our own drawing state.  The drawing callback populates a memory bitmap,
+// which we turn into a D3D texture.  We use the drawing callback idiom
+// because of the one-way CPU-to-GPU nature of D3D textures: we need to
+// construct a whole texture in one go and send it to the GPU.  The usual
+// API idiom would be a series of drawing operations bounded by "Open"
+// and "Close" calls.  The callback approach does the same thing, but it
+// builds the Open and Close calls invisibly into the structure, which
+// makes the resulting js code more concise and encourages correct code
+// structure without the js programmer even having to know it's there.
+// The API idiom with explicit Open/Close calls places the burden on the
+// programmer to understand the structure and use it correctly; the
+// callback approach instead leads the programmer to use the right code
+// structure without even having to be aware of it.
+//
+
 void PlayfieldView::JsDrawingContext::InitFont()
 {
 	// create a font object if we don't already have one
@@ -6519,6 +6887,503 @@ JsValueRef PlayfieldView::JsDrawGetSize()
 		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
 	}
 }
+
+
+// -----------------------------------------------------------------------
+//
+// Javascript StyledText drawing
+//
+// StyledText is a Javascript External Object that encapsulates a text
+// stream with font and color formatting data, for drawing through the
+// DirectWrite IDWriteLayout interface.  This provides a widget for
+// drawing text with mixed styles that's easier to use than the Custom
+// Drawing text primitives but lighter weight than HtmlLayout.  The
+// StyledText class is essentially a Javascript cover for IDWriteLayout,
+// so it's well suited for simple paragraph-level layouts.
+//
+class JsStyledText : public JavascriptEngine::ExternalObject
+{
+public:
+	JsStyledText() { }
+
+	// parse a Javascript style descriptor
+	void ParseStyle(DirectWriteUtils::StyledText::SpanStyle &style, JsValueRef jsDesc)
+	{
+		// set up the descriptor object
+		auto js = JavascriptEngine::Get();
+		JavascriptEngine::JsObj desc(jsDesc);
+
+		// apply style elements
+		if (desc.Has("font"))
+			style.face = desc.Get<TSTRING>("font");
+		if (desc.Has("size"))
+			style.size = desc.Get<float>("size") * dipsPerPoint;
+		if (desc.Has("sizePx"))
+			style.size = desc.Get<float>("sizepx");
+		if (desc.Has("weight"))
+			style.weight = static_cast<DWRITE_FONT_WEIGHT>(desc.Get<int>("weight"));
+		if (desc.Has("stretch"))
+			style.stretch = static_cast<DWRITE_FONT_STRETCH>(desc.Get<int>("stretch"));
+		if (desc.Has("underline"))
+			style.underline = desc.Get<bool>("underline");
+		if (desc.Has("strikethrough"))
+			style.underline = desc.Get<bool>("strikethrough");
+		if (desc.Has("style"))
+		{
+			auto s = desc.Get<TSTRING>("style");
+			if (s == _T("italic"))
+				style.style = DWRITE_FONT_STYLE_ITALIC;
+			else if (s == _T("oblique"))
+				style.style = DWRITE_FONT_STYLE_OBLIQUE;
+			else if (s == _T("normal"))
+				style.style = DWRITE_FONT_STYLE_NORMAL;
+		}
+		if (desc.Has("color"))
+			style.textColor = desc.Get<unsigned int>("color");
+		if (desc.Has("backgroundColor"))
+			style.bgColor = desc.Get<unsigned int>("backgroundColor");
+	}
+
+	// set the text alignment from a Javascript keyword
+	void SetTextAlign(const WSTRING& align)
+	{
+		if (align == L"left")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_LEADING;
+		else if (align == L"right")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_TRAILING;
+		else if (align == L"center")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_CENTER;
+		else if (align == L"justified")
+			st.hAlign = DWRITE_TEXT_ALIGNMENT_JUSTIFIED;
+	}
+
+	// parse a Javascript add() descriptor
+	void ParseDesc(JsValueRef obj, DirectWriteUtils::StyledText::SpanStyle style)
+	{
+		// get the Javascript engine
+		auto js = JavascriptEngine::Get();
+
+		// process added style elements
+		ParseStyle(style, obj);
+
+		// check for contents (image, nbsp, text)
+		JavascriptEngine::JsObj desc(obj);
+		if (desc.Has("image"))
+		{
+			// get the image descriptor
+			JavascriptEngine::JsObj image(desc.Get<JsValueRef>("image"));
+			if (!image.Has("src"))
+			{
+				js->Throw(_T("StyledText: image.src required"));
+				return;
+			}
+			TSTRING src = image.Get<TSTRING>("src");
+			float width = image.Get<float>("width");
+			float height = image.Get<float>("height");
+			DirectWriteUtils::ImageVAlign valign = DirectWriteUtils::ImageVAlign::Center;
+			if (image.Has("verticalAlign"))
+			{
+				auto v = image.Get<TSTRING>("verticalAlign");
+				if (v == _T("top"))
+					valign = DirectWriteUtils::ImageVAlign::Top;
+				else if (v == _T("bottom"))
+					valign = DirectWriteUtils::ImageVAlign::Bottom;
+				else if (v == _T("baseline"))
+					valign = DirectWriteUtils::ImageVAlign::Baseline;
+				else if (v == _T("center") || v == _T("middle"))
+					valign = DirectWriteUtils::ImageVAlign::Center;
+			}
+
+			// add the image
+			st.AddImage(src.c_str(), style, valign, width, height, LogFileErrorHandler());
+		}
+		else if (desc.Has("nbsp"))
+		{
+			// add a non-breaking space
+			st.AddNBSP(style);
+		}
+		else if (desc.Has("text"))
+		{
+			// add the text as though it were a whole new argument, using
+			// the current style as its base style
+			ParseArg(desc.Get<JsValueRef>("text"), style);
+		}
+	};
+
+	// process a Javascript add() argument
+	void ParseArg(JsValueRef arg, DirectWriteUtils::StyledText::SpanStyle style)
+	{
+		// check the type
+		JsValueType type;
+		if (JsGetValueType(arg, &type) == JsNoError)
+		{
+			switch (type)
+			{
+			case JsValueType::JsObject:
+				// object - treat it as a descriptor
+				ParseDesc(arg, style);
+				break;
+
+			case JsValueType::JsArray:
+				// array - process each element as a descriptor
+				{
+					JavascriptEngine::JsObj arr(arg);
+					for (int i = 0, len = arr.Get<int>("length"); i < len; ++i)
+						ParseArg(arr.GetAtIndex<JsValueRef>(i), style);
+				}
+				break;
+
+			default:
+				// for anything else, convert it into a string and add it as plain text
+				// in the current style
+				st.AddSpan(JavascriptEngine::JsToNative<TSTRING>(arg), style);
+				break;
+			}
+		}
+	};
+
+	// base text style
+	DirectWriteUtils::StyledText::SpanStyle baseStyle;
+
+	// the styled text collection
+	DirectWriteUtils::StyledText st;
+};
+
+
+JsValueRef CALLBACK PlayfieldView::JsStyledTextConstructor(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// this can only be called as a constructor
+	if (!isConstructCall)
+		return js->Throw(_T("StyledText() can only be called as a constructor (with 'new')"));
+
+	// Note: argv[0] is the 'this' object that ChakraCore created for the 'new'
+	// operator result.  We're going to replace that with our own object, since
+	// we need the result to be an External Object based on JsStyledText.  So
+	// we're just going to ignore and discard argv[0].
+
+	// create the Javascript cover object
+	JsValueRef ret;
+	auto jst = new JsStyledText();
+	if (auto err = js->CreateExternalObjectWithPrototype(ret, pfv->jsStyledTextProto, jst); err != JsNoError)
+		return js->Throw(err);
+
+	// if a descriptor object argument was provided, parse it as the base style
+	if (argc >= 2 && !js->IsUndefinedOrNull(argv[1]))
+	{
+		// parse block-level styles
+		JavascriptEngine::JsObj desc(argv[1]);
+		if (desc.Has("textStyle"))
+			jst->ParseStyle(jst->baseStyle, desc.Get<JsValueRef>("textStyle"));
+		if (desc.Has("textAlign"))
+			jst->SetTextAlign(desc.Get<WSTRING>("textAlign"));
+		if (desc.Has("cornerRadius"))
+			jst->st.cornerRadius = desc.Get<float>("cornerRadius");
+		if (desc.Has("padding"))
+		{
+			auto padding = desc.Get<JsValueRef>("padding");
+			if (js->IsObject(padding))
+			{
+				JavascriptEngine::JsObj paddingObj(padding);
+				if (paddingObj.Has("left"))
+					jst->st.padding.left = paddingObj.Get<float>("left");
+				if (paddingObj.Has("right"))
+					jst->st.padding.right = paddingObj.Get<float>("right");
+				if (paddingObj.Has("top"))
+					jst->st.padding.top = paddingObj.Get<float>("top");
+				if (paddingObj.Has("bottom"))
+					jst->st.padding.bottom = paddingObj.Get<float>("bottom");
+			}
+			else
+				jst->st.padding.SetAll(JavascriptEngine::JsToNative<float>(padding));
+		}
+		if (desc.Has("backgroundColor"))
+			jst->st.bgColor = desc.Get<unsigned int>("backgroundColor");
+	}
+
+	// return the cover object
+	return ret;
+}
+
+JsValueRef CALLBACK PlayfieldView::JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// 'new add()' isn't allowed
+	if (isConstructCall)
+		return js->Throw(_T("StyledText.add() can't be used as a constructor"));
+	
+	try
+	{
+		// recover the 'this' external object from Javascript, passed as argv[0]
+		auto st = JsStyledText::Recover<JsStyledText>(argv[0], _T("StyledText.add"));
+		if (st == nullptr)
+			return js->GetUndefVal();
+
+		// process the text object arguments
+		for (unsigned short i = 1; i < argc; ++i)
+			st->ParseArg(argv[i], st->baseStyle);
+
+		// return 'this'
+		return argv[0];
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+void PlayfieldView::JsStyledTextDraw(JsValueRef self, JsValueRef dc, JavascriptEngine::JsObj jsrcLayout, JavascriptEngine::JsObj jsrcClip)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// validate the StyledText object
+		auto st = JsStyledText::Recover<JsStyledText>(self, _T("StyledText.draw"));
+		if (st == nullptr)
+			return;
+
+		// validate the drawing context
+		if (jsDC == nullptr || dc != jsDC->jsobj.jsobj)
+			return js->Throw(_T("StyledText.draw: invalid drawing context")), static_cast<void>(0);
+
+		// Get the layout rectangle; use the whole Gdiplus surface by default
+		float inset = jsDC->borderWidth;
+		Gdiplus::RectF rcLayout = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		Gdiplus::RectF rcClip = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		auto GetRect = [](Gdiplus::RectF &rc, JavascriptEngine::JsObj obj) {
+			if (!obj.IsNull())
+			{
+				if (obj.Has("x")) rc.X = obj.Get<float>("x");
+				if (obj.Has("y")) rc.Y = obj.Get<float>("y");
+				if (obj.Has("width")) rc.Width = obj.Get<float>("width");
+				if (obj.Has("height")) rc.Height = obj.Get<float>("height");
+			}
+		};
+		GetRect(rcLayout, jsrcLayout);
+		GetRect(rcClip, jsrcClip);
+
+		// draw it
+		auto dw = DirectWriteUtils::Get();
+		dw->RenderStyledText(jsDC->g, &st->st, rcLayout, rcClip, LogFileErrorHandler());
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsStyledTextMeasure(JsValueRef self, float width)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// recover the external object from Javascript
+		auto st = JsStyledText::Recover<JsStyledText>(self, _T("StyledText.measure"));
+		if (st == nullptr)
+			return js->GetUndefVal();
+
+		// set up the layout rectangle
+		Gdiplus::RectF rcLayout(0.0f, 0.0f, width, 4096.0f);
+
+		// measure the text layout
+		auto dw = DirectWriteUtils::Get();
+		Gdiplus::RectF rcPositioning, rcInk;
+		dw->MeasureStyledText(rcPositioning, rcInk, &st->st, rcLayout, LogFileErrorHandler());
+
+		// set up the return object with the document size
+		JavascriptEngine::JsObj retLayout(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("width", rcPositioning.Width);
+		retLayout.Set("height", rcPositioning.Height);
+
+		// also return the drawing area (the ink rectangle)
+		JavascriptEngine::JsObj drawingArea(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("drawingArea", drawingArea.jsobj);
+		drawingArea.Set("x", rcInk.X);
+		drawingArea.Set("y", rcInk.Y);
+		drawingArea.Set("width", rcInk.Width);
+		drawingArea.Set("height", rcInk.Height);
+
+		// return the results
+		return retLayout.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+
+// -----------------------------------------------------------------------
+//
+// Javascript HtmlLayout drawing
+//
+// HtmlLayout is a Javascript External Object that encapsulates a
+// litehtml::document object, which contains a parsed HTML DOM tree.
+// We use this purely for rendering through the Custom Drawing system,
+// so we treat the DOM as an opaque static graphics object (as opposed
+// to a live browser window).  We expose methods for measuring the
+// rendered graphics size and drawing the DOM tree into a custom
+// drawing context.
+
+
+// HtmlLayout - Javascript External Object.  This is the object
+// passed back to Javascript when creating an HtmlLayout object.
+// This encapsulates a litehtml::document object containing the
+// parsed DOM tree.
+class JsHtmlLayout : public JavascriptEngine::ExternalObject 
+{
+public:
+	JsHtmlLayout(std::shared_ptr<litehtml::document> &doc) : doc(doc) { }
+
+	// Litehtml document.  This contains the parsed HTML and layout information.
+	std::shared_ptr<litehtml::document> doc;
+};
+
+
+JsValueRef CALLBACK PlayfieldView::JsHtmlLayoutConstructor(
+	JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx)
+{
+	// get the javascript engine context and the playfield view
+	auto js = JavascriptEngine::Get();
+	auto pfv = static_cast<PlayfieldView*>(ctx);
+
+	// this can only be called as a constructor
+	if (!isConstructCall)
+		return js->Throw(_T("HtmlLayout() can only be called as a constructor (with 'new')"));
+
+	// Note: argv[0] is the 'this' object that ChakraCore created for the 'new'
+	// operator result.  We're going to replace that with our own object, since
+	// we need the result to be an External Object based on JsHtmlLayout.  So
+	// we're just going to ignore and discard argv[0].
+
+	// retrieve the text
+	WSTRING txt;
+	if (argc >= 2)
+		txt = JavascriptEngine::JsToNative<WSTRING>(argv[1]);
+
+	// If we haven't already created the litehtml host interface, do so now
+	if (pfv->litehtmlHost == nullptr)
+	{
+		// create the litehtml host interface
+		pfv->litehtmlHost = std::make_shared<LitehtmlHost>();
+
+		// load the system style sheet
+		ResourceLocker cssRes(TEXTFILE_LITEHTML_DFLT_CSS, _T("TEXTFILE"));
+		if (cssRes.GetData() != nullptr)
+		{
+			TSTRING css(static_cast<const TCHAR*>(cssRes.GetData()), cssRes.GetSize());
+			pfv->litehtmlHost->litehtmlContext.load_master_stylesheet(css.c_str());
+		}
+	}
+
+	// create a litehtml document from the text
+	auto doc = litehtml::document::createFromString(txt.c_str(), pfv->litehtmlHost, &pfv->litehtmlHost->litehtmlContext);
+
+	// if that failed, throw an error
+	if (doc == nullptr)
+		return js->Throw(_T("Error parsing HTML"));
+
+	// create the Javascript cover object
+	JsValueRef jsobj;
+	auto jst = new JsHtmlLayout(doc);
+	if (auto err = js->CreateExternalObjectWithPrototype(jsobj, pfv->jsHtmlLayoutProto, jst); err != JsNoError)
+		return js->Throw(err);
+
+	// return the cover object
+	return jsobj;
+}
+
+void PlayfieldView::JsHtmlLayoutDraw(JsValueRef self, JsValueRef dc, JavascriptEngine::JsObj jsrcLayout, JavascriptEngine::JsObj jsrcClip)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// validate the HtmlLayout object
+		auto layout = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.draw"));
+		if (layout == nullptr)
+			return;
+
+		// validate the drawing context
+		if (jsDC == nullptr || dc != jsDC->jsobj.jsobj)
+			return js->Throw(_T("HtmlLayout.draw: invalid drawing context")), static_cast<void>(0);
+
+		// Get the layout rectangle; use the whole Gdiplus surface by default
+		float inset = jsDC->borderWidth;
+		Gdiplus::RectF rcLayout = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		Gdiplus::RectF rcClip = { inset, inset, jsDC->width - 2.0f*inset, jsDC->height - 2.0f*inset };
+		auto GetRect = [](Gdiplus::RectF &rc, JavascriptEngine::JsObj obj) {
+			if (!obj.IsNull())
+			{
+				if (obj.Has("x")) rc.X = obj.Get<float>("x");
+				if (obj.Has("y")) rc.Y = obj.Get<float>("y");
+				if (obj.Has("width")) rc.Width = obj.Get<float>("width");
+				if (obj.Has("height")) rc.Height = obj.Get<float>("height");
+			}
+		};
+		GetRect(rcLayout, jsrcLayout);
+		GetRect(rcClip, jsrcClip);
+
+        // make sure we have a litehtml parsed document object
+		if (layout->doc == nullptr)
+			return;
+
+		// render the document to the desired width
+		litehtmlHost->SetSurfaceSize(static_cast<int>(rcLayout.Width), static_cast<int>(rcLayout.Height));
+		layout->doc->media_changed();
+		layout->doc->render(static_cast<int>(rcLayout.Width));
+
+		// draw it
+		litehtml::position lclip(
+			static_cast<int>(rcClip.X), static_cast<int>(rcClip.Y), 
+			static_cast<int>(rcClip.Width), static_cast<int>(rcClip.Height));
+		layout->doc->draw(reinterpret_cast<litehtml::uint_ptr>(&jsDC->g), static_cast<int>(rcLayout.X), static_cast<int>(rcLayout.Y), &lclip);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+JsValueRef PlayfieldView::JsHtmlLayoutMeasure(JsValueRef self, int width)
+{
+	auto js = JavascriptEngine::Get();
+	try
+	{
+		// recover the external object from Javascript
+		auto layout = JsHtmlLayout::Recover<JsHtmlLayout>(self, _T("HtmlLayout.measure"));
+		if (layout == nullptr)
+			return js->GetUndefVal();
+
+		// make sure we have a litehtml parsed HTML document
+		if (layout->doc == nullptr)
+			return js->GetUndefVal();
+
+		// render the document to the desired width
+		litehtmlHost->SetSurfaceSize(width, 4096);
+		layout->doc->media_changed();
+		layout->doc->render(width);
+		
+		// return the document size
+		JavascriptEngine::JsObj retLayout(JavascriptEngine::JsObj::CreateObject());
+		retLayout.Set("width", layout->doc->width());
+		retLayout.Set("height", layout->doc->height());
+		return retLayout.jsobj;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		return js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+	}
+}
+
+
+// -----------------------------------------------------------------------
 
 void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupName, bool opening, const PopupDesc *replaceTypes)
 {
@@ -7541,6 +8406,39 @@ void PlayfieldView::UpdateSelection(bool fireEvents)
 
 void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 {
+	// Send a MediaSyncBegin event
+	FireMediaSyncBeginEvent(this, game);
+
+	// this is the start of a global media sync
+	OnBeginMediaSync();
+
+	// Make sure that we fire a MediaSyncEnd event if we leave
+	// without initiating a media load
+	struct EndEventSentry
+	{
+		EndEventSentry(PlayfieldView *pfv, GameListItem *game) : pfv(pfv), game(game) { }
+
+		~EndEventSentry()
+		{
+			// if no load was started, send a MediaSyncEnd with a status of "skip",
+			// and initiate media loading in the next window
+			if (!loadStarted)
+			{
+				// send the Media Sync End event to Javascript
+				pfv->FireMediaSyncEndEvent(pfv, game, _T("skip"));
+
+				// if we're in sequential sync mode, explicitly kick off the sequencing
+				if (!pfv->simultaneousSync)
+					pfv->PostMessage(WM_COMMAND, ID_SYNC_BACKGLASS);
+			}
+		}
+
+		PlayfieldView *pfv;
+		GameListItem *game;
+		bool loadStarted = false;
+	};
+	EndEventSentry endEventSentry(this, game);
+
 	// Sync the underlay
 	SyncUnderlay();
 
@@ -7560,7 +8458,7 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 
 	// if there's a game, try loading its playfield media
 	Application::InUiErrorHandler uieh;
-	TSTRING video, image, audio;
+	TSTRING video, image, defaultVideo, defaultImage, audio;
 	bool videosEnabled = Application::Get()->IsEnableVideo();
 	int volumePct = 100;
 	if (IsGameValid(game))
@@ -7571,6 +8469,13 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		if (videosEnabled)
 			game->GetMediaItem(video, GameListItem::playfieldVideoType);
 		game->GetMediaItem(image, GameListItem::playfieldImageType);
+
+		// get the default video and image, in case we need a fallback
+		TCHAR buf[MAX_PATH];
+		if (videosEnabled && GameList::Get()->FindGlobalVideoFile(buf, _T("Videos"), _T("Default Playfield")))
+			defaultVideo = buf;
+		if (GameList::Get()->FindGlobalVideoFile(buf, _T("Images"), _T("Default Playfield")))
+			defaultImage = buf;
 
 		// look for an audio track for the table
 		game->GetMediaItem(audio, GameListItem::playfieldAudioType);
@@ -7641,13 +8546,12 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		{
 			// figure out which new video we're going to use
 			const TCHAR *newPath = nullptr;
-			TCHAR defaultVideo[MAX_PATH];
 			if (video.length() != 0)
 				newPath = video.c_str();
 			else if (image.length() != 0)
 				newPath = nullptr;  // we're using the image, not a video
-			else if (GameList::Get()->FindGlobalVideoFile(defaultVideo, _T("Videos"), _T("Default Playfield")))
-				newPath = defaultVideo;
+			else if (defaultVideo.length() != 0)
+				newPath = defaultVideo.c_str();
 
 			// check if they're the same
 			if (newPath != nullptr && _tcsicmp(newPath, oldPath) == 0)
@@ -7658,10 +8562,15 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 	// if we're not staying with the same video, load the new one
 	if (!isSameVideo)
 	{
+		// We're going to attempt to load media, so fire a MediaSyncLoad event
+		// with the file details.  If that cancels the event, abort the sync.
+		if (!FireMediaSyncLoadEvent(this, game, &video, &image, &defaultVideo, &defaultImage))
+			return;
+
 		// Asynchronous loader function
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](VideoSprite *sprite)
+		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](BaseView*, VideoSprite *sprite)
 		{
 			// nothing loaded yet
 			bool ok = false;
@@ -7717,13 +8626,35 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			// the Z axis, since D3D coordinates are left-handed.)
 			sprite->rotation.z = XM_PI / 2.0f;
 			sprite->UpdateWorld();
+
+			// return the result
+			return ok;
 		};
 
 		// Asynchronous loader completion
-		auto done = [this](VideoSprite *sprite) { IncomingPlayfieldMediaDone(sprite); };
+		auto done = [this, game](BaseView *view, VideoSprite *sprite, bool ok) 
+		{
+			if (ok)
+			{
+				// media loaded - start the crossfade transition effect
+				IncomingPlayfieldMediaDone(sprite);
+			}
+			else
+			{
+				// load failed - send a Media Sync End event with an "error"
+				// disposition
+				if (auto pfv = dynamic_cast<PlayfieldView*>(view); pfv != nullptr)
+					pfv->FireMediaSyncEndEvent(view, game, _T("error"));
+			}
+		};
 
 		// Kick off the asynchronous load
 		playfieldLoader.AsyncLoad(false, load, done);
+
+		// Tell the event sentry that we've initiated media loading.  The
+		// loader is responsible for sending the Media Sync End event, so
+		// the sentry shouldn't send one of its own.
+		endEventSentry.loadStarted = true;
 	}
 
 	// update the status line text, in case it mentions the current game selection
@@ -9699,7 +10630,6 @@ void PlayfieldView::JsShowMenu(WSTRING name, std::vector<JsValueRef> items, Java
 static const TCHAR *PageUpTitle = _T("\u2191");
 static const TCHAR *PageDownTitle = _T("\u2193");
 
-
 // Show a menu
 void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *id, DWORD flags, int pageno)
 {
@@ -10327,6 +11257,9 @@ void PlayfieldView::UpdateDrawingList()
 	// empty the old lists
 	sprites.clear();
 
+	// add negative-numbered drawing layers
+	AddJsSprites(INT_MIN, -1);
+
 	// Add the current and incoming playfields at the bottom of the
 	// Z order.  The current playfield goes first, and the incoming
 	// goes on top of it, so that we can cross-fade into the new
@@ -10485,10 +11418,29 @@ void PlayfieldView::StartPlayfieldCrossfade()
 
 	// start the fade in the sprite
 	incomingPlayfield.sprite->StartFade(1, crossfadeTime);
-	
+
+	// initiate the sequential or simultaneous sync process
+	OnBeginMediaSync();
+}
+
+void PlayfieldView::OnBeginMediaSync()
+{
 	// if we're in simultaneous sync mode, sync the other windows immediately
 	if (simultaneousSync)
 		PostMessage(WM_COMMAND, ID_SYNC_ALL_VIEWS);
+
+	// This constitutes the start of a media sync.  When we're in sequential
+	// (not simultaneous) mode, we'll automatically sync the other windows,
+	// one at a time, via a series of ID_SYNC_xxx commands.  That series
+	// of commands starts when our media load finishes, but we know we're
+	// at the start of that process here.  The user-defined custom views are
+	// special in that there can be more than one (all of the built-in
+	// system windows are singletons), so they update by handling one 
+	// window at a time on each ID_SYNC_USERDEFINED command.  To accomplish
+	// that, they need to keep track of which ones have been updated so far
+	// on the current pass.  Since we're at the start of a pass here, this
+	// is the time to reset all of the flags.
+	CustomView::OnBeginMediaSync();
 }
 
 // Start the animation timer if it's not already running
@@ -11163,6 +12115,9 @@ void PlayfieldView::UpdateAnimation()
 			currentPlayfield = incomingPlayfield;
 			updateDrawingList = true;
 
+			// fire a Media Sync End event with "success" disposition
+			FireMediaSyncEndEvent(this, currentPlayfield.game, _T("success"));
+
 			// clear the incoming playfield
 			incomingPlayfield.Clear();
 
@@ -11436,6 +12391,41 @@ void PlayfieldView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 	}
 	EnableMenuItem(hMenu, ID_REALDMD_MIRROR_HORZ, ena);
 	EnableMenuItem(hMenu, ID_REALDMD_MIRROR_VERT, ena);
+
+	// Scan for "Show <Custom Window>" commands, and update them to use
+	// the current window title for the associated windows.  These are
+	// user-defined windows, so Javascript can change their titles
+	// dynamically.
+	TSTRING viewCmdBase;
+	for (int i = 0, n = GetMenuItemCount(hMenu); i < n; ++i)
+	{
+		// check if this is a View Custom command
+		MENUITEMINFO mii;
+		mii.cbSize = sizeof(mii);
+		mii.fMask = MIIM_ID;
+		if (GetMenuItemInfo(hMenu, i, TRUE, &mii)
+			&& (mii.wID >= ID_VIEW_CUSTOM_FIRST && mii.wID < ID_VIEW_CUSTOM_LAST))
+		{
+			// load the template string from the resource file if we haven't already
+			if (viewCmdBase.size() == 0)
+				viewCmdBase = LoadStringT(IDS_VIEWCUSTOM_MENUCMD);
+
+			// get the window from the list
+			TCHAR winTitle[256];
+			if (auto cv = CustomView::GetBySerial(mii.wID - ID_VIEW_CUSTOM_FIRST + 1); 
+				cv != nullptr && GetWindowText(cv->GetHWnd(), winTitle, countof(winTitle)))
+			{
+				// format the menu title
+				TCHAR menuTitle[256];
+				_stprintf_s(menuTitle, viewCmdBase.c_str(), winTitle);
+
+				// update the menu title
+				mii.fMask = MIIM_STRING;
+				mii.dwTypeData = menuTitle;
+				SetMenuItemInfo(hMenu, i, TRUE, &mii);
+			}
+		}
+	}
 }
 
 bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSize)
@@ -16120,6 +17110,16 @@ void PlayfieldView::InitCaptureList(const GameListItem *game)
 	AddItem(Application::Get()->GetDMDView(), GameListItem::dmdVideoType);
 	AddItem(Application::Get()->GetTopperView(), GameListItem::topperImageType);
 	AddItem(Application::Get()->GetTopperView(), GameListItem::topperVideoType);
+
+	// add capturable custom views
+	CustomView::ForEachCustomView([this, &AddItem](CustomView *cv) {
+		if (cv->IsMediaCapturable())
+		{
+			if (auto mt = cv->GetBackgroundImageType(); mt != nullptr) AddItem(cv, *mt);
+			if (auto mt = cv->GetBackgroundVideoType(); mt != nullptr) AddItem(cv, *mt);
+		}
+		return true;
+	});
 }
 
 void PlayfieldView::ShowCaptureDelayDialog(bool update)
@@ -16264,7 +17264,7 @@ void PlayfieldView::DisplayCaptureMenu(bool updating, int selectedCmd, CaptureMe
 
 		// add the menu item
 		md.emplace_back(
-			MsgFmt(_T("%s: %s%s"), LoadStringT(cap.mediaType.nameStrId).c_str(), val.c_str(), overwriteAlert), 
+			MsgFmt(_T("%s: %s%s"), cap.mediaType.nameStr.c_str(), val.c_str(), overwriteAlert), 
 			cap.cmd, flags);
 	};
 
@@ -16714,43 +17714,80 @@ const MediaType *PlayfieldView::GetBackgroundVideoType() const
 
 bool PlayfieldView::BuildDropAreaList(const TCHAR *filename)
 {
+	// number of full-screen and small buttons added so far
+	int nFullScreen = 0;
+	int nButtons = 0;
+
 	// set up a rect for a button in the middle of the screen
-	const int btnHt = 300;
+	const int btnHt = 300, btnMargin = 20;
 	RECT rc = { szLayout.cx*2/10, szLayout.cy/2 - btnHt/2, szLayout.cx*8/10, szLayout.cy/2 + btnHt/2 };
+	auto AddButton = [this, &nButtons, &rc, btnHt, btnMargin](const MediaType *mt)
+	{
+		// add the button at the current position
+		dropAreas.emplace_back(rc, mt);
+		
+		// move the rectangle for the next button
+		OffsetRect(&rc, 0, btnHt + btnMargin);
 
-	// Check to see if this file is compatible with the wheel image.
-	// If so, it can be dropped as a wheel image or background image.
+		// count the new button
+		++nButtons;
+	};
+
+	// Add the full-window background button first, since the drawing
+	// list is in back-to-front order.  The background button can be
+	// for the background image/video OR table audio, depending on
+	// the file type being dropped.
+	const MediaType *mainType;
+	if ((mainType = &GameListItem::playfieldImageType)->MatchExt(filename)
+		|| (mainType = &GameListItem::playfieldVideoType)->MatchExt(filename)
+		|| (mainType = &GameListItem::playfieldAudioType)->MatchExt(filename))
+	{
+		dropAreas.emplace_back(mainType, true);
+		++nFullScreen;
+	}
+
+	// Add a button for the wheel image, if it's a compatible image
+	// file type
 	if (GameListItem::wheelImageType.MatchExt(filename))
+		AddButton(&GameListItem::wheelImageType);
+	
+	// Add a button for the launch audio, if it's a compatible audio
+	// file type
+	if (GameListItem::launchAudioType.MatchExt(filename))
+		AddButton(&GameListItem::launchAudioType);
+
+	// Add any custom types that want buttons
+	for (auto mt : GameListItem::allMediaTypes)
 	{
-		// add the window background as the background image drop area
-		// (NB: build the list in painting order -> background first)
-		dropAreas.emplace_back(&GameListItem::playfieldImageType, true);
-
-		// add a button for the wheel image in the center of the window
-		dropAreas.emplace_back(rc, &GameListItem::wheelImageType);
-
-		// done
-		return true;
+		if (mt->isUserDefined && mt->hasDropHereButton && mt->MatchExt(filename))
+			AddButton(mt);
 	}
 
-	// Check to see if this can be used as a launch audio or table
-	// audio file.
-	if (GameListItem::launchAudioType.MatchExt(filename)
-		|| GameListItem::playfieldAudioType.MatchExt(filename))
+	// If the last button is below the bottom of the window, move all of
+	// the buttons up to compensate
+	if (rc.top > szLayout.cy)
 	{
-		// add the main table audio as the background image drop area
-		// (NB: build the list in painting order -> background first)
-		dropAreas.emplace_back(&GameListItem::playfieldAudioType, true);
-
-		// add a button for the launch audio
-		dropAreas.emplace_back(rc, &GameListItem::launchAudioType);
-
-		// done
-		return true;
+		LONG dy = rc.top - szLayout.cy;
+		for (auto &d : dropAreas)
+		{
+			if (!IsRectEmpty(&d.rc))
+				OffsetRect(&d.rc, 0, -dy);
+		}
 	}
 
-	// it's not a special type - use the default handling
-	return __super::BuildDropAreaList(filename);
+	// Note: it we add more than about five buttons, it'll get too crowded
+	// and we'll have to shrink the buttons vertically, or lay them out in
+	// two columns.  I'm not going to bother with that at the moment because
+	// I doubt anyone will add so many media types that this will become an
+	// issue.  If it does, though, the layout algorithm should shrink the
+	// button height and margin to get the buttons into the lower 2/3 of
+	// the window.  If that makes the buttons too small, lay them out in
+	// two columns.  Two columns combined with height shrinkage should be
+	// good for maybe 16 buttons, which hopefully will be way more than
+	// anyone ever wants to add.
+
+	// return true if we added any buttons
+	return (nFullScreen + nButtons) != 0;
 }
 
 void PlayfieldView::BeginFileDrop()
@@ -16763,7 +17800,7 @@ void PlayfieldView::BeginFileDrop()
 	CloseMenusAndPopups();
 }
 
-bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, const MediaType *mediaType)
+bool PlayfieldView::DropFile(const TCHAR *fname, IStream *stream, MediaDropTarget *dropTarget, const MediaType *mediaType)
 {
 	// get the selected game; fail if there isn't one, as dropped
 	// media are added to the selected game
@@ -16785,10 +17822,10 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 		// open the archive
 		LogFile::Get()->Write(LogFile::MediaDropLogging, _T("Dropping archive file %s\n"), fname);
 		LogFileErrorHandler eh(_T("Media drop: opening archive file: "));
-		if (arch.OpenArchive(fname, eh))
+		if (arch.OpenArchive(fname, stream, eh))
 		{
 			// scan the contents
-			arch.EnumFiles([this, fname, game, &nMatched](UINT32 idx, const WCHAR *entryName, bool isDir)
+			arch.EnumFiles([this, fname, stream, game, &nMatched](UINT32 idx, const WCHAR *entryName, bool isDir)
 			{
 				LogFile::Get()->Write(LogFile::MediaDropLogging, _T(". found %s %ws\n"), isDir ? _T("directory") : _T("file"), entryName);
 
@@ -16805,12 +17842,12 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 					if (GetImpliedGameName(impliedGameName, entryName, mediaType))
 					{
 						// It's a match - add it as this media type
-						dropList.emplace_back(fname, idx, impliedGameName.c_str(),
+						dropList.emplace_back(fname, stream, idx, impliedGameName.c_str(),
 							game->GetDropDestFile(entryName, *mediaType).c_str(),
 							mediaType, game->MediaExists(*mediaType));
 
 						LogFile::Get()->Write(LogFile::MediaDropLogging, _T("  -> type: %s, destination: %s\n"),
-							LoadStringT(mediaType->nameStrId).c_str(), dropList.back().destFile.c_str());
+							mediaType->nameStr.c_str(), dropList.back().destFile.c_str());
 
 						// count it
 						curMatched = true;
@@ -16840,11 +17877,11 @@ bool PlayfieldView::DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, co
 		GetImpliedGameName(impliedGameName, fname, mediaType);
 
 		// add the item
-		dropList.emplace_back(fname, -1, impliedGameName.c_str(), 
+		dropList.emplace_back(fname, stream, -1, impliedGameName.c_str(), 
 			game->GetDropDestFile(fname, *mediaType).c_str(), mediaType, game->MediaExists(*mediaType));
 
 		LogFile::Get()->Write(LogFile::MediaDropLogging, _T("Media drop: %s -> type: %s, destination: %s\n"),
-			fname, LoadStringT(mediaType->nameStrId).c_str(), dropList.back().destFile.c_str());
+			fname, mediaType->nameStr.c_str(), dropList.back().destFile.c_str());
 
 		// matched
 		return true;
@@ -16933,8 +17970,7 @@ void PlayfieldView::EndFileDrop()
 			{
 				// We have clashing files from different sources.  Flag
 				// an error and return.
-				ShowError(EIT_Error, MsgFmt(IDS_ERR_DROP_DUP_DEST,
-					LoadStringT(d.mediaType->nameStrId).c_str()));
+				ShowError(EIT_Error, MsgFmt(IDS_ERR_DROP_DUP_DEST, d.mediaType->nameStr.c_str()));
 				return;
 			}
 		}
@@ -17044,7 +18080,7 @@ void PlayfieldView::MediaDropPhase2()
 			{
 				// The item exists, so show a simple confirmation prompt.
 				std::list<MenuItemDesc> md;
-				md.emplace_back(MsgFmt(IDS_MEDIA_DROP_REPLACE_PROMPT, LoadStringT(d.mediaType->nameStrId).c_str()), -1);
+				md.emplace_back(MsgFmt(IDS_MEDIA_DROP_REPLACE_PROMPT, d.mediaType->nameStr.c_str()), -1);
 				md.emplace_back(_T(""), -1);
 				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_YES), ID_MEDIA_DROP_GO);
 				md.emplace_back(LoadStringT(IDS_MEDIA_DROP_REPLACE_NO), ID_MENU_RETURN);
@@ -17119,7 +18155,7 @@ void PlayfieldView::MediaDropGo()
 				&& !CreateSubDirectory(path.c_str(), _T(""), NULL))
 			{
 				WindowsErrorMessage winErr;
-				eh.SysError(MsgFmt(IDS_ERR_DROP_MKDIR, LoadStringT(d.mediaType->nameStrId).c_str(), path.c_str()),
+				eh.SysError(MsgFmt(IDS_ERR_DROP_MKDIR, d.mediaType->nameStr.c_str(), path.c_str()),
 					winErr.Get());
 				continue;
 			}
@@ -17144,7 +18180,7 @@ void PlayfieldView::MediaDropGo()
 			// played a role in determining which type of media this entry 
 			// represents, which in turn determines the final output folder.
 			SevenZipArchive arch;
-			if (arch.OpenArchive(d.filename.c_str(), eh)
+			if (arch.OpenArchive(d.filename.c_str(), d.stream, eh)
 				&& arch.Extract(d.zipIndex, d.destFile.c_str(), eh))
 			{
 				// success - count the file installed
@@ -17158,23 +18194,68 @@ void PlayfieldView::MediaDropGo()
 		}
 		else
 		{
-			// It's a directly dropped file.  Copy the whole file.
-			if (CopyFile(d.filename.c_str(), d.destFile.c_str(), true))
+			// It's a directly dropped file.  Copy the file out of the IStream.
+			if (d.stream != nullptr)
 			{
-				// success - count the file installed
-				++nInstalled;
-				ok = true;
+				// create a stream on the destination file
+				RefPtr<IStream> destStream;
+				const TCHAR *where = _T("creating output stream");
+				HRESULT hr = SHCreateStreamOnFileEx(d.destFile.c_str(),
+					STGM_CREATE | STGM_WRITE | STGM_SHARE_EXCLUSIVE,
+					FILE_ATTRIBUTE_NORMAL, TRUE, nullptr, &destStream);
 
-				// mark the file as just modified
-				TouchFile(d.destFile.c_str());
+				// figure the size of the source stream
+				ULARGE_INTEGER sz;
+				if (SUCCEEDED(hr))
+				{
+					where = _T("getting source size");
+					hr = d.stream->Seek({ 0, 0 }, STREAM_SEEK_END, &sz);
+				}
+
+				// seek back to the start
+				if (SUCCEEDED(hr))
+				{
+					where = _T("seeking to start of source stream");
+					hr = d.stream->Seek({ 0, 0 }, STREAM_SEEK_SET, nullptr);
+				}
+
+				// copy the stream
+				ULARGE_INTEGER actualRead = { 0, 0 }, actualWrite = { 0, 0 };
+				if (SUCCEEDED(hr))
+				{
+					where = _T("copying data");
+					hr = d.stream->CopyTo(destStream, sz, &actualRead, &actualWrite);
+				}
+
+				// report errors
+				if (!SUCCEEDED(hr))
+				{
+					WindowsErrorMessage winErr(hr);
+					eh.Error(MsgFmt(IDS_ERR_DROP_COPY,
+						d.mediaType->nameStr.c_str(),
+						d.filename.c_str(), d.destFile.c_str(), winErr.Get()));
+				}
+				else if (actualRead.QuadPart != sz.QuadPart || actualWrite.QuadPart != sz.QuadPart)
+				{
+					MsgFmt details(_T("not all byts were copied (file size %I64u, read %I64u, wrote %I64u"),
+						sz.QuadPart, actualRead.QuadPart, actualWrite.QuadPart);
+					eh.Error(MsgFmt(IDS_ERR_DROP_COPY,
+						d.mediaType->nameStr.c_str(),
+						d.filename.c_str(), d.destFile.c_str(), details.Get()));
+				}
+				else
+				{
+					// success - count the file installed
+					++nInstalled;
+					ok = true;
+				}
 			}
 			else
 			{
-				// error in the copy - log it
-				WindowsErrorMessage winErr;
+				// no stream available - log an error
 				eh.Error(MsgFmt(IDS_ERR_DROP_COPY,
-					LoadStringT(d.mediaType->nameStrId).c_str(),
-					d.filename.c_str(), d.destFile.c_str(), winErr.Get()));
+					d.mediaType->nameStr.c_str(),
+					d.filename.c_str(), d.destFile.c_str(), _T("no source stream available")));
 			}
 		}
 
@@ -17298,7 +18379,7 @@ void PlayfieldView::DisplayDropMediaMenu(bool updating, int selectedCmd)
 		// Add the item.  If there's more than one item of this type
 		// to be added, note the number of items.
 		md.emplace_back(MsgFmt(_T("%s%s: %s"),
-			LoadStringT(d->mediaType->nameStrId).c_str(), num.c_str(),
+			d->mediaType->nameStr.c_str(), num.c_str(),
 			LoadStringT(d->status).c_str()), d->cmd, itemFlags);
 	}
 
@@ -17497,7 +18578,7 @@ void PlayfieldView::BatchCaptureView()
 			if (c.mode != IDS_CAPTURE_SKIP)
 			{
 				Gdiplus::RectF bbox;
-				g.MeasureString(LoadStringT(c.mediaType.nameStrId), -1, mediaItemFont.get(), Gdiplus::PointF(0.0f, 0.0f), &bbox);
+				g.MeasureString(c.mediaType.nameStr.c_str(), -1, mediaItemFont.get(), Gdiplus::PointF(0.0f, 0.0f), &bbox);
 				if (bbox.Width > cxCol0)
 					cxCol0 = bbox.Width;
 			}
@@ -17558,7 +18639,7 @@ void PlayfieldView::BatchCaptureView()
 
 				// show the name
 				s.curOrigin.X += 32;
-				s.DrawString(LoadStringT(c.mediaType.nameStrId), mediaItemFont.get(), capturing ? &mediaItemBr : &skipBr);
+				s.DrawString(c.mediaType.nameStr.c_str(), mediaItemFont.get(), capturing ? &mediaItemBr : &skipBr);
 			}
 
 			// add a little vertical whitespace between items
@@ -17805,7 +18886,7 @@ void PlayfieldView::EnterBatchCapture()
 				auto exists = game->MediaExists(c.mediaType);
 				auto capture = c.batchReplace || !exists;
 				lf->Write(_T("    %s: %s, %s\n"),
-					LoadStringT(c.mediaType.nameStrId).c_str(),
+					c.mediaType.nameStr.c_str(),
 					exists ? _T("Exists") : _T("Missing"),
 					capture ? _T("Capturing") : _T("Skipping"));
 

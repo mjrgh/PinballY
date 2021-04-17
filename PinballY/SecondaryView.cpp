@@ -62,18 +62,25 @@ void SecondaryView::GetMediaFiles(const GameListItem *game,
 
 void SecondaryView::GetBackgroundImageMedia(const GameListItem *game, const MediaType *mtype, TSTRING &image)
 {
-	game->GetMediaItem(image, *mtype);
+	game->GetMediaItem(image, *mtype, false, true, currentImageIndex);
 }
 
 void SecondaryView::GetBackgroundVideoMedia(const GameListItem *game, const MediaType *mtype, TSTRING &video)
 {
-	game->GetMediaItem(video, *mtype);
+	game->GetMediaItem(video, *mtype, false, true, currentImageIndex);
 }
 
 void SecondaryView::UpdateDrawingList()
 {
 	// clear the list
 	sprites.clear();
+
+	// add negative-numbered drawing layers
+	for (auto const &it : jsDrawingLayers)
+	{
+		if (it.zIndex < 0)
+			AddToDrawingList(it.sprite);
+	}
 
 	// add the background images to the list
 	AddBackgroundToDrawingList();
@@ -82,9 +89,12 @@ void SecondaryView::UpdateDrawingList()
 	// add the video overlay
 	AddToDrawingList(videoOverlay);
 
-	// add the javascript overlays
+	// add the positive-numbered javascript overlays
 	for (auto const &it : jsDrawingLayers)
-		AddToDrawingList(it.sprite);
+	{
+		if (it.zIndex >= 0)
+			AddToDrawingList(it.sprite);
+	}
 
 	// add the drop effect overlay
 	AddToDrawingList(dropTargetSprite.Get());
@@ -101,9 +111,9 @@ void SecondaryView::AddBackgroundToDrawingList()
 // update sprite scaling
 void SecondaryView::ScaleSprites()
 {
-	// stretch the topper images to exactly fill the window
-	ScaleSprite(currentBackground.sprite, 1.0f, false);
-	ScaleSprite(incomingBackground.sprite, 1.0f, false);
+	// stretch the background images to exactly fill the window
+	ScaleSprite(currentBackground.sprite, 1.0f, maintainBackgroundAspect);
+	ScaleSprite(incomingBackground.sprite, 1.0f, maintainBackgroundAspect);
 	ScaleSprite(dropTargetSprite, 1.0f, true);
 
 	// do the base class work
@@ -169,6 +179,10 @@ bool SecondaryView::UpdateAnimation()
 		// carry out any side effects of the change
 		OnChangeBackgroundImage();
 
+		// fire the Media Sync End event
+		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+			pfv->FireMediaSyncEndEvent(this, currentBackground.game, _T("success"));
+
 		// sync the next window in the daisy chain
 		SyncNextWindow();
 	}
@@ -214,15 +228,23 @@ void SecondaryView::SyncCurrentGame()
 	class Syncer
 	{
 	public:
-		Syncer(SecondaryView *self) : self(self), loadedMedia(false) { }
+		Syncer(SecondaryView *self) : self(self) { }
 		~Syncer()
 		{
-			if (!loadedMedia)
+			if (!loadStarted)
+			{
+				// fire the Media Sync End event
+				if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+					pfv->FireMediaSyncEndEvent(self, game, _T("skip"));
+
+				// synchronize the next window
 				self->SyncNextWindow();
+			}
 		}
 
 		SecondaryView *self;
-		bool loadedMedia;
+		GameListItem *game = nullptr;
+		bool loadStarted = false;
 	};
 	Syncer syncer(this);
 
@@ -249,6 +271,14 @@ void SecondaryView::SyncCurrentGame()
 		game = gl->GetNthGame(0);
 	}
 
+	// fill in the syncer watchdog with the seleted game
+	syncer.game = game;
+
+	// Fire the "begin media sync" event
+	if (auto pfv = Application::Get()->GetPlayfieldView();
+		pfv != nullptr && !pfv->FireMediaSyncBeginEvent(this, game))
+			return;
+
 	// do nothing if there's no game
 	if (game == nullptr)
 		return;
@@ -264,8 +294,21 @@ void SecondaryView::SyncCurrentGame()
 		&& currentBackground.sprite != nullptr && currentBackground.game == game)
 		return;
 
+	// reset paged/indexed images to the first item
+	currentImageIndex = 0;
+
+	// load the current game's media
+	syncer.loadStarted = LoadCurrentGameMedia(game, true);
+}
+
+
+bool SecondaryView::LoadCurrentGameMedia(GameListItem *game, bool fireEvents)
+{
+	// we haven't initiated the load yet
+	bool loadStarted = false;
+
 	// get the audio volume for the game
-	int volPct = gl->GetAudioVolume(game);
+	int volPct = GameList::Get()->GetAudioVolume(game);
 
 	// combine it with the global video volume setting
 	volPct = volPct * Application::Get()->GetVideoVolume() / 100;
@@ -277,10 +320,17 @@ void SecondaryView::SyncCurrentGame()
 	// note whether or not videos are enabled
 	bool videosEnabled = Application::Get()->IsEnableVideo();
 
+	// if videos are disabled, forget the video files entirely
+	if (!videosEnabled)
+	{
+		video.clear();
+		defaultVideo.clear();
+	}
+
 	// If there's no incoming game, and the new media file matches the media
 	// file for the current sprite, leave the current one as-is.  This can
 	// happen when both the current and incoming games use the same default
-	// background.  Only bother with this in the case of video; for images,
+	// background.  Only bother checking in the case of video; for images,
 	// a re-load won't be visible.  With videos, a re-load would start the
 	// video over from the beginning, so it's nicer to leave it running
 	// uninterrupted.
@@ -308,33 +358,53 @@ void SecondaryView::SyncCurrentGame()
 		}
 	}
 
+	// presume that we'll skip any load attempt
+	const TCHAR *disposition = _T("skip");
+
 	// now load the new video or image if it's not the same as the old one
 	if (!isSameVideo)
 	{
+		// Fire the Media Sync Begin event.  If the event handler calls preventDefault,
+		// cancel the media sync.
+		if (auto pfv = Application::Get()->GetPlayfieldView();
+			pfv != nullptr && !pfv->FireMediaSyncLoadEvent(this, game, &video, &image, &defaultVideo, &defaultImage))
+			return false;
+
 		// set up to load the sprite asynchronously
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled, volPct](VideoSprite *sprite)
+		auto load = [hWnd, video, image, defaultImage, defaultVideo, szLayout, videosEnabled, volPct](BaseView*, VideoSprite *sprite)
 		{
+			// presume failure
+			bool ok = false;
+
 			// start at zero alpha, for the cross-fade
 			sprite->alpha = 0;
 
 			// try the video first, unless videos are disabled
 			Application::AsyncErrorHandler eh;
-			bool ok = false;
 			if (video.length() != 0 && videosEnabled)
 				ok = sprite->LoadVideo(video.c_str(), hWnd, { 1.0f, 1.0f }, eh, _T("Background Video"), true, volPct);
 
 			// try the image if that didn't work
 			if (!ok && image.length() != 0)
 			{
+				// get the image file info
+				ImageFileDesc desc;
+				bool haveDesc = GetImageFileInfo(image.c_str(), desc);
+
+				// figure the image's native aspect ratio, in case we want to maintain it
+				// on display rather than stretching it to fill the whole window
+				POINTF normalizedSize = { 1.0f, 1.0f };
+				if (desc.dispSize.cy != 0)
+					normalizedSize.x = static_cast<float>(desc.dispSize.cx) / static_cast<float>(desc.dispSize.cy);
+					
 				// try loading the image
 				CapturingErrorHandler ceh;
-				if (!(ok = sprite->Load(image.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, ceh)))
+				if (!(ok = sprite->Load(image.c_str(), normalizedSize, szLayout, hWnd, ceh)))
 				{
 					// if this is an SWF file, log the error specially
-					ImageFileDesc desc;
-					if (GetImageFileInfo(image.c_str(), desc) && desc.imageType == ImageFileDesc::SWF)
+					if (haveDesc && desc.imageType == ImageFileDesc::SWF)
 						eh.FlashError(ceh);
 					else
 						eh.GroupError(EIT_Error, nullptr, ceh);
@@ -347,26 +417,49 @@ void SecondaryView::SyncCurrentGame()
 
 			// load a default image if we didn't load anything custom
 			if (!ok)
-				sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, eh);
+				ok = sprite->Load(defaultImage.c_str(), { 1.0f, 1.0f }, szLayout, hWnd, eh);
+
+			// return the result
+			return ok;
 		};
 
-		auto done = [this, game](VideoSprite *sprite)
+		auto done = [this, game](BaseView *view, VideoSprite *sprite, bool loadResult)
 		{
-			// set the new sprite
-			incomingBackground.sprite = sprite;
-			incomingBackground.game = game;
+			// check the load result
+			if (loadResult)
+			{
+				// successfully initiated media load - set the new sprite
+				incomingBackground.sprite = sprite;
+				incomingBackground.game = game;
 
-			// update the drawing list for the change in sprites
-			UpdateDrawingList();
+				// update the drawing list for the change in sprites
+				UpdateDrawingList();
 
-			// start the fade timer, unless we have a video that's still loading
-			if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
-				StartBackgroundCrossfade();
+				// start the fade timer, unless we have a video that's still loading
+				if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
+					StartBackgroundCrossfade();
+			}
+			else
+			{
+				// the load failed, so we're responsible for sending a MediaSyncEnd event
+				// with an "error" disposition
+				if (loadResult)
+				{
+					if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
+						pfv->FireMediaSyncEndEvent(view, game, _T("error"));
+				}
+			}
 		};
 
-		backgroundLoader.AsyncLoad(false, load, done);
-		syncer.loadedMedia = true;
+		// initiate the load
+		backgroundLoader.AsyncLoad(this, load, done);
+
+		// note that the load was initiated
+		loadStarted = true;
 	}
+
+	// return true if the load was started
+	return loadStarted;
 }
 
 void SecondaryView::StartBackgroundCrossfade()
@@ -597,5 +690,76 @@ void SecondaryView::ShowContextMenu(POINT pt)
 
 	// use the normal handling
 	__super::ShowContextMenu(pt);
+}
+
+WSTRING SecondaryView::JsGetBgScalingMode() const
+{
+	return maintainBackgroundAspect ? L"zoom" : L"stretch";
+}
+
+void SecondaryView::JsSetBgScalingMode(WSTRING mode)
+{
+	// note the old mode
+	auto orig = maintainBackgroundAspect;
+
+	// apply the new mode
+	if (mode == L"zoom")
+		maintainBackgroundAspect = true;
+	else if (mode == L"stretch")
+		maintainBackgroundAspect = false;
+
+	// update sprite scaling if the mode changed
+	if (maintainBackgroundAspect != orig)
+		ScaleSprites();
+}
+
+int SecondaryView::JsGetPagedImageIndex() const
+{
+	return currentImageIndex;
+}
+
+void SecondaryView::JsSetPagedImageIndex(int index)
+{
+	// Figure out which game we're currently displaying, by consulting
+	// the incoming background if there is one, or the current background
+	// if not.
+	GameListItem *game = incomingBackground.game;
+	if (game == nullptr)
+		game = currentBackground.game;
+
+	// if there's no game, there's nothing to do
+	if (game == nullptr)
+		return;
+
+	// get the background image media type; if there's no image type,
+	// there's nothing to do
+	auto bgType = GetBackgroundImageType();
+	if (bgType == nullptr)
+		return;
+
+	// Figure the number of available indexed items, by asking for
+	// a list of the current media, filtering for a single existing
+	// item at each page/index value by asking for the newest item
+	// at each position.  If we fail to find any items, there's
+	// nothing to do.
+	std::list<TSTRING> filenames;
+	if (!game->GetMediaItems(filenames, *bgType, GameListItem::GMI_EXISTS | GameListItem::GMI_NEWEST))
+		return;
+
+	// count the items
+	int n = static_cast<int>(filenames.size());
+
+	// Wrap the requested index so that it's in range.  This lets the
+	// caller easily step through the list as a circular list by
+	// incrementing or decrementing without worrying about when it
+	// falls off either end of the list.
+	index = Wrap(index, n);
+
+	// if this is a new selection, reload media
+	if (index != currentImageIndex)
+	{
+		currentImageIndex = index;
+		LoadCurrentGameMedia(game, false);
+	}
 }
 

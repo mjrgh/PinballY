@@ -2,7 +2,6 @@
 // Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 #pragma once
-#include "stdafx.h"
 #include <timeapi.h>
 
 class HiResTimer

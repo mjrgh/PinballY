@@ -34,6 +34,8 @@ class GameListItem;
 class GameCategory;
 class MediaDropTarget;
 class RealDMD;
+class FrameWin;
+class LitehtmlHost;
 
 
 // Playfield view
@@ -206,7 +208,7 @@ public:
 	// mediaType value gives us that result.  Null means that the
 	// drop area didn't have an associated media type, which in turn
 	// normally means that they're dropping a Media Pack file.
-	bool DropFile(const TCHAR *fname, MediaDropTarget *dropTarget, const MediaType *mediaType);
+	bool DropFile(const TCHAR *fname, IStream *stream, MediaDropTarget *dropTarget, const MediaType *mediaType);
 
 	// End a file drop operation
 	void EndFileDrop();
@@ -322,6 +324,12 @@ public:
 
 	// Fire a Javascript end-of-video event
 	void FireVideoEndEvent(JsValueRef drawingLayerObj, bool looping);
+	
+	// Fire Javascript MediaSync events
+	bool FireMediaSyncBeginEvent(BaseView *view, GameListItem *game);
+	bool FireMediaSyncLoadEvent(BaseView *view, GameListItem *game,
+		TSTRING *video, TSTRING *image, TSTRING *defaultVideo, TSTRING *defaultImage);
+	void FireMediaSyncEndEvent(BaseView *view, GameListItem *game, const TCHAR *disposition);
 
 protected:
 	// destruction - called internally when the reference count reaches zero
@@ -900,10 +908,11 @@ protected:
 	// Media drop list
 	struct MediaDropItem
 	{
-		MediaDropItem(const TCHAR *filename, int zipIndex, 
+		MediaDropItem(const TCHAR *filename, IStream *stream, int zipIndex, 
 			const TCHAR *impliedGameName, const TCHAR *destFile,
 			const MediaType *mediaType, bool exists) :
 			filename(filename), 
+			stream(stream, RefCounted::DoAddRef),
 			zipIndex(zipIndex), 
 			impliedGameName(impliedGameName),
 			destFile(destFile),
@@ -919,6 +928,9 @@ protected:
 		// Filename (with path).  For an item in a ZIP file, this is
 		// the ZIP file path.
 		TSTRING filename;
+
+		// Stream with the file's contents, if available
+		RefPtr<IStream> stream;
 
 		// Index of the item in a ZIP file, or -1 for a media file
 		// dropped directly.
@@ -1958,6 +1970,13 @@ protected:
 	// other animations, as it can run in parallel.
 	void StartPlayfieldCrossfade();
 
+	// Start a media sync process.  This is called when we start a playfield
+	// crossfade after successfully loading new playfield media, or when we
+	// decide to skip loading new playfield media in this window for one
+	// reason or another (e.g., Javascript canceled, or the same video was
+	// already playing), but we still need to check other windows.
+	void OnBeginMediaSync();
+
 	// Incoming playfield load time.  This is
 	DWORD incomingPlayfieldLoadTime;
 
@@ -2178,7 +2197,7 @@ protected:
 	// Javascript DOF access
 	void JsDOFPulse(WSTRING name);
 	void JsDOFSet(WSTRING name, int val);
-	
+
 	// DOF initialization status from the last initialization attempt.
 	// We suppress DOF initialization errors if the last attempt to
 	// intialize DOF also failed.  This avoids showing the same error
@@ -2685,6 +2704,16 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
+	// Javascript object for the window base classes.  MediaWindow
+	// is the common base class for all of the built-in and custom
+	// windows; SecondaryWindow is the base class for everything
+	// except the main playfield window; and CustomWindow is the
+	// base class for custom windows created through javascript.
+	// class on the Javsacript side for all of the window classes.
+	JsValueRef jsMediaWindowClass = JS_INVALID_REFERENCE;
+	JsValueRef jsSecondaryWindowClass = JS_INVALID_REFERENCE;
+	JsValueRef jsCustomWindowClass = JS_INVALID_REFERENCE;
+
 	// Javascript object for the main window object
 	JsValueRef jsMainWindow = JS_INVALID_REFERENCE;
 
@@ -2759,6 +2788,9 @@ protected:
 	JsValueRef jsLaunchOverlayMessageEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsDOFEventEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsVideoEndEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncBeginEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncLoadEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaSyncEndEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the
@@ -2863,6 +2895,18 @@ protected:
 	// Show/hide the wheel
 	void JsShowWheel(bool show);
 
+	// Initialize a Javascript window object.  This sets up the properties
+	// and methods on a Javascript object representing one of our system
+	// windows (mainWindow, backglassWindow, etc).  Returns true on success,
+	// false on error.  Logs any errors.
+	bool InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHAR *name, ErrorHandler &eh);
+
+	// Create a custom media window
+	JsValueRef JsCreateMediaWindow(JavascriptEngine::JsObj options);
+
+	// Insert a menu command into the main window's context menu for a new custom window
+	void AddShowWindowCmdForCustomWindow(int serial);
+
 	// Javascript drawing callback functions.  These are exposed on a "drawing
 	// context" prototype object for Javascript purposes.
 	JsValueRef jsDrawingContextProto = JS_INVALID_REFERENCE;
@@ -2950,6 +2994,22 @@ protected:
 	};
 	std::unique_ptr<JsDrawingContext> jsDC;
 
+	// Javascript StyledText objects
+	JsValueRef jsStyledTextProto;
+	static JsValueRef CALLBACK JsStyledTextConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	static JsValueRef CALLBACK JsStyledTextAdd(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	void JsStyledTextDraw(JsValueRef self, JsValueRef jsdc, JavascriptEngine::JsObj rcLayout, JavascriptEngine::JsObj rcClip);
+	JsValueRef JsStyledTextMeasure(JsValueRef self, float width);
+
+	// Javascript HtmlLayout objects
+	JsValueRef jsHtmlLayoutProto;
+	static JsValueRef CALLBACK JsHtmlLayoutConstructor(JsValueRef callee, bool isConstructCall, JsValueRef *argv, unsigned short argc, void *ctx);
+	void JsHtmlLayoutDraw(JsValueRef self, JsValueRef jsdc, JavascriptEngine::JsObj rcLayout, JavascriptEngine::JsObj rcClip);
+	JsValueRef JsHtmlLayoutMeasure(JsValueRef self, int width);
+
+	// litehtml host interface
+	std::shared_ptr<LitehtmlHost> litehtmlHost;
+
 	// Enter/exit attract mode via javascript
 	void JsStartAttractMode() { attractMode.StartAttractMode(this); }
 	void JsEndAttractMode() { attractMode.EndAttractMode(this); }
@@ -3035,6 +3095,9 @@ protected:
 
 	// set the current wheel selection
 	void JsSetWheelGame(int n, JsValueRef options);
+
+	// create a media type
+	void JsCreateMediaType(JavascriptEngine::JsObj options);
 
 	// get/set/refresh the current game list filter
 	JsValueRef JsGetCurFilter();

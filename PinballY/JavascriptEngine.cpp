@@ -553,6 +553,7 @@ void JavascriptEngine::CallException::Log(const TCHAR *logFileDesc, ErrorHandler
 		js->LogAndClearException(eh);
 }
 
+// test for falsy type
 bool JavascriptEngine::IsFalsy(JsValueRef val) const
 {
 	JsValueRef boolval;
@@ -561,6 +562,28 @@ bool JavascriptEngine::IsFalsy(JsValueRef val) const
 		|| JsBooleanToBool(boolval, &b) != JsNoError
 		|| !b);
 }
+
+// test for object type
+bool JavascriptEngine::IsObject(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsObject);
+}
+
+// test for array type
+bool JavascriptEngine::IsArray(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsArray);
+}
+
+// test for numeric type
+bool JavascriptEngine::IsNumber(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsNumber);
+}
+
 
 JsErrorCode JavascriptEngine::ToString(TSTRING &s, const JsValueRef &val)
 {
@@ -986,6 +1009,18 @@ bool JavascriptEngine::CreateObjWithProto(JsValueRef &obj, JsValueRef proto)
 	if ((err = JsCreateObject(&obj)) != JsNoError
 		|| (err = JsSetPrototype(obj, proto)) != JsNoError)
 		return Throw(err, _T("CreateObjWithProto")), false;
+
+	return true;
+}
+
+bool JavascriptEngine::CreateObjWithSameProto(JsValueRef &newObj, JsValueRef sourceObj)
+{
+	JsErrorCode err;
+	JsValueRef proto;
+	if ((err = JsGetPrototype(sourceObj, &proto)) != JsNoError
+		|| (err = JsCreateObject(&newObj)) != JsNoError
+		|| (err = JsSetPrototype(newObj, proto)) != JsNoError)
+		return Throw(err, _T("CreateObjWithSameProto")), false;
 
 	return true;
 }
@@ -5347,6 +5382,10 @@ JsErrorCode JavascriptEngine::HWNDData::CreateFromNative(HWND h, JsValueRef &jsv
 
 HWND JavascriptEngine::HWNDData::FromJavascript(JsValueRef jsval)
 {
+	// If the value is null or undefined, return a null window handle
+	if (jsval == JavascriptEngine::Get()->undefVal || jsval == JavascriptEngine::Get()->nullVal)
+		return NULL;
+
 	// If the value is a HANDLE object, use the same underlying handle value. 
 	// Note that we can coerce any HANDLE value to an HWND.
 	if (auto handleObj = Recover<HandleData>(jsval, nullptr); handleObj != nullptr)

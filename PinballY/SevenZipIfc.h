@@ -15,7 +15,7 @@ public:
 	~SevenZipArchive();
 
 	// open an archive file
-	bool OpenArchive(const TCHAR *fname, ErrorHandler &eh);
+	bool OpenArchive(const TCHAR *fname, IStream *stream, ErrorHandler &eh);
 
 	// enumerate the files in the archive
 	bool EnumFiles(std::function<void(UINT32 idx, const WCHAR *path, bool isDir)> func);

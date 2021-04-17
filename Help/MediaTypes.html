@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Media Types</h1>
+<p>
+   A Media Type is a data record inside PinballY that describes, in
+   concrete programming terms, one of the media items that PinballY
+   displays in its various windows.  There are media types defined
+   for the main background media displayed in the different windows
+   (playfield images and videos, backglass images and videos, etc),
+   and for several types of supplemental media, such as advertising
+   flyer images, instruction cards, and game wheel icons.  To a
+   large extent, the built-in media types correspond to the standard
+   media found in the HyperPin media packs distributed on
+   the virtual pinball sites.
+</p>
+<p>
+   In addition to the pre-defined media types that the system uses
+   in its own windows, Javascript code can define additional,
+   custom types.  This is done via <a href="GameList.html#createMediaType">GameList.createMediaType()</a>.
+   Custom types are useful with <a href="CustomWindow.html">custom media windows</a> -
+   new windows that you create through Javascript code, which appear alongside
+   the standard windows and can perform the same function of displaying
+   a particular kind of media associated with the selected game.
+   Custom media types and custom media windows work together by
+   letting you add new kinds of windows that act very much as
+   though they were part of PinballY's standard window set.  You
+   can also use custom media types for other purposes, such as
+   adding new kinds of files for use in custom graphics.
+</p>
+
+<h2>Built-in media types</h2>
+<p>
+   Here's a list of the pre-defined media types built into PinballY.
+   The <b>ID</b> gives the identifier that you use to refer to the
+   media type in Javascript functions, such as
+   <a href="GameInfo.html#resolveMedia"><i>gameInfo</i>.resolveMedia()</a>
+   or <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow()</a>.
+   The <b>Menu order</b> gives the sorting order when media types are listed
+   in system menus; the media types included in a menu are arranged in
+   ascending order of the <b>Menu order</b> number.
+</p>
+   
+<table class="dataTable">
+   <tr><th>ID</th><th>Description</th><th>Menu Order</th></tr>
+   <tr><td>"bg image"</td><td>Backglass image</td><td>500</td></tr>
+   <tr><td>"bg video"</td><td>Backglass video</td><td>510</td></tr>
+   <tr><td>"dmd image"</td><td>DMD window image</td><td>600</td></tr>
+   <tr><td>"dmd video"</td><td>DMD window video </td><td>610</td></tr>
+   <tr><td>"flyer image"</td><td>Advertising flyer images</td><td>300</td></tr>
+   <tr><td>"inst card image"</td><td>Instruction card images</td><td>200</td></tr>
+   <tr><td>"launch audio"</td><td>Game launch audio</td><td>400</td></tr>
+   <tr><td>"real dmd color image"</td><td>Real DMD image, for color DMD</td><td>810</td></tr>
+   <tr><td>"real dmd color video"</td><td>Real DMD video, for color DMD</td><td>830</td></tr>
+   <tr><td>"real dmd image"</td><td>Real DMD image, for monochrome DMD</td><td>800</td></tr>
+   <tr><td>"real dmd video"</td><td>Real DMD video, for monochrome DMD</td><td>820</td></tr>
+   <tr><td>"table audio"</td><td>Playfield audio track</td><td>430</td></tr>
+   <tr><td>"table image"</td><td>Playfield image</td><td>410</td></tr>
+   <tr><td>"table video"</td><td>Playfield video</td><td>420</td></tr>
+   <tr><td>"topper image"</td><td>Topper window image</td><td>700</td></tr>
+   <tr><td>"topper video"</td><td>Topper window video</td><td>710</td></tr>
+   <tr><td>"wheel image"</td><td>Wheel icon</td><td>100</td></tr>
+</table>
+
+
+<h2>Custom media types</h2>
+
+<p>
+   You can use Javascript to create your own custom media types,
+   adding to the types that PinballY knows about out of the box.
+</p>
+<p>
+   To create a custom type, you call <a href="GameList.html#createMediaType">GameList.createMediaType(<i>desc</i>)</a>.
+   <i>desc</i> is a descriptor object with properties that describe the
+   new media type.
+</p>
+<p>
+   Here are the properties you can use in the descriptor object <i>desc</i>.
+   All of these are required except for the ones marked as optional.  
+   An error will be thrown if any of the required properties are missing
+   or use an invalid format.
+</p>
+<ul>
+   <li><b>id:</b> A string giving the media type an ID that you'll use to refer
+   to this type in subsequent Javascript operations involving media types.
+   For example, this is the ID you use to refer to this media type when calling
+   <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow()</a>,
+   in the <b>backgroundImageMediaType</b> and <b>backgroundVideoMediaType</b> properties
+   of the window descriptor.
+   <p>
+      The only requirement for this type string is that it must be unique, so
+      be sure it doesn't match the ID of any of the pre-defined types (see
+      <a href="MediaTypes.html">Media Types</a> for the full list)
+      or any other custom type you're using elsewhere in this script or any
+      other scripts you're using.
+   </p>
+
+   <li><b>configId:</b> A string giving the ID for this media type to use in
+   the settings file.  Like the <b>id</b>, this must be unique across all
+   media types, since it has to uniquely identify the type when referenced
+   in the settings file.  This identifier also has some limits on its syntax:
+   it must not contain any spaces or punctuation marks except for periods,
+   hyphens, and underscores.
+
+   <li><b>name:</b> A string giving the friendly name to use for the media
+   type when displaying it in a menu or elsewhere in the user interface.
+   This can be anything you like, but something descriptive is of course
+   ideal.  The system types render their display names in "title case"
+   and in the plural, such as "Playfield Images" or "DMD Videos", so
+   using a similar format will make your custom types harmonize better
+   with the system types whenever they appear alongside them.
+
+   <li><b>menuOrder:</b>  A number giving the placement of this item in menus
+   where media types are listed.  Media types are arranged in ascending order
+   of the <b>menuOrder</b> number when displayed in menus.  See
+   <a href="MediaTypes.html">MediaTypes</a> for a list of the pre-defined
+   types and their assigned menu order codes.  This is optional; if
+   omitted, the system will assign an arbitrary order number that's
+   higher than that of any of the built-in types.
+
+   <li><b>folder:</b> A string giving the name of the sub-folder within
+   the media folder tree where files of this type can be found.  This is
+   the name of a Windows disk folder, so it has to conform to
+   the usual Windows rules about file naming (for example, a number
+   of special characters are forbidden, including quote marks, slashes,
+   question marks, and asterisks).  This should be a plain folder name
+   without any disk drive or path prefix, such as "Side Art Images".
+   PinballY combines this with the standard media tree path to get
+   the full path.
+   <p>See <a href="DirectoryInfo.html">Files &amp; Folders</a>
+      for details about how PinballY constructs full media path
+      using this folder name.  The <b>folder</b> string defined here corresponds
+      to the <b>&lt;Media type subfolder&gt;</b> portion of the
+      full path in the explanations in that section.
+   </p>
+
+   <li><b>perSystem:</b> A boolean (true/false) value indicating whether
+   there's a separate version of this type of media file for each game
+   player system (Visual Pinball, Future Pinball, etc), or if there's
+   a single global copy that applies to all systems.  <b>true</b> means
+   that the files are stored individually for each game system, and <b>false</b>
+   means that the files are "generic", with only one copy that's shared
+   across all of the game systems.  The difference is described
+   more fully in <a href="DirectoryInfo.html">Files &amp; Folders</a>.
+   Optional; defaults to false (making the media type "generic").
+
+   <li><b>format:</b>  A string indicating the broad format class that
+   this type of media belongs to.  This must be one of the following,
+   exactly as listed (including capitalization):
+   <ul>
+      <li><tt>"Image"</tt> - a still image, such as a JPEG or PNG file
+      <li><tt>"SilentVideo"</tt> - a video without any audio track
+      <li><tt>"Video"</tt> - a video with an audio track
+      <li><tt>"VideoWithAudio"</tt> - same as <tt>"Video"</tt>
+      <li><tt>"Audio"</tt> - an audio-only track, such as an MP3 or WAV file
+   </ul>
+
+   <li><b>extensions:</b>  A string with a list of filename suffixes
+   (extensions) to search for when looking for files of this type.  List
+   multiple extensions by separating each with a single space character.
+   Each extension must start with a period (".").  For example, for
+   image files, this might look like <tt>".jpg .jpeg .png .gif"</tt>.
+
+   <li><b>hasDropButton:</b>  A boolean (true/false) value indicating
+   whether or not a "Drop File Here" button should be displayed in
+   the main playfield window when dragging a file over the window.
+   If you plan to create a <a href="CustomWindow.html">custom media window</a>
+   based on this type, you probably <b>don't</b> want a drop button
+   for the type in the main window, since you can drop media of
+   this type directly on the dedicated custom window instead; that's
+   more intuitive and avoids cluttering the main window.  If instead
+   you intend for this type to be used for auxiliary purposes, rather
+   than as a whole window backdrop, there won't be any "natural"
+   place to drag and drop files of this type, so a main window
+   button is useful.  This is how the built in Wheel Icon and
+   Table Audio types work, since they don't have windows of
+   their own where they could otherwise be dropped.  The
+   default is false (no button) if the property isn't specified.
+
+   <li><b>rotation:</b>  For images, this specifies the rotation
+   that should be applied when loading the media files, in degrees
+   clockwise.  This must be one of 0, 90, 180, or 270.  This is
+   primarily for the sake of the convention used in all HyperPin
+   media packs to store playfield images and videos rotated
+   so that the bottom of the playfield appears at the left side
+   of the image. 
+   <p>
+      This is optional; if omitted, a rotation of 0 is used, which renders
+      the media as it appears in the file.  0 degrees is the right setting for
+      almost all media files except for playfield images and videos,
+      which use the HyperPin convention.
+   </p>
+
+   <li><b>isIndexed:</b>  A boolean saying if this is an "indexed" media
+   type, meaning that it might have multiple copies of the item for the
+   same game, with numeric suffixes (1, 2, 3...) on the filename.
+   This is the convention used in HyperPin media packs for Instruction Card
+   media, where you might have files named "Sinbad (Gottlieb 1978) 1.png",
+   "Sinbad (Gottlieb 1978) 2.png", etc.
+   Optional; defaults to false.
+
+   <li><b>pageFolders:</b>  An array of strings, giving the names of subfolders
+   of the media type's main folder (the one named by the <b>folder</b> property)
+   used to store "pages" of the media.  This is how the "Flyers" (scans of the
+   original advertising material) in HyperPin media packs are organized.  None
+   of the other built-in media types apart from Flyers use this; all of the
+   others just use a single file with no additional "page" structure (except
+   for Instruction Cards, which uses the "indexed" scheme described above
+   under the <b>isIndexed</b> property).
+   Optional; if not provided, the media type simply uses a single file per game,
+   without any added "page folder" tree.
+
+   <li><b>captureStartConfigVar:</b> The name of the configuration variable
+   (used in the Settings.txt file) where the trigger mode to use to start image/video
+   capture for this media type is stored.  As with all configuration variables,
+   this should be limited to alphanumeric characters and periods, hyphens,
+   and underscores.  Optional.
+
+   <li><b>captureStopConfigVar:</b> The name of the configuration variable
+   where the trigger mode to end video capture for this media type is stored.
+   Optional.
+
+   <li><b>captureTimeConfigVar:</b> The name of the configuration variable
+   where the video capture time for this media type is stored.
+   Optional.
+
+</ul>
+<p>
+   Calling the method creates a new media type based on the descriptor, and
+   adds it to the system's internal list of types.  You can use it from Javascript
+   from that point forward by referencing the <b>id</b> string you provided.
+</p>
+<p>
+   The method has no return value.  This might seem a little strange, since
+   "creating" something usually returns an object representing that thing.
+   In this case, there's no Javascript object representing the newly created media type;
+   a media type is just an internal list entry within PinballY.  In Javascript contexts where
+   you need to refer to a media type, you do so using the <b>id</b>
+   string you provided in the descriptor.
+</p>
+      
+</body>
+</html>

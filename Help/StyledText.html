@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>StyledText</h1>
+
+<p>
+   StyledText is a built-in class for arranging and displaying text
+   that contains a mixture of styles, such as different fonts and sizes.
+   The text can also contain in-line images, which are laid as though
+   they were part of the text.
+</p>
+<p>
+   This class is a higher-level alternative to the basic text drawing
+   primitives that the <a href="CustomDrawing.html">Custom Drawing</a>
+   system provides.  The basic text functions operate at the much simpler
+   level of drawing individual strings, each in a single style.  That
+   works for simple graphics with plain text that's static enough that
+   you can position and arrange it in advance, but it's impractical
+   for text that uses a mixture of styles, since you'd have to do all
+   of the alignment calculations and word-wrapping manually.
+</p>
+<p>
+   StyledText lets you construct a text stream containing a mixture
+   of fonts and styles, and does all of the word-wrapping and alignment
+   calculations necessary to lay out the text in a given screen area.
+   You can then measure the space needed to display the whole block of
+   text, and display the whole block with a single method call.
+</p>
+<p>
+   StyledText works with the Custom Drawing system, so you can combine
+   it with the other drawing primitives to create complex layouts
+   that incorporate styled text as well as other graphics.  StyledText
+   amounts to an extended version of the
+   <a href="CustomDrawing.html#drawText">drawText()</a> method in the
+   custom drawing context.
+</p>
+<p>
+   You might also take a look at <a href="HtmlLayout.html">HtmlLayout</a>,
+   which is another way of handling mixed-style text.  HtmlLayout has more
+   extensive layout capabilities than StyledText that include most of the
+   core HTML and CSS layout features.  The interface to HtmlLayout is
+   also rather different, in that you set it up using HTML/CSS source
+   code, as though you were creating a Web page.  StyledText has a more
+   programming-oriented interface.  Each approach is more convenient
+   for certain kinds of tasks, so you can choose the one that works
+   better for your use case.
+</p>
+
+<h2>How to use StyledText</h2>
+<p>
+   The first step is to create a StyledText object to hold the mixed-style
+   text you wish to display.  Do this by using the Javascript <b>new</b>
+   operator to create the object:
+</p>
+<div class="code">
+let s = new StyledText();
+</div>
+
+<p>
+   Optionally, you can pass an object to the constructor, to specify
+   the visual styling for the text block.  That lets you select the
+   text alignment (left, centered, right, justified), set a background
+   fill color for the whole block of text, and set the default font
+   style to use for text within the block.  See
+   <a href="#constructor">new StyledText()</a> below for details.
+</p>
+<p>
+   A StyledText object doesn't need a Drawing Layer or Custom Drawing
+   context.  It's just a container for the styled text itself, so it's
+   not directly tied to any particular window or drawing operation.
+   You can create one at any time and hold onto it indefinitely,
+   even when a drawing operation isn't in effect.  Likewise, you can
+   reuse the same StyledText object to draw the same text in different
+   drawing contexts.
+</p>
+<p>
+   Once you've created a StyledText object, you add text to the layout
+   by calling the <b>add()</b> method on the object:
+</p>
+
+<div class="javascript code">
+s.add("Styled Text Demo");
+</div>
+
+<p>
+   Each bit of text you add is appended to any text you added
+   previously, so you can build up the overall layout by adding each
+   piece of text in turn until the text is complete.
+</p>
+<p>
+   When you pass a string to <b>add()</b>, it adds the text using
+   the default font style.  You can specify a specific font style
+   to use as the default when creating the StyledText object with
+   <b>new</b>.
+</p>
+<p>
+   But StyledText wouldn't be very different from the
+   <a href="CustomDrawing.html#drawText">drawText()</a>
+   primitive if this was all you could do!  The whole point
+   of StyledText is to use a mixture of styles within one block
+   of text.  So each time you call <b>add()</b>, you can also optionally
+   specify a specific style to use for just that one fragment
+   of text being added.  You do this by calling <b>add()</b>
+   with a descriptor object instead of just a simple string:
+</p>
+
+<div class="javascript code">
+s.add({ font: "Tahoma", size: 30, weight: 700, text: "Some big, bold text!" });
+</div>
+
+<p>
+   That adds the text in the specified font, size, and weight.
+   Other properties you can set include <b>style</b>, to select
+   italics, oblique, or regular text; <b>underline</b> and
+   <b>strikethrough</b>, to set text decorations; <b>color</b>,
+   to set the text color; <b>backgroundColor</b>, to set the
+   background fill color for the string; and <b>stretch</b>,
+   to set the horizontal width of the font, from condensed
+   to extended.  See the <a href="#add">add()</a> method
+   for full details on what can go in the descriptor.
+</p>
+<p>
+   You don't have to specify all of those properties every
+   time you add text.  You just have to specify the ones that
+   you want to customize for that particular string.  Any of
+   the style properties you include will override the defaults,
+   and any that you leave out will use the defaults.
+</p>
+<p>
+   You can also "nest" styles within styles.  The <b>text</b>
+   property can itself be another descriptor, where you add more
+   styles:
+</p>
+<div class="javascript code">
+s.add({ font: "Tahoma", text: {
+        size: 30, text: "Big Tahoma Text!"
+    }
+});
+</div>
+
+<p>
+   That might not look all that useful: after all, you could
+   have just put that all in one descriptor, right?  Well, it
+   turns out that there's yet an other option for <b>text</b>,
+   which is that it can be an array of multiple strings and/or
+   descriptors.  That's where the nesting becomes really useful.
+   It lets you activate a style for a series of text fragments,
+   which can then add their own individual styles to the
+   "parent" style:
+</p>
+<div class="javascript code">
+s.add({
+    font: "Tahoma",
+    size: 30,
+    text: [
+        { weight: 700, text: "Bold!" },
+        { style: "italic", text: "Italics!!" },
+        { weight: 700, style: "italic", text: "Bold Italics!!!" }
+    ]
+});
+</div>
+
+<p>
+   In the example above, all three text fragments are displayed
+   in 30-point Tahoma, but the first is in boldface, the second
+   is in italics, and the the third is in bold and italics.
+</p>
+<p>
+   You can continue that nesting to any depth.  Just use another
+   array-of-descriptors as the inner <b>text</b> property.
+</p>
+<p>
+   One little note about these examples: <b>add()</b> doesn't
+   insert any spaces beyond what you explicitly tell it to,
+   so all of the text we've been inserting will just run
+   together.  In actual use, you'll usually want to include
+   spaces between adjacent strings, unless you actually want
+   them to run together without any spacing.
+</p>
+
+<p>
+   <b>Using images:</b>   You can include in-line images that
+   are formatted along with the text.  This is useful for things
+   like icons and bullets that aren't part of a font.  To add
+   an image to the text flow, call
+   <b>add()</b> with a descriptor that includes an <b>image</b>
+   property instead of a <b>text</b> property.  The <b>image</b>
+   property lets you specify the file containing the image to
+   display, and other properties to size and align the image.
+</p>
+<div class="javascript code">
+s.add({ image: { src: "GameIcon.png" }});
+</div>
+
+<p>
+   <b>Drawing the text:</b>  Once you've added all of the text
+   to the StyledText object, you're ready to draw it.  To do this,
+   you use the standard <a href="CustomDrawing.html">Custom Drawing</a>
+   procedure.  As always, you have to write a "drawing function"
+   and pass it to the appropriate system function to initiate drawing,
+   such as the <a href="DrawingLayer.html#draw">draw()</a> method on
+   a <a href="DrawingLayer.html">DrawingLayer</a> object.  Your drawing
+   function receives a <a href="CustomDrawing.html#drawingContext">drawing context</a>
+   object as its argument, and this object is needed to
+   draw the StyledText layout.
+</p>
+<p>
+   Once you're in a custom drawing function and have a
+   drawing context object available, drawing the StyledText
+   is just a matter of calling its <b>draw()</b> method.
+   The arguments to this method are the drawing context
+   object, and the boundaries of the rectangular area within the
+   window where you want to display the text: left coordinate,
+   top coordinate, width, and height, all in pixels.
+</p>
+<p>
+   For example, this draws styled text in a Drawing
+   Layer object, positioning it at the top left, and giving it
+   full run of the available space:
+</p>
+<div class="javascript code">
+myDrawingLayer.draw(dc => {
+    let size = dc.getSize();
+    s.draw(dc, { x: 0, y: 0, width: size.width, height: size.height });
+}, 640, 480);
+</div>
+
+<p>
+   <b>Measuring the text:</b>  One of the key things StyledText can
+   do for you is automatic word-wrapping, taking into account the
+   different styles of the text and the
+   bounds of the drawing area.  You can measure
+   the effect of word-wrapping using the <b>measure()</b>
+   method of the StyledText object, specifying the width of the
+   available space.  That'll figure the word-wrapping break
+   points and tell you (among other things) how much vertical
+   space is needed to fit the resulting text.  It'll also
+   tell you the actual width needed, which might be a
+   little different from the bounding-box width you
+   specified, since the word breaks might fall in such
+   a way that none of the lines fully fill out the
+   available width (and, in some cases, text that can't
+   be broken across lines might exceed the available width).
+</p>
+<div class="code">
+// measure the layout bounds with a width of 250 pixels
+let metrics = s.measure(250);
+</div>
+<p>
+   The measure() method returns an object with properties
+   <b>width</b> and <b>height</b> giving the required display
+   size of the text.
+</p>
+<p>
+   The returned object has another property, <b>drawingArea</b>,
+   giving a rectangle indicating the bounding box of all of
+   the pixels affected by the text display.  This has properties
+   <b>x</b>, <b>y</b>, <b>width</b>, and <b>height</b>.  The
+   <b>width</b> and <b>height</b> in <b>drawingArea</b> might
+   be slightly different from the main <b>width</b> and
+   <b>height</b> values returned, since the ones in
+   <b>drawingArea</b> reflect the actual pixel area, as
+   opposed to the text layout area.
+</p>
+<p>
+   In most cases, you can just ignore this <b>drawingArea</b>.
+   The <b>width</b> and <b>height</b>
+   usually tell you everything you need to know to arrange
+   the text display on the screen.  But the drawing area
+   might be useful in some special cases, so it's included
+   in case you need it; read on if you're curious.
+</p>
+<p>
+   The difference between the drawing area and the layout
+   area is a technicality of the way computerized
+   fonts are constructed.  Computer fonts are laid out using
+   rectangular "character cell" boxes.  A given font's cells
+   are always the same height, but they can vary in width -
+   the cell for an "M" is usually wider than for an "i",
+   for example.  The cells are used to line up the glyphs
+   on a line of text, and to space them out horizontally.
+   The complication with "overflow" is that some glyphs
+   aren't completely confined to their cells.  Some fonts
+   have glyphs that spill out slightly.   This is especially
+   common with decorative fonts, which often have "swashes"
+   or ligatures that intentionally overlap with nearby characters
+   and therefore have to spill outside of their cells a
+   little bit.  It's also common with italic and oblique
+   typefaces, since the tilt often pushes a little bit
+   of each glyph outside of its rectangular cell.  The
+   main <b>width</b> and <b>height</b> properties returned
+   from <b>measure()</b> only cover the bounds of the
+   area needed for all of the character cells.  If any
+   of the glyphs at the outside spill out of their
+   cells, the <b>drawingArea</b> box will reflect the
+   larger area needed to account for all of the pixels.
+   Conversely, if all of the glyphs are not only confined
+   to their character cells, but don't even reach the
+   edges of their cells, <b>drawingArea</b> will reflect that
+   by being slightly smaller than the rectangle implied
+   by <b>width</b> and <b>height</b>.
+</p>
+<p>
+   The main use I can think of for the drawing area is
+   clipping.  If you need to clip the StyledText display
+   to a limited area (to avoid having it overlay adjacent
+   graphics, for example), the drawing area rectangle is
+   important because it tells you the full pixel extent
+   of the text.  If you clip to the layout width and
+   height, you might chop off a few pixels at the
+   edges where glyphs extend slightly outside their
+   cells.
+</p>
+
+<p>
+   <b>Interaction with other drawing primitives:</b>  StyledText
+   does its actual drawing using a <a href="CustomDrawing.html">Custom Drawing</a>
+   graphics context, just like all of the Custom Drawing functions,
+   so you can freely combine it with the other drawing functions
+   to build up composite graphics out of different elements.
+   Drawing styled text simply draws pixels into the in-memory
+   bitmap that the drawing function is constructing, just like
+   drawing a simple text string via the drawing context's
+   <a href="CustomDrawing.html#drawText">drawText()</a> method.
+</p>
+<p>
+   In the absence of explicit background colors, StyledText uses
+   a transparent background.  This makes it easy to overlay
+   styled text on top of other graphics.  Draw the background
+   material first, then draw the StyledText object to draw
+   the text over the background.
+</p>
+<p>
+   StyledText <b>doesn't</b> affect of the text-related "status" elements
+   in the drawing context.  It doesn't use or affect
+   the text origin, text bounding box, of any of the font, size,
+   style, or color attributes in the drawing context.  All of the
+   style and positioning information in a StyledText object is
+   self-contained.
+</p>
+
+<h2>Properties and methods</h2>
+<p>
+   A StyledText object has the following properties and methods:
+</p>
+
+<p>
+   <a name="constructor">
+   <b>new StyledText(<i>desc</i>):</b>  Create a new StyledText
+   object.  <i>desc</i> is an optional descriptor object specifying
+   the overall block-level style, and the default font styling for
+   text added to the object.  It has the following properties,
+   all optional:
+   <ul>
+      <li><b>backgroundColor</b>:  A number giving the background
+      color to draw for the whole text area, in hex 0xAARRGGBB format -
+      alpha, red, green, blue.  Each component is a hex number from
+      00 to FF (decimal 0 to 255).  An alpha of 0 is completely
+      transparent, and FF is completely opaque.  If you don't
+      specify a background color, the background is transparent,
+      allowing you to layer the text over other background material
+      you draw separately into the drawing context.
+
+      <li><b>cornerRadius</b>:  A number giving the radius (in pixels)
+      to use for rounding the corners of the background fill.  This only
+      matters if you specify a non-transparent background color.
+
+      <li><b>padding</b>:  A number giving the amount of blank space
+      (in pixels) to leave around the perimeter of the text.  The text
+      is indented on all sides by this amount from the rectangle you
+      specify when you draw it.  If there's a background fill color,
+      the background fill extends out to include the padding space.
+      <p>
+         Optionally, instead of specifying a single number with the
+         padding all around, you can specify the padding on each side
+         individually.  Do this by specifying an object for <b>padding</b>,
+         instead of just a number, with the properties <b>left</b>, <b>right</b>,
+         <b>top</b>, and <b>bottom</b>, each a number, giving the padding
+         in pixels on that side.  Any that are omitted default to zero.
+      </p>
+
+      <li><b>textAlign</b>:  One of the strings "left", "right", "center",
+      or "justified", specifying the horizontal alignment for text in
+      the block.
+
+      <li><b>textStyle</b>:  An object, containing any of the text
+      styling properties that can be used in the <b>add()</b> descriptor:
+      font, size, sizePx, weight, stretch, underline, strikethrough,
+      style, color, backgroundColor.  These all have the same usage and
+      meaning as when used in <b>add()</b>, and they establish the
+      default style used for all text that doesn't specify other
+      values when added.  The defaults if you don't specify any
+      styling are 10-point Arial, regular weight and style, black
+      text with a transparent background.
+   </ul>
+
+   <a name="add"></a>
+   <b><i>styledText</i>.add(<i>desc</i>):</b>  Adds text to the layout.
+   If <i>desc</i> is a string, the text in the string is simply added to
+   the layout, using the default style.  If <i>desc</i> is an array,
+   each element of the array is added to the layout, one at a time,
+   as though you had called <b>add()</b> with each element of the
+   array individually.  <i>desc</i> can also be a descriptor object,
+   with the following properties, all of which are optional:
+
+   <ul>
+      <li><b>backgroundColor</b>:  A number giving the background
+      color for the text span, as an 0xAARRGGBB value - alpha, red,
+      green, blue.  Each element is a hex value from 00 to FF
+      (decimal 0 to 255).  An alpha value of 00 is completely
+      transparent, meaning no background will be drawn at all.  The
+      background only affects this run of characters, not the
+      whole StyledText area.
+
+      <li><b>color</b>:  A number giving the color for the text, as an
+      0xAARRGGBB value - alpha, red, green, blue.  Each element is a hex
+      value from 00 to FF (decimal 0 to 255).  An alpha of 00 is
+      completely transparent, and FF is completely opaque.
+
+      <li><b>font</b>: A string giving the name of the font to use
+      for this text element.
+
+      <li><b>image</b>:  Inserts an inline image into the text stream.
+      This is mutually exclusive with <b>text</b> and <b>nbsp</b>.
+      The property value is an object with the following properties:
+      <ul>
+         <li><b>height:</b>  An optional number giving the pixel height
+         to use when drawing the image.
+         <li><b>src:</b>  A string giving the filename of the image.
+         This is required.
+         <li><b>verticalAlign:</b>  A string indicating how to align
+         the image vertically within the line of text.  This can be
+         "top", "bottom", "middle", or "baseline".  Baseline alignment
+         means that the image's bottom edge is aligned with the text
+         baseline, which is the bottom of the glyphs on the line not counting
+         "descenders" (the little curlicues that extend below some
+         lower-case letters, like "g" and "j").
+         <li><b>width:</b>  An optional number giving the pixel width to
+         use when drawing the image.
+      </ul>
+      <p>
+         If both <b>width</b> and <b>height</b> are included, the
+         image is drawn at the exact size specified.  If both are
+         omitted, the actual size of the image is used.  If one
+         is specified and the other isn't, the one that's
+         missing is chosen to maintain the image's original aspect ratio.
+      </p>
+      
+
+      <li><b>nbsp</b>:  Any value.  If this property is present (regardless
+      of the value), it inserts a non-breaking space into the text.  This appears
+      as a space character visually, but unlike an ordinary space,
+      it prevents a word-wrapping line break before or after the
+      space.  This is mutually exclusive with <b>image</b> and <b>text</b>.
+
+      <li><b>size</b>: A number giving the font size, in <b>points</b>, for
+      this text element.
+
+      <li><b>sizePx</b>: A number giving the font size, in <b>pixels</b>, for
+      this text element.
+
+      <li><b>stretch</b>:  A number giving the horizontal "stretch" of the font,
+      from 1 to 9, where 5 is normal.  Some fonts provide a range of widths
+      from condensed (narrower than normal glyphs) to extended (wider than normal).
+      Most Windows fonts only come in a single "normal" width, but some
+      professional-level fonts have more variability.
+
+      <li><b>strikethrough</b>:  A boolean (true or false) specifying
+      whether or not the text should be drawn with a strike-through
+      line through the middle.
+
+      <li><b>style</b>: one of the strings "italic", "oblique", or "normal",
+      specifying the style variation.  An oblique font is a normal
+      font with its glyphs slanted forward slightly; in contrast,
+      italics usually have a somewhat different design from the
+      corresponding normal style, with different serif forms.
+
+      <li><b>text</b>:  The text to add, using the style settings given
+      by the other properties.  This can be a string, which adds the
+      text it contains to the layout.  It can also be an array, in which
+      case each element of the array is added, one at a time.  Or it
+      can be an object containing another descriptor just like the
+      main descriptor, in which case the style elements in the nested
+      descriptor are combined with the style elements in the parent
+      descriptor.  This is especially useful with an array of
+      descriptor objects, since this lets you add several pieces of
+      text with different styles all based on the parent style.
+
+      <li><b>underline</b>: A boolean (true or false) specifying
+      whether or not the text should be underlined.
+
+      <li><b>weight</b>:  A number giving the font weight.  Font weights
+      are expressed in units where 400 is normal and 700 is bold.  Those
+      are the only two weights that most Windows fonts implement, although
+      some professional-level fonts offer a wider weight range.  In principle,
+      the Windows typography system allows for weights from 100 (which
+      represents "ultra light" typefaces) to 900 ("ultra bold").
+
+   </ul>
+      
+</p>
+
+<p>
+   <a name="draw"></a>
+   <b><i>styledText</i>.draw(<i>drawingContext</i>, <i>layoutRect</i>, <i>clipRect</i>):</b>
+   Draw the object's text (defined when it was created with <b>new</b>) into
+   the <a href="CustomDrawing.html#drawingContext">drawing context</a>,
+   laying it out to fit the layout area given by <i>layoutRect</i>.
+   <p>
+      The <i>drawingContext</i> object is the argument that the system
+      passes to your custom drawing function when you use a
+      <a href="DrawingLayer.html">Drawing Layer</a> or other
+      <a href="CustomDrawing.html">Custom Drawing</a> mechanism.
+      As a result, you can only call the StyledText <b>draw()</b> method from
+      within one a drawing function, since that's the only place where
+      a drawing context is valid.  (This restriction doesn't apply to
+      other StyledText operations, though.  You can create a
+      StyledText object at any time, and you can hold onto it
+      and use it in as many different drawing operations as
+      you want.  The StyledText object itself isn't tied to
+      a particular window or drawing operation; it's just an
+      encapsulation of the formatted text.)
+   </p>
+   <p>
+      The layout rectangle isn't a hard limit on the bounds
+      of the displayed text - the display might exceed this
+      area in some cases, such as when a word that can't be
+      broken across lines is too wide to fit the available space.
+      The formatter tries to fit the text to the specified area,
+      but the text is allowed to spill outside the bounds if
+      there's no way to make it fit.
+   </p>
+   <p>
+      The layout rectangle is also the reference frame for text alignment.
+      If the object was created with center alignment, for example, the
+      text will be centered within the layout rectangle.   Likewise,
+      right alignment will draw the text aligned to the right side
+      of the layout rectangle.
+   </p>
+   <p>
+      If you specified any padding when creating the StyledText object,
+      the padding is applied <i>inside</i> the layout rectangle.
+      The results from <b>measure()</b> behave the same way, by
+      including the padding in the size calculations returned.
+      That means you can usually just ignore the padding and let the
+      StyledText object handle it, since as far as you're concerned,
+      it's just part of the text layout.
+   </p>
+   <p>
+      <i>clipRect</i> is optional.  If it's included, the drawing will
+      be "clipped" to this area, meaning that pixels outside of this
+      area will simply not be drawn.  Clipping doesn't attempt to
+      keep whole characters intact, since it's simply at the pixel
+      level; it can result in characters being chopped in half
+      vertically or horizontally if they spill outside of the
+      clipping boundaries.  If <i>clipRect</i> is omitted (the
+      argument is missing, or you explicitly pass <b>undefined</b>),
+      the drawing isn't clipped, so it can affect pixels outside of the layout
+      rectangle.  The actual display area can exceed the layout area
+      for a number of reasons, such as words that are too long to fit
+      the specified layout width, too many lines to fit the layout height, or fonts with
+      characters that are deliberately designed to extend outside
+      of their character cells (which can happen with italic or
+      oblique type, and is also common with decorative fonts, where
+      "swashes" and ligatures and the like are often designed to
+      extend far enough to overlap adjoining characters).
+   </p>
+   <p>
+      Both rectangles (<i>layoutRect</i> and <i>clipRect</i>) are
+      specified as objects, with properties { x, y, width, height },
+      giving the upper left corner of the rectangle, and its size.
+      As with all Custom Drawing coordinates, the rectangle coordinates
+      are all in terms of pixel positions within the Custom Drawing
+      surface, starting with (0,0) at the upper left corner of the
+      drawing surface.
+   </p>
+
+</p>
+<p>
+   <a name="measure"></a>
+   <b><i>styledText</i>.measure(<i>width</i>):</b>
+   Measure the text contained in the StyledText object, taking into
+   account all of the font styles and sizes, and fitting it to the
+   given width by word-wrapping the text.  <i>width</i> is
+   specified in pixels.
+   <p>
+      The method returns an object with the following properties:
+   </p>
+   <ul>
+      <li><b>drawingArea:</b> A rectangle, with properties { x, y, width, height },
+      giving the pixel coordinates of the outer bounds of the area needed
+      to draw all of the pixels of the styled text.  This takes into
+      account any glyphs that extend outside of their  positioning boxes,
+      so the width and height here might be slightly different from the
+      main width and height properties, which specify the "layout"
+      area.  The layout area only takes into account the character
+      cells of the glyphs, whereas the drawing area takes into account
+      all affected pixels.  Some fonts, especially decorative fonts
+      and italic/oblique fonts, have glyphs that extend slightly
+      outside of their character cells so that they can overlap
+      adjacent characters.  The drawing area takes those overflow
+      pixels into account so that you can calculate an accurate
+      clipping area if needed.
+      <p>
+         The x and y values are relative to the layout box, so you
+         can add these to the actual upper left corner of the position
+         where you're going to actually draw the object.
+      </p>
+      
+      <li><b>height:</b> A number giving the layout height
+      in pixels of the text when laid out in the available space.
+      This includes any top and bottom padding specified
+      when the StyledText object was created.
+
+      <li><b>width:</b>  A number giving the layout width
+      in pixels of the text when laid out in the available space.
+      This includes any left and right padding specified
+      when the StyledText object was created.
+      This might be more or less than the width you specified,
+      since it measures the actual space needed to fit the glyphs.
+      The text formatter tries to keep the width
+      under the maximum you specify, but this might not be possible;
+      for example, a single word that can't be broken across lines
+      might exceed the available width.  When the text does fit
+      the given maximum, the actual returned width might be less
+      than the specified maximum, since there might not be any
+      lines that happened to need the full available space after
+      word-wrapping.
+   </ul>
+   
+</p>
+
+
+
+</body>
+</html>
+

@@ -159,8 +159,9 @@ inline Gdiplus::Color GPColorFromCOLORREF(COLORREF color, BYTE alpha = 0xff)
 Gdiplus::Font *CreateGPFont(const TCHAR *faceName, int pointSize, int weight, bool italic, HDC hdc = NULL);
 
 // Create a GDI+ font at a given pixel height.  If a DC is provided,
-// we'll scale 
-Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, int weight, bool italic, HDC hdc = NULL);
+// we'll scale the font according to the DC's pixel pitch; if not, we
+// use the memory DC reference pitch of 96 dpi.
+Gdiplus::Font *CreateGPFontPixHt(const TCHAR *faceName, int pixHeight, Gdiplus::FontStyle styleBits, HDC hdc = NULL);
 
 // Draw a string via GDI+, advancing the origin to the next line
 // vertically.
@@ -175,7 +176,7 @@ struct GPDrawString
 {
 	// set up a drawing context within the given area
 	GPDrawString(Gdiplus::Graphics &g);
-	GPDrawString(Gdiplus::Graphics &g, Gdiplus::RectF &bbox);
+	GPDrawString(Gdiplus::Graphics &g, const Gdiplus::RectF &bbox);
 
 	Gdiplus::Graphics &g;
 	Gdiplus::RectF bbox;

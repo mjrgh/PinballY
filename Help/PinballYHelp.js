@@ -1,8 +1,36 @@
 var isTOC = false;
 
+// ------------------------------------------------------------------------------
+// polyfills
+if (!Array.prototype.indexOf)
+    Array.prototype.indexOf = (function(Object, max, min) {
+        "use strict"
+            return function indexOf(member, fromIndex) {
+            if (this === null || this === undefined)
+                throw TypeError("Array.prototype.indexOf called on null or undefined")
+
+                    var that = Object(this), Len = that.length >>> 0, i = min(fromIndex | 0, Len)
+                    if (i < 0) i = max(0, Len + i)
+                    else if (i >= Len) return -1
+
+                                   if (member === void 0) {        // undefined
+                    for (; i !== Len; ++i) if (that[i] === void 0 && i in that) return i
+                } else if (member !== member) { // NaN
+                    return -1 // Since NaN !== NaN, it will never be found. Fast-path it.
+                } else                          // all else
+                        for (; i !== Len; ++i) if (that[i] === member) return i
+
+                            return -1 // if the value was not found, then return -1
+        }
+})(Object, Math.max, Math.min)
+
+// ------------------------------------------------------------------------------
+// load code highlighter
 document.write("<script src=\"highlightjs/highlight.pack.js\" type=\"text/javascript\"></script>");
 $("head").prepend("<link rel=\"stylesheet\" type=\"text/css\" href=\"highlightjs/styles/vs.css\">");
 
+// ------------------------------------------------------------------------------
+// table of contents for help
 var contents = [
     "Install.html Installation",
         "+SWF.html Flash Player",
@@ -63,6 +91,7 @@ var contents = [
             "++UpdateCheckExample.html Check for PinballY Updates",
             "++ExitByLongKeyPressExample.html Exit Game by Long Key Press",
             "++AutoRenameMameMediaExample.html Auto Rename MAME Media Files",
+            "++CustomMediaWindowExample.html Custom Media Window",
         "+Commands.html Commands",
         "+CustomDrawing.html Custom Drawing",
         "+DrawingLayer.html Drawing Layers",
@@ -79,6 +108,7 @@ var contents = [
                 "+++KeyEvent.html KeyEvent [event:mainWindow]",
                 "+++LaunchEvent.html LaunchEvent [event:mainWindow]",
                 "+++LaunchOverlayEvent.html LaunchOverlayEvent [event:mainWindow]",
+                "+++MediaSyncEvent.html MediaSyncEvent [event:BaseWindow]",
                 "+++MenuEvent.html MenuEvent [event:mainWindow]",
                 "+++PopupEvent.html PopupEvent [event:mainWindow]",
                 "+++SettingsEvent.html SettingsEvent [event:optionSettings]",
@@ -86,6 +116,7 @@ var contents = [
                 "+++WheelModeEvent.html WheelModeEvent [event:mainWindow]",
                 "+++UnderlayEvent.html UnderlayEvent [event:mainWindow]",
                 "+++VideoEvent.html VideoEvent [event:DrawingLayer]",
+        "+MediaTypes.html Media Types",
         "+MetaFilters.html Metafilters",
         "+JsDebug.html Debugging",
         "+DllImport.html Calling Native DLLs from Javascript",
@@ -107,18 +138,22 @@ var contents = [
                 "+++TopperWindow.html topperWindow",
         "+SystemClasses.html System Classes",        
             "++COMPointer.html COMPointer",
+            "++CustomWindow.html Custom Window",
             "++Event.html Event",
             "++EventTarget.html EventTarget",
             "++FilterInfo.html FilterInfo",
             "++GameInfo.html GameInfo",
             "++GameSysInfo.html GameSysInfo",
             "++HandleObject.html HANDLE",
+            "++HtmlLayout.html HtmlLayout",
             "++HttpRequest.html HttpRequest",
             "++HWNDObject.html HWND",
             "++Int64.html Int64 and Uint64",
             "++NativeObject.html NativeObject",
             "++NativePointer.html NativePointer",
+            "++SecondaryWindow.html Secondary Windows",
             "++StatusLine.html StatusLine",
+            "++StyledText.html StyledText",
             "++Variant.html Variant",
     "AdminMode.html Administrator Mode",
     "Underlay.html Underlay",
@@ -267,7 +302,7 @@ $(function()
     $(".eventTargetTOC").each(function()
     {
         var self = $(this);
-        var target = self.data("eventtarget");
+        var target = self.data("eventtarget").split(" ");
         var toc = ["<ul class=\"toc compact\">"];
         
         var traverse = function(list)
@@ -275,7 +310,7 @@ $(function()
             for (var i = 0; i < list.length; ++i)
             {
                 var item = list[i];
-                if (item.attrs && item.attrs["event"] == target)
+                if (item.attrs && target.indexOf(item.attrs["event"]) >= 0)
                     toc.push("<li>" + item.href);
 
                 traverse(item.children);

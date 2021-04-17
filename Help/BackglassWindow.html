@@ -14,14 +14,43 @@
 
 <p>
    <b>backglassWindow</b> is a pre-defined PinballY object representing the
-   backglass window in the user interface.
+   backglass window in the user interface. 
 </p>
+
+<h2>Class inheritance structure</h2>
+<p>
+   This object is an instance of the <a href="SecondaryWindow.html">Secondary Window</a>
+   class, so it has all of the behavior defined in that class, as well
+   as in the <a href="WindowObjects.html">base window class</a>.
+</p>
+<div>
+   <a href="WindowObjects.html">Basic Window Object</a> &rarr;
+   <div class="indented">
+      <a href="SecondaryWindow.html">Secondary Window</a> &rarr;
+      <div class="indented">
+         backglassWindow
+      </div>
+   </div>
+</div>
+
+
+<h2>Event target</h2>
+
+<p>
+   The backglass window object is an event target, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.  This
+   window receives the following event types:
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="SecondaryWindow BaseWindow"></div>
 
 <h2>Methods and properties</h2>
 <p>
-   This object provides the <a href="WindowObjects.html#common">common
-   window methods and properties</a>.  It doesn't currently have any additional
-   properties or methods beyond the common set.
+   This object is a <a href="SecondaryWindow.html">Secondary Window</a>, so
+   it inherits the methods and properties defined for that class as well as
+   the <a href="WindowObjects.html#common">common window base class methods and properties</a>.
+   It doesn't currently have any additional properties or methods beyond the common set.
 </p>
 
 

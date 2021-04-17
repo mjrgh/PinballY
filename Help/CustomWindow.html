@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Windows</h1>
+
+<p>
+   This type of object represents a window that you create via
+   <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow</a>.
+   It's a specialization of the basic <a href="WindowObjects.html">Window Objects</a>
+   that the system provides for the main playfield window, the backglass window,
+   and so forth.  You can use custom windows to supplement the standard set
+   of windows if you have additional media types that you want to display,
+   or to display entirely custom graphics using <a href="DrawingLayer.html">Drawing Layers</a>.
+</p>
+<p>
+   For some examples of how to create your own custom windows, see
+   <a href="CustomMediaWindowExample.html">Custom Media Window</a> in
+   the <a href="WorkedExamples.html">Worked Examples</a> section.
+</p>
+
+<h2>Class inheritance structure</h2>
+<div>
+   <a href="WindowObjects.html">Basic Window Object</a> &rarr;
+   <div class="indented">
+      <a href="SecondaryWindow.html">Secondary Window</a> &rarr;
+      <div class="indented">
+         Custom Window
+      </div>
+   </div>
+</div>
+
+<h2>Event target</h2>
+
+<p>
+   A custom window object is an event target, so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.  This
+   window receives the following event types:
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="CustomWindow SecondaryWindow BaseWindow"></div>
+
+<h2>Properties and methods</h2>
+
+<p>
+   Since Custom Windows inherit from the Secondary Window base class,
+   they have all of the methods and properties that a Secondary Window
+   has, as described in <a href="SecondaryWindow.html">Secondary Windows</a>.
+   That class is itself a subclass of the basic common window
+   class, so a Custom Window also has the standard window
+   functions, described in <a href="WindowObjects.html">Window Objects</a>.
+</p>
+<p>
+   In addition to the inherited functionality, Custom windows also
+   have some extended functions of their own, as listed below.
+</p>
+<p>
+   <a name="showMediaWhenRunningFlag"></a>
+   <b>showMediaWhenRunningFlag:</b>  This property lets you control
+   whether or not the window continues to show media while a game is
+   running.  This is the custom window equivalent of the options
+   dialog checkboxes that let you control the same behavior for the
+   built-in windows.  This can take on three possible values:
+</p>
+<ul>
+   <li><b>true</b> means that the window continues to show its media
+   while a game is running
+
+   <li><b>false</b> means that the window is blanked out and sent to
+   the background while a game is running.  This is the default
+   behavior for custom windows, and it's also the default for all
+   of the system windows, except when you override it using the
+   options settings (the "Keep showing this game's media while
+   running" checkboxes in the Game Details box, the system setup
+   options pages, and the Launch options page).
+
+   <li><b>undefined</b> means that the normal "key" mechanism is
+   used.  The system windows use the key to store the per-game,
+   per-system, and global preferences set through the various
+   settings dialogs, by checking the status of the key in the
+   global settings file and the Game Stats file.  If you defined
+   a key for this window when creating it (see <b>showMediaWhenRunningKey</b>
+   undef <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow()</a>),
+   the system uses the same key search for this custom window.
+   If you didn't define a key string for the window when creating
+   it, <b>undefined</b> has the same meaning as <b>false</b>,
+   yielding the default behavior of blanking out the window while
+   a game is running.
+</ul>
+<p>
+   Note that values of <b>true</b> and <b>false</b> override any
+   "key" lookup, so you can use these to control the behavior
+   unconditionally in Javascript code.  For example, you could
+   use a <a href="GameSelectEvent.html"><b>gameselect</b></a>
+   event to decide on how to handle the window for the current
+   game each time a new game is selected, setting
+   <b>showMediaWhenRunningFlag</b> to the desired value.
+</p>
+
+
+</body>
+</html>

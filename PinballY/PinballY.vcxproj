@@ -99,10 +99,11 @@
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;$(SolutionDir)$(Platform)\$(Configuration)\litehtml.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRTD /NODEFAULTLIB:MSVCRT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
       <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
@@ -132,9 +133,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;$(SolutionDir)$(Platform)\$(Configuration)\litehtml.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRTD /NODEFAULTLIB:MSVCRT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
       <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
@@ -168,10 +170,11 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;$(SolutionDir)$(Platform)\$(Configuration)\litehtml.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRTD /NODEFAULTLIB:MSVCRT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
       <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
@@ -205,9 +208,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>..\VersionInfoUpdater\bin\$(Platform)_$(Configuration)\VersionInfo.obj;$(OutDir)Utilities.lib;$(SolutionDir)$(Platform)\$(Configuration)\litehtml.lib;..\DirectXTK\bin\Desktop_2017\$(Configuration)\$(Platform)\DirectXTK.lib;..\DirectXTK\Audio\bin\Desktop_2017_DXSDK\$(Platform)\$(Configuration)\DirectXTKAudioDX.lib;..\DirectXTex\DirectXTex\Bin\Desktop_2017\$(Platform)\$(Configuration)\DirectXTex.lib;d3d11.lib;dxguid.lib;Uxtheme.lib;pdh.lib;hid.lib;gdiplus.lib;shlwapi.lib;winmm.lib;Dwmapi.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <MinimumRequiredVersion>
       </MinimumRequiredVersion>
+      <AdditionalOptions>/NODEFAULTLIB:MSVCRTD /NODEFAULTLIB:MSVCRT %(AdditionalOptions)</AdditionalOptions>
     </Link>
     <PreBuildEvent>
       <Command>"$(OutDir)flock" -m PinballY.UpateVersionInfo "(pushd ..\VersionInfoUpdater &amp;&amp; nmake /nologo ""Configuration=$(Platform)_$(Configuration)"" -f MakeVersionInfo.mak &amp;&amp; popd)"
@@ -233,6 +237,8 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="Application.cpp" />
     <ClCompile Include="CaptureStatusWin.cpp" />
     <ClCompile Include="CSVFile.cpp" />
+    <ClCompile Include="CustomView.cpp" />
+    <ClCompile Include="CustomWin.cpp" />
     <ClCompile Include="D3D.cpp" />
     <ClCompile Include="D3DView.cpp" />
     <ClCompile Include="D3DWin.cpp" />
@@ -257,6 +263,12 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="InstCardView.cpp" />
     <ClCompile Include="InstCardWin.cpp" />
     <ClCompile Include="JavascriptEngine.cpp" />
+    <ClCompile Include="LitehtmlHost.cpp">
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <ClCompile Include="LogFile.cpp" />
     <ClCompile Include="MediaDropTarget.cpp" />
     <ClCompile Include="MonitorCheck.cpp" />
@@ -265,6 +277,10 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClCompile Include="PerfMon.cpp" />
     <ClCompile Include="PlayfieldView.cpp">
       <AdditionalOptions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\litehtml\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="RealDMD.cpp" />
     <ClCompile Include="RefTableList.cpp" />
@@ -296,6 +312,8 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="CommonVertex.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="CSVFile.h" />
+    <ClInclude Include="CustomView.h" />
+    <ClInclude Include="CustomWin.h" />
     <ClInclude Include="D3D.h" />
     <ClInclude Include="D3DView.h" />
     <ClInclude Include="D3DWin.h" />
@@ -315,6 +333,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="I420Shader.h" />
     <ClInclude Include="HighScores.h" />
     <ClInclude Include="JavascriptEngine.h" />
+    <ClInclude Include="LitehtmlHost.h" />
     <ClInclude Include="LogFile.h" />
     <ClInclude Include="MediaDropTarget.h" />
     <ClInclude Include="PrivateWindowMessages.h" />

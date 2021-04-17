@@ -175,6 +175,7 @@
     <ClInclude Include="Config.h" />
     <ClInclude Include="DateUtil.h" />
     <ClInclude Include="Dialog.h" />
+    <ClInclude Include="DirectWriteUtil.h" />
     <ClInclude Include="ErrorIconType.h" />
     <ClInclude Include="FileUtil.h" />
     <ClInclude Include="FileVersionInfo.h" />
@@ -204,6 +205,7 @@
     <ClCompile Include="Config.cpp" />
     <ClCompile Include="DateUtil.cpp" />
     <ClCompile Include="Dialog.cpp" />
+    <ClCompile Include="DirectWriteUtil.cpp" />
     <ClCompile Include="FileUtil.cpp" />
     <ClCompile Include="FileVersionInfo.cpp" />
     <ClCompile Include="GraphicsUtil.cpp" />

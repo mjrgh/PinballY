@@ -8,9 +8,17 @@
 // created object.  The standard convention, which we follow in our
 // RefPtr<> and related templates, is that a newly created object sets
 // its own reference count to 1 in its constructor, on behalf of the
-// caller.  7-Zip's convention is to initialize the ref count to zero.
-// So whenever we create an object implemented in the 7-zip code via
-// 'new', we have to explicitly add the initial reference.
+// caller.  7-Zip's convention is that the CALLER is responsible for
+// adding the initial reference, so a constructor returns with the
+// reference count set to zero.  The inconsistency with the standard
+// COM convention is hideously confusing and error-prone, especially
+// given that 7-Zip otherwise uses COM infrastructure and terminology,
+// but we're obviously stuck with it.  So whenever we create an object
+// implemented in the 7-zip code via 'new', we have to explicitly add
+// the initial reference.  For the sake of NOT making the clash of
+// conventions even worse, we use the 7-Zip convention WITHIN THIS
+// MODULE ONLY for the COM-like interfaces we have to implement as
+// callbacks to pass to 7-Zip.
 
 #define INITGUID
 #include "stdafx.h"
@@ -36,7 +44,7 @@ static HRESULT RunPasswordDialog(BSTR *pbstrPassword, const TCHAR *archiveFilena
 			DialogWithSavedPos(_T("SevenZipPasswordDialog.Position")),
 			archiveFilename(archiveFilename),
 			entryName(entryName)
-		{ 
+		{
 			password[0] = 0;
 		}
 
@@ -142,7 +150,7 @@ public:
 
 				// success
 				ok = true;
-			
+
 			} while (false);
 
 			// if anything failed, unload the DLL
@@ -174,7 +182,9 @@ public:
 
 	// create an object
 	HRESULT CreateObject(const GUID *clsID, const GUID *iid, void **ppObj)
-		{ return pCreateObj(clsID, iid, ppObj);	}
+	{
+		return pCreateObj(clsID, iid, ppObj);
+	}
 
 protected:
 	// DLL module handle
@@ -203,7 +213,7 @@ SevenZipArchive::~SevenZipArchive()
 		archive->Close();
 }
 
-bool SevenZipArchive::OpenArchive(const TCHAR *fname, ErrorHandler &eh)
+bool SevenZipArchive::OpenArchive(const TCHAR *fname, IStream *fileStream, ErrorHandler &eh)
 {
 	// remember the filename
 	this->filename = fname;
@@ -239,16 +249,76 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, ErrorHandler &eh)
 	}
 	archive->AddRef();
 
-	// create the stream reader
-	RefPtr<CInFileStream> stream(new CInFileStream());
-	stream->AddRef();
-	if (!stream->Open(fname))
+	// Implement 7-Zip's private IInStream interface on the COM IStream object.
+	// IInStream is very simple and maps almost directly (so one wonders why
+	// they didn't just use IStream in the first place!).
+	class MyInFileStream : public CMyUnknownImp, public IInStream
 	{
-		eh.Error(MsgFmt(IDS_ERR_7Z_OPEN_FILE, fname));
-		return false;
-	}
+	public:
+		MyInFileStream(IStream *src) : src(src, RefCounted::DoAddRef)
+		{
+			// Seek to the start of the stream.  The caller will typically
+			// reuse the same stream for a series of archive operations: first
+			// scanning the contents of the archive, then extracting selected
+			// files.  The 7-zip code assumes that the archive starts at the
+			// initial seek point, and doesn't reset the seek point after an
+			// operation, so we have to make sure that we're at the starting
+			// point on each new Open operation.
+			if (src != nullptr)
+			{
+				LARGE_INTEGER zero = { 0, 0 };
+				ULARGE_INTEGER newPos;
+				src->Seek(zero, STREAM_SEEK_SET, &newPos);
+			}
+		}
 
-	// Open callback object.  The archive classes use this to ask for
+		MY_UNKNOWN_IMP1(IInStream);
+
+		HRESULT STDMETHODCALLTYPE Seek(Int64 offset, UInt32 seekOrigin, UInt64 *pNewPos)
+		{
+			if (src == nullptr)
+				return E_FAIL;
+
+			LARGE_INTEGER liOffset;
+			ULARGE_INTEGER newPos;
+			liOffset.QuadPart = offset;
+			HRESULT result = src->Seek(liOffset, seekOrigin, &newPos);
+
+			if (pNewPos != nullptr)
+				*pNewPos = newPos.QuadPart;
+
+			return S_OK;
+		}
+
+		HRESULT STDMETHODCALLTYPE Read(void *data, UInt32 size, UInt32 *processedSize)
+		{
+			ULONG actual = 0;
+			HRESULT result = S_OK;
+
+			if (size != 0)
+				result = src->Read(data, size, &actual);
+
+			if (processedSize != nullptr)
+				*processedSize = actual;
+
+			return SUCCEEDED(result) ? S_OK : result;
+		}
+
+	protected:
+		virtual ~MyInFileStream() { }
+
+		// for testing only
+		FILE *fp;
+
+		// underlying source stream
+		RefPtr<IStream> src;
+	};
+
+	// create the 7-Zip stream reader for our COM IStream
+	RefPtr<MyInFileStream> stream(new MyInFileStream(fileStream));
+	stream->AddRef();
+
+	// The Open Callback object.  The archive classes use this to ask for
 	// a password for encrypted files.  We simply flag an error in
 	// these cases.
 	class CArchiveOpenCallback :
@@ -263,7 +333,7 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, ErrorHandler &eh)
 
 		MY_UNKNOWN_IMP1(ICryptoGetTextPassword)
 
-		STDMETHOD(SetTotal)(const UInt64 *files, const UInt64 *bytes) { return S_OK; }
+			STDMETHOD(SetTotal)(const UInt64 *files, const UInt64 *bytes) { return S_OK; }
 		STDMETHOD(SetCompleted)(const UInt64 *files, const UInt64 *bytes) { return S_OK; }
 
 		STDMETHOD(CryptoGetTextPassword)(BSTR *pbstrPassword)
@@ -276,7 +346,7 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, ErrorHandler &eh)
 	const UINT64 scanSize = 1 << 23;
 	RefPtr<CArchiveOpenCallback> openCb(new CArchiveOpenCallback(fname, eh));
 	openCb->AddRef();
-	if (!SUCCEEDED(hr = archive->Open(stream, &scanSize, openCb)))
+	if (archive->Open(stream, &scanSize, openCb) != S_OK)
 	{
 		// extract the extension in upper-case
 		TSTRING ext;
@@ -287,6 +357,11 @@ bool SevenZipArchive::OpenArchive(const TCHAR *fname, ErrorHandler &eh)
 		}
 		else
 			ext = _T("ZIP");
+
+		// Forget the archive  reference so that we can't inadvertantly call into
+		// it later - 7-Zip seems to leave it in a state where 7-Zip can crash
+		// internally if we attempt to all any of its interface methods.
+		archive = nullptr;
 
 		// log the error
 		eh.SysError(
@@ -348,12 +423,12 @@ bool SevenZipArchive::Extract(UINT32 idx, const TCHAR *destFile, ErrorHandler &e
 		public CMyUnknownImp
 	{
 	public:
-		ExtractCallback(SevenZipArchive *arch, const TCHAR *destFile, ErrorHandler &eh) : 
+		ExtractCallback(SevenZipArchive *arch, const TCHAR *destFile, ErrorHandler &eh) :
 			arch(arch),
 			destFile(destFile),
-			eh(eh), 
+			eh(eh),
 			nErrors(0)
-		{ 
+		{
 			// clear the file time and attributes
 			fileInfo.modTime.dwLowDateTime = 0;
 			fileInfo.modTime.dwHighDateTime = 0;
@@ -362,8 +437,8 @@ bool SevenZipArchive::Extract(UINT32 idx, const TCHAR *destFile, ErrorHandler &e
 
 		MY_UNKNOWN_IMP1(ICryptoGetTextPassword)
 
-		// IProgress
-		STDMETHOD(SetTotal)(UInt64) { return S_OK; }
+			// IProgress
+			STDMETHOD(SetTotal)(UInt64) { return S_OK; }
 		STDMETHOD(SetCompleted)(const UInt64 *) { return S_OK; }
 
 		// IArchiveExtractCallback
@@ -377,7 +452,7 @@ bool SevenZipArchive::Extract(UINT32 idx, const TCHAR *destFile, ErrorHandler &e
 			if (SUCCEEDED(arch->archive->GetProperty(index, kpidPath, &nameProp))
 				&& nameProp.vt == VT_BSTR)
 				entryName = nameProp.bstrVal;
-				
+
 			// only proceed if we're in 'extract' mode
 			if (askExtractMode != NArchive::NExtract::NAskMode::kExtract)
 				return S_OK;
@@ -413,14 +488,14 @@ bool SevenZipArchive::Extract(UINT32 idx, const TCHAR *destFile, ErrorHandler &e
 
 		STDMETHOD(PrepareOperation)(Int32 /*askExtractMode*/)
 		{
-			return S_OK; 
+			return S_OK;
 		}
 
 		STDMETHOD(SetOperationResult)(Int32 resultEOperationResult)
 		{
 			const char *detail = "other error";
 			switch (resultEOperationResult)
-			{ 
+			{
 			case NArchive::NExtract::NOperationResult::kOK:
 				// success
 				break;
@@ -545,3 +620,4 @@ bool SevenZipArchive::Extract(UINT32 idx, const TCHAR *destFile, ErrorHandler &e
 	// success
 	return true;
 }
+

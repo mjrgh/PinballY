@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Media Window</h1>
+
+<p>
+   Starting with version 1.1, PinballY lets you create your own
+   additional "Media Windows" from Javascript.  A Media Window is
+   essentially the same as any of PinballY's built-in secondary windows:
+   the backglass window, DMD window, topper window, and
+   instruction card window.  The only differences are that you
+   create these windows with Javascript code, and you can specify
+   what kind of media they use for their background images and
+   videos.
+</p>
+<p>
+   There are basically two steps to creating a custom window:
+</p>
+<ul>
+   <li>The first step, which you can skip in some cases, is to create a "Media
+   Type" descriptor for the window.  PinballY comes with a bunch
+   of pre-defined media types that apply to the built-in windows:
+   Table Image, Table Video, Backglass Image, Backglass Video, etc.
+   Using Javascript, you can define additional media types of
+   your own, so that you can add your own media files that go
+   beyond the basic set that PinballY knows about by itself.
+   For example, if you wanted to add a picture of the original
+   pinball machine for each game, you could define a Pinball Machine
+   Image media type.
+   <p>
+      New media types are created via
+      <a href="GameList.html#createMediaType">gameList.createMediaType</a>.
+   </p>
+   <p>
+      You can skip this step if you want the window to use one
+      of the built-in media types (backglass images, for example;
+      see <a href="MediaTypes.html">Media Types</a> for a full list),
+      or if you don't want the window to automatically display
+      any background media at all.  You might omit automatic
+      background media if you were going to program completely
+      custom graphics for the window using  <a href="DrawingLayer.html">Drawing Layers</a>, for example.
+   </p>
+
+   <li>The second step is to create the window itself.  This is
+   done by calling
+   <a href="MainWindowObject.html#createMediaWindow">mainWindow.createMediaWindow()</a>.
+   This lets you specify the type of media the window will display
+   automatically.  You can specify a background image type,
+   a background video type, or both.
+</ul>
+<p>
+   Once the window is created, it acts like the backglass window
+   and the other built-in windows.  You can use the mouse to
+   size it and position it where you want it, and PinballY will
+   automatically save and restore that position across sessions.
+   Whenever you navigate to a new game in the wheel UI, PinballY
+   will automatically load the game's background image or video,
+   according to the media types you specified when creating
+   the window.
+</p>
+<p>
+   Custom windows have full support for <a href="DrawingLayer.html">Drawing Layers</a>,
+   so you can go beyond this simplest use of just displaying loading per-game
+   images and videos, by creating custom graphics through Javascript.
+   We'll see how to do that later in this section.
+</p>
+<p>
+   The rest of this section goes through a few ideas for how
+   you can use custom windows, showing how to implement each one.
+   We'll start with the simplest things to implement and build
+   on that as we go.
+</p>
+
+
+<h2>Wheel icon window</h2>
+<p>
+   Some pin cab builders get especially creative with embedding
+   monitors in unique places in their cabs.  A great example is
+   <a target="_blank" href="https://www.vpforums.org/index.php?showtopic=44487">Vanlon's <i>CANNONBALL!</i> pin cab</a>,
+   which features a 5" <b>circular</b> (!) display panel embedded in a
+   custom 3D-printed cannon topper.  It's one of the best examples
+   of a themed topper I've seen.  If you have a unusual extra monitor
+   like this, you'll obviously want to take advantage of it at
+   every opportunity, so this would be a great place to use a
+   custom window.
+</p>
+<p>
+   For a monitor with such a small display area, the wheel icon
+   might make a good choice for the graphics to display.
+</p>
+<p>
+   This is an especially easy example to implement, because
+   PinballY already knows about wheel images.  All we have to
+   do is create a custom window that uses wheel images as
+   its background image type.
+</p>
+<p>
+   But how do we say that we want
+   to use "wheel images" in concrete terms?  By referencing
+   the "wheel image" media type.  A media type is a data record
+   inside PinballY that has all of the information about something
+   like the wheel icons: what kind of file formats they use
+   (PNG, etc), which directory they're stored in, and so on.
+   PinballY has a bunch of media types built in - one for each
+   of the media items that you can use in the system windows,
+   such as playfield images, backglass videos, and so on.
+   For a list of the built-in types, see <a href="MediaTypes.html">Media Types</a>.
+</p>
+<p>
+   Each media type has an ID that we can use to refer to it in Javascript.
+   (You'll find that in the table of built-in types linked above.)
+   For wheel images, the ID is "wheel image".  So to create our
+   custom window that always shows the current wheel image, we
+   just have to use mainWindow.createWindow() and specify
+   "wheel image" as the background image type.
+</p>
+<div class="code">
+// Create the window, using the "wheel image" media type for the
+// background image
+let wheelIconWin = mainWindow.createMediaWindow({
+    title: "Wheel Icon",
+    configVarPrefix: "customWindow.WheelIcon",
+    backgroundImageMediaType: "wheel image",
+});
+
+// Use the "zoom" scaling mode for this window, to keep the icon's
+// original aspect ratio (rather than stretching it to fit the
+// whole window)
+wheelIconWin.backgroundScalingMode = "zoom";
+</div>
+<p>
+   Apart from the background image, the only other details we had
+   to specify for the new window were its title and its "configuration
+   variable prefix".
+</p>
+<p>
+   The title is what's displayed in the title bar,
+   and it also appears in some system menus.  It's just there to
+   identify the window to you in those contexts, so you can pick
+   whatever name you like for it.  There's no need for the title
+   to be unique or use any special format, but you probably
+   shouldn't make it completely empty, since it might be confusing
+   in menus.
+</p>
+<p>
+   The config variable prefix, on the other hand, does have some
+   special requirements for its format.  It should be mostly alphanumeric,
+   but you can also safely use periods, hyphens, and underscores.
+   <b>Don't</b> use any spaces, and don't use any other special
+   characters or punctuation, because this string will go into
+   the configuration file (Settings.txt) several times.  This string
+   is used as the prefix for all of the settings variables that
+   pertain to this window - that's where PinballY stores the
+   window's location, visibility, and layout information between
+   sessions.  I personally like using something like "custom" or
+   "customWindow" as a prefix to the prefix, just to make it
+   obvious when looking at the settings file that it's a
+   custom window created through Javascript.  That's not a
+   requirement, just a convention that I think might be helpful
+   down the road, especially if you ever look at the settings
+   file to troubleshoot some other problem.  After the prefix,
+   add some description of the window, in this case
+   "customWindow.WheelIcon".
+   Again, if you ever have to look at the settings file later
+   on, it'll be helpful if you choose a name for this that
+   makes some kind of sense to you and that will jog your
+   memory in the future.
+</p>
+<p>
+   The final detail in this example is that we've set the
+   <a href="CustomWindow.html#backgroundScalingMode">background scaling mode</a>
+   for the window to "zoom".  The default scaling mode is "stretch",
+   which stretches out the image to exactly fill both the
+   width and height of the window, even if that requires
+   distorting the image geometrically.  That's the default
+   because it's usually what you want for things like
+   backglass images, where it's more important (to me, at least)
+   to fill the available space than to maintain the geometry
+   of the original image.  But for wheel icons, we're not
+   going to fill the whole space anyway, so it seems
+   better to maintain the original aspect ratio.
+   The "zoom" option sizes the image so that it's as large
+   as possible without exceeding either the width or height
+   of the window and without any geometrical distortion.
+</p>
+
+<p>
+   We could embellish this example just a little by adding a custom
+   background color.  Wheel icon images are usually transparent
+   PNGs - the area around the icon is usually left transparent
+   so that a background image (usually the playfield image or
+   video) can show through.  The wheel icon <i>is</i> the background
+   image in this case, so there's nothing behind it other than
+   the default black background that the system draws.
+   A different background color might look a little more
+   interesting.  We can accomplish that using a
+   <a href="DrawingLayer.html">drawing layer</a>.  The trick is
+   to create a drawing layer with a negative Z index, so that the
+   drawing layer goes behind the window's built-in main layer where
+   the background media (the wheel icon, in this case) is drawn.
+</p>
+<div class="code">
+let wheelIconBackground = wheelIconWin.createDrawingLayer(-1);
+wheelIconBackground.clear(0xffff00ff);
+</div>
+<p>
+   0xffff00ff is opaque bright purple. (The first "ff" is the opacity,
+   and the next six numbers, ff 00 ff, give the red, green, and blue
+   components.  FF is programmer speak, or more technically
+   hexadecimal, for 255, which is the maximum brightness for
+   each color component.  So we have maximum opacity, maximum
+   red, maximum blue, and zero green.  That makes bright purple
+   in the RGB color scheme.)
+</p>
+<p>
+   In playing around with this example, I thought it looked a
+   little boring to use a single, fixed background color, so I
+   came up with a further embellishment that rotates through
+   different colors as you switch games.  The idea is to use
+   <i>two</i> extra drawing layers, with an interval timer
+   that cross-fades between the two layers using alpha
+   transparency.  We initiate the background color change at
+   the same time that the window switches to a new icon by
+   triggering on the <a href="MediaSyncEvent.html"><b>mediasyncload</b></a>
+   event.  That event fires when the window is about to load
+   new background media, and start its own cross-fade to
+   the new image, so it's exactly the right time to start.
+   our own cross-fade effect.
+</p>
+
+<div class="code">
+// Rotating Color Background.  Create two background layers,
+// using negative Z-Indices to place them BEHIND the main
+// media layer where the wheel icon appears.  We'll accomplish
+// our color transitions by fading the foreground window in
+// and out, switching directions on each fade.
+// crossfade.
+let overlayfg = wheelIconWin.createDrawingLayer(-1);
+let overlaybg = wheelIconWin.createDrawingLayer(-2);
+
+// Background colors.  We rotate through this list of colors,
+// switching to the next color each time we load new media.
+//
+// The transitions work best when one RGB component changes and
+// the rest stay the same.  When two components both change, you
+// get a sort of wink-out/wink-in effect that looks like a double
+// fade.
+let colors = [0xff00ff, 0x0000ff, 0x00ffff, 0x00ff00, 0xffff00, 0xff0000];
+let colorIndex = 1;
+
+// Set up the initial conditions: background showing first color,
+// foreground fully transparent at the second color, and alpha
+// change (dAlpha) set to positive.  The number of steps determines
+// the timing of the overall transition; this is in terms of 1/60th
+// of a second redraws.
+overlaybg.clear(0xff000000 | colors[0]);
+let transitionFgColor = colors[1];
+overlayfg.clear(transitionFgColor);
+let transitionRunning;
+let transitionAlpha = 0;
+let transitionSteps = 15;
+let transitionDAlpha = 0xff / transitionSteps;
+
+// Start the cross-fade effect each time we're about to load new
+// background media into the window.
+wheelIconWin.on("mediasyncload", ev => {
+    // End the current transition, skipping straight to the end if we're
+    // only part of the way there.  Sets up the next transition.
+    function endTransition() {
+        if (transitionRunning) {
+            // stop the interval timer
+            clearInterval(transitionRunning);
+            transitionRunning = false;
+
+            // skip straight to the final foreground alpha
+            transitionAlpha = (transitionDAlpha > 0 ? 0xff : 0);
+            overlayfg.clear((transitionAlpha << 24) | transitionFgColor);
+
+            // get the next transition color
+            colorIndex = (colorIndex + 1) % colors.length;
+            let nextColor = colors[colorIndex];
+
+            // set up the next transition in the opposite direction
+            transitionDAlpha = -transitionDAlpha;
+            if (transitionDAlpha > 0) {
+                // foreground fading in - the foreground gets the next color,
+                // and the background stays the same color (since it's the one
+                // current showing)
+                transitionFgColor = nextColor;
+            }
+            else {
+                // foreground fading out - the background gets the next color,
+                // and the foreground stays the same color
+                overlaybg.clear(0xff000000 | nextColor);
+            }                
+        }
+    }
+
+    // if there's a transition running, end it immediately
+    endTransition();
+
+    // start the new transition
+    transitionRunning = setInterval(() => {
+        transitionAlpha += transitionDAlpha;
+        if (transitionAlpha > 0xff || transitionAlpha < 0) {
+            endTransition();
+            return;
+        }
+        overlayfg.clear((Math.floor(transitionAlpha) << 24) | transitionFgColor);
+    }, 16);
+});
+</div>
+   
+<p>
+   I can think of one more improvement: rather than cycling
+   through a series of generic colors, pick a color that's appropriate
+   for each game.  One way to do this would be to read the DOF settings
+   file and extract one of the color fields appropriate to the current
+   game; the Undercab RGB color might be a good choice.  The DOF settings
+   file format doesn't make it easy to extract that kind of information,
+   but it's possible with some work.  Another approach might be to
+   keep a custom color setting for each game in some other ad hoc
+   file that you maintain via Notepad.  I'll leave these ideas as
+   exercises; if anyone is motivated to implement one of them and
+   share it, I'd be happy to add it here as a further example.
+</p>
+
+
+<h2>Flyer window</h2>
+<p>
+   Most of the HyperPin media packs that you
+   can find on the virtual pinball sites (such as
+   <a target="_blank" href="https://vpforums.org">vpforums</a> or
+   <a target="_blank" href="https://vpuniverse.com">vpuniverse</a>)
+   include scanned copies of the machines' original advertising flyers.
+   PinballY has a command for viewing the current game's
+   flyer as a popup in the main window, but if you have some extra
+   display space, you could set up a separate window dedicated to
+   displaying the flyer.
+</p>
+<p>
+   As with the Wheel Image window above, it's simple to set this
+   up in a custom window since PinballY already has a built-in
+   media type for Flyer Images.  In this case, the identifier
+   for the media type is "flyer image".
+</p>
+<div class="code">
+// Create the window, using the "wheel image" media type for the
+// background image
+let flyerWin = mainWindow.createMediaWindow({
+    title: "Flyer",
+    configVarPrefix: "customWindow.Flyer",
+    backgroundImageMediaType: "flyer image",
+});
+
+// Flyers use a wide range of shapes, from regular "portrait
+// mode" letter-sized pages to "landscape mode" pages to
+// two-page or multi-page fold-out spreads.  So I think it's
+// best to preserve the original aspect ratio.
+flyerWin.backgroundScalingMode = "zoom";
+</div>
+
+<p>
+   That much is just like setting up the Wheel Icon window in
+   the last example.  But Flyers have a little bit of a difference
+   form wheel icons, as a media type: Flyers can come in sets
+   rather than single images.  Many of the original advertising
+   flyers were printed on double-sided pages, or came as a fold-out,
+   two-page spread, and some were more like little brochures.
+   It wouldn't be very usable if the HyperPin media packs
+   stitched all of those pages into a single JPEG image,
+   most of the media packs come with a separate JPEG image
+   for each Flyer page.  Instruction cards in the HyperPin
+   media packs are also often provided in sets, since most
+   arcade pinball machines came with several sets of
+   instruction cards with variants of the rules that the
+   operator could choose from.
+</p>
+<p>
+   So how do we handle the multiple Flyer pages?  If we look
+   to the way PinballY handles flyer displays itself, we see
+   that PinballY lets the user scroll through the collection
+   using the flipper buttons.  That works for PinballY's
+   standard flyer display because that happens in a popup box.
+   Popup boxes are modal, which means we can use the flipper keys in
+   that context for something other than their usual meaning
+   (usual in PinballY, anyway) of switching games.  That
+   obviously won't work for a separate window that's always
+   displayed.  For that, we're going to need another approach.
+</p>
+<p>
+   Before we get to how to handle the user interface aspect
+   of this, I should mention how we handle it at the Javascript
+   level.  That much is easy: the custom window has a special
+   property for it, <a href="CustomWindow.html#pagedImageIndex">pagedImageIndex</a>.
+   Reading this property tells you the current image being displayed,
+   as a number starting at 0 for the first image in the current
+   game's collection.  Setting the property to a new value changes
+   to the selected image.  One easy way to use the property is
+   to treat it as a way to scroll forwards and backwards through
+   the image collection, by incrementing or decrementing it.
+   The system automatically "wraps" the value when you go past
+   the beginning or end of the list, so there's no need to do
+   any bounds checking; just increment and decrement away.
+</p>
+<p>
+   Now, back to the UI.  One way to handle it would be to assign
+   some keyboard keys to scroll through the flyers.  If you have
+   a couple of spare buttons available, this is just a matter
+   of setting up a <a href="KeyEvent.html#keydown"><b>keydown</b></a>
+   event handler that adjusts the pagedImageIndex property:
+</p>
+<div class="code">
+mainWindow.on("keydown", ev => {
+    if (ev.code == "KeyH")
+        flyerWin.pagedImageIndex += 1;
+    else if (ev.code == "KeyG")
+        flyerWin.pagedImageIndex -= 1;
+});
+</div>
+<p>
+   Here we've arbitrarily chosen the "G" and "H" keyboard keys,
+   but you can easily change those to any available keys on your cab.
+</p>
+<p>
+   You could also do this with a menu command instead of directly
+   through the keyboard, although that seems so inconvenient to me
+   that I'm not going to bother working out the code for it.  Many
+   of the other Worked Examples sections have menu examples that
+   you should be able to easily adapt.
+</p>
+<p>
+   Another approach that avoids the keyboard is to flip the pages
+   automatically on a timer, say every five seconds.  This would work
+   like the automatic High Score display rotation in the DMD window.  This
+   is pretty easy:
+</p>
+<div class="code">
+setInterval(() => { flyerWin.pagedImageIndex += 1; }, 5000);
+</div>
+<p>
+   Remember that <a href="SystemFunctions.html#setInterval">setInterval()</a>
+   takes its time period in milliseconds, so we tell it to run this
+   function every 5000 ms, which is the same as 5 seconds.
+</p>
+<p>
+   We could improve this timed approach slightly by taking note of
+   when a new flyer is loaded, and resetting the interval timer when
+   that happens.  Without that, the running timer will just keep
+   running every five seconds, so it might jump in and change to
+   the second page only a fraction of a second after switching to a new game,
+   if that just happens to be its next scheduled run time.  We
+   could make this a little smoother by clearing the old interval
+   timer and setting up a new one each time a game switch occurs.
+</p>
+<div class="code">
+let flyerTimer;
+flyerWin.on("mediasyncload", ev => {
+    clearInterval(flyerTimer);
+    flyerTimer = setInterval(() => { flyerWin.pagedImageIndex += 1; }, 5000);
+});
+</div>
+<p>
+   We use the <a href="MediaSyncEvent.html"><b>mediasyncload</b></a> event
+   to trigger the timer reset, because this event tells us when a new game's
+   flyer is about to be loaded, usually because we just switched to
+   a new game in the wheel UI.
+</p>
+
+<p>
+   It's worth noting that this multiple media problem applies to PinballY's own
+   Instruction Cards window, but that window ignores this issue completely.
+   In the case of the instructions, I figured that the virtual cab
+   owner is going to do exactly what the arcade operator does with
+   a real pinball machine's instruction cards: install the one that
+   you want to use.  In the case of the arcade operator, you'd take
+   the card out of the pack and pop it into the machine's apron.
+   For the virtual cab owner running PinballY, you just
+   rename the version of the card that has your preferred
+   instruction set so that it's the un-numbered card in
+   the folder.  That approach doesn't work with a multi-page
+   flyer, though.
+</p>
+
+
+<h2>Original pinball machine picture window</h2>
+<p>
+   So far our examples have all worked with "standard" media
+   types that come with the HyperPin media packs and that
+   PinballY already knows about.  Now let's look at how you
+   can extend the idea to entirely new media categories
+   that aren't part of the standard HyperPin collection.
+</p>
+<p>
+   One idea that comes to my mind is that it might be nice
+   to see a picture of the original pinball machine - the
+   whole machine as it would have looked in an arcade.
+   A lot of machines have rather nice cabinet artwork
+   that we never see during virtual play.
+</p>
+<p>
+   What's different about this example is that we can't
+   rely on one of the pre-defined media types when we create
+   our window.  PinballY simply doesn't include a built-in
+   type for whole-machine pictures.  But PinballY does let
+   us define our own new types to supplement the built-in
+   types it knows about.  We do this through a method
+   on the <a href="GameList.html">gameList</a> object
+   called <a href="GameList.html#createMediaType">createMediaType()</a>.
+</p>
+<p>
+   Defining a new media type is a matter of filling in all of
+   the information that PinballY keeps internally for its own
+   built-in media types:  where to look for a game's
+   files of that type, what file formats they use, and how to
+   refer to them in the UI.  You can read about all the details
+   in <a href="MediaTypes.html">MediaTypes</a>, so we'll
+   just show the code needed for our "pinball machine picture"
+   example.
+</p>
+<div class="javascript code">
+gameList.createMediaType({
+    name: "Cabinet Image",
+    id: "cab image",   // this is how we refer to the type later
+    folder: "Cabinet Images",
+    format: "Image",
+    extensions: ".jpg .jpeg .png",
+    configId: "CabinetImage",
+    perSystem: false,
+    isIndexed: true
+});
+</div>
+
+<p>
+   Most of this is pretty straightforward (at least, it should be
+   after reading through the <a href="MediaTypes.html">MediaTypes</a>
+   section), but there are a couple of things worth pointing out:
+</p>
+<ul>
+   <li>We set <b>perSystem</b> to false, which makes
+   our cabinet images "generic".  That means that the media folder
+   will only contain one set of images for, say <i>Medieval Madness</i>,
+   which will be used for <i>any</i> virtual version of the game
+   based on any pinball simulator system, from Visual Pinball to
+   Future Pinball to FX3.  This seems to me like the right call
+   for cabinet images, since this is something that refers back
+   to the original machine being simulated, rather than to
+   something unique to each simulator.  The built-in types for
+   Instruction cards and Flyers work the same way, for the same
+   reason.
+
+   <li><b>isIndexed</b> is set to true, which means that we can
+   have multiple cabinet images for each table.  The files are
+   distinguished in the media with numeric suffixes:
+   "Medieval Madness (Williams 2004) 1.jpg",
+   "Medieval Madness (Williams 2004) 2.jpg", and so on.  There
+   can also be a plain "Medieval Madness (Williams 2004).jpg"
+   alongside those, without any number - if it's there, it
+   counts as an implied "number zero" in the list.
+   <p>
+      The built-in type for Instruction Cards is also an indexed
+      type, because many of the original machines came with a
+      selection of cards with variations on the rules for the
+      operator to choose from.  Many of the HyperPin media packs
+      reproduce that full selection, and some also come with
+      translated versions.  Flyers use a slightly different
+      convention for multiple images, known as "paged" media
+      (which sorts the multiple files into subfolders, rather
+      than using a numeric suffix).  I think Cab Images are a
+      good fit for the indexed type, since you might find
+      several good ones for a given game, but there's no
+      particular structure to them; they're just different
+      takes on the same thing.  The "paged" folders that Flyers
+      use are more appropriate when the images constitute
+      parts of a whole.
+   </p>
+</ul>
+
+<p>
+   Once we've defined our new media type, the window creation is
+   exactly like before.  The only difference is that we reference
+   the new media type, using the <b>id</b> property we assigned when
+   creating the type, in the part of the window descriptor where
+   we specify the background image type.
+</p>
+<div class="code">
+// Create the window, using our new custom Cabinet Image media type
+// as the background image type
+let cabPicWin = mainWindow.createMediaWindow({
+    title: "Cabinet",
+    configVarPrefix: "customWindow.CabImage",
+    backgroundImageMediaType: "cab image"  // the "id" of the type
+});
+
+// maintain the original image proportions
+cabPicWin.backgroundScalingMode = "zoom";
+
+// since this is an indexed type, meaning there can be multiple
+// cab images for each game, set up an interval timer to flip
+// through them at a leisurely pace
+let cabPicTimer;
+cabPicWin.on("mediasyncload", ev => {
+    clearInterval(cabPicTimer);
+    cabPicTimer = setInterval(() => { cabPicWin.pagedImageIndex += 1; }, 5000);
+});
+</div>
+
+<p>
+   Note that we created a timer to flip through the images,
+   in case a given table has multiple cab images available.
+   This works exactly like the one in the earlier Flyers example:
+   we just increment the window's <b>pagedImageIndex</b> every
+   few seconds to switch to the next available photo.
+</p>
+
+<p>
+   <b>Installing media:</b> Now, one little detail remains,
+   which is that you probably don't any cabinet images
+   installed to test this out with.  The HyperPin packs
+   don't include anything like this.  So you'll have to
+   make a separate trip to the Web to find these.
+</p>
+<p>
+   One reliable place to look is <a target="_blank" href="https://ipdb.org">IPDB</a>
+   (the Internet Pinball Database). They have photos
+   for most of the commercial pinball tables ever built,
+   usually including at least one full-cabinet photo.
+</p>
+<p>
+   The easiest way to install a cabinet photo from the Web
+   is to drag it from the browser and drop it onto your
+   custom window.  One of the nice things about the Media
+   Type system is that it tells PinballY not only where to
+   look for existing photos, but how to handle installation
+   when you drop a new photo onto a window.  The system will
+   automatically install a photo dropped on your custom
+   Cabinet Images window as a Cabinet Image media item.
+   You can also add photos directly into the media folder
+   via the Windows desktop; see <a href="DirectoryInfo.html">Files &amp; Folders</a>
+   for help figuring out where the images are actually stored.
+</p>
+
+<h2>Apron "Score Card" window</h2>
+<p>
+   Many pin cab builders install a pseudo-"apron" at the bottom of their
+   cab, below the main TV, as a filler to make room for the plunger and so on.
+   We call it an apron because it fills roughly the same space as the
+   actual apron on a real pinball machine.
+</p>
+<p>
+   On a real machine, the apron traditionally holds a pair of index
+   cards, one at either side, one showing the rules of the game and
+   the other showing how many quarters to insert.
+   On my cab, I mimic this look with a card on the left offering
+   brief instructions on how to select and launch games, and a
+   card on the right announcing Free Play mode.  Just to be clear,
+   the cards on my apron are physical paper cards.  But some
+   cab builders get a little fancier by placing a small 6" or 7"
+   monitor in place of one of the index cards, to make the space
+   more interactive and more visually interesting.
+   That's where the idea for PinballY's built-in Instruction Card
+   window came from:  it's designed especially for cabs so equipped,
+   so that you can easily display a live instruction card in
+   your apron monitor as you scroll through games in PinballY.
+</p>
+<p>
+   But what if you take this idea to its logical conclusion by
+   building in a <i>second</i> apron monitor, so that both index
+   card positions have live displays?  The only native PinballY window
+   that's really intended for an apron monitor is the Instruction
+   Card window, so there's nothing ready-made to display in
+   that second monitor.
+</p>
+<p>
+   This was actually the original use case
+   that got me thinking about adding custom windows.  A forum member on
+   vpforums asked if there was a way to add a second score card, to
+   fit his custom cab setup with two small monitors in the apron area.
+   That was the first time I've heard of anyone installing two apron
+   monitors, so I hadn't considered the idea of a second dedicated
+   PinballY window for the apron area.  It obviously would be a nice
+   addition for cabs with two apron monitors, but this seemed like
+   such a rarity that I hesitated to add a dedicated window that
+   only a few people would be able to use.  That
+   got me thinking that what we really need is a way to create
+   whatever additional special windows you can think up to fit your cab's
+   particular features, so that there's a way to address <i>all</i> of
+   those unique ideas, but without overloading PinballY with a glut
+   of oddball windows that would just get in everyone else's way.
+</p>
+<p>
+   Now that we have the Custom Window feature, it's clearly
+   the way to address this second-apron-monitor case, which brings
+   us to the present example.
+   So what should we display on a second apron monitor?  Looking
+   to the real machines for ideas, we see that the apron traditionally
+   has an instruction card on the left, and a pricing card on the right:
+   something along the lines of "1 Play = 75&cent;/3 balls per game",
+   plus the obligatory legal disclaimer, "For Amusement Only".
+   We already have the Instructions Card covered, so that leaves
+   the pricing card as the obvious choice.  But that probably
+   isn't very interesting on a virtual pin cab, since it would
+   say more or less the same thing for every game - "Free Play -
+   Press Start".  That's not a very dynamic use for a monitor
+   that can display unique graphics for each game.
+</p>
+<p>
+   A more interesting idea might be a High Scores display.  This
+   doesn't mimic anything you'd see on the apron on a modern
+   real machine, but it's useful, and it's not
+   completely out of place.  In the really old days
+   of electromechanical machines, some arcades commemorated record-setting games
+   with a hand-printed note placed on the apron - a precursor
+   of the automatic high score displays on modern electronic games.
+   It was also common until the mid-1980s for the pricing
+   card to include a list of Replay Score levels. That's not quite the
+   same thing as high scores, but it's at least similar.  Replay scores
+   disappeared from the pricing cards in the 1990s, because someone
+   at Williams came up with the bright idea of abolishing fixed
+   replay levels in favor of scores that increase automatically
+   when players reach them too often, to avoid giving away too
+   many free games.
+</p>
+<p>
+   PinballY already displays live high scores on the DMD using
+   DMD-style graphics appropriate to the game's era, so we
+   <i>could</i> just replicate that on the apron monitor.  But
+   that would be a little boring.  I think it would be nicer
+   to create a separate high scores window that looks like
+   an apron card, with the simple black-on-white text style
+   that the stock instruction cards use.  That'll make the
+   Score Card on the one apron monitor harmonize visually
+   with the Instruction Card window on the other monitor.
+</p>
+<p>
+   Javascript has access to the high score information via the
+   <a href="HighScoresEvent.html">highscoresready</a> event.
+   That fires shortly after a new game is selected and provides
+   an array of strings with the scores.  We can use that to
+   build a custom image using a <a href="DrawingLayer.html">Drawing Layer</a>
+   in the custom window.
+</p>
+<p>
+   Since we're going to generate our own graphics, we don't need
+   any automatic background media in this window.  We'll just fill
+   the window with our custom text display.  This makes the custom
+   window setup especially simple:
+</p>
+<p>
+<div class="code javascript">
+// Create the Score Card window.  This is an especially simple
+// one, since it doesn't need to display any automatic media:
+// all of the graphics will be custom drawn in Javascript.
+let scoreCardWin = mainWindow.createMediaWindow({
+    title: "Score Card",
+    configVarPrefix: "custom.ScoreCard"
+});
+</div>
+
+<p>
+   To draw the instruction card, we're going to use the new
+   <a href="HtmlLayout.html">HtmlLayout</a> object, which lets
+   us display styled text using HTML markup.  We <i>could</i>
+   assemble all of the text using the Custom Drawing
+   text primitives, but that gets tedious for anything
+   with mixed styling.  (Indeed, a first draft of this
+   chapter took that approach, and writing that up convinced
+   me that a higher-level text widget was worth adding.)
+</p>
+<p>
+   HtmlLayout is pretty easy to use.  We just have to provide
+   it with a block of text using HTML markup to specify the
+   styling and layout, and we get back an object that we
+   can use to draw the specified text layout in a window.
+   We can also measure the size of the HTML text layout
+   before displaying it, so that
+   we know how big to make the drawing surface.  That's
+   important for this case, because the high score text
+   varies in length from game to game.  Older games
+   usually have just a single high score, whereas the
+   latest games have credit rolls that go on for pages
+   and pages. (Take a look at the high score readout for
+   <i>Medieval Madness</i> to see a particularly
+   lengthy credits roll.)
+</p>
+
+<div class="code javascript">
+// Create a drawing layer for our generated score card image
+let scoreCardLayer = scoreCardWin.createDrawingLayer(1);
+
+// When it's time to update the Score Card Window media,
+// generate a new image based on the current game's high
+// scores
+scoreCardWin.on("mediasyncload", ev => {
+    // Draw a score card, given the game title, a headline,
+    // and the score text.  We'll invoke this when a newly
+    // selected game's high scores are retrieved.
+    function drawScoreCard(title, headline, scores)
+    {
+        // translate the scores to HTML, changing special markup
+        // characters to "&amp;" equivalents, and then joining them
+        // all together with line break (BR) tags
+        scores = (scores || []).map(
+            s => s.replace(/&lt;/g, "&amp;lt;").replace(/&amp;/g, "&amp;")).join("&lt;BR>");
+
+        // set up the HTML layout
+        let layout = new HtmlLayout(`
+            &lt;style>
+            #outer {
+              text-align: center;
+              font: bold 16pt Arial;
+              padding: 16px;
+              color: black;
+            }
+            #outer div {
+              padding: 1em;
+              text-align: center;
+            }
+            #title { font-size: 30pt; }
+            #headline { font-size: 24pt; }
+            #scores { font-size: 18pt; }
+            #footer { font-size: 24pt; }
+            &lt;/style>
+            &lt;div id="outer">
+               &lt;div id="title">` + title + `&lt;/div>
+               &lt;div id="headline">` + headline + `&lt;/div>
+               &lt;div id="scores">` + scores + `&lt;/div>
+               &lt;div id="footer">FOR AMUSEMENT ONLY&lt;/div>
+            &lt;/div>`);
+
+        // By default, we'll display the graphics in a 640x480
+        // canvas.  But if the layout is too tall for that, we'll
+        // expand the window vertically to make room.  We'll keep
+        // the aspect ratio of the window the same so that the
+        // geometry isn't distorted, and we'll still fit the
+        // layout to the same 640-pixel width within the larger
+        // window, so that it maintains the same dimensions in
+        // the final display.  So start by figuring the height
+        // needed for the layout at 640 pixels wide.
+        let windowSize = { width: 640, height: 480 };
+        let layoutRect = {
+            x: 0,
+            y: 0,
+            width: windowSize.width,
+            height: windowSize.height
+        };
+        let layoutSize = layout.measure(windowSize.width);
+
+        // If the height is greater than our default 480 pixels,
+        // make the window proportionally larger.
+        if (layoutSize.height > windowSize.height)
+        {
+            windowSize.width *= layoutSize.height/windowSize.height;
+            windowSize.height = layoutSize.height;
+            layoutRect.height = layoutSize.height;
+        }
+
+        // Center the layout in the window
+        layoutRect.x = (windowSize.width - layoutSize.width)/2;
+        layoutRect.y = (windowSize.height - layoutSize.height)/2;
+    
+        // draw the window
+        scoreCardLayer.draw(dc => {
+        
+            // Fill the background with solid opaque white.  If you
+            // prefer to use custom graphics from a PNG or JPEG file
+            // for the background fill, you can replace this with
+            // a call to drawImage().
+            let sz = dc.getSize();
+            dc.fillRect(0, 0, sz.width, sz.height, 0xffffffff);
+
+            // draw the HTML layout
+            layout.draw(dc, layoutRect);
+            
+        }, windowSize.width, windowSize.height);
+    }
+
+    // If there's a game, get its high score list and use it
+    // to generate the score card.  If not, generate a default
+    // placeholder card instead.
+    if (ev.game) {
+        // retrieve the high scores
+        ev.game.getHighScores().then(
+            scores => {
+                // got 'em - draw the score card graphics
+                drawScoreCard(ev.game.title.toUpperCase(),
+                    "FREE PLAY - PRESS START", scores);
+            },
+            error => {
+                // error - just draw a generic Free Play card
+                drawScoreCard(ev.game.title.toUpperCase(),
+                    "FREE PLAY - PRESS START");
+            }
+        );
+    }
+    else {
+        // no game is selected; draw a generic placeholder
+        drawScoreCard("PinballY", "Please select a game using the menus");
+    }
+});
+</div>
+
+<p>
+   I'll suggest one simple embellishment.  The code above draws
+   plain black text on a white background.  That's exactly the
+   same style as the stock instruction cards and pricing cards
+   on most real pinball machines, so it'll harmonize perfectly
+   with your Instructions Card monitor for most games.  If you
+   prefer something more colorful, though, you could easily add
+   <b>color</b> directives to the DIV styles, to change the
+   text color to whatever you like.  You can just as easily 
+   select more decorative fonts; I just went with Arial because
+   it pretty well matches the plain sans-serif look of the
+   stock pricing cards.  CSS also lets you set backgrounds
+   and borders, so there are lots of possibilities you can
+   experiment with to get a look you like.
+</p>
+<p>
+   For even more visual interest, you could add custom background
+   media for each card.  It would be a lot of work to add your own
+   custom Score Card background per game, but here's an easy approach
+   that works pretty well: use each game's still backglass image.
+   You probably already have one of these in your media tree
+   for each game, either from screen captures or from HyperPin
+   media packs.  Here's how you could
+   add an overlay effect that keeps the black-on-white
+   look of the main text, but overlays it on top of a washed-out
+   image of the backglass:
+</p>
+<ul>
+   <li>In the custom window definition, add <tt>backgroundImageMediaType: "bg image"</tt>.
+   The window will now automatically load the current game's backglass image into the background.
+
+   <li>In the drawing code, change the color code in the call
+   to <b>fillRect</b> to a semi-transparent alpha, perhaps <tt>0xE8FFFFFF</tt>.
+   That'll make the card image <i>slightly</i> transparent, which
+   lets the backglass image show through just enough to be visible, without
+   obscuring the text too much.
+
+   <li>You can tweak the "alpha" opacity part (the E8 in the <tt>bgColor</tt> above) to
+   adjust how strongly the backglass image shows through.  Use higher numbers to make
+   it look more washed out, and use lower numbers to make the colors look more
+   saturated.  If you want a very saturated look, you might find that it looks
+   better to switch to white text on a black background, which you can do by
+   changing the <tt>txtColor</tt> and <tt>bgColor</tt> variables in the drawing code.
+
+   <li>Another color mix that I think looks nice is to invert the
+   color scheme, to white text (or other bright colors) against a dark
+   background.  Change all of the text colors in the HTML
+   layout to white (or similarly bright colors, like yellow and cyan),
+   and change the background overlay to something like <tt>0xE8000000</tt>.
+   That'll let a dimmed-out version of the backglass image show through,
+   rather than a washed-out version, which contrasts nicely with bright-colored
+   text.
+</ul>
+   
+
+</body>
+</html>
