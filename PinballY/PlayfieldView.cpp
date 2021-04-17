@@ -195,6 +195,14 @@ namespace ConfigVars
 	static const TCHAR *UnderlayHeight = _T("Underlay.Height");
 	static const TCHAR *UnderlayYOffset = _T("Underlay.YOffset");
 	static const TCHAR *UnderlayMaxWidth = _T("Underlay.MaxWidth");
+
+	static const TCHAR *WheelXCenter = _T("Wheel.XCenter");
+	static const TCHAR *WheelYCenter = _T("Wheel.YCenter");
+	static const TCHAR *WheelRadius = _T("Wheel.Radius");
+	static const TCHAR *WheelAngle = _T("Wheel.Angle");
+	static const TCHAR *WheelImageWidth = _T("Wheel.ImageWidth");
+	static const TCHAR *WheelXSelected = _T("Wheel.XSelected");
+	static const TCHAR *WheelYSelected = _T("Wheel.YSelected");
 };
 
 // include the capture-related variables
@@ -207,11 +215,6 @@ static const DWORD wheelTime = 260;
 // the middle of the window is (0,0) and the top left is (-.5,+.5).
 // The wheel is drawn as a circle with center (window horizontal 
 // center, WHEEL_Y).
-const float WHEEL_R = 914.0f / 1920.0f;          // wheel circle radius
-const float WHEEL_Y = -1543.0f / 1920.0f;        // vertical center of wheel circle
-const float WHEEL_DTHETA = 0.25f;                // angle between games
-const float WHEEL_Y0 = -0.07135f;                // center image y offset at idle
-const float WHEEL_IMAGE_WIDTH = 0.14f;           // target width of main icon image
 const float WHEEL_TOP = -562.0f / 1920.0f;       // top of wheel area, for underlay placement
 
 // "No Command" 
@@ -9180,18 +9183,19 @@ Sprite *PlayfieldView::LoadWheelImage(const GameListItem *game)
 void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 {
 	// set the scale so that the image width comes out to the target width
-	float ratio = image->loadSize.x == 0.0f ? 1.0f : WHEEL_IMAGE_WIDTH / image->loadSize.x;
+	float ratio = image->loadSize.x == 0.0f ? 1.0f : wheel.imageWidth / image->loadSize.x;
 	image->scale.x = image->scale.y = ratio;
 
 	// calculate the angle for this game
-	float theta = float(n) * WHEEL_DTHETA;
+	float theta = float(n) * wheel.angle;
 
 	// adjust for the travel distance
-	theta -= progress * WHEEL_DTHETA * fabs(float(animWheelDistance));
+	theta -= progress * wheel.angle * fabs(float(animWheelDistance));
 
 	// calculate the new position
-	image->offset.x = WHEEL_R * sinf(theta);
-	image->offset.y = WHEEL_Y + WHEEL_R * cosf(theta);
+	image->offset.x = wheel.radius * sinf(theta);
+	image->offset.y = wheel.yCenter + wheel.radius * cosf(theta);
+	image->offset.z = 0.0f;
 
 	// For images at the center or transitioning to/from the center spot,
 	// adjust the position and scale.  The center image is shown at (0,y0)
@@ -9199,18 +9203,23 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 	// natural wheel positions at idle.  We adjust the position and scale
 	// on a ramp between the standard and special positions according to
 	// the progress.
+	// The z offset is set [0.0f ... 1.0f] with the center image at the 
+	// top (1.0) and other images below. This is used later so we can draw
+	// the center image over top of all the other images.
 	float ramp = fabs(progress)*progress*progress;
 	if (n == 0)
 	{
 		// Outgoing center image
 		image->scale.x = image->scale.y = 1.0f - (1.0f - ratio)*ramp;
-		image->offset.y = WHEEL_Y0 - (WHEEL_Y0 - image->offset.y)*ramp;
+		image->offset.y = wheel.ySelected - (wheel.ySelected - image->offset.y)*ramp;
+		image->offset.z = 1.0f - abs(progress);
 	}
 	else if (n == animWheelDistance)
 	{
 		// Animation target - incoming center image
 		image->scale.x = image->scale.y = ratio + (1.0f - ratio)*ramp;
-		image->offset.y += (WHEEL_Y0 - image->offset.y)*ramp;
+		image->offset.y += (wheel.ySelected - image->offset.y)*ramp;
+		image->offset.z = abs(progress);
 	}
 
 	// update the world transform for the image
@@ -11310,7 +11319,18 @@ void PlayfieldView::UpdateDrawingList()
 	// helps avoid this.
 	if (!attractMode.active || !attractMode.hideWheelImages)
 	{
+		// Sort the wheel images based on their z offset into a temporary
+		// list. The center (selected) image will have the highest z offset and
+		// be drawn last (on top of all other images).
+		std::list<Sprite *> sortedWheelImages;
 		for (auto& s : wheelImages)
+			sortedWheelImages.push_back(s);
+
+		sortedWheelImages.sort([](const Sprite *a, const Sprite *b) {
+			return a->offset.z < b->offset.z; 
+		});
+
+		for (auto& s : sortedWheelImages)
 			AddToDrawingList(s);
 	}
 
@@ -12869,6 +12889,18 @@ void PlayfieldView::OnConfigChange()
 
 	// topmost during launch?
 	isTopmostDuringLaunch = cfg->GetBool(ConfigVars::TopmostDuringGameLaunch, false);
+
+	// Wheel layout parameters.  Coordinates are in D3D space, where
+	// the middle of the window is (0,0) and the top left is (-.5,+.5).
+	// The wheel is drawn as a circle with center (window horizontal
+	// center, WHEEL_Y).
+	wheel.xCenter = cfg->GetFloat(ConfigVars::WheelXCenter, 0.0f);
+	wheel.yCenter = cfg->GetFloat(ConfigVars::WheelYCenter, -1543.0f / 1920.0f);
+	wheel.radius = cfg->GetFloat(ConfigVars::WheelRadius, 914.0f / 1920.0f);
+	wheel.angle = cfg->GetFloat(ConfigVars::WheelAngle, 0.25f);
+	wheel.imageWidth = cfg->GetFloat(ConfigVars::WheelImageWidth, 0.14f);
+	wheel.xSelected = cfg->GetFloat(ConfigVars::WheelXSelected, 0.0f);
+	wheel.ySelected = cfg->GetFloat(ConfigVars::WheelYSelected, -0.07135f);
 
 	// load the underlay enabled status
 	underlayEnabled = cfg->GetBool(ConfigVars::UnderlayEnable, true);
