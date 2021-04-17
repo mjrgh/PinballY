@@ -3732,7 +3732,7 @@ bool GameList::FindGlobalImageFile(TCHAR path[MAX_PATH], const TCHAR *subfolder,
 
 bool GameList::FindGlobalVideoFile(TCHAR path[MAX_PATH], const TCHAR *subfolder, const TCHAR *file)
 {
-	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi") };
+	static const TCHAR *videoExts[] = { _T(".mp4"), _T(".mpg"), _T(".f4v"), _T(".mkv"), _T(".wmv"), _T(".m4v"), _T(".avi"), _T(".mov") };
 	return FindGlobalMediaFile(path, subfolder, file, videoExts, countof(videoExts));
 }
 
@@ -4050,7 +4050,7 @@ TSTRING GameListItem::CleanMediaName(const TCHAR *src)
 // default capture format for that type.
 //
 #define ImageExtensions  _T(".png .jpg .jpeg .gif")
-#define VideoExtensions  _T(".f4v .mp4 .mpg .mkv .wmv .m4v .avi")
+#define VideoExtensions  _T(".f4v .mp4 .mpg .mkv .wmv .m4v .avi .mov")
 #define AudioExtensions  _T(".mp3 .wav")
 
 // Flyer images are arranged into subfolders by page.  (Note that these
