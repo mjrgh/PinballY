@@ -69,6 +69,14 @@
 
    <li><b>Wheel.Angle:</b>  The angle between game icons on the wheel,
    in <b>radians</b>.  The default is 0.25 (about 15&deg;).
+   <p>Note that
+   the game wheel always shows five icons, no matter how large or small
+   the angle is: the current selection at the center, two icons
+   to the left, and two icons to the right.  Even if you make the
+   angle small enough to fit more icons into view, PinballY will still
+   only display two on each side, so it's best to keep the angle in
+   a range where you'd only see those five anyway - it might look
+   odd if you leave too much empty space at the sides.</p>
 
    <li><b>Wheel.ImageWidth:</b>  The width of the wheel icon for the
    center (selected) game, in D3D horizontal units.  The icons are
@@ -82,6 +90,12 @@
    The default is -0.07135, which is slightly below center.
 
 </ul>
+
+<p>
+   Here's a graphical view of the parameters.
+</p>
+<img class="example" src="WheelCircleParams.png">
+
 
 </body>
 </html>
