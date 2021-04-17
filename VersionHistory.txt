@@ -1,5 +1,18 @@
 PinballY Update History
 
+? (1.1.0 Beta 2)
+
+* The layout of the game wheel in the main window can now be
+customized via some new parameters in the settings file
+(Settings.txt).  See the help under Customizing > Wheel Layout.
+
+* .mov is now recognized as a video file suffix.  (The video layer,
+libvlc, has long supported .mov files, so this is just a matter of
+including .mov suffixes in PinballY's media searches.  The only reason
+it wasn't included in the past was that I wasn't sure how well libvlc
+supports .mov files, but they appear to work just fine.)
+
+
 03-27-2021 (1.1.0 Beta 1)
 
 * I'm calling this release a Beta, since it has some significant new

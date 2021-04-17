@@ -68,6 +68,7 @@ var contents = [
         "+StartupAudioVideo.html Startup Audio/Video",
         "+LaunchBackgrounds.html Game Launch Backgrounds",
         "+TTHighScoreBackgrounds.html \"TT\" High Score Backgrounds",
+        "+WheelLayout.html Wheel Layout",
     "OperatorMenu.html Operator Menu",
     "GameSetupMenu.html Game Setup Menu",
         "+EditGameDetails.html Editing a Game's Details",
