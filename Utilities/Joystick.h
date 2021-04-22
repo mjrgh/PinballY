@@ -105,6 +105,8 @@
 #include <memory>
 #include <unordered_map>
 #include <Hidsdi.h>
+#include <dinput.h>
+#include "Pointers.h"
 
 // Joystick manager.
 class JoystickManager
@@ -143,9 +145,14 @@ public:
 		// Joystick button state change.  Returns true if the event
 		// is fully consumed; this prevents other subscribers from
 		// receiving the event.
-		virtual bool OnJoystickButtonChange(PhysicalJoystick *js, 
-			int button, bool pressed, bool foreground) 
+		virtual bool OnJoystickButtonChange(PhysicalJoystick *js, int button, bool pressed, bool foreground) 
 		    { return false; }
+
+		// Joystick axis/value change.  Returns true if the event
+		// is fully consumed; this prevents other subscribers from
+		// receiving the event.
+		virtual bool OnJoystickValueChange(PhysicalJoystick *js, USAGE usage, LONG val, bool foreground)
+			{ return false; }
 
 		// Joystick added.  Called when a physical joystick is added to
 		// the system (which usually means that the user plugged it in).
@@ -163,17 +170,35 @@ public:
 	void SubscribeJoystickEvents(JoystickEventReceiver *receiver);
 	void UnsubscribeJoystickEvents(JoystickEventReceiver *receiver);
 
-	// Get the logical joystick object for a given logical unit number
-	LogicalJoystick *GetLogicalJoystick(int index);
-
 	// Get the number of logical joysticks currently in the system
 	size_t GetLogicalJoystickCount() const { return logicalJoysticks.size(); }
 
-	// Add a logical joystick representing a physical joystick
-	// type.  If there's already an entry that matches, we'll
-	// return it, otherwise we'll create a new entry.
-	LogicalJoystick *AddLogicalJoystick(int vendorID, int productID, const TCHAR *prodName);
-	LogicalJoystick *AddLogicalJoystick(const PhysicalJoystick *jsPhys);
+	// Get a logical joystick by unit number
+	LogicalJoystick *GetLogicalJoystick(int unitNumber);
+
+	// Enumerate logical joysticks
+	void EnumLogicalJoysticks(std::function<void(const LogicalJoystick*)> func);
+
+	// Find the physical joystick corresponding to a logical joystick,
+	// if any.  Returns null if the device isn't currently present as
+	// a physical joystick.
+	PhysicalJoystick *GetPhysicalJoystick(const LogicalJoystick *js);
+
+	// Find or add a logical joystick.  If a non-null GUID is provided, we
+	// look for an existing entry based on the GUID; otherwise, we match
+	// any existing entry with the same VID, PID, and product name.
+	LogicalJoystick *FindOrAddLogicalJoystick(
+		int vendorID, int productID, const TCHAR *prodName, const GUID &instanceGuid);
+
+	// Bind a physical joystick to a logical joystick.  This finds the
+	// best matching logical joystick for the physical joystick, adding
+	// a new logical joystick if necessary, and sets the physical
+	// joystick's internal logical joystick pointer to the selected
+	// logical device.
+	LogicalJoystick *BindPhysicalToLogicalJoystick(const PhysicalJoystick *p);
+
+	// Empty GUID.   This is a GUID with all bytes set to zero.
+	static const GUID emptyGuid;
 
 	// Joystick description.  This is the base class for physical
 	// and logical joystick records.  (A physical joystick object
@@ -182,23 +207,38 @@ public:
 	// assigned commands in the configuration.)
 	struct Joystick
 	{
-		Joystick(int vendorID, int productID, const TCHAR *prodName)
-			: vendorID(vendorID), productID(productID), prodName(prodName)
-		{
-			nButtons = 0;
-			for (size_t i = 0; i < countof(val); ++i)
-				val[i] = 0;
-		}
-
+		Joystick(int vendorID, int productID, const TCHAR *prodName, const GUID &instanceGuid);
 		~Joystick() { }
+
+		// USB vendor and product IDs
+		int vendorID;
+		int productID;
 
 		// Product name.  This is the product name string that the 
 		// device reports in its HID descriptor, if available.
 		TSTRING prodName;
 
-		// USB vendor and product IDs
-		int vendorID;
-		int productID;
+		// DirectInput Instance GUID.  DirectInput assigns a GUID
+		// to each input device.  Microsoft documents the instance
+		// GUID as being explicitly designed to provide a stable
+		// ID for each device that persists across sessions and
+		// system reboots, for use by applications for purposes
+		// such as storing device-specific settings.  We use this
+		// to associate logical joysticks in the saved settings
+		// with physical joysticks at run-time.
+		//
+		// Note that we only started using GUIDs in the settings
+		// in 1.1 Beta 1.  Older settings files keyed on the
+		// VID/PID/Product Name, which is sufficient to identify
+		// a device when there's only one of that type in the
+		// system, but can't distinguish between multiple
+		// instances of the same type.  When we create a logical
+		// joystick based on an old settings file without a GUID,
+		// this will be set to the empty GUID (all zeroes).
+		// The GUID will also be empty if DirectInput isn't
+		// available or hasn't assigned a GUID to a particular
+		// device.
+		GUID instanceGuid;
 
 		// Button states.  This is simply indexed by the
 		// nominal button number as labeled in the USB HID
@@ -217,13 +257,21 @@ public:
 		// assume everyone plays nice.  If we ever do
 		// encounter a device that makes this assumption
 		// a problem, we can change this to a map.
-		int nButtons;
-		std::unique_ptr<BYTE> buttonState;
+		int nButtonStates = 0;
+		struct ButtonState
+		{
+			// current on/off state
+			BYTE state = 0;
+
+			// is the button present in the HID report descriptor?
+			bool present = false;
+		};
+		std::unique_ptr<ButtonState> buttonState;
 
 		// Is a button pressed?
 		bool IsButtonPressed(int button) const
 		{
-			return button >= 0 && button < nButtons && buttonState.get()[button] != 0;
+			return button >= 0 && button < nButtonStates && buttonState.get()[button].state != 0;
 		}
 
 		// Control value usages.  These are the usage IDs
@@ -242,28 +290,49 @@ public:
 		static const USAGE iHat = 0x39;				// Hat switch
 		static const USAGE iValLast = 0x39;			// last in our range
 
-		// Current control values.  These slots contain the
-		// latest values reported by the device for the 
-		// relevant usages.
+		// String names for the usage values.  This array can be indexed
+		// with [USAGE - ivalFirst], for the values above.
+		static const TCHAR *valNames[iValLast - iValFirst + 1];
+		static const CHAR *valNamesA[iValLast - iValFirst + 1];
+
+		// Current control/axis values.  These slots contain the
+		// latest values reported by the device for the relevant 
+		// usages.
 		//
 		// We take advantage of the way the HID usages for our
 		// inputs  of interest are all nicely grouped together
 		// starting at 0x30.  To get the value for a particular
 		// axis, use val[USAGE - iValFirst], where USAGE is one of
 		// the values listed above from iX==0x30 to iHat==0x39.
-		LONG val[iValLast - iValFirst + 1];
+		struct Value
+		{
+			// current value
+			LONG cur = 0;
+
+			// logical value range
+			LONG logMin = 0;
+			LONG logMax = 0;
+			
+			// physical value range
+			LONG physMin = 0;
+			LONG physMax = 0;
+
+			// is the value present?
+			bool present = false;
+		};
+		Value val[iValLast - iValFirst + 1];
 	};
 
 	// Logical joystick descriptor
 	struct LogicalJoystick : Joystick
 	{
-		LogicalJoystick(int index, int vendorID, int productID, const TCHAR *prodName)
-			: Joystick(vendorID, productID, prodName), index(index)
+		LogicalJoystick(int index, int vendorID, int productID, const TCHAR *prodName, const GUID &instanceGuid)
+			: Joystick(vendorID, productID, prodName, instanceGuid), index(index)
 		{
 		}
 
-		// Index in the joystick vector.  This serves as a proxy
-		// for the GUID for the duration of the session, since vector
+		// Index in the joystick vector.  This serves as a unique
+		// identifier for the duration of the session, since vector
 		// entries are never removed.
 		int index;
 	};
@@ -285,30 +354,27 @@ public:
 	struct PhysicalJoystick : Joystick
 	{
 		PhysicalJoystick(
-			HANDLE hRawDevice, const TCHAR *rawDeviceName,
-			int vendorID, int productID, const TCHAR *prodName);
+			int vendorID, int productID, const TCHAR *prodName, const GUID &instanceGuid,
+			HANDLE hRawDevice, const TCHAR *devicePath,	const TCHAR *serial);
 
 		// Raw device handle 
 		HANDLE hRawDevice;
 
-		// Raw Input device name.  This is the device name reported
-		// by the Raw Input API during device enumeration.  
+		// Raw Input device path.  This is the device name reported
+		// by the Raw Input API during device enumeration, which is
+		// a (pseudo) file system path.  This can be opened with
+		// CreateFile() to access the device.  The file handle can
+		// also be used with HidD API calls.
 		// 
-		// The device name also happens to be a pseudo file system 
-		// path that can be used to open the device in the HidD API.
-		// (This is undocumented but seems to be consistent across all
-		// Windows versions, and is widely mentioned on the Internet,
-		// so perhaps its not too much of a stretch to consider it a
-		// de facto API feature despite being undocumented.)  
-		//
-		// The name also happens to be unique within the local machine
-		// (that's a feature of it being a pseudo file system path),
-		// and happens to be stable across sessions and reboots (that's
-		// not a feature of the pseudo path aspect, but is a separate
-		// detail of the implementation that's consistent across
-		// all Windows versions).  That means that we can use it as
-		// a persistent identifier in saved config data.
-		TSTRING rawDeviceName;
+		// The name is unique within the local machine, and is also
+		// stable across sessions and reboots.  The caveat is that
+		// it *might* contain information on the USB bus location of
+		// the device, so it can change if the device is moved to a
+		// different USB port.
+		TSTRING path;
+
+		// Serial number string for the device
+		TSTRING serial;
 
 		// Mapped logical joystick.  This is the configuration
 		// joystick object that handles command inputs from this
@@ -384,8 +450,7 @@ public:
 			// always be 0x09, "Buttons Page" from the USB HID 
 			// spec.  But I'm hedging this assumption by storing 
 			// it explicitly, just in case I'm being too
-			// blinkered in my reading of the rather voluminous
-			// and complex HID spec.
+			// blinkered in my reading of the HID spec.
 			int usagePage;
 
 			// The number of buttons covered by this report type.
@@ -393,6 +458,9 @@ public:
 			// of buttons in the device, since a given report type
 			// could cover only a subset of buttons.
 			int nButtons;
+
+			// button ID range for this report
+			int buttonFirstIndex, buttonLastIndex;
 
 			// ON button lists.  At any given time, one of these
 			// is for the LAST report and the other is for the
@@ -473,6 +541,12 @@ public:
 	// parsing and processing.
 	void ProcessRawInput(UINT rawInputCode, HANDLE hRawInput, RAWINPUT *raw);
 
+	// Refresh the DirectInput Instance GUID mapping cache.
+	// This should be called before bulk operations that need
+	// up-to-date GUID mappings, such as configuration loading
+	// and device discovery.
+	void UpdateInstanceGuidCache();
+
 protected:
 	JoystickManager();
 	~JoystickManager();
@@ -506,6 +580,12 @@ protected:
 	// background.
 	void SendButtonEvent(PhysicalJoystick *js, int button, bool pressed, bool foreground);
 
+	// Send a value change event to subscribers.  This represents a change to
+	// one of the axis values or other control values (slider, hat, dial, wheel).
+	// 'usage' indicates which control changed - this is one of the USAGE 
+	// conmstants defined under struct Joystick (iX, iY, iRZ, iSlider, etc).
+	void SendValueChangeEvent(PhysicalJoystick *js, USAGE usage, LONG val, bool foreground);
+
 	// joystick event subscribers
 	std::list<JoystickEventReceiver *> eventReceivers;
 
@@ -517,5 +597,22 @@ protected:
 	// Each logical joystick's index value is the index in this
 	// list.
 	std::list<LogicalJoystick> logicalJoysticks;
-};
 
+	// For fast lookup by index, create a vector on the list.  (This is
+	// simple to maintain, since the list can only grow, never shrink or
+	// change.)
+	std::vector<LogicalJoystick*> logicalJoysticksByIndex;
+
+	// DirectInput GUID <-> device path mapping tables
+	std::unordered_map<TSTRING, TSTRING> guidToPath;
+	std::unordered_map<TSTRING, GUID> pathToGuid;
+
+	// DirectInput interface.  We use this only to obtain Instance GUIDs 
+	// for the joystick devices we discover.  The basic Windows USB and HID
+	// layers don't provide an equivalent device identifier that's stable
+	// across sessions and system reboots; such an identifier is important
+	// for saving configuration data tied to a particular device, so that
+	// we can reliably save things like button and axis assignments across
+	// sessions.
+	RefPtr<IDirectInput8> idi8;
+};

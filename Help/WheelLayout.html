@@ -65,7 +65,7 @@
    <li><b>Wheel.Radius:</b>  The radius of the wheel's overall circle, in
    terms of the height of the window.  A radius of 1.0 makes the wheel's
    radius the same as the window's height.  The default is 0.476041667,
-   makes the visible portion of the wheel appear as an arc.
+   which makes the visible portion of the wheel appear as an arc.
 
    <li><b>Wheel.Angle:</b>  The angle between game icons on the wheel,
    in <b>radians</b>.  The default is 0.25 (about 15&deg;).
@@ -75,7 +75,7 @@
    to the left, and two icons to the right.  Even if you make the
    angle small enough to fit more icons into view, PinballY will still
    only display two on each side, so it's best to keep the angle in
-   a range where you'd only see those five anyway - it might look
+   a range where you'd only see those five anyway.  It might look
    odd if you leave too much empty space at the sides.</p>
 
    <li><b>Wheel.ImageWidth:</b>  The width of the wheel icon for the
@@ -84,10 +84,12 @@
    the native image.  The default is 0.14.
 
    <li><b>Wheel.YSelected:</b>  The vertical location (in D3D coordinates)
-   for the current selected game's icon.  This allows the current
-   selection to be moved vertically away from the wheel arc, to give
-   it a more prominent placement nearer the center of the screen.
-   The default is -0.07135, which is slightly below center.
+   for the current selected game's icon.  The icon is centered on this
+   position vertically (and is centered in the window horizontally).
+   This variable lets you move the current game's icon away from the
+   wheel arc, to give it a more prominent placement closer to the center
+   of the screen.  The default is -0.07135, which is slightly below the
+   vertical center of the window.
 
 </ul>
 

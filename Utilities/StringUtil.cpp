@@ -159,7 +159,7 @@ bool ParseGuid(const TCHAR *guidString, size_t len, GUID &guid)
 	const TCHAR *p = guidString, *endp = guidString + len;
 	for (; p < endp && _istspace(*p); ++p);
 
-	// skip opening "{"
+	// skip opening "{", if present (but don't require it)
 	if (*p == '{')
 		++p;
 

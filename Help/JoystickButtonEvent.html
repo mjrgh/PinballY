@@ -95,7 +95,9 @@
    If multiple joysticks are attached to the system, this allows the
    program to distinguish which one generated the event.  The logical
    unit number isn't anything Windows knows about; it's just an internal
-   ID assigned by PinballY to tell joysticks apart.
+   ID assigned by PinballY to tell joysticks apart.  This value can be
+   passed to <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   to retrieve the device descriptor for the joystick.
 </ul>
 
 <h2>Background events</h2>

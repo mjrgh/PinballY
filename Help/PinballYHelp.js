@@ -150,6 +150,7 @@ var contents = [
             "++HttpRequest.html HttpRequest",
             "++HWNDObject.html HWND",
             "++Int64.html Int64 and Uint64",
+            "++JoystickInfo.html JoystickInfo",
             "++NativeObject.html NativeObject",
             "++NativePointer.html NativePointer",
             "++SecondaryWindow.html Secondary Windows",

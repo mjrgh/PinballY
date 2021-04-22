@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>JoystickInfo Class</h1>
+
+<p>
+   A JoystickInfo object describes a joystick device, and lets you
+   read the current button status and axis values from the device.
+   You get these objects from <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>.
+</p>
+<p>
+   The best way to handle button presses and axis value changes
+   is via events (see <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>).
+   However, in some cases it might be necessary (or just more convenient)
+   to poll the current status, such as within an interval timer or another
+   type of event handler.  The JoystickInfo object makes that possible
+   through the <b>button()</b> method and the various axis value reader
+   methods. If you are going to use polling, and you're going to poll
+   the device with any frequency, it's best to retrieve
+   the JoystickInfo object once (from mainWindow.getJoystickInfo()),
+   and keep a reference to it in a global variable or other
+   location, so that you can reuse the same object each time you
+   need to access the buttons or axis values.  Each call to
+   getJoystickInfo() has to retrieve the internal joystick record
+   and construct a new Javascript object with the descriptor
+   information, so it's a little inefficient to create a new
+   object every on every polling cycle.
+</p>
+<p>
+   If you want to store settings related to a joystick across
+   sessions, the best way to identify the joystick is via its
+   Instance GUID.  That's a unique identifier that Windows assigns
+   to each input device specifically for this purpose.  You can
+   also identify the <i>type</i> of a device with the combination
+   of its Vendor ID (VID), Product ID (PID), and product name string,
+   but that only tells you the type; it can't distinguish among
+   multiple devices of the same type all plugged in at once.
+</p>
+<p>
+   We use the term "HID" a few times in this chapter.  That stands
+   for Human Interface Device, and it's the technical term that the
+   USB specifications use to encompass all sorts of USB hardware
+   devices that involve user input, including keyboards, mice,
+   and joysticks.  As far as Windows is concerned, joysticks are
+   just generic HIDs, so programs like PinballY that access them
+   must do so in terms of the Windows HID programming interfaces.
+   PinballY's Javascript interface to the joysticks tries to make
+   things a little more straightforward by working in terms of
+   more concrete, joystick-specific concepts.
+   Even so, the generic HID foundation is still lurking beneath,
+   so you'll see a few mentions of "HID" in the notes below.
+</p>
+
+<h2>Properties and methods</h2>
+
+<p>
+   The JoystickInfo object has the following properties and methods:
+</p>
+
+<p>
+   <b>axes:</b> An object describing all of the axes and controls
+   that the joystick provides.  This doesn't tell you the current
+   values of the axes; it just describes which axes are present
+   and what their ranges of motion are.  The possible axes are
+   the standard axis and control elements defined in the USB
+   HID specification, as listed below.  (The "Usage Code" is
+   a USB HID concept, which we include purely for reference
+   purposes; see the notes on the <b>usage</b> property below for an
+   explanation.)
+   <table class="dataTable compact">
+      <tr><th>Name</th><th>USB HID Usage Code</th><th>Description</th></tr>
+      <tr><td>X</td><td>0x30</td><td>Main joystick X axis</td></tr>
+      <tr><td>Y</td><td>0x31</td></td><td>Main joystick Y axis</tr>
+      <tr><td>Z</td><td>0x32</td><td>Main joystick Z axis</td></tr>
+      <tr><td>RX</td><td>0x33</td></td><td>X rotation</tr>
+      <tr><td>RY</td><td>0x34</td><td>Y rotation</td></tr>
+      <tr><td>RZ</td><td>0x35</td></td><td>Z rotation</tr>
+      <tr><td>Slider</td><td>0x36</td><td>Slider control</td></tr>
+      <tr><td>Dial</td><td>0x37</td></td><td>Dial control</tr>
+      <tr><td>Wheel</td><td>0x38</td><td>Wheel control</td></tr>
+      <tr><td>Hat</td><td>0x39</td></td><td>Hat switch</tr>
+   </table>
+   <p>
+      The returned object has a property for each axis that exists
+      on the device, named with the <b>Name</b> listed above.
+      For example, if the device has an X axis, then <b><i>joystickInfo</i>.axes.X</b>
+      will contain a descriptor for the X axis.  Each axis descriptor object
+      has the following properties:
+   </p>
+   <ul>
+      <li><b>name:</b> A string giving the name of the axis, from
+      the list above.  This is also the name of the
+      associated value reader method for that axis on the
+      JoystickInfo object itself.
+
+      <li><b>logicalMinimum:</b>  A number giving the "logical minimum"
+      value for this axis.  Values returned from the axis reader method
+      will always be in the range from <b>logicalMinimum</b> to <b>logicalMaximum</b>,
+      inclusive.
+
+      <li><b>logicalMaximum:</b>  A number giving the "logical maximum"
+      value for this axis.  Values returned from the axis reader method
+      will always be in the range from <b>logicalMinimum</b> to <b>logicalMaximum</b>,
+      inclusive.
+
+      <li><b>physicalMinimum:</b>  A number giving the "physical minimum"
+      value for this axis.  This is the low end of the range for physical
+      readings on the device.  Readings are adjusted to the logical range
+      before being reported to the PC, though, so this is only included
+      for the sake of completeness; you won't necessarily
+      see values in the physical range returned from the axis reader method.
+
+      <li><b>physicalMaximum:</b>  A number giving the "physical maximum"
+      value for this axis.  This is the high end of the range for physical
+      readings on the device.  Readings are adjusted to the logical range
+      before being reported to the PC, though, so this is only included
+      for the sake of completeness; you won't necessarily
+      see values in the physical range returned from the axis reader method.
+
+      <li><b>usage:</b>  A number giving the USB HID "usage" code
+      for the axis.  "Usage" is a technical term in the USB HID spec that
+      amounts to an integer ID value assigned in the HID spec
+      for a particular purpose, in this case to define joystick control
+      elements that report ranged values, like the X Axis or a Slider
+      control.  Since the usage values are defined in the spec, they're
+      permanent and universal, across all USB devices and all computers and
+      operating systems that use USB.  The <b>usage</b> property value here
+      is one of the control axis values defined under HID Usage Page 1,
+      "Generic Desktop".  ("Usage Page" is another bit of USB jargon; it's
+      not a page number in a book somewhere, but rather refers to a group
+      of usage codes collected together in the spec.  A Usage code is only meaningful
+      when combined with its Usage Page, the way that a person's first name
+      has to be combined with their last name to have any hope of knowing
+      which "Bob" you're talking about.  The same usage code can be used in
+      many Usage Pages with completely unrelated meanings.  For joystick
+      devices, all usage codes are in Usage Page 1.)
+      Each usage code corresponds to a <b>name</b>
+      value listed above, so you can use the <b>name</b> string as an
+      equally unambiguous identifier for the axis.  But the names aren't part
+      of the USB spec; they're just friendlier IDs that we assigned for
+      PinballY purposes.
+   </ul>
+</p>
+<p>
+   The <b>axes</b> value is only accurate if the device is currently attached,
+   and it's only a snapshot of the axis list at the time the JoystickInfo
+   object was created.  If the device is currently unplugged or disabled,
+   and you plug it in at some point after retrieving a JoystickInfo object
+   for the device, that JoystickInfo object won't be updated to reflect
+   the actual axis list of the live device.  You'd need to make a new call to
+   <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   to create a fresh JoystickInfo object to get the updated axis information once
+   the device is plugged in.
+</p>
+
+<p>
+   <b>button(<i>index</i>):</b>  This method returns the current button
+   press status for the given button number.  This should be
+   one of the numbers that appears in the <b>buttons</b>
+   array, since that contains a full list of all of the available
+   buttons on the device.  The return value is <b>true</b> if the
+   button is currently pressed, <b>false</b> if not.  If the button
+   isn't one of the valid buttons for the device, the method
+   returns <b>undefined</b>.
+</p>
+   
+<p>
+   <b>buttons:</b>  An array of numbers, listing all of the buttons that
+   the joystick has.  Joystick buttons are simply numbered, usually starting
+   at 1.
+</p>
+<p>
+   The button array is only accurate if the device is currently attached,
+   and it's only a snapshot of the button list at the time the JoystickInfo
+   object was created.  If the device is currently unplugged or disabled,
+   and you plug it in at some point after retrieving a JoystickInfo object
+   for the device, that JoystickInfo object won't be updated to reflect
+   the actual button list of the live device.  You'd need to make a new call to
+   <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   to create a fresh JoystickInfo object to get the updated button list once
+   the device is plugged in.
+</p>
+
+<p>
+   <b>guid:</b>  A string giving the DirectInput "Instance GUID" for the
+   device, if available.  This is formatted in the standard Windows GUID style
+   (without braces), "00000000-0000-0000-0000-000000000000".  This is set to
+   <b>undefined</b> if no GUID is available for the device.
+</p>
+<p>
+   The Instance GUID is meant to uniquely identify the device across sessions
+   and system reboots, so it's suitable to use for storing configuration
+   settings and other persistent data related to the device.
+</p>
+
+<p>
+   <b>isPresent:</b>  A boolean (true/false) indicating whether or not
+   this joystick is physically connected to the computer and enabled in
+   Windows Device Manager.  The reason this property is useful is that PinballY
+   keeps track of joysticks that have been configured in the settings with
+   commands assigned to their buttons, and lists such joysticks in the array
+   of all joysticks, even if they aren't currently plugged in.  That lets
+   PinballY restore joystick button mappings across sessions even if a joystick
+   is temporarily unplugged.  This property lets you determine if the descriptor
+   refers to such a saved device record rather than to a device that's
+   actually present in the system right now.  (This is a read-only "getter"
+   that retrieves the live status each time you evaluate it, so it's always
+   up-to-date.)
+</p>
+<p>
+   This property is only a snapshot of the status as of the time the JoystickInfo
+   object was created.  It's not "live" - it's not updated if the device is
+   later plugged in or unplugged.  To get the current status, you need to
+   create a new JoystickInfo object for the device by calling
+   <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a> again.
+</p>
+
+<p>
+   <b>path:</b> A string giving the Windows file system path that represents
+   the device in the file system.  This is superficially similar to a regular
+   filename, but it represents the device object rather than a disk file.
+   You can use this to access the device via lower-level Windows API
+   functions such as CreateFile().  This can also serve as a stable identifier
+   for the device, although the Instance GUID is better for that purposes,
+   since it's specifically designed to be stable across system reboots.
+   The device's file path sometimes contains information on the physical
+   bus location of the device, such as which USB port it's plugged into,
+   so it can change if something about the USB bus layout changes or you plug
+   the device into a different USB port.
+</p>
+
+<p>
+   <b>productID:</b>  A 16-bit integer (0 to 65535) giving the USB PID
+   (product ID).  This can be used in combination with the
+   vendor ID to uniquely identify the make and model of the device.  The
+   product ID is an arbitrary code assigned by the manufacturer, and is
+   meant to be unique for each device they make.
+</p>
+
+<p>
+   <b>productName:</b>  A string giving the product name, as provided
+   by the device's firmware.  This is usually a human-readable name
+   describing the make and model, but it's up to the device's manufacturer
+   to specify this string and embed it in the device's firmware.  It's
+   even possible for a device to omit this information, in which case
+   PinballY synthesizes a placeholder name based on the VID and PID values.
+</p>
+
+<p>
+   <b>serial:</b>  A string giving the USB device's serial number.  This is
+   information reported by the device's firmware, meant to help distinguish
+   multiple instances of the same type of device (e.g., two joysticks of
+   the same make and model).  This is up to the device's firmware to
+   provide, so there's no guarantee that every device will have a unique
+   serial number.
+</p>
+
+<p>
+   <b>setAxisRange(<i>axisName</i>, <i>min</i>, <i>max</i>):</b> Sets a
+   normalized value range for the named axis.  <i>axisName</i> is a
+   string containing one of the standard axis names listed earlier,
+   such as "X" or "Slider".  <i>min</i> and <i>max</i> are numbers
+   giving new, normalized range you wish to use for the axis.  After
+   calling this method, the axis reader function will return values
+   in the range from <i>min</i> to <i>max</i> inclusive.  For
+   example, here's how you can set the X axis to return values
+   from -1000 to +1000:
+</p>
+<div class="code">
+js.setAxisRange("X", -1000, 1000);
+let x = js.X();  // X() now returns values from -1000 to +1000
+</div>
+<p>
+   You can change the range for an axis at any time simply by making
+   a new call to setAxisRange().  You can also reset to the original
+   underlying "logical" range that the device returns natively by
+   calling setAxisRange() again and omitting the <i>min</i> and <i>max</i>
+   arguments, as in <b>setAxisRange("X")</b>.
+</p>
+<p>
+   This setting is "local" to the JoystickInfo object that you call the
+   method on.  It doesn't affect the underlying joystick device,
+   and it doesn't even affect any other JoystickInfo objects that refer
+   to the same physical device.  The range setting is just a view of
+   the data for this individual JoystickInfo object.
+</p>
+
+<p>
+   <b>unit:</b>  The PinballY logical unit number for the joystick.  This is
+   an arbitrary internal ID that PinballY uses to identify the joystick 
+   during the current program session.  It corresponds to the <b>unit</b>
+   property passed in joystick event objects.  This ID doesn't mean anything
+   to Windows or to any other programs (it's purely internal to PinballY), and
+   it's only valid for the duration of the current program session (the same
+   physical device might be assigned a different logical unit number the next
+   time you run PinballY).
+</p>
+
+<p>
+   <b>vendorID:</b>  A 16-bit integer (0 to 65535) giving the USB VID
+   (vendor ID).  This can be used in combination with the
+   product ID to uniquely identify the make and model of the device.
+</p>
+<p>
+   A VID is meant to uniquely identify the device's manufacturer.
+   Officially, VIDs are assigned by a central authority, USB-IF,
+   which is the industry trade group that controls the USB specifications.
+   VIDs should therefore never be ambiguous.  In practice, though, some
+   device makers use ad hoc, self-assigned VIDs, because a hefty license
+   fee is required to obtain a official VID assignment.  (As far as I can
+   tell, for example, the LedWiz's VID is unofficial.)  As a result, you
+   can't absolutely count on the VID as a unique manufacturer identification,
+   in that multiple device makers could accidentally self-assign themselves
+   the same VID.   If you need to identify an exact device, you might want
+   to check other properties in addition to the VID/PID, such as the product
+   name string and serial number, to make sure they match the expected
+   values and formats for the target device.
+</p>
+
+<h2>Axis/control value reader methods</h2>
+
+<p>
+   In addition to the properties and methods listed above, the JoystickInfo
+   object also has a method for each axis/control value listed under the
+   <b>axes</b> property.  Each axis reader method has the name listed under
+   the <b>Name</b> column in the axis list.
+</p>
+<p>
+   Calling one of the axis reader methods retrieves the current, live value
+   for that axis.  This returns a number, which is in the "logical" value
+   range for the axis.  You can determine the range from the <b>logicalMinimum</b>
+   and <b>logicalMaximum</b> properties of the descriptor object for the
+   axis or control found in the <b>axes</b> array.
+</p>
+<p>
+   If a given axis doesn't exist on the device, calling that axis reader
+   method returns <b>undefined</b>.
+</p>
+<p>
+   For example, here's how you'd retrieve the current X and Y axis values
+   for the joystick at unit 0:
+</p>
+<div class="code">
+let js = mainWindow.getJoystickInfo(0);
+let x = js.X();
+let y = js.Y();
+</div>
+
+<h3>Normalizing an axis's value range</h3>
+<p>
+   By default, each axis returns values in the logical value range for the axis.
+   The logical range is defined by the device - there's no generic standard
+   for this.  Some joysticks might report X values from 0 to +1000, while
+   others might report values from -65535 to +65535.  The only way to
+   determine the range is to look at the axis information in the device
+   descriptor.
+</p>
+<p>
+   It's almost always more convenient to work in terms of a range
+   <i>you</i> select, though.  The easiest way to do this is to call
+   the <b>setAxisRange()</b> method to set up the desired range on
+   each axis.
+</p>
+<p>
+   You can also normalize axis ranges yourself, with a little arithmetic.
+   Here's a general formula you can use to convert from the logical
+   range to an abstract range of 0.0 to 1.0:
+</p>
+<div class="code">
+let xNorm = (x - js.axes.X.logicalMinimum) / (js.axes.X.logicalMaximum - js.axes.X.logicalMinimum);
+</div>
+<p>
+   We can take this a step further, to convert from the logical range
+   to any desired new range:
+</p>
+<div class="code">
+// change xMin and xMax to whatever limits you prefer
+let xMin = -1000;
+let xMax = 1000;
+let xNorm = (x - js.axes.X.logicalMinimum) / (js.axes.X.logicalMaximum - js.axes.X.logicalMinimum);
+xNorm = xNorm*(xMax - xMin) + xMin;
+</div>
+
+<p>
+   Finally, rather than writing this out every time we want to perform the
+   normalization, we can create a method on the joystick descriptor object
+   that does this work under the covers for us.  In fact, since the joystick
+   object inherits the axis reader from its prototype, we can easily replace
+   the original value reader method with a new method of the same name that
+   returns the normalized result instead of the logical range:
+</p>
+<div class="code">
+let xMin = -1000;
+let xMax = 1000;
+js.X = function() {
+    // get the "inherited" value, in the original logical range
+    // (yes, Javascript's expression of "inherited" is kind of ugly)
+    let x = this.constructor.prototype.X.call(this);
+
+    // normalize it
+    x = (x - this.axes.X.logicalMinimum) / (this.axes.X.logicalMaximum - this.axes.X.logicalMinimum);
+    return x*(xMax - xMin) + xMin;
+};
+</div>
+<p>
+   That plugs the new X() method into the object, which overrides
+   the one inherited from the system.  The replacement method calls
+   the original inherited method, normalizes the value it reads,
+   and then returns the result.  This is actually the same thing
+   that setAxisRange() does, so you can just call that system
+   method in most cases.  But if you want to do something trickier
+   than just normalizing to a new linear scale, you can use this
+   general approach to perform whatever manipulations you want on
+   the raw "logical" values reported from the device.
+</p>
+
+</body>
+</html>

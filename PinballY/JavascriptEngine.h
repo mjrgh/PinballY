@@ -975,11 +975,29 @@ public:
 	template<typename... ArgTypes>
 	bool FireAndReturnEvent(JsValueRef &eventObj, JsValueRef eventTarget, JsValueRef eventType, ArgTypes... args)
 	{
-		// create the object, providing the reference to the caller
-		eventObj = CallNew(eventType, args...);
+		try
+		{
+			// create the object, providing the reference to the caller
+			eventObj = CallNew(eventType, args...);
 
-		// call the event dispatch method and return the result
-		return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, eventObj);
+			// call the event dispatch method and return the result
+			return CallMethod<bool, JsValueRef>(eventTarget, dispatchEventProp, eventObj);
+		}
+		catch (CallException callex)
+		{
+			// Return true to indicate that system default processing for 
+			// the event should proceed.  Since the Javascript event handler
+			// seems to be faulty, we'll just act like there's no event
+			// handler in the first place.  But at least log it, to help
+			// diagnose script errors.
+			callex.Log();
+			return true;
+		}
+		catch (...)
+		{
+			// ignore other exceptions entirely
+			return true;
+		}
 	}
 
 	// Fire an event.  This calls <target>.dispatchEvent(new <eventType>(args)).

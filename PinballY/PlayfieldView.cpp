@@ -755,6 +755,27 @@ void PlayfieldView::InitJavascript()
 				JsAddRef(jsval, nullptr);
 				return true;
 			};
+			auto GetProto = [&js, &GetObj](JsValueRef &proto, const char *className)
+			{
+				// get the class object (systemClasses.js: this.className = class className { ... })
+				JsValueRef classObj;
+				if (!GetObj(classObj, className))
+					return false;
+
+				// now get its prototype (not its __prototype__ - the class object is
+				// a function representing the class)
+				JsErrorCode err;
+				const TCHAR *where;
+				if ((err = js->GetProp(proto, classObj, "prototype", where)) != JsNoError)
+				{
+					LogFile::Get()->Write(LogFile::JSLogging, _T(". can't get %hs.prototype; Javascript disabled for this session\n"), className);
+					return false;
+				}
+
+				// add a reference
+				JsAddRef(proto, nullptr);
+				return true;
+			};
 			if (!GetObj(jsCommandButtonDownEvent, "CommandButtonDownEvent")
 				|| !GetObj(jsCommandButtonUpEvent, "CommandButtonUpEvent")
 				|| !GetObj(jsCommandButtonBgDownEvent, "CommandButtonBgDownEvent")
@@ -807,6 +828,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsGameInfo, "GameInfo")
 				|| !GetObj(jsGameSysInfo, "GameSysInfo")
 				|| !GetObj(jsFilterInfo, "FilterInfo")
+				|| !GetProto(jsJoystickInfo, "JoystickInfo")
 				|| !GetObj(jsOptionSettings, "optionSettings")
 				|| !GetObj(jsMediaWindowClass, "MediaWindow")
 				|| !GetObj(jsSecondaryWindowClass, "SecondaryWindow")
@@ -883,6 +905,7 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getKeyCommand", &PlayfieldView::JsGetKeyCommand, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getJoystickInfo", &PlayfieldView::JsGetJoystickInfo, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFPulse", &PlayfieldView::JsDOFPulse, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "createMediaWindow", &PlayfieldView::JsCreateMediaWindow, this, eh))
@@ -1137,13 +1160,27 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameSysInfoGetter<JsValueRef>("dbFiles", dbFilesGetter, eh))
 				return;
 
-			// set up GameSysInfo methods
+			// Set up GameSysInfo methods
 			if (!js->DefineObjMethod(jsGameSysInfo, "GameSysInfo", "expand", &PlayfieldView::JsExpandSysVar, this, eh))
 				return;
 
 			// Set up the FilterInfo methods
 			if (!js->DefineObjMethod(jsFilterInfo, "FilterInfo", "getGames", &PlayfieldView::JsFilterInfoGetGames, this, eh)
 				|| !js->DefineObjMethod(jsFilterInfo, "FilterInfo", "testGame", &PlayfieldView::JsFilterInfoTestGame, this, eh))
+				return;
+
+			// Set up the JoystickInfo methods
+			if (!js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "button", &PlayfieldView::JsJoystickInfoButton, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "X", &PlayfieldView::JsJoystickInfoX, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Y", &PlayfieldView::JsJoystickInfoY, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Z", &PlayfieldView::JsJoystickInfoZ, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "RX", &PlayfieldView::JsJoystickInfoRX, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "RY", &PlayfieldView::JsJoystickInfoRY, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "RZ", &PlayfieldView::JsJoystickInfoRZ, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Slider", &PlayfieldView::JsJoystickInfoSlider, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Dial", &PlayfieldView::JsJoystickInfoDial, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Wheel", &PlayfieldView::JsJoystickInfoWheel, this, eh)
+				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Hat", &PlayfieldView::JsJoystickInfoHat, this, eh))
 				return;
 
 			// set up command IDs in the Command object
@@ -8976,6 +9013,159 @@ void PlayfieldView::JsShowWheel(bool show)
 	SetTimer(hWnd, wheelFadeTimerID, 16, 0);
 }
 
+// get joystick device descriptor(s)
+JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
+{
+	auto js = JavascriptEngine::Get();
+	auto jm = JoystickManager::GetInstance();
+	try
+	{
+		// build a joystick descriptor object
+		auto BuildDesc = [this, js, jm](const JoystickManager::LogicalJoystick *dev)
+		{
+			// find the physical joystick for this logical joystick
+			JoystickManager::PhysicalJoystick *phys = jm->GetPhysicalJoystick(dev);
+
+			// build the Javascript version of the descriptor
+			auto desc = JavascriptEngine::JsObj::CreateObjectWithPrototype(this->jsJoystickInfo);
+			desc.Set("unit", dev->index);
+			desc.Set("productID", dev->productID);
+			desc.Set("vendorID", dev->vendorID);
+			desc.Set("productName", dev->prodName);
+			desc.Set("isPresent", phys != nullptr);
+
+			// set the GUID, if available
+			if (dev->instanceGuid != JoystickManager::emptyGuid)
+				desc.Set("guid", FormatGuid(dev->instanceGuid));
+			else
+				desc.Set("guid", js->GetUndefVal());
+
+			// add physical joystick properties, if available
+			if (phys != nullptr)
+			{
+				desc.Set("serial", phys->serial);
+				desc.Set("path", phys->path);
+			}
+
+			// add the button list
+			auto buttons = JavascriptEngine::JsObj::CreateArray();
+			for (int i = 0; i < dev->nButtonStates; ++i)
+			{
+				if (dev->buttonState.get()[i].present)
+					buttons.Push(i);
+			}
+			desc.Set("buttons", buttons.jsobj);
+
+			// add the control/axis values
+			auto values = JavascriptEngine::JsObj::CreateObject();
+			for (int i = 0; i < dev->iValLast - dev->iValFirst + 1; ++i)
+			{
+				if (dev->val[i].present)
+				{
+					// create and populate the value descriptor
+					auto value = JavascriptEngine::JsObj::CreateObject();
+					value.Set("name", dev->valNames[i]);
+					value.Set("logicalMinimum", dev->val[i].logMin);
+					value.Set("logicalMaximum", dev->val[i].logMax);
+					value.Set("physicalMinimum", dev->val[i].physMin);
+					value.Set("physicalMaximum", dev->val[i].physMax);
+					value.Set("usage", static_cast<int>(i + dev->iValFirst));
+
+					// add it to the axis object, under property "name"
+					// (e.g., descriptor.axes.X = { name: "X", ... })
+					values.Set(dev->valNamesA[i], value.jsobj);
+				}
+			}
+			desc.Set("axes", values.jsobj);
+
+			// return the descriptor
+			return desc.jsobj;
+		};
+
+		// check for a 'unit' argument
+		if (js->IsUndefinedOrNull(unit))
+		{
+			// no 'unit' argument - return an array of descriptors for
+			// all of the joysticks
+			auto array = JavascriptEngine::JsObj::CreateArray();
+			jm->EnumLogicalJoysticks([&BuildDesc, &array](const JoystickManager::LogicalJoystick *dev) {
+				array.Push(BuildDesc(dev));
+			});
+			return array.jsobj;
+		}
+		else
+		{
+			// retrieve the single unit requested
+			return BuildDesc(jm->GetLogicalJoystick(JavascriptEngine::JsToNative<int>(unit)));
+		}
+
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("mainWindow.getJoytsicks"));
+		return js->Throw(exc.jsErrorCode);
+	}
+}
+
+bool PlayfieldView::JsJoystickInfoButton(JsValueRef selfVal, int button)
+{
+	auto js = JavascriptEngine::Get();
+	auto jm = JoystickManager::GetInstance();
+	try
+	{
+		// get the unit number
+		JavascriptEngine::JsObj self(selfVal);
+		auto unit = self.Get<int>("unit");
+
+		// retrieve the logical joystick
+		auto dev = jm->GetLogicalJoystick(unit);
+		if (dev == nullptr)
+			return js->Throw(_T("invalid joystick object"));
+
+		// make sure the button is present; if not, return undefined
+		if (button < 0 || button >= dev->nButtonStates || !dev->buttonState.get()[button].present)
+			return js->GetUndefVal();
+
+		// return true if the button is pressed, false if not
+		return js->NativeToJs(dev->buttonState.get()[button].state != 0);
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("JoystickInfo.button"));
+		return js->Throw(exc.jsErrorCode);
+	}
+}
+
+JsValueRef PlayfieldView::JsJoystickInfoAxis(JsValueRef selfVal, USAGE axis)
+{
+	auto js = JavascriptEngine::Get();
+	auto jm = JoystickManager::GetInstance();
+	try
+	{
+		// get the unit number
+		JavascriptEngine::JsObj self(selfVal);
+		auto unit = self.Get<int>("unit");
+
+		// retrieve the logical joystick
+		auto dev = jm->GetLogicalJoystick(unit);
+		if (dev == nullptr)
+			return js->Throw(_T("invalid joystick object"));
+
+		// if the axis is valid, return its current value; otherwise return undefined
+		int i = axis - JoystickManager::Joystick::iValFirst;
+		if (axis >= JoystickManager::Joystick::iValFirst && axis <= JoystickManager::Joystick::iDial && dev->val[i].present)
+			return JavascriptEngine::NativeToJs(dev->val[axis - JoystickManager::Joystick::iValFirst].cur);
+		else
+			return js->GetUndefVal();
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("JoystickInfo.button"));
+		return js->Throw(exc.jsErrorCode);
+	}
+}
+
+
 void PlayfieldView::AnimateWheelFade()
 {
 	// update the alpha
@@ -12558,6 +12748,15 @@ bool PlayfieldView::OnJoystickButtonChange(
 	return false;
 }
 
+bool PlayfieldView::OnJoystickValueChange(
+	JoystickManager::PhysicalJoystick *js,
+	USAGE usage, LONG value, bool foreground)
+{
+	// allow the event to propagate to other subscribers
+	return false;
+}
+
+
 void PlayfieldView::KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repeatMode)
 {
 	// remember the key for auto-repeat
@@ -13035,7 +13234,9 @@ void PlayfieldView::OnConfigChange()
 					// add it to the admin host list
 					auto js = JoystickManager::GetInstance()->GetLogicalJoystick(btn.unit);
 					adminHostKeys.emplace_back(
-						MsgFmt(_T("%s js %d %x %x %s"), cmd.configID, btn.code, js->vendorID, js->productID, js->prodName.c_str()));
+						MsgFmt(_T("%s js %d %s %x %x %s"), 
+							cmd.configID, btn.code, FormatGuid(js->instanceGuid).c_str(),
+							js->vendorID, js->productID, js->prodName.c_str()));
 				}
 				else
 				{

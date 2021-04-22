@@ -1347,6 +1347,37 @@ this.FilterInfo = class FilterInfo
 
 // ------------------------------------------------------------------------
 //
+// JoystickInfo - base class for joystick descriptors.  The properties
+// and methods of this object are populated by the system.  Objects of
+// this class are returned from mainWindow.getJoystickInfo().
+//
+this.JoystickInfo = class JoystickInfo
+{
+    setAxisRange(axis, newMin, newMax)
+    {
+        if (newMin === undefined || newMax === undefined)
+            delete this[axis];
+        else
+            this[axis] = this.createAxisNormalizerFunction(axis, newMin, newMax);
+    }
+
+    createAxisNormalizerFunction(axis, newMin, newMax)
+    {
+        let axisDesc = this.axes[axis];
+        let logMin = axisDesc.logicalMinimum;
+        let logMax = axisDesc.logicalMaximum;
+        let logRange = logMax - logMin;
+        let newRange = newMax - newMin;
+        return function() {
+            let val = this.constructor.prototype[axis].call(this);
+            let norm = (val - logMin) / logRange;
+            return (norm * newRange) + newMin;
+        };
+    }
+};
+
+// ------------------------------------------------------------------------
+//
 // Drawing layer class.  This is the base class for all drawing layers;
 // each window has its own subclass, which the system populates with
 // native code that points back to the native window object.

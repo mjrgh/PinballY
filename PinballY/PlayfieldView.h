@@ -469,6 +469,9 @@ protected:
 	virtual bool OnJoystickButtonChange(
 		JoystickManager::PhysicalJoystick *js, 
 		int button, bool pressed, bool foreground) override;
+	virtual bool OnJoystickValueChange(
+		JoystickManager::PhysicalJoystick *js,
+		USAGE usage, LONG value, bool foreground) override;
 	virtual void OnJoystickAdded(
 		JoystickManager::PhysicalJoystick *js, 
 		bool logicalIsNew) override;
@@ -2671,6 +2674,20 @@ protected:
 	// create a key for the jsCommands table
 	static inline int JsCommandKey(int unit, int button) { return (unit << 8) | button; }
 
+	// Javascript JoystickInfo methods
+	bool JsJoystickInfoButton(JsValueRef self, int button);
+	JsValueRef JsJoystickInfoAxis(JsValueRef self, USAGE axis);
+	JsValueRef JsJoystickInfoX(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iX); }
+	JsValueRef JsJoystickInfoY(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iY); }
+	JsValueRef JsJoystickInfoZ(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iZ); }
+	JsValueRef JsJoystickInfoRX(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iRX); }
+	JsValueRef JsJoystickInfoRY(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iRY); }
+	JsValueRef JsJoystickInfoRZ(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iRZ); }
+	JsValueRef JsJoystickInfoSlider(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iSlider); }
+	JsValueRef JsJoystickInfoDial(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iDial); }
+	JsValueRef JsJoystickInfoWheel(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iWheel); }
+	JsValueRef JsJoystickInfoHat(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iHat); }
+
 	// Carry out the Select command
 	void DoSelect(bool usingExitKey);
 
@@ -2786,6 +2803,9 @@ protected:
 
 	// optionSettings object - represents the config manager
 	JsValueRef jsOptionSettings = JS_INVALID_REFERENCE;
+
+	// JoystickInfo class (prototype for joystick descriptors)
+	JsValueRef jsJoystickInfo = JS_INVALID_REFERENCE;
 
 	// event objects
 	JsValueRef jsCommandButtonDownEvent = JS_INVALID_REFERENCE;
@@ -2937,6 +2957,9 @@ protected:
 	
 	// Show/hide the wheel
 	void JsShowWheel(bool show);
+
+	// get joystick device information
+	JsValueRef JsGetJoystickInfo(JsValueRef unit);
 
 	// Initialize a Javascript window object.  This sets up the properties
 	// and methods on a Javascript object representing one of our system

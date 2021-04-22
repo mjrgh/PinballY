@@ -180,6 +180,9 @@ span.code {
 table.dataTable {
     margin: 2em auto;
 }
+table.dataTable.compact td, table.dataTable.compact th {
+    padding: .5ex;
+}
 
 table.dataTable, table.dataTable td, table.dataTable th {
     border-collapse: collapse;

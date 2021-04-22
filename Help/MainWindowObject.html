@@ -354,6 +354,54 @@
 </p>
 
 <p>
+   <a name="getJoystickInfo"></a>
+   <b>mainWindow.getJoystickInfo(<i>unitNumber</i>):</b>  Retrieves
+   a joystick descriptor object with information about a particular
+   joystick device, or descriptors for all of the joystick devices in
+   the system. If the <i>unitNumber</i> argument is provided, the method
+   returns a single <a href="JoystickInfo.html">JoystickInfo</a> object,
+   describing the joystick corresponding to the specified logical
+   joystick unit number.  If <i>unitNumber</i> is omitted, the method
+   returns an array of JoystickInfo objects, one for each joystick in the
+   system.  The array in this case is in order of logical unit number, so
+   the element at index [0] is the descriptor for unit number 0, and so on.
+</p>
+<p>
+   The "unit number" of a joystick is a numeric index that PinballY
+   assigns to the joysticks internally as it discovers them, starting at 0 and
+   incrementing by one for each device.  This is the same logical
+   unit number value stored in the <b>unit</b>
+   property in a <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+   object, so you can pass the <b>unit</b> property from a joystick event
+   to getJoystickInfo() to retrieve the descriptor for that device.
+   The unit number doesn't have any meaning outside of PinballY (it means
+   nothing to Windows or to other programs).
+   The unit number is only valid for the duration of a program session,
+   so you shouldn't store it in the settings or in external files.  If
+   you need to refer to a joystick across sessions, the GUID is probably
+   the best way, since Windows assigns that permanently for a given
+   physical device when it's first plugged into the system.  (The GUID
+   isn't absolutely permanent, though; it can change if you explicitly
+   uninstall the device in Windows Device Manager and reinstall it.)
+</p>
+<p>
+   See <a href="JoystickInfo.html">JoystickInfo</a> for details on the
+   returned descriptor objects.
+</p>
+<p>
+   The devices in the joystick array are "logical" joystick units, meaning
+   that they might or might not be physically present in the system.
+   PinballY creates a logical unit for each joystick mentioned in the
+   settings file under a joystick button mapping.  If you plugged in
+   a joystick at one point, and then assigned some buttons from that joystick
+   to commands in the PinballY settings, PinballY will create a logical
+   joystick to represent that unit even if the device isn't physically
+   plugged in to the system during a later session.  That allows the
+   button mappings to become active again as soon as you plug the device
+   back in.
+</p>
+
+<p>
    <a name="getKeyCommand"></a>
    <b>mainWindow.getKeyCommand(<i>descriptor</i>):</b>  Returns an array of
    the button commands assigned to the given key or joystick button.  <i>descriptor</i>

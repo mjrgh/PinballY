@@ -26,6 +26,10 @@ void InputManagerWithConfig::LoadConfig()
 	// get the joystick manager instance
 	JoystickManager *jsman = JoystickManager::GetInstance();
 
+	// update the DirectInput instance GUID cache, so that we
+	// can look up saved GUIDs
+	jsman->UpdateInstanceGuidCache();
+
 	// Set up a map that finds the Joystick object for a given
 	// joystick in the config.  The config gives each joystick
 	// a local index that's meaningful only in the file, so we
@@ -37,41 +41,59 @@ void InputManagerWithConfig::LoadConfig()
 	// can connect the button assignments to the same devices in
 	// a new session.  These are stored in an array indexed by 
 	// an arbitrary integer ID; each joystick button assignment
-	// refers to its joystick record by the ID number.  Each
-	// entry in the joystick array is set up like this:
+	// refers to its joystick record by the ID number.  The entry
+	// looks like this:
 	//
-	//   VID:PID:product name
+	//   {GUID}:VID:PID:product name
 	//
-	// The VID and PID are hex renditions of the USB vendor and
-	// product ID numbers (16-bit unsigned values).  The product
-	// name is the product string reported by the device in its
-	// HID descriptors.
-	//
-	std::basic_regex<TCHAR> devpat(_T("\\s*([0-9a-f]{1,4}):([0-9a-f]{1,4}):\\s*(.+)\\s*"),
-		std::regex_constants::icase);
-	config->EnumArray(joystickConfigArray, [this, &jsman, config, &jsMap, devpat](
+	// The GUID might not be present.  We added the GUID in v1.1
+	// Beta 1 so that we could distinguish among multiple instances
+	// of the same device type.  Before that, we could only match
+	// on device type - which is fine as long as there's only one
+	// of a given joystick in the system.  If this GUID is missing,
+	// we'll revert to the VID/PID/name matching when looking up
+	// the logical unit.
+	config->EnumArray(joystickConfigArray, [this, &jsman, config, &jsMap](
 		const TCHAR *val, const TCHAR *fileIndex, const TCHAR *fullName)
 	{
-		// parse the value; ignore it if it doesn't match the 
-		// expected pattern
-		std::match_results<const TCHAR *> m;
-		if (!std::regex_match(val, m, devpat))
-			return;
+		// original format:  VID:PID:product name
+		static const std::basic_regex<TCHAR> devpat1(
+			_T("\\s*(\\{[0-9a-f]{8}-[0-9a-f]{4}[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\}:)?([0-9a-f]{1,4}):([0-9a-f]{1,4}):\\s*(.+)\\s*"),
+			std::regex_constants::icase);
 
-		// pull out the fields
-		int vid = _tcstol(m[1].str().c_str(), 0, 16);
-		int pid = _tcstol(m[2].str().c_str(), 0, 16);
-		TSTRING prodName = m[3].str();
+		// fields
+		GUID guid = JoystickManager::emptyGuid;
+		int vid, pid;
+		TSTRING prodName;
+
+		// try parsing with each pattern
+		std::match_results<const TCHAR *> m;
+		if (std::regex_match(val, m, devpat1))
+		{
+			// check for a GUID
+			if (m[1].matched)
+				ParseGuid(m[1].str().c_str(), guid);
+
+			// pull out the remaining fields
+			vid = _tcstol(m[2].str().c_str(), 0, 16);
+			pid = _tcstol(m[3].str().c_str(), 0, 16);
+			prodName = m[4].str();
+		}
+		else
+		{
+			// no pattern matched - ignore this entry
+			return;
+		}
 
 		// add it to the logical joystick list
-		auto jsLog = jsman->AddLogicalJoystick(vid, pid, prodName.c_str());
+		auto jsLog = jsman->FindOrAddLogicalJoystick(vid, pid, prodName.c_str(), guid);
 
 		// add the mapping from the file device ID numbering to our
 		// local ID numbering
 		jsMap[_ttoi(fileIndex)] = jsLog->index;
 	});
 
-	// regular expressions for key entries in the file
+	// regular expressions for button and key mapping entries in the file
 	std::basic_regex<TCHAR> jspat(
 		_T("\\s*joystick\\s+(\\d+|\\*)\\s+(\\d+)\\s*,?(.*)"),
 		std::regex_constants::icase);
@@ -297,13 +319,19 @@ void InputManagerWithConfig::StoreConfig()
 		}
 	}
 
-	// Store all referenced logical joysticks.  The logical joysticks
-	// give us the details of the 
+	// Store all referenced logical joysticks.  The new way (as of 1.1 Beta 1)
+	// to key joysticks in the settings is by the DirectInput Instance GUID.
+	// The old way was to use the combination of VID, PID, and product name.
+	// The old method can't distinguish among multiple instances of the same
+	// device type, whereas GUIDs can.
 	config->DeleteArray(joystickConfigArray);
 	for (auto const js : jsRefs)
 	{
 		config->SetArrayEle(joystickConfigArray, MsgFmt(_T("%d"), js->index),
-			MsgFmt(_T("%04x:%04x:%s"), js->vendorID, js->productID, js->prodName.c_str()));
+			MsgFmt(_T("{%s}:%04x:%04x:%s"),
+				FormatGuid(js->instanceGuid).c_str(),
+				js->vendorID,
+				js->productID,
+				js->prodName.c_str()));
 	}
 }
-
