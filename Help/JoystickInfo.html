@@ -19,7 +19,7 @@
 </p>
 <p>
    The best way to handle button presses and axis value changes
-   is via events (see <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>).
+   is via events (see below).
    However, in some cases it might be necessary (or just more convenient)
    to poll the current status, such as within an interval timer or another
    type of event handler.  The JoystickInfo object makes that possible
@@ -45,6 +45,92 @@
    but that only tells you the type; it can't distinguish among
    multiple devices of the same type all plugged in at once.
 </p>
+
+<h3>Joystick events</h3>
+<p>
+   Button presses and axis value changes can be handled through
+   PinballY's event system.  Joystick events are handled through
+   the <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+<p>
+   Refer to these event classes for full details on joystick
+   event handling:
+</p>
+<ul class="compact">
+   <li><a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+   <li><a href="JoystickAxisEvent.html">JoystickAxisEvent</a>
+</ul>
+
+<h3>Joystick axes</h3>
+
+<p>
+   An "axis" represents one direction of motion of one
+   of the moving controls on a joystick, such as the main stick,
+   a wheel, a dial, or a slider.  Some controls, like dials and
+   sliders, have only one dimension of motion - they can only
+   move left/right or left/right or clockwise/counterclockwise.
+   These controls only have one axis each, since you can
+   describe their position with a single number saying where
+   they are along that single dimension of motion.  The main stick,
+   on the other hand, can move both left/right and forward/back,
+   so it needs (at least) two axes to describe those two
+   dimensions of motion.  The stick might also rotate, in
+   which case you need another axis for each rotational
+   degree of freedom, and it might move up and down as well,
+   requiring a third "Z" axis for the vertical motion.
+</p>
+<p>
+   Each axis has a "current value" that tells you the current
+   position of the associated control along that axis.  This
+   is simply an integer value, within a range that the device
+   itself defines, called the logical range.  Each device
+   defines its own logical range for each axis.  JoystickInfo
+   lets you determine the device's range for each axis.
+<p>
+   The USB specifications lay out a list of all of the possible
+   axis types that joysticks can have.  All USB joysticks have
+   to work within that standard list, so they have to describe
+   their control positions to the computer in terms of the
+   standard axis types.  This provides a common frame of
+   reference so that game software can work with a wide variety
+   of physical devices without having to be programmed specially
+   for every individual device; software can just work in terms
+   of the USB-defined abstractions, like the "X axis" and the
+   "slider control".
+</p>
+<p>
+   Here are the axes from the USB specifications that PinballY
+   recognizes:
+</p>
+<a name="axisTable"></a>
+<table class="dataTable compact">
+   <tr><th>Name</th><th>USB HID Usage Code</th><th>Description</th></tr>
+   <tr><td>X</td><td>0x30</td><td>Main stick X position (left/right)</td></tr>
+   <tr><td>Y</td><td>0x31</td></td><td>Main stick Y position (forward/back)</tr>
+   <tr><td>Z</td><td>0x32</td><td>Main stick Z position (up/down)</td></tr>
+   <tr><td>RX</td><td>0x33</td></td><td>Main stick X rotation (usually pitch)</tr>
+   <tr><td>RY</td><td>0x34</td><td>Main stick Y rotation (usually roll)</td></tr>
+   <tr><td>RZ</td><td>0x35</td></td><td>Main stick Z rotation (usually yaw)</tr>
+   <tr><td>Slider</td><td>0x36</td><td>Slider control position</td></tr>
+   <tr><td>Dial</td><td>0x37</td></td><td>Dial control position</tr>
+   <tr><td>Wheel</td><td>0x38</td><td>Wheel control position</td></tr>
+   <tr><td>Hat</td><td>0x39</td></td><td>Hat switch position</tr>
+</table>
+<p>
+   Most joysticks only have a subset
+   of the types of axes defined in the specs.  The JoystickInfo
+   object provides information on which axes are supported by
+   a given device.
+</p>
+<p>
+   The "Usage Code" in the table above is a USB HID concept,
+   which we include purely for reference purposes.  It's just an
+   integer identifier assigned in the USB specs to uniquely
+   identify the axis in communications between the device and
+   the PC.
+</p>
+
+<h3>"HID" defined</h3>
 <p>
    We use the term "HID" a few times in this chapter.  That stands
    for Human Interface Device, and it's the technical term that the
@@ -72,45 +158,38 @@
    values of the axes; it just describes which axes are present
    and what their ranges of motion are.  The possible axes are
    the standard axis and control elements defined in the USB
-   HID specification, as listed below.  (The "Usage Code" is
-   a USB HID concept, which we include purely for reference
-   purposes; see the notes on the <b>usage</b> property below for an
-   explanation.)
-   <table class="dataTable compact">
-      <tr><th>Name</th><th>USB HID Usage Code</th><th>Description</th></tr>
-      <tr><td>X</td><td>0x30</td><td>Main joystick X axis</td></tr>
-      <tr><td>Y</td><td>0x31</td></td><td>Main joystick Y axis</tr>
-      <tr><td>Z</td><td>0x32</td><td>Main joystick Z axis</td></tr>
-      <tr><td>RX</td><td>0x33</td></td><td>X rotation</tr>
-      <tr><td>RY</td><td>0x34</td><td>Y rotation</td></tr>
-      <tr><td>RZ</td><td>0x35</td></td><td>Z rotation</tr>
-      <tr><td>Slider</td><td>0x36</td><td>Slider control</td></tr>
-      <tr><td>Dial</td><td>0x37</td></td><td>Dial control</tr>
-      <tr><td>Wheel</td><td>0x38</td><td>Wheel control</td></tr>
-      <tr><td>Hat</td><td>0x39</td></td><td>Hat switch</tr>
-   </table>
+   HID specification, as listed <a href="#axisTable">above</a>.
    <p>
       The returned object has a property for each axis that exists
       on the device, named with the <b>Name</b> listed above.
       For example, if the device has an X axis, then <b><i>joystickInfo</i>.axes.X</b>
       will contain a descriptor for the X axis.  Each axis descriptor object
-      has the following properties:
+      has the following properties and methods:
    </p>
    <ul>
-      <li><b>name:</b> A string giving the name of the axis, from
-      the list above.  This is also the name of the
-      associated value reader method for that axis on the
-      JoystickInfo object itself.
+      <a name="axis_enableEvents"></a>
+      <li><b>enableEvents(<i>options</i>):</b>  Enable or disable
+      <a href="JoystickAxisEvent.html">JoystickAxisEvent</a> for this axis.
+      This fills in the <i>options</i> object with the unit and axis name
+      information for this axis, and then calls
+      <a href="MainWindowObject.html#enableJoystickAxisEvents">mainWindow.enableJoystickAxisEvents()</a>,
+      passing along the other options values you provide.  <i>options</i> can be
+      omitted entirely, in which case defaults are used for all properties.
+      
+      <li><b>logicalMaximum:</b>  A number giving the "logical maximum"
+      value for this axis.  Values returned from the axis reader method
+      will always be in the range from <b>logicalMinimum</b> to <b>logicalMaximum</b>,
+      inclusive.
 
       <li><b>logicalMinimum:</b>  A number giving the "logical minimum"
       value for this axis.  Values returned from the axis reader method
       will always be in the range from <b>logicalMinimum</b> to <b>logicalMaximum</b>,
       inclusive.
 
-      <li><b>logicalMaximum:</b>  A number giving the "logical maximum"
-      value for this axis.  Values returned from the axis reader method
-      will always be in the range from <b>logicalMinimum</b> to <b>logicalMaximum</b>,
-      inclusive.
+      <li><b>name:</b> A string giving the name of the axis, from
+      the list above.  This is also the name of the
+      associated value reader method for that axis on the
+      JoystickInfo object itself.
 
       <li><b>physicalMinimum:</b>  A number giving the "physical minimum"
       value for this axis.  This is the low end of the range for physical
@@ -188,6 +267,18 @@
    <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
    to create a fresh JoystickInfo object to get the updated button list once
    the device is plugged in.
+</p>
+
+<p>
+   <a name="enableAxisEvents"></a>
+   <b>enableAxisEvents(<i>options</i>):</b>  Enable or disable
+   <a href="JoystickAxisEvent.html">JoystickAxisEvent</a> for some or
+   all of this joystick's control axes.
+   This fills in the <i>options</i> object with the joystick's unit number,
+   and then calls
+   <a href="MainWindowObject.html#enableJoystickAxisEvents">mainWindow.enableJoystickAxisEvents()</a>,
+   passing along the other options values you provide.  <i>options</i> can be
+   omitted entirely, in which case defaults are used for all properties.
 </p>
 
 <p>
@@ -304,6 +395,18 @@ let x = js.X();  // X() now returns values from -1000 to +1000
    physical device might be assigned a different logical unit number the next
    time you run PinballY).
 </p>
+<p>
+   The unit number for a given device remains the same throughout a
+   PinballY program session (that is, from the time that you launch
+   PinballY to the time you quit out of that session).  The unit
+   number stays the same even if you unplug the joystick and plug
+   it back in during the session (as long as Windows recognizes it
+   as the same device when you plug it back in, anyway).  The unit
+   number assignments for specific devices can change each time
+   you run PinballY, though, so you shouldn't use the unit number
+   to identify the device persistently (in an external file, for
+   example, of in the program settings).
+</p>
 
 <p>
    <b>vendorID:</b>  A 16-bit integer (0 to 65535) giving the USB VID
@@ -330,9 +433,10 @@ let x = js.X();  // X() now returns values from -1000 to +1000
 
 <p>
    In addition to the properties and methods listed above, the JoystickInfo
-   object also has a method for each axis/control value listed under the
-   <b>axes</b> property.  Each axis reader method has the name listed under
-   the <b>Name</b> column in the axis list.
+   object also has a method for each axis/control value listed
+   <a href="#axisTable">above</a>.  Each axis reader method has the
+   name listed under the <b>Name</b> column in the axis list.  For
+   example, the main X axis can be read from the method <b><i>joystickInfo</i>.X()</b>.
 </p>
 <p>
    Calling one of the axis reader methods retrieves the current, live value
@@ -358,8 +462,8 @@ let y = js.Y();
 <h3>Normalizing an axis's value range</h3>
 <p>
    By default, each axis returns values in the logical value range for the axis.
-   The logical range is defined by the device - there's no generic standard
-   for this.  Some joysticks might report X values from 0 to +1000, while
+   The logical range is defined by the device - there's no generic standard range.
+   Some joysticks might report X values from 0 to +1000, while
    others might report values from -65535 to +65535.  The only way to
    determine the range is to look at the axis information in the device
    descriptor.
@@ -368,7 +472,10 @@ let y = js.Y();
    It's almost always more convenient to work in terms of a range
    <i>you</i> select, though.  The easiest way to do this is to call
    the <b>setAxisRange()</b> method to set up the desired range on
-   each axis.
+   each axis.  That method sets up the corresponding axis reader method
+   so that it automatically maps the logical range reported by the
+   device to a custom min-to-max range you define.  The mapping is
+   simply linear.
 </p>
 <p>
    You can also normalize axis ranges yourself, with a little arithmetic.
@@ -379,48 +486,37 @@ let y = js.Y();
 let xNorm = (x - js.axes.X.logicalMinimum) / (js.axes.X.logicalMaximum - js.axes.X.logicalMinimum);
 </div>
 <p>
-   We can take this a step further, to convert from the logical range
-   to any desired new range:
+   From there, you can convert to any desired new min-max range:
 </p>
 <div class="code">
-// change xMin and xMax to whatever limits you prefer
 let xMin = -1000;
 let xMax = 1000;
-let xNorm = (x - js.axes.X.logicalMinimum) / (js.axes.X.logicalMaximum - js.axes.X.logicalMinimum);
-xNorm = xNorm*(xMax - xMin) + xMin;
+let xNewRange = xNorm*(xMax - xMin) + xMin;
 </div>
 
 <p>
-   Finally, rather than writing this out every time we want to perform the
+   Rather than writing this out every time we want to perform the
    normalization, we can create a method on the joystick descriptor object
-   that does this work under the covers for us.  In fact, since the joystick
-   object inherits the axis reader from its prototype, we can easily replace
-   the original value reader method with a new method of the same name that
-   returns the normalized result instead of the logical range:
+   that does this work under the covers for us.
 </p>
 <div class="code">
 let xMin = -1000;
 let xMax = 1000;
-js.X = function() {
-    // get the "inherited" value, in the original logical range
-    // (yes, Javascript's expression of "inherited" is kind of ugly)
-    let x = this.constructor.prototype.X.call(this);
+js.myX = function() {
+    // get the original X value from the device
+    let x = this.X();
 
-    // normalize it
-    x = (x - this.axes.X.logicalMinimum) / (this.axes.X.logicalMaximum - this.axes.X.logicalMinimum);
-    return x*(xMax - xMin) + xMin;
+    // normalize it to 0.0 to 1.0
+    let xNorm = (x - this.axes.X.logicalMinimum) / (this.axes.X.logicalMaximum - this.axes.X.logicalMinimum);
+
+    // and finally adjust to our desired scale from xMin to xMax
+    return xNorm*(xMax - xMin) + xMin;
 };
 </div>
 <p>
-   That plugs the new X() method into the object, which overrides
-   the one inherited from the system.  The replacement method calls
-   the original inherited method, normalizes the value it reads,
-   and then returns the result.  This is actually the same thing
-   that setAxisRange() does, so you can just call that system
-   method in most cases.  But if you want to do something trickier
-   than just normalizing to a new linear scale, you can use this
-   general approach to perform whatever manipulations you want on
-   the raw "logical" values reported from the device.
+   That's actually all that the system's <b>setAxisRange()</b> does.  That method just gets a little
+   tricker by replacing the normal <b>X()</b> method with the adjustment calculation,
+   so that you can call <b>X()</b> directly to get the adjusted value.
 </p>
 
 </body>

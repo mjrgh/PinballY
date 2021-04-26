@@ -337,6 +337,53 @@
 </p>
 
 <p>
+   <a name="enableJoystickAxisEvents"></a>
+   <b>mainWindow.enableJoystickAxisEvents(<i>options</i>):</b>
+   Enables or disables <a href="JoystickAxisEvent.html">JoystickAxisEvent</a>
+   (joystick axis change events) for a given set of control axes
+   on a given joystick.  By default, PinballY doesn't generate joystick
+   axis change events at all; these events can occur at fairly high
+   frequency, so filtering them out by default avoids the performance
+   impact of sending them to Javascript scripts that aren't using them.
+   This method lets you tell PinballY that you <i>are</i> using them
+   and that it should generate the Javascript calls after all.
+</p>
+<p>
+   <i>options</i> is an object that describes which joystick axes
+   on which joystick are to be enabled or disabled.  It has the
+   following properties:
+</p>
+<ul>
+   <li><b>unit:</b> Required.  The "logical unit number" of the joystick
+   to be enabled or disabled.  You can get this from a <a href="JoystickInfo.html">JoystickInfo</a>
+   object that describes the joystick of interest.  You can get a list of
+   the joysticks on the system via <a href="#getJoystickInfo">mainWindow.getJoystickInfo()</a>.
+
+   <li><b>axis:</b> Optional; if omitted, the call will affect <i>all</i>
+   of the joystick's axes.  This can be a numeric USB "usage" value identifying
+   an axis (you can obtain the usage value from the JoystickInfo object's axis list),
+   a string giving the name of an axis, or an array of usage values or axis name strings.
+   The enable/disable operation will be limited to the axes listed here.
+
+   <li><b>enable:</b> Optional; if omitted, the default is <b>true</b>.
+   A boolean (true/false) value specifying whether to enable axis change
+   events for this joystick or disable them.  If you only need to process
+   events at specific times, you can enable events as needed and then
+   disable them again when you're done with that processing interval.
+
+   <li><b>background:</b> Optional; defaults to false. A boolean (true/false)
+   value specifying whether or not the events should be enabled in the
+   background.  By default, they're not, since you usually want PinballY
+   to be as idle as possible when in the background, to minimize
+   performance impact while a game is running.  You can set this to
+   true if you do want to monitor the joystick even while a game is running.
+   Setting this to true doesn't block foreground event processing - if
+   the events are enabled at all, they're always enabled in the
+   foreground.  This is only meaningful when enabling events; it's ignored if
+   <b>enable</b> is false.
+</ul>   
+
+<p>
    <a name="endAttractMode"></a>
    <b>mainWindow.endAttractMode():</b>  Exits "Attract Mode" if it's currently
    active.  There's no effect if the program isn't already in attract mode.
@@ -372,6 +419,7 @@
    incrementing by one for each device.  This is the same logical
    unit number value stored in the <b>unit</b>
    property in a <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+   or <a href="JoystickAxisEvent.html">JoystickAxisEvent</a>
    object, so you can pass the <b>unit</b> property from a joystick event
    to getJoystickInfo() to retrieve the descriptor for that device.
    The unit number doesn't have any meaning outside of PinballY (it means

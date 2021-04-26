@@ -203,6 +203,7 @@ namespace ConfigVars
 	static const TCHAR *WheelImageWidth = _T("Wheel.ImageWidth");
 	static const TCHAR *WheelXSelected = _T("Wheel.XSelected");
 	static const TCHAR *WheelYSelected = _T("Wheel.YSelected");
+	static const TCHAR *WheelAutoRepeatRate = _T("Wheel.AutoRepeatRate");
 };
 
 // include the capture-related variables
@@ -788,6 +789,8 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsJoystickButtonUpEvent, "JoystickButtonUpEvent")
 				|| !GetObj(jsJoystickButtonBgDownEvent, "JoystickButtonBgDownEvent")
 				|| !GetObj(jsJoystickButtonBgUpEvent, "JoystickButtonBgUpEvent")
+				|| !GetObj(jsJoystickAxisChangeEvent, "JoystickAxisChangeEvent")
+				|| !GetObj(jsJoystickAxisChangeBgEvent, "JoystickAxisChangeBgEvent")
 				|| !GetObj(jsPreLaunchEvent, "PreLaunchEvent")
 				|| !GetObj(jsPostLaunchEvent, "PostLaunchEvent")
 				|| !GetObj(jsLaunchErrorEvent, "LaunchErrorEvent")
@@ -825,13 +828,12 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
-				|| !GetObj(jsGameInfo, "GameInfo")
-				|| !GetObj(jsGameSysInfo, "GameSysInfo")
-				|| !GetObj(jsFilterInfo, "FilterInfo")
+				|| !GetProto(jsGameInfo, "GameInfo")
+				|| !GetProto(jsGameSysInfo, "GameSysInfo")
+				|| !GetProto(jsFilterInfo, "FilterInfo")
 				|| !GetProto(jsJoystickInfo, "JoystickInfo")
+				|| !GetProto(jsJoystickAxisInfo, "JoystickAxisInfo")
 				|| !GetObj(jsOptionSettings, "optionSettings")
-				|| !GetObj(jsMediaWindowClass, "MediaWindow")
-				|| !GetObj(jsSecondaryWindowClass, "SecondaryWindow")
 				|| !GetObj(jsCustomWindowClass, "CustomWindow"))
 				return;
 
@@ -906,6 +908,7 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setUnderlay", &PlayfieldView::JsSetUnderlay, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "showWheel", &PlayfieldView::JsShowWheel, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "getJoystickInfo", &PlayfieldView::JsGetJoystickInfo, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "enableJoystickAxisEvents", &PlayfieldView::JsEnableJoystickAxisEvents, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFPulse", &PlayfieldView::JsDOFPulse, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "createMediaWindow", &PlayfieldView::JsCreateMediaWindow, this, eh))
@@ -1652,7 +1655,7 @@ bool PlayfieldView::FireKeyEvent(int vkey, bool down, int repeatCount, bool bg)
 	return ret;
 }
 
-bool PlayfieldView::FireJoystickEvent(int unit, int button, bool down, int repeatCount, bool bg)
+bool PlayfieldView::FireJoystickButtonEvent(int unit, int button, bool down, int repeatCount, bool bg)
 {
 	bool ret = true;
 	if (auto js = JavascriptEngine::Get(); js != nullptr)
@@ -2551,35 +2554,7 @@ void PlayfieldView::JsSetWheelGame(int n, JsValueRef options)
 			// The wheel animation setup assumes that an animation isn't
 			// already in progress, so we have to skip straight to the end
 			// of any current animation.
-			if (wheelAnimMode != WheelAnimNone)
-			{
-				// figure the direction
-				int dn = animWheelDistance > 0 ? 1 : -1;
-
-				// update wheel positions to the completed state, at 100% or -100% progress
-				int n = animFirstInWheel;
-				for (auto& s : wheelImages)
-				{
-					SetWheelImagePos(s, n, 1.0f * dn);
-					++n;
-				}
-
-				// Discard the outgoing wheel images
-				while (animAddedToWheel-- != 0)
-				{
-					if (dn > 0)
-						wheelImages.pop_front();
-					else
-						wheelImages.pop_back();
-				}
-
-				// we've updated the sprite list
-				UpdateDrawingList();
-
-				// the animation is done
-				wheelAnimMode = WheelAnimNone;
-			}
-
+			SkipWheelAnimation();
 
 			// switch to the game as though by wheel animation
 			SwitchToGame(n, fast, true, false);
@@ -4150,13 +4125,17 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, killGameTimerID);
 		return true;
 
-	case jsRepeatTimerID:
+	case joyRepeatTimerID:
 		// process a joystick button auto-repeat
-		OnJsAutoRepeatTimer();
+		OnJoyAutoRepeatTimer();
 		return true;
 
 	case kbRepeatTimerID:
 		OnKbAutoRepeatTimer();
+		return true;
+
+	case wheelRepeatTimerID:
+		OnWheelAutoRepeatTimer();
 		return true;
 
 	case attractModeTimerID:
@@ -5125,18 +5104,25 @@ void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatC
 	// add each command to the key queue
 	for (auto c : cmds)
 	{
+		// If this is a key-up for the current wheel auto-repeat command,
+		// cancel auto-repeat.  We need to do this immediately on the key
+		// event, rather than waiting to process it in the queue, because
+		// the auto-repeat can go fast enough to starve queue processing.
+		// We don't process queued keys during wheel animation, and the
+		// auto-repeat can be fast enough to keep the wheel spinning
+		// continuously as long as the key is down.  Note that we ALSO
+		// need to process the key-up again in the queue, since we start
+		// wheel auto-repeat in the queued key handler.  So the key-down
+		// event for the current key-up could still be in the queue
+		// awaiting processing, in which case stopping the wheel repeat
+		// now will do nothing, as it hasn't started yet.
+		if ((mode & KeyDown) == 0
+			&& wheelAutoRepeat.active
+			&& wheelAutoRepeat.key.cmd->func == c->func)
+			WheelAutoRepeatStop();
+
 		// queue the command
 		keyQueue.emplace_back(hwndSrc, mode, repeatCount, bg, scripted, c);
-
-		// Immediately process any DOF effects associated with the key
-		if (c->func == &PlayfieldView::CmdNext)
-			dof.SetKeyEffectState(_T("PBYFlipperRight"), (mode & KeyDown) != 0);
-		else if (c->func == &PlayfieldView::CmdPrev)
-			dof.SetKeyEffectState(_T("PBYFlipperLeft"), (mode & KeyDown) != 0);
-		else if (c->func == &PlayfieldView::CmdNextPage)
-			dof.SetKeyEffectState(_T("PBYMagnaRight"), (mode & KeyDown) != 0);
-		else if (c->func == &PlayfieldView::CmdPrevPage)
-			dof.SetKeyEffectState(_T("PBYMagnaLeft"), (mode & KeyDown) != 0);
 	}
 
 	// If a wheel animation is in progress, skip directly to the end
@@ -8386,6 +8372,47 @@ void PlayfieldView::ProcessKeyQueue()
 		QueuedKey key = keyQueue.front();
 		keyQueue.pop_front();
 
+		// Check the command for special handling
+		const TCHAR *dofEffect = nullptr;
+		auto c = key.cmd;
+		if (c->func == &PlayfieldView::CmdNext)
+			dofEffect = _T("PBYFlipperRight");
+		else if (c->func == &PlayfieldView::CmdPrev)
+			dofEffect = _T("PBYFlipperLeft");
+		else if (c->func == &PlayfieldView::CmdNextPage)
+			dofEffect = _T("PBYMagnaRight");
+		else if (c->func == &PlayfieldView::CmdPrevPage)
+			dofEffect = _T("PBYMagnaLeft");
+
+		// process the DOF effect, if applicable
+		if (dofEffect != nullptr)
+			dof.SetKeyEffectState(dofEffect, (key.mode & KeyDown) != 0);
+
+		// check if this key matches the current wheel auto-repeat command
+		if (wheelAutoRepeat.active && wheelAutoRepeat.key.cmd->func == c->func)
+		{
+			// Check the mode
+			if (key.mode == KeyRepeat)
+			{
+				// It's an auto-repeat key event for the current wheel command
+				// that we're auto-repeating on the wheel.  Ignore the key event,
+				// since the wheel auto-repeat timer will generate the commands
+				// on its own schedule.  We want the wheel timing to override
+				// the raw keyboard timing in this case, so we simply ignore
+				// the repeated key events.
+				continue;
+			}
+			else
+			{
+				// It's not an auto-repeat, so it's either a key-up event or
+				// a new key-down event.  In either case, stop the wheel
+				// auto-repeat.  If it's a key-down, we'll go ahead and start
+				// a new repeat sequence for the new key press.  If it's a
+				// key-up, it'll have no further effect.
+				WheelAutoRepeatStop();
+			}
+		}
+
 		// Run it through the Javascript handler.  Skip this if it came from
 		// a script in the first place.
 		if (key.scripted || FireCommandButtonEvent(key))
@@ -9057,19 +9084,20 @@ JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
 			desc.Set("buttons", buttons.jsobj);
 
 			// add the control/axis values
-			auto values = JavascriptEngine::JsObj::CreateObject();
+			auto values = JavascriptEngine::JsObj::CreateObjectWithPrototype(this->jsJoystickAxisInfo);
 			for (int i = 0; i < dev->iValLast - dev->iValFirst + 1; ++i)
 			{
 				if (dev->val[i].present)
 				{
 					// create and populate the value descriptor
 					auto value = JavascriptEngine::JsObj::CreateObject();
+					value.Set("unit", dev->index);
+					value.Set("usage", static_cast<int>(i + dev->iValFirst));
 					value.Set("name", dev->valNames[i]);
 					value.Set("logicalMinimum", dev->val[i].logMin);
 					value.Set("logicalMaximum", dev->val[i].logMax);
 					value.Set("physicalMinimum", dev->val[i].physMin);
 					value.Set("physicalMaximum", dev->val[i].physMax);
-					value.Set("usage", static_cast<int>(i + dev->iValFirst));
 
 					// add it to the axis object, under property "name"
 					// (e.g., descriptor.axes.X = { name: "X", ... })
@@ -9102,8 +9130,99 @@ JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
-		exc.Log(_T("mainWindow.getJoytsicks"));
+		exc.Log(_T("mainWindow.getJoytsickInfo"));
 		return js->Throw(exc.jsErrorCode);
+	}
+}
+
+void PlayfieldView::JsEnableJoystickAxisEvents(JsValueRef optionsVal)
+{
+	auto js = JavascriptEngine::Get();
+	auto jm = JoystickManager::GetInstance();
+	try
+	{
+		// retrieve the options
+		JavascriptEngine::JsObj options(optionsVal);
+		bool enable = options.Has("enable") ? options.Get<bool>("enable") : true;
+		int unit = options.Get<int>("unit");
+		bool bg = options.Get<bool>("background");
+
+		// apply one axis entry based on its usage value
+		auto ApplyUsage = [this, enable, unit, bg](USAGE usage)
+		{
+			// only proceed if the usage is valid
+			if (usage >= JoystickManager::Joystick::iValFirst && usage <= JoystickManager::Joystick::iValLast)
+			{
+				// get the hash key
+				auto key = JavascriptJoystickAxisEventEnabler::EncodeKey(unit, usage);
+
+				// add or remove the entry, as appropriate
+				if (enable)
+					this->javascriptJoystickAxisEventEnablers.emplace(
+						std::piecewise_construct,
+						std::forward_as_tuple(key),
+						std::forward_as_tuple(unit, usage, bg));
+				else
+					this->javascriptJoystickAxisEventEnablers.erase(key);
+			}
+		};
+
+		// convert an axis name to a usage value
+		auto AxisToUsage = [](const TSTRING &name) -> USAGE
+		{
+			auto valName = &JoystickManager::Joystick::valNames[0];
+			for (size_t i = 0; i < countof(JoystickManager::Joystick::valNames); ++i, ++valName)
+			{
+				if (name == *valName)
+					return JoystickManager::Joystick::iValFirst + static_cast<USAGE>(i);
+			}
+
+			// not found - return 0 as the invalid usage number
+			return 0;
+		};
+
+		// apply a Javascript value that names an axis or provides a usage code
+		auto ApplyJsVal = [js, enable, unit, &ApplyUsage, &AxisToUsage](JsValueRef val)
+		{
+			// if it's a number, it's a usage value; otherwise it's an axis name string
+			if (js->IsNumber(val))
+				ApplyUsage(js->JsToNative<int>(val));
+			else
+				ApplyUsage(AxisToUsage(js->JsToNative<TSTRING>(val)));
+		};
+
+		// visit the axis or axes to enable/disable
+		JsValueRef axisVal = options.Get<JsValueRef>("axis");
+		if (js->IsUndefinedOrNull(axisVal))
+		{
+			// no axis specified - enable all axes for the device
+			auto phys = jm->GetPhysicalJoystick(jm->GetLogicalJoystick(unit));
+			if (phys != nullptr)
+			{
+				for (int i = 0 ; i <= phys->iValLast - phys->iValFirst; ++i)
+				{
+					if (phys->val[i].present)
+						ApplyUsage(i + phys->iValFirst);
+				}
+			}
+		}
+		else if (js->IsArray(axisVal))
+		{
+			// array of axis names
+			JavascriptEngine::JsObj arr(axisVal);
+			for (int i = 0, n = arr.Get<int>("length"); i < n; ++i)
+				ApplyJsVal(arr.GetAtIndex<JsValueRef>(i));
+		}
+		else
+		{
+			// single axis name
+			ApplyJsVal(axisVal);
+		}
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		exc.Log(_T("mainWindow.enableJoystickAxisEvents"));
+		js->Throw(exc.jsErrorCode);
 	}
 }
 
@@ -9575,6 +9694,39 @@ void PlayfieldView::StartWheelAnimation(bool fast)
 
 	// start the timer
 	StartAnimTimer(wheelAnimStartTime);
+}
+
+// Skip the rest of the current wheel animation
+void PlayfieldView::SkipWheelAnimation()
+{
+	if (wheelAnimMode != WheelAnimNone)
+	{
+		// figure the direction
+		int dn = animWheelDistance > 0 ? 1 : -1;
+
+		// update wheel positions to the completed state, at 100% or -100% progress
+		int n = animFirstInWheel;
+		for (auto& s : wheelImages)
+		{
+			SetWheelImagePos(s, n, 1.0f * dn);
+			++n;
+		}
+
+		// Discard the outgoing wheel images
+		while (animAddedToWheel-- != 0)
+		{
+			if (dn > 0)
+				wheelImages.pop_front();
+			else
+				wheelImages.pop_back();
+		}
+
+		// we've updated the sprite list
+		UpdateDrawingList();
+
+		// the animation is done
+		wheelAnimMode = WheelAnimNone;
+	}
 }
 
 void PlayfieldView::ClearMedia()
@@ -11418,7 +11570,8 @@ void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 {
 	// if an animation is in progress, or a startup video is in progress,
 	// or if there's anything in the key command queue, defer this until later
-	if (isAnimTimerRunning 
+	if (isAnimTimerRunning
+		|| wheelAutoRepeat.active
 		|| keyQueue.size() != 0
 		|| (videoOverlay != nullptr && videoOverlayID == _T("Startup")))
 		return;
@@ -12726,7 +12879,7 @@ bool PlayfieldView::OnJoystickButtonChange(
 	KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
 
 	// fire a javascript joystick event; if that says to ignore it, we're done
-	if (!FireJoystickEvent(js->logjs->index, button, pressed, 0, !foreground))
+	if (!FireJoystickButtonEvent(js->logjs->index, button, pressed, 0, !foreground))
 		return false;
 
 	// look up the button in the command table
@@ -12738,7 +12891,7 @@ bool PlayfieldView::OnJoystickButtonChange(
 		// if it's a key-press event, start auto-repeat; otherwise cancel
 		// any existing auto-repeat
 		if (pressed)
-			JsAutoRepeatStart(js->logjs->index, button, foreground ? KeyRepeat : KeyBgRepeat);
+			JoyAutoRepeatStart(js->logjs->index, button, foreground ? KeyRepeat : KeyBgRepeat);
 		else
 			StopAutoRepeat();
 	}
@@ -12749,9 +12902,32 @@ bool PlayfieldView::OnJoystickButtonChange(
 }
 
 bool PlayfieldView::OnJoystickValueChange(
-	JoystickManager::PhysicalJoystick *js,
-	USAGE usage, LONG value, bool foreground)
+	JoystickManager::PhysicalJoystick *dev,
+	const std::list<JoystickManager::ValueChange> &changes, bool foreground)
 {
+	// check the axes in the report to see if any are enabled for
+	// Javascript events
+	auto js = JavascriptEngine::Get();
+	int unit = dev->logjs->index;
+	for (auto &change : changes)
+	{
+		// look up the unit and axis
+		auto it = javascriptJoystickAxisEventEnablers.find(JavascriptJoystickAxisEventEnabler::EncodeKey(unit, change.usage));
+		if (it != javascriptJoystickAxisEventEnablers.end())
+		{
+			// Found it - check the filters
+			if (foreground || it->second.background)
+			{
+				// Filters passed - fire the event.
+				js->FireEvent(jsMainWindow, foreground ? jsJoystickAxisChangeEvent : jsJoystickAxisChangeBgEvent, unit);
+
+				// Stop searching.  We only fire one event for the whole report
+				// group, no matter how many axis values changed.
+				break;
+			}
+		}
+	}
+
 	// allow the event to propagate to other subscribers
 	return false;
 }
@@ -12768,16 +12944,12 @@ void PlayfieldView::KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repea
 	// auto-repeat is now active
 	kbAutoRepeat.active = true;
 
-	// Start the delay timer for the initial key repeat delay.  The
-	// Windows parameter is documented as being only an approximation,
-	// but it's supposed to be in 250ms units with a minimum of 250ms.
-	//
+	// Start the delay timer for the initial key repeat delay.
 	// Note that this replaces any previous auto-repeat timer, which
 	// has exactly the desired effect of starting a new repeat timing
 	// cycle for the new key press.
-	int kbDelay;
-	SystemParametersInfo(SPI_GETKEYBOARDDELAY, 0, &kbDelay, 0);
-	SetTimer(hWnd, kbRepeatTimerID, 250 + kbDelay * 250, 0);
+	auto kbRepeat = InputManager::GetKeyboardAutoRepeatSettings();
+	SetTimer(hWnd, kbRepeatTimerID, kbRepeat.delay, 0);
 }
 
 void PlayfieldView::OnKbAutoRepeatTimer()
@@ -12808,95 +12980,117 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 			}
 		}
 
-		// Reset the timer for the repeat interval.  The system parameter
-		// for the repeat rate is only approximate, since the actual repeat
-		// function is farmed out to the keyboard hardware, but the nominal
-		// unit system is a frequency value from 0 to 31, where 0 represents
-		// 2.5 Hz and 31 represents 30 Hz.  So we'll interpolate linearly
-		// over this range and invert the value to get a time value.  We
-		// only need a value to the nearest millisecond when we're done, so
-		// to make the calculation fast, use scaled integers.  Calculate the
-		// frequency value in mHz units by multiplying everything by 1000;
-		// inverting this give us kilo seconds, so we then multiply the
-		// result by a million to get milliseconds.  At this scale, 
-		// everything is in a nice range for the integer calculations.
-		DWORD rate;
-		SystemParametersInfo(SPI_GETKEYBOARDSPEED, 0, &rate, 0);
-		SetTimer(hWnd, kbRepeatTimerID, 1000000 / (2500 + 917 * rate), 0);
+		// Reset the timer for the system keyboard repeat interval
+		auto kbRepeat = InputManager::GetKeyboardAutoRepeatSettings();
+		SetTimer(hWnd, kbRepeatTimerID, kbRepeat.interval, 0);
 	}
 }
 
-void PlayfieldView::JsAutoRepeatStart(int unit, int button, KeyPressType repeatMode)
+void PlayfieldView::JoyAutoRepeatStart(int unit, int button, KeyPressType repeatMode)
 {
 	// remember the key for auto-repeat
-	jsAutoRepeat.unit = unit;
-	jsAutoRepeat.button = button;
-	jsAutoRepeat.repeatMode = repeatMode;
-	jsAutoRepeat.repeatCount = 0;
+	joyAutoRepeat.unit = unit;
+	joyAutoRepeat.button = button;
+	joyAutoRepeat.repeatMode = repeatMode;
+	joyAutoRepeat.repeatCount = 0;
 
 	// remember that we're in auto-repeat mode
-	jsAutoRepeat.active = true;
+	joyAutoRepeat.active = true;
 
-	// Start the delay timer for the initial key repeat delay.  The
-	// Windows parameter is documented as being only an approximation,
-	// but it's supposed to be in 250ms units with a minimum of 250ms.
-	//
+	// Start the delay timer for the initial key repeat delay.
 	// Note that this replaces any previous auto-repeat timer, which
 	// has exactly the desired effect of starting a new repeat timing
 	// cycle for the new key press.
-	int kbDelay;
-	SystemParametersInfo(SPI_GETKEYBOARDDELAY, 0, &kbDelay, 0);
-	SetTimer(hWnd, jsRepeatTimerID, 250 + kbDelay * 250, 0);
+	auto kbRepeat = InputManager::GetKeyboardAutoRepeatSettings();
+	SetTimer(hWnd, joyRepeatTimerID, kbRepeat.delay, 0);
 }
 
-void PlayfieldView::OnJsAutoRepeatTimer()
+void PlayfieldView::OnJoyAutoRepeatTimer()
 {
 	// If a key is active, execute an auto-repeat
-	if (jsAutoRepeat.active)
+	if (joyAutoRepeat.active)
 	{
 		// only deliver auto-repeat events when there's no wheel 
 		// animation taking place
 		if (wheelAnimMode == WheelAnimNone)
 		{
 			// count the auto-repeat event 
-			jsAutoRepeat.repeatCount += 1;
+			joyAutoRepeat.repeatCount += 1;
 
 			// fire a joystick event
-			if (FireJoystickEvent(jsAutoRepeat.unit, jsAutoRepeat.button, true, 
-				jsAutoRepeat.repeatCount, jsAutoRepeat.repeatMode == KeyBgRepeat))
+			if (FireJoystickButtonEvent(joyAutoRepeat.unit, joyAutoRepeat.button, true, 
+				joyAutoRepeat.repeatCount, joyAutoRepeat.repeatMode == KeyBgRepeat))
 			{
 				// look up the button in the command table
-				if (auto it = jsCommands.find(JsCommandKey(jsAutoRepeat.unit, jsAutoRepeat.button)); it != jsCommands.end())
-					ProcessKeyPress(hWnd, jsAutoRepeat.repeatMode, jsAutoRepeat.repeatCount,
-						jsAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
+				if (auto it = jsCommands.find(JsCommandKey(joyAutoRepeat.unit, joyAutoRepeat.button)); it != jsCommands.end())
+					ProcessKeyPress(hWnd, joyAutoRepeat.repeatMode, joyAutoRepeat.repeatCount,
+						joyAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
 			}
 		}
 
-		// Reset the timer for the repeat interval.  The system parameter
-		// for the repeat rate is only approximate, since the actual repeat
-		// function is farmed out to the keyboard hardware, but the nominal
-		// unit system is a frequency value from 0 to 31, where 0 represents
-		// 2.5 Hz and 31 represents 30 Hz.  So we'll interpolate linearly
-		// over this range and invert the value to get a time value.  We
-		// only need a value to the nearest millisecond when we're done, so
-		// to make the calculation fast, use scaled integers.  Calculate the
-		// frequency value in mHz units by multiplying everything by 1000;
-		// inverting this give us kilo seconds, so we then multiply the
-		// result by a million to get milliseconds.  At this scale, 
-		// everything is in a nice range for the integer calculations.
-		DWORD rate;
-		SystemParametersInfo(SPI_GETKEYBOARDSPEED, 0, &rate, 0);
-		SetTimer(hWnd, jsRepeatTimerID, 1000000/(2500 + 917*rate), 0);
+		// Reset the timer for the system keyboard repeat interval
+		auto kbRepeat = InputManager::GetKeyboardAutoRepeatSettings();
+		SetTimer(hWnd, joyRepeatTimerID, kbRepeat.interval, 0);
 	}
+}
+
+void PlayfieldView::WheelAutoRepeatStart(const QueuedKey &key)
+{
+	if (!wheelAutoRepeat.active || wheelAutoRepeat.key.cmd->func != key.cmd->func)
+	{
+		// reset the repeat ramp
+		wheelAutoRepeat.repeatTimeIndex = 0;
+
+		// set up the timer
+		SetTimer(hWnd, wheelRepeatTimerID, wheelAutoRepeat.repeatTimes[0].ms, NULL);
+
+		// mark it as active and remember the command mode
+		wheelAutoRepeat.active = true;
+		wheelAutoRepeat.key = key;
+		wheelAutoRepeat.repeatCount = 0;
+		wheelAutoRepeat.lastRepeatTicks = GetTickCount64();
+	}
+}
+
+void PlayfieldView::WheelAutoRepeatStop()
+{
+	if (wheelAutoRepeat.active)
+	{
+		// mark it as inactive and kiill the timer
+		wheelAutoRepeat.active = false;
+		KillTimer(hWnd, wheelRepeatTimerID);
+	}
+}
+
+void PlayfieldView::OnWheelAutoRepeatTimer()
+{
+	// count the repeat
+	wheelAutoRepeat.repeatCount += 1;
+
+	// if we're done with the current step in the repeat time list, advance 
+	// to the next step
+	while (wheelAutoRepeat.repeatTimeIndex + 1 < wheelAutoRepeat.repeatTimes.size()
+		&& wheelAutoRepeat.repeatCount >= wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].endAfterRepeatCount)
+		wheelAutoRepeat.repeatTimeIndex += 1;
+
+	// set up the next timer event
+	SetTimer(hWnd, wheelRepeatTimerID, wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].ms, NULL);
+	wheelAutoRepeat.lastRepeatTicks = GetTickCount64();
+
+	// skip any remaining wheel animation
+	SkipWheelAnimation();
+
+	// repeat the command
+	(this->*wheelAutoRepeat.key.cmd->func)(wheelAutoRepeat.key);
 }
 
 void PlayfieldView::StopAutoRepeat()
 {
 	// stop joystick auto-repeat
-	if (jsAutoRepeat.active)
+	if (joyAutoRepeat.active)
 	{
-		jsAutoRepeat.active = false;
-		KillTimer(hWnd, jsRepeatTimerID);
+		joyAutoRepeat.active = false;
+		KillTimer(hWnd, joyRepeatTimerID);
 	}
 
 	// stop keyboard auto-repeat
@@ -13100,6 +13294,77 @@ void PlayfieldView::OnConfigChange()
 	wheel.imageWidth = cfg->GetFloat(ConfigVars::WheelImageWidth, 0.14f);
 	wheel.xSelected = cfg->GetFloat(ConfigVars::WheelXSelected, 0.0f);
 	wheel.ySelected = cfg->GetFloat(ConfigVars::WheelYSelected, -0.07135f);
+
+	// Parse the wheel repeat time ramp
+	wheelAutoRepeat.repeatTimes.clear();
+	auto kbRate = InputManager::GetKeyboardAutoRepeatSettings();
+	if (auto ramp = cfg->Get(ConfigVars::WheelAutoRepeatRate); ramp != nullptr)
+	{
+		// The parameter is expressed as a series of comma-separated
+		// entries, with each entry of the form "time * repeats".  The
+		// time is in milliseconds if not otherwise stated, but can use
+		// explicit units of "ms" or "s", and can have a decimal.  The
+		// repeat count is optional and is taken to be 1 if missing;
+		// the repeat count on the last entry is ignored, because the
+		// last entry applies to everything after reaching it.
+		int totalRepeats = 0;
+		for (auto &s : StrSplit<TSTRING>(ramp, ','))
+		{
+			// match it against "time units * repeats"
+			std::transform(s.begin(), s.end(), s.begin(), ::_totlower);
+			static const std::basic_regex<TCHAR> pat(
+				_T("\\s*(([\\d.]+|)\\s*(ms|s)?|kbrate|kbdelay|keyboardrate|keyboarddelay)\\s*(\\*\\s*(\\d+))?\\s*"));
+			std::match_results<TSTRING::const_iterator> m;
+			if (std::regex_match(s, m, pat))
+			{
+				// parse the time
+				double t = 0.0;
+				if (m[2].matched)
+				{
+					// parse numerical time value, which can include a fractional part
+					t = _ttof(m[2].str().c_str());
+
+					// parse the units - if they're "s" (seconds), convert to milliseconds
+					if (m[3].matched)
+					{
+						auto units = m[2].str();
+						std::transform(units.begin(), units.end(), units.begin(), ::_totlower);
+						if (units == _T("s"))
+							t *= 1000.0;
+					}
+				}
+				else if (m[1].str() == _T("kbdelay") || m[1].str() == _T("keyboarddelay"))
+				{
+					// keyboard initial repeat delay
+					t = kbRate.delay;
+				}
+				else if (m[1].str() == _T("kbrate") || m[1].str() == _T("keyboardrate"))
+				{
+					// keyboard repeat rate interval
+					t = kbRate.interval;
+				}
+
+				// parse the repeat count, defaulting to one
+				int cnt = m[4].matched ? _ttoi(m[5].str().c_str()) : 1;
+
+				// figure the cumulative repeats to this point
+				totalRepeats += cnt;
+
+				// Add the list entry
+				wheelAutoRepeat.repeatTimes.emplace_back(static_cast<UINT>(t), totalRepeats);
+			}
+		}
+	}
+
+	// if the wheel time ramp list is empty, populate it with a default ramp
+	// based on the Windows keyboard auto-repeat rate: the first repeat after
+	// the initial keyboard repeat delay time, and all subsequent repeats at
+	// keyboard repeat rate.
+	if (wheelAutoRepeat.repeatTimes.size() == 0)
+	{
+		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.delay, 1);
+		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.interval, 0);
+	}
 
 	// load the underlay enabled status
 	underlayEnabled = cfg->GetBool(ConfigVars::UnderlayEnable, true);
@@ -13988,7 +14253,7 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 		PlayButtonSoundRpt(_T("Next"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// do the basic Next processing
-		DoCmdNext(key.mode == KeyRepeat);
+		DoCmdNext(key);
 	}
 
 	// check for a media capture "Manual Go" gesture (next + prev keys down)
@@ -13996,8 +14261,12 @@ void PlayfieldView::CmdNext(const QueuedKey &key)
 		CheckManualGo(manualGoRightDown, key);
 }
 
-void PlayfieldView::DoCmdNext(bool fast)
+void PlayfieldView::DoCmdNext(const QueuedKey &key)
 {
+	// set up a sentry to cancel repeat mode, as mode code paths take us
+	// out of wheel navigation if it's ongoing
+	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
+
 	// check what's showing
 	if (CancelStartupVideo())
 	{
@@ -14071,7 +14340,11 @@ void PlayfieldView::DoCmdNext(bool fast)
 	{
 		// Base mode - go to the next game
 		QueueDOFPulse(L"PBYWheelNext");
-		SwitchToGame(1, fast, true, true);
+		SwitchToGame(1, key.mode == KeyRepeat, true, true);
+
+		// start wheel auto-repeat if it's not already running
+		repeatModeSentry.keep = true;
+		WheelAutoRepeatStart(key);
 	}
 }
 
@@ -14083,7 +14356,7 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 		PlayButtonSoundRpt(_T("Prev"), key.repeatCount, GetContextSensitiveButtonVolume(key));
 
 		// carry out the basic command action
-		DoCmdPrev(key.mode == KeyRepeat);
+		DoCmdPrev(key);
 	}
 
 	// check for a media capture "Manual Go" gesture (next + prev keys down)
@@ -14125,8 +14398,12 @@ void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 	}
 }
 
-void PlayfieldView::DoCmdPrev(bool fast)
+void PlayfieldView::DoCmdPrev(const QueuedKey &key)
 {
+	// set up a sentry to cancel repeat mode, as mode code paths take us
+	// out of wheel navigation if it's ongoing
+	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
+
 	// check what's showing
 	if (CancelStartupVideo())
 	{
@@ -14201,12 +14478,20 @@ void PlayfieldView::DoCmdPrev(bool fast)
 	{
 		// base mode - go to the previous game
 		QueueDOFPulse(L"PBYWheelPrev");
-		SwitchToGame(-1, fast, true, true);
+		SwitchToGame(-1, key.mode == KeyRepeat, true, true);
+
+		// start wheel auto-repeat if it's not already running
+		repeatModeSentry.keep = true;
+		WheelAutoRepeatStart(key);
 	}
 }
 
 void PlayfieldView::CmdNextPage(const QueuedKey &key)
 {
+	// most code paths should exit wheel auto repeat, if it's active
+	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
+
+	// check the key mode
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
@@ -14251,7 +14536,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat it as a regular 'next'
-			DoCmdNext(key.mode == KeyRepeat);
+			DoCmdNext(key);
 		}
 		else if (runningGameMsgPopup != nullptr)
 		{
@@ -14262,6 +14547,10 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			// base state - advance by a letter group
 			QueueDOFPulse(L"PBYWheelNextPage");
 			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyRepeat, true, true);
+
+			// start wheel auto-repeat mode
+			repeatModeSentry.keep = true;
+			WheelAutoRepeatStart(key);
 		}
 	}
 
@@ -14272,6 +14561,10 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 
 void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 {
+	// most code paths should exit wheel auto repeat, if it's active
+	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
+
+	// check the key mode
 	if ((key.mode & KeyDown) != 0)
 	{
 		// play the sound
@@ -14313,7 +14606,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		else if (curMenu != nullptr || popupSprite != nullptr)
 		{
 			// menu/popup - treat as equivalent to 'previous'
-			DoCmdPrev(key.mode == KeyRepeat);
+			DoCmdPrev(key);
 		}
 		else if (runningGameMsgPopup != nullptr)
 		{
@@ -14324,6 +14617,10 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 			// base state - go backwards by a letter group
 			SwitchToGame(GameList::Get()->FindPrevLetter(), key.mode == KeyRepeat, true, true);
 			QueueDOFPulse(L"PBYWheelPrevPage");
+
+			// start wheel auto-repeat mode
+			repeatModeSentry.keep = true;
+			WheelAutoRepeatStart(key);
 		}
 	}
 
@@ -14622,7 +14919,7 @@ void PlayfieldView::CmdService2(const QueuedKey &key)
 		PlayButtonSound(_T("Prev"));
 
 		// carry out the basic command action
-		DoCmdPrev(key.mode == KeyRepeat);
+		DoCmdPrev(key);
 	}
 }
 
@@ -14636,7 +14933,7 @@ void PlayfieldView::CmdService3(const QueuedKey &key)
 		PlayButtonSound(_T("Next"));
 
 		// carry out the basic command action
-		DoCmdNext(key.mode == KeyRepeat);
+		DoCmdNext(key);
 	}
 }
 

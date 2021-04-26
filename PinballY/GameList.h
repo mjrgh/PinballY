@@ -1970,5 +1970,40 @@ protected:
 
 	// table of SW_SHOW constants by name
 	std::unordered_map<TSTRING, WORD> swShowMap;
+
+	//
+	// Wheel navigation paging modes.  "Paging" is stepping through the
+	// game wheel one letter at a time, which is normally assigned to the
+	// Left/Right Control keys.
+	//
+	// The tester function takes the title of the current selected game,
+	// the title of the proposed new stopping point, and the direction
+	// we're moving (+1 for right/next, -1 for left/previous).  It returns
+	// a paging group ID, which is an arbitrary identifier for the group
+	// that game belongs to - typically this will just be the first letter
+	// of the title in canonical case (e.g., lower), but it really could
+	// be anything.  The special value 0 means that we shouldn't stop on
+	// this game, so it's sort of a null group.
+	//
+	// We implement several options for paging:
+	//
+	//     Default = page by first character, so each "page" is a group
+	//         of games with the same first character of their titles
+	//
+	//     AlphaNumSym = group by first character, treating all titles
+	//         starting with digits as one page (so '2001' and '8 Ball'
+	//         are in the same page), and all titles starting with
+	//         any other symbol as another group
+	// 
+	//     AlphaOnly = page groups are alphabetic only, so we skip
+	//         straight from Z back to A (or from A to Z if going in
+	//         reverse), skipping any titles whose first characters
+	//         are numbers of symbols
+	//
+	typedef int WheelPagingModeFunc(const TCHAR *title);
+	static int WheelPagingDefault(const TCHAR *title);
+	static int WheelPagingAlphaNumSym(const TCHAR *title);
+	static int WheelPagingAlphaOnly(const TCHAR *title);
+	WheelPagingModeFunc *wheelPagingFunc = &WheelPagingDefault;
 };
 

@@ -121,6 +121,126 @@
 <p>
    See <a href="Underlay.html">Underlay</a> for more details on
    the underlay feature.
+</p>
 
+<p>
+   <b>Paging Mode:</b>  This lets you control how the Next Page and
+   Previous Page commands treat games with non-alphabetic titles,
+   such as <i>2001</i> or <i>8 Ball</i>.
+</p>
+<p>
+   The Next/Previous Page
+   buttons let you navigate through letter groups: so if you're
+   on a game that starts with A, let's say <i>Aladdin's Castle</i>,
+   and you press Next Page, the wheel navigates straight to
+   the first game starting with B, perhaps <i>Bad Cats</i>.  This
+   option affects what happens when you get to the games after
+   "Z", where the games with non-alphabetic titles are sorted.
+   There are three options to choose from:
+</p>
+<ul>
+   <li><b>Default</b>: This option treats every character as its
+   own "letter" group, so <i>2001</i> is in the "2" group, <i>4 Square</i>
+   is in the "4" group, and <i>8 Ball</i> is in the "8" group.
+   So the navigation sequence with the Next Page button might
+   go like this:  <i>Xenon</i> &rarr; <i>2001</i> &rarr; <i>4 Square</i>
+   &rarr; <i>8 Ball</i> &rarr; <i>Aladdin's Castle</i>.
+
+   <li><b>AlphaNumSym:</b> This option treats all of the "digit"
+   games as part of a single group - so <i>2001</i>, <i>4 Square</i>,
+   and <i>8 Ball</i> are all part of the "digits" group.  Likewise,
+   any titles starting with non-alphabetic and non-digit symbols
+   would count as an additional "symbols" group.  (I don't think there actually
+   are any such titles, but if there were, they'd get their own group.)
+   Navigation with this mode might go like this: <i>Xenon</i> &rarr;
+   <i>2001</i> &rarr; <i>Aladdin's Castle</i>.  We make one stop
+   at the first numbered game, then skip straight to "A".
+   <p>
+   This option is a little nicer than the default just because
+   there are only a handful of "digit" games out there that it
+   makes a lot of sense to skip through them as a block when
+   you're trying to navigate quickly.
+   </p>
+
+   <li><b>AlphaOnly:</b>  This is like the prior option, just
+   stricter: it makes the Page buttons skip non-alphabetic
+   games entirely.  Navigation with this option might go like
+   this: <i>Xenon</i> &rarr; <i>Aladdin's Castle</i>.
+</ul>
+
+<p>
+   <b>Auto-repeat rate:</b>  This lets you set a custom repeat
+   rate when holding down one of the wheel navigation buttons
+   (Next, Previous, Next Page, Previous Page).  When you press
+   and hold one of the navigation buttons, it'll step through
+   games at the rate you set here.  By default, the navigation
+   commands simply repeat at the same rate as ordinary keyboard
+   keys, as set in the Windows control panel for the keyboard.
+   Some people find that a comfortable repeat rate for the
+   keyboard is too fast or too slow for wheel navigation,
+   though.  This option lets you set the wheel navigation rate
+   separately from the keyboard rate.
+</p>
+<p>
+   The repeat rate is set as a delay time between repeats,
+   in milliseconds.  The simplest thing you can enter here is
+   a number of milliseconds, as in <b>500</b> (for 500ms, which
+   is the same as 1/2 of a second - there are 1000 milliseconds
+   in one second).  If you prefer to be more scientific in your
+   notation, you can tag on <b>ms</b> to the end of the time, as in
+   <b>500ms</b>, to say explicitly that the time is in milliseconds.
+   You can also use <b>s</b> to express the time in seconds, so
+   you can say something like <b>0.05s</b>, which is the same as
+   <b>50ms</b> or 50 millisecond.
+</p>
+<p>
+   Here's where this option gets more interesting: you can specify
+   a whole sequence of delay times, by separating them with commas.
+   When you press and hold a key, the delay times will be applied
+   one at a time.  You can use this, for example, to set up a
+   "ramp" that makes the key repeat more and more quickly the
+   longer you hold it down:
+</p>
+<div class="indented">
+   <tt>500ms, 400ms, 300ms, 200ms, 100ms</tt>
+</div>
+<p>
+   Here's what the setting above does when you press, say, the Next
+   button.  Pressing the button immediately carries out one Next
+   command, spinning the wheel one stop to the right.  (The first
+   command on pressing the button takes place immediately.  The
+   delays only apply to the auto-repeated copies of the command
+   from holding the button down.)  The system then waits for the first
+   delay time in the list, 500ms.  If you're still holding the
+   button down at that point, the first auto-repeat command
+   occurs, so the wheel spins one more stop to the right.  The
+   system then waits for the next interval in the list, 400ms,
+   and spins one more stop.  Then on to the next interval, 300ms,
+   and one more spin, and so on.  Upon reaching the last entry
+   in the list, 100ms, the system just keeps repeating at that
+   final rate for as long as you hold down the button.
+</p>
+<p>
+   You can indicate that one of the time intervals should be
+   used more than once by adding an asterisk (*) and the number
+   of repeats, as in <b>500ms*3</b>.  That means that three
+   repeats occur at 500ms intervals, before moving on to the
+   next item in the list.
+</p>
+<p>
+   As mentioned earlier, if you leave this setting empty, the
+   normal Windows keyboard repeat times are used.  You can also
+   incorporate the Windows repeat times explicitly, by using the
+   symbols <b>KbDelay</b> and <b>KbRate</b> in lieu of numeric
+   time intervals.  <b>KbDelay</b> is the initial delay that
+   Windows uses when you first press a key, before auto-repeat
+   starts, and <b>KbRate</b> is the repeat interval after
+   that.  The default setting is equivalent to writing this:
+</p>
+<div class="indented">
+   <tt>KbDelay, KbRate</tt>
+</div>
+   
+   
 </body>
 </html>

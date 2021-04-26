@@ -164,7 +164,7 @@ void CaptureDialog::ManualStartButtonMap::SaveConfigVar()
 	if (i < 0 || i >= countof(buttonNames))
 		i = 0;
 
-	// svae it
+	// save it
 	ConfigManager::GetInstance()->Set(configVar, buttonNames[i]);
 }
 

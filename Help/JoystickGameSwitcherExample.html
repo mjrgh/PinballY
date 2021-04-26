@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Joystick Game Switcher</h1>
+
+<p>
+   Starting with version 1.1, PinballY provides Javascript with fairly
+   extensive access to the joysticks.  We can use this to implement a
+   feature that a few people have asked for, which is to use
+   joysticks as command inputs.
+</p>
+<p>
+   I'm not talking about using joystick
+   <i>buttons</i> for command inputs, which is something that PinballY
+   has always supported natively.  You can map joystick buttons to
+   commands right in the settings dialog, under the Buttons section.
+</p>
+<p>
+   The new feature I'm talking about here is using the <i>stick</i>
+   part of the joystick as a command input.  For this example, we're
+   going to use the stick as a game switcher: tilt it to the right
+   to navigate to the next game on the game wheel, tilt it left to
+   go to the previous game.
+</p>
+
+<h2>Getting access to the joystick device</h2>
+
+<p>
+   Javascript gains access to the joystick devices via
+   <a href="JoystickInfo.html">JoystickInfo</a> objects, which you
+   obtain from <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>.
+   That method can be used in two ways: it can give you information on a
+   particular joystick, such as the joystick that's the source of
+   a <a href="JoystickButtonEvent.html">joystick button event</a>
+   or <a href="JoystickAxisEvent.html">axis event</a> that you're
+   currently handling; or, it can give you a list of all of the
+   joysticks that PinballY knows about.  When you're writing a
+   script that's that sets up its own special-purpose joystick
+   handling, it's that second use - getting all the joysticks -
+   that you'll want to use.
+</p>
+<div class="code javascript">
+let allJoysticks = mainWindow.getJoystickInfo();
+</div>
+<p>
+   Okay, we have a list of joysticks; now what?  We need to pick
+   the one that we're going to use for game-switcher input.  If
+   you only have one joystick device in your system, this is
+   probably going to be as easy as picking the first one that
+   getJoystickInfo() returned.  The "list of all joysticks" is
+   actually an array of JoystickInfo objects, so to pick the
+   first, we just pull out element [0] from the array:
+</p>
+<div class="code javascript">
+let joystick = allJoysticks[0];
+</div>
+<p>
+   But that's not very robust.  If you ever add another joystick
+   to your system, it might end up being listed in the array before
+   your existing one, so that code could pick the wrong joystick.
+   Another problem is that you might already have a couple of
+   joystick-like devices in your system even if you don't think
+   of them as actual joysticks.  All of the common pin cab plunger
+   controllers pretend to be joysticks, for example, because
+   joysticks just fit in easily; Windows and Visual Pinball and
+   everything else already knows how to access them.
+</p>
+<p>
+   Instead of just picking the first joystick in the list, then,
+   we should somehow scan the list and pick out the one that we
+   actually want.  There are several ways to do this, because
+   the JoystickInfo object gives you all sorts of information
+   on each joystick that you can use to identify the particular
+   one that you want to use for the game switcher function.
+   For the purposes of this example, let's keep it really simple
+   and just look for a joystick with a particular product name
+   string.  "Product name" is one of the basic attributes that
+   joysticks report to Windows through the USB interface, and
+   Windows passes it along to PinballY, which passes it along
+   to Javascript through the JoystickInfo object.  So we can
+   scan the list and find the one that matches the name we're
+   looking for:
+</p>
+<div class="code javascript">
+let joystick = allJoysticks.find(j => /pinscape/i.test(j.productName));
+</div>
+<p>
+   That searches for the first joystick in the list that has
+   "pinscape" somewhere in its product name.  The "/.../" notation
+   is a Javascript regular expression, which in this case is just
+   a literal string we're searching for.  The "i" after the second
+   slash is for "<b>i</b>nsensitive to case", meaning that the
+   search ignores upper/lower case differences and just matches
+   either way.
+</p>
+<p>
+   I'm being a little vain here by using Pinscape
+   as my example device.  If you wanted to match some other type
+   of device, you just have to change <b>/pinscape/</b> to
+   a similar substring that's unique to the joystick you're
+   trying to match.  If you're not sure what the product name
+   string for your joystick is, there's an easy way to find
+   out: fire up the Windows <b>Set up USB Game Controllers</b> control
+   panel (press Windows+R and type <b>joy.cpl</b>).  The list of
+   installed controllers that you see there is actually a list of
+   the USB product names reported by the devices.  Find your
+   device in that list, and pick out a sufficiently unique
+   substring to use in the regular expression search. 
+   (I like looking for a substring rather than trying to match
+   the whole name exactly only because these names can sometimes
+   change if you ever update the device's firmware.  The trick
+   is to pick a substring that's likely to stay the same in
+   all future versions of the device, but that's also unique
+   enough that it'll reliably pick that one device out of the
+   crowd.)
+</p>
+
+<h2>Setting a value range</h2>
+<p>
+   The USB specifications allow joysticks to report their control
+   axis positions on scales of their own choosing.  USB requires
+   the positions to be reported as integer values, but the
+   range - minimum to maximum - is up to the device to define.
+   Windows passes the device's raw readings to PinballY, and
+   PinballY passes them along to Javascript.  That's a good
+   design for maintaining the integrity of the data -
+   there's no loss of precision from rescaling or other
+   arithmetic.  But it's a bit of a pain to deal with in
+   Javascript, since we can't make any assumptions about
+   the value range of the axes.  "X" could be a number
+   from 0 to 100, or it could be -100,000,000 to +100,000,000.
+   Or just about anything else.  If we want to know when
+   the stick is halfway to the right, say, we don't know
+   if we should look for an "X" value over 50 or over
+   50 million.
+</p>
+<p>
+   The JoystickInfo object has information on the range of
+   each axis, so you could use that to figure out the relative
+   position.  But there's a somewhat easier way: we can tell
+   the JoystickInfo object to scale the raw reading from the
+   device to a range of our choosing.  That runs the risk of
+   losing a small amount of precision, so it's not the right
+   choice for certain applications that depend on exact
+   figures, but for most applications it's just fine and
+   and it makes things much easier.  So for this example,
+   let's put the X and Y axes on a fixed scale from -1000 to +1000:
+</p>
+<div class="code">
+joystick.setAxisRange("X", -1000, 1000);
+joystick.setAxisRange("Y", -1000, 1000);
+</div>
+<p>
+   After that, when we read the axis values from the <b>X()</b>
+   and <b>Y()</b> methods, they'll be reported on our new
+   scale.  So the joystick is halfway right if X() &gt;= 500.
+</p>
+
+
+<h2>Enabling axis change events</h2>
+<p>
+   Now that we have our device, we have to enable it for axis change
+   events.  PinballY doesn't generate these events by default,
+   out of a desire to minimize any performance impact.  Some
+   joysticks can generate updates at a high rate, and if there
+   isn't any Javascript code interested in those event updates,
+   sending them would just burn up CPU time for no good reason.  So
+   PinballY doesn't send joystick axis events to Javascript
+   by default, but it lets you enable them if you have a use
+   for them, in which case the performance overhead is
+   justified by the extra feature you're going to implement.
+   (And lest you worry that this is going to bog down your
+   system, the overhead isn't that huge: it takes
+   about 50 microseconds to dispatch one of these events,
+   and in most cases they occur about every 10 milliseconds,
+   so enabling events for one joystick adds about 1/2 of 1%
+   of overhead.  Not enough that you'd notice.  But the
+   effect is additive across joysticks, so it's still good
+   that any other joysticks in your system that aren't of
+   interest to Javascript won't generate any added overhead.)
+</p>
+<p>
+   To enable events, we go back to the JoystickInfo object
+   that we selected for the joystick of interest, and we
+   call the <b><a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents()</a></b>,
+   telling it which axes we're interested in hearing about:
+</p>
+<div class="code javascript">
+joystick.enableAxisEvents({ axis: ["X", "Y"] });
+</div>
+
+<p>
+   We listed "X" and "Y" as the axes of interest, so PinballY
+   will only generate events when one of these axes changes.
+   For standard joysticks, the "X" axis represents the
+   left-to-right position of the main stick, and the "Y"
+   axis represents the front-to-back position.  So if we
+   listen for "X" and "Y" changes, we'll get notified
+   every time the basic 2D position of the main stick
+   changes.
+</p>
+
+<h2>Listening for axis changes</h2>
+
+<p>
+   Now that axis change events are enabled, we can set up an
+   event listener to monitor the device.  We'll get called
+   whenever the joystick moves enough to register a different
+   axis reading.  For details on the axis change event,
+   see <a href="JoystickAxisEvent.html">JoystickAxisEvent</a>.
+</p>
+<div class="code">
+mainWindow.on("joystickaxischange", ev => {
+    if (ev.unit == joystick.unit) {
+        // it's our joystick of interest - do something here!
+    }
+});
+</div>
+
+<p>
+   We start by checking that the joystick that generated the
+   event is the same one that we're monitoring.  This might seem
+   pointless, since we've only just enabled events for the one
+   joystick, but this could become important if you add more modules
+   later that might monitor other joysticks.  We match the joysticks
+   in this case by checking the <b>unit</b> property in the event
+   against the <b>unit</b> property in our JoystickInfo object.
+   Those properties contain the "logical unit numbers" of the respective
+   joysticks.  The logical unit number is an internal ID that PinballY
+   assigns to each joystick device for the duration of this program
+   session, and it's designed for exactly this kind of situation.
+   If the unit number in the event matches the unit number in
+   our JoystickInfo object, we know that we're talking about the
+   same actual joystick device.  (The unit number doesn't mean
+   anything to Windows, or to any other programs - it's purely
+   internal to PinballY.)
+</p>
+<p>
+   How are we going to use these events to trigger game switching?
+   Well, the first thing we have to do is pick a threshold for
+   how far the stick has to move before we count it as a
+   Next/Previous gesture.  That's entirely a matter of taste,
+   so you'll undoubtedly want to fine-tune this to your liking,
+   but for now let's just say 1/4 deflection to the left or
+   to the right is enough to trigger a change.  Remember that
+   we already adjusted the range that the axis values will report
+   to -1000 to +1000, so 1/4 deflection to the left will be
+   X() &lt;= -250, and 1/4 to the right will be X() &gt;= 250.
+</p>
+<div class="code">
+if (joystick.X() &lt;= -250) {
+    // moving left
+}
+else if (joystick.X() &gt;= 250) {
+    // moving right
+}
+</div>
+
+<p>
+   We <i>could</i> just go ahead and execute our game switch
+   right there, in the "moving left" and "moving right" sections.
+   But I don't think that's going to produce a very pleasing
+   effect when it comes to auto-repeat.  If the user holds
+   the stick to the left or right, we'll get a flurry of
+   events at whatever rate the joystick sends them - we're
+   not in control of that.  And remember that we only get
+   events when an axis <i>changes</i>: if the user holds
+   the stick <i>very still</i> to the right, the axis position
+   might not change at all, so we might not repeat the game
+   switch even though the user probably expects us to, as
+   they're holding the stick deflected right.
+</p>
+<p>
+   Since the problem here is "we can't control the rate",
+   you've probably already realized what we need to do: when
+   we want to control timing rates, we can look to Javascript
+   intervals or timeouts.  In this case, I think an interval
+   is the right approach.  Here's an outline of what I have
+   in mind:
+</p>
+<ul>
+   <li>When the axis change event handler detects that the
+   joystick is deflected enough to initiate a game change,
+   execute one game change, and start an interval timer,
+   using a time period that produces a pleasing auto-repeat rate
+
+   <li>If the interval timer is already running, though,
+   the event handler does nothing at all
+
+   <li>In the interval timer, check to see if the joystick
+   is still deflected enough to count
+   <ul>
+      <li>If so, execute another game switch
+      <li>If not, cancel the interval timer
+   </ul>
+</ul>
+   
+   
+
+<h2>Switching the game</h2>
+
+<p>
+   To perform the game switch, we'll simulate a button press on
+   the Next or Previous button:
+</p>
+<div class="code">
+mainWindow.doButtonCommand("Next", true, 0); // navigate right
+mainWindow.doButtonCommand("Prev", true, 0); // navigate left
+</div>
+
+
+</body>
+</html>

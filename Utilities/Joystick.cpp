@@ -580,6 +580,7 @@ void JoystickManager::PhysicalJoystick::ProcessRawInput(UINT rawInputCode, RAWIN
 				}
 
 				// Read the axis value updates
+				std::list<ValueChange> valueChanges;
 				for (auto const& v : brg->usageVal)
 				{
 					// parse the value from the report
@@ -596,11 +597,15 @@ void JoystickManager::PhysicalJoystick::ProcessRawInput(UINT rawInputCode, RAWIN
 							val[iVal].cur = newVal;
 							logjs->val[iVal].cur = newVal;
 
-							// fire an event
-							JoystickManager::GetInstance()->SendValueChangeEvent(this, usage, newVal, foreground);
+							// add it to the value change list
+							valueChanges.emplace_back(usage, newVal);
 						}
 					}
 				}
+
+				// if any values changed, fire an event
+				if (valueChanges.size() != 0)
+					JoystickManager::GetInstance()->SendValueChangeEvent(this, valueChanges, foreground);
 
 				// Report Group items are unique per report ID, so there's no 
 				// need to look any further.
@@ -635,7 +640,7 @@ void JoystickManager::SendButtonEvent(
 }
 
 void JoystickManager::SendValueChangeEvent(
-	PhysicalJoystick *js, USAGE usage, LONG val, bool foreground)
+	PhysicalJoystick *js, const std::list<ValueChange> &changes, bool foreground)
 {
 	// send the event to each receiver
 	for (auto r : eventReceivers)
@@ -643,7 +648,7 @@ void JoystickManager::SendValueChangeEvent(
 		// send the event; if the handler returns true, it means that
 		// it fully consumed the event, so don't send it to any other
 		// subscribers
-		if (r->OnJoystickValueChange(js, usage, val, foreground))
+		if (r->OnJoystickValueChange(js, changes, foreground))
 			break;
 	}
 }
@@ -698,6 +703,10 @@ JoystickManager::LogicalJoystick *JoystickManager::BindPhysicalToLogicalJoystick
 
 JoystickManager::PhysicalJoystick *JoystickManager::GetPhysicalJoystick(const LogicalJoystick *js)
 {
+	// if the logical joystick is null, so is the physical joystick
+	if (js == nullptr)
+		return nullptr;
+
 	// scan the physical joystick list for a match
 	for (auto &p : physJoysticks)
 	{

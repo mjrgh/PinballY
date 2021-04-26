@@ -43,6 +43,7 @@ namespace ConfigVars
 	static const TCHAR *CurGame = _T("GameList.CurrentGame");
 	static const TCHAR *CurFilter = _T("GameList.CurrentFilter");
 	static const TCHAR *EmptyCategories = _T("GameList.EmptyCategories");
+	static const TCHAR *PagingMode = _T("GameList.PagingMode");
 };
 
 void GameList::Create()
@@ -238,6 +239,14 @@ void GameList::SaveConfig()
 	// store the value
 	if (_tcsicmp(cfg->Get(ConfigVars::EmptyCategories, _T("")), val.c_str()) != 0)
 		cfg->Set(ConfigVars::EmptyCategories, val.c_str());
+
+	// store the wheel paging mode
+	if (wheelPagingFunc == &WheelPagingAlphaOnly)
+		cfg->Set(ConfigVars::PagingMode, _T("AlphaOnly"));
+	else if (wheelPagingFunc == &WheelPagingAlphaNumSym)
+		cfg->Set(ConfigVars::PagingMode, _T("AlphaNumSym"));
+	else
+		cfg->Set(ConfigVars::PagingMode, _T("Default"));
 }
 
 void GameList::SaveStatsDb()
@@ -475,6 +484,15 @@ void GameList::RestoreConfig()
 		for (auto const &cat : cats)
 			NewCategory(cat.c_str());
 	}
+	
+	// get the paging mode
+	auto pagingMode = cfg->Get(ConfigVars::PagingMode, _T(""));
+	if (_tcsicmp(pagingMode, _T("AlphaNumSym")) == 0)
+		wheelPagingFunc = WheelPagingAlphaNumSym;
+	else if (_tcsicmp(pagingMode, _T("AlphaOnly")) == 0)
+		wheelPagingFunc = WheelPagingAlphaOnly;
+	else
+		wheelPagingFunc = WheelPagingDefault;
 }
 
 void GameList::SetLastPlayedNow(GameListItem *game)
@@ -582,22 +600,53 @@ GameListItem *GameList::GetByInternalID(LONG id)
 	return nullptr;
 }
 
+// Default wheel paging mode: every character defines a group, without
+// case sensitivity.
+int GameList::WheelPagingDefault(const TCHAR *title)
+{
+	return _totlower(title[0]);
+}
+
+// "Alpha Number Symbol" paging mode: each letter is a group, and there's
+// a single group for all digits, and a single group for all other symbols.
+int GameList::WheelPagingAlphaNumSym(const TCHAR *title)
+{
+	TCHAR c = title[0];
+	if (_istalpha(c))
+		return _totlower(c);
+	else if (_istdigit(c))
+		return '1';
+	else
+		return '*';
+}
+
+// "Alpha Only" paging mode: each letter is a group, and everything else
+// is a non-group.  Return 0 for non-alpha to indicate that we don't stop
+// on those games.
+int GameList::WheelPagingAlphaOnly(const TCHAR *title)
+{
+	TCHAR c = title[0];
+	return _istalpha(c) ? _totlower(c) : 0;
+}
+
+
 int GameList::FindNextLetter()
 {
 	// if there's no current game, no search is possible
 	if (curGame < 0)
 		return 0;
 
-	// get the current game's first letter in lower case
-	TCHAR l = _totlower(byTitleFiltered[curGame]->title[0]);
+	// get the current game's group
+	auto oldGroup = wheelPagingFunc(byTitleFiltered[curGame]->title.c_str());
 
 	// scan ahead from the current game
 	int cnt = (int)byTitleFiltered.size();
 	for (int i = (curGame + 1) % cnt, n = 1; i != curGame; i = (i + 1) % cnt, ++n)
 	{
-		// check for a different first letter
-		TCHAR c = _totlower(byTitleFiltered[i]->title[0]);
-		if (c != l)
+		// If this game is from a different group, and it's not from the
+		// "null" group, stop here.
+		auto newGroup = wheelPagingFunc(byTitleFiltered[i]->title.c_str());
+		if (newGroup != 0 && newGroup != oldGroup)
 			return n;
 	}
 
@@ -614,23 +663,29 @@ int GameList::FindPrevLetter()
 	// We want to back up to the start of the current letter group,
 	// or to the start of the previous group if we're already at the
 	// start of a group.  We can accomplish both by searching for the
-	// nearest previous item with a different letter from the item
+	// nearest previous item that's in a different group from the item
 	// just before the current item.  So start by backing up one spot.
 	int cnt = (int)byTitleFiltered.size();
 	int i = Wrap(curGame - 1, cnt);
+	int n = -1;
 
-	// get this item's first letter
-	TCHAR l = _totlower(byTitleFiltered[i]->title[0]);
+	// The only snag is that we could now be on a null group, where
+	// we can't stop.  So we have to continue backing up until we're
+	// in a valid group.
+	for (; i != curGame && wheelPagingFunc(byTitleFiltered[i]->title.c_str()) == 0; 
+		i = Wrap(i - 1, cnt), --n);
 
-	// now scan backwards until we find an item with a different first letter
-	for (int n = -1; i != curGame; i = Wrap(i - 1, cnt), --n)
+	// This game defines our target group.  Now just back up until
+	// we leave the group, at which point the *next* game is the
+	// first in our group.
+	auto targetGroup = wheelPagingFunc(byTitleFiltered[i]->title.c_str());
+	for (; i != curGame; i = Wrap(i - 1, cnt), --n)
 	{
-		// Check the first letter of this item.  If it differs, we've found
-		// the last item in the prior group, so return the *next* item, which
-		// is the first item in the group we're looking for.
-		TCHAR c = _totlower(byTitleFiltered[i]->title[0]);
-		if (c != l)
+		if (wheelPagingFunc(byTitleFiltered[i]->title.c_str()) != targetGroup)
+		{
+			// we just left the group, so the next game is the one we seek
 			return n + 1;
+		}
 	}
 
 	// nothing found - stay on the current game

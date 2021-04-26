@@ -162,10 +162,35 @@ InputManager::~InputManager()
 {
 }
 
+InputManager::KbAutoRepeat InputManager::GetKeyboardAutoRepeatSettings()
+{
+	// Get the initial delay time - this is the time between the
+	// key press and the first auto-repeat.  The Windows system
+	// parameters express this in units of 250ms in excess of
+	// 250ms (so a value of 0 means 250ms, 1 means 500ms, etc).
+	int kbDelayParam, kbDelayMs;
+	SystemParametersInfo(SPI_GETKEYBOARDDELAY, 0, &kbDelayParam, 0);
+	kbDelayMs = kbDelayParam*250 + 250;
+
+	// Get the repeat rate.  The system parameters express this in
+	// frequency units; each unit represents approximately 0.917 Hz
+	// in excess of 2.5 Hz (so 0 is 0.917 Hz, 1 is 3.417 Hz, etc).
+	// The parameter range is 0..31, so we can compute the result
+	// entirely in the integer domain by interpreting the parameter
+	// in milliHertz and the result in milliseconds.
+	DWORD kbRateParam, kbRateMs;
+	SystemParametersInfo(SPI_GETKEYBOARDSPEED, 0, &kbRateParam, 0);
+	kbRateMs = 1000000 / (2500 + 917*kbRateParam);
+
+	// return the result
+	return { kbDelayMs, static_cast<int>(kbRateMs) };
+}
+
+
 // Initialize raw input
 bool InputManager::InitRawInput(HWND hwnd)
 {
-	RAWINPUTDEVICE rd[2];
+	RAWINPUTDEVICE rd[3];
 
 	// Note: See the USB specification "HID Usage Tables" for the
 	// meanings of the Usage Page and Usage codes.  These aren't the
@@ -187,11 +212,18 @@ bool InputManager::InitRawInput(HWND hwnd)
 		| RIDEV_INPUTSINK;				// get input whether in foreground or background
 	rd[0].hwndTarget = hwnd;
 
-	// Keyboard.
+	// game pads
 	rd[1].usUsagePage = 1;				// "Generic Desktop"
-	rd[1].usUsage = 6;					// keyboards
-	rd[1].dwFlags = RIDEV_INPUTSINK;	// get input whether in foreground or background
+	rd[1].usUsage = 5;					// game pads
+	rd[1].dwFlags = RIDEV_DEVNOTIFY 	// ask for WM_INPUT_DEVICE_CHANGE notifications
+		| RIDEV_INPUTSINK;				// get input whether in foreground or background
 	rd[1].hwndTarget = hwnd;
+
+	// Keyboard.
+	rd[2].usUsagePage = 1;				// "Generic Desktop"
+	rd[2].usUsage = 6;					// keyboards
+	rd[2].dwFlags = RIDEV_INPUTSINK;	// get input whether in foreground or background
+	rd[2].hwndTarget = hwnd;
 
 	// do the registration
 	if (!RegisterRawInputDevices(rd, countof(rd), sizeof(rd[0])))
@@ -212,7 +244,7 @@ bool InputManager::InitRawInput(HWND hwnd)
 
 void InputManager::UninitRawInput()
 {
-	RAWINPUTDEVICE rd[2];
+	RAWINPUTDEVICE rd[3];
 
 	// joysticks
 	rd[0].usUsagePage = 1;				// "Generic Desktop"
@@ -220,7 +252,13 @@ void InputManager::UninitRawInput()
 	rd[0].dwFlags = RIDEV_REMOVE;		// stop monitoring input
 	rd[0].hwndTarget = NULL;
 
-	// Keyboard.
+	// game pads
+	rd[0].usUsagePage = 1;				// "Generic Desktop"
+	rd[0].usUsage = 5;					// game pads
+	rd[0].dwFlags = RIDEV_REMOVE;		// stop monitoring input
+	rd[0].hwndTarget = NULL;
+
+	// keyboard
 	rd[1].usUsagePage = 1;				// "Generic Desktop"
 	rd[1].usUsage = 6;					// keyboards
 	rd[1].dwFlags = RIDEV_REMOVE;		// stop monitoring input
@@ -359,6 +397,9 @@ void InputManager::ProcessDeviceChange(USHORT what, HANDLE hDevice)
 	switch (what)
 	{
 	case GIDC_ARRIVAL:
+		// make sure that the DirectInput Instance GUID cache is up to date
+		JoystickManager::GetInstance()->UpdateInstanceGuidCache();
+
 		// add the device
 		AddRawInputDevice(hDevice);
 		break;
@@ -392,7 +433,7 @@ void InputManager::AddRawInputDevice(HANDLE hDevice)
 			if (info.hid.usUsagePage == 1 
 				&& (info.hid.usUsage == 4 || info.hid.usUsage == 5))
 			{
-				// It's a joystick.  Add it through the joystick
+				// It's a joystick or gamepad.  Add it through the joystick
 				// manager.
 				JoystickManager::GetInstance()->AddDevice(hDevice, &info.hid);
 			}

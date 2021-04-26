@@ -131,6 +131,14 @@ public:
 	// get the global singleton instance
 	static JoystickManager *GetInstance() { return inst; }
 
+	// Value change report.  This represents a change to one axis value.
+	struct ValueChange
+	{
+		ValueChange(USAGE usage, LONG newVal) : usage(usage), newVal(newVal) { }
+		USAGE usage;
+		LONG newVal;
+	};
+
 	// Joystick event subscriber interface.  Implement this if
 	// you wish to subscribe to joystick events.
 	class JoystickEventReceiver
@@ -148,10 +156,11 @@ public:
 		virtual bool OnJoystickButtonChange(PhysicalJoystick *js, int button, bool pressed, bool foreground) 
 		    { return false; }
 
-		// Joystick axis/value change.  Returns true if the event
-		// is fully consumed; this prevents other subscribers from
-		// receiving the event.
-		virtual bool OnJoystickValueChange(PhysicalJoystick *js, USAGE usage, LONG val, bool foreground)
+		// Joystick axis/value change(s).  We group all of the value
+		// changes in a single incoming device report into a single
+		// event.  Returns true if the event is fully consumed; this
+		// prevents other subscribers from receiving the event.
+		virtual bool OnJoystickValueChange(PhysicalJoystick *js, const std::list<ValueChange> &changes, bool foreground)
 			{ return false; }
 
 		// Joystick added.  Called when a physical joystick is added to
@@ -581,10 +590,10 @@ protected:
 	void SendButtonEvent(PhysicalJoystick *js, int button, bool pressed, bool foreground);
 
 	// Send a value change event to subscribers.  This represents a change to
-	// one of the axis values or other control values (slider, hat, dial, wheel).
-	// 'usage' indicates which control changed - this is one of the USAGE 
-	// conmstants defined under struct Joystick (iX, iY, iRZ, iSlider, etc).
-	void SendValueChangeEvent(PhysicalJoystick *js, USAGE usage, LONG val, bool foreground);
+	// one or more axis/control values, as listed in the value change list.
+	// We group events so that there's one combined event per incoming report
+	// with any value changes.
+	void SendValueChangeEvent(PhysicalJoystick *js, const std::list<ValueChange> &changes, bool foreground);
 
 	// joystick event subscribers
 	std::list<JoystickEventReceiver *> eventReceivers;

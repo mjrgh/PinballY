@@ -958,6 +958,85 @@ StatusLine.Enable = 1
 UpperStatus.UpdateTime = 2513
 LowerStatus.UpdateTime = 2233
 
+# Game Wheel auto-repeat rate.  When you press and hold one of
+# the wheel navigation buttons (Next, Previous, Next Page,
+# Previous Page), the button auto-repeats as long as you hold
+# it down, so that you can rapidly step through games on the
+# wheel.  This controls the rate of the repeats.
+#
+# By default, if you leave this empty, the wheel button repeat
+# rate is simply the same as the Windows keyboard repeat rate.
+# You can change this to a different rate here.  You can also
+# use this to set up a custom speed "ramp" that gradually
+# increases or decreases the speed the longer you hold down
+# the button.
+#
+# Specify the repeat rate as a list of timing entries separated
+# by commas.  Each entry is the time between repeats for that
+# "step" in the list.  When you press one of the navigation
+# buttons, the wheel will immediately turn one game (or page)
+# in that direction.  It'll then wait for the first time step
+# in this list and turn one more time, then wait for the second
+# time step and turn again, and so on.  The last step in the
+# list is then repeated for as long as you hold down the
+# button.
+#
+# Each time step is simply a number of milliseconds, but you
+# can say so explicitly with the units "ms", as in 250ms.  You
+# can also express the time in seconds if you prefer by using
+# the unit "s", as in 0.25s.
+#
+# As a really simple example, this sets up a fixed repeat rate
+# that switches games every 1/4 second (250 milliseconds):
+#
+#  wheel.AutoRepeatRate = 250ms
+#
+# PC keyboards usually have a slight delay before auto-repeat
+# kicks in.  You can achieve that by listing two time steps in
+# the repeat rate.  The first step says how long to wait before
+# the first repeat, and the second step says how long to wait
+# between subsequent repeats.  For example, if you want to
+# wait half a second before the first repeat and then repeat
+# every 1/10 of a second, you could write this:
+#
+#  wheel.AutoRepeatRate = 500ms, 100ms
+#
+# You can get even more elaborate.  Say you want the repeat
+# rate to start slow and then gradually speed up the longer
+# you hold down the button.  Let's start at 500ms for the
+# first repeat, and then gradually speed up over the next
+# several repeats until we get to 100ms between repeats:
+#
+#  wheel.AutoRepeatRate = 500ms, 400ms, 300ms, 200ms, 100ms
+#
+# The last time listed is applied to all subsequent repeats
+# after reaching that point, so the instructions above will
+# continue repeating at 100ms intervals as long as you hold
+# down the button.
+#
+# One more detail: for each time item, you can optionally
+# specify the number of times to repeat that interval, by
+# adding an asterisk (*) and the number of repeats:
+#
+#  wheel.AutoRepeatRate = 500ms*4, 100ms
+#
+# That performs the first four repeats at 500ms intervals,
+# then speeds up to 100ms intervals after that.
+#
+# If you leave this blank, PinballY uses your keyboard auto-
+# repeat rate, as you have it currently set up in the Windows
+# control panels.  You can also use those time settings
+# explicitly using the special terms KbRate and and KbDelay
+# in the time list.  KbDelay is the initial delay time before
+# the first repeat as set in your Windows settings, and KbRate
+# is the repeat rate after the initial delay.  PinballY's
+# default settings are thus equivalent to:
+#
+#  wheel.AutoRepeatRate = KbDelay, KbRate
+#
+Wheel.AutoRepeatRate = 
+
+
 # Wheel sizing and position. These variable adjust the sizing
 # and position of the wheel to get the layout you prefer.
 # 
@@ -1066,6 +1145,32 @@ AttractMode.HideWheelImages = true
 # attract mode if you leave a game running while away from the
 # machine for a while.  Set to zero to disable this feature.
 GameTimeout = 300
+
+
+# Wheel "Paging" navigation mode.  This controls how the Next Page
+# and Previous Page buttons treat titles that start with digits or
+# non-aphabetic symbols.  The Next/Previous Page buttons let you
+# scroll quickly through games by first letter - if you're on
+# Aladdin's Castle, and you press Next Page, you'll jump straight
+# to the first game whose title starts with "B" (or whichever
+# letter is next if there are no "B" games).  But what happens
+# when you get to "Z" and press Next Page?  You can choose how
+# games with titles like "2001" and "300" are handled:
+#
+#  Default - treat every non-alphabetic character as its own
+#      page group: 2001 is in the "2" group and 300 is in
+#      the "3" group, so pressing Next Page from Zip-A-Doo
+#      goes to 2001, thence to 300, thence to Aladdin's Castle.
+#
+#  AlphaNumSym - treat all games starting with digits as one
+#      group, and all games starting with symbols as a second
+#      single group.  So Zip-A-Doo -> 2001 -> Aladdin's Castle.
+#
+#  AlphaOnly - skip games starting with digits or symbols
+#      entirely, so Zip-A-Doo -> Aladdin's Castle
+#
+GameList.PagingMode = Default
+
 
 # Hide unconfigured games from the wheel list.  An unconfigured game
 # represents a table file that PinballY found in the Tables folder for

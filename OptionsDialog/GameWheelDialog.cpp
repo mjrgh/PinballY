@@ -24,4 +24,22 @@ void GameWheelDialog::InitVarMap()
 	varMap.emplace_back(new EditFloatPctMap(_T("Underlay.YOffset"), IDC_EDIT_UNDERLAY_YOFFSET, 0.0f));
 	varMap.emplace_back(new EditFloatPctMap(_T("Underlay.MaxWidth"), IDC_EDIT_UNDERLAY_MAXWID, 1000.0f));
 	varMap.emplace_back(new CkBoxMap(_T("Underlay.Enable"), IDC_CK_ENABLE_UNDERLAY, true));
+	varMap.emplace_back(new PagingModeMap(_T("GameList.PagingMode"), IDC_CB_PAGINGMODE));
+	varMap.emplace_back(new EditStrMap(_T("Wheel.AutoRepeatRate"), IDC_EDIT_AUTOREPEATRATE, _T("")));
+}
+
+void GameWheelDialog::PagingModeMap::LoadConfigVar()
+{
+	strVar = ConfigManager::GetInstance()->Get(configVar, _T("Default"));
+}
+
+void GameWheelDialog::PagingModeMap::SaveConfigVar()
+{
+	ConfigManager::GetInstance()->Set(configVar, strVar);
+}
+
+bool GameWheelDialog::PagingModeMap::IsModifiedFromConfig()
+{
+	auto cfgVal = ConfigManager::GetInstance()->Get(configVar, _T("Default"));
+	return strVar != cfgVal;
 }

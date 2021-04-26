@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>JoystickAxisEvent</h1>
+
+<p>
+   This Event subclass represents changes to joystick control axis
+   values.  There are two subtypes of this event:
+</p>
+<ul>
+   <a name="joystickaxischange"></a>
+   <li><b>joystickaxischange:</b>  Fires when an axis value on the joystick
+   changes while PinballY is in the foreground.
+
+   <a name="joystickaxischangebg"></a>
+   <li><b>joystickbuttonup:</b>  Fires when an axis value changes on the
+   joystick while the program is in the foreground.
+</ul>
+<p>
+   These events fire on the <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+<p>
+   PinballY fires an axis change event each time any enabled axis
+   on an enabled joystick changes its value.  The event object doesn't
+   contain the updated axis values, however: for that, you have to
+   use the axis reader methods in the <a href="JoystickInfo.html">JoystickInfo</a>
+   object.  The usual way to code an axis event handler, therefore,
+   is to obtain a JoystickInfo object up front, and then use that
+   object in the event handler to read the axis values:
+</p>
+<div class="code">
+let js = mainWindow.getJoystickInfo(0);
+js.enableAxisEvents({ axis: ["X", "Y"] });
+mainWindow.on("joystickaxischange", ev =>
+{
+    // check that the event is for the unit I'm interested in
+    if (ev.unit == js.unit)
+    {
+        // read the current axis values from the JoystickInfo
+        let x = js.X();
+        let y = js.Y();
+
+        // do something with the new values here!
+    }
+});
+</div>
+<p>
+   Note that more than one axis might be changed on each event.
+   One Javascript event is fired for each update from the physical
+   USB device in which one or more of the enabled axes have changed.
+   The USB device can send changes to many axes at once, so one
+   Javascript event might represent changes to several axes at
+   the same time.  Each event is specific to a single joystick
+   device, though - you'll get a separate event for each
+   joystick that reports changes, each time it reports changes.
+</p>
+
+
+<h2>Axis events must be enabled explicitly</h2>
+<p>
+   Unlike most events, joystick axis change events must be specifically
+   enabled.  PinballY doesn't send these events to your script unless
+   you ask for them.  The reason is that we want to minimize performance
+   overhead.  Most joysticks are designed to be very sensitive, so that
+   minor vibrations or even normal thermal noise can trigger small
+   changes to the position readings.  As a result, joysticks tend to
+   send changes to the PC constantly.  If you have several joysticks
+   connected, and PinballY generated Javascript events for every one
+   of them every time any of their axis values changed, it could
+   end up burning up a not-insignificant amount of CPU time
+   processing those events.  If you don't have any scripts that care
+   about those events, that would all be wasted work that would
+   unnecessarily slow down PinballY and the rest of your system.
+   So by default, PinballY just ignores all of those incoming
+   joystick axis change updates.
+</p>
+<p>
+   If you're writing a script that relies on monitoring a joystick
+   axis, though, PinballY lets you enable the events you're
+   interested in.  PinballY lets you be selective about this:
+   you can enable events for specific axes of interest on
+   individual joystick devices.  The program will continue
+   to ignore all of the other joystick that you don't care about,
+   so the performance impact will still be minimal.
+</p>
+<p>
+   To enable events for a joystick,
+   <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   to obtain a <a href="JoystickInfo.html">JoystickInfo</a> object for
+   the joystick, and then call <a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents</a>:
+</p>
+<div class="code">
+// we'll assume that we already know which unit we're interested in
+let js = mainWindow.getJoystickInfo(0);
+js.enableAxisEvents();
+</div>
+<p>
+   You can also enable axes on a joystick individually, by providing
+   an object argument with the <b>axis</b> property set to the name
+   of an axis to enable, or to an array of names:
+</p>
+<div class="code">
+js.enableAxisEvents({ axis: ["X", "Y"] });
+</div>
+<p>
+   By selectively enabling only the axes you're interested in,
+   you'll reduce performance overhead by eliminating events
+   that you don't care about.
+</p>
+
+<p>
+   Don't let the explanation above deter you from using joystick
+   events out of fear that they'll horribly bog down your system.
+   It only takes about 50 microseconds for PinballY to handle a
+   Javascript joystick event dispatch, and on most Windows systems,
+   joystick updates happen about once every 10 milliseconds -
+   so that's less than half a percent of overhead, which won't
+   be at all noticeable.  The advantage of selectively enabling
+   the events is that you'll still have <i>almost</i> no overhead
+   from enabling events on one joystick, since the program will
+   still filter out events from other joysticks.
+</p>
+
+
+<h2>"Axis" defined</h2>
+<p>
+   An "axis" represents one direction of motion of one
+   of the moving controls on a joystick, such as the main stick,
+   a wheel, a dial, or a slider.  Some controls, like dials and
+   sliders, have only one dimension of motion - they can only
+   move left/right or left/right or clockwise/counterclockwise.
+   These controls only have one axis each, since you can
+   describe their position with a single number saying where
+   they are along that single dimension of motion.  The main stick,
+   on the other hand, can usually move both left/right and forward/back,
+   so it needs two axes to describe those two dimensions of motion.
+   Even more axes might be needed for the main stick on more
+   elaborate devices.  The stick might rotate, for example, in
+   which case you need another axis for each rotational
+   degree of freedom; and it might move up and down as well,
+   requiring a "Z" axis for the vertical motion.  At any rate,
+   as far as the computer is concerned, the joystick boils down
+   to a collection of axes, each of which has a numeric value
+   that indicates the current position of the control on
+   that axis.
+</p>
+<p>
+   The USB specifications lay out a list of all of the axis
+   types that USB joysticks can have.  That allows game software
+   to work with many types of joysticks without having to be
+   programmed specially for each type, since the software can
+   work in terms of the USB-spec abstractions without having
+   to know anything more about every physical device.
+</p>
+<p>
+   See the <a href="JoystickInfo.html">JoystickInfo</a> class
+   for a list of the USB axis types that PinballY recognizes.
+</p>
+
+<h2>Properties</h2>
+<p>
+   This event type has all of the standard event properties and
+   methods (see the <a href="Event.html">Event</a> class), plus
+   the following:
+</p>
+<ul>
+   <li><b>background:</b> true if the application was in the
+   background when the event occurred, false if not.
+
+   <li><b>unit:</b> The "logical unit number" of the joystick that
+   generated the event, representing which physical joystick had a
+   change of axis values.  If multiple joysticks are attached to the
+   system, this allows the program to distinguish which one generated
+   the event.  The logical unit number isn't anything Windows knows
+   about; it's just an internal ID assigned by PinballY to tell
+   joysticks apart.  This value can be passed to
+   <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   to retrieve the device descriptor for the joystick.
+
+</ul>      
+
+<h2>Background events</h2>
+
+<p>
+   As with <a href="JoystickButtonKeyEvent.html">joystick button events</a>,
+   there are separate axis change event types for events that occur
+   when the program is in the foreground and background.  You can
+   tell PinballY whether or not to enable background events at all
+   when you enable axis events for the joystick.  By default, these
+   events are only generated when PinballY is in the foreground,
+   to minimize the performance impact while a game is running.
+   However, if you do need the events even while PinballY is in
+   the background, you can explicitly enable them.  See
+   <a href="MainWindowObject.html#enableJoystickAxisEvents">mainWindow.enableJoystickAxisEvents()</a>.
+</p>
+
+
+</body>
+</html>
+

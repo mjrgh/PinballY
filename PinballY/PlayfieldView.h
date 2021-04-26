@@ -471,10 +471,48 @@ protected:
 		int button, bool pressed, bool foreground) override;
 	virtual bool OnJoystickValueChange(
 		JoystickManager::PhysicalJoystick *js,
-		USAGE usage, LONG value, bool foreground) override;
+		const std::list <JoystickManager::ValueChange> &changes, bool foreground) override;
 	virtual void OnJoystickAdded(
 		JoystickManager::PhysicalJoystick *js, 
 		bool logicalIsNew) override;
+
+	// Javascript joystick axis event enabler.  By default, we don't send
+	// any axis/control value change events to Javascript, since value changes
+	// can be extremely frequent.  That's especially true if a joystick is
+	// providing accelerometer input or some other analog sensor input; we
+	// can expect to see changes on virtually every USB polling interval.
+	// Sending all of these to Javascript could add a significant amount of
+	// overhead, so we only send events to Javascript when the user script
+	// code specifically asks for them.  We filter the events to specific
+	// axes on specific devices.  For fast lookup, we encode the unit and
+	// axis into a 32-bit number with the unit as the high 16 bits and the
+	// axis as the low 16 bits, then look it up in a hash map.
+	struct JavascriptJoystickAxisEventEnabler
+	{
+		static int EncodeKey(int unit, USAGE axis) { return (unit << 16) | static_cast<int>(axis); }
+
+		JavascriptJoystickAxisEventEnabler(int unit, USAGE axis, bool background) :
+			unit(unit), axis(axis), background(background)
+		{
+		}
+
+		JavascriptJoystickAxisEventEnabler()
+		{
+		}
+
+		// logical joystick unit that the listener is monitoring
+		int unit;
+
+		// enabled axis
+		USAGE axis;
+
+		// Is the event enabled while we're in the background?  (Note that
+		// if this is true, the event is enabled in the foreground AND
+		// background.  This isn't either/or - events that are enabled at
+		// all are always enabled in the foreground.)
+		bool background;
+	};
+	std::unordered_map<int, JavascriptJoystickAxisEventEnabler> javascriptJoystickAxisEventEnablers;
 
 	// set internal variables according to the config settings
 	void OnConfigChange();
@@ -498,7 +536,7 @@ protected:
 	static const int infoBoxSyncTimerID = 105;    // info box update timer
 	static const int statusLineTimerID = 106;     // status line update
 	static const int killGameTimerID = 107;		  // kill-game request pending
-	static const int jsRepeatTimerID = 108;		  // joystick button auto-repeat timer
+	static const int joyRepeatTimerID = 108;	  // joystick button auto-repeat timer
 	static const int kbRepeatTimerID = 109;       // keyboard auto-repeat timer
 	static const int attractModeTimerID = 110;    // attract mode timer
 	static const int dofPulseTimerID = 111;		  // DOF signal pulse timer
@@ -523,6 +561,7 @@ protected:
 	static const int runFreezeTimerID = 130;      // freeze UI updates after a launched game starts
 	static const int wheelFadeTimerID = 131;      // fading the wheel in or out
 	static const int forceToFgTimerID = 132;      // press-and-hold EXIT GAME button to bring app to foreground
+	static const int wheelRepeatTimerID = 133;    // wheel navigation repeat timer
 
 	// update the selection to match the game list
 	void UpdateSelection(bool fireEvents);
@@ -1944,6 +1983,9 @@ protected:
 	// start an animation sequence
 	void StartWheelAnimation(bool fast);
 
+	// Skip straight to the end of the wheel animation, if in progress
+	void SkipWheelAnimation();
+
 	// Start the animation timer if necessary.  This checks to see if
 	// the timer is running, and starts it if not.  In any case, we
 	// fill in startTime with the current time, as the reference time
@@ -2621,28 +2663,109 @@ protected:
 	// auto-repeat feature for joystick buttons.  The last button
 	// pressed auto-repeats until released, or until another button
 	// is pressed.
-	struct JsAutoRepeat
+	struct JoyAutoRepeat
 	{
-		JsAutoRepeat() { active = false; }
+		JoyAutoRepeat() { active = false; }
 
 		bool active;				// auto-repeat is active
 		int unit;					// logical joystick unit number
 		int button;					// button number
 		KeyPressType repeatMode;	// key press mode for repeats
 		int repeatCount;            // 0 for the initial button press, 1 for the first auto-repeat, then 2, 3...
-	} jsAutoRepeat;
+	} joyAutoRepeat;
+
+	// Wheel navigation auto-repeat.  In older versions, we simply
+	// relied on the underlying keyboard/joystick auto-repeat to carry
+	// out auto-repeat of wheel navigation.  That is, if you press and
+	// hold (say) the Next button, the button triggers a keyboard or
+	// joystick input, which auto-repeats, which in turn makes the
+	// Next command auto-repeat and makes the wheel spin as long as
+	// you hold down the button.  However, this couples the wheel
+	// spin rate with the keyboard repeat rate, which isn't always
+	// pleasing.  Some people want to slow down the wheel without
+	// slowing down their global Windows key repeat rate, or vice
+	// versa.  It also ties us to the simple two-step "ramp" that
+	// Windows uses for repeat - the first-press repeat time and
+	// the ongoing repeat time.  It would be nice to have the
+	// option to implement different ramps, such as speeding up
+	// gradually the longer you hold the button down.  To decouple
+	// the wheel navigation auto-repeat from the input device's
+	// auto-repeat, we use this separate auto-repeat timer just
+	// for wheel navigation.
+	struct WheelAutoRepeat
+	{
+		bool active = false;		// auto-repeat is active
+		QueuedKey key;				// initiating key press
+		int repeatCount;			// 0 for initial button press, 1 for first auto-repeat, then 2, 3, ...
+		UINT64 lastRepeatTicks;     // system tick time of last repeat event
+
+		// Repeat Mode Sentry object.  Instantiate one of these
+		// in a scope where most code paths should result in
+		// ending repeat mode.  If 'keep' isn't set by the time
+		// the scope exits, repeat mode will automatically be
+		// canceled.
+		struct ModeSentry
+		{
+			ModeSentry(PlayfieldView *pfv) : pfv(pfv) { }
+			~ModeSentry()
+			{
+				if (!keep)
+					pfv->WheelAutoRepeatStop();
+			}
+			bool keep = false;
+			PlayfieldView *pfv;
+		};
+
+		// Wheel auto-repeat timing ramp.  This specifies the time
+		// between repeats during wheel spin navigation while holding
+		// down a button.  The time intervals can change according to
+		// the number of auto-repeats - typically, we'll want to speed
+		// up the repeats the longer you hold down the button.
+		//
+		// The repeat ramp is expressed as a list of steps.  Each
+		// entry gives the time between repeats for that step, and
+		// the cumulative number of repeats (since the start of the
+		// current navigation) where that step ends.  When the user
+		// presses the button, we start at the first step
+		struct RepeatTime
+		{
+			RepeatTime() : ms(0), endAfterRepeatCount(0) { }
+			RepeatTime(const RepeatTime &r) : ms(r.ms), endAfterRepeatCount(r.endAfterRepeatCount) { }
+			RepeatTime(long ms, int endAfterRepeatCount) : ms(ms), endAfterRepeatCount(endAfterRepeatCount) { }
+
+			// time between repeats, in milliseconds, for this step
+			UINT ms;
+
+			// cumulative number of repeats (since the button was first
+			// pressed on this navigation event) until the END of this
+			// step
+			int endAfterRepeatCount;
+		};
+		std::vector<RepeatTime> repeatTimes;
+
+		// current auto-repeat step, as an index into the vector
+		int repeatTimeIndex = 0;
+
+	} wheelAutoRepeat;
 
 	// Start joystick auto repeat mode
-	void JsAutoRepeatStart(int unit, int button, KeyPressType repeatMode);
+	void JoyAutoRepeatStart(int unit, int button, KeyPressType repeatMode);
 
 	// joystick auto repeat timer handler
-	void OnJsAutoRepeatTimer();
+	void OnJoyAutoRepeatTimer();
 
 	// Start keyboard auto-repeat mode
 	void KbAutoRepeatStart(int vkey, int vkeyOrig, KeyPressType repeatMode);
 
 	// Keyboard auto repeat timer handler
 	void OnKbAutoRepeatTimer();
+
+	// Start/stop wheel auto-repeat
+	void WheelAutoRepeatStart(const QueuedKey &key);
+	void WheelAutoRepeatStop();
+
+	// Wheel auto-repeat timer handler
+	void OnWheelAutoRepeatTimer();
 
 	// Stop keyboard and joystick auto-repeat timers.  We call this
 	// whenever a new joystick button or key press occurs, to stop
@@ -2699,8 +2822,8 @@ protected:
 	// the core action part separately from the key processing, so
 	// they can be called to carry out the effect of a Next/Prev
 	// command for non-UI actions, such as attract mode.
-	void DoCmdNext(bool fast);
-	void DoCmdPrev(bool fast);
+	void DoCmdNext(const QueuedKey &key);
+	void DoCmdPrev(const QueuedKey &key);
 
 	// Common coin slot handler
 	void DoCoinCommon(const QueuedKey &key, int slot);
@@ -2764,14 +2887,8 @@ protected:
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
-	// Javascript object for the window base classes.  MediaWindow
-	// is the common base class for all of the built-in and custom
-	// windows; SecondaryWindow is the base class for everything
-	// except the main playfield window; and CustomWindow is the
+	// Javascript object for the CustomWindow class.  This is the
 	// base class for custom windows created through javascript.
-	// class on the Javsacript side for all of the window classes.
-	JsValueRef jsMediaWindowClass = JS_INVALID_REFERENCE;
-	JsValueRef jsSecondaryWindowClass = JS_INVALID_REFERENCE;
 	JsValueRef jsCustomWindowClass = JS_INVALID_REFERENCE;
 
 	// Javascript object for the main window object
@@ -2807,6 +2924,9 @@ protected:
 	// JoystickInfo class (prototype for joystick descriptors)
 	JsValueRef jsJoystickInfo = JS_INVALID_REFERENCE;
 
+	// JoystickAxisInfo class (prototype for axis descriptors)
+	JsValueRef jsJoystickAxisInfo = JS_INVALID_REFERENCE;
+
 	// event objects
 	JsValueRef jsCommandButtonDownEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsCommandButtonUpEvent = JS_INVALID_REFERENCE;
@@ -2820,6 +2940,8 @@ protected:
 	JsValueRef jsJoystickButtonUpEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonBgDownEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsJoystickButtonBgUpEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickAxisChangeEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsJoystickAxisChangeBgEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsCommandEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsMenuOpenEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsMenuCloseEvent = JS_INVALID_REFERENCE;
@@ -2863,7 +2985,7 @@ protected:
 	// javascript isn't being used, or if anything fails trying to run
 	// the script.
 	bool FireKeyEvent(int vkey, bool down, int repeatCount, bool bg);
-	bool FireJoystickEvent(int unit, int button, bool down, int repeatCount, bool bg);
+	bool FireJoystickButtonEvent(int unit, int button, bool down, int repeatCount, bool bg);
 	bool FireCommandButtonEvent(const QueuedKey &key);
 	bool FireCommandEvent(int cmd);
 	bool FireMenuEvent(bool open, Menu *menu, int pageno);
@@ -2960,6 +3082,9 @@ protected:
 
 	// get joystick device information
 	JsValueRef JsGetJoystickInfo(JsValueRef unit);
+
+	// enable joystick events
+	void JsEnableJoystickAxisEvents(JsValueRef options);
 
 	// Initialize a Javascript window object.  This sets up the properties
 	// and methods on a Javascript object representing one of our system

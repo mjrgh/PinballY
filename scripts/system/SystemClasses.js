@@ -659,6 +659,25 @@ this.JoystickButtonBgUpEvent = class JoystickButtonBgUpEvent extends JoystickBut
     }
 };
 
+// Joystick axis events
+this.JoystickAxisEvent = class JoystickAxisEvent extends Event
+{
+    constructor(type, unit, background)
+    {
+        super(type, { cancelable: true });
+        this.unit = unit;
+        this.background = background;
+    }
+};
+this.JoystickAxisChangeEvent = class JoystickAxisChangeEvent extends JoystickAxisEvent
+{
+    constructor(unit) { super("joystickaxischange", unit, false); }
+};
+this.JoystickAxisChangeBgEvent = class JoystickAxisChangeBgEvent extends JoystickAxisEvent
+{
+    constructor(unit) { super("joystickaxischangebg", unit, true); }
+};
+
 // Command button events.  These are similar to key and joystick
 // button events, but represent the command assigned to the key
 // rather than the key itself.
@@ -1374,7 +1393,25 @@ this.JoystickInfo = class JoystickInfo
             return (norm * newRange) + newMin;
         };
     }
+
+    enableAxisEvents(options)
+    {
+        options = options || { };
+        options.unit = this.unit;
+        mainWindow.enableJoystickAxisEvents(options);
+    }
 };
+this.JoystickAxisInfo = class JoystickAxisInfo
+{
+    enableEvents(options)
+    {
+        options = options || { };
+        options.unit = this.unit;
+        options.axis = this.usage;
+        mainWindow.enableJoystickAxisEvents(options);
+    }
+};
+
 
 // ------------------------------------------------------------------------
 //

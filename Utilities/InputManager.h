@@ -28,6 +28,17 @@ public:
 	// get the global singleton
 	static InputManager *GetInstance() { return inst; }
 
+	// Get the Windows keyboard auto-repeat parameters
+	struct KbAutoRepeat
+	{
+		// delay between key-press and first repeat, in milliseconds
+		int delay;
+
+		// interval between auto-repeats, in milliseconds
+		int interval;
+	};
+	static KbAutoRepeat GetKeyboardAutoRepeatSettings();
+
 	// Initialize the Raw Input subsystem.  The main window
 	// must call this during program startup.  We use Raw
 	// Input to handle joystick input.  (Keyboard and mouse
