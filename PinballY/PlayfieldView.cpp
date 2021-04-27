@@ -911,7 +911,8 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "enableJoystickAxisEvents", &PlayfieldView::JsEnableJoystickAxisEvents, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFPulse", &PlayfieldView::JsDOFPulse, this, eh)
 				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "DOFSet", &PlayfieldView::JsDOFSet, this, eh)
-				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "createMediaWindow", &PlayfieldView::JsCreateMediaWindow, this, eh))
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "createMediaWindow", &PlayfieldView::JsCreateMediaWindow, this, eh)
+				|| !js->DefineObjPropFunc(jsMainWindow, "mainWindow", "setWheelAutoRepeatRate", &PlayfieldView::JsSetWheelAutoRepeatRate, this, eh))
 				return;
 
 			// Get the status lines
@@ -13040,15 +13041,16 @@ void PlayfieldView::WheelAutoRepeatStart(const QueuedKey &key)
 	{
 		// reset the repeat ramp
 		wheelAutoRepeat.repeatTimeIndex = 0;
+		wheelAutoRepeat.instantaneousAutoRepeat = 0;
 
 		// set up the timer
 		SetTimer(hWnd, wheelRepeatTimerID, wheelAutoRepeat.repeatTimes[0].ms, NULL);
+		wheelAutoRepeat.lastRepeatTicks = GetTickCount64();
 
 		// mark it as active and remember the command mode
 		wheelAutoRepeat.active = true;
 		wheelAutoRepeat.key = key;
 		wheelAutoRepeat.repeatCount = 0;
-		wheelAutoRepeat.lastRepeatTicks = GetTickCount64();
 	}
 }
 
@@ -13067,14 +13069,27 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 	// count the repeat
 	wheelAutoRepeat.repeatCount += 1;
 
-	// if we're done with the current step in the repeat time list, advance 
-	// to the next step
-	while (wheelAutoRepeat.repeatTimeIndex + 1 < wheelAutoRepeat.repeatTimes.size()
-		&& wheelAutoRepeat.repeatCount >= wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].endAfterRepeatCount)
-		wheelAutoRepeat.repeatTimeIndex += 1;
+	// figure the repeat time for the next step
+	UINT dt;
+	if (wheelAutoRepeat.instantaneousAutoRepeat != 0)
+	{
+		// use the instantaneous repeat time override
+		dt = wheelAutoRepeat.instantaneousAutoRepeat;
+	}
+	else
+	{
+		// If we're done with the current step in the repeat time list, advance 
+		// to the next step
+		while (wheelAutoRepeat.repeatTimeIndex + 1 < wheelAutoRepeat.repeatTimes.size()
+			&& wheelAutoRepeat.repeatCount >= wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].endAfterRepeatCount)
+			wheelAutoRepeat.repeatTimeIndex += 1;
+
+		// use the new repeat time from the list
+		dt = wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].ms;
+	}
 
 	// set up the next timer event
-	SetTimer(hWnd, wheelRepeatTimerID, wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].ms, NULL);
+	SetTimer(hWnd, wheelRepeatTimerID, dt, NULL);
 	wheelAutoRepeat.lastRepeatTicks = GetTickCount64();
 
 	// skip any remaining wheel animation
@@ -13082,6 +13097,30 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 
 	// repeat the command
 	(this->*wheelAutoRepeat.key.cmd->func)(wheelAutoRepeat.key);
+}
+
+void PlayfieldView::JsSetWheelAutoRepeatRate(int ms)
+{
+	// This is only effective when auto-repeat is running
+	if (wheelAutoRepeat.active)
+	{
+		// remember the override
+		wheelAutoRepeat.instantaneousAutoRepeat = static_cast<UINT>(ms);
+
+		// set the new timer, if the override is non-zero
+		if (ms != 0)
+		{
+			// figure the new target time, based on the start time of the last timer
+			UINT64 targetTicks = wheelAutoRepeat.lastRepeatTicks + ms;
+
+			// Figure the delta time to the new target time
+			UINT64 curTicks = GetTickCount64();
+			UINT deltaTicks = targetTicks > curTicks ? static_cast<UINT>(targetTicks - curTicks) : 0;
+
+			// reset the timer for the new time
+			SetTimer(hWnd, wheelRepeatTimerID, deltaTicks, NULL);
+		}
+	}
 }
 
 void PlayfieldView::StopAutoRepeat()

@@ -103,38 +103,37 @@ let joystick = allJoysticks.find(j => /pinscape/i.test(j.productName));
    either way.
 </p>
 <p>
-   I'm being a little vain here by using Pinscape
-   as my example device.  If you wanted to match some other type
-   of device, you just have to change <b>/pinscape/</b> to
-   a similar substring that's unique to the joystick you're
-   trying to match.  If you're not sure what the product name
-   string for your joystick is, there's an easy way to find
-   out: fire up the Windows <b>Set up USB Game Controllers</b> control
+   I'm just using the Pinscape device as an example - you can
+   use the same idea with any other joystick or gamepad device.
+   Just change <b>/pinscape/</b> to
+   a similar substring that's unique to the device you're
+   looking for.  There's an easy way to
+   determine the product name string for your joystick, by the way:
+   it'll be listed in the Windows joystick control panel.
+   Fire up the Windows <b>Set up USB Game Controllers</b> control
    panel (press Windows+R and type <b>joy.cpl</b>).  The list of
    installed controllers that you see there is actually a list of
-   the USB product names reported by the devices.  Find your
-   device in that list, and pick out a sufficiently unique
-   substring to use in the regular expression search. 
-   (I like looking for a substring rather than trying to match
-   the whole name exactly only because these names can sometimes
+   the USB product name strings.  Find your device in that list,
+   and pick out a suitable substring to use in the regular
+   expression search.  I like looking for a substring rather than
+   matching the whole name exactly, only because the name might
    change if you ever update the device's firmware.  The trick
-   is to pick a substring that's likely to stay the same in
-   all future versions of the device, but that's also unique
-   enough that it'll reliably pick that one device out of the
-   crowd.)
+   is to pick a substring that's likely to remain the same in
+   all future updates, but that's also unique enough that it
+   won't accidentally match some other device in your system.
 </p>
 
 <h2>Setting a value range</h2>
 <p>
-   The USB specifications allow joysticks to report their control
-   axis positions on scales of their own choosing.  USB requires
-   the positions to be reported as integer values, but the
+   The USB specs allow joysticks to report their control
+   axis positions on scales of their own choosing.  The
+   positions are always expressed as integer values, but the
    range - minimum to maximum - is up to the device to define.
    Windows passes the device's raw readings to PinballY, and
-   PinballY passes them along to Javascript.  That's a good
-   design for maintaining the integrity of the data -
-   there's no loss of precision from rescaling or other
-   arithmetic.  But it's a bit of a pain to deal with in
+   PinballY passes them along to Javascript.  That
+   maintains the integrity of the data; there's
+   no chance of losing any precision due to rescaling
+   arithmetic.  But it's a pain to deal with in
    Javascript, since we can't make any assumptions about
    the value range of the axes.  "X" could be a number
    from 0 to 100, or it could be -100,000,000 to +100,000,000.
@@ -144,15 +143,15 @@ let joystick = allJoysticks.find(j => /pinscape/i.test(j.productName));
    50 million.
 </p>
 <p>
-   The JoystickInfo object has information on the range of
+   The JoystickInfo object provides you with the range of
    each axis, so you could use that to figure out the relative
-   position.  But there's a somewhat easier way: we can tell
+   position.  But there's an easier way: we can tell
    the JoystickInfo object to scale the raw reading from the
-   device to a range of our choosing.  That runs the risk of
-   losing a small amount of precision, so it's not the right
-   choice for certain applications that depend on exact
-   figures, but for most applications it's just fine and
-   and it makes things much easier.  So for this example,
+   device to a range of our choosing.  The trade-off is that
+   the rescaling can lose a little precision, so it's not the
+   right choice for an application that needs the exact
+   hardware readings.  But for most applications, it's just
+   fine, and it makes things a lot easier.  For this example,
    let's put the X and Y axes on a fixed scale from -1000 to +1000:
 </p>
 <div class="code">
@@ -170,28 +169,29 @@ joystick.setAxisRange("Y", -1000, 1000);
 <p>
    Now that we have our device, we have to enable it for axis change
    events.  PinballY doesn't generate these events by default,
-   out of a desire to minimize any performance impact.  Some
-   joysticks can generate updates at a high rate, and if there
-   isn't any Javascript code interested in those event updates,
-   sending them would just burn up CPU time for no good reason.  So
-   PinballY doesn't send joystick axis events to Javascript
-   by default, but it lets you enable them if you have a use
-   for them, in which case the performance overhead is
-   justified by the extra feature you're going to implement.
-   (And lest you worry that this is going to bog down your
-   system, the overhead isn't that huge: it takes
-   about 50 microseconds to dispatch one of these events,
-   and in most cases they occur about every 10 milliseconds,
-   so enabling events for one joystick adds about 1/2 of 1%
-   of overhead.  Not enough that you'd notice.  But the
-   effect is additive across joysticks, so it's still good
-   that any other joysticks in your system that aren't of
-   interest to Javascript won't generate any added overhead.)
+   out of a desire to minimize any performance impact.  Joysticks
+   can generate a lot of updates, and if there isn't any Javascript
+   code interested in those update events, sending them to
+   Javascript would just burn up CPU time for no good reason.
+   So PinballY ignores joystick events by default, but it lets
+   you enable them if you have a use for them.
 </p>
 <p>
-   To enable events, we go back to the JoystickInfo object
-   that we selected for the joystick of interest, and we
-   call the <b><a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents()</a></b>,
+   (Don't worry that
+   this is going to bog down your system horribly.  The basic
+   overhead isn't that much: it only takes about 50 microseconds
+   to dispatch one of these events.  Most joysticks send updates
+   about every 10 milliseconds, so enabling events for one
+   joystick adds about one half of 1% of overhead.  Not so
+   much that you'd notice.  But the effect is additive across
+   joysticks, so it's still good that any other joysticks in
+   your system that aren't of interest to Javascript won't
+   generate any added overhead.)
+</p>
+<p>
+   To enable joystick axis events, we go back to the JoystickInfo
+   object that we selected for the joystick of interest, and we
+   call the method <b><a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents()</a></b>,
    telling it which axes we're interested in hearing about:
 </p>
 <div class="code javascript">
@@ -231,7 +231,7 @@ mainWindow.on("joystickaxischange", ev => {
    event is the same one that we're monitoring.  This might seem
    pointless, since we've only just enabled events for the one
    joystick, but this could become important if you add more modules
-   later that might monitor other joysticks.  We match the joysticks
+   later that might monitor other joysticks.  We match the joystick
    in this case by checking the <b>unit</b> property in the event
    against the <b>unit</b> property in our JoystickInfo object.
    Those properties contain the "logical unit numbers" of the respective
@@ -256,7 +256,7 @@ mainWindow.on("joystickaxischange", ev => {
    to -1000 to +1000, so 1/4 deflection to the left will be
    X() &lt;= -250, and 1/4 to the right will be X() &gt;= 250.
 </p>
-<div class="code">
+<div class="code javascript">
 if (joystick.X() &lt;= -250) {
     // moving left
 }
@@ -264,59 +264,184 @@ else if (joystick.X() &gt;= 250) {
     // moving right
 }
 </div>
-
 <p>
-   We <i>could</i> just go ahead and execute our game switch
-   right there, in the "moving left" and "moving right" sections.
-   But I don't think that's going to produce a very pleasing
-   effect when it comes to auto-repeat.  If the user holds
-   the stick to the left or right, we'll get a flurry of
-   events at whatever rate the joystick sends them - we're
-   not in control of that.  And remember that we only get
-   events when an axis <i>changes</i>: if the user holds
-   the stick <i>very still</i> to the right, the axis position
-   might not change at all, so we might not repeat the game
-   switch even though the user probably expects us to, as
-   they're holding the stick deflected right.
+   In practice, I've found that joysticks can be a little
+   "noisy" around a threshold like this - they're analog
+   devices, after all.  I think it's better to build in a
+   little hysteresis: you have to move a little past the
+   threshold before the joystick command kicks in, and
+   you have to move a little further the other direction
+   before it shuts off.  Here's how we can add 25 units
+   of hysteresis, to make the transitions a little
+   smoother:
 </p>
+<div class="code javascript">
+let x = joystick.X(), r = Math.abs(x);
+if (previouslyOff &amp;&amp; x &gt; 275) {
+    // turn on
+}
+else if (previouslyOn &amp;&amp; x &lt; 225) {
+    // turn off
+}
+</div>
 <p>
-   Since the problem here is "we can't control the rate",
-   you've probably already realized what we need to do: when
-   we want to control timing rates, we can look to Javascript
-   intervals or timeouts.  In this case, I think an interval
-   is the right approach.  Here's an outline of what I have
-   in mind:
+   Now you have to move just a little past the threshold
+   (25 extra units) in each direction before the command
+   will take effect, and then it'll stay in effect until
+   you move a little past the threshold in the opposite
+   direction.
 </p>
-<ul>
-   <li>When the axis change event handler detects that the
-   joystick is deflected enough to initiate a game change,
-   execute one game change, and start an interval timer,
-   using a time period that produces a pleasing auto-repeat rate
-
-   <li>If the interval timer is already running, though,
-   the event handler does nothing at all
-
-   <li>In the interval timer, check to see if the joystick
-   is still deflected enough to count
-   <ul>
-      <li>If so, execute another game switch
-      <li>If not, cancel the interval timer
-   </ul>
-</ul>
-   
-   
 
 <h2>Switching the game</h2>
 
 <p>
-   To perform the game switch, we'll simulate a button press on
-   the Next or Previous button:
+   To perform the game switch, we'll simply simulate a button
+   press on the Next or Previous button, using
+   <a href="MainWindowObject.html#doButtonCommand"><b>mainWindow.doButtonCommand</b></a>:
 </p>
 <div class="code">
 mainWindow.doButtonCommand("Next", true, 0); // navigate right
 mainWindow.doButtonCommand("Prev", true, 0); // navigate left
 </div>
 
+
+<h2>Auto-repeat</h2>
+<p>
+   When you use <b>mainWindow.doButtonCommand()</b> to send
+   one of the wheel navigation commands, the command will
+   automatically repeat until you call <b>doButtonCommand()</b>
+   again to turn the button "off", by calling it with
+   <b>false</b> in the <i>down</i> argument slot (the second argument).
+   This makes it really important that we continue to monitor the
+   joystick after ending the initial command, so that we can
+   PinballY to stop repeating the command once the joystick
+   is no longer deflected enough to trigger it.
+</p>
+<p>
+   Here's the strategy we're going to use in the command handler
+   to accomplish this:
+</p>
+<ul>
+   <li>We'll keep track of the "old" command we've been repeating.
+   We'll keep this in a variable <i>outside of</i> the event handler,
+   so that Javascript remembers it from one event handler call
+   to the next.  Initially, this is empty (in Javascript terms,
+   <b>undefined</b>).
+
+   <li>On each event handler call, we'll check the joystick position,
+   using the hysteresis threshold we mentioned earlier, to see if
+   it's currently deflected enough in one direction or the other
+   to trigger a Next or Previous command.  If it is, we'll call
+   this the "new" command for this event.  If not, we'll set the
+   "new" command to <b>undefined</b>.
+
+   <li>If the "new" command and the "old" command are the same,
+   we'll just do nothing and let the command keep repeating (or not,
+   if there isn't an old command).
+
+   <li>If the "new" command are the "old" command are different,
+   we'll turn off the old command and turn on the new one.  This
+   ensures that we eventually stop repeating each command, once
+   once the "new" command becomes <b>undefined</b>.
+</ul>
+<p>
+   The nice thing about this approach is that it leaves the
+   details of the repeat timing to PinballY.  The rate of the
+   joystick events won't affect the wheel spin rate, since we
+   only have to pay attention to when the wheel spin starts
+   and stops.  As long as the joystick is deflected far enough
+   to the left or right to trigger the command, we just let
+   PinballY handle spinning the wheel; we only have to get
+   involved again when the joystick returns to the center
+   position, at which point we stop the wheel spin.
+</p>
+
+<h2>Fine-tuning the repeat rate</h2>
+<p>
+   PinballY's wheel spin auto-repeat rate is designed around the
+   idea that it's going to be triggered by button presses.  Most
+   people expect that to act the same way as a keyboard key does
+   when you press it and hold it, so the default wheel repeat
+   rate is the same as the Windows keyboard repeat rate.  You
+   can customize that rate in the settings (see <a href="GameWheelOptions.html">Game Wheel Options</a>),
+   but even so, the joystick can benefit from some special
+   treatment.  A button is just an
+   on-off switch, but a joystick is <i>analog</i> - it doesn't
+   just go left and right, but goes left and right by
+   continuously varying degrees.  To me, it would feel natural
+   in this context to use the amount of deflection to
+   control the speed: move it just a little to the left right for
+   slow wheel spin, all the way to the left or right for
+   really fast spin, and smoothly varying speeds in between.
+</p>
+<p>
+   We can accomplish this via <a href="MainWindowObject.html#setWheelAutoRepeatRate"><b>mainWindow.setWheelAutoRepeatRate()</b></a>,
+   which lets us set the "instantaneous" repeat rate during a wheel spin
+   command.  Since we're already monitoring the joystick position via
+   our event handler, we can simply add a call to this method from
+   our event handler, setting a new speed based on the latest
+   joystick position.
+</p>
+<p>
+   <b>setWheelAutoRepeatRate</b> sets the rate in milliseconds, so
+   we just need to choose a range of repeat times for various degrees
+   of joystick deflection:
+</p>
+<div class="code javascript">
+let x = js.X(), r = Math.abs(x);
+mainWindow.setWheelAutoRepeatRate(
+    r &gt; 850 ? 100 : r &gt; 750 ? 200 : r &gt; 500 ? 300 : 500);
+</div>
+<p>
+   You can adjust that to add as many gradations of speed as you
+   like, and to speed up or slow down the extremes to fit what
+   feels most comfortable to you.
+</p>
+
+<h2>The full event handler</h2>
+<p>
+   Putting all of those ideas together, here's what our full
+   event handler looks like.
+</p>
+
+<div class="code javascript">
+let oldCommand;
+mainWindow.on("joystickaxischange", ev => {
+    if (ev.unit == js.unit) {
+        // check for crossing the threshold at 250, with hysteresis
+        let x = js.X(), r = Math.abs(x);
+        let newCommand = oldCommand;
+        if (!oldCommand &amp;&amp; r &gt; 275)
+            newCommand = (x &gt; 0 ? "Next" : "Prev");
+        else if (oldCommand &amp;&amp; r &lt; 225)
+            newCommand = undefined;
+
+        // if the command changed, turn the button commands on/off
+        if (newCommand !== oldCommand)
+        {
+            // turn off the old command button, if any
+            if (oldCommand)
+                mainWindow.doButtonCommand(oldCommand, false, 0);
+
+            // turn on the new command button, if any
+            if (newCommand)
+                mainWindow.doButtonCommand(newCommand, true, 0);
+
+            // remember the new command for next time
+            oldCommand = newCommand;
+        }
+
+        // update the auto-repeat speed, according to how far the
+        // joystick is deflected
+        if (newCommand)
+            mainWindow.setWheelAutoRepeatRate(
+                r &gt; 850 ? 100 : r &gt; 750 ? 200 : r &gt; 500 ? 300 : 500);
+    }
+});
+
+</div>
+
+   
 
 </body>
 </html>

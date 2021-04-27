@@ -2746,6 +2746,10 @@ protected:
 		// current auto-repeat step, as an index into the vector
 		int repeatTimeIndex = 0;
 
+		// Instantaneous auto-repeat rate.  When set to a non-zero value,
+		// this overrides the repeatTimes list.
+		UINT instantaneousAutoRepeat = 0;
+
 	} wheelAutoRepeat;
 
 	// Start joystick auto repeat mode
@@ -3094,6 +3098,9 @@ protected:
 
 	// Create a custom media window
 	JsValueRef JsCreateMediaWindow(JavascriptEngine::JsObj options);
+
+	// set the wheel auto-repeat rate
+	void JsSetWheelAutoRepeatRate(int ms);
 
 	// Insert a menu command into the main window's context menu for a new custom window
 	void AddShowWindowCmdForCustomWindow(int serial);

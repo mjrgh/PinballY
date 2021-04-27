@@ -714,6 +714,23 @@ mainWindow.playGame(game, undefined, { swShow: SW_HIDE });
 </p>
 
 <p>
+   <a name="setWheelAutoRepeatRate"></a>
+   <b>mainWindow.setWheelAutoRepeatRate(<i>interval</i>):</b>  Sets the "instantaneous"
+   auto-repeat rate for the current game wheel navigation command.  The repeat interval is
+   specified in milliseconds.  This method has no
+   effect unless a wheel navigation command (Next, Previous, Next Page, Previous Page)
+   is currently in progress. If a command <i>is</i> in effect, this method sets the
+   auto-repeat rate for the current command.  The new rate overrides the repeat rate
+   set in the options, and it remains in effect from now until
+   the command ends, or until another call to <b>setWheelAutoRepeatRate()</b>.  It
+   doesn't affect future commands, since those start over at the repeat rate set
+   in the options.  This can be useful for modifying the repeat rate when the command
+   is coming from an alternative input device such as a joystick; see
+   <a href="JoystickGameSwitcherExample.html">Joystick Game Switcher</a> for an
+   example of how to use it.
+</p>
+
+<p>
    <a name="showMenu"></a>
    <b>mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>):</b>  Displays a custom
    menu in the main window, in the same style as the main menu, exit menu, etc.
