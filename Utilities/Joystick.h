@@ -185,6 +185,9 @@ public:
 	// Get a logical joystick by unit number
 	LogicalJoystick *GetLogicalJoystick(int unitNumber);
 
+	// Get a logical joystick by GUID
+	LogicalJoystick *GetLogicalJoystick(const GUID &guid);
+
 	// Enumerate logical joysticks
 	void EnumLogicalJoysticks(std::function<void(const LogicalJoystick*)> func);
 

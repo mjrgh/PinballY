@@ -9054,6 +9054,10 @@ JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
 			// find the physical joystick for this logical joystick
 			JoystickManager::PhysicalJoystick *phys = jm->GetPhysicalJoystick(dev);
 
+			// if it's invalid, return undefined
+			if (dev == nullptr)
+				return js->GetUndefVal();
+
 			// build the Javascript version of the descriptor
 			auto desc = JavascriptEngine::JsObj::CreateObjectWithPrototype(this->jsJoystickInfo);
 			desc.Set("unit", dev->index);
@@ -9122,12 +9126,23 @@ JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
 			});
 			return array.jsobj;
 		}
-		else
+		else if (js->IsNumber(unit))
 		{
-			// retrieve the single unit requested
+			// numeric argument -> single unit, identified by logical unit number
 			return BuildDesc(jm->GetLogicalJoystick(JavascriptEngine::JsToNative<int>(unit)));
 		}
-
+		else if (js->IsString(unit))
+		{
+			// string argument -> single unit, identified by GUID
+			GUID guid;
+			ParseGuid(JavascriptEngine::JsToNative<TSTRING>(unit).c_str(), guid);
+			return BuildDesc(jm->GetLogicalJoystick(guid));
+		}
+		else
+		{
+			// anything else return undefined
+			return js->GetUndefVal();
+		}
 	}
 	catch (JavascriptEngine::CallException exc)
 	{
@@ -13683,6 +13698,7 @@ void PlayfieldView::JsSettingsSet(WSTRING varname, JsValueRef val)
 		switch (type)
 		{
 		case JsNull:
+		case JsUndefined:
 			// null = delete the variable
 			cfg->Delete(varname.c_str());
 			break;

@@ -2,16 +2,17 @@ PinballY Update History
 
 ? (1.1.0 Beta 2)
 
-* You can now control the speed of the wheel spinning when you press
-and hold one of the main wheel navigation buttons (Next, Previous,
-Next Page, Previous Page).  In the past, the rate was simply the same
-as the Windows keyboard repeat rate, and this is still the default,
-but you can now control the wheel rate separately.  Not only that, but
-you can also set up a custom speed "ramp" that adjusts the rate
-(faster or slower) the longer you hold down the button, in as many
-steps as you'd like.  The new option is in the Game Wheel page of the
-settings dialog; see the corresponding help page for an explanation of
-how to set up a custom speed ramp.  (Issue #140 on github.)
+* A new option setting lets you change the auto-repeat rate when you
+press and hold one of the main wheel navigation buttons (Next,
+Previous, Next Page, Previous Page).  In the past, the repeat rate was
+the same as the Windows keyboard repeat rate, and this is still the
+default, but you can now control the wheel rate separately.  Not only
+that, but you can also set up a custom speed "ramp" that adjusts the
+rate (faster or slower) the longer you hold down the button, in as
+many steps as you'd like.  The new option is in the Game Wheel page of
+the settings dialog; see the corresponding help page for an
+explanation of how to set up a custom speed ramp.  (Issue #140 on
+github.)
 
 * The layout of the game wheel in the main window can now be
 customized via some new parameters in the settings file
@@ -48,6 +49,13 @@ sections for more:
 There's also a new worked example, "Joystick Game Switcher", showing
 how to use these facilities to implement game switching using the
 joystick (which address issue #133 on github).
+
+* Javascript can override the wheel spin repeat rate for particular
+events.  See mainWindow.setWheelAutoRepeatRate() in the help.
+
+* In Javascript, optionSettings.set() now accepts 'undefined' to mean
+"erase this setting" (it was already documented this way, but it
+didn't work properly before).
 
 
 03-27-2021 (1.1.0 Beta 1)

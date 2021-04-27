@@ -123,6 +123,19 @@ let joystick = allJoysticks.find(j => /pinscape/i.test(j.productName));
    won't accidentally match some other device in your system.
 </p>
 
+<h2>Letting the user select the joystick</h2>
+<p>
+   A better way of selecting the joystick, albeit a more
+   complicated way, is to let the user make the selection
+   through the UI, and store it in the option settings file.
+   That's outlined in a separate example,
+   <a href="JoystickSelectionExample.html">Joystick Selection Menu</a>.
+   You can combine the code from that example with the event
+   handler here, if you want to use that technique for
+   selecting the device.
+</p>
+
+
 <h2>Setting a value range</h2>
 <p>
    The USB specs allow joysticks to report their control
@@ -191,7 +204,7 @@ joystick.setAxisRange("Y", -1000, 1000);
 <p>
    To enable joystick axis events, we go back to the JoystickInfo
    object that we selected for the joystick of interest, and we
-   call the method <b><a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents()</a></b>,
+   call the method <a href="JoystickInfo.html#enableAxisEvents">enableAxisEvents()</a>,
    telling it which axes we're interested in hearing about:
 </p>
 <div class="code javascript">
@@ -297,7 +310,7 @@ else if (previouslyOn &amp;&amp; x &lt; 225) {
 <p>
    To perform the game switch, we'll simply simulate a button
    press on the Next or Previous button, using
-   <a href="MainWindowObject.html#doButtonCommand"><b>mainWindow.doButtonCommand</b></a>:
+   <a href="MainWindowObject.html#doButtonCommand">mainWindow.doButtonCommand</a>:
 </p>
 <div class="code">
 mainWindow.doButtonCommand("Next", true, 0); // navigate right
@@ -307,9 +320,9 @@ mainWindow.doButtonCommand("Prev", true, 0); // navigate left
 
 <h2>Auto-repeat</h2>
 <p>
-   When you use <b>mainWindow.doButtonCommand()</b> to send
+   When you use mainWindow.doButtonCommand() to send
    one of the wheel navigation commands, the command will
-   automatically repeat until you call <b>doButtonCommand()</b>
+   automatically repeat until you call doButtonCommand()
    again to turn the button "off", by calling it with
    <b>false</b> in the <i>down</i> argument slot (the second argument).
    This makes it really important that we continue to monitor the
@@ -375,7 +388,7 @@ mainWindow.doButtonCommand("Prev", true, 0); // navigate left
    really fast spin, and smoothly varying speeds in between.
 </p>
 <p>
-   We can accomplish this via <a href="MainWindowObject.html#setWheelAutoRepeatRate"><b>mainWindow.setWheelAutoRepeatRate()</b></a>,
+   We can accomplish this via <a href="MainWindowObject.html#setWheelAutoRepeatRate">mainWindow.setWheelAutoRepeatRate()</a>,
    which lets us set the "instantaneous" repeat rate during a wheel spin
    command.  Since we're already monitoring the joystick position via
    our event handler, we can simply add a call to this method from

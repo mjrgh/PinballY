@@ -723,6 +723,16 @@ JoystickManager::LogicalJoystick *JoystickManager::GetLogicalJoystick(int unitNu
 	return (unitNum >= 0 && unitNum < logicalJoysticks.size() ? logicalJoysticksByIndex[unitNum] : nullptr);
 }
 
+JoystickManager::LogicalJoystick *JoystickManager::GetLogicalJoystick(const GUID &guid)
+{
+	for (auto &l : logicalJoysticks)
+	{
+		if (l.instanceGuid == guid)
+			return &l;
+	}
+	return nullptr;
+}
+
 void JoystickManager::EnumLogicalJoysticks(std::function<void(const LogicalJoystick*)> func)
 {
 	for (auto &l : logicalJoysticks)

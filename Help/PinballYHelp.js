@@ -94,6 +94,7 @@ var contents = [
             "++AutoRenameMameMediaExample.html Auto Rename MAME Media Files",
             "++CustomMediaWindowExample.html Custom Media Window",
             "++JoystickGameSwitcherExample.html Joystick Game Switcher",
+            "++JoystickSelectionExample.html Joystick Selection Menu",
         "+Commands.html Commands",
         "+CustomDrawing.html Custom Drawing",
         "+DrawingLayer.html Drawing Layers",

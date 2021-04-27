@@ -584,6 +584,12 @@ bool JavascriptEngine::IsNumber(JsValueRef val) const
 	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsNumber);
 }
 
+// test for string type
+bool JavascriptEngine::IsString(JsValueRef val) const
+{
+	JsValueType type;
+	return (JsGetValueType(val, &type) == JsNoError && type == JsValueType::JsString);
+}
 
 JsErrorCode JavascriptEngine::ToString(TSTRING &s, const JsValueRef &val)
 {

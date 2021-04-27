@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Joystick Selection Menu</h1>
+
+<p>
+   PinballY version 1.1 provides Javascript with lots of access to
+   the joystick devices.  Before you can use a joystick in your
+   code, though, you need a way to decide which joystick to use,
+   since there might be more than one attached to the system.
+</p>
+<p>
+   One way to select a joystick in your scripts is to hard-code
+   the selection based on some known attribute of the device,
+   such as its product name string or the USB Vendor ID/Product ID
+   numbers.  These are all properties that each joystick sends
+   to Windows when you plug it in, and which you can get form
+   the PinballY Javascript interfaces.  PinballY lets you get
+   a list of all attached joysticks, so if there's a particular
+   joystick that you always want to use, you can just scan the
+   device list to find the one with the name or USB IDs that
+   match your desired device.  For example, here's how you can
+   use <a href="MainWindowObject.html#getJoystickInfo">mainWindow.getJoystickInfo()</a>
+   and the <a href="JoystickInfo.html">JoystickInfo</a> objects
+   it returns to find a Pinscape Controller unit within your system:
+</p>
+<div class="code javascript">
+let pinscape;
+for (let j of mainWindow.getJoystickInfo()) {
+    if (/pinscape/i.test(j.productName)) {
+        pinscape = j;
+        break;
+    }
+}
+</div>
+
+<p>
+   That gets a list of all joysticks, and then scans each entry
+   for a device whose <b>productName</b> property matches the
+   regular expression <tt>/pinscape/i</tt> - in other words,
+   the product name has to contain "pinscape" as a substring,
+   ignoring upper/lower case differences.  You can easily
+   change this to look for any other type of joystick, by changing
+   the regular expression <tt>/pinscape/i</tt> to match
+   a distinctive substring in your chosen device's product
+   name.  Just be sure to pick something that's unique
+   enough to your device that it won't accidentally
+   match a portion of the name string from some other
+   device.
+</p>
+<p>
+   If you're not sure what the product name string for
+   your joystick looks like, there's an easy way to find
+   out.  Fire up the Windows "Set Up USB Game Controllers"
+   control panel, by pressing Windows+R and typing in
+   <b>joy.cpl</b>.  The list you see in that control panel
+   is simply a list of the product name strings from your
+   attached joysticks.
+</p>
+
+<h2>Making it more dynamic: let the user choose</h2>
+<p>
+   Hard-coding the joystick search like this is easy, but
+   it's also brittle.  If you ever replace your joystick with
+   a different type, for example, the script will stop working
+   until you remember that you have to edit the script to
+   update the hard-coded product name pattern to match your
+   new device.  Or, if you want to share the script with
+   someone else, you'll have to explain to them how to
+   edit the product name.
+</p>
+<p>
+   A better way is to provide a way for the user to choose
+   through the user interface, and then store the selection
+   in the option settings file.
+</p>
+
+<h3>Storing the selection in the options file</h3>
+<p>
+   Before we start thinking about the user interface, we
+   need to consider how we're going to save the setting
+   across sessions.  Since this amounts to a program setting,
+   the right place to store it is within the PinballY
+   settings file, using the <a href="OptionSettingsObject.html">optionSettings</a>
+   object.  That object provides methods to get and set
+   custom program variables, so we'll create a new variable
+   representing the current joystick selection.
+</p>
+<p>
+   What do we store in the new variable?  PinballY
+   mostly identifies joysticks within a program session
+   by their "logical unit numbers" - that's the way that
+   they're identified in joystick events, for example.
+   But the logical unit number is ephemeral, lasting
+   only for the duration of the current program session.
+   For long-term storage across program sessions, we
+   need something more permanent.  Fortunately, Windows
+   provides us with an ID that's purpose-built for
+   referencing joysticks in program settings, called the
+   Instance GUID(for Globally Unique ID).  We can get
+   the GUID as a string from a JoystickInfo object.  So
+   once we've identified a joystick, we can get its
+   GUID, and store that in the configuration variable.
+</p>
+<p>
+   When reading back the settings, we can use the stored
+   GUID to look up the JoystickInfo object.  mainWindow.getJoystickInfo()
+   accepts GUID strings to identify the joystick when
+   fetching its JoystickInfo.
+</p>
+<div class="code javascript">
+let configVar = "Custom.Joystick.Device";
+
+// save a JoystickInfo object's GUID
+let js = mainWindow.getJoystickInfo(0);
+optionSettings.set(configVar, j.guid);
+
+// get the JoystickInfo for a saved GUID
+js = mainWindow.getJoystickInfo(optionSettings.get(configVar));
+</div>
+
+<h3>Displaying a selection menu</h2>
+<p>
+   It's easy to create a new on-screen menu in PinballY, so
+   let's use a menu to display the available joysticks and
+   let the user pick which one to use.  To access the joystick
+   selection menu, we'll add a new command to one of the existing
+   menus, bringing up our new menu when the user selects that
+   command.  (For full details on creating custom menus,
+   see <a href="Menus.html">Menus</a>.)
+</p>
+<p>
+   The Operator Menu seems to me like the right place
+   for this, so let's add a new item to the Operator Menu,
+   right after the "PinballY Options" command:
+</p>
+<div class="code javascript">
+// Add the joystick selection command to the Operator Menu
+let joystickSetupCommand = command.allocate("JoystickSetup");
+mainWindow.on("menuopen", ev => {
+    if (ev.id == "operator") {
+        ev.addMenuItem(
+            { after: command.Options },
+            { title: "Joystick Setup", cmd: joystickSetupCommand });
+    }
+});
+</div>
+<p>
+   Now we have to write a "command" event for our new custom command,
+   which displays the menu.  This menu is a little different from most
+   in that it's going to be a list of joysticks, not a list of pre-determined
+   commands.  But a menu really is just a list of commands, so what we have
+   to do is associate a custom command with each joystick.  We'll show the
+   product name of the joystick as its menu title, but we'll have to create
+   a custom command behind the scenes to represent the action to take when
+   the use selects that menu item.
+</p>
+<div class="code javascript">
+// Handle our Joystick Setup custom command
+let joystickNoneCommand = command.allocate("JoystickNone");
+let joystickSelectCommands = [];
+mainWindow.on("command", ev => {
+    if (ev.id == joystickSetupCommand) {
+        // Get the current selection from the options
+        let cur = optionSettings.get(configVar);
+    
+        // Set up the "dialog header" portion of the menu, and
+        // add "None" as the first selection.  If 
+        let menu = [
+            {title: "Select a joystick to use", cmd: -1},
+            { cmd: -1 },
+            { title: "None - Disabled", cmd: joystickNoneCommand, radio: !cur },
+        ];
+
+        // Now enumerate all of the joysticks, adding a menu item for each
+        let n = 0;
+        for (let j of mainWindow.getJoystickInfo()) {
+            // if necessary, allocate a new custom command ID for this index
+            if (n >= joystickSelectCommands.length)
+                joystickSelectCommands.push(command.allocate("JoystickSelect" + n));
+
+            // add the menu command, using the custom command ID at this index
+            menu.push({
+                title: j.productName,
+                cmd: joystickSelectCommands[n++],
+                radio: j.guid == cur });
+        }
+
+        // Display the menu
+        mainWindow.showMenu("joystick setup", menu, { dialogStyle: true });
+    }
+});
+</div>
+
+<p>
+   That's a little complicated, so let's step through it.  First, we
+   create a custom command for "JoystickNone", meaning no joystick
+   is currently selected.  We then set up our "command" event listener,
+   and check to see if we're firing our custom Joystick Setup command.
+   If so, we start building the menu, as a Javascript array of menu
+   descriptor objects.
+</p>
+<p>
+   The first thing that goes in the menu is the "dialog header" part.
+   This is a fixed string that's displayed at the top of the menu, to
+   explain to the user what the menu is about.  If you're going to
+   incorporate this code into something larger, like our
+   <a href="JoystickGameSwitcherExample.html">Joystick Game Switcher</a> example,
+   you could expand the title to say more about what the joystick
+   will be used for - "Select a joystick for wheel navigation", say.
+</p>
+<p>
+   After the explainer text at the top, we add a separator bar (no
+   title, command ID -1), and then a menu item for "None - Disabled",
+   to select no joystick at all.  This lets the user disable the
+   feature if desired.
+</p>
+<p>
+   Now we get to the list of joysticks.  We call mainWindow.getJoystickInfo()
+   to get an array of JoystickInfo objects for all of the joysticks in
+   the system, and then we loop through the array.  For each joystick,
+   we first make sure we have a custom command ID for it, since we always
+   need a command ID for an active menu item, then we add the menu item
+   for the joystick to the menu array.  We use the Product Name string
+   from the joystick as the menu title, and we use the custom command
+   at the current index for the command ID.
+</p>
+<p>
+   One more little detail: you'll notice that each menu item has a
+   <b>radio</b> property.  This tells the menu system to display
+   a "radio button" dot next to an item if the property is true.
+   In each case, we set the property to true if the current joystick's
+   GUID matches the GUID stored in the option settings for the currently
+   selected joystick.  That will make the menu come up each time with
+   a radio button dot displayed next to the current selection.
+</p>
+<p>
+   That'll display the joystick selection menu, but we still have to
+   handle the custom commands that appear in the menu.  The menu
+   has one custom command for "None - Disabled", and then one more
+   custom command for each joystick.  In each case, we just have to
+   update the GUID stored in the options settings variable for the
+   current joystick selection:
+</p>
+<div class="code javascript">
+mainWindow.on("command", ev => {
+    if (ev.id == joystickNoneCommand) {
+        // "None - Disabled" - store an empty GUID in the settings
+        optionSettings.set(configVar, undefined);
+        onUpdateJoystickSelection();
+    }
+    else if ((idx = joystickSelectCommands.indexOf(ev.id)) >= 0) {
+        // It's one of the joystick selection commands
+        let newJoystick = mainWindow.getJoystickInfo(idx);
+        if (newJoystick) {
+            optionSettings.set(configVar, newJoystick.guid);
+            onUpdateJoystickSelection();
+        }
+    }
+});
+</div>
+<p>
+   Note how we relate the command ID back to the joystick unit.
+   When we set up the menu, we scanned through the joystick array
+   that we got from mainWindow.getJoystickInfo().  That array is
+   always provided in order of logical unit number, so the index
+   in the array is the same as the logical unit number.  We built
+   our own array of custom command IDs for the joysticks in the
+   same order.  We find the array index of the command ID in
+   our command array, and, knowing that this is the same as the
+   array index in the original JoystickInfo array, and that
+   <i>that</i> index is the same as the logical unit number,
+   we can ask getJoystickInfo() for the joystick corresponding
+   to the command.  With the JoystickInfo object in hand, we
+   can get the GUID from its <b>guid</b> property.
+</p>
+<p>
+   We created one new loose end in the command handler above:
+   we called a new function, onUpdateJoystickSelection().  That's
+   not a system thing - that's something we're going to write
+   ourselves.  The purpose is to update our internal idea of
+   the current joystick selection whenever the selection changes.
+</p>
+<div class="javascript code">
+let currentJoystick;
+function onUpdateJoystickSelection()
+{
+    // disable axis change events on the old joystick
+    if (currentJoystick)
+       currentJoystick.enableAxisEvents({ enable: false });
+
+    // read the GUID from the options, and get the JoystickInfo
+    // object for the GUID
+    let guid = optionSettings.get(configVar));
+    currentJoystick = mainWindow.getJoystickInfo(guid);
+
+    // if we found the joystick, do any initial setup
+    if (currentJoystick) {
+        currentJoystick.enableAxisEvents({ axis: ["X", "Y"] });
+        currentJoystick.setAxisRange("X", -1, 1);
+        currentJoystick.setAxisRange("Y", -1, 1);
+    }
+}
+</div>
+<p>
+   If you need to do anything special in your own code when
+   the joystick selection changes, you can add that to the
+   function.
+</p>
+<p>
+   We can now use this same function for two more important
+   purposes: to restore the saved joystick selection when PinballY
+   first starts up, and to update it whenever the configuration
+   file is reloaded.
+</p>
+<div class="javascript code">
+// when the script first runs, restore the saved settings
+onUpdateJoystickSelection();
+
+// update the joystick selection whenever the settings file is reloaded
+optionSettings.on("settingsreload", ev => onUpdateJoystickSelection());
+</div>
+
+<p>
+   Now that we have the currently selected joystick always
+   stored in the variable <b>currentJoystick</b>, we can
+   simply reference this variable in places that care about
+   the current selection, such as joystick event handlers:
+</p>
+
+<div class="code javascript">
+mainWindow.on("joystickaxischange", ev => {
+    if (currentJoystick &amp;&amp; ev.unit == currentJoystick.unit) {
+        // it's the currently selected unit - handle the event
+    }
+});
+</div>
+
+</body>
+</html>

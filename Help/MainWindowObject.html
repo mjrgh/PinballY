@@ -402,35 +402,44 @@
 
 <p>
    <a name="getJoystickInfo"></a>
-   <b>mainWindow.getJoystickInfo(<i>unitNumber</i>):</b>  Retrieves
+   <b>mainWindow.getJoystickInfo(<i>id</i>):</b>  Retrieves
    a joystick descriptor object with information about a particular
    joystick device, or descriptors for all of the joystick devices in
-   the system. If the <i>unitNumber</i> argument is provided, the method
+   the system.  If <i>id</i> is specified, the method
    returns a single <a href="JoystickInfo.html">JoystickInfo</a> object,
-   describing the joystick corresponding to the specified logical
-   joystick unit number.  If <i>unitNumber</i> is omitted, the method
-   returns an array of JoystickInfo objects, one for each joystick in the
-   system.  The array in this case is in order of logical unit number, so
-   the element at index [0] is the descriptor for unit number 0, and so on.
+   for the joystick identified as follows:
 </p>
-<p>
-   The "unit number" of a joystick is a numeric index that PinballY
-   assigns to the joysticks internally as it discovers them, starting at 0 and
-   incrementing by one for each device.  This is the same logical
-   unit number value stored in the <b>unit</b>
-   property in a <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
+<ul>
+   <li>If <i>id</i> is a number, it's the "logical unit number" of the
+   desired joystick.  The logical unit number is an internal ID that
+   PinballY assigns to each joystick it discovers during this session.
+   It's the same logical unit number found in the <b>unit</b> property in a
+   <a href="JoystickButtonEvent.html">JoystickButtonEvent</a>
    or <a href="JoystickAxisEvent.html">JoystickAxisEvent</a>
    object, so you can pass the <b>unit</b> property from a joystick event
    to getJoystickInfo() to retrieve the descriptor for that device.
    The unit number doesn't have any meaning outside of PinballY (it means
    nothing to Windows or to other programs).
-   The unit number is only valid for the duration of a program session,
-   so you shouldn't store it in the settings or in external files.  If
-   you need to refer to a joystick across sessions, the GUID is probably
-   the best way, since Windows assigns that permanently for a given
-   physical device when it's first plugged into the system.  (The GUID
-   isn't absolutely permanent, though; it can change if you explicitly
-   uninstall the device in Windows Device Manager and reinstall it.)
+   The unit number is only valid for the duration of a program session.
+   
+   <li>If <i>id</i> is a string, it's the GUID of the desired joystick.
+   GUID stands for Globally Unique ID; Windows assigns each joystick a
+   GUID when the device is first installed, and the GUID is intended to
+   be permanent for a given device.  It should remain the same for each
+   device across program sessions and system reboots, so it's the best
+   way to identify the device in the option settings or other long-term
+   storage.  (The GUID isn't inscribed in the device, though, so it'll
+   change if you uninstall the joystick through Device Manager, or if
+   you clear your Windows registry, such as by reinstalling the OS.)
+
+   <li>If <i>id</i> is any other type, the method simply returns
+   <b>undefined</b> to indicate that there's no matching joystick.
+</ul>
+<p>
+   If <i>id</i> is omitted, the method
+   returns an array of JoystickInfo objects, one for each joystick in the
+   system.  The array in this case is in order of logical unit number, so
+   the element at index [0] is the descriptor for unit number 0, and so on.
 </p>
 <p>
    See <a href="JoystickInfo.html">JoystickInfo</a> for details on the

@@ -128,6 +128,9 @@ public:
 	// test for numeric type
 	bool IsNumber(JsValueRef val) const;
 
+	// test for string type
+	bool IsString(JsValueRef val) const;
+
 	// simple value conversions
 	static JsErrorCode ToString(TSTRING &s, const JsValueRef &val);
 	static JsErrorCode ToInt(int &i, const JsValueRef &val);
