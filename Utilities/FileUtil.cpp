@@ -419,7 +419,7 @@ void GetDeployedFilePath(TCHAR *result, const TCHAR *relFilePath, const TCHAR *d
 		// Dev mode - combine the solution path, the dev tree path
 		// (if there is one), and the file path.  If there's no dev
 		// path, just combine the solution dir with the file path.
-		if (devPath != 0 && devPath[0] != 0)
+		if (devPath != nullptr && devPath[0] != 0)
 		{
 			// There's a dev path.  Check for substitution variables.
 			if (_tcsstr(devPath, _T("$(")) != nullptr)

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Command Line Options</h1>
+<p>
+   PinballY has a few command-line options that can be specified 
+   when launching the program.  When you launch a Windows program
+   by double-clicking its program .EXE file, you're launching it
+   without any command-line options.  If you want to add options,
+   you have to use one of the other ways of launching a program:
+</p>
+<ul>
+   <li>From the Windows desktop, press Windows+R to open the Run
+   dialog, then type in the command line, starting with the program
+   name, including its full file path
+
+   <li>Open a CMD prompt and enter the command there
+
+   <li>Create a Windows desktop shortcut to PinballY.EXE,
+   and type the command line into the Target box, starting with
+   the program name (including its full path).  After creating
+   the shortcut, you can double-click the shortcut file to launch
+   the program with the options.  This is the easiest way if
+   you plan to use the same options on every future launch,
+   since it stores them with the shortcut so that you don't
+   have to type them again on every launch.
+</ul>
+
+<p>
+   When constructing a command line (for any of those methods),
+   it's always a good idea to put quotes around the program file
+   path, so that Windows doesn't get confused by any embedded
+   spaces or other special characters:
+</p>
+<div class="indented">
+   <tt>"c:\PinballY\PinballY.exe" /Settings:D:/MyFiles</tt>
+</div>
+
+<h2>Basic syntax</h2>
+<p>
+   Options are all listed after the program name, separated
+   by spaces.  Unless otherwise specified in the notes about the
+   individual options, the order of the options doesn't matter.
+   If an option contains any spaces, enclose the entire option
+   in double quotes.
+</p>
+
+<h2>List of options</h2>
+
+<p>
+   <b>/jsdebug</b><br> Enables the Javascript debugging service,
+   so that you can use a separate Javascript debugger program,
+   such as the Chrome Dev Tools, to connect to PinballY's
+   Javascript engine to inspect and debug your scripts
+   interactively.  See <a href="JsDebug.html">Javascript Debugging</a>
+   for details on this option.
+</p>
+
+<p>
+   <b>/Settings:<i>directory</i></b><br>
+   Specifies the directory to use for the settings file (Settings.txt).
+   If this isn't specified, the settings file is located in the PinballY
+   program folder.  You can use this to specify an alternative location.
+   This can be useful, for example, if you want to store your settings
+   on a network drive so that they can be shared with other machines
+   on your LAN.
+</p>
+   
+</p>
+
+</body>
+</html>
+

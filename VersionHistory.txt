@@ -2,6 +2,14 @@ PinballY Update History
 
 ? (1.1.0 Beta 2)
 
+* You can now specify an alternative location for the settings file
+(Settings.txt) when launching the program, via a command-line
+parameter.  Add the option /Settings:<folder> to the command line to
+specify the folder location.  Use a fully-qualified file path starting
+with a drive letter: /Settings:D:\MyFiles.  Specify the folder path
+only, without the filename - this is the *location* where PinballY
+looks for the file, not the name of the file.  (Issue #149 on github.)
+
 * A new option setting lets you change the auto-repeat rate when you
 press and hold one of the main wheel navigation buttons (Next,
 Previous, Next Page, Previous Page).  In the past, the repeat rate was

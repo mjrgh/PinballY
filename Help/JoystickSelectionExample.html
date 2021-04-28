@@ -160,9 +160,70 @@ mainWindow.on("menuopen", ev => {
    in that it's going to be a list of joysticks, not a list of pre-determined
    commands.  But a menu really is just a list of commands, so what we have
    to do is associate a custom command with each joystick.  We'll show the
-   product name of the joystick as its menu title, but we'll have to create
-   a custom command behind the scenes to represent the action to take when
+   product name of the joystick as its menu title, but we'll also have to create
+   a custom command ID behind the scenes to represent the action to take when
    the use selects that menu item.
+</p>
+<p>
+   We can create as many custom command IDs as we want using command.allocate(),
+   but how do we connect these back to the joysticks?  I can think of several
+   ways to do this, but I think the best fit in the Javascript toolkit is
+   the Map object, which lets us associate arbitrary values with arbitrary
+   keys.  Using a Map, we can associate a command ID with a joystick GUID.
+   So before we get to the code to set up the menu, let's build a helper
+   object that (a) allocates command IDs for us on demand, and (b) associates
+   each allocated command with a joystick GUID.
+</p>
+<div class="code javascript">
+let joystickSelectCommands = {
+    // The next command index to assign
+    index: 0,
+
+    // Array of command IDs that we've allocated so far
+    commands: [],
+
+    // Map from command ID to joystick GUID
+    guids: new Map(),
+
+    // Start over with a new menu build - resets the index and
+    // clears the old GUID table, so that we can start building
+    // a fresh menu
+    start: function() {
+        this.index = 0;
+        this.guids = new Map();
+    },
+
+    // Allocate a command ID for a menu under construction, and
+    // remember the joytsick GUID for this command ID
+    allocate: function(guid) {
+        // Advance to the next index.  If we haven't already allocated
+        // a command for this index slot, allocate a new one now.  If
+        // we do already have a command in the slot (from a previous
+        // menu we built earlier), we'll just reuse it, since it hasn't
+        // been used in the *current* menu yet.
+        this.index += 1;
+        if (!this.commands[this.index])
+            this.commands[this.index] = command.allocate("JoystickSelect" + this.index);
+
+        // get the command for this slot, map it to the GUID, and pass
+        // it back to the caller
+        let c = this.commands[this.index];
+        this.guids.set(c, guid);
+        return c;
+    },
+
+    // Given a command ID, find the associated joystick GUID
+    guidForCommand(cmd) { return this.guids.get(cmd); },
+};
+</div>   
+
+<p>
+   That helper object is really the hard part of this whole project.
+   With that in place, it's relatively straightforward to build the
+   menu.  All we have to do is get a list of the joysticks, and for
+   each one, add a menu descriptor using the product name string
+   from the joystick as the menu title, and a command ID allocated
+   from the helper object as the command.
 </p>
 <div class="code javascript">
 // Handle our Joystick Setup custom command
@@ -182,16 +243,12 @@ mainWindow.on("command", ev => {
         ];
 
         // Now enumerate all of the joysticks, adding a menu item for each
-        let n = 0;
+        joystickSelectCommands.start();
         for (let j of mainWindow.getJoystickInfo()) {
-            // if necessary, allocate a new custom command ID for this index
-            if (n >= joystickSelectCommands.length)
-                joystickSelectCommands.push(command.allocate("JoystickSelect" + n));
-
             // add the menu command, using the custom command ID at this index
             menu.push({
                 title: j.productName,
-                cmd: joystickSelectCommands[n++],
+                cmd: joystickSelectCommands.allocate(j.guid),
                 radio: j.guid == cur });
         }
 
@@ -202,7 +259,7 @@ mainWindow.on("command", ev => {
 </div>
 
 <p>
-   That's a little complicated, so let's step through it.  First, we
+   Let's step through that.  First, we
    create a custom command for "JoystickNone", meaning no joystick
    is currently selected.  We then set up our "command" event listener,
    and check to see if we're firing our custom Joystick Setup command.
@@ -228,14 +285,11 @@ mainWindow.on("command", ev => {
    Now we get to the list of joysticks.  We call mainWindow.getJoystickInfo()
    to get an array of JoystickInfo objects for all of the joysticks in
    the system, and then we loop through the array.  For each joystick,
-   we first make sure we have a custom command ID for it, since we always
-   need a command ID for an active menu item, then we add the menu item
-   for the joystick to the menu array.  We use the Product Name string
-   from the joystick as the menu title, and we use the custom command
-   at the current index for the command ID.
+   we add a menu item with the joystick name as its title, and an allocated
+   command ID from the helper object as the command.
 </p>
 <p>
-   One more little detail: you'll notice that each menu item has a
+   We've also given each menu item a
    <b>radio</b> property.  This tells the menu system to display
    a "radio button" dot next to an item if the property is true.
    In each case, we set the property to true if the current joystick's
@@ -253,35 +307,31 @@ mainWindow.on("command", ev => {
 </p>
 <div class="code javascript">
 mainWindow.on("command", ev => {
+    let guid;
     if (ev.id == joystickNoneCommand) {
         // "None - Disabled" - store an empty GUID in the settings
         optionSettings.set(configVar, undefined);
         onUpdateJoystickSelection();
     }
-    else if ((idx = joystickSelectCommands.indexOf(ev.id)) >= 0) {
+    else if ((guid = joystickSelectCommands.guidForCommand(ev.id)) !== undefined) {
         // It's one of the joystick selection commands
-        let newJoystick = mainWindow.getJoystickInfo(idx);
-        if (newJoystick) {
-            optionSettings.set(configVar, newJoystick.guid);
-            onUpdateJoystickSelection();
-        }
+        optionSettings.set(configVar, guid);
+        onUpdateJoystickSelection();
     }
 });
 </div>
 <p>
-   Note how we relate the command ID back to the joystick unit.
-   When we set up the menu, we scanned through the joystick array
-   that we got from mainWindow.getJoystickInfo().  That array is
-   always provided in order of logical unit number, so the index
-   in the array is the same as the logical unit number.  We built
-   our own array of custom command IDs for the joysticks in the
-   same order.  We find the array index of the command ID in
-   our command array, and, knowing that this is the same as the
-   array index in the original JoystickInfo array, and that
-   <i>that</i> index is the same as the logical unit number,
-   we can ask getJoystickInfo() for the joystick corresponding
-   to the command.  With the JoystickInfo object in hand, we
-   can get the GUID from its <b>guid</b> property.
+   Note how we relate the command ID back to the joystick unit,
+   by going back to the helper object we set up earlier and
+   asking it for the joystick GUID corresponding to the command ID
+   we're handling.  That looks up the command ID in the Map that
+   we created when we built the menu, and finds the associated
+   GUID.  If there's a map entry for the command, we'll get a
+   GUID string, otherwise we'll get <b>undefined</b>, meaning
+   that no Map entry was found.  So if we find a GUID for the
+   command, we know that we're processing one of our joystick
+   selection commands from the menu, and we can set up the
+   new joystick accordingly.
 </p>
 <p>
    We created one new loose end in the command handler above:

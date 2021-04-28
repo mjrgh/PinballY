@@ -23,7 +23,7 @@
 // It's not necessary to update this in lock step with the main program
 // version or to update it on each public release.  This only has to be
 // updated when the binary interface to the DLL changes.
-#define PINBALLY_OPTIONS_DIALOG_IFC_VSN  4
+#define PINBALLY_OPTIONS_DIALOG_IFC_VSN  5
 
 // Get the dialog version.  This returns the dialog interface version 
 // above.  The host should check this before calling any other functions,
@@ -51,6 +51,7 @@ typedef std::function<void(bool succeeded)> ConfigSaveCallback;
 typedef std::function<void(HWND hwnd)> InitializeDialogPositionCallback;
 typedef std::function<bool(DWORD delayTime)> SetUpAdminAutoRunCallback;
 extern "C" void WINAPI ShowOptionsDialog(
+	const TCHAR *configFilePath,
 	ConfigSaveCallback configSaveCallback, 
 	InitializeDialogPositionCallback initPosCallback,
 	bool isAdminHostRunning,

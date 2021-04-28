@@ -1600,8 +1600,8 @@ bool PlayfieldView::FireKeyEvent(int vkey, bool down, int repeatCount, bool bg)
 		if (auto bar = _tcschr(jsKey, '|'); bar != nullptr)
 		{
 			// Get the Shift key state.  Use the input state we've deduced
-			// from the raw input stream - see the comments above the struct
-			// definition for RawShiftKeyState for a lengthy explanation of
+			// from the raw input stream - see the comments in PlayfieldView.h
+			// regarding struct RawShiftKeyState for a lengthy explanation of
 			// and tale of woe about why we're not using GetKeyState(VK_SHIFT),
 			// which any good Windows programmer would *think* we should be
 			// using here.  (Short version: there's a really, really, REALLY
@@ -3781,6 +3781,7 @@ void PlayfieldView::OnAppActivationChange(bool foreground)
 	// kill any keyboard/joystick auto-repeat action whenever we 
 	// switch modes
 	StopAutoRepeat();
+	WheelAutoRepeatStop();
 
 	// turn off all DOF keyboard effects if switching to the background
 	if (!foreground)
@@ -5035,6 +5036,43 @@ bool PlayfieldView::HandleSysCharEvent(BaseWin *win, WPARAM wParam, LPARAM lPara
 
 bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	// Ignore messages for VK_SHIFT.  Our raw input handler translates
+	// VK_SHIFT into the left/right variants (VK_LSHIFT/VK_RSHIFT) and
+	// posts synthesized WM_KEYxx messages.  The VK_SHIFT messages are
+	// also generated for the same events, so we only want to handle
+	// one or the other, and the synthetic ones are better.
+	//
+	// The reason for the extra messages is that the WM_KEYxx messages
+	// that Windows generates for VK_SHIFT lose information in some
+	// cases.  We already know that they lose the left/right key source
+	// by folding both into the abstract VK_SHIFT, but the real problem
+	// is that they also fold the Down and Up messages across the two
+	// keys.  Consider this sequence of physical key presses and the
+	// resulting events:
+	//
+	//   Press Right Shift   -> WM_KEYDOWN, VK_SHIFT, first
+	//   Press Left Shift    -> WM_KEYDOWN, VK_SHIFT, repeat
+	//   Release Right Shift -> no message
+	//   Release Left Shift  -> WM_KEYUP, VK_SHIFT
+	//
+	// Note how we get two Down messages and one Up message for two
+	// physical key presses and two physical key releases.  There's a
+	// logic to this: Windows is folding the two keys into the combined
+	// VK_SHIFT, so it only sends the Down/Up messages as though there
+	// were a single physical key involved.  There's no Key Up when we
+	// release the Right Shift key, because the abstract, combined
+	// "Any Shift" key is still "down" at that point through the Left
+	// Shift key.  Now, this is fine if the application is treating
+	// the two keys as a combined abstract key, but we don't do that:
+	// we treat Left and Right as distinct keys.  Doing that, we
+	// interpret the two Key Down events as separate, so we require
+	// matching Key Up events.  And that's the whole point of our
+	// synthetic WM_KEYxx events for VK_LSHIFT and VK_RSHIFT: they
+	// treat the two key states as distinct, so we get a matching Up
+	// message for each Down for each key.
+	if (wParam == VK_SHIFT)
+		return false;
+
 	// update the attract mode key event timer
 	attractMode.OnKeyEvent(this);
 
@@ -5057,6 +5095,7 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 		// key up event
 		mode = KeyUp;
 		down = false;
+		{ TCHAR buf[256]; _stprintf_s(buf, _T("WM_KEYUP vkey=%d orig=%d\n"), vkey, vkeyOrig); OutputDebugString(buf); }
 
 		// stop any auto-repeat in effect
 		StopAutoRepeat();
@@ -5105,22 +5144,8 @@ void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatC
 	// add each command to the key queue
 	for (auto c : cmds)
 	{
-		// If this is a key-up for the current wheel auto-repeat command,
-		// cancel auto-repeat.  We need to do this immediately on the key
-		// event, rather than waiting to process it in the queue, because
-		// the auto-repeat can go fast enough to starve queue processing.
-		// We don't process queued keys during wheel animation, and the
-		// auto-repeat can be fast enough to keep the wheel spinning
-		// continuously as long as the key is down.  Note that we ALSO
-		// need to process the key-up again in the queue, since we start
-		// wheel auto-repeat in the queued key handler.  So the key-down
-		// event for the current key-up could still be in the queue
-		// awaiting processing, in which case stopping the wheel repeat
-		// now will do nothing, as it hasn't started yet.
-		if ((mode & KeyDown) == 0
-			&& wheelAutoRepeat.active
-			&& wheelAutoRepeat.key.cmd->func == c->func)
-			WheelAutoRepeatStop();
+		if (!bg)
+			{ TCHAR buf[256]; _stprintf_s(buf, _T("KEY PRESS : %s %s\n"), c->name, (mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 
 		// queue the command
 		keyQueue.emplace_back(hwndSrc, mode, repeatCount, bg, scripted, c);
@@ -8373,6 +8398,9 @@ void PlayfieldView::ProcessKeyQueue()
 		QueuedKey key = keyQueue.front();
 		keyQueue.pop_front();
 
+		if (!key.bg)
+			{ TCHAR buf[256]; _stprintf_s(buf, _T("QUEUED : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
+
 		// Check the command for special handling
 		const TCHAR *dofEffect = nullptr;
 		auto c = key.cmd;
@@ -8399,18 +8427,19 @@ void PlayfieldView::ProcessKeyQueue()
 				// that we're auto-repeating on the wheel.  Ignore the key event,
 				// since the wheel auto-repeat timer will generate the commands
 				// on its own schedule.  We want the wheel timing to override
-				// the raw keyboard timing in this case, so we simply ignore
-				// the repeated key events.
+				// the raw keyboard timing in this case, so we ignore repeated
+				// key events from the input device.
 				continue;
 			}
 			else
 			{
 				// It's not an auto-repeat, so it's either a key-up event or
 				// a new key-down event.  In either case, stop the wheel
-				// auto-repeat.  If it's a key-down, we'll go ahead and start
-				// a new repeat sequence for the new key press.  If it's a
-				// key-up, it'll have no further effect.
+				// auto-repeat.  If it's a key-down, processing it will
+				// start a new auto-repeat as a side effect.  If it's a
+				// key-up, processing it will have no further effect.
 				WheelAutoRepeatStop();
+				{ TCHAR buf[256]; _stprintf_s(buf, _T("WHEEL STOP : Queued : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			}
 		}
 
@@ -9140,7 +9169,7 @@ JsValueRef PlayfieldView::JsGetJoystickInfo(JsValueRef unit)
 		}
 		else
 		{
-			// anything else return undefined
+			// anything else is invalid; return undefined
 			return js->GetUndefVal();
 		}
 	}
@@ -12818,15 +12847,79 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		// (left/right shift, keypad versions of keys, etc)
 		vkey = InputManager::GetInstance()->TranslateVKey(raw);
 
-		// if it's a shift key, update our internal shift state tracking
+		// If it's a shift key, update our internal shift state tracking.
+		//
+		// If this is a Key Up event, and BOTH shift keys were down,
+		// synthesize a WM_KEYUP for the key release.  Windows won't
+		// generate one on its own in this case.  Consider this sequence
+		// of physical keyboard activity, and the resulting WM_KEYxx 
+		// messages:
+		//
+		//   Press Right Shift     -> WM_KEYDOWN VK_SHIFT, Extended, First
+		//   Press Left Shift      -> WM_KEYDOWN VK_SHIFT, Repeat
+		//   Release Right Shift   -> (no event)
+		//   Release Left Shift    -> WM_KEYUP VK_SHIFT
+		//
+		// You'll notice that we got two WM_KEYDOWN messages for
+		// VK_SHIFT, and only one WM_KEYUP.  The second WM_KEYDOWN was
+		// billed as a repeat, but it wasn't *really* a repeat; it was
+		// actually distinguishable as a separate key-down, because the
+		// previous key-down had the "extended" flag set to tell us that;
+		// it was the right shift, and the second doesn't, telling us
+		// it's the left shift.  There's only one WM_KEYUP for the
+		// whole sequence.
+		//
+		// This one at least makes a certain kind of sense: the WM_KEYxx
+		// messages fold both shift keys into virtual key VK_SHIFT, so
+		// if you don't want to distinguish left/right, the WM_KEYxx
+		// messages are accurately telling us when the Shift mode taken
+		// as a whole is engaged and when it's disengaged.  For our
+		// purposes, though, we do distinguish the keys, so it's a
+		// problem for us that we don't get two distinct WM_KEYUP
+		// events.
+		//
+		// Our solution is to synthesize our own WM_KEYDOWN and
+		// WM_KEYUP messages for each Shift key event, passing
+		// VK_LSHIFT and VK_RSHIFT in the wParam.  Windows will also
+		// send its normal messages with VK_SHIFT, so we'll need to
+		// ignore those, since they're now redundant with our
+		// synthesized messages, and carry less information.
+		//
+		// Note that this isn't an issue for Ctrl, Alt, or Windows.
+		// I believe the difference with Ctrl and Alt is that those
+		// are directly distinguished left/right in a bit in the
+		// WM_KEYxx lParam; Microsoft must have decided that the
+		// ability to distinguish them directly from the message
+		// parameters makes them require distinct events that aren't
+		// folded together like Shift is folded.  The Windows key is
+		// even more directly distinguishable in that left and right
+		// have separate VK codes.
+		//
+		bool make = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+		UINT synthMsg = make ? WM_KEYDOWN : WM_KEYUP;
+		auto const &kb = raw->data.keyboard;
+		LPARAM synthLParam = (kb.MakeCode << 16)
+			| ((kb.Flags & (RI_KEY_E0 | RI_KEY_E1)) != 0 ? 1 << 24 : 0);
 		switch (vkey)
 		{
 		case VK_LSHIFT:
-			rawShiftKeyState.left = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+			// synthesize a WM_KEYxx message (see above)
+			PostMessage(synthMsg, VK_LSHIFT, synthLParam | (rawShiftKeyState.left ? (1 << 30) | 1 : 0));
+
+			// note the new state
+			rawShiftKeyState.left = make;
+
+			{TCHAR buf[256]; _stprintf_s(buf, _T("RAW LEFT SHIFT %s\n"), rawShiftKeyState.left ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			break;
 
 		case VK_RSHIFT:
-			rawShiftKeyState.right = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
+			// synthesize a WM_KEYxx message (see above)
+			PostMessage(synthMsg, VK_RSHIFT, synthLParam | (rawShiftKeyState.right ? (1 << 30) | 1 : 0));
+
+			// note the new state
+			rawShiftKeyState.right = make;
+
+			{TCHAR buf[256]; _stprintf_s(buf, _T("RAW RIGHT SHIFT %s\n"), rawShiftKeyState.right ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			break;
 		}
 	}
@@ -13054,6 +13147,8 @@ void PlayfieldView::WheelAutoRepeatStart(const QueuedKey &key)
 {
 	if (!wheelAutoRepeat.active || wheelAutoRepeat.key.cmd->func != key.cmd->func)
 	{
+		{ TCHAR buf[256]; _stprintf_s(buf, _T("WHEEL START : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
+
 		// reset the repeat ramp
 		wheelAutoRepeat.repeatTimeIndex = 0;
 		wheelAutoRepeat.instantaneousAutoRepeat = 0;
@@ -13081,6 +13176,34 @@ void PlayfieldView::WheelAutoRepeatStop()
 
 void PlayfieldView::OnWheelAutoRepeatTimer()
 {
+	// Check to see if there's a queued Key Up for the command
+	// we're auto-repeating.  The key queue is only processed
+	// when a wheel animation isn't running, so if the wheel
+	// animation takes longer than the auto-repeat time, the
+	// animation will prevent the queue from getting processed,
+	// hence we'll never get to the Key Up that would stop the
+	// auto-repeat.  That's obviously backwards - the Key Up
+	// needs to interrupt the auto-repeat out of band.  So we
+	// need to check the current status of the key by looking
+	// for a queued Key Up.  Note that we can't reliably
+	// short-circuit this in the initial key input processing,
+	// because the Key Down that *starts* the auto-repeat can
+	// itself be queued, so the wheel spin might not have
+	// started yet when the Key Up is initially processed.
+	// The most reliable way to get the sequencing right is to
+	// check the queue.
+	for (auto &key : keyQueue)
+	{
+		// if it's a Key Up for our repeating command, cancel
+		// the auto-repeat
+		if ((key.mode & KeyDown) == 0
+			&& key.cmd->func == wheelAutoRepeat.key.cmd->func)
+		{
+			WheelAutoRepeatStop();
+			return;
+		}
+	}
+
 	// count the repeat
 	wheelAutoRepeat.repeatCount += 1;
 
@@ -13367,7 +13490,7 @@ void PlayfieldView::OnConfigChange()
 			// match it against "time units * repeats"
 			std::transform(s.begin(), s.end(), s.begin(), ::_totlower);
 			static const std::basic_regex<TCHAR> pat(
-				_T("\\s*(([\\d.]+|)\\s*(ms|s)?|kbrate|kbdelay|keyboardrate|keyboarddelay)\\s*(\\*\\s*(\\d+))?\\s*"));
+				_T("\\s*(([\\d.]+)\\s*(ms|s)?|kbrate|kbdelay|keyboardrate|keyboarddelay)\\s*(\\*\\s*(\\d+))?\\s*"));
 			std::match_results<TSTRING::const_iterator> m;
 			if (std::regex_match(s, m, pat))
 			{
@@ -13417,7 +13540,7 @@ void PlayfieldView::OnConfigChange()
 	if (wheelAutoRepeat.repeatTimes.size() == 0)
 	{
 		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.delay, 1);
-		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.interval, 0);
+		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.interval, 2);
 	}
 
 	// load the underlay enabled status
@@ -19712,6 +19835,7 @@ void PlayfieldView::ShowSettingsDialog()
 			// Run the dialog.   Provide a callback that reloads the config if the
 			// dialog saves changes.
 			showOptionsDialog(
+				Application::Get()->configFilePath.c_str(),
 				[this](bool succeeded) { if (succeeded) Application::Get()->ReloadConfig(); },
 				[this](HWND hWnd) { Application::Get()->InitDialogPos(hWnd, ConfigVars::OptsDialogPos); },
 				Application::Get()->IsAdminHostAvailable(),

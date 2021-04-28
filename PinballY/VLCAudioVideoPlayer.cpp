@@ -179,6 +179,11 @@ static bool LoadLibvlc(ErrorHandler &eh)
 	GetDeployedFilePath(pluginsPath, VLC_ROOT_DIR _T("\\plugins"), _T(""));
 	SetEnvironmentVariable(_T("VLC_PLUGIN_PATH"), pluginsPath);
 
+	// set minimum verbosity (to try to reduce the copious
+	// OutputDebugString garbage that libvlc generates; doesn't
+	// actually seem to reduce it by much)
+	SetEnvironmentVariable(_T("VLC_VERBOSE"), _T("-1"));
+
 	// Load libvlccore first, so that it's in memory when libvlc.dll
 	// tries to bind to it statically.
 	TCHAR libvlccorePath[MAX_PATH];
@@ -355,10 +360,19 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 			// through ffmpeg to deinterlace them, or if that's a problem
 			// for some reason, we could add a global program option to
 			// enable this.
+			//
+			// --verbose=0 --quiet - disable as much logging as we can.
+			// libvlc generates tons of OutputDebugString messages, which
+			// waste CPU time and clutter the debugger console in dev
+			// builds.  There's no way to disable most of them, but
+			// these options are supposed to at least reduce them.  In
+			// practice, unfortunately, not by much.
 			// 
 			static const char *args[] = {
 				"--no-lua",
 				"--deinterlace=0",
+				"--verbose=-1",
+				"--quiet",
 			};
 			if ((vlcInst = libvlc_new_(countof(args), args)) == nullptr)
 			{

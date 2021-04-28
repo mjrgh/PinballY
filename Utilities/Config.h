@@ -19,14 +19,19 @@
 // location and name of the file.
 struct ConfigFileDesc
 {
-	// "Application Data" subdirectory.  If this is non-null, the config
-	// file is located in this subfolder of the standard Windows "Application 
-	// Data" folder.  If this is null, or we can't resolve the Application Data
-	// folder path, we'll use the deployment directory (the folder where the
-	// program .EXE is installed) as the root folder.
-	const TCHAR *appDataSubdir; 
+	// Diretcory path.  If this is non-null and non-empty, this gives 
+	// the absolute path to the file.  This can contain the following
+	// substitution parameters:
+	//
+	//    %AppData%   - the Windows "Application Data" folder path
+	//    %Program%   - the program install folder
+	//
+	// If this is null or empty, we'll use the deployment directory
+	// (the folder where the program .EXE is installed) as the root 
+	// folder.
+	const TCHAR *dir;
 	
-	// File name, relative to the root folder set by appDataSubdir.
+	// File name, relative to the folder path
 	const TCHAR *filename;
 
 	// Default file.  If the file named above doesn't exist, we'll load

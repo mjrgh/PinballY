@@ -164,22 +164,26 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 	}
 
 	// check for special launch modes
-	std::match_results<const TCHAR*> m;
-	if (std::regex_match(lpCmdLine, m, std::basic_regex<TCHAR>(_T("\\s*/AutoLaunch=AdminMode,delay=(\\d+)\\s*"))))
+	for (int i = 1; i < __argc; ++i)
 	{
-		// Extract the delay time
-		auto delay = static_cast<DWORD>(_ttol(m[1].str().c_str()));
+		const TCHAR *argp = __targv[i];
+		std::match_results<const TCHAR*> m;
+		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("\\s*/AutoLaunch=AdminMode,delay=(\\d+)\\s*"))))
+		{
+			// Extract the delay time
+			auto delay = static_cast<DWORD>(_ttol(m[1].str().c_str()));
 
-		// Set up admin mode auto launch.  This sets up auto launch for
-		// our "PinballY Admin Mode" executable instead of the regular
-		// PinballY executable.
-		TCHAR exe[MAX_PATH];
-		GetExeFilePath(exe, countof(exe));
-		PathAppend(exe, _T("PinballY Admin Mode.exe"));
-		bool ok = SetUpAutoRun(true, _T("PinballY"), exe, nullptr, true, delay, InteractiveErrorHandler());
+			// Set up admin mode auto launch.  This sets up auto launch for
+			// our "PinballY Admin Mode" executable instead of the regular
+			// PinballY executable.
+			TCHAR exe[MAX_PATH];
+			GetExeFilePath(exe, countof(exe));
+			PathAppend(exe, _T("PinballY Admin Mode.exe"));
+			bool ok = SetUpAutoRun(true, _T("PinballY"), exe, nullptr, true, delay, InteractiveErrorHandler());
 
-		// indicate success/failure via the exit code
-		return ok ? 0 : 2;
+			// indicate success/failure via the exit code
+			return ok ? 0 : 2;
+		}
 	}
 
 	// initialize common controls
@@ -226,9 +230,16 @@ void Application::HideCursor()
 	}
 }
 
+// Local copy the default config file descriptor.  This lets us
+// override elements from the command line arguments, if applicable.
+static ConfigFileDesc configFileDesc;
+
 int Application::EventLoop(int nCmdShow)
 {
-	// parse arguments
+	// start with the default config file desc
+	configFileDesc = MainConfigFileDesc;
+
+	// parse command-line arguments
 	for (int i = 1; i < __argc; ++i)
 	{
 		const TCHAR *argp = __targv[i];
@@ -257,8 +268,17 @@ int Application::EventLoop(int nCmdShow)
 			adminHost.StartThread();
 		}
 
+		// Config file path
+		else if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/settings:(.+)"), std::regex_constants::icase)))
+		{
+			// /Settings:<path>
+			// Sets the path to the configuration files
+			configFilePath = m[1].str();
+			configFileDesc.dir = configFilePath.c_str();
+		}
+
 		// Javascript Debug mode
-		if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
+		else if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
 		{
 			// enable debugging
 			javascriptDebugOptions.enable = true;
@@ -304,7 +324,7 @@ int Application::EventLoop(int nCmdShow)
 	}
 
 	// initialize the core subsystems and load config settings
-	if (!Init() || !LoadConfig(MainConfigFileDesc))
+	if (!Init() || !LoadConfig(configFileDesc))
 		return 0;
 
 	// Open a dummy window to take focus at startup.  This works around
@@ -837,7 +857,7 @@ bool Application::ReloadConfig()
 	GameList::ReCreate();
 
 	// load the settings file
-	if (!LoadConfig(MainConfigFileDesc))
+	if (!LoadConfig(configFileDesc))
 		return false;
 
 	// reset the game list

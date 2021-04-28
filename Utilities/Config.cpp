@@ -49,32 +49,59 @@ ConfigManager::~ConfigManager()
 
 bool ConfigManager::Load(const ConfigFileDesc &fileDesc)
 {
-	// Get the My Documents path if possible
-	TCHAR fname[MAX_PATH], defsFname[MAX_PATH], dir[MAX_PATH], docs[MAX_PATH];
-	if (fileDesc.appDataSubdir != nullptr
-		&& SUCCEEDED(SHGetFolderPath(0, CSIDL_APPDATA, 0, SHGFP_TYPE_CURRENT, docs)))
+	// Figure the full config file path.  If a directory is provided,
+	// combine that with the filename.  Otherwise use the deployment
+	// folder.
+	TCHAR fname[MAX_PATH], defsFname[MAX_PATH], dir[MAX_PATH];
+	if (fileDesc.dir != nullptr && fileDesc.dir[0] != 0)
 	{
-		// got it - combine it with the app-specific subfolder to get
-		// the full directory path
-		PathCombine(dir, docs, fileDesc.appDataSubdir);
+		// replace substitution parameters
+		if (_tcschr(fileDesc.dir, '"%') != nullptr)
+		{
+			TSTRING tmp = regex_replace(TSTRING(fileDesc.dir), std::basic_regex<TCHAR>(_T("%(\\w+)%")),
+				[](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+			{
+				// get the variable name portion, in lower-case
+				TSTRING varName = m[1].str();
+				std::transform(varName.begin(), varName.end(), varName.begin(), ::_totlower);
 
-		// combine the relative filename with the AppData subfolder
-		PathCombine(fname, dir, fileDesc.filename);
+				// look up the variable name
+				if (varName == _T("appdata"))
+				{
+					// get the system AppData path
+					TCHAR appData[MAX_PATH];
+					if (SUCCEEDED(SHGetFolderPath(0, CSIDL_APPDATA, 0, SHGFP_TYPE_CURRENT, appData)))
+						return appData;
+				}
+				else if (varName == _T("program"))
+				{
+					TCHAR prog[MAX_PATH];
+					GetDeployedFilePath(prog, nullptr, nullptr);
+					return prog;
+				}
 
-		// also build the defaults file name, if provided
-		if (fileDesc.defaultSettingsFilename != nullptr)
-			PathCombine(defsFname, dir, fileDesc.defaultSettingsFilename);
+				// not matched, or we couldn't expand the variable - return the original %xxx% variable
+				return m[0].str();
+			});
+
+			// combine the expanded string with the filename
+			PathCombine(fname, tmp.c_str(), fileDesc.filename);
+		}
+		else
+		{
+			// no substitution parameters, so just combine the literal path with the filename
+			PathCombine(fname, fileDesc.dir, fileDesc.filename);
+		}
 	}
 	else
 	{
-		// The App Data subdir is null, or we can't resolve the path, so use
-		// the deployment directory.
+		// No other path is provided, so use the deployment folder by default
 		GetDeployedFilePath(fname, fileDesc.filename, _T(""));
-
-		// also build the defaults file name, if provided
-		if (fileDesc.defaultSettingsFilename != nullptr)
-			GetDeployedFilePath(defsFname, fileDesc.defaultSettingsFilename, _T(""));
 	}
+
+	// The Defaults file always comes from the deployment directory
+	if (fileDesc.defaultSettingsFilename != nullptr)
+		GetDeployedFilePath(defsFname, fileDesc.defaultSettingsFilename, _T(""));
 
 	// Now pull the directory portion from the combined path.  The filename
 	// might have added its own subfolder within the app folder, so we can't
@@ -82,11 +109,11 @@ bool ConfigManager::Load(const ConfigFileDesc &fileDesc)
 	_tcscpy_s(dir, fname);
 	PathRemoveFileSpec(dir);
 
-	// If the containing folder doesn't exist, try creating it
+	// If the folder doesn't exist, try creating it
 	if (!DirectoryExists(dir))
 	{
 		// try creating it
-		if (!CreateSubDirectory(dir, docs, 0))
+		if (!CreateSubDirectory(dir, nullptr, 0))
 		{
 			DWORD err = GetLastError();
 			LogSysError(EIT_Warning, MsgFmt(IDS_ERR_CONFIGMKDIR, dir),

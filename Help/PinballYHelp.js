@@ -164,6 +164,7 @@ var contents = [
     "Underlay.html Underlay",
     "HighScores.html High Scores",
     "DirectoryInfo.html Files &amp; Folders",
+    "CommandLine.html Command Line Options",
     "AlphaVideo.html Transparent videos",
     "DOFEvents.html DOF Events",
     "Credits.html Credits and disclaimers",
