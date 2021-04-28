@@ -10,6 +10,15 @@ with a drive letter: /Settings:D:\MyFiles.  Specify the folder path
 only, without the filename - this is the *location* where PinballY
 looks for the file, not the name of the file.  (Issue #149 on github.)
 
+* You can also specify an alternative location for GameStats.csv,
+which is the file where PinballY stores metadata that applies to both
+configured and unconfigured games.  This file is normally stored in
+the PinballY program folder, but you might want to store it in a
+different location, for the same reasons that you might want to store
+Settings.txt elsewhere.  To specify the GameStats folder location, add
+the option /GameStats:<folder> to the command line, using a full path
+with drive letter.  (Issue #149 on github.)
+
 * A new option setting lets you change the auto-repeat rate when you
 press and hold one of the main wheel navigation buttons (Next,
 Previous, Next Page, Previous Page).  In the past, the repeat rate was

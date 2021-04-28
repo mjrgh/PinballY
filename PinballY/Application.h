@@ -46,8 +46,11 @@ public:
 	// UI, and runs our main event loop.
 	static int Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow);
 
-	// Config file path, as set in the options
+	// Config file path, as set in the command-line options
 	TSTRING configFilePath;
+
+	// Path to GameStats.cvs, as set in the command-line options
+	TSTRING gameStatsPath;
 
 	// Explicitly reload the configuration.  This reloads the settings
 	// file and rebuilds all game list data.

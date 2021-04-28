@@ -277,6 +277,14 @@ int Application::EventLoop(int nCmdShow)
 			configFileDesc.dir = configFilePath.c_str();
 		}
 
+		// GameStats.csv file path
+		else if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/gamestats:(.+)"), std::regex_constants::icase)))
+		{
+			// /GameStats:<path>
+			// Sets the path to the GameStats.cvs file
+			gameStatsPath = m[1].str();
+		}
+
 		// Javascript Debug mode
 		else if (std::regex_match(argp, m, std::basic_regex<TCHAR>(_T("/jsdebug(:(.*))?"), std::regex_constants::icase)))
 		{

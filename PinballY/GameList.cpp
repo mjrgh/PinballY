@@ -157,9 +157,17 @@ void GameList::Init(ErrorHandler &eh)
 	// get the expanded media path
 	mediaPath = GetDataFilePath(ConfigVars::MediaPath, _T("Media"), IDS_DEFAULT_MEDIA_PATH_PROMPT, eh);
 
-	// find the game stats database file
+	// Find the game stats database file.  If a path override was set on
+	// the command line, use that, otherwise look in the program folder.
+	auto const &gameStatsPath = Application::Get()->gameStatsPath;
+	const TCHAR *fname = _T("GameStats.csv");
 	TCHAR statsFile[MAX_PATH];
-	GetDeployedFilePath(statsFile, _T("GameStats.csv"), _T(""));
+	if (gameStatsPath.length() != 0)
+		PathCombine(statsFile, gameStatsPath.c_str(), fname);
+	else
+		GetDeployedFilePath(statsFile, fname, _T(""));
+
+	// remember it
 	statsDb.SetFile(statsFile);
 
 	// load the game stats database, if it exists
