@@ -100,6 +100,7 @@ namespace ConfigVars
 	static const TCHAR *AttractModeIdleTime = _T("AttractMode.IdleTime");
 	static const TCHAR *AttractModeSwitchTime = _T("AttractMode.SwitchTime");
 	static const TCHAR *AttractModeHideWheelImages = _T("AttractMode.HideWheelImages");
+	static const TCHAR *AttractModeHideInfoBox = _T("AttractMode.HideInfoBox");
 	static const TCHAR *PlayfieldWinPrefix = _T("PlayfieldWindow");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
 	static const TCHAR *ExitKeyMode = _T("ExitMenu.ExitKeyMode");
@@ -11884,11 +11885,12 @@ void PlayfieldView::SyncInfoBox()
 {
 	// Don't show the info box if there's a menu or popup showing, 
 	// or if any animation is running, or we're in running game mode,
-	// or the options dialog is open.
+	// or we're in attract mode (unless the options say to keep the
+	// box in attract mode), or the options dialog is open.
 	if (isAnimTimerRunning 
 		|| popupSprite != nullptr 
 		|| curMenu != nullptr 
-		|| attractMode.active
+		|| (attractMode.active && attractMode.hideInfoBox)
 		|| runningGameMsgPopup != nullptr
 		|| settingsDialogOpen)
 		return;
@@ -13359,6 +13361,7 @@ void PlayfieldView::OnConfigChange()
 	attractMode.idleTime = cfg->GetInt(ConfigVars::AttractModeIdleTime, 60) * 1000;
 	attractMode.switchTime = cfg->GetInt(ConfigVars::AttractModeSwitchTime, 5) * 1000;
 	attractMode.hideWheelImages = cfg->GetBool(ConfigVars::AttractModeHideWheelImages, true);
+	attractMode.hideInfoBox = cfg->GetBool(ConfigVars::AttractModeHideInfoBox, true);
 
 	// Get the default font.  If it's undefined or "*", use the system default.
 	if (auto df = cfg->Get(ConfigVars::DefaultFontFamily, _T("*")); _tcscmp(df, _T("*")) != 0)

@@ -1138,6 +1138,13 @@ AttractMode.StatusLine.UpdateTime = 1000
 # avoid overly static images in those areas of the display.
 AttractMode.HideWheelImages = true
 
+# Hide the Game Info Box while in attract mode.  Like the wheel
+# icons, the Info Box is usually undesirable in attract mode
+# because it's such a static graphic that it could cause burn-in
+# on susceptible displays if displayed continuously for long
+# periods.
+AttractMode.HideInfoBox = true
+
 # Game timeout, in seconds.  If this is set to a non-zero value,
 # the system will automatically terminate a running game when there 
 # hasn't been any keyboard, joystick, or mouse input for this length 

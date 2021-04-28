@@ -31,6 +31,14 @@ the settings dialog; see the corresponding help page for an
 explanation of how to set up a custom speed ramp.  (Issue #140 on
 github.)
 
+* A new option lets you control whether or not the Game Info Box is
+displayed during Attract Mode.  The new option is on the Attract Mode
+page of the settings dialog.  In the past, the Info Box was always
+hidden, since it's such a static graphic that it could defeat the
+screen-saver purpose of Attract Mode if displayed.  But if you prefer
+to see the Info Box anyway, you can now turn it back on via the
+option. (Issue #145 on github.)
+
 * The layout of the game wheel in the main window can now be
 customized via some new parameters in the settings file
 (Settings.txt).  See the help under Customizing > Wheel Layout.

@@ -368,6 +368,39 @@
    the files in your main media folder are still used by default.
 </p>
 
+<h3>How images and videos are displayed</h3>
+<p>
+   For the most part, image and video files are simply displayed
+   just as they appear in the file, scaled to match the window
+   size or display area size.
+</p>
+<p>
+   Playfield images and videos must be rotated so that the bottom
+   of the playfield is at the left side of the image/video:
+</p>
+<img src="PlayfieldImageRotation.jpg" class="example">
+<p>
+   This is the same orientation used in the HyperPin media packs,
+   so downloadable media you find on vpforums.org and similar sites
+   will usually already be rotated properly.  Likewise, if you
+   capture live game play images and videos through PinballY's
+   built-in capture feature, PinballY will capture them in the
+   correct orientation.  Since PinballX uses the same rotation
+   for its media, capture tools designed to create media for
+   PinballX should also produce the correct results.  If you're
+   using generic screen capture tools, though, you'll need to
+   tell your tool to apply the necessary rotation during capture,
+   or go back and edit the file after the capture to apply the
+   rotation.  If you don't already have a tool that can do
+   that, you can use ffmpeg - it can rotate a video and re-encode
+   it with the new rotation.
+</p>
+<p>
+   This weird rotation rule applies <b>only</b> to playfield images
+   and videos.  The media shown in the backglass window and
+   the other windows are displayed with their original orientation.
+</p>
+
 <a name="allFormats"></a>
 <h3>Supported media file formats and extensions</h3>
 
