@@ -11002,7 +11002,11 @@ void PlayfieldView::JsShowMenu(WSTRING name, std::vector<JsValueRef> items, Java
 			if (options.Get<bool>("dialogStyle")) menuFlags |= SHOWMENU_DIALOG_STYLE;
 
 			// get the page number from the options argument
-			pageno = options.Get<int>("pageNo");
+			auto pagenoVal = options.Get<JsValueRef>("pageNo");
+			if (js->IsString(pagenoVal) && js->JsToNative<TSTRING>(pagenoVal) == _T("same"))
+				pageno = menuPage;
+			else if (js->IsNumber(pagenoVal))
+				pageno = options.Get<int>("pageNo");
 		}
 
 		// remove any menu/popup currently showing
@@ -11100,6 +11104,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	bool inPagedSection = false;
 	bool hasPagedSection = false;
 	int nPagedItems = 0;
+	int pagedSelectedItem = -1;
 	for (auto i : items)
 	{
 		// Check the type:
@@ -11129,7 +11134,12 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 		}
 		else if (inPagedSection)
 		{
-			// we're in the paged section - count the item
+			// We're in the paged section.  If this item is selected,
+			// remember its offset within the paged sublist.
+			if (i.selected)
+				pagedSelectedItem = nPagedItems;
+			
+			// count the item
 			++nPagedItems;
 		}
 	}
@@ -11209,7 +11219,6 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 			menuHt = unpaginatedHeight;
 		}
 	}
-
 
 	// create the background
     Application::InUiErrorHandler eh;

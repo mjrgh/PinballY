@@ -81,6 +81,8 @@ mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>);
    <li>noAnimation: true if you want to skip the normal menu opening animation and
    just display the menu instantly.  This is useful when you're updating a menu in
    place in response to a command, such as toggling a checkmark in a "stay open" item.
+   If this is a paged menu, you'll probably also want to specify <b>pageNo: "same"</b>,
+   to maintain the same page location in the refreshed menu.
 
    <li>dialogStyle: true to display a "dialog style" menu.  This style is designed to
    accommodate a long-ish message at the top of the menu, followed by the usual
@@ -94,6 +96,12 @@ mainWindow.showMenu(<i>id</i>, <i>items</i>, <i>options</i>);
    set to -1 in its item descriptor.  It also usually looks best to use a separator
    bar as the second item, to visually reinforce the dialog styling.  The remaining
    items are ordinary menu items.
+
+   <li>pageNo: a number specifying the "page" to show initially (see Paged Menus below).
+   The page number starts at zero for the first page.  You can also set this to
+   the string <b>"same"</b> to display the same page previously shown; this is
+   useful when re-displaying a menu after a <b>stayOpen</b> item was selected,
+   such as to update the check-mark status of some items.
 </ul>
 
 <h2>Custom commands</h2>
