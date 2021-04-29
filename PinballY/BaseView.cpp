@@ -79,12 +79,6 @@ bool BaseView::OnKeyEvent(UINT msg, WPARAM wParam, LPARAM lParam)
 	// hide the cursor on any key input
 	Application::HideCursor();
 
-	{TCHAR buf[256]; _stprintf_s(buf, _T("WM_KEY%s %s (%s)%s\n"), msg == WM_KEYUP ? _T("UP") : _T("DOWN"),
-		KeyInput::keyName[KeyInput::TranslateExtKeys(msg, wParam, lParam)].friendlyName,
-		KeyInput::keyName[wParam].friendlyName,
-		(lParam & (1 << 30)) != 0 ? _T(" Repeat") : _T(""));
-	OutputDebugString(buf); }
-
 	// run it through the playfield view key handler
 	if (PlayfieldView *v = Application::Get()->GetPlayfieldView();
 		v != 0 && v->HandleKeyEvent(this, msg, wParam, lParam))

@@ -1,6 +1,15 @@
 PinballY Update History
 
-? (1.1.0 Beta 2)
+04-28-2021 (1.1.0 Beta 2)
+
+* This release is probably even more "Beta" than the previous one,
+because it has some internal changes in the way the wheel navigation
+buttons are handled that could be destabilizing.  On the other hand,
+wheel navigation is such a core function that any problems should be
+immediately obvious.  If you do run into any problems, file an issue
+on github with the details (your key/button mappings might be
+particularly important), and as always, you can go back to an earlier
+version of the program if necessary.
 
 * You can now specify an alternative location for the settings file
 (Settings.txt) when launching the program, via a command-line

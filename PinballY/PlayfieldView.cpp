@@ -5096,7 +5096,6 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 		// key up event
 		mode = KeyUp;
 		down = false;
-		{ TCHAR buf[256]; _stprintf_s(buf, _T("WM_KEYUP vkey=%d orig=%d\n"), vkey, vkeyOrig); OutputDebugString(buf); }
 
 		// stop any auto-repeat in effect
 		StopAutoRepeat();
@@ -5144,13 +5143,7 @@ void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatC
 {
 	// add each command to the key queue
 	for (auto c : cmds)
-	{
-		if (!bg)
-			{ TCHAR buf[256]; _stprintf_s(buf, _T("KEY PRESS : %s %s\n"), c->name, (mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
-
-		// queue the command
 		keyQueue.emplace_back(hwndSrc, mode, repeatCount, bg, scripted, c);
-	}
 
 	// If a wheel animation is in progress, skip directly to the end
 	// of the animation on any new key-down event.  This makes the
@@ -8399,9 +8392,6 @@ void PlayfieldView::ProcessKeyQueue()
 		QueuedKey key = keyQueue.front();
 		keyQueue.pop_front();
 
-		if (!key.bg)
-			{ TCHAR buf[256]; _stprintf_s(buf, _T("QUEUED : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
-
 		// Check the command for special handling
 		const TCHAR *dofEffect = nullptr;
 		auto c = key.cmd;
@@ -8440,7 +8430,6 @@ void PlayfieldView::ProcessKeyQueue()
 				// start a new auto-repeat as a side effect.  If it's a
 				// key-up, processing it will have no further effect.
 				WheelAutoRepeatStop();
-				{ TCHAR buf[256]; _stprintf_s(buf, _T("WHEEL STOP : Queued : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			}
 		}
 
@@ -12919,8 +12908,6 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 
 			// note the new state
 			rawShiftKeyState.left = make;
-
-			{TCHAR buf[256]; _stprintf_s(buf, _T("RAW LEFT SHIFT %s\n"), rawShiftKeyState.left ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			break;
 
 		case VK_RSHIFT:
@@ -12929,8 +12916,6 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 
 			// note the new state
 			rawShiftKeyState.right = make;
-
-			{TCHAR buf[256]; _stprintf_s(buf, _T("RAW RIGHT SHIFT %s\n"), rawShiftKeyState.right ? _T("Down") : _T("Up")); OutputDebugString(buf); }
 			break;
 		}
 	}
@@ -13158,8 +13143,6 @@ void PlayfieldView::WheelAutoRepeatStart(const QueuedKey &key)
 {
 	if (!wheelAutoRepeat.active || wheelAutoRepeat.key.cmd->func != key.cmd->func)
 	{
-		{ TCHAR buf[256]; _stprintf_s(buf, _T("WHEEL START : %s %s\n"), key.cmd->name, (key.mode & KeyDown) ? _T("Down") : _T("Up")); OutputDebugString(buf); }
-
 		// reset the repeat ramp
 		wheelAutoRepeat.repeatTimeIndex = 0;
 		wheelAutoRepeat.instantaneousAutoRepeat = 0;
@@ -13229,7 +13212,7 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 	{
 		// If we're done with the current step in the repeat time list, advance 
 		// to the next step
-		while (wheelAutoRepeat.repeatTimeIndex + 1 < wheelAutoRepeat.repeatTimes.size()
+		while (wheelAutoRepeat.repeatTimeIndex + 1 < static_cast<int>(wheelAutoRepeat.repeatTimes.size())
 			&& wheelAutoRepeat.repeatCount >= wheelAutoRepeat.repeatTimes[wheelAutoRepeat.repeatTimeIndex].endAfterRepeatCount)
 			wheelAutoRepeat.repeatTimeIndex += 1;
 

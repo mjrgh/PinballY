@@ -720,7 +720,7 @@ JoystickManager::PhysicalJoystick *JoystickManager::GetPhysicalJoystick(const Lo
 
 JoystickManager::LogicalJoystick *JoystickManager::GetLogicalJoystick(int unitNum)
 {
-	return (unitNum >= 0 && unitNum < logicalJoysticks.size() ? logicalJoysticksByIndex[unitNum] : nullptr);
+	return (unitNum >= 0 && unitNum < static_cast<int>(logicalJoysticks.size()) ? logicalJoysticksByIndex[unitNum] : nullptr);
 }
 
 JoystickManager::LogicalJoystick *JoystickManager::GetLogicalJoystick(const GUID &guid)
