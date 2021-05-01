@@ -45,6 +45,9 @@ wanted!)  (Issue #172 on github.)
 Apply button from becoming enabled after making a change to the
 button/key mapping list.
 
+* Fixed a problem in Javascript where gameList.setCurFilter() didn't
+always activate a category filter properly.
+
 
 04-28-2021 (1.1.0 Beta 2)
 

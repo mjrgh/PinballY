@@ -713,6 +713,9 @@ void GameList::SetGame(int n)
 
 GameListFilter *GameList::GetFilterById(const TCHAR *id)
 {
+	// make sure the list is up to date
+	CheckMasterFilterList();
+
 	// search for a filter matching the ID
 	for (auto it : filters)
 	{
@@ -726,6 +729,9 @@ GameListFilter *GameList::GetFilterById(const TCHAR *id)
 
 GameListFilter *GameList::GetFilterByCommand(int cmdID)
 {
+	// make sure the list is up to date
+	CheckMasterFilterList();
+
 	// search for the filter by command ID
 	for (auto f : filters)
 	{
