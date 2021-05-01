@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Media Capture Options - FFMPEG</h1>
+
+<p>
+   This settings page groups the Media Capture options related to
+   FFMPEG, the video encoding program that PinballY uses for
+   screen captures.  There's a separate options page,
+   <a href="CaptureOptions.html">Capture Options</a>, for the
+   more generic settings related to the capture process generally.
+</p>
+
+<h2>Option details</h2>
+
+<p>
+   <b>Use two-pass video encoding:</b>  Use this option if your
+   captured videos look too choppy.  Normally, PinballY tries to
+   capture and compress video frames at the same time, in
+   a single pass.  This requires a fairly fast machine, though; on
+   slower machines, the video encoder might drop frames (omit
+   them from the resulting video) when it can't keep up with the
+   live video rate.  Dropped frames are visible as momentary
+   freezes when you play back the video, which can make the
+   video look choppy or jerky.  If this happens on your machine,
+   you can try two-pass encoding instead.  Two-pass encoding
+   initially captures the video frames without any compression,
+   which can usually be done without any dropped frames even on
+   slower machines.  It then goes back and re-encodes the video
+   to a compressed format after the full capture has finished.
+   This takes longer overall because of the separate second pass,
+   but should eliminate (or at least greatly reduce) dropped
+   frames in the resulting video.
+</p>
+<p>
+   Optimization tip:
+   If you've tuned your system to give higher priority to pinball
+   software via a tool like <a target="_blank" href="http://mjrnet.org/pinscape/PinAffinity.html">PinAffinity</a>,
+   you should add <b>ffmpeg.exe</b> to the list of programs that
+   receive priority CPU access.  Ffmpeg is the program that
+   PinballY uses to carry out screen capture operations.  Screen
+   capture is inherently CPU-intensive, so ffmpeg will do a better
+   job of capturing if it's given full CPU resources.
+</p>
+
+<p>
+   <b>Limit captured videos to HD resolution:</b>  Check this box
+   to limit the resolution of captured videos to HD (1920x1080 pixels).
+   By default, videos created using the media capture function have
+   the same pixel size as the screen area being captured, but you
+   can use this option to set an upper limit of HD resolution.
+   This won't affect videos captured from smaller screen areas;
+   it only sets an upper bound for the resolution.
+</p>
+<p>
+   In most cases, it's best to capture at the full original
+   resolution, since that gives you the most faithful reproduction
+   of the original graphics.  However, videos captured from 4K
+   monitors and other large formats might be too big to play back
+   smoothly on older or slower systems, or might not even play back
+   at all if memory is limited.  If you have a large monitor, and your
+   system can't smoothly play videos captured at full size,
+   you can use this option to limit the videos to HD resolution.
+</p>
+
+<p>
+   <b>Temp file folder:</b>  This lets you specify the folder path
+   for temporary files created during two-pass video encoding.
+   By default, the temp files are created in the same folder as
+   the final video.  However, there might be a different folder
+   that you'd prefer to use, depending on how your system is set up.
+   In particular, if you have a disk that's especially fast or
+   that has a lot of extra space, that might be a good place for
+   the temp files, because the uncompressed video files created
+   during the first pass of a two-pass recording are very large.
+   A fast disk is advantageous because FFMPEG has to transfer
+   the large, uncompressed video stream to the drive in
+   real time in order to keep up with the live video without
+   dropping frames.
+</p>
+
+<p>
+   <b>1st pass codec opts:</b>  The video codec options for the
+   first pass of a two-pass recording.  If you leave this blank,
+   PinballY uses its default settings, which are currently:
+</p>
+<div class="indented">
+   <tt>-c:v libx264 -threads 8 -qp 0 -preset ultrafast</tt>
+</div>
+<p>
+   That setting is designed to minimize FFMPEG's CPU usage during
+   the initial live capture pass by doing little or no compression,
+   but the lack of compression means that it creates extremely
+   large files.  That can present a new bottleneck if the disk
+   containing the temporary folder isn't fast enough, so it
+   might actually be faster overall on some systems to use
+   a preset that does slightly more compression.  This option
+   lets you experiment to find the best setting for your system.
+</p>
+
+
+<p>
+   <a name="AudioCaptureDevice"></a>
+   <b>Audio capture device:</b>  This lets you select the audio
+   input (recording) device to use for media capture operations
+   that record audio, such as table audio tracks and table
+   videos that include audio.
+</p>
+<p>
+   The drop list shows a list of all of the audio input devices
+   currently in your system.  You should choose the one that
+   records from the "Line Out" port of your sound card.  This
+   is often called "Stereo Mix" or something similar.
+</p>
+<p>
+   See <a href="#audioDevice">About the Audio Capture Device</a>
+   below for more details.
+</p>
+
+
+<a name="audioDevice"></a>
+<h2>About the Audio Capture Device</h2>
+
+<h4>Why can't PinballY choose a device automatically?</h4>
+<p>
+   Because Windows doesn't provide a standard device driver for
+   this function, and Microsoft didn't even bother to specify
+   a standard name for the driver.  You'd think that Windows
+   would offer an audio capture function automatically, but it
+   doesn't; Microsoft left it up to the sound card manufacturers
+   to provide drivers, and left it up to them to name the
+   devices.  So there's no way for PinballY to know the name
+   of this driver on your system, and in fact no way to even
+   know if there's one installed.
+</p>
+<p>
+   "Stereo Mix" is a common name for this driver only because
+   it's the name that Realtek uses for its loopback driver,
+   and Realtek chips are ubiquitous, especially in
+   the built-in audio in many motherboards these
+   days.  If your system has integrated audio on the
+   motherboard, chances are that it uses the Realtek chips,
+   so its driver will probably be called "Stereo Mix".
+   But the name might be the translated equivalent of
+   "Stereo Mix" if your system is localized to a language
+   other than English, or it might be something else entirely.
+</p>
+   
+
+<h4>What is the "Default" device?</h4>
+<p>
+   "Default" isn't actually a device in its own right.  It's
+   just a way of telling PinballY to select a device automatically,
+   which it does by searching the list you see for an entry
+   with the words "Stereo Mix" in its name.  If you don't see
+   any such device in the list, PinballY won't be able to find
+   one either, because it works from the same list you see here.
+   So "Default" won't actually work unless you see a suitable
+   device listed.  If you see a device with a similar name,
+   or a version of "Stereo Mix" translated into your system's
+   localization language, you should explicitly select that
+   item, because PinballY won't be able to figure it out on
+   its own based on the different name.
+</p>
+
+<h4>What if the audio device list <i>only</i> shows "Default"?</h4>
+<p>
+   If "Default" is the only device you see in the audio capture
+   device drop list, you won't be able to capture audio when
+   recording screen shots.  As described above, "Default" isn't
+   actually a device, it's just our way of telling PinballY to
+   choose a device by searching for one with "Stereo Mix"
+   in its name.  If you don't see a "Stereo Mix" device in the
+   list, PinballY won't be able to find one either.
+</p>
+<p>
+   So what can you do about it if the list is empty, or if
+   there aren't any suitable capture devices?  The answer is
+   that you have to install a suitable device driver.
+</p>
+<p>
+   In some cases, it's just a matter of enabling a device
+   that's disabled in the Windows audio control panels.  Some
+   sound cards come with Stereo Mix or equivalent devices
+   and disable them by default.  To check for disabled devices,
+   open the Windows sound control panel and go to the Recording
+   tab.  Look for a device called Stereo Mix or something similar;
+   if you find it, enable it, and try again in PinballY.
+</p>
+<p>
+   If the Windows sound control panel doesn't list any Stereo
+   Mix or equivalent devices, you'll have to find and install
+   a device driver capable of recording from the Line Out port.
+   This usually has to come from your
+   sound card manufacturer, so check the support site for
+   your sound card or your PC vendor to see if they have a
+   Stereo Mix or "audio loopback" device driver you can use.
+</p>
+
+
+
+</body>
+</html>

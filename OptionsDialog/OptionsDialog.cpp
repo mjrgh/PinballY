@@ -9,6 +9,7 @@
 #include "KeyboardDialog.h"
 #include "AttractModeDialog.h"
 #include "CaptureDialog.h"
+#include "CaptureFfmpegDialog.h"
 #include "CoinsDialog.h"
 #include "DMDDialog.h"
 #include "DOFDialog.h"
@@ -324,6 +325,7 @@ MainOptionsDialog::MainOptionsDialog(
 	AddPage(new AudioVideoDialog(IDD_AUDIO_VIDEO), AudioVideoPage, _T("AudioVideoOptions.html"));
 	AddPage(new MainKeyboardDialog(IDD_KEYS), KeysPage, _T("ButtonOptions.html"));
 	AddPage(new CaptureDialog(IDD_CAPTURE), CapturePage, _T("CaptureOptions.html"));
+	AddPage(new CaptureFfmpegDialog(IDD_CAPTURE_FFMPEG), CaptureFfmpegPage, _T("CaptureFfmpegOptions.html"));
 	AddPage(new AttractModeDialog(IDD_ATTRACT_MODE), AttractModePage, _T("AttractModeOptions.html"));
 	AddPage(new CoinsDialog(IDD_COINS), CoinsPage, _T("CoinOptions.html"));
 	AddPage(new DMDDialog(IDD_DMD), DMDPage, _T("RealDMDOptions.html"));

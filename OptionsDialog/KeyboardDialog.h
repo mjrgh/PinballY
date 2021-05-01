@@ -298,6 +298,16 @@ public:
 	};
 
 protected:
+	// Check for changes.  We simply keep a flag that tracks when we
+	// make any change to the key list, and consider the dialog dirty
+	// if that flag has ever been set.  This isn't as nice as our
+	// usual approach of testing to see if the dialog is currently
+	// dirty - in that case, making a change and then changing it
+	// back would remove themodified flag.  But it's time-consuming
+	// to test the whole key list, so we'll keep it simple.
+	virtual bool IsModFromConfig() override;
+	bool wasEverModified = false;
+
 	// does this dialog type allow assigning default keys?
 	BOOL bUseDefaultKeys;
 

@@ -346,7 +346,7 @@ void KeyboardDialog::OnClickList(NMHDR *nm, LRESULT *result)
 					InvalidateCommandItems(cmd);
 
 					// this changes the settings
-					SetDirty();
+					SetDirty(wasEverModified = true);
 				}
 			}
 			break;
@@ -550,7 +550,7 @@ void KeyboardDialog::CloseKeyEntry(BOOL commit)
 						}
 
 						// record the change
-						SetDirty();
+						SetDirty(wasEverModified = true);
 					}
 				}
 			}
@@ -638,7 +638,7 @@ void KeyboardDialog::DeleteKeyRow(int iItem)
 	}
 
 	// this modifies the dialog data
-	SetDirty();
+	SetDirty(wasEverModified = true);
 }
 
 void KeyboardDialog::OnHotTrackList(NMHDR *nm, LRESULT *result)
@@ -717,6 +717,16 @@ void KeyboardDialog::OnTimer(UINT_PTR idTimer)
 	__super::OnTimer(idTimer);
 }
 
+bool KeyboardDialog::IsModFromConfig()
+{
+	// if we've ever set the modified flag, consider it dirty
+	if (wasEverModified)
+		return true;
+
+	// no list changes - use the base class handling for variable-mapped controls
+	return __super::IsModFromConfig();
+}
+
 BOOL KeyboardDialog::OnEraseBkgnd(CDC* pDC)
 {
 	// get the dialog window dimensions
@@ -752,7 +762,7 @@ BOOL KeyboardDialog::OnApply()
 	// note if we have uncommited changes - do this before doing
 	// the base class data exchange update, as that clears the
 	// dirty flag when it's done
-	bool isDirty = m_bIsDirty;
+	bool isDirty = m_bIsDirty || wasEverModified;
 
 	// do the base class work (does the data exchange update)
 	__super::OnApply();
@@ -976,7 +986,7 @@ void KeyboardDialog::OnResetAll()
 		BuildCommandList();
 
 		// note the changes
-		SetDirty(TRUE);
+		SetDirty(wasEverModified = true);
 	}
 }
 
@@ -1414,6 +1424,6 @@ void MainKeyboardDialog::OnClickRememberJoysticks()
 
 	// load the new value from the control, and note the change
 	UpdateData(true);
-	SetDirty();
+	SetDirty(wasEverModified = true);
 }
 

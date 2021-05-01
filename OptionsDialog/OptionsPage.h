@@ -55,6 +55,12 @@ protected:
 	// Check if we're modified from the configuration
 	virtual bool IsModFromConfig();
 
+	// browse for a full folder path, storing the result in an edit control
+	void BrowseFolder(int editID);
+
+	// get the edit control for a given variable mapper
+	CEdit *GetEditVarMap(int editID);
+
 	DECLARE_MESSAGE_MAP()
 
 	// Control <-> Member variable <-> Config variable mapping.

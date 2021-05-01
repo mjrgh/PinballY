@@ -11,8 +11,8 @@
 IMPLEMENT_DYNAMIC(CaptureDialog, OptionsPage)
 
 BEGIN_MESSAGE_MAP(CaptureDialog, OptionsPage)
-	ON_NOTIFY(NM_CLICK, IDC_LINK_AUDIO_HELP, OnClickAudioHelp)
 END_MESSAGE_MAP()
+
 
 CaptureDialog::CaptureDialog(int dialogId) :
 	OptionsPage(dialogId)
@@ -57,75 +57,8 @@ void CaptureDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxEnumMap(_T("Capture.TopperVideo.Start"), IDC_CK_TP_VID_MANUAL_START, _T("auto"), _T("manual"), false));
 	varMap.emplace_back(new RadioStrMap(_T("Capture.TopperVideo.Stop"), IDC_RB_TP_VID_TIMED_STOP, _T("timed"), stopVals, 2));
 	varMap.emplace_back(new SpinIntMap(_T("Capture.TopperVideo.Time"), IDC_EDIT_CAP_TOPPER_TIME, 30, IDC_SPIN_CAP_TOPPER_TIME, 1, 120));
-	
-	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
-
-	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
-	
+		
 	varMap.emplace_back(new ManualStartButtonMap(_T("Capture.ManualStartStopButton"), IDC_CB_MANUAL_START_BUTTON));
-
-	varMap.emplace_back(new CkBoxEnumMap(_T("Capture.VideoResolutionLimit"), IDC_CK_LIMIT_TO_HD, _T("none"), _T("hd"), false));
-}
-
-afx_msg void CaptureDialog::OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult)
-{
-	if (auto par = dynamic_cast<OptionsDialog*>(GetParent()); par != nullptr)
-		par->ShowHelpPage(_T("CaptureOptions_AudioDevice.html"));
-
-	*pResult = 0;
-}
-
-void CaptureDialog::AudioDeviceMap::InitControl()
-{
-	// get the current config setting
-	auto cv = ConfigManager::GetInstance()->Get(configVar, _T(""));
-
-	// Populate the audio capture devices, and note along the way if we
-	// come across the current setting from the configuration.
-	bool foundCur = false;
-	std::vector<TSTRING> devices;
-	EnumDirectShowAudioInputDevices([cv, &foundCur, &devices](const AudioCaptureDeviceInfo *info)
-	{
-		// add it to the list of known devices
-		devices.emplace_back(info->friendlyName);
-
-		// note if it's the current setting in the config
-		if (_tcsicmp(cv, info->friendlyName) == 0)
-			foundCur = true;
-
-		// continue the enumeration
-		return true;
-	});
-
-	// If we didn't find the current config value, add it to the combo list.
-	// This allows the user to keep the current value even though it's not an
-	// active device, which could be desirable if the user only temporarily
-	// removed the device from the system for some reason.
-	if (cv[0] != 0 && !foundCur)
-		devices.emplace_back(cv);
-
-	// Sort the list alphabetically before building the combo.  Note that we
-	// do the sorting explicitly rather than relying on the combo to do the
-	// sorting, since this lets us keep the pre-populated "(Default)" item
-	// at the head of the list without having to mess with the string sort
-	// order.  "(Default)" stays at the top because it started at the top,
-	// and all of the new items get inserted after it.
-	std::sort(devices.begin(), devices.end(), [](const TSTRING& a, const TSTRING& b) {
-		return lstrcmpi(a.c_str(), b.c_str()) < 0; });
-
-	// add the items to the combo
-	for (auto &dev : devices)
-		combo.AddString(dev.c_str());
-
-	// Select the current value from the configuration.  The default is always
-	// at the first item in the combo list (index 0); this is rendered as an
-	// empty string in the config, but it's rendered in the combo as "(Default)"
-	// or some simliar (possibly localized) string defined in the dialog 
-	// resource.  So we need to select index 0 explicitly.
-	if (cv[0] == 0)
-		combo.SetCurSel(0);
-	else
-		combo.SelectString(1, cv);
 }
 
 const TCHAR *CaptureDialog::ManualStartButtonMap::buttonNames[] = {

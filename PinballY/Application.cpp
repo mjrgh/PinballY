@@ -2179,6 +2179,14 @@ void Application::GameMonitorThread::Prepare(
 		// remember the two-pass encoding option
 		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
 
+		// remember the video codec for pass 1 of a two-pass recording
+		capture.vcodecPass1 = cfg->Get(ConfigVars::CaptureVidoCodecPass1, _T(""));
+		if (capture.vcodecPass1.length() == 0)
+			capture.vcodecPass1 = _T("-c:v libx264 -threads 8 -qp 0 -preset ultrafast");
+
+		// remember the temp folder
+		capture.tempFolder = cfg->Get(ConfigVars::CaptureTempFolder, _T(""));
+
 		// remember the video resolution limit
 		const TCHAR *videoResLimit = cfg->Get(ConfigVars::CaptureVideoResLimit, _T("none"));
 		if (_tcsicmp(videoResLimit, _T("hd")) == 0)
@@ -4321,16 +4329,33 @@ DWORD Application::GameMonitorThread::Main()
 				// code in the fastest mode, with no rotation, to a temp file.
 				// We'll re-encode to the actual output file and apply rotations
 				// in the second pass.
+
+				// generate the temp file name - start with the output file name,
+				// and replace the suffix with .tmp.mkv
 				tmpfile = std::regex_replace(item.filename, std::basic_regex<TCHAR>(_T("\\.([^.]+)$")), _T(".tmp.mkv"));
+
+				// If there's a temp folder specified in the settings, replace
+				// the path to the temp file with the temp folder.
+				if (capture.tempFolder.length() != 0)
+				{
+					// combine the temp folder with the base file name from
+					// the current temp file to get the full path
+					TCHAR buf[MAX_PATH];
+					PathCombine(buf, capture.tempFolder.c_str(), PathFindFileName(tmpfile.c_str()));
+
+					// replace the original temp file name
+					tmpfile = buf;
+				}
+
+				// Build the first-pass command line
 				cmdline1.Format(_T("\"%s\" -y -loglevel warning -thread_queue_size 32")
 					_T(" %s %s %s")
 					_T(" -probesize 30M")
-					_T(" %s -c:v libx264 %s -threads 8 -qp 0 -preset ultrafast")
+					_T(" %s %s %s")
 					_T(" \"%s\""),
-					ffmpeg, 
-					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(), 
-					rtbufsizeOpts.c_str(),
-					acodecOpts.c_str(),
+					ffmpeg,
+					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(),
+					rtbufsizeOpts.c_str(), acodecOpts.c_str(), capture.vcodecPass1.c_str(),
 					tmpfile.c_str());
 
 				// Format the command line for the second pass while we're here

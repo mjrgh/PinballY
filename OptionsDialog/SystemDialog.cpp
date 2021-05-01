@@ -591,19 +591,6 @@ void SystemDialog::OnSysClassChange()
 	}
 }
 
-CEdit *SystemDialog::GetEditVarMap(int editID)
-{
-	// searc the var map for a matching control
-	for (auto &v : varMap)
-	{
-		if (v->controlID == editID)
-			return dynamic_cast<CEdit*>(&v->controlWnd);
-	}
-
-	// not found
-	return nullptr;
-}
-
 void SystemDialog::BrowseSubfolder(int editID, int folderTypeID, const TCHAR *parentFolder)
 {
 	// find the edit control's mapping entry in the list
@@ -796,21 +783,6 @@ void SystemDialog::BrowseSubfolder(int editID, int folderTypeID, const TCHAR *pa
 			edit->SetWindowText(dlg.newVal);
 	}
 }
-
-void SystemDialog::BrowseFolder(int editID)
-{
-	// find the edit control's mapping entry in the list
-	if (auto edit = GetEditVarMap(editID); edit != nullptr)
-	{
-		// start with the parent path
-		CString txt;
-		edit->GetWindowText(txt);
-		TSTRING path = txt;
-		if (::BrowseForFolder(path, GetParent()->GetSafeHwnd(), LoadStringT(IDS_BROWSE_FOLDER)))
-			edit->SetWindowText(path.c_str());
-	}
-}
-
 
 void SystemDialog::BrowseExe()
 {

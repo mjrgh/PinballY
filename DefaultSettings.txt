@@ -1359,6 +1359,26 @@ Capture.TopperVideo.Time = 35
 # your single-pass captures look too choppy.
 Capture.TwoPassEncoding = 0
 
+# Ffmpeg video codec settings for the first pass of a two-pass
+# capture.  If this is missing or empty, PinballY uses a default
+# video encoding that does little or no compression.  On some
+# systems, it might actually be faster to use slightly more
+# compression, since uncompressed video files are so large that
+# the time it takes to write them to disk can become a
+# bottleneck.  This option lets you experiment to find
+# settings that work best on your system.
+Capture.VideoCodecPass1 =
+
+
+# Folder for temporary files created during capture.  If this
+# is blank or missing, temp files will be created in the same
+# folder as the target media files.  This is used for the
+# output of the first pass of a two-pass capture.  You might
+# want to specify a folder here if you have a drive with a
+# lot of free space, or a drive that's especially fast, for
+# example.
+Capture.TempFolder =
+
 # Captured video resolution limit.  By default, videos created
 # using the screen capture function have exactly the same pixel
 # dimensions as the window area being captured.  However, if you

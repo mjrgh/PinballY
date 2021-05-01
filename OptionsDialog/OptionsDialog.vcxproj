@@ -218,6 +218,7 @@
     <ClCompile Include="AttractModeDialog.cpp" />
     <ClCompile Include="AudioVideoDialog.cpp" />
     <ClCompile Include="CaptureDialog.cpp" />
+    <ClCompile Include="CaptureFfmpegDialog.cpp" />
     <ClCompile Include="CoinsDialog.cpp" />
     <ClCompile Include="DMDDialog.cpp" />
     <ClCompile Include="DOFDialog.cpp" />
@@ -260,6 +261,7 @@
     <ClInclude Include="AttractModeDialog.h" />
     <ClInclude Include="AudioVideoDialog.h" />
     <ClInclude Include="CaptureDialog.h" />
+    <ClInclude Include="CaptureFfmpegDialog.h" />
     <ClInclude Include="CoinsDialog.h" />
     <ClInclude Include="DMDDialog.h" />
     <ClInclude Include="DOFDialog.h" />

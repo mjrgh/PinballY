@@ -53,6 +53,7 @@ var contents = [
         "+InstCardOptions.html Instruction Cards",
         "+LogFileOptions.html Log File",
         "+CaptureOptions.html Media Capture",
+        "+CaptureFfmpegOptions.html Media Capture - FFMPEG",
         "+MenuOptions.html Menus",
         "+MouseOptions.html Mouse",
         "+RealDMDOptions.html Real DMD",

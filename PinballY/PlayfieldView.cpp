@@ -212,6 +212,7 @@ namespace ConfigVars
 
 // Wheel animation time
 static const DWORD wheelTime = 260;
+static const DWORD fastWheelTime = 50;
 
 // Wheel layout parameters.  Coordinates are in D3D space, where
 // the middle of the window is (0,0) and the top left is (-.5,+.5).
@@ -12507,7 +12508,6 @@ void PlayfieldView::UpdateAnimation()
 	// animation sequence timings
 	const DWORD popupOpenTime = 150;
 	const DWORD popupCloseTime = 150;
-	const DWORD fastWheelTime = 50;
 	const DWORD menuOpenTime = 150;
 	const DWORD menuCloseTime = 150;
 	const DWORD videoStartTimeout = 1500;
@@ -12883,7 +12883,12 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		// VK_LSHIFT and VK_RSHIFT in the wParam.  Windows will also
 		// send its normal messages with VK_SHIFT, so we'll need to
 		// ignore those, since they're now redundant with our
-		// synthesized messages, and carry less information.
+		// synthesized messages, and carry less information.  Note
+		// that we only synthesize these when the application is in
+		// the foreground,since that's the way Windows does it; the
+		// raw input events, on the other hand, arrive even while
+		// we're in the background, so we have to distinguish the
+		// foreground and background cases here.
 		//
 		// Note that this isn't an issue for Ctrl, Alt, or Windows.
 		// I believe the difference with Ctrl and Alt is that those
@@ -12904,7 +12909,8 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		{
 		case VK_LSHIFT:
 			// synthesize a WM_KEYxx message (see above)
-			PostMessage(synthMsg, VK_LSHIFT, synthLParam | (rawShiftKeyState.left ? (1 << 30) | 1 : 0));
+			if (rawInputCode != RIM_INPUTSINK)
+				PostMessage(synthMsg, VK_LSHIFT, synthLParam | (rawShiftKeyState.left ? (1 << 30) | 1 : 0));
 
 			// note the new state
 			rawShiftKeyState.left = make;
@@ -12912,7 +12918,8 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 
 		case VK_RSHIFT:
 			// synthesize a WM_KEYxx message (see above)
-			PostMessage(synthMsg, VK_RSHIFT, synthLParam | (rawShiftKeyState.right ? (1 << 30) | 1 : 0));
+			if (rawInputCode != RIM_INPUTSINK)
+				PostMessage(synthMsg, VK_RSHIFT, synthLParam | (rawShiftKeyState.right ? (1 << 30) | 1 : 0));
 
 			// note the new state
 			rawShiftKeyState.right = make;
@@ -13528,14 +13535,14 @@ void PlayfieldView::OnConfigChange()
 		}
 	}
 
-	// if the wheel time ramp list is empty, populate it with a default ramp
-	// based on the Windows keyboard auto-repeat rate: the first repeat after
-	// the initial keyboard repeat delay time, and all subsequent repeats at
-	// keyboard repeat rate.
+	// If the wheel time ramp list is empty, populate it with a default ramp
+	// based on the keyboard auto-repeat rate, but using the wheel animation
+	// rate as the maximum speed.  That will match the behavior from before
+	// we added the wheel repeat time.
 	if (wheelAutoRepeat.repeatTimes.size() == 0)
 	{
-		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.delay, 1);
-		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.interval, 2);
+		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.delay > wheelTime ? kbRate.delay : wheelTime, 1);
+		wheelAutoRepeat.repeatTimes.emplace_back(kbRate.interval > fastWheelTime ? kbRate.interval : fastWheelTime, 2);
 	}
 
 	// load the underlay enabled status

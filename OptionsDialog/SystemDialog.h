@@ -43,9 +43,6 @@ protected:
 	// validate a subfolder name
 	BOOL ValidateSubfolder(int ctlId, int folderTypeID, const TCHAR *val = nullptr);
 
-	// browse for a full folder path
-	void BrowseFolder(int editID);
-
 	// browse for an EXE file
 	void BrowseExe();
 
@@ -54,9 +51,6 @@ protected:
 
 	// process a change to the system class selection
 	void OnSysClassChange();
-
-	// get the edit control for a given variable mapper
-	CEdit *GetEditVarMap(int editID);
 
 	// delete the system from the configuration
 	void DeleteSystem();

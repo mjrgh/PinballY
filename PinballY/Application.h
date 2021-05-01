@@ -854,6 +854,12 @@ protected:
 			// two-pass encoding mode
 			bool twoPassEncoding;
 
+			// video codec options for pass 1 of a two-pass recording
+			TSTRING vcodecPass1;
+
+			// temporary file folder
+			TSTRING tempFolder;
+
 			// captured video resolution limit
 			enum ResLimit
 			{

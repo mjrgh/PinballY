@@ -137,6 +137,7 @@ public:
 	static const int DOFPage = 18;
 	static const int MousePage = 19;
 	static const int WindowPage = 20;
+	static const int CaptureFfmpegPage = 21;
 	
 	// system pages are identified by SystemBasePage + <system number>
 	static const int SystemBasePage = 1000;

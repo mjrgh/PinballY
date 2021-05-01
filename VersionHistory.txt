@@ -1,5 +1,51 @@
 PinballY Update History
 
+? (1.1.0 Beta 3)
+
+* A new "Media Capture - FFMPEG" page has been added to the settings
+dialog, splitting off the options previously on the Media Capture page
+that relate directly to FFMPEG settings.  This is to make room for the
+new FFMPEG options added in this version.
+
+* A new option in the Media Capture - Ffmpeg page of the settings lets
+you select the folder to use for temporary files created during a
+video capture.  This is used for the video captured on the first pass
+of a two-pass capture.  By default, temporary files go in the same
+folder as the target media.  It might be desirable to set a different
+temp folder if you have a drive that's especially fast or that has
+lots of free space, for example.  (Issue #143 on github.)
+
+* A new option in the Media Capture - Ffmpeg page of the settings lets
+you specify the ffmpeg video codec options for the first pass of a
+two-pass recording.  The default settings if you leave this blank use
+little or no compression, which minimizes CPU usage during the live
+capture phase.  This runs fast as far as CPU usage, but it creates
+such large files that the disk transfer time can become a separate
+bottleneck.  The new option lets you experiment with different
+compression levels if you want to find optimal settings for your
+system.  (Issue #142 on github.)
+
+* Changed the default wheel auto-repeat rate to use a minimum delay
+time equal to the old default rate; if your keyboard rate is slower
+than that, it'll still use that instead.  In the previous version
+where the new wheel auto-repeat speed option was added, the default
+was simply set to the keyboard rate, which is faster than most people
+would want.  This change makes it match the original speed by default.
+(As pointed out in issue #173 on github.)
+
+* Fixed a bug introduced in 1.1 Beta 2 that made the Shift keys
+trigger PinballY commands even when PinballY was in the background.
+If you had them assigned as Next/Previous keys, for example, they'd
+spin the game wheel even when a game was in the foreground.  (If you
+were using the same keys as flipper buttons in the game, you'd spin
+the wheel every time you operated a flipper - probably not what you
+wanted!)  (Issue #172 on github.)
+
+* Fixed a bug in the settings dialog that sometimes prevented the
+Apply button from becoming enabled after making a change to the
+button/key mapping list.
+
+
 04-28-2021 (1.1.0 Beta 2)
 
 * This release is probably even more "Beta" than the previous one,
