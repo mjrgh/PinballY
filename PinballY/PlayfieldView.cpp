@@ -2202,7 +2202,7 @@ bool PlayfieldView::AddGameInfoStatsGetter(const CHAR *propName, T (*func)(GameL
 		JavascriptEngine::Get()->CreateAndSaveMethodWrapper<funcType, JsValueRef>(&PlayfieldView::JsGameInfoStatsGetter, func), nullptr, eh);
 }
 
-JsValueRef PlayfieldView::BuildJsGameInfo(GameListItem *game)
+JsValueRef PlayfieldView::BuildJsGameInfo(const GameListItem *game)
 {
 	// if the game is null or invalid, reutrn a null javascript object
 	if (!IsGameValid(game))
@@ -3492,6 +3492,79 @@ void PlayfieldView::JsRefreshFilter()
 	UpdateAllStatusText();
 }
 
+PlayfieldView::JavascriptFilter::JavascriptFilter(
+	JsValueRef func, const TSTRING &id,
+	const TSTRING &title, const TSTRING &menuTitle,
+	const TSTRING &group, const TSTRING &sortKey,
+	bool includeHidden, bool includeUnconfigured,
+	JsValueRef before, JsValueRef after,
+	JsValueRef customSortFunc, JsValueRef customPagingFunc) :
+	GameListFilter(group.c_str(), sortKey.c_str()),
+	func(func),
+	id(_T("User.") + id),
+	title(title),
+	menuTitle(menuTitle),
+	group(group),
+	includeHidden(includeHidden),
+	includeUnconfigured(includeUnconfigured),
+	beforeScanFunc(before),
+	afterScanFunc(after),
+	customSortFunc(customSortFunc),
+	customPagingFunc(customPagingFunc)
+{
+	// maintain an external reference on the functions
+	JsAddRef(func, nullptr);
+	if (before != JS_INVALID_REFERENCE) JsAddRef(before, nullptr);
+	if (after != JS_INVALID_REFERENCE) JsAddRef(after, nullptr);
+	if (customSortFunc != JS_INVALID_REFERENCE) JsAddRef(customSortFunc, nullptr);
+	if (customPagingFunc != JS_INVALID_REFERENCE) JsAddRef(customPagingFunc, nullptr);
+}
+
+PlayfieldView::JavascriptFilter::~JavascriptFilter()
+{
+	JsRelease(func, nullptr);
+	if (beforeScanFunc != JS_INVALID_REFERENCE) JsRelease(beforeScanFunc, nullptr);
+	if (afterScanFunc != JS_INVALID_REFERENCE) JsRelease(afterScanFunc, nullptr);
+	if (customSortFunc != JS_INVALID_REFERENCE) JsRelease(customSortFunc, nullptr);
+	if (customPagingFunc != JS_INVALID_REFERENCE) JsRelease(customPagingFunc, nullptr);
+}
+
+bool PlayfieldView::JavascriptFilter::CustomSortCompare(const GameListItem *a, const GameListItem *b) const
+{
+	auto js = JavascriptEngine::Get();
+	auto pfv = Application::Get()->GetPlayfieldView();
+	try
+	{
+		return js->CallFunc<double>(customSortFunc, pfv->BuildJsGameInfo(a), pfv->BuildJsGameInfo(b)) < 0.0;
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return false;
+	}
+}
+
+int PlayfieldView::JavascriptFilter::GetPageGroup(const GameListItem *game) const
+{
+	// if there's no custom page group function, use the standard handling 
+	if (customPagingFunc == JS_INVALID_REFERENCE)
+		return __super::GetPageGroup(game);
+
+	// call the custom page group function
+	auto js = JavascriptEngine::Get();
+	auto pfv = Application::Get()->GetPlayfieldView();
+	try
+	{
+		return js->CallFunc<int>(customPagingFunc, pfv->BuildJsGameInfo(game));
+	}
+	catch (JavascriptEngine::CallException exc)
+	{
+		js->Throw(exc.jsErrorCode, CHARToTCHAR(exc.what()));
+		return false;
+	}
+}
+
+
 int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
 {
 	auto js = JavascriptEngine::Get();
@@ -3509,6 +3582,8 @@ int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
 		auto sortKey = desc.Get<WSTRING>("sortKey");
 		auto before = desc.Get<JsValueRef>("before");
 		auto after = desc.Get<JsValueRef>("after");
+		auto customSortFunc = desc.Get<JsValueRef>("compareForSort");
+		auto customPagingFunc = desc.Get<JsValueRef>("pageGroup");
 		
 		// use the title as the default sort key and menu title
 		if (sortKey.length() == 0)
@@ -3526,17 +3601,24 @@ int PlayfieldView::JsCreateFilter(JavascriptEngine::JsObj desc)
 			javascriptFilters.erase(it);
 		}
 
-		// if before/after are undefined or null, store as JS_INVALID_REFERENCE
+		// if the custom functions are undefined or null, store as JS_INVALID_REFERENCE
 		if (js->IsFalsy(before))
 			before = JS_INVALID_REFERENCE;
 		if (js->IsFalsy(after))
 			after = JS_INVALID_REFERENCE;
+		if (js->IsFalsy(customSortFunc))
+			customSortFunc = JS_INVALID_REFERENCE;
+		if (js->IsFalsy(customPagingFunc))
+			customPagingFunc = JS_INVALID_REFERENCE;
 
 		// add it to our map 
 		JavascriptFilter *filter = &javascriptFilters.emplace(
 			std::piecewise_construct,
 			std::forward_as_tuple(id),
-			std::forward_as_tuple(select, id, title, menuTitle, group, sortKey, includeHidden, includeUnconfig, before, after)).first->second;
+			std::forward_as_tuple(
+				select, id, title, menuTitle, group, sortKey, includeHidden, includeUnconfig, 
+				before, after, customSortFunc, customPagingFunc)
+		).first->second;
 
 		// create the live filter
 		if (gl->AddUserDefinedFilter(filter))

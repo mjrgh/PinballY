@@ -749,6 +749,41 @@ public:
 	// they're otherwise excluded by that option setting.
 	virtual bool IncludeUnconfigured() const { return false; }
 
+	// Custom sorting.  A filter can provide a sorting function to
+	// override the order of the game list subset presented when the
+	// filter is in effect.  To define a custom sort order, override
+	// HasCustomSort() to return true, and override CustomSortCompare()
+	// to compare two games, returning true if the first game sorts
+	// before the second game.
+	virtual bool HasCustomSort() const { return false; }
+	virtual bool CustomSortCompare(const GameListItem *a, const GameListItem *b) const { return true; }
+
+	// Page grouping for the filter.  A filter can provide its own
+	// meaning for the Next Page/Previous Page commands, by defining
+	// a custom grouping function.  Custom grouping goes hand-in-hand
+	// with custom sorting, since the custom sorting will necessarily
+	// change the way the games are grouped.  The default grouping
+	// is by first letter of the title, which only makes sense when
+	// the games are sorted lexically by title.
+	//
+	// The grouping function returns a group ID for a given game.
+	// Moving to a new group means moving to the next/previous game
+	// with a different group ID.  The group ID is arbitrary, and is
+	// up to the filter to define.  A filter that groups games by
+	// first letter of their title, for example, could simply return
+	// the Unicode character code for the first letter and use that
+	// as the group ID.  A filter that groups games by decade could
+	// return the starting year of the game's decade (return 1960
+	// for a game with manufacturing date 1963, for example).
+	//
+	// The special group ID -1 means that we don't stop at that game, 
+	// so this can be used to create regions that are always skipped 
+	// in the page navigation commands.  For example, if you wanted
+	// to group games alphabetically, skipping games with non-alpha
+	// titles (such as "2001") entirely, you'd return -1 for a game
+	// with a non-alpha title.
+	virtual int GetPageGroup(const GameListItem *game) const;
+
 	// Menu group name
 	TSTRING menuGroup;
 
@@ -1743,6 +1778,41 @@ public:
 	void AddMetaFilter(MetaFilter *mf);
 	void RemoveMetaFilter(MetaFilter *mf);
 
+	//
+	// Wheel navigation paging modes.  "Paging" is stepping through the
+	// game wheel one letter at a time, which is normally assigned to the
+	// Left/Right Control keys.
+	//
+	// The tester function takes the title of the current selected game,
+	// the title of the proposed new stopping point, and the direction
+	// we're moving (+1 for right/next, -1 for left/previous).  It returns
+	// a paging group ID, which is an arbitrary identifier for the group
+	// that game belongs to - typically this will just be the first letter
+	// of the title in canonical case (e.g., lower), but it really could
+	// be anything.  The special value 0 means that we shouldn't stop on
+	// this game, so it's sort of a null group.
+	//
+	// We implement several options for paging:
+	//
+	//     Default = page by first character, so each "page" is a group
+	//         of games with the same first character of their titles
+	//
+	//     AlphaNumSym = group by first character, treating all titles
+	//         starting with digits as one page (so '2001' and '8 Ball'
+	//         are in the same page), and all titles starting with
+	//         any other symbol as another group
+	// 
+	//     AlphaOnly = page groups are alphabetic only, so we skip
+	//         straight from Z back to A (or from A to Z if going in
+	//         reverse), skipping any titles whose first characters
+	//         are numbers of symbols
+	//
+	typedef int WheelPagingModeFunc(const TCHAR *title);
+	static int WheelPagingDefault(const TCHAR *title);
+	static int WheelPagingAlphaNumSym(const TCHAR *title);
+	static int WheelPagingAlphaOnly(const TCHAR *title);
+	WheelPagingModeFunc *wheelPagingFunc = &WheelPagingDefault;
+
 protected:
 	GameList();
 	~GameList();
@@ -1970,40 +2040,5 @@ protected:
 
 	// table of SW_SHOW constants by name
 	std::unordered_map<TSTRING, WORD> swShowMap;
-
-	//
-	// Wheel navigation paging modes.  "Paging" is stepping through the
-	// game wheel one letter at a time, which is normally assigned to the
-	// Left/Right Control keys.
-	//
-	// The tester function takes the title of the current selected game,
-	// the title of the proposed new stopping point, and the direction
-	// we're moving (+1 for right/next, -1 for left/previous).  It returns
-	// a paging group ID, which is an arbitrary identifier for the group
-	// that game belongs to - typically this will just be the first letter
-	// of the title in canonical case (e.g., lower), but it really could
-	// be anything.  The special value 0 means that we shouldn't stop on
-	// this game, so it's sort of a null group.
-	//
-	// We implement several options for paging:
-	//
-	//     Default = page by first character, so each "page" is a group
-	//         of games with the same first character of their titles
-	//
-	//     AlphaNumSym = group by first character, treating all titles
-	//         starting with digits as one page (so '2001' and '8 Ball'
-	//         are in the same page), and all titles starting with
-	//         any other symbol as another group
-	// 
-	//     AlphaOnly = page groups are alphabetic only, so we skip
-	//         straight from Z back to A (or from A to Z if going in
-	//         reverse), skipping any titles whose first characters
-	//         are numbers of symbols
-	//
-	typedef int WheelPagingModeFunc(const TCHAR *title);
-	static int WheelPagingDefault(const TCHAR *title);
-	static int WheelPagingAlphaNumSym(const TCHAR *title);
-	static int WheelPagingAlphaOnly(const TCHAR *title);
-	WheelPagingModeFunc *wheelPagingFunc = &WheelPagingDefault;
 };
 

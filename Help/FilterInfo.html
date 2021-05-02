@@ -294,6 +294,127 @@
    filters.  You should only set this if your filter is explicitly
    some kind of unconfigured selection filter, so that it doesn't
    confuse the user when unconfigured games appear there.
+
+   <li><b>compareForSort:</b>  Optional.  A function that compares
+   two games, to determine the sorting order of the games in the
+   wheel when the filter is in effect.  This function has this form:
+   <div class="indented code javascript">
+function(a, b) {
+    /* sort in order of manufacturing date */
+    return a.year - b.year;
+}</div>
+   <p>
+      <b>a</b> and <b>b</b> are <a href="GameInfo.html">GameInfo</a>
+      objects.  The function compares the two and returns a number:
+      a negative value if <b>a</b> comes before <b>b</b> in the desired sorting
+      order, 0 if they're equal, and a positive value if <b>a</b> comes
+      after <b>b</b>.  This makes the comparison a sort of "subtraction"
+      function: if you think about the games as integer values, this
+      is the result you get by simply computing <b>a minus b</b>.
+      If you were sorting by manufacturing year, for example, you
+      could do literally that, by returning <b>a.year - b.year</b>.
+   </p>
+   <p>
+      When the filter is
+      activated, the system will call this function on pairs of games
+      to be included in the filter to sort them into the correct
+      order.  This function will be called repeatedly during the
+      sorting process each time the filter is activated, so it should
+      be simple and fast.
+   </p>
+   <p>
+      For many custom sorts, you'll probably want to sort games
+      alphabetically if they're not otherwise distinguishable for
+      your sort criteria.  For example, if you're sorting by original
+      manufacturing year, chances are that you'll have multiple games
+      released during the same year for many of the years.  In those
+      cases, you'll probably want to use alphabetical sorting as
+      a secondary rule.  Here's how you can do this using Javascript's
+      <b>localeCompare()</b> method, which returns the same sort
+      of "subtraction" value we need after comparing two strings
+      alphabetically:
+   </p>
+   <div class="indented code javascript">
+function(a, b) {
+    let diff = a.year - b.year;
+    return diff || a.title.localeCompare(b.title);
+} </div>
+   <p>
+      That first tests to see if you can distinguish the games by
+      year, and if so, returns the year difference, which satisfies
+      our "subtraction" rule for the return value.  If the years
+      are the same, we fall back on the titles to determine the
+      relative order of the two games by using localeCompare().
+   </p>
+   <p>
+      The sorting function is optional.  If you omit it, the standard
+      alphabetical sorting is used.  If you provide a custom sorting
+      function, you will also usually want to define a custom <b>pageGroup</b>
+      function, since the default grouping by first letter of the title
+      probably won't make sense if the games aren't sorted alphabetically.
+   </p>
+   <li><b>pageGroup:</b> Optional.  A function that returns the
+   "paging group" for a game, which determines how games are grouped
+   for the Next Page and Previous Page navigation commands in the
+   game wheel.  When the user presses one of the Next/Previous Page
+   buttons, the system steps through games until it finds the next
+   or previous game that has a different paging group from the
+   current game.  By default, the paging groups are simply based
+   on the first letter of the title, so all of the games with
+   titles starting with "A" are grouped together, etc.  The
+   function has this form:
+   <div class="indentec code javascript">
+function(game) { return 17; }
+   </div>
+   <p>
+      <b>game</b> is a <a href="GameInfo.html">GameInfo</a> object.
+      The return value is an integer giving the group number for
+      the game.  The group number value is entirely up to your
+      function to define; all that matters is that all games that
+      belong to the same paging group must have the same group
+      number.  For example, for the default grouping by first letter
+      of the title, the group number could simply be the Unicode
+      character code of the first letter of the title (and that's
+      just what the system's default grouping function uses).
+      If you wanted to group games by decade, you could return
+      first year of the decade that the game was manufactured
+      in; e.g., return 1980 for a game made in 1983.
+   </p>
+   <p>
+      The page grouping <b>doesn't</b> affect the sorting order
+      of the games.  The sorting order is controlled entirely
+      by the custom sorting function.  The grouping only controls
+      how far the wheel turns on a Next/Previous Page command.
+      Those commands are processed simply by advancing the wheel
+      in the selected direction until finding a game with a
+      different group from the current game.  That's why the
+      sorting function and grouping function have to be designed
+      to work together: the sorting function has to sort the
+      games into an order such that they group together into
+      the paging groups naturally.  If you're grouping games
+      by first letter of title, they must be sorted in some
+      kind of alphabetical order - not necessarily A-Z, but
+      some order where the A's are all grouped together, etc.
+   </p>
+   <p>
+      There's one "special" group number: 0, the un-group.
+      If the grouping function returns 0 for a given game,
+      the wheel will never stop on that game.  This lets you
+      specify that certain games should be skipped during
+      Next/Previous Page commands.  For example, if you were
+      grouping alphabetically, but you always wanted to skip
+      over games with non-alphabetic titles (such as "2001" or "4-Square"),
+      you could return 0 for those games.
+   </p>
+   <p>
+      The paging group function is optional.  If you omit it,
+      the standard grouping by first letter of the title is
+      used.  That default grouping usually wouldn't make sense
+      if you change the sort order, though, so custom sorting
+      and custom grouping usually go hand-in-hand - if you
+      specify a custom sorting function, you should define a
+      corresponding custom grouping function, and vice versa.
+   </p>
 </ul>
 
 <a name="menuPlacement"></a>

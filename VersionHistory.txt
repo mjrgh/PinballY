@@ -25,13 +25,19 @@ bottleneck.  The new option lets you experiment with different
 compression levels if you want to find optimal settings for your
 system.  (Issue #142 on github.)
 
+* Custom game filters created through Javascript can now control the
+sorting order of the games in the wheel when they're in effect.  See
+the new compareForSort and pageGroup properties in the descriptor
+object for gameList.createFilter(), described in the help at
+Javascript scripting > System Classes > FilterInfo.
+
 * Changed the default wheel auto-repeat rate to use a minimum delay
 time equal to the old default rate; if your keyboard rate is slower
 than that, it'll still use that instead.  In the previous version
 where the new wheel auto-repeat speed option was added, the default
 was simply set to the keyboard rate, which is faster than most people
-would want.  This change makes it match the original speed by default.
-(As pointed out in issue #173 on github.)
+would want.  This change makes the default wheel repeat speed match
+older versions.  (As pointed out in issue #173 on github.)
 
 * Fixed a bug introduced in 1.1 Beta 2 that made the Shift keys
 trigger PinballY commands even when PinballY was in the background.

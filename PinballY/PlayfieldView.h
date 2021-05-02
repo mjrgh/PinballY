@@ -3266,7 +3266,7 @@ protected:
 	template<typename T> bool AddGameSysInfoGetter(const CHAR *propName, T (*func)(GameSystem*), ErrorHandler &eh);
 
 	// internal game info object builder
-	JsValueRef BuildJsGameInfo(GameListItem *game);
+	JsValueRef BuildJsGameInfo(const GameListItem *game);
 
 	// GameInfo methods
 	JsValueRef JsGetHighScores(JsValueRef self);
@@ -3355,27 +3355,14 @@ protected:
 	class JavascriptFilter : public GameListFilter
 	{
 	public:
-		JavascriptFilter(JsValueRef func, const TSTRING &id, 
+		JavascriptFilter(JsValueRef func, const TSTRING &id,
 			const TSTRING &title, const TSTRING &menuTitle,
 			const TSTRING &group, const TSTRING &sortKey,
 			bool includeHidden, bool includeUnconfigured,
-			JsValueRef before, JsValueRef after) :
-			GameListFilter(group.c_str(), sortKey.c_str()),
-			func(func), 
-			id(_T("User.") + id), 
-			title(title), 
-			menuTitle(menuTitle),
-			group(group), 
-			includeHidden(includeHidden), 
-			includeUnconfigured(includeUnconfigured),
-			beforeScanFunc(before), 
-			afterScanFunc(after)
-		{
-			// maintain an external reference on the function
-			JsAddRef(func, nullptr);
-		}
+			JsValueRef before, JsValueRef after,
+			JsValueRef customSortFunc, JsValueRef customPagingFunc);
 
-		~JavascriptFilter() { JsRelease(func, nullptr); }
+		~JavascriptFilter();
 
 		virtual TSTRING GetFilterId() const override { return id; }
 		virtual const TCHAR *GetFilterTitle() const override { return title.c_str(); }
@@ -3407,6 +3394,17 @@ protected:
 		// include hidden/unconfigured games in the raw filter set
 		bool includeHidden;
 		bool includeUnconfigured;
+
+		// custom sorting and grouping/paging
+		virtual bool HasCustomSort() const override { return customSortFunc != JS_INVALID_REFERENCE; }
+		virtual bool CustomSortCompare(const GameListItem *a, const GameListItem *b) const override;
+		virtual int GetPageGroup(const GameListItem *game) const override;
+
+		// custom sorting function
+		JsValueRef customSortFunc = JS_INVALID_REFERENCE;
+
+		// custom page grouping function
+		JsValueRef customPagingFunc = JS_INVALID_REFERENCE;
 	};
 
 	// all user-defined filters, by ID

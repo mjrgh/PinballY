@@ -608,6 +608,13 @@ GameListItem *GameList::GetByInternalID(LONG id)
 	return nullptr;
 }
 
+// By default, filters use the current alphabetic paging mode
+int GameListFilter::GetPageGroup(const GameListItem *game) const
+{
+	return GameList::Get()->wheelPagingFunc(game->title.c_str());
+}
+
+
 // Default wheel paging mode: every character defines a group, without
 // case sensitivity.
 int GameList::WheelPagingDefault(const TCHAR *title)
@@ -644,8 +651,11 @@ int GameList::FindNextLetter()
 	if (curGame < 0)
 		return 0;
 
+	// we need a filter
+	auto filter = curFilter != nullptr ? curFilter : &allGamesFilter;
+
 	// get the current game's group
-	auto oldGroup = wheelPagingFunc(byTitleFiltered[curGame]->title.c_str());
+	auto oldGroup = filter->GetPageGroup(byTitleFiltered[curGame]);
 
 	// scan ahead from the current game
 	int cnt = (int)byTitleFiltered.size();
@@ -653,7 +663,7 @@ int GameList::FindNextLetter()
 	{
 		// If this game is from a different group, and it's not from the
 		// "null" group, stop here.
-		auto newGroup = wheelPagingFunc(byTitleFiltered[i]->title.c_str());
+		auto newGroup = filter->GetPageGroup(byTitleFiltered[i]);
 		if (newGroup != 0 && newGroup != oldGroup)
 			return n;
 	}
@@ -668,6 +678,9 @@ int GameList::FindPrevLetter()
 	if (curGame < 0)
 		return 0;
 
+	// we need a filter
+	auto filter = curFilter != nullptr ? curFilter : &allGamesFilter;
+
 	// We want to back up to the start of the current letter group,
 	// or to the start of the previous group if we're already at the
 	// start of a group.  We can accomplish both by searching for the
@@ -680,24 +693,26 @@ int GameList::FindPrevLetter()
 	// The only snag is that we could now be on a null group, where
 	// we can't stop.  So we have to continue backing up until we're
 	// in a valid group.
-	for (; i != curGame && wheelPagingFunc(byTitleFiltered[i]->title.c_str()) == 0; 
+	for (; i != curGame && filter->GetPageGroup(byTitleFiltered[i]) == 0; 
 		i = Wrap(i - 1, cnt), --n);
 
 	// This game defines our target group.  Now just back up until
 	// we leave the group, at which point the *next* game is the
 	// first in our group.
-	auto targetGroup = wheelPagingFunc(byTitleFiltered[i]->title.c_str());
+	auto targetGroup = filter->GetPageGroup(byTitleFiltered[i]);
 	for (; i != curGame; i = Wrap(i - 1, cnt), --n)
 	{
-		if (wheelPagingFunc(byTitleFiltered[i]->title.c_str()) != targetGroup)
+		if (filter->GetPageGroup(byTitleFiltered[i]) != targetGroup)
 		{
 			// we just left the group, so the next game is the one we seek
 			return n + 1;
 		}
 	}
 
-	// nothing found - stay on the current game
-	return 0;
+	// We wrapped back to the current game, so it must be the only
+	// one of its group, and there's only one other group.  So the
+	// first game of the previous group must be the next game.
+	return n + 1;
 }
 
 void GameList::SetGame(int n)
@@ -857,6 +872,22 @@ bool GameList::RefreshFilter()
 	// end the scan in the metafilters
 	for (auto &mf : *metaFilters.get())
 		mf->After();
+
+	// if the filter has a custom sort, apply it
+	if (curFilter->HasCustomSort())
+	{
+		// remember the current game object - its position in the list
+		// might change after the sort, so we'll need this to find its
+		// new index
+		GameListItem *pCurGame = curGame != -1 ? byTitleFiltered[curGame] : nullptr;
+
+		// sort the list
+		std::sort(byTitleFiltered.begin(), byTitleFiltered.end(),
+			[this](GameListItem* &a, GameListItem* &b) { return this->curFilter->CustomSortCompare(a, b); });
+
+		// find the new index of the current game
+		curGame = indexOf(byTitleFiltered, pCurGame);
+	}
 
 	// return true if the game selection changed
 	return oldSel != GetNthGame(0);

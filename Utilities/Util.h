@@ -73,6 +73,13 @@ template<class Coll> typename Coll::value_type* findifex(Coll &list, std::functi
 	return (it == list.end() ? 0 : &(*it));
 }
 
+// Shorthand for finding the index of an item in a vector
+template<class Coll> int indexOf(Coll &list, typename Coll::value_type val)
+{
+	auto it = std::find(list.begin(), list.end(), val);
+	return (it == list.end() ? -1 : static_cast<int>(std::distance(list.begin(), it)));
+}
+
 // Generic "if null" macro.  For any type that can yield nullptr, returns
 // the second argument if the first is null.
 template<typename T> T* IfNull(T *val, T *defVal) { return val != nullptr ? val : defVal; }
