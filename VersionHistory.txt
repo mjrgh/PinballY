@@ -1,6 +1,7 @@
 PinballY Update History
 
-? (1.1.0 Beta 3)
+
+05-02-2021 (1.1.0 Beta 3)
 
 * A new "Media Capture - FFMPEG" page has been added to the settings
 dialog, splitting off the options previously on the Media Capture page

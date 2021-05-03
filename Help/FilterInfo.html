@@ -159,15 +159,16 @@
    <a href="GameList.html#createFilter">gameList.createFilter()</a>;
    the <i>id</i> portion is the <b>id</b> property specified in the
    filter descriptor when creating the new filter.  See <a href="#custom">Custom filters</a>
-   above.
+   below.
 
    <li><b>YearRange.<i>from</i>.<i>to</i>:</b>  selects games with
    release years between <i>from</i> and <i>to</i>, inclusive; the
    system creates one such filter for each 20th century decade that
    includes at least one database entry (e.g., YearRange.1970.1979
-   is the 1970s filter), and one filter for all years from 2000 onward
-   (this uses 9999 as the ending year, to essentially mean "the end
-   of time", so the actual ID is YearRange.2000.9999)
+   is the 1970s filter), and one filter for all years from 2000 onward.
+   (To be more precise, the "2000 onward" filter uses 9999 as the
+   ending year, so that its ID can conform to the same pattern as
+   the other decade filters: YearRange.2000.9999.)
 </ul>
    
    
@@ -205,6 +206,12 @@
    The ID must be permanent (always the same across sessions), so that
    it can match the saved filter ID in the settings file when restoring
    settings in a future session.
+   <p>
+      The system automatically adds the prefix "<b>User.</b>" to the
+      ID string you provide.  If you retrieve the FilterInfo object
+      for the filter from gameList.getCurFilter(), for example, its
+      <b>id</b> property will include the added prefix.
+   </p>
 
    <li><b>title:</b>  Required.  A title for the filter.  This will be
    used in the status line messages when this filter is active, if any

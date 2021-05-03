@@ -97,12 +97,13 @@
    <tt>-c:v libx264 -threads 8 -qp 0 -preset ultrafast</tt>
 </div>
 <p>
-   That setting is designed to minimize FFMPEG's CPU usage during
-   the initial live capture pass by doing little or no compression,
-   but the lack of compression means that it creates extremely
-   large files.  That can present a new bottleneck if the disk
-   containing the temporary folder isn't fast enough, so it
-   might actually be faster overall on some systems to use
+   For details on what these options mean, refer to the FFMPEG
+   documentation.  This combination of options is meant to
+   minimize FFMPEG's CPU usage during the initial live capture
+   pass by doing little or no compression.  Uncompressed video
+   files are extremely large, though, so while this reduces
+   CPU usage, it increases the disk data transfer load.  On
+   some systems, it might actually be faster overall to use
    a preset that does slightly more compression.  This option
    lets you experiment to find the best setting for your system.
 </p>
