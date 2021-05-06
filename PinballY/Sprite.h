@@ -26,6 +26,7 @@
 //
 
 #pragma once
+#include <png.h>
 #include "D3D.h"
 
 class Camera;
@@ -164,6 +165,10 @@ protected:
 	// this when it detects GIF contents.
 	bool LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
 
+	// Load an animated PNG image file.  The regular Load(filename,...) method calls
+	// this when it detects PNG contents.
+	bool LoadAPNG(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh);
+
 	// Load a texture from an image file using WIC.  This does a direct
 	// WIC load, which handles the common image formats (JPEG, PNG, GIF),
 	// but doesn't have support for orientation metadata or multi-frame
@@ -259,8 +264,13 @@ protected:
 	// animation frame list
 	std::vector<std::unique_ptr<AnimFrame>> animFrames;
 
-	// is an animation active?
-	bool isAnimation = false;
+	// animation handler
+	struct Animation
+	{
+		virtual ~Animation() { }
+		virtual void DecodeNext(Sprite *sprite) = 0;
+	};
+	std::unique_ptr<Animation> animation;
 
 	// is the animation (if any) running?
 	bool animRunning = true;
@@ -322,8 +332,17 @@ protected:
 	// normally put into local variables controlling a loop
 	// and put them into a struct.  That's what this struct
 	// is about.
-	struct GIFLoaderState
+	struct GIFLoaderState : Animation
 	{
+		// Animation interface implementation
+		virtual ~GIFLoaderState() { Clear(); }
+		virtual void DecodeNext(Sprite *sprite) override
+		{
+			// if we haven't reached the last frame yet, decode the next frame
+			if (sprite->animFrames.size() < nFrames)
+				DecodeFrame(sprite);
+		}
+
 		// initialize
 		void Init(IWICImagingFactory *pWIC, IWICBitmapDecoder *decoder, 
 			UINT width, UINT height, UINT nFrames, WICColor bgColor, const WCHAR *filename)
@@ -396,5 +415,239 @@ protected:
 		// Decode the next GIF frame
 		void DecodeFrame(Sprite *sprite);
 	};
-	GIFLoaderState gifLoaderState;
+
+	// Animated PNG incremental frame reader.  This is the PNG
+	// counterpart of the GIF frame reader: it keeps track of the
+	// read position in an open PNG file so that we can read one
+	// frame at a time on demand.
+	struct APNGLoaderState : Animation
+	{
+		// Animation interface implementation
+		virtual ~APNGLoaderState() { EndProcessing(); }
+		virtual void DecodeNext(Sprite *sprite) override;
+
+		// Initialize.  This opens the file and scans for the animated
+		// PNG marker chunk.  Returns true if we successfully identify
+		// this as an animated PNG, false if not.  On a false return,
+		// no errors are generated; the caller should simply fall back
+		// on the generic WIC loader, on the assumption that it's a
+		// conventional single-frame PNG file, an invalid PNG file, or
+		// some other image type - in any of those cases, the WIC loader
+		// can determine what to do with the file;
+		bool Init(Sprite *sprite, const WCHAR *filename, POINTF normalizedSize, SIZE pixSize);
+
+		// file handle
+		FILEPtrHolder fp;
+
+		// sprite file name, for error reporting
+		WSTRING filename;
+
+		// total number of frames
+		UINT nFrames = 0;
+
+		// current frame number
+		UINT iFrame = 0;
+
+		// full-frame rectangle for the overall image
+		RECT rcFull;
+
+		// sub-frame rectangle for the current frame
+		RECT rcSub = { 0, 0, 0, 0 };
+
+		// PNG chunk
+		struct Chunk
+		{
+			Chunk() : size(0) { }
+			Chunk(BYTE *data, UINT size) : data(data), size(size) { }
+
+			std::unique_ptr<BYTE> data;
+			UINT size;
+			BYTE header[8];
+
+			void Clear() { data.reset(); }
+		};
+
+		// APNG frame
+		struct APNGFrame
+		{
+			void Init(UINT width, UINT height, UINT delayNum, UINT delayDen)
+			{
+				// save the properties
+				this->width = width;
+				this->height = height;
+				this->delayNum = delayNum;
+				this->delayDen = delayDen;
+					
+				// allocate the pixel buffer, 32 bits = 4 bytes per pixel
+				UINT bytesPerRow = width * 4;
+				data.reset(new BYTE[height * bytesPerRow]);
+
+				// set up the row pointers
+				rows.reset(new BYTE*[height]);
+				BYTE *rowp = data.get();
+				for (UINT row = 0; row < height; ++row, rowp += bytesPerRow)
+					rows.get()[row] = rowp;
+			}
+
+			// take ownership of another frame's resources
+			void Take(APNGFrame &src)
+			{
+				// take ownership of the image data
+				data.reset(src.data.release());
+				rows.reset(src.rows.release());
+
+				// copy the properties
+				width = src.width;
+				height = src.height;
+				delayNum = src.delayNum;
+				delayDen = src.delayDen;
+			}
+
+			// make a copy of another frame's resources
+			void Copy(const APNGFrame &src)
+			{
+				// copy properties and allocate memory
+				Init(src.width, src.height, src.delayNum, src.delayDen);
+
+				// Copy the image data.  Note that we DON'T copy the row
+				// pointers, as they're set up properly by the memory
+				// allocator.
+				memcpy(data.get(), src.data.get(), width * height * 4);
+			}
+
+			std::unique_ptr<BYTE> data;
+			std::unique_ptr<BYTE*> rows;
+			UINT width;
+			UINT height;
+			UINT delayNum;          // delay numerator
+			UINT delayDen;          // delay denominator
+		};
+
+		// acTL data
+		struct
+		{
+			UINT numFrames;   // number of frames in the animation
+			UINT numPlays;    // number of times to loop, where 0 = infinite
+		} acTL;
+
+		// fcTL data for the frame under construction
+		struct
+		{
+			UINT x;
+			UINT y;
+			UINT width;
+			UINT height;
+			UINT delayNum;       // delay numerator
+			UINT delayDen;       // delay denominator
+			BYTE dop = DOP_BKG;  // frame disposal operation
+			BYTE bop;            // frame blend operation
+		} fcTL;
+
+		// Disposal information for the outgoing frame
+		struct
+		{
+			BYTE dop = DOP_NONE; // disposal operation
+			UINT x;
+			UINT y;
+			UINT width;
+			UINT height;
+		} disposal;
+
+		// Disposal operations
+		static const BYTE DOP_NONE = 0;   // leave buffer as-is
+		static const BYTE DOP_BKG = 1;    // clear background to transparent black
+		static const BYTE DOP_PREV = 2;   // revert to previous frame
+
+		// Blend operations
+		static const BYTE BOP_SRC = 0;    // replace frame with source
+		static const BYTE BOP_OVER = 1;   // alpha blend with OVER operator as defined in PNG spec
+
+		// Is this an animated PNG?  We set this to true upon encountering
+		// an acTL (animation control) chunk, which flags it as animated.
+		// Per the spec, the acTL comes before the first image data (IDAT)
+		// chunk, so we know for sure whether or not it's animated by the
+		// time we reach the IDAT.
+		bool isAnimated = false;
+
+		// Raw frame buffer.  This is where we have libpng decode the current
+		// frame's sub-stream as we work through the PNG file chunks making
+		// up the current frame.
+		APNGFrame frameRaw;
+
+		// Current frame buffer.  When ReadThroughNextFrame() returns, this
+		// contains the finished, composed current frame.
+		APNGFrame frameCur;
+
+		// Previous frame buffer.  When the disposal operation for a frame is
+		// PREVIOUS, we save the pre-composed frame buffer here.
+		APNGFrame framePrev;
+
+		// Chunk IDs of interest
+		static const DWORD ID_IHDR = 0x49484452;
+		static const DWORD ID_acTL = 0x6163544c;
+		static const DWORD ID_fcTL = 0x6663544c;
+		static const DWORD ID_IDAT = 0x49444154;
+		static const DWORD ID_fdAT = 0x66644154;
+		static const DWORD ID_IEND = 0x49454e44;
+
+		// pnglib callbacks
+		static void PNGAPI InfoCallback(png_structp png, png_infop pInfo);
+		static void PNGAPI RowCallback(png_structp png, png_bytep pRow, png_uint_32 rowNum, int pass);
+
+		// PNG image data processing.  An APNG file is essentially a series of
+		// regular PNG files appended together, but all sharing a common pair
+		// of stream-bracketing chunks (IHDR..IEND), and also sharing any other
+		// info chunks that appear before the first image pixel data (IDAT).
+		// We read this using the regular "static" libpng reader by saving
+		// and replaying the common elements for each sequential frame.  This
+		// lets the static libpng believe it's decoding a complete PNG file
+		// for each frame.
+		bool StartProcessing();
+		void ProcessChunk(BYTE *p, UINT size);
+		bool EndProcessing();
+
+		// Read the file through the next image frame.  Returns true if we
+		// successfully found an image frame.
+		bool ReadThroughNextFrame();
+
+		// Compose a frame
+		void ComposeFrame(BYTE **dst, const BYTE *const *src, UINT bop, UINT x, UINT y, UINT width, UINT height);
+
+		// libpng context
+		png_structp png = nullptr;
+
+		// libpng info struct
+		png_infop pInfo = nullptr;
+
+		// IHDR chunk
+		Chunk IHDR;
+
+		// pre-IDAT info chunks
+		std::list<Chunk> infoChunks;
+
+		// do we have the IDAT frame yet?
+		bool hasIDAT = false;
+
+		// have we reached EOF?
+		bool eof = false;
+
+		// number of fcTL records we've encountered so far
+		int fcTLCount = 0;
+
+		// do we have frame data to include in the animation?
+		bool frameDataAvail = false;
+
+		// Read a chunk size and ID header, returning the ID
+		DWORD ReadChunkSizeAndID(Chunk &chunk);
+
+		// Read/skip the rest of the chunk after the size and ID header
+		void ReadChunkContents(Chunk &chunk);
+		void SkipChunkContents(Chunk &chunk);
+
+		// Read a PNG chunk, returning the ID
+		DWORD ReadChunk(Chunk &chunk);
+
+		// create an animation frame and add it to the sprite's frame list
+		bool CreateAnimFrame(Sprite *sprite);
+	};
 };

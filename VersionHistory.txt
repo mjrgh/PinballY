@@ -1,6 +1,30 @@
 PinballY Update History
 
 
+?-?-2021 (1.1.0 Beta 4)
+
+* APNG (Animated PNG) files are now supported, and can be used
+anywhere a static PNG image can be used.  APNG is an unofficial, but
+widely adopted, extension of the PNG standard that allows embedding a
+series of timed animation frames in a PNG file.  It's similar to the
+animated GIF format, but has the same improvements over GIF that
+standard PNG offers, particularly its support for alpha transparency
+and 24-bit color.  In a PinballY context, the alpha transparency makes
+APNG especially interesting for wheel icons, system icons, and any
+other similar component graphics layered over the main window
+backgrounds.
+
+The .apng file extension is now recognized, but isn't required.  The
+system will recognize animated PNGs from their contents even when
+using the .png suffix.
+
+This is new code that hasn't been extensively tested yet.  If you
+run into any problems with particular APNG files, send me a sample
+so can try it out.
+
+(Issue #174 on github.)
+
+
 05-02-2021 (1.1.0 Beta 3)
 
 * A new "Media Capture - FFMPEG" page has been added to the settings

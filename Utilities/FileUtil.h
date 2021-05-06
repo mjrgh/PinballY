@@ -80,6 +80,14 @@ struct FILEPtrHolder
 		return ret;
 	}
 
+	// release the FILE* to a new owner
+	FILE *release()
+	{
+		FILE *ret = fp;
+		fp = nullptr;
+		return ret;
+	}
+
 	// the underlying FILE*
 	FILE *fp;
 

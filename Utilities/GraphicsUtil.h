@@ -46,6 +46,14 @@ protected:
 // mirror transform to be specified.  We skip this by default to
 // minimize the amount of time we spend parsing the image.
 //
+// If 'readAPNG' is true, we'll also attempt to scan a PNG stream
+// for animation metadata, to determine if it's actually an APNG
+// stream.  This requires scanning more of the file's contents,
+// so it takes more time than just determining if it's a PNG file.
+// If this is set, the returned type is set to APNG rather than 
+// PNG upon detecting an APNG file.  If this isn't set, animated
+// PNG files will be detected as the ordinary PNG type.
+//
 struct ImageFileDesc
 {
 	ImageFileDesc() : 
@@ -92,11 +100,12 @@ struct ImageFileDesc
 		PNG,		// PNG image
 		JPEG,		// JPEG image
 		GIF,		// GIF image
-		SWF			// Shockwave Flash object
+		SWF,		// Shockwave Flash object
+		APNG        // APNG (Animated PNG) image
 	} imageType;
 };
-bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation = false);
-bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation = false);
+bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation = false, bool readAPNG = false);
+bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation = false, bool readAPNG = false);
 
 
 // Off-screen GDI drawing.  This sets up a memory context, creates a

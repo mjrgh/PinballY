@@ -310,10 +310,11 @@ public:
 	// read data from an offset in the file
 	virtual bool Read(long ofs, BYTE *buf, size_t len) = 0;
 
-	bool GetInfo(ImageFileDesc &desc, bool readOrientation)
+	// Retrieve image file information
+	bool GetInfo(ImageFileDesc &desc, bool readOrientation, bool readAPNG)
 	{
 		// get the base information
-		if (!GetInfoBase(desc, readOrientation))
+		if (!GetInfoBase(desc, readOrientation, readAPNG))
 			return false;
 
 		// Figure the display dimensions.  These are the native image
@@ -325,12 +326,15 @@ public:
 	}
 
 private:
-	bool GetInfoBase(ImageFileDesc &desc, bool readOrientation)
+	bool GetInfoBase(ImageFileDesc &desc, bool readOrientation, bool readAPNG)
 	{
 		// Set up a bit mask of the parts required
 		const int NeedSize = 0x0001;
 		const int NeedOrientation = 0x0002;
-		int need = NeedSize | (readOrientation ? NeedOrientation : 0);
+		const int NeedAPNG = 0x0004;
+		int need = NeedSize
+			| (readOrientation ? NeedOrientation : 0)
+			| (readAPNG ? NeedAPNG : 0);
 
 		// Check the header to determine the image type.  For GIF, we can
 		// identify both the type and image dimensions with the first 10
@@ -542,6 +546,45 @@ private:
 			desc.imageType = ImageFileDesc::PNG;
 			desc.size.cx = (buf[16] << 24) + (buf[17] << 16) + (buf[18] << 8) + (buf[19] << 0);
 			desc.size.cy = (buf[20] << 24) + (buf[21] << 16) + (buf[22] << 8) + (buf[23] << 0);
+
+			// If desired, scan for APNG (animation) metadata.  If it's an animated
+			// PNG, it's required to have an acTL chunk before the first IDAT chunk.
+			if ((need & NeedAPNG) != 0)
+			{
+				// scan chunks until reaching an acTL or IDAT - whichever comes
+				// first will tell us if it's animated or not
+				for (long chunkHeaderOffset = 8; ; )
+				{
+					// read the 8-byte header for the next chunk
+					if (!Read(chunkHeaderOffset, buf, 8))
+						break;
+
+					// check the chunk type
+					if (memcmp(&buf[4], "acTL", 4) == 0)
+					{
+						// it's an animated PNG
+						desc.imageType = ImageFileDesc::APNG;
+						break;
+					}
+					if (memcmp(&buf[4], "IDAT", 4) == 0)
+					{
+						// no acTL before the first IDAT - not animated
+						break;
+					}
+
+					// decode the chunk data content length
+					UINT32 chunkDataLen = static_cast<UINT32>(buf[0] << 24)
+						| static_cast<UINT32>(buf[1] << 16)
+						| static_cast<UINT32>(buf[2] << 8)
+						| static_cast<UINT32>(buf[3]);
+
+					// skip ahead by the header size (8 bytes), the chunk data
+					// length, and the CRC size (4 bytes)
+					chunkHeaderOffset += chunkDataLen + 12;
+				}
+			}
+
+			// success
 			return true;
 		}
 
@@ -744,7 +787,7 @@ private:
 	}
 };
 
-bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation)
+bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrientation, bool readAPNG)
 {
 	class Reader : public ImageDimensionsReader
 	{
@@ -763,10 +806,10 @@ bool GetImageFileInfo(const TCHAR *filename, ImageFileDesc &desc, bool readOrien
 		}
 	};
 	Reader reader(filename);
-	return reader.GetInfo(desc, readOrientation);
+	return reader.GetInfo(desc, readOrientation, readAPNG);
 }
 
-bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation)
+bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool readOrientation, bool readAPNG)
 {
 	class Reader : public ImageDimensionsReader
 	{
@@ -785,7 +828,7 @@ bool GetImageBufInfo(const BYTE *imageData, long len, ImageFileDesc &desc, bool 
 		}
 	};
 	Reader reader(imageData, len);
-	return reader.GetInfo(desc, readOrientation);
+	return reader.GetInfo(desc, readOrientation, readAPNG);
 }
 
 // -----------------------------------------------------------------------

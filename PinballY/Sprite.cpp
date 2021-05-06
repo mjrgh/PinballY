@@ -17,6 +17,9 @@
 #include "Application.h"
 #include "FlashClient/FlashClient.h"
 #include "LogFile.h"
+#include <png.h>
+
+#pragma comment(lib, "libpng.lib")
 
 using namespace DirectX;
 
@@ -66,16 +69,18 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, HW
 	loadContext.Attach(new LoadContext());
 
 	// Try to determine the image type from the file contents
-	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true))
+	if (ImageFileDesc desc; GetImageFileInfo(filename, desc, true, true))
 	{
 		// If it's an SWF, WIC can't handle it - we have to load it through
 		// our Flash client site object
 		if (desc.imageType == ImageFileDesc::SWF)
 			return LoadSWF(filename, normalizedSize, pixSize, eh);
 
-		// If it's a GIF, we need to load it specially in case it's animated
+		// If it's a GIF or APNG, we need to load it specially in case it's animated
 		if (desc.imageType == ImageFileDesc::GIF)
 			return LoadGIF(filename, normalizedSize, pixSize, eh);
+		else if (desc.imageType == ImageFileDesc::APNG)
+			return LoadAPNG(filename, normalizedSize, pixSize, eh);
 
 		// The WIC loader ignores orientation metadata (such as JPEG Exif data), so
 		// we have to do some special work if it's rotated or reflected.
@@ -204,6 +209,618 @@ bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 
 	// success
 	return true;
+}
+
+// Load a PNG, with animation support
+bool Sprite::LoadAPNG(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
+{
+	// Try interpreting it as an animated PNG through the incremental
+	// loader context.  If that succeeds, the loader context will be
+	// set up to load frames on demand.  If not, we'll simply fall back
+	// on the generic WIC loader, to attempt to load the file as a
+	// contentional single-frame PNG or some other image type.
+	std::unique_ptr<APNGLoaderState> loader(new APNGLoaderState());
+	if (loader->Init(this, filename, normalizedSize, pixSize))
+	{
+		// create the mesh
+		if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
+			return false;
+
+		// transfer ownership of the loader to the Sprite
+		animation.reset(loader.release());
+
+		// initialize the animation
+		animRunning = true;
+		curAnimFrame = 0;
+		curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
+
+		// success
+		return true;
+	}
+	else
+	{
+		// It's not an animated PNG - use the basic WIC loader.
+		// Explicitly discard the APNG loader state first, to make sure
+		// we don't have an open handle to the file that could conflict
+		// with the WIC loader opening it.
+		loader.reset();
+		return LoadWICTexture(filename, normalizedSize, eh);
+	}
+}
+
+// Initialize the Animated PNG incremental loader
+bool Sprite::APNGLoaderState::Init(Sprite *sprite, const WCHAR *filename, POINTF normalizedSize, SIZE pixSize)
+{
+	// open the file
+	if (_tfopen_s(&fp, filename, _T("rb")) != 0)
+		return false;
+
+	// Check that it's a PNG; if not, fail
+	BYTE sig[8];
+	if (fread(sig, 1, 8, fp) != 8 || png_sig_cmp(sig, 0, 8) != 0)
+		return false;
+
+	// Read the IHDR chunk; if it's not an IHDR, fail
+	if (ReadChunk(IHDR) != ID_IHDR || IHDR.size != 25)
+		return false;
+
+	// Decode the IHDR
+	rcFull.left = rcFull.top = 0;
+	rcFull.right = png_get_uint_32(IHDR.data.get() + 8);
+	rcFull.bottom = png_get_uint_32(IHDR.data.get() + 12);
+
+	// Initialize the raw frame buffer
+	frameRaw.Init(rcFull.right, rcFull.bottom, 1, 10);
+
+	// Start the image processing
+	StartProcessing();
+
+	// Read the first frame.  If decoding fails, or the PNG file doesn't
+	// have the added chunks that make it an APNG, abort and use the
+	// standard WIC loader.
+	if (!ReadThroughNextFrame() || !isAnimated)
+		return false;
+
+	// Create first snimation frame
+	if (!CreateAnimFrame(sprite))
+		return false;
+
+	// success
+	return true;
+}
+
+void Sprite::APNGLoaderState::DecodeNext(Sprite *sprite)
+{
+	// read through the next frame
+	if (!eof && ReadThroughNextFrame())
+		CreateAnimFrame(sprite);
+}
+
+bool Sprite::APNGLoaderState::CreateAnimFrame(Sprite *sprite)
+{
+	// make sure there's a current frame
+	if (frameCur.data == nullptr)
+		return false;
+
+	// set up the D3D texture descriptor
+	D3D11_TEXTURE2D_DESC txd = CD3D11_TEXTURE2D_DESC(
+		DXGI_FORMAT_R8G8B8A8_UNORM, frameCur.width, frameCur.height, 1, 1,
+		D3D11_BIND_SHADER_RESOURCE, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE,
+		1, 0, 0);
+
+	// set up the subresource descriptor
+	D3D11_SUBRESOURCE_DATA srd;
+	ZeroMemory(&srd, sizeof(srd));
+	srd.pSysMem = frameCur.data.get();
+	srd.SysMemPitch = frameCur.width * 4;
+	srd.SysMemSlicePitch = srd.SysMemPitch * frameCur.height;
+
+	// set up the shader resource view
+	D3D11_SHADER_RESOURCE_VIEW_DESC svd;
+	svd.Format = txd.Format;
+	svd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	svd.Texture2D.MipLevels = txd.MipLevels;
+	svd.Texture2D.MostDetailedMip = 0;
+
+	// add an animation frame
+	auto af = sprite->animFrames.emplace_back(new AnimFrame()).get();
+
+	// Figure the display time.  APNG expresses the time in seconds,
+	// as a fraction (numerator divided by denominator) of two 16-bit.
+	// ints.  If the denominator is 0, the implied denominator is 100.
+	// Refigure it as a number of milliseconds.
+	af->dt = static_cast<DWORD>((frameCur.delayNum * 1000) / (frameCur.delayDen == 0 ? 100 : frameCur.delayDen));
+
+	// create the texture
+	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &af->rv, &af->texture);
+	if (!SUCCEEDED(hr))
+	{
+		// log the error
+		WindowsErrorMessage winMsg(hr);
+		LogFileErrorHandler eh;
+		eh.SysError(
+			MsgFmt(IDS_ERR_IMGCREATE, _T("Decoding Animated PNG frame")),
+			MsgFmt(_T("Sprite::Load, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
+
+		// discard the aborted frame
+		sprite->animFrames.pop_back();
+
+		// return failure
+		return false;
+	}
+
+	// success
+	return true;
+}
+
+static inline bool IsValidPngIdByte(DWORD b)
+{
+	return b >= 65 && b <= 122 && (b <= 90 || b >= 97);
+}
+
+static inline bool IsValidPngId(DWORD id)
+{
+	return IsValidPngIdByte(id & 0xFF)
+		&& IsValidPngIdByte((id >> 8) & 0xFF)
+		&& IsValidPngIdByte((id >> 16) & 0xFF)
+		&& IsValidPngIdByte((id >> 24) & 0xFF);
+}
+
+bool Sprite::APNGLoaderState::ReadThroughNextFrame()
+{
+	// apply the disposal operator for the outgoing frame
+	switch (disposal.dop)
+	{
+	case DOP_NONE:
+		// no disposal - keep the current frame's contents
+		break;
+
+	case DOP_BKG:
+		// clear the frame's sub-region to transparent black
+		if (frameCur.data != nullptr)
+		{
+			for (UINT row = 0; row < disposal.height; ++row)
+				memset(frameCur.rows.get()[disposal.y + row] + disposal.x * 4, 0, disposal.width * 4);
+		}
+		break;
+
+	case DOP_PREV:
+		// revert to prior frame
+		frameCur.Take(framePrev);
+		break;
+	}
+
+	// process the file until finishing the next frame or reaching EOF
+	while (!feof(fp)) 
+	{
+		// read the next chunk
+		Chunk chunk;
+		auto id = ReadChunkSizeAndID(chunk);
+
+		// let's see what we have
+		switch (id)
+		{
+		case ID_acTL:
+			// Animation control - mark it as animated
+			isAnimated = true;
+			ReadChunkContents(chunk);
+
+			// decode and save the contents
+			acTL.numFrames = png_get_uint_32(chunk.data.get() + 8);
+			acTL.numPlays = png_get_uint_32(chunk.data.get() + 12);
+			break;
+
+		case ID_fcTL:
+			// Animation frame control.  This marks the start of the
+			// virtual PNG sub-stream for an animation frame.
+
+			// count the fcTL
+			fcTLCount += 1;
+
+			// If we've encountered an IDAT record, an fcTL also marks
+			// the end of the virtual sub-stream for the current frame,
+			// so we need to end processing for the curent frame.
+			//
+			// The exception is that the first fcTL can precede the first
+			// IDAT.  This indicates that the image in the IDAT record(s)
+			// is included in the animation stream.  Since there's no
+			// preceding image in this case, don't end processing.
+			if (hasIDAT && !EndProcessing())
+				return false;
+
+			// If we have frame data available, compose the new frame
+			if (frameDataAvail)
+			{
+				// If the outgoing frame's disposal op is PREVIOUS, save 
+				// the current frame before composing the new frame, so that
+				// we can revert it after we're done.  There's no need to
+				// save a copy of the old frame for other disposal operations.
+				if (fcTL.dop == DOP_PREV && frameCur.data != nullptr)
+					framePrev.Copy(frameCur);
+
+				// Compose the current frame from the current raw subframe. 
+				// If there is no current frame, the raw frame simply becomes
+				// the current frame.
+				if (frameCur.data != nullptr)
+				{
+					// compose the old and new frames
+					ComposeFrame(frameCur.rows.get(), frameRaw.rows.get(), fcTL.bop, fcTL.x, fcTL.y, fcTL.width, fcTL.height);
+				}
+				else
+				{
+					// there's no current frame yet, so the raw frame is now
+					// the current frame
+					frameCur.Take(frameRaw);
+				}
+
+				// set the timing data
+				frameCur.delayNum = fcTL.delayNum;
+				frameCur.delayDen = fcTL.delayDen;
+
+				// remember the disposal settings
+				disposal.dop = fcTL.dop;
+				disposal.x = fcTL.x;
+				disposal.y = fcTL.y;
+				disposal.width = fcTL.width;
+				disposal.height = fcTL.height;
+			}
+
+			// Decode the new fcTL
+			ReadChunkContents(chunk);
+			fcTL.width = png_get_uint_32(chunk.data.get() + 12);
+			fcTL.height = png_get_uint_32(chunk.data.get() + 16);
+			fcTL.x = png_get_uint_32(chunk.data.get() + 20);
+			fcTL.y = png_get_uint_32(chunk.data.get() + 24);
+			fcTL.delayNum = png_get_uint_16(chunk.data.get() + 28);
+			fcTL.delayDen = png_get_uint_16(chunk.data.get() + 30);
+			fcTL.dop = chunk.data.get()[32];
+			fcTL.bop = chunk.data.get()[33];
+
+			// limit the size to the IHDR frame size
+			if (fcTL.x > frameRaw.width)
+				fcTL.x = frameRaw.width;
+			if (fcTL.y > frameRaw.height)
+				fcTL.y = frameRaw.height;
+			if (fcTL.x + fcTL.width > frameRaw.width)
+				fcTL.width = frameRaw.width - fcTL.x;
+			if (fcTL.y + fcTL.height > frameRaw.height)
+				fcTL.height = frameRaw.height - fcTL.y;
+
+			// For the first frame, the disposal op can't be PREVIOUS;
+			// if it is, force it to BKG
+			// and the blend op must be OVER.
+			if (fcTLCount == 1 && fcTL.dop == DOP_PREV)
+				fcTL.dop = DOP_BKG;
+
+			// If we ended processing for the last frame, start processing
+			// for the next frame
+			if (hasIDAT)
+			{
+				// allocate a new raw frame if necessary
+				if (frameRaw.data == nullptr)
+					frameRaw.Init(rcFull.right, rcFull.bottom, fcTL.delayNum, fcTL.delayDen);
+
+				// Start processing for the new sub-stream that follows
+				// the fcTL chunk.  Patch the original IHDR with the
+				// new size data from the fcTL, so that we create the
+				// raw frame in the proper size.
+				memcpy(IHDR.data.get() + 8, chunk.data.get() + 12, 8);
+				StartProcessing();
+			}
+
+			// If we generated a frame, stop here and pass it back to
+			// the caller.  This lets the caller immediately render the
+			// next frame as soon as we've finished reading it.  The
+			// caller will make a new call when it's time to render the
+			// next frame.
+			if (frameDataAvail)
+			{
+				// we've now consumed this frame
+				frameDataAvail = false;
+
+				// tell the caller a frame is ready
+				return true;
+			}
+
+			// no frame yet - continue reading
+			break;
+
+		case ID_IDAT:
+			// Image data chunk.  In an animated image file, this is the
+			// first frame's image data, and we'll know it's an animated
+			// PNG becuase we will have seen an acTL chunk by now.  If
+			// it's not an animated file, simply stop here, so that the
+			// caller can abort to the WIC loader instead.
+			if (!isAnimated)
+				return false;
+
+			// read and process the IDAT chunk
+			ReadChunkContents(chunk);
+			ProcessChunk(chunk.data.get(), chunk.size);
+
+			// If we've encountered an fcTL record already, we now have
+			// image data to include in the animation sequence.  The IDAT
+			// image only goes into the animation if the first fcTL
+			// precedes the first IDAT.
+			if (fcTLCount != 0)
+				frameDataAvail = true;
+
+			// flag that we've found the IDAT
+			hasIDAT = true;
+			break;
+
+		case ID_fdAT:
+			// Animation frame data chunk.  Each animation frame after the
+			// first is represented by one of these chunks.  This is the
+			// equivalent of an IDAT chunk, but simply uses a separate ID
+			// so that the file obeys the rule that IDAT is unique.  Process
+			// this through libpng as though it were an IDAT image frame.
+			// Note that we have to make the fdAT look like an IDAT, by 
+			// patching bytes +4..+11 to make them look like an IDAT
+			// header that's 16 bytes smaller than the actual chunk.
+			ReadChunkContents(chunk);
+			png_save_uint_32(chunk.data.get() + 4, chunk.size - 16);
+			memcpy(chunk.data.get() + 8, "IDAT", 4);
+			ProcessChunk(chunk.data.get() + 4, chunk.size - 4);
+
+			// we now have image data for the current animation frame
+			frameDataAvail = true;
+			break;
+
+		case ID_IEND:
+			// end marker - flag that we're at EOF
+			ReadChunkContents(chunk);
+			eof = true;
+
+			// if we have image data, compose the last frame into frameCur
+			if (hasIDAT && EndProcessing())
+			{
+				// compose the frame
+				ComposeFrame(frameCur.rows.get(), frameRaw.rows.get(), fcTL.bop, fcTL.x, fcTL.y, fcTL.width, fcTL.height);
+				frameCur.delayNum = fcTL.delayNum;
+				frameCur.delayDen = fcTL.delayDen;
+
+				// we have a frame available
+				return true;
+			}
+			else
+			{
+				// no frame available
+				return false;
+			}
+
+		default:
+			// read the rest of the chunk; ignore it if it doesn't have a valid PNG ID
+			ReadChunkContents(chunk);
+			if (IsValidPngId(id))
+			{
+				// process it
+				ProcessChunk(chunk.data.get(), chunk.size);
+
+				// if we haven't reached the first frame's IDAT record yet, 
+				// save it for replay on subsequent fraames
+				if (!hasIDAT)
+					infoChunks.emplace_back(chunk.data.release(), chunk.size);
+			}
+			break;
+		}
+	}
+
+	// unexpected end of file - no more frames available
+	return false;
+}
+
+// PNG chunk header reader.  This reads just the chunk length and ID.
+// Returns the ID.
+DWORD Sprite::APNGLoaderState::ReadChunkSizeAndID(Chunk &chunk)
+{
+	// read the chunk length
+	if (fread(chunk.header, 1, 8, fp) == 8)
+	{
+		// save the size
+		chunk.size = png_get_uint_32(chunk.header) + 12;
+
+		// return the ID
+		return png_get_uint_32(chunk.header + 4);
+	}
+
+	// failed - return ID zero
+	return 0;
+}
+
+// Read the rest of a chunk
+void Sprite::APNGLoaderState::ReadChunkContents(Chunk &chunk)
+{
+	// allocate space
+	chunk.data.reset(new BYTE[chunk.size]);
+
+	// copy the 8 header bytes we've already read
+	memcpy(chunk.data.get(), chunk.header, 8);
+	
+	// read the rest of the chunk
+	fread(chunk.data.get() + 8, 1, chunk.size - 8, fp);
+}
+
+// Skip the rest of a chunk
+void Sprite::APNGLoaderState::SkipChunkContents(Chunk &chunk)
+{
+	// skip the rest of the chunk after the 8 header bytes we've already read
+	fseek(fp, chunk.size - 8, SEEK_CUR);
+}
+
+// PNG chunk reader
+DWORD Sprite::APNGLoaderState::ReadChunk(Chunk &chunk)
+{
+	// read the chunk length
+	if (fread(chunk.header, 1, 4, fp) == 4)
+	{
+		// set up the Chunk descriptor and allocate space for the contents
+		chunk.size = png_get_uint_32(chunk.header) + 12;
+		chunk.data.reset(new BYTE[chunk.size]);
+
+		// the first 4 bytes are the length
+		memcpy(chunk.data.get(), chunk.header, 4);
+
+		// read the remainder
+		if (fread(chunk.data.get() + 4, 1, chunk.size - 4, fp) == chunk.size - 4)
+			return png_get_uint_32(chunk.data.get() + 4);
+	}
+
+	// failed - return ID zero
+	return 0;
+}
+
+// Start processing a PNG image
+bool Sprite::APNGLoaderState::StartProcessing()
+{
+	// create the libpng reading context and info struct
+	if ((png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr)) == nullptr
+		|| (pInfo = png_create_info_struct(png)) == nullptr)
+		return false;
+
+	// set up libpng's C-setjmp-style exception handler
+	if (setjmp(png_jmpbuf(png)))
+	{
+		png_destroy_read_struct(&png, &pInfo, nullptr);
+		return false;
+	}
+
+	// initialize reading
+	png_set_crc_action(png, PNG_CRC_QUIET_USE, PNG_CRC_QUIET_USE);
+	png_set_progressive_read_fn(png, &frameRaw, &InfoCallback, &RowCallback, nullptr);
+
+	// process the standard PNG file header
+	BYTE header[8] = { 137, 80, 78, 71, 13, 10, 26, 10 };
+	png_process_data(png, pInfo, header, 8);
+
+	// process the IHDR chunk
+	png_process_data(png, pInfo, IHDR.data.get(), IHDR.size);
+
+	// process pre-IDAT info chunks
+	if (this->hasIDAT)
+	{
+		for (auto &chunk : infoChunks)
+			png_process_data(png, pInfo, chunk.data.get(), chunk.size);
+	}
+
+	// success
+	return true;
+}
+
+// libpng info callback
+void PNGAPI Sprite::APNGLoaderState::InfoCallback(png_structp png, png_infop pInfo)
+{
+	png_set_expand(png);
+	png_set_strip_16(png);
+	png_set_gray_to_rgb(png);
+	png_set_add_alpha(png, 0xff, PNG_FILLER_AFTER);
+	(void)png_set_interlace_handling(png);
+	png_read_update_info(png, pInfo);
+}
+
+// libpng progressive row callback
+void PNGAPI Sprite::APNGLoaderState::RowCallback(png_structp png, png_bytep pRow, png_uint_32 rowNum, int pass)
+{
+	APNGFrame *frame = static_cast<APNGFrame*>(png_get_progressive_ptr(png));
+	png_progressive_combine_row(png, frame->rows.get()[rowNum], pRow);
+}
+
+// Process a PNG IDAT frame
+void Sprite::APNGLoaderState::ProcessChunk(BYTE *data, UINT size)
+{
+	// validate the context
+	if (png == nullptr || pInfo == nullptr)
+		return;
+
+	// set up error handling
+	if (setjmp(png_jmpbuf(png)))
+	{
+		png_destroy_read_struct(&png, &pInfo, nullptr);
+		return;
+	}
+
+	// process the data
+	png_process_data(png, pInfo, data, size);
+}
+
+// Finish image processing
+bool Sprite::APNGLoaderState::EndProcessing()
+{
+	// validate the context
+	if (png == nullptr || pInfo == nullptr)
+		return false;
+
+	// set up error handling
+	if (setjmp(png_jmpbuf(png)))
+	{
+		png_destroy_read_struct(&png, &pInfo, nullptr);
+		return false;
+	}
+
+	// process the image end chunk
+	BYTE endChunk[12] = { 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130 };
+	png_process_data(png, pInfo, endChunk, 12);
+
+	// tear down the libpng context objects
+	png_destroy_read_struct(&png, &pInfo, nullptr);
+
+	// success
+	return true;
+}
+
+// Compose an APNG frame
+void Sprite::APNGLoaderState::ComposeFrame(BYTE **dst, const BYTE *const *src, UINT bop, UINT x, UINT y, UINT width, UINT height)
+{
+	// iterate over rows
+	for (UINT row = 0; row < height; row++)
+	{
+		// figure the pixel pointer in the source, at the start of the current row
+		const BYTE *sp = src[row];
+
+		// figure the pixel position in the destination, at the start of the
+		// current row within the (x,y) x (width,height) window
+		BYTE *dp = dst[y + row] + 4*x;
+
+		// check the blend operation
+		if (bop == BOP_SRC)
+		{
+			// source copy
+			memcpy(dp, sp, width * 4);
+		}
+		else if (bop == BOP_OVER)
+		{
+			// apha blend - iterate over columns
+			for (UINT col = 0; col < width; col++, sp += 4, dp += 4)
+			{
+				// check the source alpha
+				if (sp[3] == 255)
+				{
+					// opaque source - just copy
+					memcpy(dp, sp, 4);
+				}
+				else if (sp[3] != 0)
+				{
+					// check the destination alpha
+					if (dp[3] == 0)
+					{
+						// transparent destination - just copy
+						memcpy(dp, sp, 4);
+					}
+					else
+					{
+						// alpha blend the pixels
+						int u = sp[3] * 255;
+						int v = (255 - sp[3])*dp[3];
+						int a = u + v;
+						dp[0] = static_cast<BYTE>((sp[0] * u + dp[0] * v) / a);
+						dp[1] = static_cast<BYTE>((sp[1] * u + dp[1] * v) / a);
+						dp[2] = static_cast<BYTE>((sp[2] * u + dp[2] * v) / a);
+						dp[3] = static_cast<BYTE>(a / 255);
+					}
+				}
+			}
+		}
+	}
 }
 
 // Fill a rectangle in a GIF image under construction
@@ -379,7 +996,8 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	}
 
 	// Set up the frame decoder state
-	gifLoaderState.Init(pWIC, decoder, width, height, nFrames, bgColor, filename);
+	std::unique_ptr<GIFLoaderState> loader(new GIFLoaderState());
+	loader->Init(pWIC, decoder, width, height, nFrames, bgColor, filename);
 
 	// create the mesh
 	if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
@@ -387,13 +1005,12 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 
 	// decode the first frame; if that doesn't leave us with one frame in the 
 	// frame list, the decoding failed, so fail the whole load
-	gifLoaderState.DecodeFrame(this);
+	loader->DecodeFrame(this);
 	if (animFrames.size() == 0)
 		return false;
 
 	// Initialize the animation.  Start at the first frame, and set the end time
 	// for the frame to the current time plus the frame's display time.
-	isAnimation = true;
 	animRunning = true;
 	curAnimFrame = 0;
 	curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
@@ -401,6 +1018,9 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 	// allocate a media player cookie, so that we can generate AVPXxx messages
 	// related to the playback
 	animCookie = AudioVideoPlayer::AllocMediaCookie();
+
+	// transfer ownership of the loader to the Sprite
+	animation.reset(loader.release());
 
 	// success
 	return true;
@@ -944,7 +1564,7 @@ void Sprite::Render(Camera *camera)
 	ID3D11ShaderResourceView *rvToRender = loadContext->rv;
 
 	// check for animation
-	if (isAnimation)
+	if (animation != nullptr)
 	{
 		// If the animation is running, check if it's time to advance to the 
 		// next frame.  We might have to advance past multiple frames, because
@@ -957,8 +1577,7 @@ void Sprite::Render(Camera *camera)
 		while (animRunning && now >= curAnimFrameEndTime)
 		{
 			// If decoding is still in progress, decode the next frame
-			if (animFrames.size() < gifLoaderState.nFrames)
-				gifLoaderState.DecodeFrame(this);
+			animation->DecodeNext(this);
 
 			// advance to the next frame; loop after the last frame
 			if (++curAnimFrame >= animFrames.size())
@@ -1101,9 +1720,9 @@ void Sprite::Clear()
 	// clear the animation frame list
 	curAnimFrame = 0;
 	animFrames.clear();
-	isAnimation = false;
+	animation = nullptr;
 	animRunning = false;
-	gifLoaderState.Clear();
+	animation.reset();
 
 	// forget any message target window
 	msgHwnd = NULL;
