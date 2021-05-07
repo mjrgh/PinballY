@@ -15,7 +15,9 @@
 <p>
    Starting with version 1.0 beta 17, PinballY is capable of
    showing videos with "alpha" transparency information embedded
-   in the video, as well as animated GIF files with transparency.
+   in the video, as well as animated GIF files with transparency,
+   and animated PNG files (also known as APNG files) with alpha
+   transparency.
 </p>
 <p>
    Alpha transparency is probably a familiar concept if you've
@@ -77,34 +79,56 @@
    and <a href="MainWindowObject.html#launchOverlay">mainWindow.launchOverlay</a>.
 </ul>
 
-<h2>Animated GIFs</h2>
+<h2>Animated GIF and animated PNG (APNG)</h2>
 
 <p>
    The most popular current "video" format with transparency support isn't
-   really a video format at all: it's the GIF image file format.
-   GIF files support a simple sort of animation where a single
-   GIF file can store a series of image frames that are played
-   back sequentially on a timer.  It's not exactly a "video"
-   format in the usual sense, and it's not useful for anything
-   lengthy because it doesn't compress well,
-   but it's widely used on the Web for creating animated icons
-   and short video loops.  GIF also has a simple form of transparency,
-   so it can be used for animated overlays - just the sort of
-   thing you'd use alpha-channel video for.
+   really a video format at all: it's the GIF image file format.  The
+   widely-used PNG static image format also has an unofficial
+   animated version, known as APNG.
 </p>
 <p>
-   Starting in 1.0 beta 17, PinballY supports animated GIF files,
-   including transparent animated GIFs.  You can use an animated GIF
-   anywhere a regular still image can be used.
+   GIF and APNG files allow a simple form of animation using
+   a series of image frames that can be played back sequentially
+   on a timer.  Most people don't consider these true video formats,
+   since they don't support audio tracks and they don't have any
+   sort of motion-based compression.  But that same simplicity
+   makes them great for storing short animations, such as animated
+   icons and short video loops.  Animated GIF is widely used on the
+   Web for just those purposes.  APNG isn't as widely used, since
+   it's newer and it's not an official standard, but it was
+   designed explicitly as a replacement for animated GIF and has
+   pretty much the same capabilities.  APNG also has the
+   same advantages that the basic PNG format has over GIF,
+   notably full alpha transparency (GIF only has "color keyed"
+   transparency) and 24-bit color (vs. GIF's 8-bit indexed palette
+   scheme).
+</p>
+<p>
+   GIF and APNG both support transparency, so they can be used for
+   animated overlays - just the sort of thing you'd use alpha-channel
+   video for.  APNG's transparency support is better, in that it
+   provides full alpha transparency, which allows smoother blending
+   at the edges.
+</p>
+<p>
+   PinballY supports animated GIF (as of 1.0 beta 17), including
+   transparent animated GIFs, and APNG (as of 1.1 beta 4).  You can
+   use an animated GIF or APNG anywhere a regular still image can be
+   used.  Animated PNG files are detected based on the contents, not
+   the filename suffix, so you can use either the standard .png suffix
+   or the alternate .apng suffix with these files.
 </p>
 <p>
    It might seem a bit strange, but note that all GIF files
-   are considered <b>image files</b> in PinballY, never video files -
-   even when animated.  That's sometimes important when you're
-   deciding where to store a particular media file.  The rule
-   is really simple: if it's a GIF file, treat it like an image
-   file.  Always put GIF files in the PinballY media folders designated for
-   image files; don't put GIF files in video folders.
+   and all PNG files are still considered <b>image files</b> in
+   PinballY, even when animated.  They're never video files.
+   You probably won't notice that distinction for the most
+   part, but it can be important when you're deciding
+   where to store a particular media file.  The rule
+   is really simple: if it's a GIF, PNG, or APNG file, treat it like an image
+   file.  Always put GIF, PNG, and APNG files in the PinballY media folders designated for
+   image files; never put them in video folders.
 </p>
    
 
