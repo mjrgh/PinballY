@@ -603,7 +603,7 @@ private:
 
 			// If the file is compressed, populate more of the initial buffer, so that
 			// we have enough compression stream header information to inflate the stream.
-			if (buf[0] == 'C')
+			if (buf[0] == 'C' || buf[0] == 'Z')
 				Read(initialBytes, buf + initialBytes, sizeof(buf) - initialBytes);
 
 			// basic uncompressed stream reader

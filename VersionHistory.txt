@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-?-?-2021 (1.1.0 Beta 4)
+05-08-2021 (1.1.0 Beta 4)
 
 * APNG (Animated PNG) files are now supported, and can be used
 anywhere a static PNG image can be used.  APNG is an unofficial, but
