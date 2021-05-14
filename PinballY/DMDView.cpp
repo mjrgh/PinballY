@@ -78,6 +78,7 @@ namespace ConfigVars
 	static const TCHAR *DMDWinVarPrefix = _T("DMDWindow");
 	static const TCHAR *TTHighScoreFont = _T("TTHighScoreFont");
 	static const TCHAR *TTHighScoreTextColor = _T("TTHighScoreTextColor");
+	static const TCHAR *DotsFixedAspectRatio = _T("DMDWindow.Dots.FixedAspectRatio");
 };
 
 // construction
@@ -96,6 +97,7 @@ void DMDView::OnConfigChange()
 	auto cfg = ConfigManager::GetInstance();
 	ttHighScoreFont.ParseConfig(ConfigVars::TTHighScoreFont, _T("Courier New"));
 	ttHighScoreTextColor = cfg->GetColor(ConfigVars::TTHighScoreTextColor, RGB(0x20, 0x20, 0x20));
+	dotsFixedAspectRatio = cfg->GetBool(ConfigVars::DotsFixedAspectRatio, false);
 }
 
 // get the background media info
@@ -1895,7 +1897,7 @@ void DMDView::ScaleSprites()
 
 	// scale the high score images
 	for (auto &i : highScoreImages)
-		ScaleSprite(i.sprite, 1.0f, false);
+		ScaleSprite(i.sprite, 1.0f, dotsFixedAspectRatio);
 }
 
 void DMDView::BeginRunningGameMode(GameListItem *game, GameSystem *system, bool &hasVideos)

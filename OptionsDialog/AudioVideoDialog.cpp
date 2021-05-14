@@ -35,6 +35,7 @@ void AudioVideoDialog::InitVarMap()
 	varMap.emplace_back(buttonVolumeSlider = new SliderMap(_T("Buttons.Volume"), IDC_SLIDER_BUTTON_VOL, IDC_TXT_BUTTON_VOL, 0, 100, 100));
 	varMap.emplace_back(new CkBoxMap(_T("SimultaneousWindowUpdate"), IDC_CK_SIMUL_SYNC, false));
 	varMap.emplace_back(new SpinIntMap(_T("CrossfadeTime"), IDC_EDIT_CROSSFADE, 120, IDC_SPIN_CROSSFADE, 0, 10000));
+	varMap.emplace_back(new CkBoxMap(_T("DMDWindow.Dots.FixedAspectRatio"), IDC_CK_DOTS_FIXED_ASPECT, false));
 }
 
 void AudioVideoDialog::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)

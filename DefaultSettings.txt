@@ -502,17 +502,16 @@ InstructionCardLocation = Backglass
 # 
 InstructionCards.EnableFlash = 1
 
-# Should we use the internal Flash (SWF) renderer?  If this is set 
+# Should we use the internal SWF (Flash) renderer?  If this is set 
 # to 1 (for "true"), PinballY uses its own internal reader and
-# renderer for SWF file.  If not, we use the Flash Player DirectX
+# renderer for SWF files.  If not, we use the Flash Player DirectX
 # control (also known as the Flash plug-in for Internet Explorer).
 # This is true by default starting with 1.1 Beta 5, since Adobe
-# officially declared Flash Player as obsolete, and even pushed
-# out an update in January 2021 to disable all existing
-# installations.
+# officially declared Flash Player as obsolete, and pushed out an
+# update in January 2021 to disable all existing installations.
 #
 # PinballY's built-in SWF renderer provides limited support for
-# SWF display without the need for any Adobe plug-ins.  It only
+# SWF display without the need for any external plug-ins.  It only
 # supports a very limited subset of Flash Player's capabilities,
 # but it's designed to handle the limited needs of the one special
 # use case for SWF in PinballY: HyperPin Media Pack instruction
@@ -528,7 +527,7 @@ InstructionCards.EnableFlash = 1
 # Player has always been a bit of a security nightmare, and it's
 # now entirely unsupported.
 #
-UseInternalFlashRenderer = 1
+UseInternalSWFRenderer = 1
 
 
 # Timing for game selection updates in the different windows.  This
@@ -2010,6 +2009,19 @@ PlayfieldWindow.TopmostDuringGameLaunch = 0
 # playing Visual Pinball games.  That's also a separate program with its
 # own setup.
 DMDWindow.KeepInFrontOfBg = 0
+
+# In the DMD video window, use a fixed aspect ratio for the generated
+# "dots" high score display style.  By default (if this is set to 0), the
+# display is stretched to fit the window, even if that distorts the
+# geometry.  If this is set to 1, the dot matrix area's aspect ratio is
+# fixed at 4:1, the same as a physical DMD.  This is especially useful if
+# if you're using a full-height monitor for the DMD video display, since
+# stretching the dots style to full height makes it quite distorted.  The
+# default stretch mode is usually better if you're masking the monitor
+# behind the traditional WPC-era speaker panel cutout, since that cutout
+# area is already about 4:1, and it usually looks nicer to exactly fill
+# that area even if it's slightly off from exactly 4:1.
+DMDWindow.Dots.FixedAspectRatio = 0
 
 
 # Window layout.  There's no need to edit any of this manually.  Just run

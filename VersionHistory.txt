@@ -3,6 +3,56 @@ PinballY Update History
 
 05-xx-2021 (1.1.0 Beta 5)
 
+* PinballY now has a built-in SWF mini-renderer, to replace the
+obsolete Flash Player.  Adobe officially made Flash Player obsolete at
+the start of 2021, and pushed an update that disables all Flash Player
+browser plugins.  Since PinballY formerly depended upon the Flash
+Player ActiveX plugin to display SWF files, Adobe's pushed update had
+the effect of breaking SWF display for PinballY on most systems.  The
+only way to see your SWF files (until now) was to either block the
+pushed update or intentionally restore an older version of the
+plug-in.  Adobe doesn't want you doing either, of course, because they
+want to wash their hands of the security issues that have always
+plagued the plug-in.
+
+This is only a "mini" renderer.  It's deliberately designed to support
+only enough of Flash's capabilities to handle the single use case for
+SWF in PinballY, which is the large collection of extant Instruction
+Cards from HyperPin Media Packs.  I've tested the new renderer with a
+number of the extant instruction cards, but there are many more out
+there that I haven't tested yet.  If you run into any that don't
+display properly, send me a copy and I'll take a look.  The only SWF
+media I intend to support are the instruction cards - if other random
+SWF files don't work, I don't plan to accommodate them.  SWF never had
+any use in PinballY other than the instruction cards anyway, so I see
+no reason to extend the mini-renderer beyond that one use case.
+
+The new SWF mini-renderer is enabled by default in this version,
+overriding the Flash Player plug-in.  The plug-in already fails on
+most systems anyway, thanks to the Adobe remote-kill update, so I
+don't expect anyone would want to re-enable it, but you can if you
+really want to: set the options variable UseInternalSWFRenderer=0 in
+Settings.txt.  This isn't exposed in the options dialogs because I
+expect very few people will want to use it - I'd prefer to avoid the
+clutter and potential confusion of adding a checkbox for it.
+
+
+* A new option in the Audio/Video dialog lets you set the DMD "dots"
+high score display to use a fixed 4:1 aspect ratio, rather than
+stretching the dots display to fit the window.  This only affects the
+video DMD window, obviously, not a physical DMD, and it only affects
+the *generated* high score displays - images and videos are still
+stretched to fill the window as usual.  This might be especially
+useful if you're exposing the full height of the DMD monitor, rather
+than masking it behind the more traditional WPC-era DMD cutout.  The
+traditional DMD cutout is about 4:1, so with that, you'd normally set
+the DMD window size to about 4:1 anyway, making the default setting to
+stretch the dots display to fill the window better.  But if you're
+using the full window height, stretching the dots display distorts it
+considerably, so you might prefer to maintain the fixed 4:1 layout
+instead.  The dots image will still be scaled to fill the window as
+much as possible without geometric distortion.
+
 * Fixed a bug that appeared in 1.1 Beta 2 with shift key handling
 in dialog boxes.  (Issue #175 on github.)
 

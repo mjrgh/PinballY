@@ -603,11 +603,11 @@ UINT32 SWFParser::SWFReader::ReadUB(int nBits)
 
 		// Bits come out of 'b' from the high end first, so
 		// shift these bits to right-align them in 'cur'
-		cur >>= 8 - nFetch;
+		cur >>= (8 - nFetch);
 
 		// Now shift the fetched bits into the result
 		ret <<= nFetch;
-		ret |= cur;
+		ret |= (cur & (0xFF >> (8 - nFetch)));
 
 		// deduct the bits read from the remaining to read
 		nBits -= nFetch;
@@ -1250,8 +1250,8 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 			if (sr->stateMoveTo)
 			{
 				int moveBits = ReadUB(5);
-				sr->deltaX = static_cast<float>(ReadUB(moveBits)) / 20.0f;
-				sr->deltaY = static_cast<float>(ReadUB(moveBits)) / 20.0f;
+				sr->deltaX = static_cast<float>(ReadSB(moveBits)) / 20.0f;
+				sr->deltaY = static_cast<float>(ReadSB(moveBits)) / 20.0f;
 			}
 
 			// read the fill style 0 and 1 indices if present
@@ -1406,53 +1406,70 @@ void SWFParser::ShapeWithStyle::Draw(CharacterDrawingContext &cdc, PlaceObject *
 
 void SWFParser::ImageBits::Draw(CharacterDrawingContext &dc, PlaceObject *po)
 {
-	std::unique_ptr<BYTE> tmpImageStream;
-	BYTE *imageStream = nullptr;
-	size_t imageStreamLen = 0;
+	if (auto bitmap = GetOrCreateBitmap(dc); bitmap != nullptr)
+		dc.target->DrawBitmap(bitmap);
+}
 
-	switch (type)
+ID2D1Bitmap *SWFParser::ImageBits::GetOrCreateBitmap(CharacterDrawingContext &dc)
+{
+	// if we haven't already cached the bitmap, create it
+	if (bitmap == nullptr)
 	{
-	case Type::JPEGImageData:
-		// This is a "DefineBits" record, which only has the pixel section of the
-		// JPEG file.  We need to combine this with the common JPEG file header
-		// from the "JPEGTables" record.  The JPEGTables record has an extra
-		// end-of-image tag (FF D9) at the end, and the DefineBits record has
-		// an extra IOS tag (FF D8) at the beginning.  So to merge them, we just
-		// need to lop off the last two bytes of the tables record and the
-		// first two bytes of the pixel record, and concatenate the results.
-		tmpImageStream.reset(new BYTE[dc.parser->jpegTables.len + imageDataSize - 4]);
-		imageStream = tmpImageStream.get();
-		imageStreamLen = dc.parser->jpegTables.len - 2;
-		memcpy(imageStream, dc.parser->jpegTables.data.get(), imageStreamLen);
-		memcpy(imageStream + imageStreamLen, imageData.get() + 2, imageDataSize - 2);
-		imageStreamLen += imageDataSize - 2;
-		break;
+		// temporary image stream, in case we need to combine JPEG fragments
+		std::unique_ptr<BYTE> tmpImageStream;
+		BYTE *imageStream = nullptr;
+		size_t imageStreamLen = 0;
 
-	default:
-		// for other types, our record contains the full image stream
-		imageStream = imageData.get();
-		imageStreamLen = imageDataSize;
-		break;
+		switch (type)
+		{
+		case Type::JPEGImageData:
+			// This is a "DefineBits" record, which only has the pixel section of the
+			// JPEG file.  We need to combine this with the common JPEG file header
+			// from the "JPEGTables" record.  The JPEGTables record has an extra
+			// end-of-image tag (FF D9) at the end, and the DefineBits record has
+			// an extra IOS tag (FF D8) at the beginning.  So to merge them, we just
+			// need to lop off the last two bytes of the tables record and the
+			// first two bytes of the pixel record, and concatenate the results.
+			tmpImageStream.reset(new BYTE[dc.parser->jpegTables.len + imageDataSize - 4]);
+			imageStream = tmpImageStream.get();
+			imageStreamLen = dc.parser->jpegTables.len - 2;
+			memcpy(imageStream, dc.parser->jpegTables.data.get(), imageStreamLen);
+			memcpy(imageStream + imageStreamLen, imageData.get() + 2, imageDataSize - 2);
+			imageStreamLen += imageDataSize - 2;
+			break;
+
+		default:
+			// for other types, our record contains the full image stream
+			imageStream = imageData.get();
+			imageStreamLen = imageDataSize;
+			break;
+		}
+
+		// if we have an image stream, create the WIC object
+		if (imageStream != nullptr)
+		{
+			// create a memory stream on the image data
+			RefPtr<IStream> istream(SHCreateMemStream(imageStream, static_cast<UINT>(imageStreamLen)));
+
+			// create a WIC decoder
+			RefPtr<IWICBitmapDecoder> decoder;
+			RefPtr<IWICBitmapFrameDecode> frameDec;
+			RefPtr<IWICFormatConverter> converter;
+			RefPtr<ID2D1Bitmap> bitmap;
+			if (SUCCEEDED(wicFactory->CreateDecoderFromStream(istream, NULL, WICDecodeMetadataCacheOnDemand, &decoder))
+				&& SUCCEEDED(decoder->GetFrame(0, &frameDec))
+				&& SUCCEEDED(wicFactory->CreateFormatConverter(&converter))
+				&& SUCCEEDED(converter->Initialize(frameDec, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeCustom))
+				&& SUCCEEDED(dc.target->CreateBitmapFromWicBitmap(converter, &bitmap)))
+			{
+				// save the cached bitmap
+				this->bitmap = bitmap;
+			}
+		}
 	}
 
-	// if we have an image stream, create the WIC object
-	if (imageStream != nullptr)
-	{
-		// create a memory stream on the image data
-		RefPtr<IStream> istream(SHCreateMemStream(imageStream, static_cast<UINT>(imageStreamLen)));
-
-		// create a WIC decoder
-		RefPtr<IWICBitmapDecoder> decoder;
-		RefPtr<IWICBitmapFrameDecode> frameDec;
-		RefPtr<IWICFormatConverter> converter;
-		RefPtr<ID2D1Bitmap> bitmap;
-		if (SUCCEEDED(wicFactory->CreateDecoderFromStream(istream, NULL, WICDecodeMetadataCacheOnDemand, &decoder))
-			&& SUCCEEDED(decoder->GetFrame(0, &frameDec))
-			&& SUCCEEDED(wicFactory->CreateFormatConverter(&converter))
-			&& SUCCEEDED(converter->Initialize(frameDec, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.0f, WICBitmapPaletteTypeCustom))
-			&& SUCCEEDED(dc.target->CreateBitmapFromWicBitmap(converter, &bitmap)))
-			dc.target->DrawBitmap(bitmap);
-	}
+	// return the cached bitmap
+	return bitmap;
 }
 
 void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
@@ -1462,11 +1479,6 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 	{
 		// get the fill style
 		auto fillStyle = reinterpret_cast<FillStyle*>(pair.first);
-
-		// create a brush for it
-		RefPtr<ID2D1SolidColorBrush> brush;
-		if (!SUCCEEDED(chardc.target->CreateSolidColorBrush(fillStyle->color.ToD2D(), &brush)))
-			continue;
 
 		// Set up the geometry list.  We're going to defer the fill until
 		// we've collected all of the paths, at which point we'll create
@@ -1539,7 +1551,67 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 				geometries.get()[i++] = path;
 		}
 		if (SUCCEEDED(d2dFactory->CreateGeometryGroup(D2D1_FILL_MODE_WINDING, geometries.get(), static_cast<UINT32>(paths.size()), &group)))
-			chardc.target->FillGeometry(group, brush);
+		{
+			switch (fillStyle->type)
+			{
+			case FillStyle::FillType::Solid:
+				{
+					// fill with a solid-color brush
+					RefPtr<ID2D1SolidColorBrush> brush;
+					if (SUCCEEDED(chardc.target->CreateSolidColorBrush(fillStyle->color.ToD2D(), &brush)))
+						chardc.target->FillGeometry(group, brush);
+				}
+				break;
+
+			case FillStyle::FillType::ClippedBitmap:
+			case FillStyle::FillType::RepeatingBitmap:
+			case FillStyle::FillType::NonSmoothedRepeatingBitmap:
+				// look up the image object from the dictionary
+				if (auto it = chardc.parser->dict.find(fillStyle->bitmapId); it != chardc.parser->dict.end())
+				{
+					// make sure it's an ImageBits object
+					if (auto image = dynamic_cast<ImageBits*>(it->second.get()); image != nullptr)
+					{
+						// retrieve the bitmap
+						if (auto bitmap = image->GetOrCreateBitmap(chardc); bitmap != nullptr)
+						{
+							// set up a clipping layer based on the path
+							RefPtr<ID2D1Layer> layer;
+							if (SUCCEEDED(chardc.target->CreateLayer(&layer)))
+							{
+								// push the layer
+								chardc.target->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), group), layer);
+
+								// draw the bitmap
+								D2D1_RECT_F rcBounds, rcSrc;
+								group->GetBounds(D2D1::IdentityMatrix(), &rcBounds);
+								auto bitmapSize = bitmap->GetPixelSize();
+								auto topLeft = fillStyle->matrix.Apply({ 0.0f, 0.0f });
+								auto botRight = fillStyle->matrix.Apply({ static_cast<float>(bitmapSize.width), static_cast<float>(bitmapSize.height) });
+								rcSrc = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+								chardc.target->DrawBitmap(bitmap, rcBounds, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, rcSrc);
+
+								// pop the layer
+								chardc.target->PopLayer();
+							}
+						}
+					}
+				}
+				break;
+
+			case FillStyle::FillType::LinearGradient:
+				// TO DO
+				break;
+
+			case FillStyle::FillType::RadialGradient:
+				// TO DO
+				break;
+
+			case FillStyle::FillType::FocalRadialGradient:
+				// TO DO
+				break;
+			}
+		}
 	}
 
 	// Now draw the outlines, from the line style map.  This will draw
@@ -1607,6 +1679,159 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 	}
 }
 
+
+// Add an edge to a style map.  For each line style and each fill
+// style used in a shape, we build a list of line/curve segments
+// using that style, in the same order as they appear in the SWF.
+// This lets us find each continuous sub-path with a single style
+// and render it as a single Direct2D path.
+//
+// We have to jump through these hoops because SWF's geometry
+// model allows for heterogeneous line and fill styles in a single
+// path, whereas Direct2D's only allows one line style and one fill
+// style per path.
+//
+// For the line styles, a simpler way to handle this would be to
+// render each SWF segment as a separate D2D Path.  But that has
+// two big drawbacks.  The first is efficiency; it's more efficient
+// to use fewer Path objects when possible.  The second, and more
+// important reason, is rendering quality: combining segments when
+// we can allows D2D to do proper smoothing and corner joins where
+// segments meet.
+//
+// The situation with fill styles is much more complex.  SWF has
+// the notion of "left" and "right" fill styles for each segment.
+// As with line styles, each segment in a composite shape can have
+// its own fill styles - but we don't actually care about that,
+// because Adobe seems to consider that a design flaw in SWF, and
+// says in the spec only that the results of using heterogeneous
+// fill styles are "unpredictable".  What is important, though, is
+// the left/right distinction. 
+//
+// The left/right fill seems to have three uses cases: self-
+// overlapping shapes, edges shared between two filled regions,
+// and embedded holes:
+//
+// - The self-overlapping case is described in the SWF spec, so
+//   I won't go into details here.  Curiously, that's the only
+//   use case for left/right fill that they describe, but it seems
+//   to be the least important - at least, I haven't seen any
+//   examples in the wild in the SWF's I've tested.  It's hard
+//   to imagine taking advantage of this scenario intentionally,
+//   actually, although perhaps my imagination is too limited.
+//
+// - The shared-border case is described in P.A.M. Senster's
+//   "The design and implementation of Google Swiffy: A Flash to
+//   HTML5 converter
+//
+//      https://repository.tudelft.nl/islandora/object/uuid%3Acab4b862-d662-432a-afa4-45ccb725177f
+//
+//   There, the author describes an algorithm for converting an
+//   SWF shape to an SVG, which has the same constraints on style
+//   homogeneity that Direct2D has.  Like the self-overlapping
+//   case, I haven't seen any SWFs that actually use the shared
+//   border capabiilty of the left/right fill, but this at least
+//   seems like a case that might actually come up, if only
+//   because I can imagine SWF creation tools deliberately using
+//   it as an optimization to reduce file size.  In the days
+//   when SWF was relevant, file size reduction was such a high
+//   priority that such an optimization is quite believable.
+//
+// - I haven't seen the donut-hole case described anywhere, but
+//   it seems to be the only one that actually occurs in the SWF
+//   samples I've examined.  It seems to be an almost accidental
+//   artifact of the Flash rendering algorithm that isn't described
+//   in the SWF spec or anywhere else I've seen, but it's critical
+//   to proper rendering of virtually all of the HyperPin Media
+//   Pack instruction card samples!  It's so important there
+//   because they're mostly vectorized text outlines, hence they
+//   use lots of donut holes for the interior of closed letter
+//   shapes like "O" and "D" and "B".
+//
+//   To see how the donut-hole case works, lets look at the
+//   letter "O" (which is, after all, practically the epitome of
+//   "donut-shaped").  In this case, the SWF shape definition will
+//   consist of two paths, one for the outline of the outside
+//   perimeter of the "O", and one for the perimeter of the hole.
+//   The outer path will consist of perhaps four curved segments
+//   winding counter-clockwise, with FillStyle0 ("left fill") set
+//   to the fill color for the letter.  The inner path will
+//   consist of a similar set of line segments, but will wind
+//   in clockwise, also with FillStyle0.  FillStyle0 means that
+//   we fill the closed region to the left of the line, so the
+//   outer CCW loop fills the interior of the "O".  By itself,
+//   that would describe a completely filled-in circle.  But the
+//   inner path winds CW, so its "left fill" is the OUTSIDE of
+//   the circle it describes.  That's why I think this is an
+//   artifact of the Flash Player rendering algorithm: it seems
+//   that, by itself, this inner circle wouldn't render a fill
+//   at all - fills only apply to the enclosed interior of a
+//   path.  However, taken in combination, the "fill inside this
+//   line" on the outside and "fill outside this line" on the
+//   inside combine to say "flll the region between these two
+//   lines".
+//
+//   It so happens that SVG, D2D, and probably many other 2D
+//   graphics models use a similar "winding direction" model for
+//   exclusion regions, so we get this rendering feature almost
+//   for free as long as we (a) maintain the original winding
+//   orders from the SWF when translating to D2D, and (b) combine
+//   all of the paths with shared fill style into a single "Group
+//   Geometry" (in D2D terms).
+//
+// D2D's winding-direction fill rule is direction-independent:
+// it only cares about *changes* in winding direction between
+// nested shapes, and doesn't have a way to specify that there's
+// one fill for clockwise shapes and another for counterclockwise
+// shapes.  So we can't reproduce SWF's behavior with perfect
+// fidelity; D2D might get things backwards in some cases.  But
+// I don't think it would happen much in practice, and probably
+// not at all with the limited set of SWF instruction cards,
+// which is all we really care about reproducing properly.
+//
+// My algorithm to handle the various cases involves three
+// passes over the SWF shape records during rendering:
+//
+// On the first pass, we group all of the line segments making
+// up the shape records by line style and by fill style.  Each
+// shape record might go into three separate maps: one for its
+// line style, one for its Fill Style 0 style, and one for its
+// Fill Style 1 style.  In practice, I haven't seen any examples
+// of a shape that uses both Fill Style 0 and Fill Style 1, so
+// most segments will just go into a Line Style map and one
+// Fill Style map.
+//
+// What about choosing between left fill and righ fill?  Well,
+// D2D doesn't have a way to specify different fill styles for
+// clockwise and counterclockwise paths, so all we can do is
+// enlist a path under BOTH of its fill styles, and hope that
+// the shape is defined in a way that happens to work out
+// properly under D2D's winding order rules.  It does work
+// well for donut-holes, which is the only use case that seems
+// to arise in the Instruction Card samples I've examined.
+// The experience of other tools using a similar algorithm to
+// render SWF files with HTML5 and SVG (Swiffy, swf2js) suggests
+// that it also works for a broader sampling of extant SWFs.
+
+// On the second pass, we go through the fill style collection,
+// one style at a time, and draw each continuous figure we find.
+// A continuous figure is a set of segments where the end point
+// of one segment is the same as the start point of the next
+// segment.  For each continuous figure, we create a path for
+// the figure and add it to a D2D Geometry Group, using the
+// Winding-Order Fill mode for the group, so that enclosed
+// paths with opposite winding orders will create donut holes
+// properly.  After populating the group with all of the paths
+// in the fill style collection, we fill the group.
+//
+// On the third pass, we go through the line style collection,
+// one style at a time, and draw each continuous path section
+// we find.  This draws the outlines on top of the fill, which
+// is the same effect that we'd get if we were to have D2D draw
+// the outline and fill at the same time.  It's a little less
+// efficient than doing them together, but it's the only way
+// to allow for line style changes in the course of a shape.
+//
 void SWFParser::ShapeRecord::ShapeDrawingContext::AddEdge(EdgeMap &map, void *stylePtr, const Segment &seg, bool reversed)
 {
 	// ignore null styles
@@ -1659,7 +1884,16 @@ void SWFParser::EdgeRecord::Draw(ShapeDrawingContext &sdc)
 	// add the edge to the line and fill collections for the respective current styles
 	sdc.AddEdge(sdc.lineEdges, sdc.curLineStyle, seg, false);
 	sdc.AddEdge(sdc.fillEdges, sdc.curFillStyle0, seg, false);
-	sdc.AddEdge(sdc.fillEdges, sdc.curFillStyle1, seg, false);
+
+	// Add the edge in reversed order for fillStyle1 ("right fill").  This will
+	// reverse the D2D winding order with respect to any shapes enlisted under the
+	// same fill style for fillStyle0, so that D2D sees this path as a fill
+	// transition for the fill type if it's embedded within or entirely encloses
+	// a path with the same style for its left fill.
+	ShapeDrawingContext::Segment rev = seg;
+	rev.end = seg.start;
+	rev.start = seg.end;
+	sdc.AddEdge(sdc.fillEdges, sdc.curFillStyle1, rev, true);
 }
 
 void SWFParser::StyleChangeRecord::Draw(ShapeDrawingContext &sdc)

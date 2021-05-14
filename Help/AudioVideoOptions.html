@@ -38,6 +38,31 @@
    the common 16:9 aspect ratio, since it'll avoid blank spaces around the edges
    when displaying 16:9 source material.
 </p>
+<p>
+   <b>Show "Dots" style high scores with fixed 4:1 aspect ratio in DMD video window:</b>
+   If this is checked, the "dots" style of generated high score graphics
+   will be displayed with a fixed aspect ratio of 4:1.  By default (if
+   the box isn't checked), the generated "dots" displays are stretched
+   to exactly fill the window.    This only affects the video DMD window,
+   obviously, not a physical DMD, and it only affects the automatically
+   generated high score graphics, and only in the "dots" style.  Normal
+   media (images and videos loaded from files) are still stretched to
+   fill the window as usual.
+</p>
+<p>
+   The fixed 4:1 aspect ratio option might be especially
+   useful if you're exposing the full height of the DMD monitor, rather
+   than masking it behind the more traditional WPC-era DMD cutout.  The
+   traditional DMD cutout is about 4:1, so with that, you'd normally set
+   the DMD window size to about 4:1 anyway; it usually looks nicer in
+   that case to exactly fill the window, in case it's slightly off
+   from exactly 4:1.  If you're exposing the full monitor height, though,
+   stretching the "dots" graphics to fill the whole window distorts
+   it considerably, so you might prefer to maintain the fixed 4:1 layout
+   instead.  This has the tradeoff that it'll leave some of the window
+   area empty, but that's probably preferable to distorting the geometry
+   beyond a certain point.
+</p>
 
 <p>
    <b>Enable videos:</b>  Check this box to enable video playback in the

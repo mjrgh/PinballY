@@ -187,7 +187,7 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
 	// Check the mode
-	if (Application::Get()->useInternalFlashRenderer)
+	if (Application::Get()->useInternalSWFRenderer)
 	{
 		// We're using our internal SWF mini-renderer.  Create an SWF loader.
 		std::unique_ptr<SWFLoaderState> loader(new SWFLoaderState(pixSize));

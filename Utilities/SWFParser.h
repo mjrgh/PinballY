@@ -290,89 +290,13 @@ public:
 			FillStyle *curFillStyle1 = nullptr;
 			LineStyle *curLineStyle = nullptr;
 
-			// SWF's geometry model doesn't map onto Direct2D's geometry model
-			// directly.  SWF has two peculiar features that we need to handle
-			// specially.
-			//
-			// First, each segment of a path (which, to SWF, means a line
-			// segment or quadratic Bezier curve) can have its own stroke style.
-			// D2D only allows one stroke style for an entire path.  To handle
-			// this, we need to treat each portion of an SWF path that has a
-			// different stroke style as a separate D2D path.
-			//
-			// Breaking up a single SWF path into multiple D2D paths poses an
-			// additional problem, which is that we'll still need to map each
-			// closed SWF path to a single closed D2D path when fill is required.
-			// To handle this, we need to create a separate D2D path for each
-			// closed SWF path portion.  To draw the final shape, we have to
-			// first draw the fill for the closed D2D version of the path,
-			// without drawing the outline, and then draw the strokes (with
-			// no fill) for the possibly multiple D2D paths representing the
-			// outline.
-			//
-			// Second, SWF has the notion of "left" and "right" fill styles.
-			// Fill Style 0 is the left fill, and Fill Style 1 is the right.
-			// This is important when paths cross or when one path contains
-			// another path.  When a closed path runs clockwise, it's making
-			// right turns, so the enclosed area is the "right" fill style,
-			// a/k/a Fill Style 1.  A counterclockwise path encloses the
-			// area to its left, so it uses Fill Style 0.
-			//
-			// SWF also allows each path segment to define a separate fill
-			// style.  This seems to have been an error in the design that
-			// Adboe later regretted; the SWF says only that results are
-			// "unpredictable" if you change fill style mid-path.  I'm going
-			// to ignore this completely on the assumption that it never
-			// happens in a well-formed SWF, let alone in the limited
-			// collection we wish to support.
-			// 
-			// To implement all of this, the drawing routine has to make a
-			// couple of passes through each shapes's ShapeRecord collection.
-			// (This process is scoped to a shape; there's no interaction for
-			// the purposes of fill or line styles between separate shapes.)
-			//
-			// On the first pass, we group all of the line segments making
-			// up the shape records by line style and by fill style.  Each
-			// shape record might appear up to *three* times: one for its
-			// line style, one for its Fill Style 0 style, and one for its
-			// Fill Style 1 style.
-			//
-			// What about that whole left/right fill business?  How does
-			// this help with that?  Well, it actually doesn't; it only
-			// works for paths that fill on one side only.  But it does
-			// handle the important case that our instruction cards actually
-			// use, which is "donut holes".  You can use the left/right fill
-			// in SWF to create a hole in the middle of a filled figure by
-			// specifying the path for the hole outline in the opposite
-			// winding order of the outer path.  This maps to Direct2D's
-			// concept of Winding Fill for a Group Geometry.  It's not quite
-			// as powerful as the full SWF left/right fill spec, but it
-			// accomplishes the one thing that I've seen actual SWF files
-			// do with the left/right fill capability.  To implement the
-			// full SWF left/right feature, we'd have to do considerably
-			// more work to analyze the paths.  I'm going to punt on that
-			// until a need arises, which I don't think it will.
-			//
-			// On the second pass, we go through the fill style collection,
-			// one style at a time, and draw each continuous figure we find.
-			// A continuous figure is a set of segments where the end point
-			// of one segment is the same as the start point of the next
-			// segment.  For each continuous figure, we create a path for
-			// the figure and add it to a D2D Geometry Group.  As mentioned
-			// above, we use the Winding Fill mode for the group, so that
-			// paths with opposite winding order will create holes, which
-			// is the main thing that the SWF left/right fill feature seems
-			// to be good for.  After populating the group with all of the
-			// paths in the fill style collection, we fill the group.
-			//
-			// On the third pass, we go through the line style collection,
-			// one style at a time, and draw each continuous path section
-			// we find.  This draws the outlines on top of the fill, which
-			// is the same effect that we'd get if we were to have D2D draw
-			// the outline and fill at the same time.  It's a little less
-			// efficient than doing them together, but it's the only way
-			// to allow for line style changes in the course of a shape.
-			//
+			// Line/curve segment maps.  To draw a figure, we first build a
+			// set of maps that group the segments making up a shape by line
+			// style and by fill style, then we turn each group into a D2D
+			// path.  This is necessary because the SWF geometry model allows
+			// heterogeneous styles in a single path, whereas D2D only allows
+			// one stroke style and one fill style per path.  See the rendering
+			// code for a more detailed explanation.
 			struct Segment
 			{
 				bool straight;
@@ -384,7 +308,12 @@ public:
 			EdgeMap fillEdges;
 			EdgeMap lineEdges;
 
-			// add a segment to one of the style maps
+			// Add a segment to one of the style maps.  'reversed' means that the
+			// edge is being added with its point sequence in reverse order from
+			// its SWF definition, to reverse the winding order of is shape; this
+			// requires adding it at the front of its style group's edge list,
+			// so that the whole path that this edge is part of can be rendered
+			// in reverse order.
 			void AddEdge(EdgeMap &map, void *stylePtr, const Segment &edge, bool reversed);
 
 			// render the shapes in the style maps
@@ -477,6 +406,12 @@ public:
 			PNG,             // PNG stream
 			GIF89a           // GIF89a stream, non-animated
 		} type = Unknown;
+
+		// cached D2D bitmap
+		RefPtr<ID2D1Bitmap> bitmap;
+
+		// get the D2D bitmap, or create and cache it if we haven't already done so
+		ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc);
 	};
 
 	// SWF Frame
@@ -555,8 +490,8 @@ public:
 		BYTE ReadBit();
 
 		// read various fixed-size SWF types
-		UINT32 ReadUInt16() { return ReadByte() | (ReadByte() << 8); }
-		UINT32 ReadUInt32() { return ReadByte() | (ReadByte() << 8) | (ReadByte() << 16) | (ReadByte() << 24); }
+		UINT32 ReadUInt16() { BYTE a = ReadByte(), b = ReadByte();  return a | (b << 8); }
+		UINT32 ReadUInt32() { BYTE a = ReadByte(), b = ReadByte(), c = ReadByte(), d = ReadByte();  return a | (b << 8) | (c << 16) | (d << 24); }
 
 	protected:
 		// For bit-field operations, cache one byte of the input stream.

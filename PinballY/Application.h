@@ -109,7 +109,7 @@ public:
 	// all HyperPin Media Packs for the instruction cards.  This setting
 	// selects our limited built-in SWF decoder, so that we don't have
 	// to invoke the Flash Player ActiveX control.
-	bool useInternalFlashRenderer = true;
+	bool useInternalSWFRenderer = true;
 
 	// Update secondary windows for a change in the selected game.
 	// This notifies the backglass and DMD windows when a new game

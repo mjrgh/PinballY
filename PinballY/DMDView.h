@@ -328,6 +328,12 @@ protected:
 	FontPref ttHighScoreFont{ 0, _T("Courier New") };
 	COLORREF ttHighScoreTextColor;
 
+	// "Dots" style aspect ratio preference.  By default, we stretch the
+	// dots display to exactly fill the window.  This can be set to maintain
+	// the native 4:1 aspect ratio of the graphics (filling the window as much
+	// as possible while maintaining the original aspect ratio).
+	bool dotsFixedAspectRatio = false;
+
 	// Set the high score image list.  When we switch to a new game, we kick
 	// off a thread to generate the high score images.  We use a thread rather
 	// than generating them on the main thread, because it can take long enough
