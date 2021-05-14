@@ -92,6 +92,25 @@ public:
 	// video exists in any window, false if not.
 	bool LoadStartupVideos();
 
+	// Are we using the internal Flash (SWF) renderer?  If this is true, 
+	// the Sprite subsystem displays SWF files using our custom reader 
+	// instead of Adobe Flash Player.  Adobe made Flash Player obsolete 
+	// in December 2020, and disabled the player in an update in January
+	// 2021, so anyone who has the latest update will be unable to play 
+	// back SWF files with Flash Player.  Some people might simply not
+	// have chosen to install the update, or might even have intentionally
+	// reverted to an old version, so Flash Player might still work on
+	// some systems; hence we haven't disabled our Flash Player host
+	// interface, to allow anyone who really wants to keep using it do
+	// so.  However, on the assumption that most people will take Adobe's
+	// strong advice to stop using Flash Player, we need a way to display
+	// legacy SWF files on systems where Flash Player has been disabled
+	// or uninstalled entirely, since SWF is the format used in nearly
+	// all HyperPin Media Packs for the instruction cards.  This setting
+	// selects our limited built-in SWF decoder, so that we don't have
+	// to invoke the Flash Player ActiveX control.
+	bool useInternalFlashRenderer = true;
+
 	// Update secondary windows for a change in the selected game.
 	// This notifies the backglass and DMD windows when a new game
 	// is selected in the playfield window.

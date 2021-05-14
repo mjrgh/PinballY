@@ -1,6 +1,12 @@
 PinballY Update History
 
 
+05-xx-2021 (1.1.0 Beta 5)
+
+* Fixed a bug that appeared in 1.1 Beta 2 with shift key handling
+in dialog boxes.  (Issue #175 on github.)
+
+
 05-08-2021 (1.1.0 Beta 4)
 
 * APNG (Animated PNG) files are now supported, and can be used
@@ -14,13 +20,13 @@ APNG especially interesting for wheel icons, system icons, and any
 other similar component graphics layered over the main window
 backgrounds.
 
-The .apng file extension is now recognized, but isn't required.  The
-system will recognize animated PNGs from their contents even when
-using the .png suffix.
+For the file suffix, you can use .png or .apng interchangeably.
+PinballY recognizes animated PNGs from their contents, even for files
+with the plain .png suffix.
 
 This is new code that hasn't been extensively tested yet.  If you
 run into any problems with particular APNG files, send me a sample
-so can try it out.
+so I can try it out.
 
 (Issue #174 on github.)
 

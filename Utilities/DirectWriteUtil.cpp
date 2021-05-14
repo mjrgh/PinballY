@@ -941,7 +941,7 @@ DirectWriteUtils::DirectWriteUtils(ErrorHandler &eh)
 
 	// initialize a WIC factory
 	if (!SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wicFactory))))
-		{ HRError(_T("CoCreateInstance(WICImagingFatory)")); }
+		{ HRError(_T("CoCreateInstance(WICImagingFatory)")); return; }
 }
 
 DirectWriteUtils::~DirectWriteUtils()

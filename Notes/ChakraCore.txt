@@ -110,7 +110,7 @@ a. Breakpoints on non-executable lines aren't resolved correctly in VS
 Code.  Fire up VS Code; launch a PinballY session; stop in the
 debugger.  Set a breakpoint on a line of source that doesn't have any
 executable code.  The Javascript engine will properly set the BP on
-the next exectuable line.  Now click *again* on the same line to set
+the next executable line.  Now click *again* on the same line to set
 another breakpoint there.  VS Code will think it has two breakpoints
 on top of each other at this point; clearing either one will crash the
 debug session.
@@ -171,7 +171,7 @@ Most of PinballY uses Microsoft's "T" types (TCHAR, LPTSTR, etc),
 which are basically macros that can turn into 8-bit OR Unicode
 strings, depending on whether you're building in ANSI or Unicode mode.
 But ChakraCore never uses these types; it's explicit in every API
-about using either UCS-2 or UTF-8, and has no build-time conditional
+about using either UTF-16 or UTF-8, and has no build-time conditional
 character types.
 
 I really only use the "T" types in PinballY out of habit.
@@ -197,5 +197,7 @@ looking.)  If you do this work and get it built and working in 8-bit
 mode, and you don't break anything or add any runtime cost in Unicode
 mode (because you picked the right macros!), send a pull request on
 github and I'll be happy to merge your changes so that it keeps
-working in 8-bit mode going forward.
-
+working in 8-bit mode going forward.  But I mention this only for the
+sake of completeness, because I can't imagine any reason anyone would
+ever want to build PinballY in 8-bit ANSI mode in the first place, let
+alone do the work to make it happen.

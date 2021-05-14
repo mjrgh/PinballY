@@ -102,6 +102,9 @@
     <ClInclude Include="DirectWriteUtil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SWFParser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -168,6 +171,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="DirectWriteUtil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SWFParser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -502,6 +502,34 @@ InstructionCardLocation = Backglass
 # 
 InstructionCards.EnableFlash = 1
 
+# Should we use the internal Flash (SWF) renderer?  If this is set 
+# to 1 (for "true"), PinballY uses its own internal reader and
+# renderer for SWF file.  If not, we use the Flash Player DirectX
+# control (also known as the Flash plug-in for Internet Explorer).
+# This is true by default starting with 1.1 Beta 5, since Adobe
+# officially declared Flash Player as obsolete, and even pushed
+# out an update in January 2021 to disable all existing
+# installations.
+#
+# PinballY's built-in SWF renderer provides limited support for
+# SWF display without the need for any Adobe plug-ins.  It only
+# supports a very limited subset of Flash Player's capabilities,
+# but it's designed to handle the limited needs of the one special
+# use case for SWF in PinballY: HyperPin Media Pack instruction
+# cards.  The instruction cards found in nearly all HyperPin media
+# packs are in SWF format because of SWF's vector graphics
+# capabilities.  At the time most of these files were created,
+# there weren't any other vector formats in common use.
+#
+# If you set this to 0, PinballY will continue to use Adobe Flash
+# Player, but it's up to you to keep that working despite Adobe's
+# best attempts to disable it by remote control.  And of course
+# you'll be exposing your system to greater security risks; Flash
+# Player has always been a bit of a security nightmare, and it's
+# now entirely unsupported.
+#
+UseInternalFlashRenderer = 1
+
 
 # Timing for game selection updates in the different windows.  This
 # controls how new images and videos are loaded into the windows when

@@ -12965,9 +12965,10 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		// VK_LSHIFT and VK_RSHIFT in the wParam.  Windows will also
 		// send its normal messages with VK_SHIFT, so we'll need to
 		// ignore those, since they're now redundant with our
-		// synthesized messages, and carry less information.  Note
-		// that we only synthesize these when the application is in
-		// the foreground,since that's the way Windows does it; the
+		// synthesized messages, and carry less information.
+		//
+		// We only synthesize these when the application is in the
+		// foreground, since that's the way Windows does it; the
 		// raw input events, on the other hand, arrive even while
 		// we're in the background, so we have to distinguish the
 		// foreground and background cases here.
@@ -12992,7 +12993,7 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		case VK_LSHIFT:
 			// synthesize a WM_KEYxx message (see above)
 			if (rawInputCode != RIM_INPUTSINK)
-				PostMessage(synthMsg, VK_LSHIFT, synthLParam | (rawShiftKeyState.left ? (1 << 30) | 1 : 0));
+				::PostMessage(GetFocus(), synthMsg, VK_LSHIFT, synthLParam | (rawShiftKeyState.left ? (1 << 30) | 1 : 0));
 
 			// note the new state
 			rawShiftKeyState.left = make;
@@ -13001,7 +13002,7 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 		case VK_RSHIFT:
 			// synthesize a WM_KEYxx message (see above)
 			if (rawInputCode != RIM_INPUTSINK)
-				PostMessage(synthMsg, VK_RSHIFT, synthLParam | (rawShiftKeyState.right ? (1 << 30) | 1 : 0));
+				::PostMessage(GetFocus(), synthMsg, VK_RSHIFT, synthLParam | (rawShiftKeyState.right ? (1 << 30) | 1 : 0));
 
 			// note the new state
 			rawShiftKeyState.right = make;

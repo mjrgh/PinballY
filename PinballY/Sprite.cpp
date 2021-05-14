@@ -7,6 +7,7 @@
 #include <wincodec.h>
 #include "../Utilities/GraphicsUtil.h"
 #include "../Utilities/ComUtil.h"
+#include "../Utilities/SWFParser.h"
 #include "../DirectXTK/Inc/DDSTextureLoader.h"
 #include "../DirectXTK/Inc/WICTextureLoader.h"
 #include "../DirectXTex/DirectXTex/DirectXTex.h"
@@ -145,7 +146,7 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 		// create the WIC texture
 		HRESULT hr = CreateWICTextureFromFileEx(D3D::Get()->GetDevice(), ctx->filename.c_str(),
 			0, D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0, WIC_LOADER_IGNORE_SRGB,
-			&ctx->loadContext->texture, &ctx->loadContext->rv);
+			&ctx->loadContext->tv.texture, &ctx->loadContext->tv.rv);
 
 		if (FAILED(hr))
 		{
@@ -185,30 +186,124 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// Create the new Flash site.  Our FlashClientSite creates a windowless
-	// activation site for the Flash object, loads the file (as a "movie"),
-	// and starts playback.  The windowless site captures the Flash graphics
-	// into a DIB.
-	if (FAILED(FlashClientSite::Create(&flashSite, filename, pixSize.cx, pixSize.cy, eh)))
-		return false;
+	// Check the mode
+	if (Application::Get()->useInternalFlashRenderer)
+	{
+		// We're using our internal SWF mini-renderer.  Create an SWF loader.
+		std::unique_ptr<SWFLoaderState> loader(new SWFLoaderState(pixSize));
 
-	// Get the initial image frame as an HBITMAP handle to a DIB
-	BITMAPINFO bmi;
-	void *bits = nullptr;
-	HBITMAP hbmp = flashSite->GetBitmap(NULL, &bits, &bmi);
-	if (hbmp == NULL)
-		return false;
+		// Try loading the file.  Use incremental mode so that we stop as soon
+		// as the first frame is ready to render.
+		if (!loader->parser->Load(filename, eh, true))
+			return false;
 
-	// Load our D3D11 texture from the initial bitmap
-	if (!Load(bmi, bits, eh, _T("Load Shockwave Flash frame")))
-		return false;
+		// render the first frame
+		if (!loader->CreateAnimFrame(this))
+			return false;
 
-	// Create a staging texture for frame updates
-	if (!CreateStagingTexture(pixSize.cx, pixSize.cy, eh))
-		return false;
+		// create the mesh
+		if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
+			return false;
 
-	// success
-	return true;
+		// initialize the animation
+		animRunning = true;
+		curAnimFrame = 0;
+		curAnimFrameEndTime = GetTickCount64() + loader->parser->GetFrameDelay();
+		animation.reset(loader.release());
+
+		// success
+		return true;
+	}
+	else
+	{
+		// Attention! Flash Player is obsolete!
+		//
+		// We're using the Flash Player DirectX control as the SWF renderer.
+		// Note that Flash Player is officially obsolete as of January 2021,
+		// and Adobe pushed out an update that disables it, so this shouldn't
+		// work on an up-to-date system.  We're keeping this code anyway, for 
+		// the sake of anyone who chose not to install the update (or chose to
+		// revert to an older version).  That's against Adobe's strong advice,
+		// since Flash is considered such a security risk (it always was, but
+		// it's even more so now that Adobe has washed their hands of it).
+		// But for the limited use that we make of it in PinballY (it's really
+		// just for instruction cards from HyperPin Media Packs), it's
+		// relatively safe just because all of the SWF files come from trusted
+		// sources.
+		//
+		// Create the new Flash site.  Our FlashClientSite creates a windowless
+		// activation site for the Flash object, loads the file (as a "movie"),
+		// and starts playback.  The windowless site captures the Flash graphics
+		// into a DIB.
+		if (FAILED(FlashClientSite::Create(&flashSite, filename, pixSize.cx, pixSize.cy, eh)))
+			return false;
+
+		// Get the initial image frame as an HBITMAP handle to a DIB
+		BITMAPINFO bmi;
+		void *bits = nullptr;
+		HBITMAP hbmp = flashSite->GetBitmap(NULL, &bits, &bmi);
+		if (hbmp == NULL)
+			return false;
+
+		// Load our D3D11 texture from the initial bitmap
+		if (!Load(bmi, bits, eh, _T("Load Shockwave Flash frame")))
+			return false;
+
+		// Create a staging texture for frame updates
+		if (!CreateStagingTexture(pixSize.cx, pixSize.cy, eh))
+			return false;
+
+		// success
+		return true;
+	}
+}
+
+Sprite::SWFLoaderState::SWFLoaderState(SIZE targetPixSize) :
+	parser(new SWFParser()),
+	targetPixSize(targetPixSize)
+{
+}
+
+Sprite::SWFLoaderState::~SWFLoaderState()
+{
+	Clear();
+}
+
+
+void Sprite::SWFLoaderState::DecodeNext(Sprite *sprite)
+{
+	// if we haven't reached the last frame yet, decode the next frame
+	if (sprite->animFrames.size() < parser->GetFrameCount()
+		&& parser->ParseFrame(LogFileErrorHandler()))
+		CreateAnimFrame(sprite);
+}
+
+bool Sprite::SWFLoaderState::CreateAnimFrame(Sprite *sprite)
+{
+	// render the current frame into a memory DC
+	bool ok = true;
+	DrawOffScreen(targetPixSize.cx, targetPixSize.cy,
+		[this, sprite, &ok](HDC hdc, HBITMAP hbitmap, const void *dibits, const BITMAPINFO &bmi) 
+	{
+		// render the current SWF display list into the DC
+		LogFileErrorHandler leh;
+		ok = this->parser->Render(hdc, hbitmap, targetPixSize, leh);
+		if (ok)
+		{
+			// create the animation frame
+			auto af = sprite->animFrames.emplace_back(new AnimFrame()).get();
+
+			// set the delay time for the frame - SWF has a fixed frame rate for the
+			// whole sequence
+			af->dt = this->parser->GetFrameDelay();
+
+			// create the texture
+			ok = sprite->CreateTextureFromBitmap(bmi, dibits, leh, _T("Sprite::SWFLoaderState::CreateAnimFrame"), &af->tv);
+		}
+	});
+
+	// return the result
+	return ok;
 }
 
 // Load a PNG, with animation support
@@ -332,15 +427,15 @@ bool Sprite::APNGLoaderState::CreateAnimFrame(Sprite *sprite)
 	af->dt = static_cast<DWORD>((frameCur.delayNum * 1000) / (frameCur.delayDen == 0 ? 100 : frameCur.delayDen));
 
 	// create the texture
-	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &af->rv, &af->texture);
+	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &af->tv.rv, &af->tv.texture);
 	if (!SUCCEEDED(hr))
 	{
 		// log the error
 		WindowsErrorMessage winMsg(hr);
 		LogFileErrorHandler eh;
 		eh.SysError(
-			MsgFmt(IDS_ERR_IMGCREATE, _T("Decoding Animated PNG frame")),
-			MsgFmt(_T("Sprite::Load, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
+			MsgFmt(IDS_ERR_IMGCREATE, _T("Rendering Animated PNG frame")),
+			MsgFmt(_T("Sprite::APNGLoaderState::CreateAnimFrame, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
 
 		// discard the aborted frame
 		sprite->animFrames.pop_back();
@@ -1040,7 +1135,7 @@ void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
 		LogFileErrorHandler eh;
 		WindowsErrorMessage sysErr(hr);
 		eh.SysError(MsgFmt(IDS_ERR_IMGLOAD, filename.c_str()),
-			MsgFmt(_T("GIF loader: %hs (HRESULT %lx: %s)"), details, hr, sysErr.Get()));
+			MsgFmt(_T("GIF frame decoder: %hs (HRESULT %lx: %s)"), details, hr, sysErr.Get()));
 
 		// clear resources to stop further decoding
 		Clear();
@@ -1081,7 +1176,7 @@ void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
 	// get the pixel format
 	WICPixelFormatGUID pixFmt;
 	if (FAILED(hr = decodedFrame->GetPixelFormat(&pixFmt)))
-		return SysErr("Unable to get decoded frame foramt");
+		return SysErr("Unable to get decoded frame format");
 
 	// Make sure it's an indexed (paletted) 8-bit format, as that's the
 	// only format GIF should support.
@@ -1205,7 +1300,7 @@ void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
 		svd.Texture2D.MostDetailedMip = 0;
 
 		// create the texture and resource view
-		if (FAILED(hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &animFrame->rv, &animFrame->texture)))
+		if (FAILED(hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &animFrame->tv.rv, &animFrame->tv.texture)))
 			return SysErr("CreateTexture2D failed");
 	}
 
@@ -1337,12 +1432,18 @@ bool Sprite::Load(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, c
 
 bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors)
 {
-	// set up a new load context
-	loadContext.Attach(new LoadContext());
-
 	// clear the old staging texture, if any
 	stagingTexture = nullptr;
 
+	// set up a new load context
+	loadContext.Attach(new LoadContext());
+
+	// create the texture and load it into the new load context
+	return CreateTextureFromBitmap(bmi, dibits, eh, descForErrors, &loadContext->tv);
+}
+
+bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors, TextureAndView *tv)
+{
 	// Figure the pixel width and height from the bitmap header.  Note
 	// that the header height will be negative for a top-down bitmap
 	// (the normal arrangement), so use the absolute value.
@@ -1370,7 +1471,7 @@ bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, 
 	svd.Texture2D.MostDetailedMip = 0;
 
 	// create the texture
-	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &loadContext->rv, &loadContext->texture);
+	HRESULT hr = D3D::Get()->CreateTexture2D(&txd, &srd, &svd, &tv->rv, &tv->texture);
 	if (!SUCCEEDED(hr))
 	{
 		WindowsErrorMessage winMsg(hr);
@@ -1555,13 +1656,13 @@ void Sprite::Render(Camera *camera)
 				// texture has been updated.  As discussed above, that optimization
 				// doesn't gain us anything for our typical "instruction card" use
 				// case, so we keep it simple and just copy the whole texture.
-				devctx->CopyResource(loadContext->texture, stagingTexture);
+				devctx->CopyResource(loadContext->tv.texture, stagingTexture);
 			}
 		}
 	}
 
 	// Assume we'll use the still-frame shader resource view
-	ID3D11ShaderResourceView *rvToRender = loadContext->rv;
+	ID3D11ShaderResourceView *rvToRender = loadContext->tv.rv;
 
 	// check for animation
 	if (animation != nullptr)
@@ -1610,7 +1711,7 @@ void Sprite::Render(Camera *camera)
 
 		// use the current frame's shader resource view
 		if (curAnimFrame < animFrames.size())
-			rvToRender = animFrames[curAnimFrame]->rv;
+			rvToRender = animFrames[curAnimFrame]->tv.rv;
 	}
 
 	// do nothing if we don't have a shader resource view

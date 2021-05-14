@@ -8,8 +8,7 @@
 #include "ComUtil.h"
 #include "StringUtil.h"
 #include "WinUtil.h"
-#include "../zlib/zlib.h"
-#include "../LZMA/CPP/7zip/Compress/LzmaDecoder.h"
+#include "SWFParser.h"
 
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "zlibstat.lib")
@@ -606,177 +605,18 @@ private:
 			if (buf[0] == 'C' || buf[0] == 'Z')
 				Read(initialBytes, buf + initialBytes, sizeof(buf) - initialBytes);
 
-			// basic uncompressed stream reader
-			class ByteReader
-			{
-			public:
-				ByteReader(const BYTE *buf) : p(buf), bit(0) { }
-				virtual ~ByteReader() { }
-				virtual BYTE ReadByte() { return *p++; }
-
-				// read a bit from the stream
-				BYTE ReadBit()
-				{
-					if (bit == 0)
-					{
-						b = ReadByte();
-						bit = 8;
-					}
-
-					--bit;
-					return (b >> bit) & 0x01;
-				}
-
-				// read an n-bit unsigned int
-				UINT32 ReadUIntN(int nBits)
-				{
-					DWORD val = 0;
-					for (int i = 0; i < nBits; ++i)
-						val = (val << 1) | ReadBit();
-
-					return val;
-				}
-
-				// read an n-bit signed int
-				INT32 ReadIntN(int nBits)
-				{
-					// read the unsigned value
-					UINT32 u = ReadUIntN(nBits);
-
-					// if it's negative, sign-extend it to 32 bits
-					if ((u & (1 << (nBits - 1))) != 0)
-					{
-						// set all higher-order bits to 1
-						for (int i = nBits; i < 32; ++i)
-							u |= 1 << i;
-					}
-
-					// reinterpret it as a signed 32-bit value
-					return (INT32)u;
-				}
-
-			protected:
-				const BYTE *p;
-				BYTE b;
-				int bit;
-			};
-
-			// Zlib stream reader, using the Zlib Inflate format
-			class ZlibByteReader : public ByteReader
-			{
-			public:
-				ZlibByteReader(BYTE *buf, size_t avail) : ByteReader(buf)
-				{
-					ZeroMemory(&zstr, sizeof(zstr));
-					zstr.next_in = buf;
-					zstr.avail_in = (uInt)avail;
-					inflateInit(&zstr);
-				}
-				~ZlibByteReader() { inflateEnd(&zstr); }
-
-				virtual BYTE ReadByte() override
-				{
-					zstr.next_out = outbuf;
-					zstr.avail_out = 1;
-					inflate(&zstr, Z_NO_FLUSH);
-					return outbuf[0];
-				}
-
-			protected:
-				z_stream zstr;
-				BYTE outbuf[1];
-			};
-
-			// LZMA stream reader
-			class LZMAByteReader : public ByteReader
-			{
-			public:
-				LZMAByteReader(const BYTE *buf, size_t len) : ByteReader(buf)
-				{
-					decoder.Attach(new NCompress::NLzma::CDecoder());
-					istream.Attach(new ByteInStream(buf, len));
-					decoder->SetInStream(istream);
-				}
-
-				virtual BYTE ReadByte() override
-				{
-					BYTE b;
-					UINT32 bytesRead = 0;
-					if (SUCCEEDED(decoder->Read(&b, 1, &bytesRead) && bytesRead == 1))
-						return b;
-					else
-						return 0;
-				}
-
-				RefPtr<ISequentialInStream> istream;
-				RefPtr<NCompress::NLzma::CDecoder> decoder;
-
-				class ByteInStream : public ISequentialInStream, public RefCounted
-				{
-				public:
-					ByteInStream(const BYTE *buf, size_t len) : buf(buf), rem(len), refCnt(1) { }
-					ULONG STDMETHODCALLTYPE AddRef() { return RefCounted::AddRef(); }
-					ULONG STDMETHODCALLTYPE Release() { return RefCounted::Release(); }
-					HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, LPVOID *ppUnk)
-					{
-						if (riid == IID_ISequentialInStream)
-							*ppUnk = static_cast<ISequentialInStream*>(this);
-						else if (riid == IID_IUnknown)
-							*ppUnk = static_cast<IUnknown*>(this);
-						else
-							return (*ppUnk = NULL), E_NOINTERFACE;
-
-						AddRef();
-						return S_OK;
-					}
-
-					HRESULT STDMETHODCALLTYPE Read(void *data, UInt32 size, UInt32 *processedSize)
-					{
-						if (size < rem)
-							size = (UInt32)rem;
-
-						if (size == 0 && *processedSize == NULL)
-							return S_FALSE;
-
-						if (size != 0)
-						{
-							memcpy(data, buf, size);
-							buf += size;
-							rem -= size;
-						}
-
-						if (processedSize != NULL)
-							*processedSize = size;
-
-						return S_OK;
-					}
-
-					const BYTE *buf;
-					size_t rem;
-					ULONG refCnt;
-				};
-			};
-
 			// set up the appropriate reader based on the compression type
-			std::unique_ptr<ByteReader> reader(
-				buf[0] == 'C' ? new ZlibByteReader(buf + 8, sizeof(buf) - 8) :
-				buf[0] == 'Z' ? new LZMAByteReader(buf + 8, sizeof(buf) - 8) :
-				new ByteReader(buf + 8));
+			std::unique_ptr<SWFParser::SWFReader> reader(
+				buf[0] == 'C' ? static_cast<SWFParser::SWFReader*>(new SWFParser::ZlibReader(buf + 8, sizeof(buf) - 8)) :
+				buf[0] == 'Z' ? static_cast<SWFParser::SWFReader*>(new SWFParser::LZMAReader(buf + 8, sizeof(buf) - 8)) :
+				new SWFParser::UncompressedReader(buf + 8, sizeof(buf) - 8));
 
-			// Read the number of bits per RECT element.  This is given as
-			// a 5-bit unsigned int preceding the RECT elements.
-			int bitsPerEle = reader->ReadUIntN(5);
-
-			// Now read the four RECT elements.  These are stored as Xmin, 
-			// Xmax, Ymin, Ymax.  The min values are required to be zero
-			// for this particular rect (which makes one wonder why they're
-			// stored at all; sigh), so we just need the max values, which
-			// give the image dimensions.  The coordinates are in "twips",
-			// which are 20ths of a screen pixel.
-			(void)reader->ReadIntN(bitsPerEle);
-			desc.size.cx = reader->ReadIntN(bitsPerEle);
-			(void)reader->ReadIntN(bitsPerEle);
-			desc.size.cy = reader->ReadIntN(bitsPerEle);
+			// Read the frame size.  This is encoded as a rectangle, but the
+			// top/left coordinates are always zero, so we can just pull out the
+			// bottom/right to get the size.
+			D2D1_RECT_F rc = reader->ReadRect();
+			desc.size.cx = static_cast<LONG>(rc.right);
+			desc.size.cy = static_cast<LONG>(rc.bottom);
 
 			// success
 			return true;

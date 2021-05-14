@@ -33,6 +33,7 @@ class Camera;
 class FlashClientSite;
 class Shader;
 struct DIBitmap;
+class SWFParser;
 
 class Sprite: public RefCounted
 {
@@ -175,8 +176,21 @@ protected:
 	// animated GIFs.
 	bool LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorHandler &eh);
 
-	// create the texture and resource view from a bitmap
+	// Texture + Shader Resource View.  This pair forms the basic
+	// D3D rendering object for a bitmap.
+	struct TextureAndView
+	{
+		RefPtr<ID3D11Resource> texture;
+		RefPtr<ID3D11ShaderResourceView> rv;
+	};
+
+	// create the texture and resource view from a bitmap, and load it
+	// into a new loading context
 	bool CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
+
+	// create the texture and resource view from a bitmap
+	bool CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors,
+		TextureAndView *tv);
 
 	// create the mesh
 	bool CreateMesh(POINTF normalizedSize, ErrorHandler &eh, const TCHAR *descForErrors);
@@ -240,8 +254,7 @@ protected:
 		bool ready = true;
 
 		// our texture, and its shader resource view
-		RefPtr<ID3D11Resource> texture;
-		RefPtr<ID3D11ShaderResourceView> rv;
+		TextureAndView tv;
 	};
 
 	// current loading context
@@ -257,8 +270,7 @@ protected:
 		DWORD dt;
 
 		// text and shader resource view for the frame
-		RefPtr<ID3D11Resource> texture;
-		RefPtr<ID3D11ShaderResourceView> rv;
+		TextureAndView tv;
 	};
 
 	// animation frame list
@@ -300,6 +312,32 @@ protected:
 	// transposed world matrix, for passing to the shader
 	DirectX::XMMATRIX worldT;
 
+	// SWF incremental loader.
+	struct SWFLoaderState : Animation
+	{
+		SWFLoaderState(SIZE targetPixSize);
+		virtual ~SWFLoaderState();
+
+		// Animation interface implementation
+		virtual void DecodeNext(Sprite *sprite) override;
+
+		// release resources
+		void Clear() { }
+
+		// create an animation frame from the last decoded SWF frame
+		bool CreateAnimFrame(Sprite *sprite);
+
+		// SWF file parser/renderer
+		std::unique_ptr<SWFParser> parser;
+
+		// Target pixel size.  An SWF has a native size, but that's
+		// usually just advisory, because the graphics are usually
+		// stored as vectors and thus scale cleanly to any target
+		// size.  Since we need to rasterize the SWF contents, it's
+		// far better to do the scaling at the SWF rendering level,
+		// while the material is still in vector format.
+		SIZE targetPixSize;
+	};
 
 	// Animated GIF incremental frame reader.  Loading a large
 	// multi-frame GIF can take a noticable amount of time.  The

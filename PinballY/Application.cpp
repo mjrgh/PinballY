@@ -55,6 +55,7 @@
 #include "CaptureStatusWin.h"
 #include "LogFile.h"
 #include "RealDMD.h"
+#include "../Utilities/SWFParser.h"
 
 // --------------------------------------------------------------------------
 //
@@ -107,6 +108,7 @@ namespace ConfigVars
 	static const TCHAR *MouseHideByMoving = _T("Mouse.HideByMoving");
 	static const TCHAR *MouseHideCoors = _T("Mouse.HideCoords");
 	static const TCHAR *KeepDMDInFront = _T("DMDWindow.KeepInFrontOfBg");
+	static const TCHAR *UseInternalFlashRenderer = _T("UseInternalFlashRenderer");
 }
 
 // include the capture-related variables
@@ -764,6 +766,9 @@ bool Application::Init()
 
 Application::~Application()
 {
+	// clean up static resources for the SWF mini-renderer
+	SWFParser::Shutdown();
+
 	// shut down the DOF client
 	DOFClient::Shutdown(true);
 
@@ -899,6 +904,7 @@ void Application::OnConfigChange()
 	muteTableAudio = cfg->GetBool(ConfigVars::MuteTableAudio, false);
 	muteAttractMode = cfg->GetBool(ConfigVars::MuteAttractMode, true);
 	hideUnconfiguredGames = cfg->GetBool(ConfigVars::HideUnconfiguredGames, false);
+	useInternalFlashRenderer = cfg->GetBool(ConfigVars::UseInternalFlashRenderer, true);
 
 	// update the video sync mode
 	D3DWin::vsyncMode = cfg->GetBool(ConfigVars::VSyncLock, false) ? 1 : 0;
