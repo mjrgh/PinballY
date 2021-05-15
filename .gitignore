@@ -1,3 +1,4 @@
+.AdminModeConfirmed
 *.psess
 *.vsp
 *.log
@@ -45,3 +46,6 @@ Builds/**
 WixSetup/Generated/*
 **/ZlibStatRelease/**
 **/ZlibStatDebug/**
+Notes/Adobe SWF File Format Specification.pdf
+Notes/Google Swiffy Flash to HTML5 Converter.pdf
+ccimport.bat

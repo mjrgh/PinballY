@@ -10,106 +10,99 @@
 <script src="jquery-1.12.1.js" type="text/javascript"></script>
 <script src="PinballYHelp.js" type="text/javascript"></script>
 
-<h1>Flash Player (.swf files)</h1>
+<h1>SWF files (Shockwave Flash)</h1>
 
 <p>
    <img src="SampleInstructionCard.png" style="float: right; margin: 0px 0px 1em 2em;">
    For historical reasons, many of the scanned pinball apron instruction
    cards that you can find for download on the Web are in SWF
-   (Shockwave Flash) format.  PinballY can display these instruction
-   card files, but only if you install the Adobe Flash Player ActiveX
-   control.
-</p>
-
-<h2>What to install</h2>
-<p>
-   PinballY specifically requires the <b>ActiveX</b> version of the
-   Flash Player.  This is also known as the Flash plug-in for
-   Internet Explorer.  There are separate Flash plug-ins for other
-   browsers as well, but PinballY can't use those.  You'll need
-   to install the ActiveX version even if
-   you already have Flash working in Chrome or Firefox.
+   (Shockwave Flash) format.
 </p>
 <p>
-   Getting the ActiveX version is a bit trickier than you'd think.
-   Adobe's Flash download page tries to make things "easy" by automatically
-   selecting a plug-in to match the browser you use to access the
-   download page.  But that actually makes things harder in this case,
-   when you need a specific version.  Here's how to override the automatic
-   selection and get the version you actually need for PinballY:
+   As of PinballY version 1.1 Beta 5,
+   PinballY can display simple SWF files natively, without
+   any plug-ins, using its own built-in renderer.  There's no
+   need to install Adobe Flash Player or any other third-party software.
 </p>
-<ul>
-   <li>Go to the <a target="_blank" href="https://get.adobe.com/flashplayer/">Adobe Flash download page</a>
 
-   <li>Click "Need Flash Player for a different computer?"
-
-   <li>Select "Windows 7/Vista/XP" for the operating system (regardless of what you're using)
-
-   <li>Select "FP 32 for Internet Explorer - ActiveX" for the version
-
-   <li>Un-check the various MacAfee bloatware add-on boxes (unless you like bloatware!)
-
-   <li>Click Download Now
-
-   <li>Run the downloaded installer EXE file and follow the on-screen prompts to install
-</ul>
-
-<h2>But I already installed Flash for my Web browser!</h2>
-
+<h2>Flash Player is no longer used</h2>
 <p>
-   The Flash plug-in comes in several versions for different browsers.
-   Chrome uses one version, Firefox uses another version, and Internet
-   Explorer uses yet another.  Unfortunately, the different plug-ins
-   have incompatible programming interfaces, so you have to separately install each
-   one that you need.  What's more, some browsers have Flash support
-   built in, so they don't need plug-ins at all.
-</p>
-<p>In the case of PinballY, the Flash ActiveX control (also known as
-   the Internet Explorer plug-in) is the one that's needed.  It doesn't
-   matter if you have the Chrome version and/or Firefox version,
-   since PinballY can't access those.
+   In the past, PinballY relied upon the Adobe Flash Player plug-in
+   to display SWF files.  Adobe made Flash Player obsolete as
+   of the start of 2021, and pushed out an update that disabled
+   existing Flash Player installations, so PinballY can no longer
+   use it for SWF file rendering.
 </p>
 <p>
-   Follow the step-by-step procedure above under "What to install" to
-   get the ActiveX version.
+   In version 1.1 Beta 5, PinballY addressed the end of Flash Player
+   by adding its own built-in SWF renderer.  I felt it was important
+   for PinballY to continue supporting SWF, since a large number
+   of HyperPin Media Packs contain instruction cards prepared in
+   the SWF format, and since it's relatively difficult to convert
+   existing SWF to other image file formats.  The built-in SWF
+   renderer is designed to make that possible without relying on
+   any third-party software.
+</p>
 <p>
-   It's perfectly fine to keep all of the different plug-ins installed at the
-   same time.  Adding the ActiveX version won't affect any of the other
-   versions you might already have installed.
+   If you installed Flash Player on your system in the past just
+   for the sake of PinballY, you can now remove it.  PinballY
+   no longer uses it.
 </p>
 
 
 <h2>Why SWF?</h2>
 <p>
-   Why in the world are we talking about SWF files when even Adobe
-   considers them obsolete?  Blame history.   The first front end for
-   virtual pin cabs was a program called HyperPin.  It was the only
-   option in the early days, so most pin cab builders used it, and
-   when they shared media files online, they naturally used the
-   file formats that HyperPin could work with.  HyperPin happened
-   to use .swf format for instruction card images.  HyperPin isn't
-   as widely used any more, but all of those media files that people
-   uploaded (including all of those .swf instruction cards) are still
-   out there.  At some point maybe someone will tackle the big job of
-   converting them all to modern image file formats and uploading new
-   versions, but in the meantime, the path of least resistance is
-   to install Flash Player so that you can use the existing .swf
-   files without any extra conversion steps.  (I've looked for
-   options that would let PinballY perform the conversion automatically,
-   but all of those also require installing Flash Player!  And once
-   you do that, you can view the .swf files directly, so it makes
-   no sense to convert them at that point.  If a free converter
-   program or library comes along that works independently of
-   Flash Player, I'll be happy to incorporate that so we can get
-   rid of the Flash requirement.)
+   Adobe considers SWF to be a dead format, so why does PinballY
+   support it?  It's simply because many of the instruction
+   cards available for download from the virtual pinball sites
+   are in SWF format.  It's convenient in PinballY to be able to
+   use those existing SWF files directly, especially since it's
+   not straightforward to convert them to other more modern
+   formats.
+</p>
+<p>
+   You might wonder how all of these SWF instruction cards
+   came to be in the first place.  SWF is known primarily as an
+   animation format, whereas the instruction cards are just
+   static graphics (and pretty simple graphics at that).
+   Why weren't
+   they originally created as PNGs or JPEGs?  There's actually a
+   good reason: SWF supports vector graphics, whereas
+   PNG and JPEG are purely raster (pixel) formats.  Vector formats
+   scale to any size without losing any fidelity, so SWF was chosen
+   as a sort of future-proofing, on the expectation that people
+   would want to display the cards at ever-larger pixel sizes
+   as monitor resolution increased.
+   Unfortunately, even though it was a great idea to use vector
+   graphics, the particular choice of file format almost ended up
+   defeating the whole purpose, since SWF files are nearly
+   useless now that the whole format is dead.  It hardly matters
+   that you can zoom them to any size if you can't display
+   them at all.  On the other hand, while Adobe has the power
+   to kill Flash Player, they can't erase the SWF format from existence.
+   They probably wish they had a time machine so they could, but
+   for now, that's beyond their powers.
+   The SWF format is documented well enough that I was able to
+   create a mini-renderer that can at least handle the
+   limited subset of SWF needed to display most of the extant
+   instruction cards.  So maybe it wasn't such a bad idea
+   to use SWF after all.  (And I'm actually happy that
+   PinballY is rid of Flash Player, because I never much
+   liked that approach for displaying these files.  The
+   integrated mini-renderer is lighter on resources, fits
+   into the rest of the program more cleanly, and eliminates
+   an annoying installation dependency.  I should have built
+   one when first writing PinballY, but Flash Player was too expedient
+   an option at the time.)
 </p>
 <p>
    Just to be clear, PinballY doesn't require you to use SWF instruction
-   cards!  It's perfectly happy to display instruction cards that use ordinary
-   image file formats like PNG or JPEG, if you can find them.  The only reason we're talking
-   about SWF is that many of the instruction card images available for
-   download from the virtual pinball sites happen to be in SWF format,
-   so we wanted to let you use those without doing any conversions.
+   cards!  It's perfectly happy to use an ordinary image format
+   like PNG and JPEG whenever an instruction card is displayed.
+   The only reason we're talking about SWF is that it's still
+   the format of choice for a large number of extant HyperPin
+   Media Packs, so we wanted to let you use those without doing
+   any conversions.
 </p>
 
 </body>

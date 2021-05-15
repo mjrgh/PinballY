@@ -48,16 +48,21 @@
 //
 // https://www.adobe.com/content/dam/acom/en/devnet/pdf/swf-file-format-spec.pdf
 //
-// That file is copyrighted and not licensed for redistribution,
-// so I unfortunately can't include it in the PinballY repository
-// as insurance against Adobe removing it from their site in the
-// future.  There are, however, numerous third-party descriptions
-// of the SWF format available on the Web; none are as complete or
-// informative as the Adobe spec, which I find rather good as this
-// sort of technical documentation goes, but they should at least
-// help you piece together anything that's missing from my code
-// here if you find you need to add new capabilities or fix the
-// existing ones.
+// That file is explicitly not licensed for redistribution, so I
+// can't include it in the PinballY repository in case Adobe removes
+// it from their site in the future (which doesn't seem unlikely,
+// since their position on SWF is that it's dead).  If you can't
+// the Adobe spec, there are a number of third-party descriptions of
+// the SWF format available.  There are also a number of open-source 
+// projects that at least parse the files, and in some cases render
+// it; these might be better references than any of the documentary
+// accounts, since evne the Adobe spec is awfully sketchy on the
+// details; a lot of SWF behavior seems to just be a matter of what
+// Flash Player happens to do.  The most complete open-source
+// examples I've found are gameswf and swf2js.  The Google Swiffy
+// project is probably more complete than eithr of those, but it
+// appears to have been erased from the Web, in keeping with the
+// general sentiment that SWF is better forgotten.
 //
 
 #include "stdafx.h"
@@ -377,20 +382,8 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			bgColor = reader.ReadRGB();
 			break;
 
-		case 10:  // DefineFont
-			// TO DO
-			break;
-
-		case 11:  // DefineText
-			// TO DO
-			break;
-
-		case 13:  // DefineFontInfo
-			// TO DO
-			break;
-
 		case 20:  // DefineBitsLossless
-			// TO DO #6
+			reader.ReadDefineBitsLossless(dict, tagHdr);
 			break;
 
 		case 21:  // DefineBitsJPEG2
@@ -417,28 +410,16 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			reader.ReadDefineShape(dict, 32);
 			break;
 
-		case 33:  // DefineText2
-			// TO DO
-			break;
-
 		case 35:  // DefineBitsJPEG3
 			reader.ReadDefineBits(dict, tagHdr);
 			break;
 
 		case 36:  // DefineBitsLossless2
-			// TO DO
-			break;
-
-		case 39:  // DefineSprite
-			// TO DO #10
+			reader.ReadDefineBitsLossless(dict, tagHdr);
 			break;
 
 		case 43:  // FrameLabel
 			// used for scripting - ignore
-			break;
-
-		case 48:  // DefineFont2
-			// TO DO
 			break;
 
 		case 56:  // ExportAssets
@@ -450,22 +431,18 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			break;
 
 		case 57:  // ImportAssets
-			// Not implemented - ignore
+			// not implemented - ignore
 			break;
 
 		case 58:  // Enable Debugger
 			// debugger not implemented - ignore
 			break;
 
-		case 62:  // DefineFontInfo2
-			// TO DO
-			break;
-
 		case 64:  // EnableDebugger2
 			// debugger not implemented - ignore
 			break;
 
-		case 65:  // ScriptLImits
+		case 65:  // ScriptLimits
 			// scripting is not imlemented - ignore
 			break;
 
@@ -481,10 +458,6 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 
 		case 71:  // ImportAssets2
 			// not implemented - ignore
-			break;
-
-		case 75:  // DefineFont3
-			// TO DO
 			break;
 
 		case 76:  // SymbolClass
@@ -507,19 +480,40 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			// not implemented - ignore
 			break;
 
-		case 88:  // DefineFontName
-			// TO DO
-			break;
-
 		case 90:  // DefineBitsJPEG4
 			reader.ReadDefineBits(dict, tagHdr);
 			break;
 
-		case 91:  // DefineFont4
-			// TO DO
-			break;
-
+	    // Some tag types that are explicitly not handled, but which we might
+		// wish to implement in the future if we find extant instruction cards
+		// that rely on them.  (That much is true for *any* unimplemented tag;
+		// it's just that these are some candidates I consider most likely to
+		// show up in extant cards.)  I'm just breaking these out here for
+		// the sake of documenting the tag IDs; they'll go into the log file
+		// warning about unimplemented tags, as will any other tags without
+		// explicit cases in the switch that fall through to 'default:'.
+		// This is in contrast to the many "not implemented - ignore" cases
+		// in the switch: those are cases that I've deliberately decided
+		// not to implement because they're either not relevant to the
+		// limited subset of functionality we wish to support (e.g., I won't
+		// anything related to scripting) or because they're newer or more
+		// "advanced" tags that I don't expect any of the instruction cards
+		// to use.  A "not implemented" notice doesn't mean that I definitely
+		// will never implement the tags; it just means that I don't expect
+		// there will ever be any call for it within the scope of this
+		// project, so I don't want to generate unnecessary error messages
+		// for files that happen to incorporate those tags.
+		case 10:  // DefineFont
+		case 11:  // DefineText
+		case 13:  // DefineFontInfo
+		case 33:  // DefineText2
+		case 39:  // DefineSprite
+		case 48:  // DefineFont2
+		case 62:  // DefineFontInfo2
 		case 70:  // PlaceObject3
+		case 75:  // DefineFont3
+		case 88:  // DefineFontName
+		case 91:  // DefineFont4
 		default:
 			// remember the unhandled type
 			if (unimplementedTags.find(tagHdr.id) == unimplementedTags.end()) 
@@ -817,7 +811,7 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 	UINT16 charId = ReadUInt16();
 
 	// create the dictionary entry
-	auto imageBits = new ImageBits();
+	auto imageBits = new LossyImageBits();
 	dict.emplace(charId, imageBits);
 
 	// assume that the entire remainder of the record is the image data
@@ -878,25 +872,25 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 	if (tagHdr.id == 6)
 	{
 		// DefineBits - always a JPEG image section
-		imageBits->type = ImageBits::Type::JPEGImageData;
+		imageBits->type = LossyImageBits::Type::JPEGImageData;
 	}
 	else if (tagHdr.id == 21)
 	{
 		// DefineBitsJPEG2 - sense the type based on the file
 		// signature at the start of the stream
 		if (imageBits->imageDataSize >= 8 && memcmp(imageBits->imageData.get(), "\x89\x50\x4E\x47\x0D\0x0A\x1A\x0A", 8) == 0)
-			imageBits->type = ImageBits::Type::PNG;
+			imageBits->type = LossyImageBits::Type::PNG;
 		else if (imageBits->imageDataSize >= 6 && memcmp(imageBits->imageData.get(), "\x47\x49\x46\x38\x39\x61", 6) == 0)
-			imageBits->type = ImageBits::Type::GIF89a;
+			imageBits->type = LossyImageBits::Type::GIF89a;
 		else
-			imageBits->type = ImageBits::Type::JPEG;
+			imageBits->type = LossyImageBits::Type::JPEG;
 	}
 
 	// Read the alpha data, if present.  This only applies to full JPEG
 	// images, and only to DefineBitsJPEG3 and DefineBitsJPEG4.
 	size_t bytesConsumed = startRem - rem;
 	if (bytesConsumed < tagHdr.len
-		&& imageBits->type == ImageBits::Type::JPEG
+		&& imageBits->type == LossyImageBits::Type::JPEG
 		&& (tagHdr.id == 35 || tagHdr.id == 90))
 	{
 		// figure the image size
@@ -912,6 +906,197 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 			// compressed alpha data, and decompress the data
 			ZlibReader zr(this->p, min(this->rem, tagHdr.len - bytesConsumed));
 			zr.ReadBytes(imageBits->alphaData.get(), imageBits->alphaDataSize);
+		}
+	}
+}
+
+// read a DefineBitsLosslses or DefineBitsLossless2 record
+void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, TagHeader &tagHdr)
+{
+	// note the starting point, so that we can calculate bytes used later
+	auto startRem = rem;
+
+	// read the fixed fields
+	UINT charId = ReadUInt16();
+	auto format = static_cast<LosslessImageBits::Format>(ReadByte());
+	UINT width = ReadUInt16();
+	UINT height = ReadUInt16();
+	UINT colorTableSize = (format == LosslessImageBits::Format::ColorMappedImage ? ReadByte() + 1 : 0);
+
+	// The rest of the record is in zlib compressed format.  Figure the
+	// size of the zlib source data.
+	auto bytesUsed = startRem - rem;
+	auto zlen = tagHdr.len - bytesUsed;
+
+	// Promote the format ID to our private distinguished formats for
+	// DefineBitsLossless2, since these have different layouts
+	if (tagHdr.id == 36)
+	{
+		if (format == LosslessImageBits::Format::ColorMappedImage)
+			format = LosslessImageBits::Format::ColorMappedAlphaImage;
+		else if (format == LosslessImageBits::Format::RGB24Image)
+			format = LosslessImageBits::Format::ARGB32Image;
+	}
+
+	// Figure the size of the decompressed data - this depends on the
+	// format.
+	size_t imageDataSize = 0;
+	auto PaddedRowWidth = [](UINT byteWidth) { return (byteWidth + 3) & ~3; };
+	UINT rowSpan = 0;
+	D2D1_ALPHA_MODE alphaMode = D2D1_ALPHA_MODE_IGNORE;
+	switch (format)
+	{
+	case LosslessImageBits::Format::ColorMappedImage:
+		// 8-bit RGB colormapped.  The image data consists of an RGB array
+		// of 'colorTableSize' entries, followed by the image rows, with
+		// one byte per pixel, rows padded to a multiple of 4 bytes.
+		rowSpan = PaddedRowWidth(width);
+		imageDataSize = (colorTableSize * 3) + (rowSpan * height);
+		break;
+
+	case LosslessImageBits::Format::ColorMappedAlphaImage:
+		// 8-bit RGBA colormapped.  The image data consists of an RGBA array
+		// of 'colorTableSize' entries, followed by the image rows, with
+		// one byte per pixel, rows padded to a multiple of 4 bytes.
+		rowSpan = PaddedRowWidth(width);
+		imageDataSize = (colorTableSize * 4) + (rowSpan * height);
+		break;
+
+	case LosslessImageBits::Format::RGB15Image:
+		// PIX15 format.  The image data is an array of pixel rows, two
+		// bytes per pixel, rows padded to a multiple of 4 bytes.
+		rowSpan = PaddedRowWidth(width * 2);
+		imageDataSize = rowSpan * height;
+		break;
+
+	case LosslessImageBits::Format::RGB24Image:
+		// PIX24 format.  The image data is an array of pixel rows, 4 bytes
+		// per pixel.  (Row width is inherently a multiple of 4 in this case,
+		// so no padding is required.)
+		rowSpan = width * 4;
+		imageDataSize = rowSpan * height;
+		break;
+
+	case LosslessImageBits::Format::ARGB32Image:
+		// ALPHABITMAPDATA format.  The image data is an array of pixel rows, 4
+		// bytes per pixel.  (Row width is inherently a multiple of 4 in this 
+		// case, so no padding is required.)
+		rowSpan = width * 4;
+		imageDataSize = rowSpan * height;
+		alphaMode = D2D1_ALPHA_MODE_STRAIGHT;
+		break;
+	}
+
+	// if the image size is valid, read the image
+	if (imageDataSize != 0)
+	{
+		// allocate space and decompress the zlib buffer
+		ZlibReader zr(this->p, zlen);
+		std::unique_ptr<BYTE> imageData(new BYTE[imageDataSize]);
+		if (zr.ReadBytes(imageData.get(), imageDataSize) == imageDataSize)
+		{
+			// we successly decompressed the data - create the dictionary entry
+			auto imageBits = new LosslessImageBits();
+			dict.emplace(charId, imageBits);
+
+			// set up the fixed fields
+			imageBits->charId = charId;
+			imageBits->format = format;
+			imageBits->width = width;
+			imageBits->height = height;
+			imageBits->alphaMode = alphaMode;
+
+			// allocate the DXGI R8G8B8A8 buffer
+			imageBits->imageData.reset(new BYTE[width * height * 4]);
+			BYTE *dst = imageBits->imageData.get();
+
+			// translate the image to DXGI R8G8B8A8 format
+			const BYTE *colorTable = imageData.get();
+			UINT rowNum = 0;
+			UINT colNum = 0;
+			const BYTE *src;
+			switch (format)
+			{
+			case LosslessImageBits::Format::ColorMappedImage:
+				for (BYTE *rowSrc = imageData.get() + colorTableSize * 3; rowNum < height; rowSrc += rowSpan, ++rowNum)
+				{
+					// each source pixel is a one-byte index into the packed RGB color table
+					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
+					{
+						BYTE index = *src++;
+						const BYTE *rgb = &colorTable[index * 3];
+						*dst++ = rgb[0];
+						*dst++ = rgb[1];
+						*dst++ = rgb[2];
+						*dst++ = 0xFF;
+					}
+				}
+				break;
+
+			case LosslessImageBits::Format::ColorMappedAlphaImage:
+				for (BYTE *rowSrc = imageData.get() + colorTableSize * 4; rowNum < height; rowSrc += rowSpan, ++rowNum)
+				{
+					// each source pixel is a one-byte index into the RGBA color table
+					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
+					{
+						BYTE index = *src++;
+						const BYTE *rgba = &colorTable[index * 4];
+						*dst++ = rgba[0];
+						*dst++ = rgba[1];
+						*dst++ = rgba[2];
+						*dst++ = rgba[3];
+					}
+				}
+				break;
+
+			case LosslessImageBits::Format::RGB15Image:
+				for (BYTE *rowSrc = imageData.get(); rowNum < height; rowSrc += rowSpan, ++rowNum)
+				{
+					// two bytes per pixel, 5-bit RGB format
+					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
+					{
+						// the bits are laid out as [0RRRRRGG][GGGBBBBB]; convert
+						// to 8-bit by shifting each field 3 bits to the left
+						BYTE a = *src++;
+						BYTE b = *src++;
+						*dst++ = (a << 1) & 0xF8; // a[xRRRRRxx]
+						*dst++ = (a << 6) | ((b >> 2) & 0x38);  // a[xxxxxxGG], b[GGGxxxxx]
+						*dst++ = (a << 3) & 0xF8; // b[xxxBBBBB]
+						*dst++ = 0xFF;
+					}
+				}
+				break;
+
+			case LosslessImageBits::Format::RGB24Image:
+				for (BYTE *rowSrc = imageData.get(); rowNum < height; rowSrc += rowSpan, ++rowNum)
+				{
+					// four source bytes per pixel, 0 R G B format
+					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
+					{
+						++src;  // skip the unused 0 byte
+						*dst++ = *src++;
+						*dst++ = *src++;
+						*dst++ = *src++;
+						*dst++ = 0xFF;
+					}
+				}
+				break;
+
+			case LosslessImageBits::Format::ARGB32Image:
+				for (BYTE *rowSrc = imageData.get(); rowNum < height; rowSrc += rowSpan, ++rowNum)
+				{
+					// four source bytes per pixel, A R G B format
+					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
+					{
+						BYTE a = *src++;
+						*dst++ = *src++;
+						*dst++ = *src++;
+						*dst++ = *src++;
+						*dst++ = a;
+					}
+				}
+				break;
+			}
 		}
 	}
 }
@@ -1404,13 +1589,13 @@ void SWFParser::ShapeWithStyle::Draw(CharacterDrawingContext &cdc, PlaceObject *
 	sdc.RenderMaps();
 }
 
-void SWFParser::ImageBits::Draw(CharacterDrawingContext &dc, PlaceObject *po)
+void SWFParser::LossyImageBits::Draw(CharacterDrawingContext &dc, PlaceObject *po)
 {
 	if (auto bitmap = GetOrCreateBitmap(dc); bitmap != nullptr)
 		dc.target->DrawBitmap(bitmap);
 }
 
-ID2D1Bitmap *SWFParser::ImageBits::GetOrCreateBitmap(CharacterDrawingContext &dc)
+ID2D1Bitmap *SWFParser::LossyImageBits::GetOrCreateBitmap(CharacterDrawingContext &dc)
 {
 	// if we haven't already cached the bitmap, create it
 	if (bitmap == nullptr)
@@ -1466,6 +1651,27 @@ ID2D1Bitmap *SWFParser::ImageBits::GetOrCreateBitmap(CharacterDrawingContext &dc
 				this->bitmap = bitmap;
 			}
 		}
+	}
+
+	// return the cached bitmap
+	return bitmap;
+}
+
+void SWFParser::LosslessImageBits::Draw(CharacterDrawingContext &dc, PlaceObject *po)
+{
+	if (auto bitmap = GetOrCreateBitmap(dc); bitmap != nullptr)
+		dc.target->DrawBitmap(bitmap);
+}
+
+ID2D1Bitmap *SWFParser::LosslessImageBits::GetOrCreateBitmap(CharacterDrawingContext &dc)
+{
+	// if we haven't already cached the bitmap, create it
+	if (bitmap == nullptr)
+	{
+		D2D1_BITMAP_PROPERTIES props{ { DXGI_FORMAT_R8G8B8A8_UNORM, alphaMode }, 96.0f, 96.0f };
+		RefPtr<ID2D1Bitmap> bitmap;
+		if (SUCCEEDED(dc.target->CreateBitmap({ width, height }, imageData.get(), width*4, props, &bitmap)))
+			this->bitmap = bitmap;
 	}
 
 	// return the cached bitmap

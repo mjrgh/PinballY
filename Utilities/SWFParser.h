@@ -381,10 +381,18 @@ public:
 		bool usesScalingStrokes = false;
 	};
 
-	// Bitmap image bits
+	// Base class for image bit types
 	struct ImageBits : Character
 	{
+		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) = 0;
+	};
+
+
+	// Bitmap image bits
+	struct LossyImageBits : ImageBits
+	{
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
+		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) override;
 
 		// image data size and bytes
 		UINT32 imageDataSize = 0;
@@ -410,8 +418,39 @@ public:
 		// cached D2D bitmap
 		RefPtr<ID2D1Bitmap> bitmap;
 
-		// get the D2D bitmap, or create and cache it if we haven't already done so
-		ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc);
+	};
+
+	// Lossless bitmap image bits
+	struct LosslessImageBits : LossyImageBits
+	{
+		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
+		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) override;
+
+		// Image data buffer.  This is the full image in R8G8B8A8_UINT format
+		// (four bytes per pixel, R-G-B-A byte order, integer 0..255 values 
+		// per color component).
+		std::unique_ptr<BYTE> imageData;
+
+		// Pixel format
+		enum Format
+		{
+			ColorMappedImage = 3,
+			RGB15Image = 4,
+			RGB24Image = 5,
+			ColorMappedAlphaImage = 1024,
+			ARGB32Image = 1025,
+		};
+		Format format;
+
+		// image size, in pixels
+		UINT width;
+		UINT height;
+
+		// D2D alpha mode
+		D2D1_ALPHA_MODE alphaMode;
+
+		// cached D2D bitmap
+		RefPtr<ID2D1Bitmap> bitmap;
 	};
 
 	// SWF Frame
@@ -596,6 +635,9 @@ public:
 		// read a DefineBits record
 		void ReadDefineBits(Dictionary &dict, TagHeader &tagHdr);
 
+		// read a DefineBitsLossless record
+		void ReadDefineBitsLossless(Dictionary &dict, TagHeader &tagHdr);
+
 		// read a PlaceObject record
 		void ReadPlaceObject(DisplayList &displayList, UINT32 len);
 
@@ -651,7 +693,7 @@ public:
 
 		virtual size_t ReadBytes(BYTE *buf, size_t len) override
 		{
-			zstr.next_out = outbuf;
+			zstr.next_out = buf;
 			zstr.avail_out = static_cast<uInt>(len);
 			auto err = inflate(&zstr, Z_NO_FLUSH);
 			return (err == Z_OK || err == Z_STREAM_END) ? len - zstr.avail_out : 0;

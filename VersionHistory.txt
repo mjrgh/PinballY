@@ -3,7 +3,8 @@ PinballY Update History
 
 05-xx-2021 (1.1.0 Beta 5)
 
-* PinballY now has a built-in SWF mini-renderer, to replace the
+* PinballY's installation dependencies just got even simpler!
+PinballY now has its own built-in SWF renderer, to replace the
 obsolete Flash Player.  Adobe officially made Flash Player obsolete at
 the start of 2021, and pushed an update that disables all Flash Player
 browser plugins.  Since PinballY formerly depended upon the Flash
@@ -11,30 +12,34 @@ Player ActiveX plugin to display SWF files, Adobe's pushed update had
 the effect of breaking SWF display for PinballY on most systems.  The
 only way to see your SWF files (until now) was to either block the
 pushed update or intentionally restore an older version of the
-plug-in.  Adobe doesn't want you doing either, of course, because they
-want to wash their hands of the security issues that have always
-plagued the plug-in.
+plug-in.  That's no longer required; PinballY can now display simple
+SWF files on its own, with no external plug-ins.
 
 This is only a "mini" renderer.  It's deliberately designed to support
-only enough of Flash's capabilities to handle the single use case for
-SWF in PinballY, which is the large collection of extant Instruction
-Cards from HyperPin Media Packs.  I've tested the new renderer with a
-number of the extant instruction cards, but there are many more out
-there that I haven't tested yet.  If you run into any that don't
-display properly, send me a copy and I'll take a look.  The only SWF
-media I intend to support are the instruction cards - if other random
-SWF files don't work, I don't plan to accommodate them.  SWF never had
-any use in PinballY other than the instruction cards anyway, so I see
-no reason to extend the mini-renderer beyond that one use case.
+only enough of Flash's capabilities to handle the sole place in
+PinballY where SWFs are used, which for Instruction Cards.  I've
+tested the new renderer with a number of the extant instruction cards
+from the HyperPin Media Packs, but there are many more out there that
+I haven't tested yet.  If you run into any that don't display
+properly, send me a copy and I'll take a look to see if I can add
+support for its additional features.  However, be aware that the only
+SWF media I intend to support are the Media Pack instruction cards.  I
+don't plan to extend this to be a general-purpose replacement for
+Flash Player.  SWF never had any use in PinballY other than the
+instruction cards anyway, so I see no reason to extend the
+mini-renderer beyond that one use case.
 
 The new SWF mini-renderer is enabled by default in this version,
-overriding the Flash Player plug-in.  The plug-in already fails on
-most systems anyway, thanks to the Adobe remote-kill update, so I
-don't expect anyone would want to re-enable it, but you can if you
-really want to: set the options variable UseInternalSWFRenderer=0 in
-Settings.txt.  This isn't exposed in the options dialogs because I
-expect very few people will want to use it - I'd prefer to avoid the
-clutter and potential confusion of adding a checkbox for it.
+overriding the Flash Player plug-in.  That means that PinballY will no
+longer even attempt to load the Flash plug-in, so you can delete it
+from your system if you've been keeping it around just for the sake of
+PinballY.  The plug-in already fails on most systems anyway, thanks to
+the Adobe remote-kill update, so I don't expect anyone would want to
+re-enable it, but you can if you really want to: set the options
+variable UseInternalSWFRenderer=0 in Settings.txt.  This isn't exposed
+in the options dialogs because I expect very few people will want to
+use it, so I'd prefer to avoid the clutter and potential confusion of
+a new checkbox for an obsolete feature.
 
 
 * A new option in the Audio/Video dialog lets you set the DMD "dots"

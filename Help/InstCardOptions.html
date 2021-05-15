@@ -36,24 +36,32 @@
    If this box isn't checked, .swf files will be ignored.
 </p>
 <p>
-   PinballY can only display .swf files 
-   if you have the Adobe Shockwave Flash Player ActiveX
-   installed on your system.  If you don't have Flash installed,
-   you'll get an error message every time PinballY tries to load
-   an .swf file, to let you know that you need to install Flash
-   Player to use those files.  The error message is intended to
-   be helpful, to let you know what you need to do to view those
-   files successfully, but it's just an annoyance if you deliberately
-   avoid Flash.  This option is provided so that you
-   can get rid of those error messages if you never plan to
-   install Flash.  If you un-check this box, PinballY will silently
-   ignore .swf files when looking for instruction card images.
-   It'll still look for conventional image files (PNG and JPEG).
+   This option is essentially obsolete, because it was primarily
+   for the benefit of people who didn't want to install Adobe
+   Flash Player on their systems.  Adobe Flash Player itself is
+   now completely obsolete (as of the start of 2021), so this is
+   no longer a factor - <i>no one</i> should have Flash Player
+   installed any more.  As of PinballY version 1.1 Beta 5,
+   PinballY displays SWF files with its own built-in mini-renderer,
+   so there's no need for Flash Player any more.  If you
+   disable SWF display in the past because you didn't want
+   to install Flash Player, you can now re-enable SWF if you
+   like, since doing so will no longer trigger any errors
+   about a missing plug-in.
 </p>
 <p>
-   See <a href="SWF.html">Flash Player</a> for more details,
-   including instructions on how to install the correct version
-   of the Flash plug-in.
+   (In case you're worried that the
+   built-in SWF renderer might bring the security risks that
+   made many people wary of installing Flash Player, I don't
+   think it will: the problems with Flash Player mostly arose
+   from its scripting capability, which is deliberately not
+   implemented in the PinballY mini-renderer.  The PinballY SWF
+   renderer is completely original, open-source code that you can
+   inspect for yourself, and it's very stripped down to support
+   only the minimal subset of SWF static graphics capabilities
+   that the extant HyperPin Media Pack instruction cards
+   rely on.  There should be little to no security risk in
+   this small subset of features.)
 </p>
    
 
