@@ -382,6 +382,18 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			bgColor = reader.ReadRGB();
 			break;
 
+		case 10:  // DefineFont
+			reader.ReadDefineFont(dict, tagHdr);
+			break;
+
+		case 11:  // DefineText
+		case 13:  // DefineFontInfo
+		case 33:  // DefineText2
+		case 62:  // DefineFontInfo2
+		case 73:  // DefineFontAlignmentZones
+		case 88:  // DefineFontName
+		case 91:  // DefineFont4
+
 		case 20:  // DefineBitsLossless
 			reader.ReadDefineBitsLossless(dict, tagHdr);
 			break;
@@ -422,6 +434,10 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			// used for scripting - ignore
 			break;
 
+		case 48:  // DefineFont2
+			reader.ReadDefineFont(dict, tagHdr);
+			break;
+
 		case 56:  // ExportAssets
 			// This is used to share assets such as shapes, fonts, or bitmaps
 			// with other SWF files that are part of the same Web site.  We
@@ -458,6 +474,10 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 
 		case 71:  // ImportAssets2
 			// not implemented - ignore
+			break;
+
+		case 75:  // DefineFont3
+			reader.ReadDefineFont(dict, tagHdr);
 			break;
 
 		case 76:  // SymbolClass
@@ -503,17 +523,8 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 		// there will ever be any call for it within the scope of this
 		// project, so I don't want to generate unnecessary error messages
 		// for files that happen to incorporate those tags.
-		case 10:  // DefineFont
-		case 11:  // DefineText
-		case 13:  // DefineFontInfo
-		case 33:  // DefineText2
 		case 39:  // DefineSprite
-		case 48:  // DefineFont2
-		case 62:  // DefineFontInfo2
 		case 70:  // PlaceObject3
-		case 75:  // DefineFont3
-		case 88:  // DefineFontName
-		case 91:  // DefineFont4
 		default:
 			// remember the unhandled type
 			if (unimplementedTags.find(tagHdr.id) == unimplementedTags.end()) 
@@ -983,7 +994,7 @@ void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, Tag
 		// case, so no padding is required.)
 		rowSpan = width * 4;
 		imageDataSize = rowSpan * height;
-		alphaMode = D2D1_ALPHA_MODE_STRAIGHT;
+		alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
 		break;
 	}
 
@@ -1011,7 +1022,7 @@ void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, Tag
 			BYTE *dst = imageBits->imageData.get();
 
 			// translate the image to DXGI R8G8B8A8 format
-			const BYTE *colorTable = imageData.get();
+			BYTE *colorTable = imageData.get();
 			UINT rowNum = 0;
 			UINT colNum = 0;
 			const BYTE *src;
@@ -1034,6 +1045,16 @@ void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, Tag
 				break;
 
 			case LosslessImageBits::Format::ColorMappedAlphaImage:
+				// We need to pre-multiply the alpha channel for D2D
+				for (UINT i = 0; i < colorTableSize*4; i += 4)
+				{
+					float a = static_cast<float>(colorTable[i + 3]) / 255.0f;
+					colorTable[i] = static_cast<BYTE>(static_cast<float>(colorTable[i]) * a);
+					colorTable[i + 1] = static_cast<BYTE>(static_cast<float>(colorTable[i + 1]) * a);
+					colorTable[i + 2] = static_cast<BYTE>(static_cast<float>(colorTable[i + 2]) * a);
+				}
+
+				// translate the pixels
 				for (BYTE *rowSrc = imageData.get() + colorTableSize * 4; rowNum < height; rowSrc += rowSpan, ++rowNum)
 				{
 					// each source pixel is a one-byte index into the RGBA color table
@@ -1088,10 +1109,12 @@ void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, Tag
 					// four source bytes per pixel, A R G B format
 					for (colNum = 0, src = rowSrc; colNum < width; ++colNum)
 					{
+						// pre-multiply the alpha for the R G B components
 						BYTE a = *src++;
-						*dst++ = *src++;
-						*dst++ = *src++;
-						*dst++ = *src++;
+						float pma = static_cast<float>(a) / 255.0f;
+						*dst++ = static_cast<BYTE>(static_cast<float>(*src++) * pma);
+						*dst++ = static_cast<BYTE>(static_cast<float>(*src++) * pma);
+						*dst++ = static_cast<BYTE>(static_cast<float>(*src++) * pma);
 						*dst++ = a;
 					}
 				}
@@ -1361,6 +1384,140 @@ void SWFParser::UncompressedReader::ReadLineStylesArray(std::vector<LineStyle> &
 	}
 }
 
+// Read a DefineFont tag
+void SWFParser::UncompressedReader::ReadDefineFont(Dictionary &dict, TagHeader &tagHdr)
+{
+	// get the font ID
+	UINT16 fontId = ReadUInt16();
+
+	// read extra DefineFont2/3 records
+	BYTE flags = 0;
+	bool wideOffsets = false;
+	LanguageCode lang = 0;
+	std::unique_ptr<BYTE> name;
+	UINT16 nGlyphs = 0;
+	if (tagHdr.id == 48 || tagHdr.id == 75)
+	{
+		flags = ReadByte();
+		wideOffsets = ((flags & 0x08) != 0) || tagHdr.id == 75;
+
+		lang = ReadByte();
+
+		BYTE nameLen = ReadByte();
+		name.reset(new BYTE[nameLen + 1]);
+		ReadBytes(name.get(), nameLen);
+		name.get()[nameLen] = 0;
+
+		nGlyphs = ReadUInt16();
+	}
+
+	// Remember the seek position of the start of the offset table.
+	// All of the offsets are relative to this position.
+	BYTE *pOffsetTable = this->p;
+	auto remAtOffsetTable = this->rem;
+
+	// Read the offset table.
+	//
+	// For DefineFont2, the number of entries is given explicitly
+	// by the numGlyphs field, whcih we've already read.  For the
+	// older DefineFont, the number of entries in the table is
+	// implied by the first entry: since the offset table consists
+	// of 16-bit (2-byte) entries, and the first offset entry is the
+	// offset of the first byte past the end of the offset table,
+	// the number of entries is simply the offset divided by two.
+	UINT32 offset0 = wideOffsets ? ReadUInt32() : ReadUInt16();
+	if (nGlyphs == 0)
+		nGlyphs = offset0 / 2;
+
+	// allocate space for the table
+	std::unique_ptr<UINT32> upOffsets(new UINT32[nGlyphs]);
+	UINT32 *offsets = upOffsets.get();
+	offsets[0] = offset0;
+
+	// read the rest of the offsets
+	if (wideOffsets)
+	{
+		for (UINT i = 1; i < nGlyphs; ++i)
+			offsets[i] = ReadUInt32();
+	}
+	else
+	{
+		for (UINT i = 1; i < nGlyphs; ++i)
+			offsets[i] = ReadUInt16();
+	}
+
+	// for DefineFont2, read the code table offset
+	UINT32 codeTableOffset = (tagHdr.id == 48 || tagHdr.id == 75 ? (wideOffsets ? ReadUInt32() : ReadUInt16()) : 0);
+
+	// create the dictionary entry
+	auto font = new Font(nGlyphs);
+	dict.emplace(fontId, font);
+
+	// save up the DefineFont2 values
+	font->hasLayout = (flags & 0x80) != 0;
+	font->shiftJIS = (flags & 0x40) != 0;
+	font->smallText = (flags & 0x20) != 0;
+	font->ANSI = (flags & 0x10) != 0;
+	font->wideOffsets = wideOffsets;
+	font->wideCodes = (flags & 0x04) != 0;
+	font->italic = (flags & 0x02) != 0;
+	font->bold = (flags & 0x01) != 0;
+	font->lang = lang;
+	if (name != nullptr)
+		font->name = CHARToTCHAR(reinterpret_cast<const CHAR*>(name.get()));
+
+	// Read the shape records.  To ensure that we get the alignment
+	// right on each record, seek directly to the correct byte offset
+	// before each read, as given by the offsets table.
+	for (UINT i = 0; i < nGlyphs; ++i)
+	{
+		// seek to the table offset
+		this->p = pOffsetTable + offsets[i];
+		this->rem = remAtOffsetTable - offsets[i];
+
+		// read the shape record
+		ReadShape(font->shapes[i], tagHdr.id);
+	}
+
+	// read the additional DefineFont2/3 fields
+	if (tagHdr.id == 48 || tagHdr.id == 75)
+	{
+		// read the code table
+		font->codeTable.resize(nGlyphs);
+		for (UINT i = 0; i < nGlyphs; ++i)
+			font->codeTable[i] = wideOffsets ? ReadUInt16() : ReadByte();
+
+		// read the layout information, if present
+		if (font->hasLayout)
+		{
+			font->ascent = ReadUInt16();
+			font->descent = ReadUInt16();
+			font->leading = ReadInt16();
+
+			font->advanceTable.resize(nGlyphs);
+			for (UINT i = 0; i < nGlyphs; ++i)
+				font->advanceTable[i] = ReadInt16();
+
+			font->boundsTable.resize(nGlyphs);
+			for (UINT i = 0; i < nGlyphs; ++i)
+				font->boundsTable[i] = ReadRect();
+
+			UINT16 kerningCount = ReadUInt16();
+			if (kerningCount != 0)
+			{
+				font->kerningTable.resize(kerningCount);
+				auto *k = &font->kerningTable[0];
+				for (UINT i = 0; i < nGlyphs; ++i, ++i)
+				{
+					k->code1 = ReadUInt16();
+					k->code2 = ReadUInt16();
+					k->adjustment = ReadInt16();
+				}
+			}
+		}
+	}
+}
+
 // Read a DefineShape tag
 void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tagId)
 {
@@ -1397,9 +1554,15 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 	// read the line styles array
 	ReadLineStylesArray(shape->lineStyles, tagId);
 
-	//
-	// That's it for the styles; on to the Shape
-	//
+	// read the shape records
+	ReadShape(shape->shapeRecords, tagId);
+}
+
+void SWFParser::UncompressedReader::ReadShape(ShapeRecordList &shapeRecords, UINT16 tagId)
+{
+	// Figure the pixel resolution.  For DefineFont3, coordinates are
+	// expressed in 1/20 of a twip.  All others use twips.
+	float units = tagId == 75 ? 1.0f / 400.0f : 1.0f / 20.0f;
 
 	// read the number of index bits for fill and line references
 	int b = ReadByte();
@@ -1424,7 +1587,7 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 		{
 			// Style Change Record - decode the flags
 			auto sr = new StyleChangeRecord();
-			shape->shapeRecords.emplace_back(sr);
+			shapeRecords.emplace_back(sr);
 			sr->stateNewStyles = (tagId == 22 || tagId == 32) && (flags & 0x10) != 0;
 			sr->stateLineStyle = (flags & 0x08) != 0;
 			sr->stateFillStyle1 = (flags & 0x04) != 0;
@@ -1435,8 +1598,8 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 			if (sr->stateMoveTo)
 			{
 				int moveBits = ReadUB(5);
-				sr->deltaX = static_cast<float>(ReadSB(moveBits)) / 20.0f;
-				sr->deltaY = static_cast<float>(ReadSB(moveBits)) / 20.0f;
+				sr->deltaX = static_cast<float>(ReadSB(moveBits)) * units;
+				sr->deltaY = static_cast<float>(ReadSB(moveBits)) * units;
 			}
 
 			// read the fill style 0 and 1 indices if present
@@ -1471,7 +1634,7 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 		{
 			// Edge Record
 			auto er = new EdgeRecord();
-			shape->shapeRecords.emplace_back(er);
+			shapeRecords.emplace_back(er);
 			er->straight = (flags & 0x10) != 0;
 			int numBits = (flags & 0x0f) + 2;
 			if (er->straight)
@@ -1483,17 +1646,17 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 
 				er->deltaX = er->deltaY = 0.0f;
 				if (er->general || !er->vert)
-					er->deltaX = static_cast<float>(ReadSB(numBits)) / 20.0f;
+					er->deltaX = static_cast<float>(ReadSB(numBits)) * units;
 				if (er->general || er->vert)
-					er->deltaY = static_cast<float>(ReadSB(numBits)) / 20.0f;
+					er->deltaY = static_cast<float>(ReadSB(numBits)) * units;
 			}
 			else
 			{
 				// curved edge
-				er->deltaX = static_cast<float>(ReadSB(numBits)) / 20.0f;
-				er->deltaY = static_cast<float>(ReadSB(numBits)) / 20.0f;
-				er->anchorX = static_cast<float>(ReadSB(numBits)) / 20.0f;
-				er->anchorY = static_cast<float>(ReadSB(numBits)) / 20.0f;
+				er->deltaX = static_cast<float>(ReadSB(numBits)) * units;
+				er->deltaY = static_cast<float>(ReadSB(numBits)) * units;
+				er->anchorX = static_cast<float>(ReadSB(numBits)) * units;
+				er->anchorY = static_cast<float>(ReadSB(numBits)) * units;
 			}
 		}
 	}
@@ -1505,7 +1668,8 @@ bool SWFParser::Render(HDC hdc, HBITMAP hbitmap, SIZE targetPixSize, ErrorHandle
 	// HRESULT error handler - log it and return
 	HRESULT hr = S_OK;
 	auto HRError = [&hr, &eh](const TCHAR *where) {
-		eh.SysError(_T("DirectWrite error drawing formatted text"), MsgFmt(_T("%s, HRESULT=%lx"), where, hr));
+		WindowsErrorMessage msg(hr);
+		eh.SysError(_T("Direct2D rendering error"), MsgFmt(_T("%s, HRESULT=%lx, %s"), where, hr, msg.Get()));
 		return false;
 	};
 
@@ -1554,6 +1718,97 @@ bool SWFParser::Render(HDC hdc, HBITMAP hbitmap, SIZE targetPixSize, ErrorHandle
 	Character::CharacterDrawingContext cdc{ this, target, scale };
 	for (auto p : displayListIndex)
 	{
+		// Check for expired clipping layers.  Any clipping layer with
+		// a clipping depth less than the current display item depth
+		// is expired, since it only applies to layers below this point.
+		//
+		// Start by removing each expired layer from the END of the
+		// current layer list.  This lets us be as efficient as possible
+		// with D2D's way of accessing the clipping layers, which is
+		// strictly as a stack - the only layer we can remove with D2D
+		// is the top of the stack, which corresponds to the last item
+		// in our list.
+		while (clippingLayers.size() != 0 && clippingLayers.back().depth < p->depth)
+		{
+			// discard the layer from our list and from D2D's stack
+			clippingLayers.pop_back();
+			target->PopLayer();
+		}
+
+		// Now do a scan of the remaining layers to see if we need to
+		// remove any layers deeper down the stack.  We know that the
+		// current top layer is a keeper, because we would have already
+		// removed it if not.   But there could still be layers further 
+		// down the stack that have expired, since SWF'2 model allows
+		// for random access to the clipping layers, unlike D2D.
+		if (clippingLayers.size() != 0)
+		{
+			// scan for expired layers
+			std::list<ClippingLayer*> expired;
+			for (auto &l : clippingLayers)
+			{
+				if (l.depth < p->depth)
+					expired.push_back(&l);
+			}
+			if (expired.size() != 0)
+			{
+				// We found buried expired layers.  Remove them, working
+				// from the top of the D2D stack == back of our list.
+				std::list<ClippingLayer*> unexpired;
+				for (auto it = clippingLayers.rbegin(); it != clippingLayers.rend() && expired.size() != 0; ++it)
+				{
+					// Whatever we decide about this layer, we're going to have to
+					// remove it from the D2D stack.  The only question is whether
+					// or not it's going to go back on later...
+					target->PopLayer();
+
+					// check if this is the topmost expired item
+					ClippingLayer *l = &(*it);
+					if (l == expired.back())
+					{
+						// This is the topmost expired layer.  Remove it from the list
+						// of items we're seeking.
+						expired.pop_back();
+					}
+					else
+					{
+						// This is an unexpired layer that's still on top of an expired
+						// layer.  Remove it from the D2D stack so that we can remove
+						// the unexpired one deeper down.  But add it to our list of
+						// keepers so that we can push it back onto the D2D stack when
+						// we've finished removing the buried expired layers.
+						target->PopLayer();
+						unexpired.push_front(l);
+					}
+
+					// Okay, we've removed all of the expired layers from D2D.  Now we
+					// can discard them from our internal list - we didn't do that already
+					// just because it's inconvenient to do so during a reverse iteration.
+					for (auto it = clippingLayers.begin(); it != clippingLayers.end(); )
+					{
+						// remember the next one, in case we delete the current one and
+						// make the iterator invalid
+						auto nxt = it;
+						++nxt;
+
+						// if this item has expired, remove it from the list
+						if ((*it).depth < p->depth)
+							clippingLayers.erase(it);
+
+						// move on to the next one
+						it = nxt;
+					}
+
+					// One last step!  If we have anything in the "unexpired" list, 
+					// add those back to the D2D layer stack.  We had to remove them
+					// temporarily to be able to reach the buried expired ones, but
+					// now we're done with that, so we have to restore them.
+					for (auto &u : unexpired)
+						target->PushLayer(D2D1_LAYER_PARAMETERS{ D2D1::InfiniteRect(), u->geometry }, u->layer);
+				}
+			}
+		}
+
 		// get the character
 		if (auto it = dict.find(p->charId); it != dict.end())
 		{
@@ -1561,6 +1816,14 @@ bool SWFParser::Render(HDC hdc, HBITMAP hbitmap, SIZE targetPixSize, ErrorHandle
 			Character *cp = it->second.get();
 			cp->Draw(cdc, p);
 		}
+	}
+
+	// Pop any remaining clipping layers.  (This isn't just being picky;
+	// D2D actually checks.)
+	while (clippingLayers.size() != 0)
+	{
+		target->PopLayer();
+		clippingLayers.pop_back();
 	}
 
 	// close drawing in the render target
@@ -1683,81 +1946,77 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 	// draw the fills, from the fill style map
 	for (auto &pair : fillEdges)
 	{
-		// get the fill style
-		auto fillStyle = reinterpret_cast<FillStyle*>(pair.first);
+		// skip empty edge lists
+		auto& edges = pair.second;
+		if (edges.size() == 0)
+			continue;
 
-		// Set up the geometry list.  We're going to defer the fill until
-		// we've collected all of the paths, at which point we'll create
-		// a Geometry Group and do the fill at the group level.  That
-		// will properly handle donut holes.
-		std::list<RefPtr<ID2D1PathGeometry>> paths;
-
-		// visit each segment
+		// create and open a path geometry 
 		RefPtr<ID2D1PathGeometry> path;
 		RefPtr<ID2D1GeometrySink> geomSink;
-		D2D1_POINT_2F pt{ 0.0f, 0.0f };
-		D2D1_POINT_2F startPt{ 0.0f, 0.0f };
-		for (auto& seg : pair.second)
+		if (!(SUCCEEDED(d2dFactory->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&geomSink))))
+			break;
+
+		// open the initial figure at the start of the first segment
+		D2D1_POINT_2F pt = edges.front().start;
+		D2D1_POINT_2F startPt = pt;
+		geomSink->BeginFigure(TargetCoords(edges.front().start), D2D1_FIGURE_BEGIN_FILLED);
+
+		// visit each segment
+		for (auto& edge : edges)
 		{
-			// if the new segment isn't continuous with the last one, draw the last one
-			if (path != nullptr && (seg.start.x != pt.x || seg.start.y != pt.y))
+			// if the new segment isn't continuous with the last one, end the current figure
+			if (edge.start.x != pt.x || edge.start.y != pt.y)
 			{
-				// end the figure
-				geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
-				geomSink->Close();
-				//chardc.target->FillGeometry(path, brush);
+				// end the current figure
+				geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN); 
 
-				// forget it - we need to start a new one
-				path = nullptr;
-				geomSink = nullptr;
+				// start a new one
+				startPt = pt = edge.start;
+				geomSink->BeginFigure(TargetCoords(startPt), D2D1_FIGURE_BEGIN_FILLED);
 			}
-
-			// open a new path if necessary
-			if (path == nullptr)
-			{
-				// create the geometry and open the path
-				if (!(SUCCEEDED(d2dFactory->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&geomSink))))
-					break;
-
-				// add it to the geometry list
-				paths.emplace_back(path, RefCounted::DoAddRef);
-
-				// start the figure at the segment starting point
-				geomSink->BeginFigure(TargetCoords(seg.start), D2D1_FIGURE_BEGIN_FILLED);
-				startPt = pt = seg.start;
-			}
-
+			
 			// add this segment
-			if (seg.straight)
-				geomSink->AddLine(TargetCoords(seg.end));
+			if (edge.straight)
+				geomSink->AddLine(TargetCoords(edge.end));
 			else
-				geomSink->AddQuadraticBezier(D2D1_QUADRATIC_BEZIER_SEGMENT{ TargetCoords(seg.control), TargetCoords(seg.end) });
+				geomSink->AddQuadraticBezier(D2D1_QUADRATIC_BEZIER_SEGMENT{ TargetCoords(edge.control), TargetCoords(edge.end) });
 
 			// move to the end of the segment
-			pt = seg.end;
+			pt = edge.end;
 		}
 
-		// Finish the last path, if we didn't close it out.  Don't fill
-		// it yet - we'll defer that until we've collected all of the paths,
-		// at which point we'll fill them together as a group, so that we
-		// respect embedded donut holes.
-		if (geomSink != nullptr)
-		{
-			geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
-			geomSink->Close();
-		}
+		// Finish the last path and close the geometry sink
+		geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
+		geomSink->Close();
 
-		// Create a geometry group from the path collection, and apply the fill
-		// style to the entire group.
-		RefPtr<ID2D1GeometryGroup> group;
-		std::unique_ptr<ID2D1Geometry*> geometries(new ID2D1Geometry*[paths.size()]);
+		// If this is a clipping layer, set up the D2D clipping.  Oherwise
+		// execute the fill.
+		if (po->clipDepth != 0)
 		{
-			int i = 0;
-			for (auto &path : paths)
-				geometries.get()[i++] = path;
+			// This is a clipping layer, so we don't actually draw anything;
+			// we just set up the geometry as a clipping mask for layers up
+			// through the clipDepth.
+			//
+			// Create the D2D clipping layer
+			RefPtr<ID2D1Layer> d2dLayer;
+			if (SUCCEEDED(chardc.target->CreateLayer(nullptr, &d2dLayer)))
+			{
+				// Create our clipping layer list entry
+				auto& layer = chardc.parser->clippingLayers.emplace_back();
+				layer.depth = po->clipDepth;
+				layer.layer = d2dLayer;
+				layer.geometry = path;
+
+				// push the layer in the D2D target
+				chardc.target->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), path), d2dLayer);
+			}
 		}
-		if (SUCCEEDED(d2dFactory->CreateGeometryGroup(D2D1_FILL_MODE_WINDING, geometries.get(), static_cast<UINT32>(paths.size()), &group)))
+		else
 		{
+			// regular drawing layer - get the fill style
+			auto fillStyle = reinterpret_cast<FillStyle*>(pair.first);
+
 			switch (fillStyle->type)
 			{
 			case FillStyle::FillType::Solid:
@@ -1765,13 +2024,14 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 					// fill with a solid-color brush
 					RefPtr<ID2D1SolidColorBrush> brush;
 					if (SUCCEEDED(chardc.target->CreateSolidColorBrush(fillStyle->color.ToD2D(), &brush)))
-						chardc.target->FillGeometry(group, brush);
+						chardc.target->FillGeometry(path, brush);
 				}
 				break;
 
 			case FillStyle::FillType::ClippedBitmap:
 			case FillStyle::FillType::RepeatingBitmap:
 			case FillStyle::FillType::NonSmoothedRepeatingBitmap:
+			case FillStyle::FillType::NonSmoothedClippedBitmap:
 				// look up the image object from the dictionary
 				if (auto it = chardc.parser->dict.find(fillStyle->bitmapId); it != chardc.parser->dict.end())
 				{
@@ -1786,11 +2046,11 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 							if (SUCCEEDED(chardc.target->CreateLayer(&layer)))
 							{
 								// push the layer
-								chardc.target->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), group), layer);
+								chardc.target->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), path), layer);
 
 								// draw the bitmap
 								D2D1_RECT_F rcBounds, rcSrc;
-								group->GetBounds(D2D1::IdentityMatrix(), &rcBounds);
+								path->GetBounds(D2D1::IdentityMatrix(), &rcBounds);
 								auto bitmapSize = bitmap->GetPixelSize();
 								auto topLeft = fillStyle->matrix.Apply({ 0.0f, 0.0f });
 								auto botRight = fillStyle->matrix.Apply({ static_cast<float>(bitmapSize.width), static_cast<float>(bitmapSize.height) });
@@ -1822,65 +2082,69 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 
 	// Now draw the outlines, from the line style map.  This will draw
 	// the outlines on top of the fill, which is how they'd appear if
-	// we had D2D draw the fill and outline together.
-	for (auto &pair : lineEdges)
+	// we had D2D draw the fill and outline together.  But don't draw
+	// outlines for a clipping layer.
+	if (po->clipDepth == 0)
 	{
-		// get the line style
-		auto lineStyle = reinterpret_cast<LineStyle*>(pair.first);
-
-		// create a brush for it
-		RefPtr<ID2D1SolidColorBrush> brush;
-		if (!SUCCEEDED(chardc.target->CreateSolidColorBrush(lineStyle->color.ToD2D(), &brush)))
-			continue;
-
-		// visit each segment
-		RefPtr<ID2D1PathGeometry> path;
-		RefPtr<ID2D1GeometrySink> geomSink;
-		D2D1_POINT_2F pt{ 0.0f, 0.0f };
-		D2D1_POINT_2F startPt{ 0.0f, 0.0f };
-		for (auto& seg : pair.second)
+		for (auto &pair : lineEdges)
 		{
-			// if the new segment isn't continuous with the last one, draw the last one
-			if (path != nullptr && (seg.start.x != pt.x || seg.start.y != pt.y))
+			// get the line style
+			auto lineStyle = reinterpret_cast<LineStyle*>(pair.first);
+
+			// create a brush for it
+			RefPtr<ID2D1SolidColorBrush> brush;
+			if (!SUCCEEDED(chardc.target->CreateSolidColorBrush(lineStyle->color.ToD2D(), &brush)))
+				continue;
+
+			// visit each segment
+			RefPtr<ID2D1PathGeometry> path;
+			RefPtr<ID2D1GeometrySink> geomSink;
+			D2D1_POINT_2F pt{ 0.0f, 0.0f };
+			D2D1_POINT_2F startPt{ 0.0f, 0.0f };
+			for (auto& seg : pair.second)
 			{
-				// close the figure and draw the path
+				// if the new segment isn't continuous with the last one, draw the last one
+				if (path != nullptr && (seg.start.x != pt.x || seg.start.y != pt.y))
+				{
+					// close the figure and draw the path
+					geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
+					geomSink->Close();
+					chardc.target->DrawGeometry(path, brush, lineStyle->width);
+
+					// forget it - we need to start a new one
+					path = nullptr;
+					geomSink = nullptr;
+				}
+
+				// open a new path if necessary
+				if (path == nullptr)
+				{
+					// create the geometry and open the path
+					if (!(SUCCEEDED(d2dFactory->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&geomSink))))
+						break;
+
+					// start the figure at the segment starting point
+					geomSink->BeginFigure(TargetCoords(seg.start), D2D1_FIGURE_BEGIN_HOLLOW);
+					startPt = pt = seg.start;
+				}
+
+				// add this segment
+				if (seg.straight)
+					geomSink->AddLine(TargetCoords(seg.end));
+				else
+					geomSink->AddQuadraticBezier(D2D1_QUADRATIC_BEZIER_SEGMENT{ TargetCoords(seg.control), TargetCoords(seg.end) });
+
+				// move to the end of the segment
+				pt = seg.end;
+			}
+
+			// draw the last path, if we didn't close it out
+			if (geomSink != nullptr)
+			{
 				geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
 				geomSink->Close();
 				chardc.target->DrawGeometry(path, brush, lineStyle->width);
-
-				// forget it - we need to start a new one
-				path = nullptr;
-				geomSink = nullptr;
 			}
-
-			// open a new path if necessary
-			if (path == nullptr)
-			{
-				// create the geometry and open the path
-				if (!(SUCCEEDED(d2dFactory->CreatePathGeometry(&path)) && SUCCEEDED(path->Open(&geomSink))))
-					break;
-
-				// start the figure at the segment starting point
-				geomSink->BeginFigure(TargetCoords(seg.start), D2D1_FIGURE_BEGIN_HOLLOW);
-				startPt = pt = seg.start;
-			}
-
-			// add this segment
-			if (seg.straight)
-				geomSink->AddLine(TargetCoords(seg.end));
-			else
-				geomSink->AddQuadraticBezier(D2D1_QUADRATIC_BEZIER_SEGMENT{ TargetCoords(seg.control), TargetCoords(seg.end) });
-
-			// move to the end of the segment
-			pt = seg.end;
-		}
-
-		// draw the last path, if we didn't close it out
-		if (geomSink != nullptr)
-		{
-			geomSink->EndFigure(startPt.x == pt.x && startPt.y == pt.y ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
-			geomSink->Close();
-			chardc.target->DrawGeometry(path, brush, lineStyle->width);
 		}
 	}
 }

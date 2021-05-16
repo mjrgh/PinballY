@@ -45,7 +45,7 @@ public:
 	bool AtEof() const { return reader.BytesRemaining() != 0; }
 
 	// get the frame count
-	int GetFrameCount() const { return frameCount; }
+	UINT GetFrameCount() const { return frameCount; }
 
 	// get the frame delay in milliseconds
 	DWORD GetFrameDelay() const { return frameDelay; }
@@ -60,6 +60,9 @@ public:
 		UINT id;
 		UINT32 len;
 	};
+
+	// Language code
+	typedef UINT8 LanguageCode;
 
 	// SWF RGBA color record
 	struct RGBA
@@ -335,6 +338,10 @@ public:
 		virtual void Draw(ShapeDrawingContext &sdc) = 0;
 	};
 
+	// list of shape records - these appear in ShapeWithStyle records
+	// and Font records
+	typedef std::vector<std::unique_ptr<ShapeRecord>> ShapeRecordList;
+
 	struct EdgeRecord : ShapeRecord
 	{
 		bool straight;           // straight/curved
@@ -364,6 +371,48 @@ public:
 		virtual void Draw(ShapeDrawingContext &sdc) override;
 	};
 
+	// kerning record
+	struct KerningRecord
+	{
+		UINT16 code1;
+		UINT16 code2;
+		INT16 adjustment;
+	};
+
+	// Font definition (DefineFont)
+	struct Font : Character
+	{
+		// fonts aren't drawn directly
+		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override { }
+
+		Font(UINT16 nGlyphs) : nGlyphs(nGlyphs)
+		{
+			shapes.resize(nGlyphs);
+		}
+
+		bool hasLayout = false;
+		bool shiftJIS = false;
+		bool smallText = false;
+		bool ANSI = false;
+		bool wideOffsets = false;
+		bool wideCodes = false;
+		bool italic = false;
+		bool bold = false;
+		LanguageCode lang;
+		TSTRING name;
+
+		UINT16 ascent = 0;
+		UINT16 descent = 0;
+		INT16 leading = 0;
+
+		UINT16 nGlyphs;
+		std::vector<ShapeRecordList> shapes;
+		std::vector<UINT16> codeTable;
+		std::vector<INT16> advanceTable;
+		std::vector<D2D1_RECT_F> boundsTable;
+		std::vector<KerningRecord> kerningTable;
+	};
+
 	// ShapeWithStyle
 	struct ShapeWithStyle : Character
 	{
@@ -372,7 +421,7 @@ public:
 		D2D1_RECT_F bounds;
 		std::vector<FillStyle> fillStyles;
 		std::vector<LineStyle> lineStyles;
-		std::vector<std::unique_ptr<ShapeRecord>> shapeRecords;
+		ShapeRecordList shapeRecords;
 
 		// DefineShape4 extra fields
 		D2D1_RECT_F edgeBounds{ 0.0f, 0.0f, 0.0f, 0.0f };
@@ -530,7 +579,9 @@ public:
 
 		// read various fixed-size SWF types
 		UINT32 ReadUInt16() { BYTE a = ReadByte(), b = ReadByte();  return a | (b << 8); }
+		INT16 ReadInt16() { return static_cast<INT16>(ReadUInt16()); }
 		UINT32 ReadUInt32() { BYTE a = ReadByte(), b = ReadByte(), c = ReadByte(), d = ReadByte();  return a | (b << 8) | (c << 16) | (d << 24); }
+		INT32 ReadInt32() { return static_cast<INT32>(ReadUInt32()); }
 
 	protected:
 		// For bit-field operations, cache one byte of the input stream.
@@ -632,6 +683,9 @@ public:
 		// read a Color Transform (CXFORM) record
 		CXFORM ReadCXFORM(bool hasAlpha);
 
+		// read a SHAPE structure
+		void ReadShape(ShapeRecordList &list, UINT16 tagId);
+
 		// read a DefineBits record
 		void ReadDefineBits(Dictionary &dict, TagHeader &tagHdr);
 
@@ -664,6 +718,9 @@ public:
 
 		// Read a DefineShape tag
 		void ReadDefineShape(Dictionary &dict, UINT16 tagId);
+
+		// Read a DefineFont tag
+		void ReadDefineFont(Dictionary &dict, TagHeader &tagHdr);
 
 	protected:
 		BYTE *p;
@@ -853,7 +910,7 @@ protected:
 	DWORD frameDelay = 0;
 
 	// number of frames
-	int frameCount = 0;
+	UINT frameCount = 0;
 
 	// Frame rectangle, in pixels
 	D2D1_RECT_F frameRect = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -863,6 +920,22 @@ protected:
 
 	// Dictionary
 	Dictionary dict;
+
+	// Clipping layers
+	struct ClippingLayer
+	{
+		// Clipping depth.  This is the maximum drawing layer depth that
+		// this clipping layer applies to.  Once we pass this depth in
+		// the drawing list, we'll remove this clipping layer.
+		UINT depth;
+
+		// D2D clipping layer
+		RefPtr<ID2D1Layer> layer;
+
+		// geometry that specifies the layer's clipping mask
+		RefPtr<ID2D1Geometry> geometry;
+	};
+	std::list<ClippingLayer> clippingLayers;
 
 	// current background color
 	RGBA bgColor;

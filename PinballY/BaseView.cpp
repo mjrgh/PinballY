@@ -1199,10 +1199,21 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 		// if we can't get the image size, load at the window size
 		SIZE sz { NormalizedWidth(), 1920 };
 
-		// Get the image size, so that we can load it at its native aspect ratio
+		// Get the image size, so that we can load it at its native aspect ratio.
 		ImageFileDesc desc;
 		if (GetImageFileInfo(WSTRINGToTSTRING(filename).c_str(), desc, true))
+		{
+			// get the native image size from the file
 			sz = desc.size;
+
+			// For SWF, load at the actual window size instead.  SWF is a vector
+			// format, so the frame size in the file is usually only advisory;
+			// the content will usually scale better if we rasterize it at the
+			// target size in the first place, rather than rasterize it at the
+			// advisory size and then rescale the pixels.
+			if (desc.imageType == ImageFileDesc::SWF)
+				sz = GetLayoutSize();
+		}
 
 		// load the image
 		ok = sprite->Load(WSTRINGToTSTRING(filename).c_str(),
