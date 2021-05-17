@@ -335,6 +335,10 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			reader.ReadPlaceObject(displayList, tagHdr.len);
 			break;
 
+		case 5:   // RemoveObject
+			reader.ReadRemoveObject(displayList, tagHdr);
+			break;
+
 		case 6:   // DefineBits
 			reader.ReadDefineBits(dict, tagHdr);
 			break;
@@ -387,12 +391,30 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			break;
 
 		case 11:  // DefineText
+			reader.ReadDefineText(dict, tagHdr);
+			break;
+
 		case 13:  // DefineFontInfo
+			// Not implemented - ignore.  This is used to provide a local device
+			// font mapping for an SWF glyph font.  To keep things simple and to
+			// make the display more consistent, we always display the SWF glyphs.
+			break;
+
 		case 33:  // DefineText2
+			reader.ReadDefineText(dict, tagHdr);
+			break;
+
 		case 62:  // DefineFontInfo2
+			// Not implemented - ignore.  We only display SWF glyphs.
+			break;
+
 		case 73:  // DefineFontAlignmentZones
+			// Not implemented - ignore.
+			break;
+
 		case 88:  // DefineFontName
-		case 91:  // DefineFont4
+			// Not implemented - ignore.
+			break;
 
 		case 20:  // DefineBitsLossless
 			reader.ReadDefineBitsLossless(dict, tagHdr);
@@ -418,6 +440,10 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			reader.ReadPlaceObject2(displayList, tagHdr.len);
 			break;
 
+		case 28:   // RemoveObject2
+			reader.ReadRemoveObject(displayList, tagHdr);
+			break;
+
 		case 32:  // DefineShape3
 			reader.ReadDefineShape(dict, 32);
 			break;
@@ -428,6 +454,10 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 
 		case 36:  // DefineBitsLossless2
 			reader.ReadDefineBitsLossless(dict, tagHdr);
+			break;
+
+		case 39:  // DefineSprite
+			// not implemented - ignore
 			break;
 
 		case 43:  // FrameLabel
@@ -523,8 +553,8 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 		// there will ever be any call for it within the scope of this
 		// project, so I don't want to generate unnecessary error messages
 		// for files that happen to incorporate those tags.
-		case 39:  // DefineSprite
 		case 70:  // PlaceObject3
+		case 91:  // DefineFont4
 		default:
 			// remember the unhandled type
 			if (unimplementedTags.find(tagHdr.id) == unimplementedTags.end()) 
@@ -822,7 +852,7 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 	UINT16 charId = ReadUInt16();
 
 	// create the dictionary entry
-	auto imageBits = new LossyImageBits();
+	auto imageBits = new LossyImageBits(tagHdr.id, charId);
 	dict.emplace(charId, imageBits);
 
 	// assume that the entire remainder of the record is the image data
@@ -832,7 +862,7 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 	// AlphaDataOffset field.  This gives the offset from the start
 	// of the image data to the start of the alpha data, which is
 	// equivalent to the length of the image data.
-	if (tagHdr.id == 35)
+	if (tagHdr.id == 35 || tagHdr.id == 90)
 		imageDataLen = ReadUInt32();
 
 	// for DefineBitsJPEG4 (90), read the deblocking filter field
@@ -873,6 +903,135 @@ void SWFParser::UncompressedReader::ReadDefineBits(Dictionary &dict, TagHeader &
 
 	// read the rest of the image bytes
 	ReadBytes(p, imageBytesToRead);
+
+	// *** Mystery hack to fix broken JPEGs ***
+	//
+	// Some of the instruction cards contain ill-formed JPEG streams
+	// that WIC rejects (as does libjpeg, Chrome, and several image
+	// editor tools I've tried).  I suspect this is of a kind with
+	// the weird extra initial EOI-SOI sequence mentioned in the SWF
+	// spec for old SWF files, but the SWF spec is silent about this
+	// considerably more elaborate error.  The specific problem I've
+	// observed is that some JPEG streams have their APP0 frame buried
+	// in the middle of the stream, rather than coming directly after
+	// SOI as required in all modern JPEG/JFIF specs.  These streams
+	// are otherwise valid (they're entirely made up of JFIF frames,
+	// with valid frame types, and contain all of the required frame
+	// types), so my guess is that these files were produced by very
+	// old tools that either pre-dated the 1992 publication of the
+	// JPEG specs, or just didn't bother to comply.  In any case, we
+	// can make these acceptable to WIC by rearranging the frames
+	// into the proper order; doing so makes them display properly,
+	// so the ordering really does seem to be the only problem.
+	// Apart from the misplaced APP0 frame, these files also might
+	// contain an extra EOI-SOI just before the APP0 - that's what
+	// makes me think it's related to the weirdness mentioned in the
+	// SWF spec with the possibility of an extra EOI-SOI at the very
+	// start of the stream.
+	//
+	// To correct this, scan the first 4 bytes to see if they look
+	// like a JPEG file at all, and if so, if they contain SOI-APP0
+	// as required.  If the first three bytes are right but the 4th
+	// is a different marker type (not APP0), then do a deeper scan
+	// of the file to see if it consists entirely of properly marked
+	// JFIF frames, and if so, if we can find an APP0 frame later on.
+	// If we find the APP0 frame, shuffle the stream around so that
+	// the APP0 comes just after the SOI marker, and the part that
+	// was between SOI and APP0 is moved after the APP0.  That'll
+	// put the whole stream in the right order so that WIC can read
+	// it and display the image.
+	//
+	// What's really not clear to me is why Flash Player can handle
+	// these JFIF streams when not a single other tool seems to be
+	// able to.  They must either do something like this same hack
+	// I'm doing, or they're just using a custom JPEG decoder that
+	// doesn't enforce the APP0 ordering rule.  I don't think there's
+	// any practical implementation reason that a JPEG decoder
+	// couldn't ignore the ordering, so perhaps all of the more
+	// modern systems I've tested against are just being strict
+	// about following the spec.
+	p = imageBits->imageData.get();
+	if (memcmp(p, "\xFF\xD8\xFF", 3) == 0 && p[4] != 0xE0)
+	{
+		// scan the JFIF frames until we find APP0 (FF E0) or run
+		// out of segments
+		BYTE *endp = p + imageBits->imageDataSize;
+		for (BYTE *framep = p; framep < endp; )
+		{
+			// make sure it's a frame marker - if not, stop scanning,
+			// as the stream if either not JFIF at all or is broken
+			// beyond our ability to repair
+			if (framep[0] != 0xff)
+				break;
+
+			// check for APP0
+			if (framep[1] == 0xE0)
+			{
+				// This is the one.  Let's reassemble the file in an order
+				// that WIC will accept:
+				//
+				//  SOI   (FF D8)
+				//  APP0  (FF E0 frame)
+				//  <the fragment that was originally between SOI and APP0>
+				//  <the rest of stream after APP0>
+
+				// allocate a new buffer for the reassembled file
+				BYTE *newp = new BYTE[imageBits->imageDataSize];
+
+				// copy the SOI
+				newp[0] = 0xFF;
+				newp[1] = 0xD8;
+
+				// copy the APP0 frame
+				BYTE *app0 = framep;
+				size_t app0Len = (app0[2] << 16) | (app0[3]) + 2;
+				memcpy(newp + 2, app0, app0Len);
+
+				// pull out the fragment that was originally misplaced between the 
+				// SOI and APP0 frame
+				BYTE *fragp = p + 2;
+				size_t fragLen = framep - fragp;
+
+				// If the misplaced fragment has an EOI-SOI sequence at the end, delete
+				// it.  I suspect that the source of the errant JPEG streams was doing
+				// its own attempt at reassembling JPEG streams from pieces, and it
+				// seems to have flagged the leading fragment as a sort of sub-JFIF
+				// stream with its own end marker.
+				if (fragLen > 8 && memcmp(fragp + fragLen - 4, "\xFF\xD9\xFF\xD8", 4) == 0)
+					fragLen -= 4;
+
+				// copy the fragment
+				memcpy(newp + 2 + app0Len, fragp, fragLen);
+
+				// copy the rest of the stream
+				BYTE *restp = app0 + app0Len;
+				size_t restLen = endp - restp;
+				memcpy(newp + 2 + app0Len + fragLen, restp, restLen);
+
+				// replace the original buffer with the reassembled buffer
+				imageBits->imageData.reset(p = newp);
+				imageBits->imageDataSize = static_cast<UINT32>(2 + app0Len + fragLen + restLen);
+
+				// done
+				break;
+			}
+
+			// skip the rest of the frame
+			if (framep[1] >= 0xD0 && framep[1] <= 0xD9)
+			{
+				// frame types FF D0 to FF D9 have no payload - the marker
+				framep += 2;
+			}
+			else
+			{
+				// all other frame types have the frame length (excluding the
+				// marker, including the length) encoded in the next two bytes,
+				// big-endian order
+				UINT32 len = (framep[2] << 16) | (framep[3]);
+				framep += len + 2;
+			}
+		}
+	}
 
 	// For tag DefineBites (6), the image data is the image portion
 	// of a JPEG, with the common encoding tables.
@@ -1007,7 +1166,7 @@ void SWFParser::UncompressedReader::ReadDefineBitsLossless(Dictionary &dict, Tag
 		if (zr.ReadBytes(imageData.get(), imageDataSize) == imageDataSize)
 		{
 			// we successly decompressed the data - create the dictionary entry
-			auto imageBits = new LosslessImageBits();
+			auto imageBits = new LosslessImageBits(tagHdr.id, charId);
 			dict.emplace(charId, imageBits);
 
 			// set up the fixed fields
@@ -1242,6 +1401,23 @@ void SWFParser::UncompressedReader::ReadPlaceObject2(DisplayList &displayList, U
 		SkipClipActions();
 }
 
+// Read a RemoveObject tag
+void SWFParser::UncompressedReader::ReadRemoveObject(DisplayList &displayList, TagHeader &tagHdr)
+{
+	// read the ID of the item to remove
+	UINT16 charId = (tagHdr.id == 5 ? ReadUInt16() : 0);
+	UINT16 depth = ReadUInt16();
+
+	// look for an object at the specified depth
+	if (auto it = displayList.find(depth); it != displayList.end())
+	{
+		// For RemoveObject, check that the character ID matches.  For
+		// RemoveObject2, we only need to match the depth.
+		if (tagHdr.id == 28 || (tagHdr.id == 5 && it->second.charId == charId))
+			displayList.erase(it);
+	}
+}
+
 // Read a GRADIENT element of a DefineShape tag
 void SWFParser::UncompressedReader::ReadGradient(UINT16 tagId, GRADIENT &g)
 {
@@ -1450,7 +1626,7 @@ void SWFParser::UncompressedReader::ReadDefineFont(Dictionary &dict, TagHeader &
 	UINT32 codeTableOffset = (tagHdr.id == 48 || tagHdr.id == 75 ? (wideOffsets ? ReadUInt32() : ReadUInt16()) : 0);
 
 	// create the dictionary entry
-	auto font = new Font(nGlyphs);
+	auto font = new Font(nGlyphs, tagHdr.id, fontId);
 	dict.emplace(fontId, font);
 
 	// save up the DefineFont2 values
@@ -1459,7 +1635,7 @@ void SWFParser::UncompressedReader::ReadDefineFont(Dictionary &dict, TagHeader &
 	font->smallText = (flags & 0x20) != 0;
 	font->ANSI = (flags & 0x10) != 0;
 	font->wideOffsets = wideOffsets;
-	font->wideCodes = (flags & 0x04) != 0;
+	font->wideCodes = ((flags & 0x04) != 0) || tagHdr.id == 75;
 	font->italic = (flags & 0x02) != 0;
 	font->bold = (flags & 0x01) != 0;
 	font->lang = lang;
@@ -1482,38 +1658,67 @@ void SWFParser::UncompressedReader::ReadDefineFont(Dictionary &dict, TagHeader &
 	// read the additional DefineFont2/3 fields
 	if (tagHdr.id == 48 || tagHdr.id == 75)
 	{
-		// read the code table
-		font->codeTable.resize(nGlyphs);
-		for (UINT i = 0; i < nGlyphs; ++i)
-			font->codeTable[i] = wideOffsets ? ReadUInt16() : ReadByte();
+		// The rest of the record is layout information that only
+		// applies to dynamic text, which we don't implement.
 
-		// read the layout information, if present
-		if (font->hasLayout)
+	}
+}
+
+// Read a DefineText tag
+void SWFParser::UncompressedReader::ReadDefineText(Dictionary &dict, TagHeader &tagHdr)
+{
+	// figure the pointer to the end of the tag
+	const BYTE *endp = this->p + tagHdr.len;
+
+	// create the dictionary entry
+	UINT16 charId = ReadUInt16();
+	auto text = new Text(tagHdr.id, charId);
+	dict.emplace(text->charId, text);
+
+	// read the fixed fields
+	text->bounds = ReadRect();
+	text->matrix = ReadMatrix();
+	int glyphBits = ReadByte();
+	int advBits = ReadByte();
+
+	// read the text records
+	while (this->p < endp)
+	{
+		// read the next flags byte; the end marker is a zero byte in
+		// the flags position
+		BYTE flags = ReadByte();
+		if (flags == 0)
+			break;
+
+		// add a text record
+		auto& tr = text->text.emplace_back();
+
+		// decode the flags
+		tr.hasFont = (flags & 0x08) != 0;
+		tr.hasColor = (flags & 0x04) != 0;
+		tr.hasY = (flags & 0x02) != 0;
+		tr.hasX = (flags & 0x01) != 0;
+
+		// read the optional fields
+		if (tr.hasFont)
+			tr.fontId = ReadUInt16();
+		if (tr.hasColor)
+			tr.color = (tagHdr.id == 11 ? ReadRGB() : ReadRGBA());
+		if (tr.hasX)
+			tr.x = ReadInt16();
+		if (tr.hasY)
+			tr.y = ReadInt16();
+		if (tr.hasFont)
+			tr.height = static_cast<float>(ReadUInt16());
+
+		// read the glyph entries
+		int nGlyphs = ReadByte();
+		StartBitField();
+		for (int i = 0; i < nGlyphs; ++i)
 		{
-			font->ascent = ReadUInt16();
-			font->descent = ReadUInt16();
-			font->leading = ReadInt16();
-
-			font->advanceTable.resize(nGlyphs);
-			for (UINT i = 0; i < nGlyphs; ++i)
-				font->advanceTable[i] = ReadInt16();
-
-			font->boundsTable.resize(nGlyphs);
-			for (UINT i = 0; i < nGlyphs; ++i)
-				font->boundsTable[i] = ReadRect();
-
-			UINT16 kerningCount = ReadUInt16();
-			if (kerningCount != 0)
-			{
-				font->kerningTable.resize(kerningCount);
-				auto *k = &font->kerningTable[0];
-				for (UINT i = 0; i < nGlyphs; ++i, ++i)
-				{
-					k->code1 = ReadUInt16();
-					k->code2 = ReadUInt16();
-					k->adjustment = ReadInt16();
-				}
-			}
+			auto& ge = tr.glyphs.emplace_back();
+			ge.index = ReadUB(glyphBits);
+			ge.advance = ReadSB(advBits);
 		}
 	}
 }
@@ -1525,7 +1730,7 @@ void SWFParser::UncompressedReader::ReadDefineShape(Dictionary &dict, UINT16 tag
 	UINT16 shapeId = ReadUInt16();
 
 	// create the ShapeWithStyle object and add it to the dictionary
-	auto shape = new ShapeWithStyle();
+	auto shape = new ShapeWithStyle(tagId, shapeId);
 	dict.emplace(shapeId, shape);
 	shape->tagId = tagId;
 
@@ -1834,11 +2039,101 @@ bool SWFParser::Render(HDC hdc, HBITMAP hbitmap, SIZE targetPixSize, ErrorHandle
 	return true;
 }
 
+void SWFParser::Text::Draw(CharacterDrawingContext &cdc, PlaceObject *po)
+{
+	// we'll need the dictionary to look up Font objects
+	auto& dict = cdc.parser->dict;
+
+	// set up the style elements
+	Font *font = nullptr;
+	float x = 0.0f, y = 0.0f;
+	float scale = 1.0f;
+
+	// there's only one fill style: solid, current color
+	std::vector<FillStyle> fillStyles;
+	fillStyles.emplace_back();
+	fillStyles[0].type = FillStyle::FillType::Solid;
+
+	// same for line styles
+	std::vector<LineStyle> lineStyles;
+	lineStyles.emplace_back();
+
+	// Set up a private PlaceObject record to apply to the individual
+	// glyphs, starting with the PlaceObject for the overall text run.
+	PlaceObject placeGlyph = *po;
+
+	// Figure the basic transform matrix: we'll apply the Text matrix
+	// first, then the PlaceObject matrix, or P*(T*point) = (P*T)*point.
+	// Both P and T are fixed, so we can precompute (P*T) and then only
+	// have to do one matrix multiply per point later on.
+	MATRIX baseMatrix = po->matrix.Compose(matrix);
+
+	// set up the shape drawing context
+	ShapeRecord::ShapeDrawingContext sdc{ cdc, &placeGlyph, fillStyles, lineStyles };
+
+	// draw each text record
+	for (auto& t : text)
+	{
+		// get the new font
+		if (t.hasFont)
+		{
+			if (auto it = dict.find(t.fontId); it != dict.end())
+				font = dynamic_cast<Font*>(it->second.get());
+		}
+
+		// get the new color
+		if (t.hasColor)
+			fillStyles[0].color = t.color;
+
+		// get the new offset
+		if (t.hasX)
+			x = t.x / 20.0f;
+		if (t.hasY)
+			y = t.y / 20.0f;
+
+		// get the new scale, based on the height
+		if (t.hasFont)
+			scale = t.height / 1024.0f;
+
+		// if there's a font, draw the glyph shapes
+		if (font != nullptr)
+		{
+			// visit each glyph
+			for (auto& g : t.glyphs)
+			{
+				// make sure the shape index is valid
+				if (g.index < font->shapes.size())
+				{
+					// Set up the transform matrix for the glyph scale and translation.
+					// The glyph transform is done first, then the base transform:
+					// Base*(Glyph*point) = (Base*Glyph)*point.
+					placeGlyph.matrix = baseMatrix.Compose(MATRIX{
+						scale, scale,
+						0.0f, 0.0f,
+						x, y
+					});
+
+					// draw the shapes making up the glyph
+					for (auto& shape : font->shapes[g.index])
+						shape->Draw(sdc);
+
+					// Render the shapes in the style maps
+					sdc.RenderMaps();
+					sdc.ClearMaps();
+
+					// advance to the next position
+					x += g.advance/20.0f;
+				}
+			}
+		}
+	}
+}
+
 void SWFParser::ShapeWithStyle::Draw(CharacterDrawingContext &cdc, PlaceObject *po)
 {
 	// set up the shape drawing context, starting with the style arrays
 	// defined at the shape-with-style level
-	ShapeRecord::ShapeDrawingContext sdc{ cdc, this, po, fillStyles, lineStyles };
+	ShapeRecord::ShapeDrawingContext sdc{ cdc, po, fillStyles, lineStyles };
 
 	// start drawing at the shape origin
 	sdc.pt = { 0.0f, 0.0f };
@@ -2028,9 +2323,12 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 				}
 				break;
 
-			case FillStyle::FillType::ClippedBitmap:
 			case FillStyle::FillType::RepeatingBitmap:
 			case FillStyle::FillType::NonSmoothedRepeatingBitmap:
+				// TO DO - for now just draw the same as clipped
+				// fall through...
+
+			case FillStyle::FillType::ClippedBitmap:
 			case FillStyle::FillType::NonSmoothedClippedBitmap:
 				// look up the image object from the dictionary
 				if (auto it = chardc.parser->dict.find(fillStyle->bitmapId); it != chardc.parser->dict.end())
@@ -2052,8 +2350,8 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 								D2D1_RECT_F rcBounds, rcSrc;
 								path->GetBounds(D2D1::IdentityMatrix(), &rcBounds);
 								auto bitmapSize = bitmap->GetPixelSize();
-								auto topLeft = fillStyle->matrix.Apply({ 0.0f, 0.0f });
-								auto botRight = fillStyle->matrix.Apply({ static_cast<float>(bitmapSize.width), static_cast<float>(bitmapSize.height) });
+								auto topLeft = fillStyle->matrix.Apply(D2D1_POINT_2F{ 0.0f, 0.0f });
+								auto botRight = fillStyle->matrix.Apply(D2D1_POINT_2F{ static_cast<float>(bitmapSize.width), static_cast<float>(bitmapSize.height) });
 								rcSrc = { topLeft.x, topLeft.y, botRight.x, botRight.y };
 								chardc.target->DrawBitmap(bitmap, rcBounds, 1.0f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, rcSrc);
 

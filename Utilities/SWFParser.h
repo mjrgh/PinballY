@@ -87,11 +87,28 @@ public:
 		float translateX = 0.0f;
 		float translateY = 0.0f;
 
+		// Apply this matrix transform to a point
 		D2D1_POINT_2F Apply(D2D1_POINT_2F pt) const
 		{
 			return {
 				pt.x * scaleX + pt.y * rotateSkew1 + translateX,
 				pt.x * rotateSkew0 + pt.y * scaleY + translateY
+			};
+		}
+
+		// Compose two transforms.  For two transforms A and B, applying
+		// B after applying A, which is to say B*(A*point), is the same
+		// as precomputing (B*A) and then applying that, (B*A)*point.
+		// This figures the combined transform this*m.
+		MATRIX Compose(const MATRIX m)
+		{
+			return {
+				m.scaleX * scaleX + rotateSkew1 * m.rotateSkew0,
+				m.scaleY * scaleY + rotateSkew0 * m.rotateSkew1,
+				scaleX * m.rotateSkew1 + m.scaleY * rotateSkew1,
+				scaleX * m.rotateSkew0 + m.scaleX * rotateSkew0,
+				scaleX * m.translateX + rotateSkew1 * m.translateY + translateX,
+				scaleY * m.translateY + rotateSkew0 * m.translateX + translateY
 			};
 		}
 	};
@@ -124,6 +141,7 @@ public:
 	// SWF Character
 	struct Character
 	{
+		Character(UINT tagId, UINT16 charId) : tagId(tagId), charId(charId) { }
 		virtual ~Character() { }
 		UINT tagId;
 		UINT16 charId;
@@ -238,7 +256,7 @@ public:
 	// Line style
 	struct LineStyle
 	{
-		float width;
+		float width = 1.0f;
 		RGBA color;
 
 		// LINESTYLE2 extensions
@@ -267,9 +285,6 @@ public:
 		{
 			// Character drawing context
 			Character::CharacterDrawingContext &chardc;
-
-			// Shape-with-style that we're part of
-			ShapeWithStyle *sws;
 
 			// PlaceObject context
 			PlaceObject *po;
@@ -321,6 +336,13 @@ public:
 
 			// render the shapes in the style maps
 			void RenderMaps();
+
+			// clear the maps
+			void ClearMaps()
+			{
+				fillEdges.clear();
+				lineEdges.clear();
+			}
 
 			// Transform coordinates from shape-relative coordinates to
 			// Direct2D render target coordinates.  This first applies the
@@ -382,13 +404,15 @@ public:
 	// Font definition (DefineFont)
 	struct Font : Character
 	{
-		// fonts aren't drawn directly
-		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override { }
-
-		Font(UINT16 nGlyphs) : nGlyphs(nGlyphs)
+		Font(UINT16 nGlyphs, UINT tagId, UINT16 charId) :
+			Character(tagId, charId),
+			nGlyphs(nGlyphs)
 		{
 			shapes.resize(nGlyphs);
 		}
+
+		// fonts aren't drawn directly
+		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override { }
 
 		bool hasLayout = false;
 		bool shiftJIS = false;
@@ -401,21 +425,59 @@ public:
 		LanguageCode lang;
 		TSTRING name;
 
-		UINT16 ascent = 0;
-		UINT16 descent = 0;
-		INT16 leading = 0;
+		float ascent = 0;
+		float descent = 0;
+		float leading = 0;
 
 		UINT16 nGlyphs;
 		std::vector<ShapeRecordList> shapes;
 		std::vector<UINT16> codeTable;
-		std::vector<INT16> advanceTable;
+		std::vector<float> advanceTable;
 		std::vector<D2D1_RECT_F> boundsTable;
 		std::vector<KerningRecord> kerningTable;
+	};
+
+	// Glyph entry for a text record
+	struct GlyphEntry
+	{
+		UINT32 index;
+		INT32 advance;
+	};
+
+	// Text Record
+	struct TextRecord
+	{
+		bool hasFont;
+		bool hasColor;
+		bool hasY;
+		bool hasX;
+
+		UINT16 fontId = 0;
+		RGBA color{ 0, 0, 0, 0 };
+		INT16 x = 0;
+		INT16 y = 0;
+		float height = 0;
+
+		std::list<GlyphEntry> glyphs;
+	};
+
+	// Text definition (DefineText)
+	struct Text : Character
+	{
+		Text(UINT tagId, UINT16 charId) : Character(tagId, charId) { }
+
+		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
+
+		D2D1_RECT_F bounds;
+		MATRIX matrix;
+		std::list<TextRecord> text;
 	};
 
 	// ShapeWithStyle
 	struct ShapeWithStyle : Character
 	{
+		ShapeWithStyle(UINT tagId, UINT16 charId) : Character(tagId, charId) { }
+
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
 
 		D2D1_RECT_F bounds;
@@ -433,6 +495,8 @@ public:
 	// Base class for image bit types
 	struct ImageBits : Character
 	{
+		ImageBits(UINT tagId, UINT16 charId) : Character(tagId, charId) { }
+
 		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) = 0;
 	};
 
@@ -440,6 +504,8 @@ public:
 	// Bitmap image bits
 	struct LossyImageBits : ImageBits
 	{
+		LossyImageBits(UINT tagId, UINT16 charId) : ImageBits(tagId, charId) { }
+
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
 		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) override;
 
@@ -470,8 +536,10 @@ public:
 	};
 
 	// Lossless bitmap image bits
-	struct LosslessImageBits : LossyImageBits
+	struct LosslessImageBits : ImageBits
 	{
+		LosslessImageBits(UINT tagId, UINT16 charId) : ImageBits(tagId, charId) { }
+
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
 		virtual ID2D1Bitmap *GetOrCreateBitmap(CharacterDrawingContext &dc) override;
 
@@ -698,6 +766,9 @@ public:
 		// read a PlaceObject2 record
 		void ReadPlaceObject2(DisplayList &displayList, UINT32 len);
 
+		// read a RemoveObject record
+		void ReadRemoveObject(DisplayList &displayList, TagHeader &tagHdr);
+
 		// skip a Clip Actions list
 		void SkipClipActions();
 
@@ -721,6 +792,9 @@ public:
 
 		// Read a DefineFont tag
 		void ReadDefineFont(Dictionary &dict, TagHeader &tagHdr);
+
+		// Read a DefineText tag
+		void ReadDefineText(Dictionary &dict, TagHeader &tagHdr);
 
 	protected:
 		BYTE *p;
