@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-05-xx-2021 (1.1.0 Beta 5)
+05-18-2021 (1.1.0 Beta 5)
 
 * PinballY now has its own built-in SWF renderer for Instruction Card
 media.  This replaces the obsolete Adobe Flash Player, which stopped

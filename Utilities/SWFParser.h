@@ -953,9 +953,6 @@ protected:
 	// D2D factory
 	static RefPtr<ID2D1Factory> d2dFactory;
 
-	// DirectWrite fatcory
-	static RefPtr<IDWriteFactory> dwFactory;
-
 	// WIC factory
 	static RefPtr<IWICImagingFactory> wicFactory;
 

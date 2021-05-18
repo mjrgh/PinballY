@@ -78,7 +78,6 @@
 bool SWFParser::inited = false;
 RefPtr<ID2D1Factory> SWFParser::d2dFactory;
 RefPtr<IWICImagingFactory> SWFParser::wicFactory;
-RefPtr<IDWriteFactory> SWFParser::dwFactory;
 WCHAR SWFParser::locale[LOCALE_NAME_MAX_LENGTH];
 
 // static initialization
@@ -94,18 +93,14 @@ bool SWFParser::Init(ErrorHandler &eh)
 				MsgFmt(_T("%s failed, HRESULT=%lx"), where, hr));
 
 			// release any resources we created
-			dwFactory = nullptr;
 			d2dFactory = nullptr;
 			wicFactory = nullptr;
 			return false;
 		};
 
-		// create the DWrite fatory
-		if (!SUCCEEDED(hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), reinterpret_cast<IUnknown**>(&dwFactory))))
-			return HRError(_T("DWriteCreateFactory"));
-
 		// create the D2D factory
-		if (!SUCCEEDED(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2dFactory)))
+		d2dFactory = nullptr;
+		if (!SUCCEEDED(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_MULTI_THREADED, &d2dFactory)))
 			return HRError(_T("D2D1CreateFactory"));
 
 		// retrieve the system default locale name
@@ -113,6 +108,7 @@ bool SWFParser::Init(ErrorHandler &eh)
 			wcscpy_s(locale, L"en-US");
 
 		// initialize a WIC factory
+		wicFactory = nullptr;
 		if (!SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wicFactory))))
 			return HRError(_T("CoCreateInstance(WICImagingFactory)"));
 
@@ -129,7 +125,6 @@ void SWFParser::Shutdown()
 	if (inited)
 	{
 		// release D2D resources
-		dwFactory = nullptr;
 		d2dFactory = nullptr;
 		wicFactory = nullptr;
 
