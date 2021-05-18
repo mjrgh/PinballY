@@ -114,7 +114,10 @@ bool SWFParser::Init(ErrorHandler &eh)
 
 		// initialize a WIC factory
 		if (!SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wicFactory))))
-			return HRError(_T("CoCreateInstance(WICImagingFatory)"));
+			return HRError(_T("CoCreateInstance(WICImagingFactory)"));
+
+		// we're now initialized
+		inited = true;
 	}
 
 	// success
@@ -126,6 +129,7 @@ void SWFParser::Shutdown()
 	if (inited)
 	{
 		// release D2D resources
+		dwFactory = nullptr;
 		d2dFactory = nullptr;
 		wicFactory = nullptr;
 
@@ -2490,20 +2494,20 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //
 // - The shared-border case is described in P.A.M. Senster's
 //   "The design and implementation of Google Swiffy: A Flash to
-//   HTML5 converter
+//   HTML5 converter:
 //
 //      https://repository.tudelft.nl/islandora/object/uuid%3Acab4b862-d662-432a-afa4-45ccb725177f
 //
 //   There, the author describes an algorithm for converting an
-//   SWF shape to an SVG, which has the same constraints on style
+//   SWF shape to SVG, which has the same constraints on style
 //   homogeneity that Direct2D has.  Like the self-overlapping
 //   case, I haven't seen any SWFs that actually use the shared
 //   border capabiilty of the left/right fill, but this at least
 //   seems like a case that might actually come up, if only
 //   because I can imagine SWF creation tools deliberately using
 //   it as an optimization to reduce file size.  In the days
-//   when SWF was relevant, file size reduction was such a high
-//   priority that such an optimization is quite believable.
+//   when SWF was relevant, file size reduction was so critical
+//   that nearly trivial optimizations like this are believable.
 //
 // - I haven't seen the donut-hole case described anywhere, but
 //   it seems to be the only one that actually occurs in the SWF
@@ -2511,21 +2515,23 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //   artifact of the Flash rendering algorithm that isn't described
 //   in the SWF spec or anywhere else I've seen, but it's critical
 //   to proper rendering of virtually all of the HyperPin Media
-//   Pack instruction card samples!  It's so important there
-//   because they're mostly vectorized text outlines, hence they
-//   use lots of donut holes for the interior of closed letter
-//   shapes like "O" and "D" and "B".
+//   Pack instruction card samples, so it's the one case that we
+//   particularly care about.  It's so important for the extant
+//   Media Pack instruction cards because they're mostly
+//   vectorized text outlines, hence they use lots of donut
+//   holes for the interiors of closed letter shapes like "O"
+//   and "D" and "B".
 //
 //   To see how the donut-hole case works, lets look at the
 //   letter "O" (which is, after all, practically the epitome of
-//   "donut-shaped").  In this case, the SWF shape definition will
+//   donut-shaped).  In this case, the SWF shape definition will
 //   consist of two paths, one for the outline of the outside
 //   perimeter of the "O", and one for the perimeter of the hole.
 //   The outer path will consist of perhaps four curved segments
 //   winding counter-clockwise, with FillStyle0 ("left fill") set
 //   to the fill color for the letter.  The inner path will
 //   consist of a similar set of line segments, but will wind
-//   in clockwise, also with FillStyle0.  FillStyle0 means that
+//   clockwise, also with FillStyle0.  FillStyle0 means that
 //   we fill the closed region to the left of the line, so the
 //   outer CCW loop fills the interior of the "O".  By itself,
 //   that would describe a completely filled-in circle.  But the
@@ -2533,11 +2539,11 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //   the circle it describes.  That's why I think this is an
 //   artifact of the Flash Player rendering algorithm: it seems
 //   that, by itself, this inner circle wouldn't render a fill
-//   at all - fills only apply to the enclosed interior of a
-//   path.  However, taken in combination, the "fill inside this
-//   line" on the outside and "fill outside this line" on the
-//   inside combine to say "flll the region between these two
-//   lines".
+//   at all - fills only seem to apply to the enclosed interior
+//   of a path.  However, taken in combination, the "fill inside
+//   this line" on the outside and "fill outside this line" on
+//   the inside combine to say "flll the region between these 
+//   two lines".
 //
 //   It so happens that SVG, D2D, and probably many other 2D
 //   graphics models use a similar "winding direction" model for
@@ -2545,7 +2551,16 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //   for free as long as we (a) maintain the original winding
 //   orders from the SWF when translating to D2D, and (b) combine
 //   all of the paths with shared fill style into a single "Group
-//   Geometry" (in D2D terms).
+//   Geometry" (in D2D terms).  Maintaining the SWF winding
+//   direction just means building the paths out of segments
+//   in the same order as the SWF, which is the easy approach
+//   that you'd use default if you weren't even thinking about
+//   any of this.  Combining the paths by common fill style
+//   takes some more work, though: we have to deliberately
+//   regroup the segments by fill style rather than by SWF file
+//   order.  Doing that, while preserving the SWF order for the
+//   segments within each group, will naturally reproduce the
+//   SWF donut-hole fill rendering.
 //
 // D2D's winding-direction fill rule is direction-independent:
 // it only cares about *changes* in winding direction between
@@ -2569,7 +2584,7 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 // most segments will just go into a Line Style map and one
 // Fill Style map.
 //
-// What about choosing between left fill and righ fill?  Well,
+// What about choosing between left fill and right fill?  Well,
 // D2D doesn't have a way to specify different fill styles for
 // clockwise and counterclockwise paths, so all we can do is
 // enlist a path under BOTH of its fill styles, and hope that
@@ -2580,7 +2595,17 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 // The experience of other tools using a similar algorithm to
 // render SWF files with HTML5 and SVG (Swiffy, swf2js) suggests
 // that it also works for a broader sampling of extant SWFs.
-
+// I think the winding-rule approach that all of the modern
+// vector systems use is essentially a more formally correct
+// way to express what SWF was trying to express with the
+// left/right fill system, with more predictable results, so
+// I expect that most real-world cases in SWF will happen to
+// map naturally to the winding-rule model.  The SWF left/right
+// model can express additional types of cases that the winding
+// model can't, but my intuition is that they're probably
+// mostly pathological - unpredictable from the spec alone
+// and dependent upon the particular implementation.
+//
 // On the second pass, we go through the fill style collection,
 // one style at a time, and draw each continuous figure we find.
 // A continuous figure is a set of segments where the end point

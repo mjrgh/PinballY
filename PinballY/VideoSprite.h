@@ -24,6 +24,9 @@ public:
 		ErrorHandler &eh, const TCHAR *descForErrors, 
 		bool play = true, int volumePct = 100);
 
+	// is the first frame ready?
+	virtual bool IsFrameReady() const { return videoPlayer != nullptr && videoPlayer->IsFrameReady(); }
+
 	// Clear resources
 	virtual void Clear() override;
 

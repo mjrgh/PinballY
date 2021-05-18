@@ -436,7 +436,7 @@ bool SecondaryView::LoadCurrentGameMedia(GameListItem *game, bool fireEvents)
 				UpdateDrawingList();
 
 				// start the fade timer, unless we have a video that's still loading
-				if (sprite->GetVideoPlayer() == nullptr || sprite->GetVideoPlayer()->IsFrameReady())
+				if (sprite->IsFrameReady())
 					StartBackgroundCrossfade();
 			}
 			else

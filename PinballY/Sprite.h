@@ -79,6 +79,9 @@ public:
 	// shader resource view is currently loaded.
 	void RenderMesh();
 
+	// Is the first frame ready for display?
+	virtual bool IsFrameReady() const { return loadContext != nullptr && loadContext->readyState == LoadContext::ReadyState::Ready; }
+
 	// image load size, in normalized coordinates (window height = 1.0)
 	POINTF loadSize;
 
@@ -189,7 +192,7 @@ protected:
 	bool CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors);
 
 	// create the texture and resource view from a bitmap
-	bool CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors,
+	static bool CreateTextureFromBitmapStatic(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors,
 		TextureAndView *tv);
 
 	// create the mesh
@@ -226,6 +229,28 @@ protected:
 	// special sprites can use a different shader as needed.
 	virtual Shader *GetShader() const;
 
+	// staging texture - used only for Flash objects
+	RefPtr<ID3D11Texture2D> stagingTexture;
+
+	// Animation frame 
+	struct AnimFrame
+	{
+		// time to display this frame, in milliseconds
+		DWORD dt;
+
+		// text and shader resource view for the frame
+		TextureAndView tv;
+	};
+
+	// Animation loader interface.  This is the abstract base class
+	// for the various animation formats (GIF, APNG, SWF).
+	struct LoadContext;
+	struct Animation
+	{
+		virtual ~Animation() { }
+		virtual void DecodeNext(LoadContext *) = 0;
+	};
+
 	// Deferred loader context.  Loading images can take a noticable
 	// amount of time - enough to cause visible rendering glitches, 
 	// if done on the foreground thread.  To mitigate this, we allow
@@ -241,48 +266,44 @@ protected:
 	// its last reference.
 	struct LoadContext : RefCounted
 	{
-		// Is the object ready?  The render won't use the resources
-		// until this is true, so the loader lets us know that it's
-		// done by setting this flag.  Note that no heavier-weight
-		// thread synchronization is needed, since this can only be
-		// written by the loader thread.
-		//
-		// Note that we initialize this to true by default, because
-		// most of our loading is just done inline on the foreground
-		// thread.  We only need to set this to false when we're
-		// kicking off an async thread to do the loading.
-		bool ready = true;
+		// Object loading state.  For synchronously loaded objects,
+		// this starts out as Ready and stays Ready.  For objects
+		// loaded on a background thread, this starts off as Loading,
+		// and the background thread changes it to Loaded when the
+		// object is ready for display.  The renderer then changes
+		// it to Ready.  The transition from Loaded to Ready triggers
+		// an AVPMsgFirstFrameReady to the message window.
+		enum ReadyState
+		{
+			Loading,
+			Loaded,
+			Ready
+		};
+		ReadyState readyState = Ready;
 
 		// our texture, and its shader resource view
 		TextureAndView tv;
+
+		// Animation object, if applicable
+		std::unique_ptr<Animation> animation;
+
+		// List of animation frames.  Animation format loaders can
+		// use this to load an entire animation in the background
+		// before rendering starts, to ensure stall-free playback.
+		std::vector<std::unique_ptr<AnimFrame>> animFrames;
+
+		// current animation frame index
+		UINT curAnimFrame = 0;
+
+		// ending time of the current frame, in system ticks
+		UINT64 curAnimFrameEndTime = 0;
 	};
 
-	// current loading context
-	RefPtr<LoadContext> loadContext;
-
-	// staging texture - used only for Flash objects
-	RefPtr<ID3D11Texture2D> stagingTexture;
-
-	// Animation frame 
-	struct AnimFrame
-	{
-		// time to display this frame, in milliseconds
-		DWORD dt;
-
-		// text and shader resource view for the frame
-		TextureAndView tv;
-	};
-
-	// animation frame list
-	std::vector<std::unique_ptr<AnimFrame>> animFrames;
-
-	// animation handler
-	struct Animation
-	{
-		virtual ~Animation() { }
-		virtual void DecodeNext(Sprite *sprite) = 0;
-	};
-	std::unique_ptr<Animation> animation;
+	// If we have an animated image, we'll allocate a media cookie
+	// for it, as though it were using a video or audio player.
+	// This lets us generate AVP messages related to the animation
+	// playback.
+	DWORD animCookie = 0;
 
 	// is the animation (if any) running?
 	bool animRunning = true;
@@ -290,17 +311,8 @@ protected:
 	// is the animation played on a loop?
 	bool animLooping = true;
 
-	// current animation frame index
-	UINT curAnimFrame = 0;
-
-	// ending time of the current frame, in system ticks
-	UINT64 curAnimFrameEndTime = 0;
-
-	// If we have an animated image, we'll allocate a media cookie
-	// for it, as though it were using a video or audio player.
-	// This lets us generate AVP messages related to the animation
-	// playback.
-	DWORD animCookie = 0;
+	// current loading context
+	RefPtr<LoadContext> loadContext;
 
 	// Message HWND.  This is the target window for any AVPxxx 
 	// messages we generate for animated media.
@@ -319,13 +331,10 @@ protected:
 		virtual ~SWFLoaderState();
 
 		// Animation interface implementation
-		virtual void DecodeNext(Sprite *sprite) override;
+		virtual void DecodeNext(LoadContext *ctx) override;
 
 		// release resources
 		void Clear() { }
-
-		// create an animation frame from the last decoded SWF frame
-		bool CreateAnimFrame(Sprite *sprite);
 
 		// SWF file parser/renderer
 		std::unique_ptr<SWFParser> parser;
@@ -374,11 +383,11 @@ protected:
 	{
 		// Animation interface implementation
 		virtual ~GIFLoaderState() { Clear(); }
-		virtual void DecodeNext(Sprite *sprite) override
+		virtual void DecodeNext(LoadContext *ctx) override
 		{
 			// if we haven't reached the last frame yet, decode the next frame
-			if (sprite->animFrames.size() < nFrames)
-				DecodeFrame(sprite);
+			if (ctx->animFrames.size() < nFrames)
+				DecodeFrame(ctx);
 		}
 
 		// initialize
@@ -451,7 +460,7 @@ protected:
 		RECT rcSub = { 0, 0, 0, 0 };
 
 		// Decode the next GIF frame
-		void DecodeFrame(Sprite *sprite);
+		void DecodeFrame(LoadContext *ctx);
 	};
 
 	// Animated PNG incremental frame reader.  This is the PNG
@@ -462,7 +471,7 @@ protected:
 	{
 		// Animation interface implementation
 		virtual ~APNGLoaderState() { EndProcessing(); }
-		virtual void DecodeNext(Sprite *sprite) override;
+		virtual void DecodeNext(LoadContext *ctx) override;
 
 		// Initialize.  This opens the file and scans for the animated
 		// PNG marker chunk.  Returns true if we successfully identify
@@ -686,6 +695,6 @@ protected:
 		DWORD ReadChunk(Chunk &chunk);
 
 		// create an animation frame and add it to the sprite's frame list
-		bool CreateAnimFrame(Sprite *sprite);
+		bool CreateAnimFrame(LoadContext *ctx);
 	};
 };

@@ -123,7 +123,7 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 {
 	// WIC file loading can be kind of slow for large image files.
 	// Do the loading in a thread.
-	loadContext->ready = false;
+	loadContext->readyState = LoadContext::ReadyState::Loading;
 
 	// set up the thread context
 	struct ThreadContext
@@ -158,8 +158,8 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 		}
 		else
 		{
-			// resource is ready
-			ctx->loadContext->ready = true;
+			// resource is loaded
+			ctx->loadContext->readyState = LoadContext::ReadyState::Loaded;
 		}
 		
 		return 0;
@@ -186,51 +186,143 @@ bool Sprite::LoadWICTexture(const WCHAR *filename, POINTF normalizedSize, ErrorH
 
 bool Sprite::LoadSWF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, ErrorHandler &eh)
 {
-	// Check the mode
+	// Check the mode.  We can load either via our internal SWF renderer or
+	// out Flash Player plug-in host site.  Adobe made Flash Player obsolete
+	// at the beginning of 2021, and pushed out an update that was intended
+	// to disable all existing installations, so everyone should be using
+	// the internal renderer option from now on.  However, we're leaving it
+	// as an option, in case anyone wants to try to keep their Flash Player
+	// working using an older version from before Adobe's kill-switch update.
+	// I don't recommend trying to keep Flash working, primarily just because
+	// it's always on ongoing maintenance hassle to rely on out-of-date
+	// system software, but also because Flash Player was always weak on
+	// on security even when Adobe was still updating it.
 	if (Application::Get()->useInternalSWFRenderer)
 	{
-		// We're using our internal SWF mini-renderer.  Create an SWF loader.
-		std::unique_ptr<SWFLoaderState> loader(new SWFLoaderState(pixSize));
+		// Use the internal SWF renderer.
+		//
+		// Load the file asynchronously, in a background thread, so that we
+		// don't stall foreground video playback while loading.  Most SWF
+		// files I've tested take around 25ms to load, which is longer than
+		// a video cycle on a 60Hz monitor, so blocking the foreground thread
+		// for that long could cause visible stutter.  Some of the more
+		// complex Instruction Card SWF files take longer still - I've seen
+		// load times of up to 133ms, which is about 8 video cycles at 60Hz,
+		// which would be highly noticeable to the eye.  
+		loadContext->readyState = LoadContext::ReadyState::Loading;
 
-		// Try loading the file.  Use incremental mode so that we stop as soon
-		// as the first frame is ready to render.
-		if (!loader->parser->Load(filename, eh, true))
-			return false;
+		// set up a therad context
+		struct ThreadContext
+		{
+			ThreadContext(LoadContext *loadContext, const WCHAR *filename, SIZE pixSize) :
+				loadContext(loadContext, RefCounted::DoAddRef),
+				filename(filename),
+				pixSize(pixSize)
+			{ }
 
-		// render the first frame
-		if (!loader->CreateAnimFrame(this))
-			return false;
+			RefPtr<LoadContext> loadContext;
+			WSTRING filename;
+			SIZE pixSize;
+		};
+		std::unique_ptr<ThreadContext> ctx(new ThreadContext(loadContext, filename, pixSize));
+
+		// backgrond thread entrypoint
+		auto ThreadMain = [](LPVOID params) -> DWORD
+		{
+			// get the context - we own it and must discard it when done, so use a unique_ptr
+			std::unique_ptr<ThreadContext> ctx(static_cast<ThreadContext*>(params));
+
+			// set up the SWF loader
+			std::unique_ptr<SWFLoaderState> loader(new SWFLoaderState(ctx->pixSize));
+
+			// since we're running in the background, we can't display errors
+			// interactively, so log them
+			LogFileErrorHandler leh;
+
+			// Try loading the file.  Use incremental mode so that we stop as soon
+			// as the first frame is ready to render.
+			if (!loader->parser->Load(ctx->filename.c_str(), leh, true))
+				return false;
+
+			// generate frames
+			for (;;)
+			{
+				// render the current frame
+				bool ok = true;
+				DrawOffScreen(ctx->pixSize.cx, ctx->pixSize.cy,
+					[&ctx, &loader, &ok](HDC hdc, HBITMAP hbitmap, const void *dibits, const BITMAPINFO &bmi)
+				{
+					// render the current SWF display list into the DC
+					LogFileErrorHandler leh;
+					ok = loader->parser->Render(hdc, hbitmap, ctx->pixSize, leh);
+					if (ok)
+					{
+						// create the animation frame
+						auto af = ctx->loadContext->animFrames.emplace_back(new AnimFrame()).get();
+
+						// set the delay time for the frame - SWF has a fixed frame rate for the
+						// whole sequence
+						af->dt = loader->parser->GetFrameDelay();
+
+						// create the texture
+						ok = Sprite::CreateTextureFromBitmapStatic(bmi, dibits, leh, _T("Sprite::SWFLoaderState::CreateAnimFrame"), &af->tv);
+					}
+				});
+
+				// stop if we're at EOF
+				if (loader->parser->AtEof())
+					break;
+
+				// load the next frame from the SWF file
+				if (!loader->parser->ParseFrame(leh))
+					break;
+			}
+
+			// we're done with the parser - free it up, since it's holding
+			// the whole SWF file in memory
+			loader->parser.reset();
+
+			// initialize the animation
+			ctx->loadContext->curAnimFrame = 0;
+			ctx->loadContext->animation.reset(loader.release());
+
+			// the resource is loaded
+			ctx->loadContext->readyState = LoadContext::ReadyState::Loaded;
+
+			// exit the thread
+			return 0;
+		};
 
 		// create the mesh
 		if (!CreateMesh(normalizedSize, eh, MsgFmt(_T("file \"%ws\""), filename)))
 			return false;
 
-		// initialize the animation
-		animRunning = true;
-		curAnimFrame = 0;
-		curAnimFrameEndTime = GetTickCount64() + loader->parser->GetFrameDelay();
-		animation.reset(loader.release());
+		// kick off the loader thread
+		DWORD tid;
+		HandleHolder hThread(CreateThread(0, 0, ThreadMain, ctx.get(), 0, &tid));
+
+		// if the thread startup succeeded, release the context object to the thread;
+		// otherwise try doing the work inline
+		if (hThread != nullptr)
+			ctx.release();
+		else
+			ThreadMain(ctx.get());
 
 		// success
 		return true;
 	}
 	else
 	{
-		// Attention! Flash Player is obsolete!
-		//
-		// We're using the Flash Player DirectX control as the SWF renderer.
-		// Note that Flash Player is officially obsolete as of January 2021,
-		// and Adobe pushed out an update that disables it, so this shouldn't
-		// work on an up-to-date system.  We're keeping this code anyway, for 
-		// the sake of anyone who chose not to install the update (or chose to
-		// revert to an older version).  That's against Adobe's strong advice,
-		// since Flash is considered such a security risk (it always was, but
-		// it's even more so now that Adobe has washed their hands of it).
-		// But for the limited use that we make of it in PinballY (it's really
-		// just for instruction cards from HyperPin Media Packs), it's
-		// relatively safe just because all of the SWF files come from trusted
-		// sources.
-		//
+		// Use the Flash Player DirectX control.
+		// Attention!  Flash Player is obsolete!  Adobe pushed an update in
+		// January 2021 that was intended to disable Flash Player plugins on
+		// all systems where it was installed, so this option shouldn't work
+		// on any up-to-date system - the updated/disabled plug-in loads, but
+		// it just displays a generic "no image" icon in place of the SWF
+		// content.  This code should eventually be removed, but I'm leaving
+		// it for now (with the settings option to enable it) for reference,
+		// and in case anyone wants to use an old Flash Player verison.
+
 		// Create the new Flash site.  Our FlashClientSite creates a windowless
 		// activation site for the Flash object, loads the file (as a "movie"),
 		// and starts playback.  The windowless site captures the Flash graphics
@@ -270,40 +362,9 @@ Sprite::SWFLoaderState::~SWFLoaderState()
 }
 
 
-void Sprite::SWFLoaderState::DecodeNext(Sprite *sprite)
+void Sprite::SWFLoaderState::DecodeNext(LoadContext *)
 {
-	// if we haven't reached the last frame yet, decode the next frame
-	if (sprite->animFrames.size() < parser->GetFrameCount()
-		&& parser->ParseFrame(LogFileErrorHandler()))
-		CreateAnimFrame(sprite);
-}
-
-bool Sprite::SWFLoaderState::CreateAnimFrame(Sprite *sprite)
-{
-	// render the current frame into a memory DC
-	bool ok = true;
-	DrawOffScreen(targetPixSize.cx, targetPixSize.cy,
-		[this, sprite, &ok](HDC hdc, HBITMAP hbitmap, const void *dibits, const BITMAPINFO &bmi) 
-	{
-		// render the current SWF display list into the DC
-		LogFileErrorHandler leh;
-		ok = this->parser->Render(hdc, hbitmap, targetPixSize, leh);
-		if (ok)
-		{
-			// create the animation frame
-			auto af = sprite->animFrames.emplace_back(new AnimFrame()).get();
-
-			// set the delay time for the frame - SWF has a fixed frame rate for the
-			// whole sequence
-			af->dt = this->parser->GetFrameDelay();
-
-			// create the texture
-			ok = sprite->CreateTextureFromBitmap(bmi, dibits, leh, _T("Sprite::SWFLoaderState::CreateAnimFrame"), &af->tv);
-		}
-	});
-
-	// return the result
-	return ok;
+	// not used - we do our decoding in the background thread instead of on-demand
 }
 
 // Load a PNG, with animation support
@@ -322,12 +383,12 @@ bool Sprite::LoadAPNG(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize
 			return false;
 
 		// transfer ownership of the loader to the Sprite
-		animation.reset(loader.release());
+		loadContext->animation.reset(loader.release());
 
 		// initialize the animation
 		animRunning = true;
-		curAnimFrame = 0;
-		curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
+		loadContext->curAnimFrame = 0;
+		loadContext->curAnimFrameEndTime = GetTickCount64() + loadContext->animFrames[0]->dt;
 
 		// success
 		return true;
@@ -377,21 +438,21 @@ bool Sprite::APNGLoaderState::Init(Sprite *sprite, const WCHAR *filename, POINTF
 		return false;
 
 	// Create first snimation frame
-	if (!CreateAnimFrame(sprite))
+	if (!CreateAnimFrame(sprite->loadContext))
 		return false;
 
 	// success
 	return true;
 }
 
-void Sprite::APNGLoaderState::DecodeNext(Sprite *sprite)
+void Sprite::APNGLoaderState::DecodeNext(LoadContext *ctx)
 {
 	// read through the next frame
 	if (!eof && ReadThroughNextFrame())
-		CreateAnimFrame(sprite);
+		CreateAnimFrame(ctx);
 }
 
-bool Sprite::APNGLoaderState::CreateAnimFrame(Sprite *sprite)
+bool Sprite::APNGLoaderState::CreateAnimFrame(LoadContext *ctx)
 {
 	// make sure there's a current frame
 	if (frameCur.data == nullptr)
@@ -418,7 +479,7 @@ bool Sprite::APNGLoaderState::CreateAnimFrame(Sprite *sprite)
 	svd.Texture2D.MostDetailedMip = 0;
 
 	// add an animation frame
-	auto af = sprite->animFrames.emplace_back(new AnimFrame()).get();
+	auto af = ctx->animFrames.emplace_back(new AnimFrame()).get();
 
 	// Figure the display time.  APNG expresses the time in seconds,
 	// as a fraction (numerator divided by denominator) of two 16-bit.
@@ -438,7 +499,7 @@ bool Sprite::APNGLoaderState::CreateAnimFrame(Sprite *sprite)
 			MsgFmt(_T("Sprite::APNGLoaderState::CreateAnimFrame, CreateTexture2D failed, HRESULT %lx: %s"), (long)hr, winMsg.Get()));
 
 		// discard the aborted frame
-		sprite->animFrames.pop_back();
+		ctx->animFrames.pop_back();
 
 		// return failure
 		return false;
@@ -1100,28 +1161,26 @@ bool Sprite::LoadGIF(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize,
 
 	// decode the first frame; if that doesn't leave us with one frame in the 
 	// frame list, the decoding failed, so fail the whole load
-	loader->DecodeFrame(this);
-	if (animFrames.size() == 0)
+	loader->DecodeFrame(loadContext);
+	if (loadContext->animFrames.size() == 0)
 		return false;
 
-	// Initialize the animation.  Start at the first frame, and set the end time
-	// for the frame to the current time plus the frame's display time.
+	// Initialize the animation
 	animRunning = true;
-	curAnimFrame = 0;
-	curAnimFrameEndTime = GetTickCount64() + animFrames[0]->dt;
+	loadContext->curAnimFrame = 0;
 
 	// allocate a media player cookie, so that we can generate AVPXxx messages
 	// related to the playback
 	animCookie = AudioVideoPlayer::AllocMediaCookie();
 
-	// transfer ownership of the loader to the Sprite
-	animation.reset(loader.release());
+	// transfer ownership of the loader to the load context
+	loadContext->animation.reset(loader.release());
 
 	// success
 	return true;
 }
 
-void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
+void Sprite::GIFLoaderState::DecodeFrame(LoadContext *ctx)
 {
 	// if we've decoded the last frame, we're done
 	if (iFrame >= nFrames)
@@ -1275,7 +1334,7 @@ void Sprite::GIFLoaderState::DecodeFrame(Sprite *sprite)
 		auto imageData = image->GetImage(0, 0, 0);
 
 		// create an animation frame
-		auto animFrame = sprite->animFrames.emplace_back(new AnimFrame()).get();
+		auto animFrame = ctx->animFrames.emplace_back(new AnimFrame()).get();
 		animFrame->dt = static_cast<DWORD>(delay);
 
 		// set up the D3D texture descriptor
@@ -1439,10 +1498,10 @@ bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, 
 	loadContext.Attach(new LoadContext());
 
 	// create the texture and load it into the new load context
-	return CreateTextureFromBitmap(bmi, dibits, eh, descForErrors, &loadContext->tv);
+	return CreateTextureFromBitmapStatic(bmi, dibits, eh, descForErrors, &loadContext->tv);
 }
 
-bool Sprite::CreateTextureFromBitmap(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors, TextureAndView *tv)
+bool Sprite::CreateTextureFromBitmapStatic(const BITMAPINFO &bmi, const void *dibits, ErrorHandler &eh, const TCHAR *descForErrors, TextureAndView *tv)
 {
 	// Figure the pixel width and height from the bitmap header.  Note
 	// that the header height will be negative for a top-down bitmap
@@ -1563,8 +1622,25 @@ void Sprite::Render(Camera *camera)
 {
 	// If there's no loader context, or it's not ready, we don't have 
 	// anything to render
-	if (loadContext == nullptr || !loadContext->ready)
+	if (loadContext == nullptr || loadContext->readyState == LoadContext::ReadyState::Loading)
 		return;
+
+	// Check if the context is newly ready
+	if (loadContext->readyState == LoadContext::ReadyState::Loaded)
+	{
+		// This is the first time this object has been rendered.  If
+		// it's animated, set the animation end time for the first frame,
+		// now that we know the start time ("now").
+		if (loadContext->animation != nullptr && loadContext->animFrames.size() != 0)
+			loadContext->curAnimFrameEndTime = GetTickCount64() + loadContext->animFrames.front()->dt;
+
+		// notify the message window that the first frame is ready
+		if (msgHwnd != NULL)
+			::PostMessage(msgHwnd, AVPMsgFirstFrameReady, animCookie, 0);
+
+		// mark the object as ready
+		loadContext->readyState = LoadContext::ReadyState::Ready;
+	}
 
 	// If we have a flash object, update its bitmap contents if necessary.
 	// This requires copying the DIB bits into the D3D texture, so it's
@@ -1665,7 +1741,7 @@ void Sprite::Render(Camera *camera)
 	ID3D11ShaderResourceView *rvToRender = loadContext->tv.rv;
 
 	// check for animation
-	if (animation != nullptr)
+	if (loadContext->animation != nullptr)
 	{
 		// If the animation is running, check if it's time to advance to the 
 		// next frame.  We might have to advance past multiple frames, because
@@ -1675,13 +1751,13 @@ void Sprite::Render(Camera *camera)
 		// be displayed as a separate frame.  So we skip these frames on
 		// rendering.
 		UINT64 now = GetTickCount64();
-		while (animRunning && now >= curAnimFrameEndTime)
+		while (animRunning && now >= loadContext->curAnimFrameEndTime)
 		{
 			// If decoding is still in progress, decode the next frame
-			animation->DecodeNext(this);
+			loadContext->animation->DecodeNext(loadContext);
 
 			// advance to the next frame; loop after the last frame
-			if (++curAnimFrame >= animFrames.size())
+			if (++loadContext->curAnimFrame >= loadContext->animFrames.size())
 			{
 				// If we have a message window, post an end-of-loop message.
 				// (Do this with a Post rather than a Send, so that we don't
@@ -1692,26 +1768,26 @@ void Sprite::Render(Camera *camera)
 				// If we're looping, return to the first frame; otherwise,
 				// pause the animation and stay on the last frame.
 				if (animLooping)
-					curAnimFrame = 0;
+					loadContext->curAnimFrame = 0;
 				else
 				{
-					curAnimFrame = animFrames.size() > 0 ? static_cast<UINT>(animFrames.size() - 1) : 0;
+					loadContext->curAnimFrame = loadContext->animFrames.size() > 0 ? static_cast<UINT>(loadContext->animFrames.size() - 1) : 0;
 					animRunning = false;
 				}
 			}
 			
 			// Stop if we don't have a frame available.  (This can only
 			// occur if decoding fails, but that's always a possibility.)
-			if (curAnimFrame >= animFrames.size())
+			if (loadContext->curAnimFrame >= loadContext->animFrames.size())
 				break;
 
 			// figure the frame end time
-			curAnimFrameEndTime = now + animFrames[curAnimFrame]->dt;
+			loadContext->curAnimFrameEndTime = now + loadContext->animFrames[loadContext->curAnimFrame]->dt;
 		}
 
 		// use the current frame's shader resource view
-		if (curAnimFrame < animFrames.size())
-			rvToRender = animFrames[curAnimFrame]->tv.rv;
+		if (loadContext->curAnimFrame < loadContext->animFrames.size())
+			rvToRender = loadContext->animFrames[loadContext->curAnimFrame]->tv.rv;
 	}
 
 	// do nothing if we don't have a shader resource view
@@ -1819,11 +1895,13 @@ void Sprite::AdviseWindowSize(SIZE szLayout)
 void Sprite::Clear()
 {
 	// clear the animation frame list
-	curAnimFrame = 0;
-	animFrames.clear();
-	animation = nullptr;
-	animRunning = false;
-	animation.reset();
+	if (loadContext != nullptr)
+	{
+		loadContext->curAnimFrame = 0;
+		loadContext->animFrames.clear();
+		loadContext->animation = nullptr;
+		animRunning = false;
+	}
 
 	// forget any message target window
 	msgHwnd = NULL;

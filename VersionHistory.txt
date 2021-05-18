@@ -3,38 +3,41 @@ PinballY Update History
 
 05-xx-2021 (1.1.0 Beta 5)
 
-* PinballY's installation dependencies just got simpler!  PinballY now
-has its own built-in SWF renderer, to replace the obsolete Adobe Flash
-Player.  Adobe officially made Flash Player obsolete at the start of
-2021, and pushed an update that disables existing installations.
-Since PinballY formerly depended upon the Flash Player ActiveX plugin
-to display SWF files, Adobe's pushed update had the effect of breaking
-SWF display for PinballY on most systems.  To fix this, PinballY can
-now has its own built-in SWF renderer that doesn't require Flash
-Player or any other external software.
+* PinballY now has its own built-in SWF renderer for Instruction Card
+media.  This replaces the obsolete Adobe Flash Player, which stopped
+working on most systems after Adobe pushed an update to disable
+existing installations.  PinballY formerly depended upon the Flash
+Player ActiveX plugin to display SWF files, so Adobe's pushed update
+made it impossible for PinballY to display SWF instruction cards.
 
-The SWF renderer is brand new code and hasn't been tested with the
-full range of Instruction Card media yet, so I'm sure there are some
-(perhaps many) that won't display properly.  If you run into any,
-please send me the SWF files so that I can take a look.  (If you want
-to see the way a particular SWF file "should" look, you can still
-download Flash Projector from the Adobe site.  Projector is a
+To fix this, PinballY now has its own built-in SWF renderer that
+doesn't require Flash Player or any other external software.
+
+This is brand new code, and I've only tested with a subset of the
+available Instruction Card media, so I'm sure there are some (perhaps
+many) existing card files that won't display properly.  If you run
+into any, please send me the SWF files so that I can take a look.  (If
+you want to see the way a particular SWF file "should" look, you can
+still download Flash Projector from the Adobe site.  Projector is a
 standalone Flash Player app that will show you how the file looks
 under the official Adobe renderer.)  Please note that I only intend to
 make the built-in SWF renderer work with *Instruction Card* files from
-the HyperPin Media Packs.  I'm not planning to support the full range
-of SWF files - this isn't a general-purpose replacement for Flash
-Player.)
+the HyperPin Media Packs.  This isn't meant to be a general-purpose
+Flash Player replacement.
 
 With the new renderer in place, PinballY no longer uses Flash Player
 at all, so you can delete it from your system if you've been keeping
 it around just for the sake of PinballY.  If for some reason you want
 to override the built-in renderer and keep using Flash Player for now,
-you can edit Settings.txt and set UseInternalSWFRenderer=0.  (This
-isn't exposed in the options dialogs, since, really, no one should
-ever want to use it.)  Eventually, I plan to entirely delete the code
-in PinballY that hosts Flash Player, but I'm leaving it in place for
-now just in case anyone still has a use for it.
+you can edit Settings.txt and set UseInternalSWFRenderer=0.  I don't
+recommend that, since it'll be an ongoing hassle to keep Flash Player
+working when Adobe is trying so hard to kill it, but the option is
+there for now.  (If you have a strong objection to my plan to
+eventually remove that option and switch to the internal SWF renderer
+only, let me know why, and I might reconsider.  I'd prefer to remove
+the Flash Player support for the sake of code hygiene - code that no
+one's using just complicates the program and creates more points of
+potential failures.)
 
 * A new option in the Audio/Video dialog lets you set the DMD "dots"
 high score display to use a fixed 4:1 aspect ratio, rather than
