@@ -1,5 +1,5 @@
 // This file is part of PinballY
-// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+// Copyright 2021 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 // SWF (Shockwave Flash) file reader, parser, and mini-renderer
 //

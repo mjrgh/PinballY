@@ -1,68 +1,85 @@
 // This file is part of PinballY
-// Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY
+// Copyright 2021 Michael J Roberts | GPL v3 or later | NO WARRANTY
 //
 // Shockwave Flash (SWF) file parser
-//
+// 
 // SWF (Shockwave Flash) file reader, parser, and mini-renderer.  This
 // implements a limited replacement for Flash Player.  Adobe officially
-// made Flash Player obsolete in January 2021 and pushed an update
-// that disables existing installations, so we can no longer use Flash
-// Player to display SWF files on most systems.  SWF files are used in
-// a PinballY context for instruction cards.  Most of the HyperPin Media
+// made Flash Player obsolete in January 2021 and pushed an update that
+// disables existing installations, so we can no longer use Flash Player
+// to display SWF files on most systems.  SWF files are used in a
+// PinballY context for instruction cards.  Most of the HyperPin Media
 // Packs available for download from the virtual pinball sites contain
 // SWF instruction cards, so it's convenient for users if PinballY can
-// display them directly.  This mini-renderer is designed to replace
-// the obsolete Flash Player to provide direct SWF display.
-//
-// SWF is a fairly complex format, but the instruction cards found in
-// the HyperPin Media Packs tend to use a small subset of SWF's
-// capabilities.  The main thing they use is SWF's vector graphics
-// facilities, to display the instruction card text.  In fact, that's
-// the whole reason that the people who created all of those Media
-// Packs chose SWF in the first place: they wanted a vector format
-// so that the files would scale well to any display resolution, as
-// a way of future-proofing the media for use on the higher-res
-// displays of the indefinite future.  As well-intentioned as that
-// was, it kind of backfired in that the entire SWF format is now
-// dead, so it hardly matters that it scales up nicely to modern
-// monitors.  At any rate, apart from the vector graphics, the
-// Media Pack instruction cards don't use much else from SWF's
-// feature set - they are by their nature just static images, so
-// they mostly don't have any use for animation or scripting.
-// I've observed the presence of ActionScript code in some of the
-// instruction card SWF files I've tested this with, but I'm
-// guessing it's just boilerplate code that was automatically
-// inserted by the tools used to compile the files, and doesn't
-// do anything that's actually necessary for proper display of
-// the static image in the first frame.  This mini-renderer just
-// ignores all scripting code, which not only simplifies the
-// implementation, but also neatly avoids most of Flash Player's
-// notorious security problems, which mostly arose from the
-// lack of any consideration given to security in ActionScript's
-// original design.  Ignoring the scripts largely eliminates the
-// potential for malicious SWF files to do any harm, since all
-// of that was tyically done through ActionScript.
-//
-// Adobe (for now) publishes a specification for the SWF file
-// format on their site, at:
-//
+// display them directly.  This mini-renderer is designed to replace the
+// obsolete Flash Player to provide direct SWF display.
+// 
+// SWF is a fairly complex format, but the instruction cards found in the
+// HyperPin Media Packs tend to use a small subset of SWF's capabilities,
+// so we don't have to implement all of SWF to get good coverage for that
+// one use case.  The main thing the instruction cards use is SWF's
+// vector graphics facilities, to display the instruction card text, and
+// many also use the embeddable bitmap graphics features for backgrounds
+// or for simple scans.  In fact, the whole reason that the people who
+// created all of those Media Packs chose SWF in the first place is that
+// SWF provides vector graphics for text.  That makes the cards scalable
+// to any display resolution, which future-proofs them against
+// ever-increasing monitor sizes and resolution.  As well-intentioned as
+// that was, it backfired in the "future-proofing" department, in that
+// the whole format turned out to be short-lived.  It hardly matters that
+// you can scale the vector graphics the files contain when you can't
+// display the files at all.  At any rate, the instruction cards in the
+// Media Packs don't use any of the really complex parts of the SWF
+// format; they are by nature just static images, so they don't have any
+// use for video or scripting.  I have observed the presence of
+// ActionScript tags in a few of the instruction card SWF files I've
+// tested this with, but I'm guessing it's just boilerplate code that was
+// automatically inserted by the tools used to compile the files, and
+// doesn't do anything that's actually necessary for proper display.
+// This mini-renderer just ignores all scripting code, which not only
+// simplifies the implementation, but also neatly avoids most of Flash
+// Player's notorious security problems, which mostly arose from the lack
+// of any consideration given to security in ActionScript's original
+// design.  Ignoring the scripts largely eliminates the potential for
+// malicious SWF files to do any harm, since all of that was typically
+// done through ActionScript.
+// 
+// Adobe (for now) publishes a specification for the SWF file format on
+// their site, at:
+// 
 // https://www.adobe.com/content/dam/acom/en/devnet/pdf/swf-file-format-spec.pdf
-//
-// That file is explicitly not licensed for redistribution, so I
-// can't include it in the PinballY repository in case Adobe removes
-// it from their site in the future (which doesn't seem unlikely,
-// since their position on SWF is that it's dead).  If you can't
-// the Adobe spec, there are a number of third-party descriptions of
-// the SWF format available.  There are also a number of open-source 
-// projects that at least parse the files, and in some cases render
-// it; these might be better references than any of the documentary
-// accounts, since evne the Adobe spec is awfully sketchy on the
-// details; a lot of SWF behavior seems to just be a matter of what
-// Flash Player happens to do.  The most complete open-source
-// examples I've found are gameswf and swf2js.  The Google Swiffy
-// project is probably more complete than eithr of those, but it
-// appears to have been erased from the Web, in keeping with the
+// 
+// That file is explicitly not licensed for redistribution, so I can't
+// include it in the PinballY repository in case Adobe removes it from
+// their site in the future (which doesn't seem unlikely, since their
+// position on SWF is that it's dead).  If you can't find the Adobe spec,
+// there are a number of third-party resources that document the SWF
+// format to some extent, although probably not as thoroughly as the
+// Adobe spec.  There are also a number of open-source projects that at
+// least parse SWF files, and in some cases render them.  Those can be
+// good references to use in combination with format documentation, since
+// even the Adobe spec is sketchy on many of the details.  Some SWF
+// behavior seems to just be a matter of what Flash Player happens to do,
+// more than anything deliberately specified or designed.  The most
+// complete open-source projects I've found are gameswf and swf2js.
+// Google Swiffy sounds like it might have been in the same league, but
+// Google withdrew it when Adobe made Flash obsolete, in keeping with the
 // general sentiment that SWF is better forgotten.
+// 
+// (Gameswf was actually designed as an embeddable library, so I was
+// initially hopeful about using that in PinballY instead of building my
+// own renderer.  But gameswf turned out to be unsuitable, in part
+// because its rendering engine is based on OpenGL [PinballY uses
+// Direct2D/3D], and in part because its rendering quality is poor and it
+// doesn't handle enough of the SWF samples I threw at it.  gameswf is
+// also long dead as a project and was abandoned for lack of interest
+// before it was ever "finished".  It's undoubtedly fixable and could be
+// ported to Direct2D, but after examining it I deemed it less work and
+// likely to yield a better result to build from scratch.  swf2js is
+// unsuitable because it's written in Javascript and requires a full Web
+// browser environment to function.  It's also really slow, like
+// 5-second-load-times-slow, and like gameswf, it failed to handle some
+// of the instruction card examples.)
 //
 
 #include "stdafx.h"
@@ -2498,14 +2515,15 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //   homogeneity that Direct2D has.  Like the self-overlapping
 //   case, I haven't seen any SWFs that actually use the shared
 //   border capabiilty of the left/right fill, but this at least
-//   seems like a case that might actually come up, if only
-//   because I can imagine SWF creation tools deliberately using
-//   it as an optimization to reduce file size.  In the days
-//   when SWF was relevant, file size reduction was so critical
-//   that nearly trivial optimizations like this are believable.
+//   seems like a case that might actually come up, and perhaps
+//   the author above mentions it because he found instances of
+//   it in real-world examples he tested against.  I can imagine
+//   SWF compilation tools deliberately using it as an automated
+//   optimization to reduce file size, given how important file
+//   size reduction was in the days when SWF was relevant.
 //
 // - I haven't seen the donut-hole case described anywhere, but
-//   it seems to be the only one that actually occurs in the SWF
+//   it seems to be the only case that actually occurs in the SWF
 //   samples I've examined.  It seems to be an almost accidental
 //   artifact of the Flash rendering algorithm that isn't described
 //   in the SWF spec or anywhere else I've seen, but it's critical
@@ -2545,10 +2563,10 @@ void SWFParser::ShapeRecord::ShapeDrawingContext::RenderMaps()
 //   exclusion regions, so we get this rendering feature almost
 //   for free as long as we (a) maintain the original winding
 //   orders from the SWF when translating to D2D, and (b) combine
-//   all of the paths with shared fill style into a single "Group
+//   all of the paths with shared fill style into a single "Path
 //   Geometry" (in D2D terms).  Maintaining the SWF winding
 //   direction just means building the paths out of segments
-//   in the same order as the SWF, which is the easy approach
+//   in the same order as the SWF, which is the naive approach
 //   that you'd use default if you weren't even thinking about
 //   any of this.  Combining the paths by common fill style
 //   takes some more work, though: we have to deliberately
