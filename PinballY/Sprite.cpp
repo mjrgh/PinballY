@@ -74,13 +74,13 @@ bool Sprite::Load(const WCHAR *filename, POINTF normalizedSize, SIZE pixSize, HW
 	{
 		// If it's an SWF, WIC can't handle it - we have to load it through
 		// our Flash client site object
-		if (desc.imageType == ImageFileDesc::SWF)
+		if (desc.imageType == ImageFileDesc::ImageType::SWF)
 			return LoadSWF(filename, normalizedSize, pixSize, eh);
 
 		// If it's a GIF or APNG, we need to load it specially in case it's animated
-		if (desc.imageType == ImageFileDesc::GIF)
+		if (desc.imageType == ImageFileDesc::ImageType::GIF)
 			return LoadGIF(filename, normalizedSize, pixSize, eh);
-		else if (desc.imageType == ImageFileDesc::APNG)
+		else if (desc.imageType == ImageFileDesc::ImageType::APNG)
 			return LoadAPNG(filename, normalizedSize, pixSize, eh);
 
 		// The WIC loader ignores orientation metadata (such as JPEG Exif data), so

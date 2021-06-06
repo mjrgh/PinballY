@@ -376,8 +376,8 @@ void DirectX::ComputeGeoSphere(VertexCollection& vertices, IndexCollection& indi
         XMStoreFloat3(&normalFloat3, normal);
 
         // calculate texture coordinates for this vertex
-        float longitude = atan2(normalFloat3.x, -normalFloat3.z);
-        float latitude = acos(normalFloat3.y);
+        float longitude = static_cast<float>(atan2(normalFloat3.x, -normalFloat3.z));
+        float latitude = static_cast<float>(acos(normalFloat3.y));
 
         float u = longitude / XM_2PI + 0.5f;
         float v = latitude / XM_PI;

@@ -116,7 +116,7 @@ bool ConfigManager::Load(const ConfigFileDesc &fileDesc)
 		if (!CreateSubDirectory(dir, nullptr, 0))
 		{
 			DWORD err = GetLastError();
-			LogSysError(EIT_Warning, MsgFmt(IDS_ERR_CONFIGMKDIR, dir),
+			LogSysError(ErrorIconType::EIT_Warning, MsgFmt(IDS_ERR_CONFIGMKDIR, dir),
 				MsgFmt(_T("CreateDirectory failed, win32 error %lx"), err));
 			return false;
 		}
@@ -156,7 +156,7 @@ bool ConfigManager::Load(const ConfigFileDesc &fileDesc)
 		{
 			// Failed - this location must not be writable.  Log an error
 			// and abort.
-			LogSysError(EIT_Warning,
+			LogSysError(ErrorIconType::EIT_Warning,
 				MsgFmt(IDS_ERR_CONFIGWRITEDIR, fname),
 				MsgFmt(_T("_tfopen(write mode) failed, error code %d"), errno));
 			return false;
@@ -413,7 +413,7 @@ bool ConfigManager::Save(bool silent)
 		// if not in silent mode, report the problem
 		if (!silent)
 		{
-			LogSysError(EIT_Warning, 
+			LogSysError(ErrorIconType::EIT_Warning, 
 				MsgFmt(IDS_ERR_CONFIGWRITE,	filename.c_str()),
 				MsgFmt(_T("%hs failed, error code %d"), errSrc, err));
 		}

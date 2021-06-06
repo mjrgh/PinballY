@@ -357,8 +357,8 @@ INT_PTR MessageBoxLikeDialog::Proc(UINT message, WPARAM wParam, LPARAM lParam)
 //
 
 MessageBoxLikeDialog::MessageBoxLikeDialog(ErrorIconType icon) :
-	MessageBoxLikeDialog(icon == EIT_Warning ? IDB_WARNING :
-		icon == EIT_Information ? IDB_INFORMATION :
+	MessageBoxLikeDialog(icon == ErrorIconType::EIT_Warning ? IDB_WARNING :
+		icon == ErrorIconType::EIT_Information ? IDB_INFORMATION :
 		IDB_ERROR)
 {
 }

@@ -182,10 +182,10 @@ Sprite *BaseView::PrepInstructionCard(const TCHAR *filename)
 		// a chance to disable SWF loading in the future.  Otherwise 
 		// just show the error normally.
 		auto pfv = Application::Get()->GetPlayfieldView();
-		if (imageDesc.imageType == ImageFileDesc::SWF)
+		if (imageDesc.imageType == ImageFileDesc::ImageType::SWF)
 			pfv->ShowFlashError(eh);
 		else
-			pfv->ShowError(EIT_Error, nullptr, &eh);
+			pfv->ShowError(ErrorIconType::EIT_Error, nullptr, &eh);
 
 		// return failure
 		return nullptr;
@@ -1211,7 +1211,7 @@ bool BaseView::JsDrawingLayerLoadImage(JsValueRef self, WSTRING filename)
 			// the content will usually scale better if we rasterize it at the
 			// target size in the first place, rather than rasterize it at the
 			// advisory size and then rescale the pixels.
-			if (desc.imageType == ImageFileDesc::SWF)
+			if (desc.imageType == ImageFileDesc::ImageType::SWF)
 				sz = GetLayoutSize();
 		}
 
@@ -1280,7 +1280,7 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 		// us back with the size from the stream, which won't happen with a GIF since
 		// we're not actually using the video player.
 		ImageFileDesc desc;
-		if (GetImageFileInfo(filename.c_str(), desc, true) && desc.imageType == ImageFileDesc::GIF)
+		if (GetImageFileInfo(filename.c_str(), desc, true) && desc.imageType == ImageFileDesc::ImageType::GIF)
 			normSize = { static_cast<float>(desc.size.cx) / 1920.f, static_cast<float>(desc.size.cy) / 1920.0f };
 
 		// load the video - don't play it yet, so that we can set options first
@@ -1297,7 +1297,7 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 
 			// if it's a GIF, we won't get a callback from the video player to set the
 			// size, so scale the sprite explicitly now
-			if (desc.imageType == ImageFileDesc::GIF)
+			if (desc.imageType == ImageFileDesc::ImageType::GIF)
 			{
 				if (auto layer = JsThisToDrawingLayer(self); layer != nullptr)
 					ScaleDrawingLayerSprite(*layer);

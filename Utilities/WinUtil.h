@@ -362,8 +362,12 @@ public:
 		Revision = SID_REVISION;
 		SubAuthorityCount = (0 != secondSubAuthority ? 2 : 1);
 		IdentifierAuthority.Value[5] = authority;
+
+#pragma warning(push)
+#pragma warning(disable:6201)
 		SubAuthority[0] = firstSubAuthority;
 		SubAuthority[1] = secondSubAuthority;
+#pragma warning(pop)
 	}
 
 	BYTE GetAuthority() const { return IdentifierAuthority.Value[5]; }

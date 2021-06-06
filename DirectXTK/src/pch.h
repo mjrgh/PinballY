@@ -60,6 +60,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 #include <stdint.h>
 

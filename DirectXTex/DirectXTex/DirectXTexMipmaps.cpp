@@ -191,12 +191,12 @@ namespace
     {
         for (size_t sy = 0; sy < N; ++sy)
         {
-            const float fy = (sy + 0.5f) / N;
+            const float fy = (static_cast<float>(sy) + 0.5f) / static_cast<float>(N);
             const float ify = 1.0f - fy;
 
             for (size_t sx = 0; sx < N; ++sx)
             {
-                const float fx = (sx + 0.5f) / N;
+                const float fx = (static_cast<float>(sx) + 0.5f) / static_cast<float>(N);
                 const float ifx = 1.0f - fx;
 
                 // [0]=(x+0, y+0), [1]=(x+0, y+1), [2]=(x+1, y+0), [3]=(x+1, y+1)

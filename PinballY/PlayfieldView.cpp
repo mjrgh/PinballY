@@ -1735,9 +1735,9 @@ void PlayfieldView::JsAlert(TSTRING msg)
 void PlayfieldView::JsMessage(TSTRING msg, TSTRING typ)
 {
 	ErrorIconType iconType =
-		_tcsicmp(typ.c_str(), _T("error")) == 0 ? EIT_Error :
-		_tcsicmp(typ.c_str(), _T("warning")) == 0 ? EIT_Warning :
-		EIT_Information;
+		_tcsicmp(typ.c_str(), _T("error")) == 0 ? ErrorIconType::EIT_Error :
+		_tcsicmp(typ.c_str(), _T("warning")) == 0 ? ErrorIconType::EIT_Warning :
+		ErrorIconType::EIT_Information;
 
 	ShowError(iconType, msg.c_str());
 }
@@ -4969,7 +4969,7 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		Application::Get()->ReloadConfig();
 
 		// display the confirmation
-		ShowError(EIT_Information, LoadStringT(IDS_SWF_DISABLED));
+		ShowError(ErrorIconType::EIT_Information, LoadStringT(IDS_SWF_DISABLED));
 
 		// done
 		return true;
@@ -5455,7 +5455,7 @@ void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, int systemIndex)
 		{
 			// This table file set has no associated systems; we can't
 			// play this game.
-			ShowError(EIT_Error, LoadStringT(IDS_ERR_NOSYSNOPLAY));
+			ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_NOSYSNOPLAY));
 			return;
 		}
 
@@ -5550,7 +5550,7 @@ void PlayfieldView::PlayGame(int cmd, DWORD launchFlags, GameListItem *game, Gam
 		// if nothing was selected for capture, say so and skip the launch
 		if (launchCaptureList.size() == 0)
 		{
-			ShowError(EIT_Information, LoadStringT(IDS_CAPSTAT_NONE_SELECTED));
+			ShowError(ErrorIconType::EIT_Information, LoadStringT(IDS_CAPSTAT_NONE_SELECTED));
 			return;
 		}
 	}
@@ -8418,7 +8418,7 @@ void PlayfieldView::PowerOff()
 	if (!ok)
 	{
 		WindowsErrorMessage winErr(err);
-		ShowError(EIT_Error, MsgFmt(IDS_ERR_SHUTDN_TOKEN, err, winErr.Get()));
+		ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_SHUTDN_TOKEN, err, winErr.Get()));
 		return;
 	}
 
@@ -8427,7 +8427,7 @@ void PlayfieldView::PowerOff()
 	if (!LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME, &luid))
 	{
 		WindowsErrorMessage winErr;
-		ShowError(EIT_Error, MsgFmt(IDS_ERR_SHUTDN_PRIVLK, (long)winErr.GetCode(), winErr.Get()));
+		ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_SHUTDN_PRIVLK, (long)winErr.GetCode(), winErr.Get()));
 		return;
 	}
 
@@ -8439,7 +8439,7 @@ void PlayfieldView::PowerOff()
 	if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), NULL, NULL))
 	{
 		WindowsErrorMessage winErr;
-		ShowError(EIT_Error, MsgFmt(IDS_ERR_SHUTDN_PRIVADJ, (long)winErr.GetCode(), winErr.Get()));
+		ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_SHUTDN_PRIVADJ, (long)winErr.GetCode(), winErr.Get()));
 		return;
 	}
 
@@ -8454,7 +8454,7 @@ void PlayfieldView::PowerOff()
 	if (!ExitWindowsEx(shutdownMode, SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_MINOR_OTHER | SHTDN_REASON_FLAG_PLANNED))
 	{
 		WindowsErrorMessage winErr;
-		ShowError(EIT_Error, MsgFmt(IDS_ERR_SHUTDN_FAILED, (long)winErr.GetCode(), winErr.Get()));
+		ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_SHUTDN_FAILED, (long)winErr.GetCode(), winErr.Get()));
 		return;
 	}
 
@@ -10770,7 +10770,7 @@ void PlayfieldView::ShowContextMenu(POINT pt)
 // Show a system error
 void PlayfieldView::ShowSysError(const TCHAR *msg, const TCHAR *details)
 {
-	ShowError(EIT_Error, MsgFmt(IDS_ERR_MSGANDDETAILS, msg, details));
+	ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_MSGANDDETAILS, msg, details));
 }
 
 // Show an error message using a popup in the main UI window.  This
@@ -10877,7 +10877,7 @@ void PlayfieldView::ShowQueuedError()
 				displayed = true;
 				InteractiveErrorHandler ieh;
 				if (err.list.CountErrors() != 0)
-					ieh.GroupError(EIT_Error, err.groupMsg.c_str(), err.list);
+					ieh.GroupError(ErrorIconType::EIT_Error, err.groupMsg.c_str(), err.list);
 				else
 					ieh.Error(err.groupMsg.c_str());
 			}
@@ -10900,17 +10900,17 @@ void PlayfieldView::ShowQueuedError()
 		Gdiplus::Color frameColor;
 		switch (err.iconType)
 		{
-		case EIT_Error:
+		case ErrorIconType::EIT_Error:
 			iconId = IDB_ERROR_BOX_BAR;
 			frameColor = Gdiplus::Color(192, 255, 0, 0);
 			break;
 
-		case EIT_Warning:
+		case ErrorIconType::EIT_Warning:
 			iconId = IDB_WARNING_BOX_BAR;
 			frameColor = Gdiplus::Color(255, 255, 127, 0);
 			break;
 
-		case EIT_Information:
+		case ErrorIconType::EIT_Information:
 			iconId = IDB_INFO_BOX_BAR;
 			frameColor = Gdiplus::Color(255, 0, 160, 0);
 			break;
@@ -16082,7 +16082,7 @@ void PlayfieldView::EditGameInfo()
 					{
 						// one or more renaming errors occurred - report them as a group
 						InteractiveErrorHandler ieh;
-						ieh.GroupError(EIT_Error, LoadStringT(IDS_ERR_RENAME_MEDIA).c_str(), ceh);
+						ieh.GroupError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_RENAME_MEDIA).c_str(), ceh);
 					}
 				}
 			}
@@ -17129,7 +17129,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 	// if it's unconfigured, there's nothing to show
 	if (!game->isConfigured || game->system == nullptr)
 	{
-		ShowError(EIT_Error, LoadStringT(IDS_SHOWMEDIA_UNCONFIG));
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_SHOWMEDIA_UNCONFIG));
 		return;
 	}
 
@@ -18336,7 +18336,8 @@ void PlayfieldView::OnCaptureDone(const CaptureDoneReport *report)
 	else
 	{
 		// Single game capture mode.  Show the results as a popup message.
-		ShowError(report->ok ? EIT_Information : EIT_Error, LoadStringT(report->overallStatusMsgId), &report->statusList);
+		ShowError(report->ok ? ErrorIconType::EIT_Information : ErrorIconType::EIT_Error, 
+			LoadStringT(report->overallStatusMsgId), &report->statusList);
 	}
 }
 
@@ -18375,7 +18376,7 @@ void PlayfieldView::LaunchMediaSearch()
 	// dropped.  This doesn't put us into any special mode, as we 
 	// can always drop a media pack file, but the message should
 	// help clarify the workflow for new users.
-	ShowError(EIT_Information, LoadStringT(IDS_SEARCH_SETUP_READY).c_str(), nullptr);
+	ShowError(ErrorIconType::EIT_Information, LoadStringT(IDS_SEARCH_SETUP_READY).c_str(), nullptr);
 }
 
 
@@ -18696,7 +18697,7 @@ void PlayfieldView::EndFileDrop()
 	auto game = GameList::Get()->GetNthGame(0);
 	if (game == nullptr)
 	{
-		ShowError(EIT_Error, LoadStringT(IDS_ERR_DROP_NO_GAME));
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_DROP_NO_GAME));
 		return;
 	}
 
@@ -18724,7 +18725,7 @@ void PlayfieldView::EndFileDrop()
 	// of the dropped files were accepted
 	if (dropList.size() == 0)
 	{
-		ShowError(EIT_Error, LoadStringT(IDS_ERR_INVALID_DROP));
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_INVALID_DROP));
 		return;
 	}
 
@@ -18763,7 +18764,8 @@ void PlayfieldView::EndFileDrop()
 			{
 				// We have clashing files from different sources.  Flag
 				// an error and return.
-				ShowError(EIT_Error, MsgFmt(IDS_ERR_DROP_DUP_DEST, d.mediaType->nameStr.c_str()));
+				ShowError(ErrorIconType::EIT_Error,
+					MsgFmt(IDS_ERR_DROP_DUP_DEST, d.mediaType->nameStr.c_str()));
 				return;
 			}
 		}
@@ -19064,11 +19066,13 @@ void PlayfieldView::MediaDropGo()
 
 	// report the results
 	if (eh.CountErrors() != 0)
-		ShowError(EIT_Error, LoadStringT(IDS_ERR_DROP_FAILED), &eh);
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_DROP_FAILED), &eh);
 	else if (nInstalled != 0)
-		ShowErrorAutoDismiss(nInstalled == 1 ? 2500 : 5000, EIT_Information, LoadStringT(IDS_MEDIA_DROP_SUCCESS));
+		ShowErrorAutoDismiss(nInstalled == 1 ? 2500 : 5000, ErrorIconType::EIT_Information, 
+			LoadStringT(IDS_MEDIA_DROP_SUCCESS));
 	else
-		ShowErrorAutoDismiss(5000, EIT_Information, LoadStringT(IDS_MEDIA_DROP_ALL_SKIPPED));
+		ShowErrorAutoDismiss(5000, ErrorIconType::EIT_Information, 
+			LoadStringT(IDS_MEDIA_DROP_ALL_SKIPPED));
 
 	// Make sure the on-screen media are updated with the new media
 	UpdateSelection(false);
@@ -19230,7 +19234,7 @@ void PlayfieldView::BatchCaptureStep2(int cmd)
 	if (nGames == 0)
 	{
 		int msg = cmd == ID_BATCH_CAPTURE_MARKED ? IDS_ERR_BATCH_CAPTURE_NO_MARKED : IDS_ERR_BATCH_CAPTURE_NO_GAMES;
-		ShowError(EIT_Error, LoadStringT(msg));
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(msg));
 		return;
 	}
 
@@ -19255,7 +19259,7 @@ void PlayfieldView::BatchCaptureStep3()
 	}
 	if (nMediaTypes == 0)
 	{
-		ShowError(EIT_Error, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_SEL));
+		ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_SEL));
 		return;
 	}
 
@@ -19582,7 +19586,7 @@ void PlayfieldView::BatchCaptureGo()
 	// if the total time is zero, nothing is selected for capture - fail now
 	if (totalTime == 0)
 	{
-		ShowError(EIT_Information, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_WORK));
+		ShowError(ErrorIconType::EIT_Information, LoadStringT(IDS_ERR_BATCH_CAPTURE_NO_WORK));
 		return;
 	}
 
@@ -19720,10 +19724,10 @@ void PlayfieldView::ExitBatchCapture()
 
 	// show an overall success/failure message
 	if (ok)
-		ShowError(EIT_Information, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_OK,
+		ShowError(ErrorIconType::EIT_Information, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_OK,
 			batchCaptureMode.nMediaItemsOk, batchCaptureMode.nGamesOk));
 	else
-		ShowError(EIT_Error, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_ERR,
+		ShowError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_BATCH_CAPTURE_DONE_ERR,
 			batchCaptureMode.nGamesPlanned, batchCaptureMode.nGamesAttempted, batchCaptureMode.nGamesOk,
 			batchCaptureMode.nMediaItemsPlanned, batchCaptureMode.nMediaItemsAttempted, batchCaptureMode.nMediaItemsOk));
 
@@ -19813,7 +19817,7 @@ void PlayfieldView::ShowSettingsDialog()
 	// don't allow this when a game is running
 	if (runningGameMsgPopup != nullptr)
 	{
-		ShowError(EIT_Information, LoadStringT(IDS_ERR_NOT_WHILE_RUNNING));
+		ShowError(ErrorIconType::EIT_Information, LoadStringT(IDS_ERR_NOT_WHILE_RUNNING));
 		return;
 	}
 
@@ -19901,7 +19905,7 @@ void PlayfieldView::ShowSettingsDialog()
 			else
 			{
 				// couldn't send the request at all - provide our own error message
-				LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), errDetails.c_str());
+				LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG), errDetails.c_str());
 				return false;
 			}
 		};
@@ -20937,7 +20941,7 @@ void PlayfieldView::ShowDOFClientInitErrors()
 			if (eh.CountErrors() == 1)
 				eh.EnumErrors([this](const ErrorList::Item &item) { ShowSysError(item.message.c_str(), item.details.c_str()); });
 			else if (eh.CountErrors() > 1)
-				ShowError(EIT_Error, LoadStringT(IDS_ERR_DOFLOAD), &eh);
+				ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_DOFLOAD), &eh);
 		}
 
 		// remember that this attempt failed, so that we can suppress errors

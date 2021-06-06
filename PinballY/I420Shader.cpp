@@ -29,7 +29,7 @@ bool I420Shader::CommonInit(const BYTE *pixelShaderBytes, size_t pixelShaderByte
 	D3D *d3d = D3D::Get();
 	HRESULT hr;
 	auto GenErr = [hr, idForErrorLog](const TCHAR *details) {
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT),
 			MsgFmt(_T("%hs -> %s, system error code %lx"), idForErrorLog, details, hr));
 		return false;
 	};

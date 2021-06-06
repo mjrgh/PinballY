@@ -164,7 +164,7 @@ template<class S> S TrimString(const typename S::value_type *str)
 	auto p = start, end = start;
 	for ( ; *p != 0 ; ++p)
 	{
-		if (*p != ' ' || *p != '\t')
+		if (*p != ' ' && *p != '\t')
 			end = p;
 	}
 

@@ -443,7 +443,7 @@ void GameList::SaveGameListFiles()
 	if (eh.CountErrors() != 0)
 	{
 		Application::InUiErrorHandler uieh;
-		uieh.GroupError(EIT_Error, MsgFmt(IDS_ERR_SAVEGAMELIST), eh);
+		uieh.GroupError(ErrorIconType::EIT_Error, MsgFmt(IDS_ERR_SAVEGAMELIST), eh);
 	}
 }
 
@@ -4689,7 +4689,7 @@ bool GameListItem::GetMediaItems(std::list<TSTRING> &filenames,
 					if (FileExists(fullName))
 					{
 						ImageFileDesc desc;
-						if (GetImageFileInfo(fullName, desc) && desc.imageType != ImageFileDesc::SWF)
+						if (GetImageFileInfo(fullName, desc) && desc.imageType != ImageFileDesc::ImageType::SWF)
 							swf = false;
 					}
 

@@ -1487,22 +1487,22 @@ void SWFParser::UncompressedReader::ReadFillStyle(UINT16 tagId, FillStyle &f)
 		f.color = (tagId == 32 || tagId == 83) ? ReadRGBA() : ReadRGB();
 
 	// for gradient fills, read the gradient matrix and gradient
-	if (f.type == FillStyle::LinearGradient
-		|| f.type == FillStyle::RadialGradient
-		|| f.type == FillStyle::FocalRadialGradient)
+	if (f.type == FillStyle::FillType::LinearGradient
+		|| f.type == FillStyle::FillType::RadialGradient
+		|| f.type == FillStyle::FillType::FocalRadialGradient)
 	{
 		f.matrix = ReadMatrix();
-		if (f.type == FillStyle::FocalRadialGradient)
+		if (f.type == FillStyle::FillType::FocalRadialGradient)
 			ReadFocalGradient(tagId, f.gradient);
 		else
 			ReadGradient(tagId, f.gradient);
 	}
 
 	// for bitmap fills, read the bitmap ID and matrix
-	if (f.type == FillStyle::RepeatingBitmap
-		|| f.type == FillStyle::ClippedBitmap
-		|| f.type == FillStyle::NonSmoothedClippedBitmap
-		|| f.type == FillStyle::NonSmoothedRepeatingBitmap)
+	if (f.type == FillStyle::FillType::RepeatingBitmap
+		|| f.type == FillStyle::FillType::ClippedBitmap
+		|| f.type == FillStyle::FillType::NonSmoothedClippedBitmap
+		|| f.type == FillStyle::FillType::NonSmoothedRepeatingBitmap)
 	{
 		f.bitmapId = ReadUInt16();
 		f.matrix = ReadMatrix();

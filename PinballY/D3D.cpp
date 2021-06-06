@@ -146,7 +146,7 @@ bool D3D::InitD3D()
 {
 	HRESULT hr;
 	auto GenErr = [&hr](const TCHAR *details) {
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_D3DINIT),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_D3DINIT),
 			MsgFmt(_T("%s, system error code %lx"), details, hr));
 		return false;
 	};

@@ -47,7 +47,7 @@ bool Shader::CreateInputLayout(
 
 	if (FAILED(hr = d3d->CreateInputLayout(layoutDesc, layoutDescCount, shaderByteCode, shaderByteCodeLen, &layout)))
 	{
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT),
 			MsgFmt(_T("Shader -> CreateInputLayout, error %lx"), hr));
 		return false;
 	}

@@ -55,7 +55,7 @@ bool D3DWin::Init(HWND hWnd)
 {
 	HRESULT hr;
 	auto GenErr = [hr](const TCHAR *details) {
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_D3DINIT), 
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_D3DINIT),
 			MsgFmt(_T("%s, system error code %lx"), details, hr));
 		return false;
 	};
@@ -261,7 +261,7 @@ void D3DWin::ResizeWindow(int width, int height)
 	// generic error handler
 	HRESULT hr;
 	auto GenErr = [hr](const TCHAR *details) {
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_D3DRESIZE),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_D3DRESIZE),
 			MsgFmt(_T("%s, system error code %lx"), details, hr));
 		PostQuitMessage(0);
 	};

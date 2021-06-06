@@ -228,7 +228,7 @@ bool InputManager::InitRawInput(HWND hwnd)
 	// do the registration
 	if (!RegisterRawInputDevices(rd, countof(rd), sizeof(rd[0])))
 	{
-		LogSysError(EIT_Error,
+		LogSysError(ErrorIconType::EIT_Error,
 			_T("Unable to set up joystick access.  You might ")
 			_T("need to close other programs."),
 			MsgFmt(_T("RegisterRawInputDevices failed, system error %ld"), GetLastError()));

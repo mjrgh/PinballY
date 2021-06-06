@@ -176,19 +176,19 @@ public:
 	// Gradient
 	struct GRADIENT
 	{
-		enum SpreadMode 
+		enum class SpreadMode 
 		{
 			Pad = 0,
 			Reflect = 1,
 			Repeat = 2
 		};
-		enum InterpolationMode
+		enum class InterpolationMode
 		{
 			Normal = 0,
 			Linear = 1
 		};
-		SpreadMode spreadMode = Pad;
-		InterpolationMode interpolationMode = Normal;
+		SpreadMode spreadMode = SpreadMode::Pad;
+		InterpolationMode interpolationMode = InterpolationMode::Normal;
 		std::vector<GRADRECORD> gradients;
 		float focalPoint;
 
@@ -213,7 +213,7 @@ public:
 	// Fill Style
 	struct FillStyle
 	{
-		enum FillType
+		enum class FillType
 		{
 			Solid = 0x00,
 			LinearGradient = 0x10,
@@ -224,7 +224,7 @@ public:
 			NonSmoothedRepeatingBitmap = 0x42,
 			NonSmoothedClippedBitmap = 0x43
 		};
-		FillType type = Solid;
+		FillType type = FillType::Solid;
 		RGBA color;
 		MATRIX matrix;
 		GRADIENT gradient;
@@ -237,14 +237,14 @@ public:
 
 			switch (type)
 			{
-			case Solid:
+			case FillType::Solid:
 				return color == other.color;
 
-			case LinearGradient:
-			case RadialGradient:
+			case FillType::LinearGradient:
+			case FillType::RadialGradient:
 				return gradient == other.gradient;
 
-			case FocalRadialGradient:
+			case FillType::FocalRadialGradient:
 				return gradient == other.gradient && gradient.focalPoint == other.gradient.focalPoint;
 
 			default:
@@ -422,7 +422,7 @@ public:
 		bool wideCodes = false;
 		bool italic = false;
 		bool bold = false;
-		LanguageCode lang;
+		LanguageCode lang = 0;
 		TSTRING name;
 
 		float ascent = 0;
@@ -468,7 +468,7 @@ public:
 
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
 
-		D2D1_RECT_F bounds;
+		D2D1_RECT_F bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
 		MATRIX matrix;
 		std::list<TextRecord> text;
 	};
@@ -480,7 +480,7 @@ public:
 
 		virtual void Draw(CharacterDrawingContext &cdc, PlaceObject *p) override;
 
-		D2D1_RECT_F bounds;
+		D2D1_RECT_F bounds{ 0.0f, 0.0f, 0.0f, 0.0f };
 		std::vector<FillStyle> fillStyles;
 		std::vector<LineStyle> lineStyles;
 		ShapeRecordList shapeRecords;
@@ -521,14 +521,14 @@ public:
 		float deblockParam = 0.0f;
 
 		// image type
-		enum Type
+		enum class Type
 		{
 			Unknown,
 			JPEGImageData,   // JPEG image data only, no headers; uses the common JPEG Tables header
 			JPEG,            // full JPEG stream with encoding tables and image data
 			PNG,             // PNG stream
 			GIF89a           // GIF89a stream, non-animated
-		} type = Unknown;
+		} type = Type::Unknown;
 
 		// cached D2D bitmap
 		RefPtr<ID2D1Bitmap> bitmap;
@@ -549,22 +549,23 @@ public:
 		std::unique_ptr<BYTE> imageData;
 
 		// Pixel format
-		enum Format
+		enum class Format
 		{
+			Unknown = 0,
 			ColorMappedImage = 3,
 			RGB15Image = 4,
 			RGB24Image = 5,
 			ColorMappedAlphaImage = 1024,
 			ARGB32Image = 1025,
 		};
-		Format format;
+		Format format = Format::Unknown;
 
 		// image size, in pixels
-		UINT width;
-		UINT height;
+		UINT width = 0;
+		UINT height = 0;
 
 		// D2D alpha mode
-		D2D1_ALPHA_MODE alphaMode;
+		D2D1_ALPHA_MODE alphaMode = D2D1_ALPHA_MODE_IGNORE;
 
 		// cached D2D bitmap
 		RefPtr<ID2D1Bitmap> bitmap;
@@ -977,7 +978,7 @@ protected:
 	// frame rate, frames per second
 	float frameRate = 0;
 
-	// frame delay, in millisecond
+	// frame delay, in milliseconds (1000/frameRate)
 	DWORD frameDelay = 0;
 
 	// number of frames

@@ -1412,7 +1412,7 @@ void MainKeyboardDialog::OnClickRememberJoysticks()
 	if (!cm->GetInt(warningVar))
 	{
 		// show the warning
-		MessageBoxWithCheckbox mb(EIT_Information,
+		MessageBoxWithCheckbox mb(ErrorIconType::EIT_Information,
 			LoadStringT(IDS_REMEMBER_JOYSTICKS_WARNING),
 			LoadStringT(IDS_SKIP_WARNING));
 		mb.Show(IDD_MSGBOX_WITH_CHECKBOX);

@@ -55,7 +55,7 @@ void LogErrorWithDetails(
 	const TCHAR *summary, 
 	const std::list<TSTRING> *details,
 	const TCHAR *separator,
-	ErrorIconType icon = EIT_Error);
+	ErrorIconType icon = ErrorIconType::EIT_Error);
 
 // Retrieve the file system error for the given errno/_doserrno code
 TSTRING FileErrorMessage(int err);

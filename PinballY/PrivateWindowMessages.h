@@ -63,11 +63,11 @@ class ErrorList;
 struct PFVMsgShowErrorParams
 {
 	PFVMsgShowErrorParams(const ErrorList *errList) :
-		iconType(EIT_Error), summary(nullptr), errList(errList) { }
+		iconType(ErrorIconType::EIT_Error), summary(nullptr), errList(errList) { }
 	PFVMsgShowErrorParams(ErrorIconType iconType, const ErrorList *errList) :
 		iconType(iconType), summary(nullptr), errList(errList) { }
 	PFVMsgShowErrorParams(const TCHAR *summary, const ErrorList *errList = nullptr) :
-		iconType(EIT_Error), summary(summary), errList(errList) { }
+		iconType(ErrorIconType::EIT_Error), summary(summary), errList(errList) { }
 	PFVMsgShowErrorParams(ErrorIconType iconType, const TCHAR *summary, const ErrorList *errList = nullptr) :
 		iconType(iconType), summary(summary), errList(errList) { }
 

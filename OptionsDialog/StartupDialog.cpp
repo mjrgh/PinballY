@@ -209,7 +209,7 @@ BOOL StartupDialog::OnApply()
 		DWORD result = SafeGetModuleFileName(NULL, exe, countof(exe));
 		if (result == 0 || result == countof(exe))
 		{
-			LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
+			LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
 				_T("Unable to get PinballY program file path - path is too long"));
 			return OnApplyFail();
 		}
@@ -238,7 +238,7 @@ BOOL StartupDialog::OnApply()
 			{
 				// failed with another error - log the error and abort
 				InteractiveErrorHandler ieh;
-				ieh.GroupError(EIT_Error, nullptr, ceh);
+				ieh.GroupError(ErrorIconType::EIT_Error, nullptr, ceh);
 				return OnApplyFail();
 			}
 		}
@@ -301,7 +301,7 @@ BOOL StartupDialog::OnApply()
 					else
 					{
 						// show the error
-						LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
+						LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
 							MsgFmt(_T("Unable to launch PinballY in Administrator mode: %s"), err.Get()));
 					}
 
@@ -314,7 +314,7 @@ BOOL StartupDialog::OnApply()
 				// wait for the subprocess to exit
 				if (WaitForSingleObject(hProc, 5000) != WAIT_OBJECT_0)
 				{
-					LogSysError(EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
+					LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_SYNCAUTOLAUNCHREG),
 						_T("Error waiting for task setup process, or process isn't responding"));
 					return OnApplyFail();
 				}

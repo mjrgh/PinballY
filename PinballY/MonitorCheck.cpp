@@ -41,7 +41,7 @@ bool MonitorCheck::WaitForMonitors(const TCHAR *str, DWORD extra_wait_ms)
 	else
 	{
 		// invalid syntax
-		LogError(EIT_Warning, MsgFmt(IDS_ERR_MONWAITSYNTAX, str));
+		LogError(ErrorIconType::EIT_Warning, MsgFmt(IDS_ERR_MONWAITSYNTAX, str));
 		return false;
 	}
 

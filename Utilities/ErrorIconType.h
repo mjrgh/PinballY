@@ -7,7 +7,7 @@
 //
 // Icon types for error box displays
 //
-enum ErrorIconType
+enum class ErrorIconType
 {
 	EIT_Warning,
 	EIT_Error,

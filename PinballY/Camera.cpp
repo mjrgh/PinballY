@@ -55,7 +55,7 @@ bool Camera::Init(int width, int height)
 	D3D *d3d = D3D::Get();
 	HRESULT hr;
 	auto GenErr = [hr](const TCHAR *details) {
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT), MsgFmt(details, hr));
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_GENERICD3DINIT), MsgFmt(details, hr));
 		return false;
 	};
 

@@ -66,6 +66,33 @@ that isn't so terrible, as the build process for ChakraCore is really
 simple, as you can see from the steps above.
 
 
+Migrating ChakraCore-Debugger to a new Visual Studio major version
+==================================================================
+
+I'm not sure why ChakraCore-Debugger is set up to require this extra
+step, but for some reason they hard-coded the Visual Studio build
+tools dependencies in a buried file in the solution folder tree.  You
+have to manually update it before it'll build the right version.
+
+- Open ChakraCore-Debugger\PropertySheets\Chakra.Cpp.props
+
+- Find <VCProjectVersion> and change it to match the version code
+  for your current Visual Studio:
+
+    Visual Studio 2017 = 15.0
+    Visual Studio 2019 = 16.0
+
+- Find <PlatformToolset> and change it to match the version code
+  for your toolset.  This is the vNNN number that appears in the
+  project properties pages under General > Platform Toolset.
+  For example, open the PinballY solution, right-click on the
+  PinballY project, and select Properties.  Go to the General
+  page.  Look for the Platform Toolset line - it'll say something
+  like "Visual Studio 2019 (v142)".  The "v142" part is what you
+  enter for <PlatformToolset>.
+
+
+
 Extra steps needed for the official ChakraCore-Debugger fork
 ============================================================
 

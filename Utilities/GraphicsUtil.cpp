@@ -378,7 +378,7 @@ private:
 					|| buf[1] == 0xC9 || buf[1] == 0xCA || buf[1] == 0xCB)
 				{
 					// SOFn marker - the size is in bytes 5:6 and 7:8
-					desc.imageType = ImageFileDesc::JPEG;
+					desc.imageType = ImageFileDesc::ImageType::JPEG;
 					desc.size.cy = (buf[5] << 8) + buf[6];
 					desc.size.cx = (buf[7] << 8) + buf[8];
 
@@ -528,7 +528,7 @@ private:
 		if (buf[0] == 'G' && buf[1] == 'I' && buf[2] == 'F')
 		{
 			// Set the type and size.  GIF has no orientation metadata.
-			desc.imageType = ImageFileDesc::GIF;
+			desc.imageType = ImageFileDesc::ImageType::GIF;
 			desc.size.cx = buf[6] + (buf[7] << 8);
 			desc.size.cy = buf[8] + (buf[9] << 8);
 			return true;
@@ -542,7 +542,7 @@ private:
 			// Set the type and size.  PNG has no orientation metadata.  (Unless it's
 			// a newer PNG format that allows Exif tags, but that seems rare, so we'll
 			// ignore it for now.)
-			desc.imageType = ImageFileDesc::PNG;
+			desc.imageType = ImageFileDesc::ImageType::PNG;
 			desc.size.cx = (buf[16] << 24) + (buf[17] << 16) + (buf[18] << 8) + (buf[19] << 0);
 			desc.size.cy = (buf[20] << 24) + (buf[21] << 16) + (buf[22] << 8) + (buf[23] << 0);
 
@@ -562,7 +562,7 @@ private:
 					if (memcmp(&buf[4], "acTL", 4) == 0)
 					{
 						// it's an animated PNG
-						desc.imageType = ImageFileDesc::APNG;
+						desc.imageType = ImageFileDesc::ImageType::APNG;
 						break;
 					}
 					if (memcmp(&buf[4], "IDAT", 4) == 0)
@@ -591,7 +591,7 @@ private:
 		if (buf[1] == 'W' && buf[2] == 'S' && (buf[0] == 'F' || buf[0] == 'C' || buf[0] == 'Z'))
 		{
 			// it's an SWF
-			desc.imageType = ImageFileDesc::SWF;
+			desc.imageType = ImageFileDesc::ImageType::SWF;
 
 			// The first byte specifies the stream compression format:
 			//

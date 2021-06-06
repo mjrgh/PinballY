@@ -57,7 +57,7 @@ protected:
 struct ImageFileDesc
 {
 	ImageFileDesc() : 
-		imageType(Unknown),
+		imageType(ImageType::Unknown),
 		oriented(false)
 	{
 		size = { 0, 0 }; 
@@ -94,7 +94,7 @@ struct ImageFileDesc
 	orientation;
 
 	// image type
-	enum
+	enum class ImageType
 	{
 		Unknown,	// unknown image type
 		PNG,		// PNG image
@@ -128,7 +128,7 @@ void DrawOffScreen(HBITMAP *phBitmap, int width, int height,
 // and its DIB pixel array to the caller
 struct DIBitmap
 {
-	DIBitmap() { hbitmap = NULL; }
+	DIBitmap() { }
 	~DIBitmap() { Clear(); }
 
 	void Clear()
@@ -141,9 +141,9 @@ struct DIBitmap
 		}
 	}
 
-	HBITMAP hbitmap;
-	BITMAPINFO bmi;
-	void *dibits;
+	HBITMAP hbitmap = NULL;
+	BITMAPINFO bmi{ 0 };
+	void *dibits = nullptr;
 };
 void DrawOffScreen(DIBitmap &dib, int width, int height,
 	std::function<void(HDC, HBITMAP, const void*, const BITMAPINFO&)> func);
@@ -286,6 +286,8 @@ public:
 
 		// create the DIB
 		HBITMAP bmp = ::CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &bits, NULL, 0);
+		if (bmp == NULL)
+			return NULL;
 
 		// select it into the device context
 		HGDIOBJ prv = ::SelectObject(hdc, bmp);

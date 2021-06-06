@@ -160,7 +160,7 @@ int Application::Main(HINSTANCE hInstance, LPTSTR lpCmdLine, int nCmdShow)
 	HRESULT hr = OleInitialize(NULL);
 	if (FAILED(hr))
 	{
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_COINIT),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_COINIT),
 			MsgFmt(_T("CoInitializeEx failed, error %lx"), hr));
 		return 0;
 	}
@@ -480,7 +480,7 @@ int Application::EventLoop(int nCmdShow)
 	// partially working, but still lets the user know that something
 	// might need attention.
 	if (loadErrs.CountErrors() != 0)
-		GetPlayfieldView()->ShowError(EIT_Error, LoadStringT(IDS_ERR_LISTLOADWARNINGS), &loadErrs);
+		GetPlayfieldView()->ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_LISTLOADWARNINGS), &loadErrs);
 
 	// wait for DOF initialization to complete
 	DOFClient::WaitReady();
@@ -846,7 +846,7 @@ bool Application::InitGameList(CapturingErrorHandler &loadErrs, ErrorHandler &fa
 	{
 		MultiErrorList meh;
 		meh.Add(&loadErrs);
-		meh.Report(EIT_Error, fatalErrorHandler, LoadStringT(IDS_ERR_GAMELISTLOAD).c_str());
+		meh.Report(ErrorIconType::EIT_Error, fatalErrorHandler, LoadStringT(IDS_ERR_GAMELISTLOAD).c_str());
 		return false;
 	}
 
@@ -888,7 +888,7 @@ bool Application::ReloadConfig()
 
 	// show any non-fatal game list load errors
 	if (loadErrs.CountErrors() != 0)
-		GetPlayfieldView()->ShowError(EIT_Error, LoadStringT(IDS_ERR_LISTLOADWARNINGS), &loadErrs);
+		GetPlayfieldView()->ShowError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_LISTLOADWARNINGS), &loadErrs);
 
 	// success
 	return true;
@@ -5072,7 +5072,7 @@ void Application::AsyncErrorHandler::SysError(const TCHAR *friendly, const TCHAR
 	else
 	{
 		// no playfield view - use the system default error box
-		LogSysError(EIT_Error, friendly, details);
+		LogSysError(ErrorIconType::EIT_Error, friendly, details);
 	}
 }
 
@@ -5124,7 +5124,7 @@ void Application::AsyncErrorHandler::FlashError(const ErrorList &geh)
 	{
 		// no playfield view - show the error through a regular dialog box
 		InteractiveErrorHandler ieh;
-		ieh.GroupError(EIT_Error, nullptr, geh);
+		ieh.GroupError(ErrorIconType::EIT_Error, nullptr, geh);
 	}
 }
 

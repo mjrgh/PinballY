@@ -113,8 +113,8 @@ protected:
 void LogError(ErrorIconType icon, const TCHAR *message)
 {
 	// figure the system icon cased on our internal icon type
-	UINT mbIcon = (icon == EIT_Warning ? MB_ICONWARNING :
-		icon == EIT_Information ? MB_ICONINFORMATION :
+	UINT mbIcon = (icon == ErrorIconType::EIT_Warning ? MB_ICONWARNING :
+		icon == ErrorIconType::EIT_Information ? MB_ICONINFORMATION :
 		MB_ICONERROR);
 
 	// show a standard system message box
@@ -140,8 +140,8 @@ void LogError(ErrorIconType icon, const TCHAR *message)
 void LogSysError(ErrorIconType icon, const TCHAR *friendly, const TCHAR *details)
 {
 	// figure the image resource corresponding to the icon ID
-	int bitmap_id = (icon == EIT_Warning ? IDB_WARNING : 
-		icon == EIT_Information ? IDB_INFORMATION : 
+	int bitmap_id = (icon == ErrorIconType::EIT_Warning ? IDB_WARNING : 
+		icon == ErrorIconType::EIT_Information ? IDB_INFORMATION : 
 		IDB_ERROR);
 
 	// show our "system error with hidden details" dialog
@@ -226,8 +226,8 @@ void LogErrorWithDetails(
 	ErrorIconType icon)
 {
 	// show the dialog
-	int bitmap_id = (icon == EIT_Warning ? IDB_WARNING : 
-		icon == EIT_Information ? IDB_INFORMATION :
+	int bitmap_id = (icon == ErrorIconType::EIT_Warning ? IDB_WARNING : 
+		icon == ErrorIconType::EIT_Information ? IDB_INFORMATION :
 		IDB_ERROR);
 	ErrorWithTextDialog dlg(summary, details, separator, bitmap_id);
 	dlg.Show(IDD_ERRORWITHTEXTBOX);
@@ -272,7 +272,7 @@ TSTRING FileErrorMessage(int err)
 void ErrorHandler::Error(const TCHAR *msg)
 {
 	// display the message
-	Display(EIT_Error, msg);
+	Display(ErrorIconType::EIT_Error, msg);
 }
 
 void ErrorHandler::SysError(const TCHAR *friendly, const TCHAR *details)
@@ -281,7 +281,7 @@ void ErrorHandler::SysError(const TCHAR *friendly, const TCHAR *details)
 	MsgFmt msg(IDS_ERR_SYSERROR, friendly, details);
 
 	// combine the friendly and details messages and display the result
-	Display(EIT_Error, msg.Get());
+	Display(ErrorIconType::EIT_Error, msg.Get());
 }
 
 void ErrorHandler::GroupError(ErrorIconType icon, const TCHAR *summary, const class ErrorList &geh)
@@ -320,7 +320,7 @@ void InteractiveErrorHandler::Display(ErrorIconType icon, const TCHAR *msg)
 
 void InteractiveErrorHandler::SysError(const TCHAR *friendly, const TCHAR *details)
 {
-	LogSysError(EIT_Error, friendly, details);
+	LogSysError(ErrorIconType::EIT_Error, friendly, details);
 }
 
 void InteractiveErrorHandler::GroupError(ErrorIconType icon, const TCHAR *summary, const ErrorList &geh)

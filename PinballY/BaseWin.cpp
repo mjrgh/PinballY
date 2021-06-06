@@ -80,7 +80,7 @@ bool BaseWin::Create(HWND parent, const TCHAR *title, DWORD style, int nCmdShow)
 
 	if (hWnd == NULL)
 	{
-		LogSysError(EIT_Error, LoadStringT(IDS_ERR_CREATEWIN),
+		LogSysError(ErrorIconType::EIT_Error, LoadStringT(IDS_ERR_CREATEWIN),
 			MsgFmt(_T("BaseWin::CreateWindow() failed, Win32 error %d"), GetLastError()));
 		return false;
 	}

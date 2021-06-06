@@ -114,7 +114,7 @@ bool VideoSprite::LoadVideo(
 	// still GIF, that's fine, too, since our image loader happily
 	// handles those.
 	if (ImageFileDesc desc; GetImageFileInfo(filename.c_str(), desc, false)
-		&& desc.imageType == ImageFileDesc::GIF)
+		&& desc.imageType == ImageFileDesc::ImageType::GIF)
 	{
 		// set the play/pause status for animated image rendering
 		animRunning = play;

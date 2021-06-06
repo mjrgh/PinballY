@@ -404,10 +404,10 @@ bool SecondaryView::LoadCurrentGameMedia(GameListItem *game, bool fireEvents)
 				if (!(ok = sprite->Load(image.c_str(), normalizedSize, szLayout, hWnd, ceh)))
 				{
 					// if this is an SWF file, log the error specially
-					if (haveDesc && desc.imageType == ImageFileDesc::SWF)
+					if (haveDesc && desc.imageType == ImageFileDesc::ImageType::SWF)
 						eh.FlashError(ceh);
 					else
-						eh.GroupError(EIT_Error, nullptr, ceh);
+						eh.GroupError(ErrorIconType::EIT_Error, nullptr, ceh);
 				}
 			}
 
