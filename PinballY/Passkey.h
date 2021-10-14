@@ -24,7 +24,7 @@
 // within the grantee class's methods to create instances of the passkey
 // class.  Third, in the grantor class, we define the method that we 
 // want to expose to this one grantee as public, and we define its
-// signature such that it takes an instance to the passkey class as a 
+// signature such that it takes an instance of the passkey class as a 
 // parameter.  The 'public' declaration allows any caller to call it,
 // BUT any code that wants to call it needs an instance of the passkey
 // class.  And the only way to get an instance of the passkey class is

@@ -80,26 +80,25 @@
    the HTML DOM tree, etc).  A lot of "Teach Yourself Javascript"
    Web sites think that Javascript is always about Web development,
    so they might take it for granted that you're working in a
-   browser.  Fortunately, thanks to systems like Node.js, more
-   people are waking up to the idea that Javascript isn't just
-   for browsers any more, so the online manuals are getting
-   smarter about this.  But you might still find some online
-   examples that use Web browser objects as though they're
-   just part of the language, so you might have to rework
-   those in your mind to subtract out the browser elements.
+   browser.  This is gradually changing, as Javascript has been
+   gaining popularity for server programming and in other
+   contexts, thanks to systems such as Node.js.  But many online
+   tutorials and examples still assume that Web browser objects
+   are an integral part of the language, so you might have to
+   adjust source code examples you find online accordingly.
 </p>
 
 
 <h2>How to enable scripting</h2>
 
 <p>
-   Scripting is always enabled.  To activate it, you simply
-   have to place a file called <b>main.js</b> in
-   the <b>Scripts</b> folder within your main PinballY folder.
-   The program checks automatically for this file; there are no
-   extra options to set.  At startup, PinballY checks to see if
-   Scripts\main.js exists, and if so, PinballY loads and executes
-   the file.
+   You don't have to change any option settings to enable scripting.
+   It's always enabled; to use it, you just place a Javascript
+   source file in a certain location.  Specifically, you place a
+   file called <b>main.js</b> in the <b>Scripts</b> folder within your
+   main PinballY folder.  PinballY always automatically checks for
+   this file at startup.  If PinballY finds <b>Scripts\main.js</b>
+   when it starts up, it loads the file and executes it.
 </p>
 <p>
    What goes in main.js?  In general terms, any valid
@@ -124,11 +123,11 @@
    When PinballY starts up, it loads the <b>main.js</b> file that
    you provide.  Javascript immediately executes all of the code in
    the file that's defined outside of any function or class
-   definitions.  
+   definitions.
    If you're familiar with more traditional programming languages
-   like C or C++, this "outer" code in a Javascript file is the
+   like C or C++, you can think of this "outer" Javascript code as the
    equivalent of the "main" routine that's executed at program startup
-   in a traditional language.
+   in a C or C++ program.
 </p>
 <p>
    The main thing that the top-level code in your main.js file
@@ -136,36 +135,6 @@
    listener is a function you write that will be called when a
    specific event occurs.  Once an event listener is set up,
    PinballY will call it whenever the associated event occurs.
-</p>
-
-<h2>Avoid long-running operations</h2>
-
-<p>
-   Avoid operations in Javascript that will take a long time to complete,
-   especially things like timing loops or waiting for external calls
-   (such as network reads) to complete.  "A long time" means anything
-   long enough for you to perceive on a human scale, which is anything
-   longer than about 30 to 50 milliseconds.   Javascript
-   runs as part of the main user interface thread, so any lengthy operation
-   in Javascript can make the UI appear to be frozen for as long as the operation
-   takes to complete.  This can cause the video to momentarily freeze or
-   stutter, and can also delay the processing of button inputs enough
-   to make the response feel sluggish or laggy.
-</p>
-<p>
-   Instead of using timing loops or waits, use a timeout or interval.
-   That'll let PinballY run the UI while waiting for the scheduled time.
-   If you have a long-running, CPU-intensive task to perform, try to
-   break it up into smaller tasks, and use intervals to spread the
-   subtasks out over time.
-</p>
-<p>
-   When waiting for an external event, such as a network request,
-   always use some kind of asynchronous mechanism, rather than
-   polling for completion.  Javascript Promise objects were designed
-   specifically for such situations, but you can also use ad
-   hoc approaches, such as checking periodically with timeouts
-   or intervals.
 </p>
 
 <h2>Events</h2>
@@ -373,6 +342,36 @@ let fs = createAutomationObject("Scripting.FileSystemObject");
    You can use Javascript to send HTTP requests to Web sites and process
    the results.  See <a href="HttpRequest.html">HttpRequest</a> for
    details.
+</p>
+
+<h2>Performance tip: avoid long-running operations</h2>
+
+<p>
+   Avoid operations in Javascript that will take a long time to complete,
+   especially things like timing loops or waiting for external calls
+   (such as network reads) to complete.  "A long time" means anything
+   long enough for you to perceive on a human scale, which is anything
+   longer than about 30 to 50 milliseconds.   Javascript
+   runs as part of the main user interface thread, so any lengthy operation
+   in Javascript can make the UI appear to be frozen for as long as the operation
+   takes to complete.  This can cause the video to momentarily freeze or
+   stutter, and can also delay the processing of button inputs enough
+   to make the response feel sluggish or laggy.
+</p>
+<p>
+   Instead of using timing loops or waits, use a timeout or interval.
+   That'll let PinballY run the UI while waiting for the scheduled time.
+   If you have a long-running, CPU-intensive task to perform, try to
+   break it up into smaller tasks, and use intervals to spread the
+   subtasks out over time.
+</p>
+<p>
+   When waiting for an external event, such as a network request,
+   always use some kind of asynchronous mechanism, rather than
+   polling for completion.  Javascript Promise objects were designed
+   specifically for such situations, but you can also use ad
+   hoc approaches, such as checking periodically with timeouts
+   or intervals.
 </p>
 
 <h2>Debugging</h2>

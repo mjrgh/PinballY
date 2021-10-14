@@ -276,6 +276,7 @@ mainWindow.on("launchoverlayhide", ev => {
 mainWindow.on("launchoverlayshow", ev => {
     let animation = gameList.resolveMedia("Images", "launch.gif");
     mainWindow.launchOverlay.bg.loadImage(animation);
+    ev.preventDefault();
 });
 </div>
 
@@ -287,6 +288,17 @@ mainWindow.on("launchoverlayshow", ev => {
    file that comes with PinballY - it's just something that
    we made up for the sake of this example, and we leave it
    as an exercise to find an animation clip you like for this.
+</p>
+<p>
+   The call to <b>ev.preventDefault()</b> is there to tell the system
+   not to display its default background graphics, which it would
+   ordinarily do if the event handler didn't say otherwise.  The
+   system would normally try to load a video from the main PinballY
+   Media folder called <b>Game Launch Background.mp4</b>, and
+   failing that, it would display a simple gray backdrop.
+   That would replace our graphics before the user ever saw
+   them.  We want our graphics to take precedence, so we have
+   to tell the system not use the default handling.
 </p>
 <p>
    You could just as well use a video file, replacing the

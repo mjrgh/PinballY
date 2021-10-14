@@ -1286,7 +1286,7 @@ bool BaseView::JsDrawingLayerLoadVideo(JsValueRef self, WSTRING filename, Javasc
 		// load the video - don't play it yet, so that we can set options first
 		LogFileErrorHandler eh;
 		ok = sprite->LoadVideo(WSTRINGToTSTRING(filename).c_str(), hWnd, normSize,
-			eh, _T("Javascript call to mainWindow.launchOverlay.loadVideo failed"), false, vol);
+			eh, _T("Javascript call to DrawingLayer.loadVideo failed"), false, vol);
 
 		if (ok)
 		{

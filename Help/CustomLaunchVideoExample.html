@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>Custom Launch Videos</h1>
+<p>
+   This example is closely related to the
+   <a href="SeamlessLoadingExample.html">Seamless Loading Example</a>.
+   It uses the same techniques to achieve a slightly different effect.
+   In this case, we'd like to display a custom video while a game loads,
+   with the ability to set up a separate video for each individual game.
+</p>
+
+<p>
+   The core of this is the same as for the Seamless Launch: we listen for the
+   <a href="LaunchOverlayEvent.html"><b>launchoverlayshow</b> event</a>, which
+   fires when the system is about to display the extra graphics layers where
+   the launch progress messages ("Loading... Running...") appear during a game
+   launch.  When we see this event fire, we'll load our own video into the
+   background portion of the launch overlay.  This is just a matter of
+   calling the <a href="DrawingLayer.html#loadVideo">loadVideo</a> method on
+   the <a href="DrawingLayer.html">Drawing Layer</a> object that represents
+   the launch overlay background:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    let video = "MyLaunchVideo.mp4";
+    mainWindow.launchOverlay.bg.loadVideo(video);
+    ev.preventDefault();
+});
+</div>
+
+<p>
+   This simply loads a video called <b>MyLaunchVideo.mp4</b> from the
+   working folder (the PinballY install folder).  The call to
+   <b>ev.preventDefault()</b> is there to keep the system from
+   displaying its own background graphics:  normally, if the event
+   handler doesn't say otherwise (by calling preventDefault), the system
+   will try to load a default background video (<b>Game Launch Background.mp4</b>)
+   from the main PinballY Media folder, and failing that, it'll just display
+   a neutral gray backdrop.  If we let that happen, it would replace our
+   video before it even starts, which we obviously don't want.
+</p>
+
+<p>
+   That gets us about halfway there, but it leaves out the part where we
+   choose a specific video for each game being launched.  To do that, we have
+   to come up with a way to associate a custom launch video file with each game,
+   and a way to search the disk for that file based on the game being launched.
+</p>
+<p>
+   Now, PinballY gives us a built-in function to search for
+   certain types of video files that are associated with individual games, such
+   as the main playfield video, the backglass video, and the DMD video.  If you
+   wanted to get the disk file name of the current game's playfield video, that's
+   something we can easily do: we just get the <a href="GameInfo.html">GameInfo</a>
+   object representing the current game, and call that object's
+   <a href="GameInfo.html#resolveMedia">resolveMedia()</a> method, specifying
+   the media type name for playfield videos.  The same would go for the
+   other standard video types, such as the backglass video or DMD video.
+</p>
+<p>
+   But there's no built-in category like this for a per-game
+   launch video.  Does this mean we have to replicate PinballY's media
+   search function on our own.  Fortunately, we don't.  Instead, PinballY
+   lets us create our own new, custom <a href="MediaTypes.html">media type</a>
+   for this new special category we've invented for "launch videos".
+   Custom media types act essentially like the pre-defined types once you
+   create them, with the same per-game file-searching capabilities as the
+   pre-defined types.
+</p>
+<p>
+   Here's how we could define a new media type for Launch Videos:
+</p>
+
+<div class="code">
+gameList.createMediaType({
+    id: "tableLaunchVideo",
+    configId: "tableLaunchVideo",
+    name: "Table Launch Video",
+    folder: "Table Launch Videos",
+    perSystem: true,
+    format: "Video",
+    extensions: ".f4v .mp4 .mov .mpg .mkv .wmv .m4v .avi",
+    hasDropButton: true,
+});
+</div>
+
+<p>
+   Now that we've defined the media type, we can go back and fix up our
+   event handler to use it to find the current game's launch video:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    // get the current game
+    let game = gameList.getWheelGame(0);
+
+    // resolve the launch video for this game
+    let videos = gameList.getWheelGame(0).resolveMedia("tableLaunchVideo", true);
+
+    // if we found a video, display it in the launch overlay background window
+    if (videos.length > 0) {
+        // load the video
+        mainWindow.launchOverlay.bg.loadVideo(videos[0]);
+
+        // skip the default background setup
+        ev.preventDefault();
+    }
+});
+</div>
+
+<p>
+   As we mentioned in the seamless launch example, it's a good idea to remove
+   the video as soon as the game finishes loading, so that we don't slow down
+   the system by continuing to play back the video in the background while
+   the game runs.
+</p>
+<div class="code">
+mainWindow.on("gamestarted", ev => {
+    mainWindow.launchOverlay.bg.clear(0xff404040);
+});
+</div>
+
+<h2>Installing the videos</h2>
+<p>
+   There's still the small matter of actually installing the launch videos!
+</p>
+<p>
+   Just place suitable video files in a new folder called <b>Table Launch Videos</b>
+   in each "system" folder in your main Media folder - e.g., PinballY\Media\Visual Pinball\Table Launch Videos.
+   You'll have to create the <b>Table Launch Videos</b> subfolders yourself,
+   since they're not a standard part of the media tree.  For the individual
+   video files, use the same naming convention as for the table videos and
+   so forth: each file should use the canonical "Game Title (Manufacturer Year)"
+   format, as described in <a href="DirectoryInfo.html">Files &amp; Folders</a>
+   (see <a href="DirectoryInfo.html#PerGameFileNaming"><b>Media files for each game</b></a>).
+</p>
+<p>
+   Note that you can change the folder name <b>Table Launch Videos</b>, if you want.
+   Recall that it's not anything special to PinballY - it's just something we made
+   up when we created our custom media type via <b>GameList.createMediaType()</b>.
+   If you want to use a different folder name, just change the folder name defined
+   in the method call.
+</p>

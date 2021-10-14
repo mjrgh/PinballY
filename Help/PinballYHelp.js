@@ -81,6 +81,7 @@ var contents = [
             "++CaptureCommandLineChangeExample.html Custom Game Command Line for Media Capture",
             "++TopGamesExample.html A \"Top 10\" Filter",
             "++SeamlessLoadingExample.html \"Seamless\" Game Launch",
+            "++CustomLaunchVideoExample.html Custom Launch Videos",
             "++HideWindowExample.html Hide a Window During Play",
             "++FindMediaExample.html Custom \"Find Media\" Menu",
             "++DisplayCloningExample.html Display Cloning",
