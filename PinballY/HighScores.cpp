@@ -344,30 +344,22 @@ bool HighScores::GetNvramFile(TSTRING &nvramPath, TSTRING &nvramFile, const Game
 			// We found an explicit ROM setting in the game database.
 			nvramFile = game->rom;
 
-			// If the file doesn't exist, check to see if it matches a
-			// friendly ROM name from the [romfind] list.  If so, substitute
-			// the associated .nv file.
-			if (!Valid())
-			{
-				
-				// if the name isn't empty and doesn't end in .nv, add the .nv suffix
-				// Condition for testing extension (.nv) is not strictly needed 
-				if (nvramFile.length() != 0 && !tstriEndsWith(nvramFile.c_str(), _T(".nv")))
-				{
-					nvramFile += _T(".nv");
+			// look up the lower-cased name in the friendly ROM list
+			CSTRING key = TSTRINGToCSTRING(nvramFile);
+			std::transform(key.begin(), key.end(), key.begin(), ::_tolower);
+			if (auto it = romFind.find(key); it != romFind.end())
+				nvramFile = CSTRINGToTSTRING(it->second);
 
-					LogFile::Get()->Write(LogFile::HiScoreLogging,
-					_T("+ The name so far doesn't end in .nv, so we're adding that -> %s\n"), nvramFile.c_str());
-				}
-				
-				// look up the lower-cased name in the friendly ROM list
-				CSTRING key = TSTRINGToCSTRING(nvramFile);
-				std::transform(key.begin(), key.end(), key.begin(), ::_tolower);
-				if (auto it = romFind.find(key); it != romFind.end())
-					nvramFile = CSTRINGToTSTRING(it->second);
+			LogFile::Get()->Write(LogFile::HiScoreLogging,
+				_T("+ Specified ROM file doesn't exist; substituting .nv file = %s\n"), nvramFile.c_str());
+
+			// if the name isn't empty and doesn't end in .nv, add the .nv suffix
+			if (nvramFile.length() != 0 && !tstriEndsWith(nvramFile.c_str(), _T(".nv")))
+			{
+				nvramFile += _T(".nv");
 
 				LogFile::Get()->Write(LogFile::HiScoreLogging,
-					_T("+ Specified ROM file doesn't exist; substituting .nv file = %s\n"), nvramFile.c_str());
+					_T("+ The name so far doesn't end in .nv, so we're adding that -> %s\n"), nvramFile.c_str());
 			}
 		}
 
