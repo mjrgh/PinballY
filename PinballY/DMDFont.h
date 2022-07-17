@@ -63,8 +63,6 @@ public:
 	// using the given color table.  The color table entries give the
 	// RGB values for grayscale values 0..15, where 0 is fully off and
 	// 15 is fully on.
-	//
-	// For efficiency, 
 	void DrawString32(const TCHAR *str, BYTE *pix, int x, int y, const Color *colors) const;
 
 	// Draw a string into a 128x32 pixel array, in 4-bit grayscale.

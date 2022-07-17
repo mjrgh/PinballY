@@ -83,8 +83,8 @@
 // So I disabled it, both in PinVol and here.  Note that it would be
 // harmless functionally to leave the notifications intact, since PinVol
 // will just ignore them as long as the feature is disabled there, but I
-// figure it's better to remove them entirely as long as they're not
-// being used to avoid the added overhead of the mailslot transmission.
+// figure it's better to remove them entirely, as long as they're not
+// being used, to avoid the added overhead of the mailslot transmission.
 // Simply change this to 'true' to re-enable the notifications on our end.
 // (Turning them back on here won't re-activate the feature in PinVol,
 // though, as it's separately disabled there.  You'd have to re-enable
@@ -232,17 +232,17 @@ PlayfieldView::PlayfieldView() :
 {
 	// clear variables, reset modes
 	fpsDisplay = false;
-	popupType = PopupNone;
+	popupType = PopupType::PopupNone;
 	isAnimTimerRunning = false;
-	popupAnimMode = PopupAnimNone;
-	wheelAnimMode = WheelAnimNone;
-	menuAnimMode = MenuAnimNone;
+	popupAnimMode = PopupAnimMode::PopupAnimNone;
+	wheelAnimMode = WheelAnimMode::WheelAnimNone;
+	menuAnimMode = MenuAnimMode::MenuAnimNone;
 	buttonVolume = 100;
 	lastDOFEventTime = 0;
 	coinBalance = 0.0f;
 	bankedCredits = 0.0f;
 	maxCredits = 0.0f;
-	lastInputEventTime = GetTickCount();
+	lastInputEventTime = GetTickCount64();
 	settingsDialogOpen = false;
 	mediaDropTargetGame = nullptr;
 	runningGameMode = RunningGameMode::None;
@@ -496,9 +496,9 @@ PlayfieldView::RealDMDStatus PlayfieldView::GetRealDMDStatus() const
 	// OFF/DISABLE/0/other -> disable unconditionally
 	//
 	auto dmdvar = ConfigManager::GetInstance()->Get(ConfigVars::RealDMD, _T("auto"));
-	return _tcsicmp(dmdvar, _T("auto")) == 0 ? RealDMDAuto :
-		_tcsicmp(dmdvar, _T("on")) == 0 || _tcsicmp(dmdvar, _T("enable")) == 0 || _ttoi(dmdvar) != 0 ? RealDMDEnable :
-		RealDMDDisable;
+	return _tcsicmp(dmdvar, _T("auto")) == 0 ? RealDMDStatus::RealDMDAuto :
+		_tcsicmp(dmdvar, _T("on")) == 0 || _tcsicmp(dmdvar, _T("enable")) == 0 || _ttoi(dmdvar) != 0 ? RealDMDStatus::RealDMDEnable :
+		RealDMDStatus::RealDMDDisable;
 }
 
 void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
@@ -508,8 +508,8 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 	{
 		// store the new status in the config
 		ConfigManager::GetInstance()->Set(ConfigVars::RealDMD,
-			newStat == RealDMDAuto ? _T("auto") :
-			newStat == RealDMDEnable ? _T("on") : _T("off"));
+			newStat == RealDMDStatus::RealDMDAuto ? _T("auto") :
+			newStat == RealDMDStatus::RealDMDEnable ? _T("on") : _T("off"));
 
 		// If we're not currently running a game, dynamically attach
 		// to or detach from the DMD device.  Don't do this when a
@@ -526,7 +526,7 @@ void PlayfieldView::SetRealDMDStatus(RealDMDStatus newStat)
 			}
 
 			// Activate or deactivate the DMD according to the new status
-			if (newStat != RealDMDDisable)
+			if (newStat != RealDMDStatus::RealDMDDisable)
 			{
 				// enabling or auto-sensing - try initializing if it's not
 				// already running
@@ -547,7 +547,7 @@ void PlayfieldView::InitRealDMD(ErrorHandler &eh)
 
 	// if we're in ON or AUTO mode, try loading the DMD DLL
 	auto mode = GetRealDMDStatus();
-	if (mode == RealDMDEnable || mode == RealDMDAuto)
+	if (mode == RealDMDStatus::RealDMDEnable || mode == RealDMDStatus::RealDMDAuto)
 	{
 		// presume failure
 		bool ok = false;
@@ -559,7 +559,7 @@ void PlayfieldView::InitRealDMD(ErrorHandler &eh)
 		// exists, and fail silently if not (since AUTO means that
 		// the DMD is enabled according to whether or not the DLL
 		// can be found)
-		if (mode == RealDMDAuto && !realDMD->FindDLL())
+		if (mode == RealDMDStatus::RealDMDAuto && !realDMD->FindDLL())
 		{
 			// auto mode, no DLL -> fail silently
 		}
@@ -1347,10 +1347,11 @@ bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHA
 	auto js = JavascriptEngine::Get();
 	const TCHAR *where = _T("unknown");
 	JsValueRef propval;
-	if ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
-		|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
-		|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
-		|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError)
+	if (view != nullptr
+		&& ((err = js->NewHWNDObj(propval, view->GetHWnd(), where)) != JsNoError
+			|| (err = js->SetReadonlyProp(jswinobj, "hwndView", propval, where)) != JsNoError
+			|| (err = js->NewHWNDObj(propval, GetParent(view->GetHWnd()), where)) != JsNoError
+			|| (err = js->SetReadonlyProp(jswinobj, "hwndFrame", propval, where)) != JsNoError))
 	{
 		LogFile::Get()->Write(LogFile::JSLogging, _T(". error setting hwnd properties: %s\n"), where);
 		return false;
@@ -1385,7 +1386,8 @@ bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHA
 	// Save the prototype in the view.  Each view has its own prototype,
 	// since the prototype methods need to point back to that view's
 	// C++ object.
-	view->jsDrawingLayerClass = drawingLayerClass;
+	if (view != nullptr)
+		view->jsDrawingLayerClass = drawingLayerClass;
 	JsAddRef(drawingLayerClass, nullptr);
 
 	// set up the LaunchOverlayLayer prototype methods
@@ -1576,11 +1578,12 @@ bool PlayfieldView::FireCommandButtonEvent(const QueuedKey &key)
 		{
 			// figure the event type
 			JsValueRef event = key.bg ?
-				(key.mode ? jsCommandButtonBgDownEvent : jsCommandButtonBgUpEvent) :
-				(key.mode ? jsCommandButtonDownEvent : jsCommandButtonUpEvent);
+				(key.mode != KeyPressType::KeyUp ? jsCommandButtonBgDownEvent : jsCommandButtonBgUpEvent) :
+				(key.mode != KeyPressType::KeyUp ? jsCommandButtonDownEvent : jsCommandButtonUpEvent);
 
 			// fire it
-			ret = js->FireEvent(jsMainWindow, event, key.cmd->name, key.mode == KeyRepeat || key.mode == KeyBgRepeat);
+			ret = js->FireEvent(jsMainWindow, event, key.cmd->name, 
+				key.mode == KeyPressType::KeyRepeat || key.mode == KeyPressType::KeyBgRepeat);
 		}
 	}
 
@@ -1689,7 +1692,7 @@ void PlayfieldView::UpdateJsUIMode()
 		newMode = jsuiMenu;
 	else if (popupSprite != nullptr)
 		newMode = jsuiPopup;
-	else if (runningGameMode != None)
+	else if (runningGameMode != RunningGameMode::None)
 		newMode = jsuiRun;
 	else if (attractMode.active)
 		newMode = jsuiAttract;
@@ -1819,7 +1822,7 @@ JsValueRef PlayfieldView::JsGetUIMode()
 				mode = L"popup";
 				js->SetProp(obj, "popupID", popupName);
 			}
-			else if (runningGameMode != None)
+			else if (runningGameMode != RunningGameMode::None)
 			{
 				mode = L"running";
 			}
@@ -1833,12 +1836,12 @@ JsValueRef PlayfieldView::JsGetUIMode()
 			}
 
 			// if a game is running, report the current running state
-			if (runningGameMode != None)
+			if (runningGameMode != RunningGameMode::None)
 			{
 				js->SetProp(obj, "runMode",
-					runningGameMode == Starting ? L"starting" :
-					runningGameMode == Running ? L"running" :
-					runningGameMode == Exiting ? L"exiting" :
+					runningGameMode == RunningGameMode::Starting ? L"starting" :
+					runningGameMode == RunningGameMode::Running ? L"running" :
+					runningGameMode == RunningGameMode::Exiting ? L"exiting" :
 					L"other");
 
 				if ((lastPlayGameLaunchFlags & Application::LaunchFlags::Capturing) != 0)
@@ -1959,7 +1962,7 @@ void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
 		{
 			// if this is a keyboard key, and there's not already a key
 			// mapping for this command, add it to the list
-			if (btn.devType == InputManager::Button::TypeKB
+			if (btn.devType == InputManager::Button::DevType::TypeKB
 				&& cmdToVkey.find(it->second) == cmdToVkey.end())
 			{
 				// add the mapping
@@ -1995,9 +1998,9 @@ void PlayfieldView::UpdateMenuKeys(HMENU hMenu)
 
 			// find the key name portion of the current menu title, or the
 			// end of the title if there's no key portion
-			TCHAR *tab = _tcschr(buf, '\t');
-			if (tab == 0)
-				tab = buf + _tcslen(buf);
+			TCHAR *tab = _tcschr_s(buf, '\t');
+			if (tab == nullptr)
+				tab = buf + _tcsnlen(buf, sizeof(buf) - 1);
 
 			// strip the existing key name
 			*tab = '\0';
@@ -2842,7 +2845,7 @@ JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
 // all in the descriptor.
 template<typename T> struct GameInfoDescItem
 {
-	GameInfoDescItem() : isDefined(false) { }
+	GameInfoDescItem() : isDefined(false) { value = T(); }
 	GameInfoDescItem(JavascriptEngine::JsObj &desc, const CHAR *prop) { From(desc, prop); }
 
 	void From(JavascriptEngine::JsObj &desc, const CHAR *prop)
@@ -3996,8 +3999,8 @@ void PlayfieldView::ForceTakeFocus()
 	int dtht = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
 	// figure our window location in normalized virtual desktop coordinates
-	int x = static_cast<int>(round((rcWin.left - dtx) * 65535.0) / dtwid);
-	int y = static_cast<int>(round((rcWin.top - dty) * 65535.0) / dtht);
+	int x = static_cast<int>(round((static_cast<double>(rcWin.left) - dtx) * 65535.0) / dtwid);
+	int y = static_cast<int>(round((static_cast<double>(rcWin.top) - dty) * 65535.0) / dtht);
 
 	// Move the mouse over our window, inset one pixel in each dimension,
 	// and perform a left-click.  Windows should interpret this as bringing
@@ -4115,7 +4118,7 @@ void PlayfieldView::ShowInitialUI(bool showAboutBox)
 	// want to show the about box, or if the initial about box is disabled
 	// in the config settings.
 	if (showAboutBox
-		&& popupType != PopupErrorMessage
+		&& popupType != PopupType::PopupErrorMessage
 		&& ConfigManager::GetInstance()->GetBool(ConfigVars::SplashScreen, true))
 	{
 		ShowAboutBox();
@@ -4179,7 +4182,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 		KillTimer(hWnd, pfTimerID);
 
 		// sync the playfield to the game list selection
-		SyncPlayfield(SyncByTimer);
+		SyncPlayfield(SyncPlayfieldMode::SyncByTimer);
 		return true;
 
 	case infoBoxFadeTimerID:
@@ -4242,7 +4245,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 
 	case endSplashTimerID:
 		// if the splash screen is showing, remove it
-		if (popupType == PopupAboutBox)
+		if (popupType == PopupType::PopupAboutBox)
 			ClosePopup();
 
 		// this is a one-shot
@@ -4317,7 +4320,7 @@ bool PlayfieldView::OnTimer(WPARAM timer, LPARAM callback)
 	case autoDismissMsgTimerID:
 		// if there's a message popup, remove it
 		KillTimer(hWnd, timer);
-		if (popupType == PopupErrorMessage)
+		if (popupType == PopupType::PopupErrorMessage)
 			ClosePopup();
 		return true;
 
@@ -4560,15 +4563,16 @@ void PlayfieldView::JsDoButtonCommand(WSTRING cmd, bool down, int repeatCount)
 
 		// figure the key mode
 		KeyPressType mode = (bg ?
-			(down ? repeatCount != 0 ? KeyBgRepeat : KeyBgDown : KeyUp) :
-			(down ? repeatCount != 0 ? KeyRepeat : KeyDown : KeyUp));
+			(down ? repeatCount != 0 ? KeyPressType::KeyBgRepeat : KeyPressType::KeyBgDown : KeyPressType::KeyUp) :
+			(down ? repeatCount != 0 ? KeyPressType::KeyRepeat : KeyPressType::KeyDown : KeyPressType::KeyUp));
 
 		// make a single-element list with the command
 		std::list<const KeyCommand*> commands;
 		commands.emplace_back(&it->second);
 
 		// queue the key
-		ProcessKeyPress(hWnd, mode, repeatCount, bg, true, commands);
+		static InputManager::Button noButton(InputManager::Button::DevType::TypeNone, 0, 0);
+		ProcessKeyPress(hWnd, noButton, mode, repeatCount, bg, true, commands);
 	}
 }
 
@@ -4733,15 +4737,15 @@ bool PlayfieldView::OnCommandImpl(int cmd, int source, HWND hwndControl)
 		return true;
 
 	case ID_REALDMD_AUTO_ENABLE:
-		SetRealDMDStatus(RealDMDAuto);
+		SetRealDMDStatus(RealDMDStatus::RealDMDAuto);
 		return true;
 
 	case ID_REALDMD_ENABLE:
-		SetRealDMDStatus(RealDMDEnable);
+		SetRealDMDStatus(RealDMDStatus::RealDMDEnable);
 		return true;
 
 	case ID_REALDMD_DISABLE:
-		SetRealDMDStatus(RealDMDDisable);
+		SetRealDMDStatus(RealDMDStatus::RealDMDDisable);
 		return true;
 
 	case ID_REALDMD_MIRROR_HORZ:
@@ -5177,7 +5181,7 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	if (msg == WM_KEYUP)
 	{
 		// key up event
-		mode = KeyUp;
+		mode = KeyPressType::KeyUp;
 		down = false;
 
 		// stop any auto-repeat in effect
@@ -5195,22 +5199,25 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 	else
 	{
 		// first key-down event for a key press
-		mode = KeyDown;
+		mode = KeyPressType::KeyDown;
 		down = true;
 
 		// start a new auto-repeat timer
-		KbAutoRepeatStart(vkey, vkeyOrig, KeyRepeat);
+		KbAutoRepeatStart(vkey, vkeyOrig, KeyPressType::KeyRepeat);
 	}
 
 	// fire a javascript key event; if that says to ignore it, we're done
 	if (!FireKeyEvent(vkey, down, 0, false))
 		return false;
 
+	// set up a button descriptor for the physical key press
+	InputManager::Button button(InputManager::Button::DevType::TypeKB, 0, vkey);
+
 	// determine if we have a handler
 	if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 	{
 		// We found a handler for the key.  Process the key press.
-		ProcessKeyPress(win->GetHWnd(), mode, 0, false, false, it->second);
+		ProcessKeyPress(win->GetHWnd(), button, mode, 0, false, false, it->second);
 
 		// the key event was handled
 		return true;
@@ -5221,19 +5228,20 @@ bool PlayfieldView::HandleKeyEvent(BaseWin *win, UINT msg, WPARAM wParam, LPARAM
 }
 
 // Add a key press to the queue and process it
-void PlayfieldView::ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatCount, bool bg, bool scripted, 
-	std::list<const KeyCommand*> cmds)
+void PlayfieldView::ProcessKeyPress(
+	HWND hwndSrc, InputManager::Button physButton, KeyPressType mode, int repeatCount, 
+	bool bg, bool scripted, std::list<const KeyCommand*> cmds)
 {
 	// add each command to the key queue
 	for (auto c : cmds)
-		keyQueue.emplace_back(hwndSrc, mode, repeatCount, bg, scripted, c);
+		keyQueue.emplace_back(hwndSrc, physButton, mode, repeatCount, bg, scripted, c);
 
 	// If a wheel animation is in progress, skip directly to the end
 	// of the animation on any new key-down event.  This makes the
 	// UI more responsive by not forcing the user to wait through 
 	// each wheel animation step.
-	if (mode == KeyDown && wheelAnimMode == WheelAnimNormal)
-		wheelAnimStartTime = GetTickCount() - wheelTime;
+	if (mode == KeyPressType::KeyDown && wheelAnimMode == WheelAnimMode::WheelAnimNormal)
+		wheelAnimStartTime = GetTickCount64() - wheelTime;
 
 	// process the command queue
 	ProcessKeyQueue();
@@ -5345,7 +5353,7 @@ void PlayfieldView::ShowAboutBox()
 	// open the popup, positioning it in the upper half of the screen
 	popupSprite->offset.y = .2f;
 	popupSprite->UpdateWorld();
-	StartPopupAnimation(PopupAboutBox, popupName, true);
+	StartPopupAnimation(PopupType::PopupAboutBox, popupName, true);
 	UpdateDrawingList();
 }
 
@@ -5769,14 +5777,14 @@ void PlayfieldView::OnGameTimeout()
 
 	// check to see if the last input event happened within the timeout 
 	// interval
-	DWORD dt = GetTickCount() - lastInputEventTime;
+	INT64 dt = GetTickCount64() - lastInputEventTime;
 	if (dt < gameTimeout)
 	{
 		// It hasn't been long enough since the last input event to
 		// shut down the game.  Reset the timer to fire again after
 		// the remaining time on the new timeout interval (starting
 		// at the last input event time) expires.
-		SetTimer(hWnd, gameTimeoutTimerID, gameTimeout - dt, NULL);
+		SetTimer(hWnd, gameTimeoutTimerID, static_cast<UINT>(gameTimeout - dt), NULL);
 	}
 	else
 	{
@@ -5884,7 +5892,7 @@ void PlayfieldView::ShowInstructionCard(int cardNumber)
 		instCardPage = cardNumber;
 
 		// if we're switching to instruction card mode, animate the popup
-		StartPopupAnimation(PopupInstructions, popupName, true);
+		StartPopupAnimation(PopupType::PopupInstructions, popupName, true);
 
 		// update the drawing list for the new sprite
 		UpdateDrawingList();
@@ -5961,7 +5969,7 @@ void PlayfieldView::ShowFlyer(int pageNumber)
 	flyerPage = pageNumber;
 
 	// if we're switching to flyer mode, animate the popup
-	StartPopupAnimation(PopupFlyer, popupName, true);
+	StartPopupAnimation(PopupType::PopupFlyer, popupName, true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -6104,7 +6112,7 @@ void PlayfieldView::UpdateRateGameDialog()
 	AdjustSpritePosition(popupSprite);
 
 	// if we're switching to flyer mode, animate the popup
-	StartPopupAnimation(PopupRateGame, popupName, true);
+	StartPopupAnimation(PopupType::PopupRateGame, popupName, true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -6168,7 +6176,7 @@ void PlayfieldView::DrawStars(Gdiplus::Graphics &g, float x, float y, float rati
 void PlayfieldView::AdjustRating(float delta)
 {
 	// ignore if we're not running the Rate Game popup
-	if (popupSprite == nullptr || popupType != PopupRateGame)
+	if (popupSprite == nullptr || popupType != PopupType::PopupRateGame)
 		return;
 
 	// ignore it if there's no game selection
@@ -6295,7 +6303,7 @@ void PlayfieldView::UpdateAudioVolumeDialog()
 	AdjustSpritePosition(popupSprite);
 
 	// if we're switching to flyer mode, animate the popup
-	StartPopupAnimation(PopupGameAudioVolume, popupName, true);
+	StartPopupAnimation(PopupType::PopupGameAudioVolume, popupName, true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -6531,7 +6539,7 @@ void PlayfieldView::JsShowPopup(JavascriptEngine::JsObj contents)
 			popupSprite->offset.y = yOfs;
 
 		// show the popup
-		StartPopupAnimation(PopupUserDefined, id.c_str(), true);
+		StartPopupAnimation(PopupType::PopupUserDefined, id.c_str(), true);
 
 		// put the new sprite in the drawing list
 		UpdateDrawingList();
@@ -6548,6 +6556,7 @@ PlayfieldView::JsDrawingContext::JsDrawingContext(
 	width(width),
 	height(height),
 	borderWidth(static_cast<float>(borderWidth)),
+	defaultAlpha(0xff),
 	textOrigin(borderWidth, borderWidth),
 	textBounds(borderWidth, borderWidth, width - borderWidth * 2.0f, height - borderWidth * 2.0f)
 {
@@ -6634,7 +6643,7 @@ void PlayfieldView::JsDrawDrawText(TSTRING text)
 	// we send to DrawString
 	INT len = static_cast<INT>(text.length());
 	bool newline;
-	if ((newline = (len > 0 && text[len-1] == '\n')) != false)
+	if ((newline = (len > 0 && text[static_cast<size_t>(len) - 1] == '\n')) != false)
 		--len;
 
 	// draw the text
@@ -6734,7 +6743,7 @@ void PlayfieldView::JsDrawSetTextAlign(JsValueRef horz, JsValueRef vert)
 	auto Xlat = [js](JsValueRef val, Gdiplus::StringAlignment &align)
 	{
 		JsErrorCode err;
-		int i;
+		int i = 0;
 		if (val != js->GetUndefVal() && (err = js->ToInt(i, val)) != JsNoError)
 		{
 			js->Throw(err);
@@ -7518,7 +7527,7 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 {
 	// If we're opening a new popup, and there's an existing popup in the
 	// 'replace types' list, skip the animation.
-	if (opening && this->popupType != PopupNone)
+	if (opening && this->popupType != PopupType::PopupNone)
 	{
 		// If there's a replace list, search it.  If there's no replace
 		// list, the default is a list with the new popup type as the
@@ -7532,7 +7541,7 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 		else
 		{
 			// search the provided list of replaceable types
-			for (const PopupDesc *p = replaceTypes; p->type != PopupNone; ++p)
+			for (const PopupDesc *p = replaceTypes; p->type != PopupType::PopupNone; ++p)
 			{
 				if (p->type == popupType
 					&& (p->name == nullptr || popupName == nullptr || _wcsicmp(p->name, popupName) == 0))
@@ -7554,7 +7563,7 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 
 			// set the new popup type
 			this->popupType = popupType;
-			this->popupName = popupName;
+			this->popupName = popupName != nullptr ? popupName : L"";
 
 			// we're done - skip the rest of the animation work
 			return;
@@ -7566,7 +7575,7 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 		StartMenuAnimation(false);
 
 	// if we were previously showing an instruction card, remove it
-	if (this->popupType == PopupInstructions && popupType != PopupInstructions)
+	if (this->popupType == PopupType::PopupInstructions && popupType != PopupType::PopupInstructions)
 		RemoveInstructionsCard();
 
 	// remember the popup type
@@ -7587,11 +7596,11 @@ void PlayfieldView::StartPopupAnimation(PopupType popupType, const WCHAR *popupN
 		popupSprite->alpha = 0.0f;
 
 		// set opening mode
-		popupAnimMode = PopupAnimOpen;
+		popupAnimMode = PopupAnimMode::PopupAnimOpen;
 	}
 	else
 	{
-		popupAnimMode = PopupAnimClose;
+		popupAnimMode = PopupAnimMode::PopupAnimClose;
 	}
 
 	// update the javascript UI mode
@@ -7604,11 +7613,11 @@ void PlayfieldView::ClosePopup()
 	{
 		// if an instruction card is showing in the backglass or topper view, 
 		// close it
-		if (popupType == PopupInstructions)
+		if (popupType == PopupType::PopupInstructions)
 			RemoveInstructionsCard();
 
 		// for the audio volume popup, restore running media to the original volume
-		if (popupType == PopupGameAudioVolume)
+		if (popupType == PopupType::PopupGameAudioVolume)
 		{
 			auto gl = GameList::Get();
 			workingAudioVolume = gl->GetAudioVolume(gl->GetNthGame(0));
@@ -7944,7 +7953,7 @@ void PlayfieldView::ShowGameInfo()
 	// between high scores and game info.  Try to keep the popup size the
 	// same by using the existing popup's height as a minimum height for
 	// the new one.
-	if (popupType == PopupHighScores)
+	if (popupType == PopupType::PopupHighScores)
 		height = max(height, (int)(popupSprite->loadSize.y * 1920.0f));
 
 	// Set up the info box at the computed height
@@ -7964,11 +7973,11 @@ void PlayfieldView::ShowGameInfo()
 	// Start the animation.  We can do a direct switch between Game Info
 	// and High Scores without animation.
 	static const PopupDesc replaceTypes[] = { 
-		{ PopupGameInfo },
-		{ PopupHighScores },
-		{ PopupNone }
+		{ PopupType::PopupGameInfo },
+		{ PopupType::PopupHighScores },
+		{ PopupType::PopupNone }
 	};
-	StartPopupAnimation(PopupGameInfo, popupName, true, replaceTypes);
+	StartPopupAnimation(PopupType::PopupGameInfo, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -8080,7 +8089,7 @@ void PlayfieldView::ShowHighScores()
 	// slightly smoother presentation if we're switching back and forth
 	// between the two, by keeping the outline size the same and just
 	// updating the contents, like two pages of a multi-tab dialog.
-	if (popupType == PopupGameInfo)
+	if (popupType == PopupType::PopupGameInfo)
 		height = max(height, (int)(popupSprite->loadSize.y * 1920.0f));
 
 	// Now create the sprite and draw it for real at the final height
@@ -8101,11 +8110,11 @@ void PlayfieldView::ShowHighScores()
 	// Start the animation.  We can do a direct switch between high scores
 	// and Game Info with no animation.
 	static const PopupDesc replaceTypes[] = { 
-		{ PopupHighScores },
-		{ PopupGameInfo },
-		{ PopupNone }
+		{ PopupType::PopupHighScores },
+		{ PopupType::PopupGameInfo },
+		{ PopupType::PopupNone }
 	};
-	StartPopupAnimation(PopupHighScores, popupName, true, replaceTypes);
+	StartPopupAnimation(PopupType::PopupHighScores, popupName, true, replaceTypes);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -8255,7 +8264,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 	case HighScores::ProgramVersionQuery:
 		// if the query was successful, find the version number string
 		// in the results and store it away for About Box use
-		if (ni->status == HighScores::NotifyInfo::Success)
+		if (ni->status == HighScores::NotifyInfo::Status::Success)
 		{
 			std::basic_regex<TCHAR> verPat(_T("\\bversion\\s+([\\d.]+)"), std::regex_constants::icase);
 			std::match_results<const TCHAR *> m;
@@ -8268,7 +8277,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 		// High score query results.  
 		{
 			// note the result status
-			bool success = ni->status == HighScores::NotifyInfo::Success;
+			bool success = ni->status == HighScores::NotifyInfo::Status::Success;
 
 			// Retrieve the game object from the ID.  Proceed only if it's 
 			// valid; game objects can be deleted, so the one from the original 
@@ -8279,7 +8288,7 @@ void PlayfieldView::ReceiveHighScores(const HighScores::NotifyInfo *ni)
 				auto oldStatus = game->highScoreStatus;
 
 				// update the game's high score status
-				game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Success ?
+				game->highScoreStatus = (ni->status == HighScores::NotifyInfo::Status::Success ?
 					GameListItem::HighScoreStatus::Received : GameListItem::HighScoreStatus::Failed);
 
 				// If the reply was successful, and we haven't already set high
@@ -8346,12 +8355,12 @@ void PlayfieldView::ApplyHighScores(GameListItem *game, bool hadScores)
 		// If we didn't have high scores previously and we do now,
 		// and we're displaying the game info popup, update it to
 		// reflect that we now have high scores.
-		if (!hadScores && game->highScores.size() != 0 && popupType == PopupGameInfo)
+		if (!hadScores && game->highScores.size() != 0 && popupType == PopupType::PopupGameInfo)
 			ShowGameInfo();
 
 		// If we're currently displaying the high scores popup, show 
 		// it again to update it with the new data.
-		if (popupType == PopupHighScores)
+		if (popupType == PopupType::PopupHighScores)
 			ShowHighScores();
 
 		// notify the DMD window of the update
@@ -8489,13 +8498,13 @@ void PlayfieldView::ProcessKeyQueue()
 
 		// process the DOF effect, if applicable
 		if (dofEffect != nullptr)
-			dof.SetKeyEffectState(dofEffect, (key.mode & KeyDown) != 0);
+			dof.SetKeyEffectState(dofEffect, (key.mode & KeyPressType::KeyDown) != 0);
 
 		// check if this key matches the current wheel auto-repeat command
 		if (wheelAutoRepeat.active && wheelAutoRepeat.key.cmd->func == c->func)
 		{
 			// Check the mode
-			if (key.mode == KeyRepeat)
+			if (key.mode == KeyPressType::KeyRepeat)
 			{
 				// It's an auto-repeat key event for the current wheel command
 				// that we're auto-repeating on the wheel.  Ignore the key event,
@@ -9438,7 +9447,7 @@ void PlayfieldView::IncomingPlayfieldMediaDone(VideoSprite *sprite)
 {
 	// set the new sprite
 	incomingPlayfield.sprite = sprite;
-	incomingPlayfieldLoadTime = GetTickCount();
+	incomingPlayfieldLoadTime = GetTickCount64();
 
 	// update the drawing list
 	UpdateDrawingList();
@@ -9808,7 +9817,7 @@ void PlayfieldView::StartWheelAnimation(bool fast)
 	HideInfoBox();
 
 	// set the new mode
-	wheelAnimMode = fast ? WheelAnimFast : WheelAnimNormal;
+	wheelAnimMode = fast ? WheelAnimMode::WheelAnimFast : WheelAnimMode::WheelAnimNormal;
 
 	// start the timer
 	StartAnimTimer(wheelAnimStartTime);
@@ -9817,7 +9826,7 @@ void PlayfieldView::StartWheelAnimation(bool fast)
 // Skip the rest of the current wheel animation
 void PlayfieldView::SkipWheelAnimation()
 {
-	if (wheelAnimMode != WheelAnimNone)
+	if (wheelAnimMode != WheelAnimMode::WheelAnimNone)
 	{
 		// figure the direction
 		int dn = animWheelDistance > 0 ? 1 : -1;
@@ -9843,7 +9852,7 @@ void PlayfieldView::SkipWheelAnimation()
 		UpdateDrawingList();
 
 		// the animation is done
-		wheelAnimMode = WheelAnimNone;
+		wheelAnimMode = WheelAnimMode::WheelAnimNone;
 	}
 }
 
@@ -9965,7 +9974,7 @@ void PlayfieldView::BeginRunningGameMode(GameListItem *game, GameSystem *)
 
 	// animate the popup opening
 	StartAnimTimer(runningGamePopupStartTime);
-	runningGamePopupMode = RunningGamePopupOpen;
+	runningGamePopupMode = RunningGamePopupMode::RunningGamePopupOpen;
 
 	// turn off the status line updates while running
 	DisableStatusLine();
@@ -10126,7 +10135,7 @@ void PlayfieldView::EndRunningGameMode()
 	keyQueue.clear();
 
 	// sync the playfield
-	SyncPlayfield(SyncEndGame);
+	SyncPlayfield(SyncPlayfieldMode::SyncEndGame);
 
 	// Restore the other windows
 	Application::Get()->EndRunningGameMode();
@@ -10148,7 +10157,7 @@ void PlayfieldView::EndRunningGameMode()
 
 	// remove the popup
 	StartAnimTimer(runningGamePopupStartTime);
-	runningGamePopupMode = RunningGamePopupClose;
+	runningGamePopupMode = RunningGamePopupMode::RunningGamePopupClose;
 
 	// if the pause-game menu is showing, dismiss it
 	if (curMenu != nullptr && curMenu->id == L"pause game")
@@ -10789,7 +10798,7 @@ void PlayfieldView::ShowErrorAutoDismiss(DWORD timeout, ErrorIconType iconType, 
 	// If there's not already an error display in progress, show the new
 	// error.  Otherwise just leave it in the queue for display when the
 	// user dismisses the current error popup.
-	if (popupSprite == nullptr || popupType != PopupErrorMessage)
+	if (popupSprite == nullptr || popupType != PopupType::PopupErrorMessage)
 		ShowQueuedError();
 }
 
@@ -10896,7 +10905,7 @@ void PlayfieldView::ShowQueuedError()
 		Gdiplus::Graphics g(hdc);
 
 		// figure the icon and frame color according to the error type
-		int iconId;
+		int iconId = IDB_ERROR_BOX_BAR;
 		Gdiplus::Color frameColor;
 		switch (err.iconType)
 		{
@@ -10963,7 +10972,7 @@ void PlayfieldView::ShowQueuedError()
 	queuedErrors.pop_front();
 
 	// animate the popup
-	StartPopupAnimation(PopupErrorMessage, popupName, true);
+	StartPopupAnimation(PopupType::PopupErrorMessage, popupName, true);
 	UpdateDrawingList();
 }
 
@@ -11536,7 +11545,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 		// up the new menu immediately
 		OnCloseMenu(&items);
 		curMenu = m;
-		menuAnimMode = MenuAnimNone;
+		menuAnimMode = MenuAnimMode::MenuAnimNone;
 		UpdateMenuAnimation(m, true, 1.0f);
 		UpdateDrawingList();
 	}
@@ -11566,11 +11575,11 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 
 void PlayfieldView::AccelerateCloseMenu()
 {
-	if (curMenu != nullptr && newMenu == nullptr && menuAnimMode == MenuAnimClose)
+	if (curMenu != nullptr && newMenu == nullptr && menuAnimMode == MenuAnimMode::MenuAnimClose)
 	{
 		OnCloseMenu(nullptr);
 		curMenu = nullptr;
-		menuAnimMode = MenuAnimNone;
+		menuAnimMode = MenuAnimMode::MenuAnimNone;
 		UpdateDrawingList();
 	}
 }
@@ -11705,7 +11714,7 @@ void PlayfieldView::SyncPlayfield(SyncPlayfieldMode mode)
 
 	// if a game is running, don't do anything unless we're
 	// explicitly returning from the running game
-	if (runningGameMsgPopup != nullptr && mode != SyncEndGame)
+	if (runningGameMsgPopup != nullptr && mode != SyncPlayfieldMode::SyncEndGame)
 		return;
 
 	// if the current playfield matches the game list selection,
@@ -11860,8 +11869,8 @@ void PlayfieldView::ScaleSprites()
 	// the window height and/or width, maintaining aspect ratio
 	switch (popupType)
 	{
-	case PopupFlyer:
-	case PopupInstructions:
+	case PopupType::PopupFlyer:
+	case PopupType::PopupInstructions:
 		ScaleSprite(popupSprite, .95f, true);
 		break;
 	}
@@ -11891,7 +11900,7 @@ void PlayfieldView::StartMenuAnimation(bool opening)
 	HideInfoBox();
 
 	// set the new mode
-	menuAnimMode = opening ? MenuAnimOpen : MenuAnimClose;
+	menuAnimMode = opening ? MenuAnimMode::MenuAnimOpen : MenuAnimMode::MenuAnimClose;
 
 	// start the animation timer running, noting our start time
 	StartAnimTimer(menuAnimStartTime);
@@ -11935,13 +11944,13 @@ void PlayfieldView::OnBeginMediaSync()
 
 // Start the animation timer if it's not already running
 const DWORD AnimTimerInterval = 8;
-void PlayfieldView::StartAnimTimer(DWORD &startTime)
+void PlayfieldView::StartAnimTimer(UINT64 &startTime)
 {
 	// start the animation timer if it's not already running
 	StartAnimTimer();
 
 	// note the starting time for the animation mode
-	startTime = GetTickCount();
+	startTime = GetTickCount64();
 }
 
 void PlayfieldView::StartAnimTimer()
@@ -12162,7 +12171,7 @@ void PlayfieldView::SyncInfoBox()
 			// start the fade-in animation
 			infoBox.sprite->alpha = 0;
 			SetTimer(hWnd, infoBoxFadeTimerID, AnimTimerInterval, 0);
-			infoBoxStartTime = GetTickCount();
+			infoBoxStartTime = GetTickCount64();
 		}
 		else
 		{
@@ -12180,7 +12189,7 @@ void PlayfieldView::SyncInfoBox()
 	{
 		// start the fade
 		SetTimer(hWnd, infoBoxFadeTimerID, AnimTimerInterval, 0);
-		infoBoxStartTime = GetTickCount();
+		infoBoxStartTime = GetTickCount64();
 	}
 
 	// we've completed the update, so remove the sync timer
@@ -12200,10 +12209,6 @@ void PlayfieldView::HideInfoBox()
 // update the info box animation
 void PlayfieldView::UpdateInfoBoxAnimation()
 {
-	static DWORD lastTimer;
-	DWORD thisTimer = GetTickCount();
-	lastTimer = thisTimer;
-
 	// make sure there's an info box to update
 	if (infoBox.sprite == nullptr)
 	{
@@ -12213,17 +12218,14 @@ void PlayfieldView::UpdateInfoBoxAnimation()
 
 	// figure the progress
 	const float infoBoxAnimTime = 250.0f;
-	float progress = fminf(1.0f, float(GetTickCount() - infoBoxStartTime) / infoBoxAnimTime);
+	float progress = fminf(1.0f, float(GetTickCount64() - infoBoxStartTime) / infoBoxAnimTime);
 
 	// update the fade
 	infoBox.sprite->alpha = progress;
 
 	// end the animation if we've reached the end of the fade
 	if (progress == 1.0f)
-	{
-		lastTimer = 0;
 		KillTimer(hWnd, infoBoxFadeTimerID);
-	}
 }
 
 bool PlayfieldView::LoadSystemLogo(Gdiplus::Image* &image, const GameSystem *system)
@@ -12628,7 +12630,7 @@ void PlayfieldView::UpdateAnimation()
 			dof.SyncSelectedGame();
 		}
 		else if (!incomingPlayfield.sprite->IsFading()
-			&& GetTickCount() - incomingPlayfieldLoadTime > videoStartTimeout)
+			&& GetTickCount64() - incomingPlayfieldLoadTime > videoStartTimeout)
 		{
 			// It's been too long since we started the sprite loading.  It
 			// might not be able to load a video or start playback.  Force the
@@ -12644,13 +12646,13 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// Animate the popup open/close
-	if (popupAnimMode != PopupAnimNone && popupSprite != nullptr)
+	if (popupAnimMode != PopupAnimMode::PopupAnimNone && popupSprite != nullptr)
 	{
 		// figure the elapsed time
-		DWORD dt = GetTickCount() - popupAnimStartTime;
+		INT64 dt = GetTickCount64() - popupAnimStartTime;
 
 		// check the mode
-		if (popupAnimMode == PopupAnimOpen)
+		if (popupAnimMode == PopupAnimMode::PopupAnimOpen)
 		{
 			if (dt < popupOpenTime)
 			{
@@ -12662,7 +12664,7 @@ void PlayfieldView::UpdateAnimation()
 			{
 				// done - show the final animation step
 				UpdatePopupAnimation(true, 1.0f);
-				popupAnimMode = PopupAnimNone;
+				popupAnimMode = PopupAnimMode::PopupAnimNone;
 			}
 		}
 		else
@@ -12677,9 +12679,9 @@ void PlayfieldView::UpdateAnimation()
 			{
 				// remove the popup and end the animation
 				popupSprite = nullptr;
-				popupType = PopupNone;
+				popupType = PopupType::PopupNone;
 				updateDrawingList = true;
-				popupAnimMode = PopupAnimNone;
+				popupAnimMode = PopupAnimMode::PopupAnimNone;
 
 				// Fire the end-popup event.  This event fires after the fact, so ignore
 				// any attempted cancellation.
@@ -12696,12 +12698,12 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// Animate the running game overlay
-	if (runningGamePopupMode != RunningGamePopupNone && runningGameMsgPopup != nullptr)
+	if (runningGamePopupMode != RunningGamePopupMode::RunningGamePopupNone && runningGameMsgPopup != nullptr)
 	{
 		// update the fade
-		DWORD dt = GetTickCount() - runningGamePopupStartTime;
+		INT64 dt = GetTickCount64() - runningGamePopupStartTime;
 		float progress = fminf(1.0f, float(dt) / float(popupOpenTime));
-		float alpha = (runningGamePopupMode == RunningGamePopupOpen ? progress : 1.0f - progress);
+		float alpha = (runningGamePopupMode == RunningGamePopupMode::RunningGamePopupOpen ? progress : 1.0f - progress);
 		runningGameMsgPopup->alpha = alpha;
 
 		// sync the background popup, if present
@@ -12713,11 +12715,11 @@ void PlayfieldView::UpdateAnimation()
 		{
 			switch (runningGamePopupMode)
 			{
-			case RunningGamePopupOpen:
+			case RunningGamePopupMode::RunningGamePopupOpen:
 				// opening - nothing to do
 				break;
 
-			case RunningGamePopupClose:
+			case RunningGamePopupMode::RunningGamePopupClose:
 				// closing - remove the popup
 				runningGameMsgPopup = nullptr;
 				runningGameBkgPopup = nullptr;
@@ -12726,7 +12728,7 @@ void PlayfieldView::UpdateAnimation()
 			}
 
 			// done with this animation
-			runningGamePopupMode = RunningGamePopupNone;
+			runningGamePopupMode = RunningGamePopupMode::RunningGamePopupNone;
 		}
 		else
 		{
@@ -12736,16 +12738,16 @@ void PlayfieldView::UpdateAnimation()
 	}
 
 	// animate the current sequence
-	if (wheelAnimMode != WheelAnimNone && animAddedToWheel != 0)
+	if (wheelAnimMode != WheelAnimMode::WheelAnimNone && animAddedToWheel != 0)
 	{
 		// note the time since the animation started
-		DWORD dt = GetTickCount() - wheelAnimStartTime;
+		INT64 dt = GetTickCount64() - wheelAnimStartTime;
 
 		// note the direction we're going
 		int dn = animWheelDistance > 0 ? 1 : -1;
 
 		// Figure our progress in the wheel animation
-		DWORD t = wheelAnimMode == WheelAnimNormal ? wheelTime : fastWheelTime;
+		DWORD t = wheelAnimMode == WheelAnimMode::WheelAnimNormal ? wheelTime : fastWheelTime;
 		float progress = fminf(float(dt) / float(t), 1.0f);
 
 		// update wheel positions
@@ -12772,20 +12774,20 @@ void PlayfieldView::UpdateAnimation()
 			updateDrawingList = true;
 
 			// the animation is done
-			wheelAnimMode = WheelAnimNone;
+			wheelAnimMode = WheelAnimMode::WheelAnimNone;
 		}
 		else
 			done = false;
 	}
 
 	// Animate the menu
-	if (menuAnimMode != MenuAnimNone)
+	if (menuAnimMode != MenuAnimMode::MenuAnimNone)
 	{
 		// note the time
-		DWORD dt = GetTickCount() - menuAnimStartTime;
+		INT64 dt = GetTickCount64() - menuAnimStartTime;
 
 		// check the mode
-		if (menuAnimMode == MenuAnimOpen)
+		if (menuAnimMode == MenuAnimMode::MenuAnimOpen)
 		{
 			// opening a menu
 			if (curMenu != nullptr)
@@ -12801,7 +12803,7 @@ void PlayfieldView::UpdateAnimation()
 					// Done - the menu is now fully open.  Make sure it gets animated
 					// at the exact final position, and allow the animation to end.
 					UpdateMenuAnimation(curMenu, true, 1.0f);
-					menuAnimMode = MenuAnimNone;
+					menuAnimMode = MenuAnimMode::MenuAnimNone;
 				}
 			}
 		}
@@ -12836,7 +12838,7 @@ void PlayfieldView::UpdateAnimation()
 				OnCloseMenu(nullptr);
 				curMenu = nullptr;
 				updateDrawingList = true;
-				menuAnimMode = MenuAnimNone;
+				menuAnimMode = MenuAnimMode::MenuAnimNone;
 
 				// return to wheel mode in DOF
 				dof.SetUIContext(L"PBYWheel");
@@ -12865,10 +12867,10 @@ void PlayfieldView::UpdateMenu(HMENU hMenu, BaseWin *fromWin)
 
 	// update the real-DMD enabling commands
 	auto dmdStat = GetRealDMDStatus();
-	CheckMenuItem(hMenu, ID_REALDMD_AUTO_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDAuto ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hMenu, ID_REALDMD_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDEnable ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hMenu, ID_REALDMD_DISABLE, MF_BYCOMMAND | (dmdStat == RealDMDDisable ? MF_CHECKED : MF_UNCHECKED));
-	CheckMenuItem(hMenu, ID_REALDMD_AUTO_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDAuto ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(hMenu, ID_REALDMD_AUTO_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDStatus::RealDMDAuto ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(hMenu, ID_REALDMD_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDStatus::RealDMDEnable ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(hMenu, ID_REALDMD_DISABLE, MF_BYCOMMAND | (dmdStat == RealDMDStatus::RealDMDDisable ? MF_CHECKED : MF_UNCHECKED));
+	CheckMenuItem(hMenu, ID_REALDMD_AUTO_ENABLE, MF_BYCOMMAND | (dmdStat == RealDMDStatus::RealDMDAuto ? MF_CHECKED : MF_UNCHECKED));
 
 	// update the real-DMD orientation commands; disable these if the DMD isn't
 	// currently active
@@ -13034,7 +13036,8 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 			// This means the test for MAKE is really !BREAK.
 			bool down = ((raw->data.keyboard.Flags & RI_KEY_BREAK) == 0);
 			bool repeat = ((raw->data.keyboard.Flags & RI_KEY_AUTOREPEAT) != 0);
-			KeyPressType keyType = repeat ? KeyBgRepeat : down ? KeyBgDown : KeyUp;
+			KeyPressType keyType = repeat ? KeyPressType::KeyBgRepeat : 
+				down ? KeyPressType::KeyBgDown : KeyPressType::KeyUp;
 
 			// Process the key through our repeat counter
 			rawInputRepeat.OnKey(vkey, down, repeat);
@@ -13046,7 +13049,8 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 				if (auto it = vkeyToCommand.find(vkey); it != vkeyToCommand.end())
 				{
 					// process the key press
-					ProcessKeyPress(hWnd, keyType, rawInputRepeat.repeatCount, true, false, it->second);
+					InputManager::Button button(InputManager::Button::DevType::TypeKB, 0, vkey);
+					ProcessKeyPress(hWnd, button, keyType, rawInputRepeat.repeatCount, true, false, it->second);
 				}
 			}
 		}
@@ -13055,7 +13059,7 @@ bool PlayfieldView::OnRawInputEvent(UINT rawInputCode, RAWINPUT *raw, DWORD dwSi
 	// if it's a keyboard event, note the event time, for the purposes 
 	// of the running game inactivity timer
 	if (raw->header.dwType == RIM_TYPEKEYBOARD)
-		lastInputEventTime = GetTickCount();
+		lastInputEventTime = GetTickCount64();
 
 	// Whatever we did with the event, we don't "consume" it in the sense
 	// of blocking other subscribers from seeing it.  Return false to allow
@@ -13068,10 +13072,10 @@ bool PlayfieldView::OnJoystickButtonChange(
 	int button, bool pressed, bool foreground)
 {
 	// note the time of the event
-	lastInputEventTime = GetTickCount();
+	lastInputEventTime = GetTickCount64();
 
 	// figure the key press mode
-	KeyPressType mode = pressed ? (foreground ? KeyDown : KeyBgDown) : KeyUp;
+	KeyPressType mode = pressed ? (foreground ? KeyPressType::KeyDown : KeyPressType::KeyBgDown) : KeyPressType::KeyUp;
 
 	// fire a javascript joystick event; if that says to ignore it, we're done
 	if (!FireJoystickButtonEvent(js->logjs->index, button, pressed, 0, !foreground))
@@ -13081,12 +13085,13 @@ bool PlayfieldView::OnJoystickButtonChange(
 	if (auto it = jsCommands.find(JsCommandKey(js->logjs->index, button)); it != jsCommands.end())
 	{
 		// process the key press
-		ProcessKeyPress(hWnd, mode, 0, !foreground, false, it->second);
+		InputManager::Button physButton(InputManager::Button::DevType::TypeJS, js->logjs->index, button);
+		ProcessKeyPress(hWnd, physButton, mode, 0, !foreground, false, it->second);
 
 		// if it's a key-press event, start auto-repeat; otherwise cancel
 		// any existing auto-repeat
 		if (pressed)
-			JoyAutoRepeatStart(js->logjs->index, button, foreground ? KeyRepeat : KeyBgRepeat);
+			JoyAutoRepeatStart(js->logjs->index, button, foreground ? KeyPressType::KeyRepeat : KeyPressType::KeyBgRepeat);
 		else
 			StopAutoRepeat();
 	}
@@ -13160,18 +13165,22 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 		}
 
 		// don't deliver auto-repeat events when a wheel animation is running
-		if (wheelAnimMode == WheelAnimNone)
+		if (wheelAnimMode == WheelAnimMode::WheelAnimNone)
 		{
 			// count the auto-repeat delivery
 			kbAutoRepeat.repeatCount += 1;
 
 			// fire a javascript key event; if that says to ignore it, we're done
-			if (FireKeyEvent(kbAutoRepeat.vkey, true, kbAutoRepeat.repeatCount, kbAutoRepeat.repeatMode == KeyBgRepeat))
+			if (FireKeyEvent(kbAutoRepeat.vkey, true, kbAutoRepeat.repeatCount,
+				kbAutoRepeat.repeatMode == KeyPressType::KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = vkeyToCommand.find(kbAutoRepeat.vkey); it != vkeyToCommand.end())
-					ProcessKeyPress(hWnd, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatCount, 
-						kbAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
+				{
+					InputManager::Button button(InputManager::Button::DevType::TypeKB, 0, kbAutoRepeat.vkeyOrig);
+					ProcessKeyPress(hWnd, button, kbAutoRepeat.repeatMode, kbAutoRepeat.repeatCount,
+						kbAutoRepeat.repeatMode == KeyPressType::KeyBgRepeat, false, it->second);
+				}
 			}
 		}
 
@@ -13207,19 +13216,22 @@ void PlayfieldView::OnJoyAutoRepeatTimer()
 	{
 		// only deliver auto-repeat events when there's no wheel 
 		// animation taking place
-		if (wheelAnimMode == WheelAnimNone)
+		if (wheelAnimMode == WheelAnimMode::WheelAnimNone)
 		{
 			// count the auto-repeat event 
 			joyAutoRepeat.repeatCount += 1;
 
 			// fire a joystick event
 			if (FireJoystickButtonEvent(joyAutoRepeat.unit, joyAutoRepeat.button, true, 
-				joyAutoRepeat.repeatCount, joyAutoRepeat.repeatMode == KeyBgRepeat))
+				joyAutoRepeat.repeatCount, joyAutoRepeat.repeatMode == KeyPressType::KeyBgRepeat))
 			{
 				// look up the button in the command table
 				if (auto it = jsCommands.find(JsCommandKey(joyAutoRepeat.unit, joyAutoRepeat.button)); it != jsCommands.end())
-					ProcessKeyPress(hWnd, joyAutoRepeat.repeatMode, joyAutoRepeat.repeatCount,
-						joyAutoRepeat.repeatMode == KeyBgRepeat, false, it->second);
+				{
+					InputManager::Button button(InputManager::Button::DevType::TypeJS, joyAutoRepeat.unit, joyAutoRepeat.button);
+					ProcessKeyPress(hWnd, button, joyAutoRepeat.repeatMode, joyAutoRepeat.repeatCount,
+						joyAutoRepeat.repeatMode == KeyPressType::KeyBgRepeat, false, it->second);
+				}
 			}
 		}
 
@@ -13280,12 +13292,23 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 	{
 		// if it's a Key Up for our repeating command, cancel
 		// the auto-repeat
-		if ((key.mode & KeyDown) == 0
+		if ((key.mode & KeyPressType::KeyDown) == 0
 			&& key.cmd->func == wheelAutoRepeat.key.cmd->func)
 		{
 			WheelAutoRepeatStop();
 			return;
 		}
+	}
+
+	// If the auto-repeat was initiated by a keyboard button,
+	// check to make sure the button is actually still down,
+	// to be sure we didn't miss a WM_KEYUP.
+	if (wheelAutoRepeat.key.physButton.devType == InputManager::Button::DevType::TypeKB
+		&& !(GetAsyncKeyState(wheelAutoRepeat.key.physButton.code) & 0x8000))
+	{
+		// the key is up - cancel the auto-repeat
+		WheelAutoRepeatStop();
+		return;
 	}
 
 	// count the repeat
@@ -13719,7 +13742,7 @@ void PlayfieldView::OnConfigChange()
 		// assign a mapping based on the button type
 		switch (btn.devType)
 		{
-		case InputManager::Button::TypeKB:
+		case InputManager::Button::DevType::TypeKB:
 			// Keyboard key.  Assign the command handler in the dispatch table.
 			AddVkeyCommand(btn.code, keyCmd);
 
@@ -13747,7 +13770,7 @@ void PlayfieldView::OnConfigChange()
 			}
 			break;
 
-		case InputManager::Button::TypeJS:
+		case InputManager::Button::DevType::TypeJS:
 			// Joystick button.  Check if the command is tied to a
 			// particular joystick or is for any joystick (unit -1).
 			if (&keyCmd != &NoCommand)
@@ -13857,7 +13880,7 @@ void PlayfieldView::OnJoystickAdded(JoystickManager::PhysicalJoystick *js, bool 
 			// if this is a button specifically on our joystick OR assigned
 			// for "any joystick", create a command mapping
 			if (&keyCmd != &NoCommand
-				&& btn.devType == InputManager::Button::TypeJS
+				&& btn.devType == InputManager::Button::DevType::TypeJS
 				&& (btn.unit == js->logjs->index || btn.unit == -1))
 			{
 				AddJsCommand(btn.unit, btn.code, keyCmd);
@@ -14002,7 +14025,7 @@ void PlayfieldView::JsSettingsReload()
 
 void PlayfieldView::CmdSelect(const QueuedKey &key)
 {
-	if (key.mode == KeyDown)
+	if (key.mode == KeyPressType::KeyDown)
 		DoSelect(key.cmd->func == &PlayfieldView::CmdExit);
 }
 
@@ -14039,7 +14062,7 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 		bool close = true;
 
 		// check the popup type
-		if (popupType == PopupRateGame)
+		if (popupType == PopupType::PopupRateGame)
 		{
 			// Rate Game dialog - commit the new rating to the game database
 			GameList *gl = GameList::Get();
@@ -14058,7 +14081,7 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 			if (dynamic_cast<const RatingFilter*>(gl->GetCurFilter()) != nullptr)
 				SetTimer(hWnd, fullRefreshTimerID, 0, NULL);
 		}
-		else if (popupType == PopupGameAudioVolume)
+		else if (popupType == PopupType::PopupGameAudioVolume)
 		{
 			// Audio volume dialog - commit the new volume
 			GameList *gl = GameList::Get();
@@ -14069,19 +14092,19 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 			// use the "select" sound effect to indicate success
 			sound = _T("Select");
 		}
-		else if (popupType == PopupCaptureDelay)
+		else if (popupType == PopupType::PopupCaptureDelay)
 		{
 			// Capture Delay dialog - commit the new adjusted startup 
 			// delay and return to the capture menu
 			captureStartupDelay = adjustedCaptureStartupDelay;
 			DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
 		}
-		else if (popupType == PopupMediaList)
+		else if (popupType == PopupType::PopupMediaList)
 		{
 			// Media list dialog - exeucte the current command
 			DoMediaListCommand(close);
 		}
-		else if (popupType == PopupBatchCapturePreview)
+		else if (popupType == PopupType::PopupBatchCapturePreview)
 		{
 			ClosePopup();
 			BatchCaptureStep4();
@@ -14347,7 +14370,7 @@ void PlayfieldView::ShowRecencyFilterMenu(
 
 void PlayfieldView::CmdExit(const QueuedKey &key)
 {
-	if (key.mode == KeyDown)
+	if (key.mode == KeyPressType::KeyDown)
 	{
 		// Check what's showing:
 		//
@@ -14384,19 +14407,19 @@ void PlayfieldView::CmdExit(const QueuedKey &key)
 		else if (popupSprite != nullptr)
 		{
 			// check the popup type
-			if (popupType == PopupCaptureDelay)
+			if (popupType == PopupType::PopupCaptureDelay)
 			{
 				// capture delay - return to the capture setup menu, 
 				// without committing the adjusted delay time
 				ClosePopup();
 				DisplayCaptureMenu(true, ID_CAPTURE_ADJUSTDELAY);
 			}
-			else if (popupType == PopupMediaList)
+			else if (popupType == PopupType::PopupMediaList)
 			{
 				PlayButtonSound(_T("Deselect"));
 				ShowMediaFilesExit();
 			}
-			else if (popupType == PopupBatchCapturePreview)
+			else if (popupType == PopupType::PopupBatchCapturePreview)
 			{
 				ClosePopup();
 				BatchCaptureStep4();
@@ -14501,7 +14524,7 @@ float PlayfieldView::GetContextSensitiveButtonVolume(const QueuedKey &) const
 	// if we're displaying the game media audio volume adjustment
 	// dialog, play next/prev/pgup/pgdn button sounds at the working
 	// volume level
-	if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+	if (popupSprite != nullptr && popupType == PopupType::PopupGameAudioVolume)
 		return static_cast<float>(workingAudioVolume)/100.0f;
 
 	// for everything else, play buttons at normal volume
@@ -14510,7 +14533,7 @@ float PlayfieldView::GetContextSensitiveButtonVolume(const QueuedKey &) const
 
 void PlayfieldView::CmdNext(const QueuedKey &key)
 {
-	if ((key.mode & KeyDown) != 0)
+	if ((key.mode & KeyPressType::KeyDown) != 0)
 	{
 		// play the audio effect
 		PlayButtonSoundRpt(_T("Next"), key.repeatCount, GetContextSensitiveButtonVolume(key));
@@ -14544,46 +14567,46 @@ void PlayfieldView::DoCmdNext(const QueuedKey &key)
 	else if (popupSprite != nullptr)
 	{
 		// check the popup type
-		if (popupType == PopupFlyer)
+		if (popupType == PopupType::PopupFlyer)
 		{
 			// flyer - go to the next page
 			ShowFlyer(flyerPage + 1);
 		}
-		else if (popupType == PopupInstructions)
+		else if (popupType == PopupType::PopupInstructions)
 		{
 			// instructions - go to the next card
 			ShowInstructionCard(instCardPage + 1);
 		}
-		else if (popupType == PopupRateGame)
+		else if (popupType == PopupType::PopupRateGame)
 		{
 			// Rate Game popup dialog - adjust the rating up 1/2 star
 			AdjustRating(0.5f);
 		}
-		else if (popupType == PopupGameAudioVolume)
+		else if (popupType == PopupType::PopupGameAudioVolume)
 		{
 			AdjustWorkingAudioVolume(1);
 		}
-		else if (popupType == PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
+		else if (popupType == PopupType::PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
 		{
 			// game info - show high scores
 			ShowHighScores();
 		}
-		else if (popupType == PopupHighScores)
+		else if (popupType == PopupType::PopupHighScores)
 		{
 			// high scores - go to game info
 			ShowGameInfo();
 		}
-		else if (popupType == PopupCaptureDelay)
+		else if (popupType == PopupType::PopupCaptureDelay)
 		{
 			// increment the startup delay time and update the dialog
 			adjustedCaptureStartupDelay += 1;
 			ShowCaptureDelayDialog(true);
 		}
-		else if (popupType == PopupMediaList)
+		else if (popupType == PopupType::PopupMediaList)
 		{
 			ShowMediaFiles(1);
 		}
-		else if (popupType == PopupBatchCapturePreview)
+		else if (popupType == PopupType::PopupBatchCapturePreview)
 		{
 			// scroll down a bit
 			batchViewScrollY += 32;
@@ -14603,7 +14626,7 @@ void PlayfieldView::DoCmdNext(const QueuedKey &key)
 	{
 		// Base mode - go to the next game
 		QueueDOFPulse(L"PBYWheelNext");
-		SwitchToGame(1, key.mode == KeyRepeat, true, true);
+		SwitchToGame(1, key.mode == KeyPressType::KeyRepeat, true, true);
 
 		// start wheel auto-repeat if it's not already running
 		repeatModeSentry.keep = true;
@@ -14613,7 +14636,7 @@ void PlayfieldView::DoCmdNext(const QueuedKey &key)
 
 void PlayfieldView::CmdPrev(const QueuedKey &key)
 {
-	if ((key.mode & KeyDown) != 0)
+	if ((key.mode & KeyPressType::KeyDown) != 0)
 	{
 		// play the sound
 		PlayButtonSoundRpt(_T("Prev"), key.repeatCount, GetContextSensitiveButtonVolume(key));
@@ -14630,10 +14653,10 @@ void PlayfieldView::CmdPrev(const QueuedKey &key)
 void PlayfieldView::CheckManualGo(bool &thisButtonDown, const QueuedKey &key)
 {
 	// update this button's status
-	thisButtonDown = ((key.mode & (KeyDown | KeyBgDown)) != 0);
+	thisButtonDown = ((key.mode & (KeyPressType::KeyDown | KeyPressType::KeyBgDown)) != 0);
 
 	// never trigger the Manual Go on a repeat
-	if (key.mode != KeyBgDown)
+	if (key.mode != KeyPressType::KeyBgDown)
 		return;
 
 	// Check if this is a single-button or two-button gesture
@@ -14681,47 +14704,47 @@ void PlayfieldView::DoCmdPrev(const QueuedKey &key)
 	else if (popupSprite != nullptr)
 	{
 		// check the popup type
-		if (popupType == PopupFlyer)
+		if (popupType == PopupType::PopupFlyer)
 		{
 			// flyer - go to the prior page
 			ShowFlyer(flyerPage - 1);
 		}
-		else if (popupType == PopupInstructions)
+		else if (popupType == PopupType::PopupInstructions)
 		{
 			// instructions - go to the prior card
 			ShowInstructionCard(instCardPage - 1);
 		}
-		else if (popupType == PopupRateGame)
+		else if (popupType == PopupType::PopupRateGame)
 		{
 			// Rate Game popup dialog - adjust the rating down 1/2 star
 			AdjustRating(-0.5f);
 		}
-		else if (popupType == PopupGameAudioVolume)
+		else if (popupType == PopupType::PopupGameAudioVolume)
 		{
 			AdjustWorkingAudioVolume(-1);
 		}
-		else if (popupType == PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
+		else if (popupType == PopupType::PopupGameInfo && GameList::Get()->GetNthGame(0)->highScores.size() != 0)
 		{
 			// game info - show high scores
 			ShowHighScores();
 		}
-		else if (popupType == PopupHighScores)
+		else if (popupType == PopupType::PopupHighScores)
 		{
 			// high scores - go to game info
 			ShowGameInfo();
 		}
-		else if (popupType == PopupCaptureDelay)
+		else if (popupType == PopupType::PopupCaptureDelay)
 		{
 			// decrement the startup delay time and re-show the dialog
 			adjustedCaptureStartupDelay -= 1;
 			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
 			ShowCaptureDelayDialog(true);
 		}
-		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupMediaList)
 		{
 			ShowMediaFiles(-1);
 		}
-		else if (popupType == PopupBatchCapturePreview)
+		else if (popupType == PopupType::PopupBatchCapturePreview)
 		{
 			// scroll up a bit
 			batchViewScrollY -= 32;
@@ -14741,7 +14764,7 @@ void PlayfieldView::DoCmdPrev(const QueuedKey &key)
 	{
 		// base mode - go to the previous game
 		QueueDOFPulse(L"PBYWheelPrev");
-		SwitchToGame(-1, key.mode == KeyRepeat, true, true);
+		SwitchToGame(-1, key.mode == KeyPressType::KeyRepeat, true, true);
 
 		// start wheel auto-repeat if it's not already running
 		repeatModeSentry.keep = true;
@@ -14755,7 +14778,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
 
 	// check the key mode
-	if ((key.mode & KeyDown) != 0)
+	if ((key.mode & KeyPressType::KeyDown) != 0)
 	{
 		// play the sound
 		PlayButtonSoundRpt(_T("Next"), key.repeatCount, GetContextSensitiveButtonVolume(key));
@@ -14777,22 +14800,22 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 			// there's a Page Down item - send the command
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_DOWN);
 		}
-		else if (popupSprite != nullptr && popupType == PopupCaptureDelay)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupCaptureDelay)
 		{
 			// increment the startup delay time and re-show the dialog
 			adjustedCaptureStartupDelay += 5;
 			ShowCaptureDelayDialog(true);
 		}
-		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupMediaList)
 		{
 			ShowMediaFiles(2);
 		}
-		else if (popupSprite != nullptr && popupType == PopupBatchCapturePreview)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupBatchCapturePreview)
 		{
 			batchViewScrollY += 1250;
 			UpdateBatchCaptureView();
 		}
-		else if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupGameAudioVolume)
 		{
 			AdjustWorkingAudioVolume(10);
 		}
@@ -14809,7 +14832,7 @@ void PlayfieldView::CmdNextPage(const QueuedKey &key)
 		{
 			// base state - advance by a letter group
 			QueueDOFPulse(L"PBYWheelNextPage");
-			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyRepeat, true, true);
+			SwitchToGame(GameList::Get()->FindNextLetter(), key.mode == KeyPressType::KeyRepeat, true, true);
 
 			// start wheel auto-repeat mode
 			repeatModeSentry.keep = true;
@@ -14828,7 +14851,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 	WheelAutoRepeat::ModeSentry repeatModeSentry(this);
 
 	// check the key mode
-	if ((key.mode & KeyDown) != 0)
+	if ((key.mode & KeyPressType::KeyDown) != 0)
 	{
 		// play the sound
 		PlayButtonSoundRpt(_T("Prev"), key.repeatCount, GetContextSensitiveButtonVolume(key));
@@ -14846,23 +14869,23 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		{
 			PostMessage(WM_COMMAND, ID_MENU_PAGE_UP);
 		}
-		else if (popupSprite != nullptr && popupType == PopupCaptureDelay)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupCaptureDelay)
 		{
 			// decrement the startup delay time and re-show the dialog
 			adjustedCaptureStartupDelay -= 5;
 			if (adjustedCaptureStartupDelay < 0) adjustedCaptureStartupDelay = 0;
 			ShowCaptureDelayDialog(true);
 		}
-		else if (popupSprite != nullptr && popupType == PopupMediaList)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupMediaList)
 		{
 			ShowMediaFiles(-2);
 		}
-		else if (popupSprite != nullptr && popupType == PopupBatchCapturePreview)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupBatchCapturePreview)
 		{
 			batchViewScrollY -= 1250;
 			UpdateBatchCaptureView();
 		}
-		else if (popupSprite != nullptr && popupType == PopupGameAudioVolume)
+		else if (popupSprite != nullptr && popupType == PopupType::PopupGameAudioVolume)
 		{
 			AdjustWorkingAudioVolume(-10);
 		}
@@ -14878,7 +14901,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 		else
 		{
 			// base state - go backwards by a letter group
-			SwitchToGame(GameList::Get()->FindPrevLetter(), key.mode == KeyRepeat, true, true);
+			SwitchToGame(GameList::Get()->FindPrevLetter(), key.mode == KeyPressType::KeyRepeat, true, true);
 			QueueDOFPulse(L"PBYWheelPrevPage");
 
 			// start wheel auto-repeat mode
@@ -14895,7 +14918,7 @@ void PlayfieldView::CmdPrevPage(const QueuedKey &key)
 void PlayfieldView::CmdLaunch(const QueuedKey &key)
 {
 	// launch the current game (bypassing the menu)
-	if ((key.mode & KeyDown) != 0)
+	if ((key.mode & KeyPressType::KeyDown) != 0)
 	{
 		if (CancelStartupVideo())
 		{
@@ -14924,7 +14947,7 @@ void PlayfieldView::CmdExitGame(const QueuedKey &key)
 {
 	// "Exit Game" Key.  This only applies when we're running in
 	// the background.
-	if ((key.mode & (KeyBgDown | KeyBgRepeat)) == KeyBgDown)
+	if ((key.mode & (KeyPressType::KeyBgDown | KeyPressType::KeyBgRepeat)) == KeyPressType::KeyBgDown)
 	{
 		// send ourself a KILL GAME command to terminate any running game
 		SendMessage(WM_COMMAND, ID_KILL_GAME);
@@ -15057,7 +15080,7 @@ void PlayfieldView::DisplayCredits()
 
 	// set/reset the credits animation timer
 	SetTimer(hWnd, creditsDispTimerID, 16, 0);
-	creditsStartTime = GetTickCount();
+	creditsStartTime = GetTickCount64();
 
 	// open the popup, positioning it in the lower half of the screen
 	creditsSprite->alpha = 1.0f;
@@ -15070,7 +15093,7 @@ void PlayfieldView::OnCreditsDispTimer()
 {
 	// fade out after the display has been up a while
 	const DWORD dispTime = 2000;
-	DWORD dt = GetTickCount() - creditsStartTime;
+	INT64 dt = GetTickCount64() - creditsStartTime;
 	if (dt > dispTime)
 	{
 		// figure the fade ramp; if we're at zero alpha, remove the
@@ -15854,7 +15877,7 @@ void PlayfieldView::EditGameInfo()
 			{
 				isAutoComplete = true;
 				end = start;
-				txt[end] = 0;
+				txt[end < countof(txt) ? end : countof(txt)] = 0;
 			}
 
 			// if the combo isn't already open, open it
@@ -16919,16 +16942,19 @@ void PlayfieldView::SaveCategoryEdits()
 	auto gl = GameList::Get();
 	auto game = gl->GetNthGame(0);
 	if (gl != nullptr)
+	{
+		// save the new category list
 		gl->SetCategories(game, *categoryEditList.get());
 
-	// If a category filter is in effect, this could filter out the
-	// current game.  Reset the filter (to rebuild its current selection
-	// list) and update the current game in the wheel if so.
-	if (dynamic_cast<const GameCategory*>(gl->GetCurFilter()) != nullptr)
-	{
-		bool gameChanged = gl->RefreshFilter();
-		UpdateSelection(gameChanged);
-		UpdateAllStatusText();
+		// If a category filter is in effect, this could filter out the
+		// current game.  Reset the filter (to rebuild its current selection
+		// list) and update the current game in the wheel if so.
+		if (dynamic_cast<const GameCategory*>(gl->GetCurFilter()) != nullptr)
+		{
+			bool gameChanged = gl->RefreshFilter();
+			UpdateSelection(gameChanged);
+			UpdateAllStatusText();
+		}
 	}
 }
 
@@ -17508,7 +17534,7 @@ void PlayfieldView::ShowMediaFiles(int dir)
 	AdjustSpritePosition(popupSprite);
 
 	// start the animation
-	StartPopupAnimation(PopupMediaList, L"media list", true);
+	StartPopupAnimation(PopupType::PopupMediaList, L"media list", true);
 
 	// put the new sprite in the drawing list
 	UpdateDrawingList();
@@ -17560,7 +17586,7 @@ void PlayfieldView::ShellExec(const TCHAR *file, const TCHAR *params)
 		DWORD tid;
 
 		ShellLauncher(HWND hwndPar, const TCHAR *file, const TCHAR *params) :
-			file(file), params(params) { }
+			tid(0), hwndPar(NULL), file(file), params(params) { }
 
 		static DWORD WINAPI ThreadMain(LPVOID lParam)
 		{
@@ -17658,7 +17684,7 @@ void PlayfieldView::DelMediaFile()
 		if (DeleteFile(showMedia.file.c_str()))
 		{
 			// success - sync media and re-show the media menu
-			SyncPlayfield(SyncDelMedia);
+			SyncPlayfield(SyncPlayfieldMode::SyncDelMedia);
 			UpdateSelection(false);
 			ShowMediaFiles(0);
 			break;
@@ -17971,7 +17997,7 @@ void PlayfieldView::ShowCaptureDelayDialog(bool update)
 	}, eh, _T("Capture startup delay adjustment dialog")))
 	{
 		AdjustSpritePosition(popupSprite);
-		StartPopupAnimation(PopupCaptureDelay, L"capture delay", true);
+		StartPopupAnimation(PopupType::PopupCaptureDelay, L"capture delay", true);
 	}
 	else
 	{
@@ -19551,7 +19577,7 @@ void PlayfieldView::UpdateBatchCaptureView()
 	AdjustSpritePosition(popupSprite);
 
 	// animate the popup opening if it wasn't already displayed
-	StartPopupAnimation(PopupBatchCapturePreview, L"batch capture preview", true);
+	StartPopupAnimation(PopupType::PopupBatchCapturePreview, L"batch capture preview", true);
 
 	// update the drawing list
 	UpdateDrawingList();
@@ -20094,7 +20120,7 @@ void PlayfieldView::StatusLine::Init(
 	AddSect();
 
 	// set the starting time such that we do an immediate update
-	startTime = GetTickCount() - dispTime - 1;
+	startTime = GetTickCount64() - dispTime - 1;
 }
 
 void PlayfieldView::StatusLine::Reset(PlayfieldView *)
@@ -20103,7 +20129,7 @@ void PlayfieldView::StatusLine::Reset(PlayfieldView *)
 	curItem = items.end();
 
 	// set the starting time such that we do an immediate update
-	startTime = GetTickCount() - dispTime - 1;
+	startTime = GetTickCount64() - dispTime - 1;
 }
 
 void PlayfieldView::StatusLine::OnSourceDataUpdate(PlayfieldView *pfv)
@@ -20144,7 +20170,7 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 	}
 
 	// get the time so far in this phase
-	DWORD dt = GetTickCount() - startTime;
+	INT64 dt = GetTickCount64() - startTime;
 	const float fadeTime = 350.0f;
 
 	// continue according to the current phase
@@ -20172,7 +20198,7 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 				phase = FadeOutPhase;
 
 			// start the next phase timer
-			startTime = GetTickCount();
+			startTime = GetTickCount64();
 		}
 		else
 		{
@@ -20203,7 +20229,7 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 		if (progress == 1.0f)
 		{
 			phase = DispPhase;
-			startTime = GetTickCount();
+			startTime = GetTickCount64();
 		}
 	}
 	else if (phase == FadeOutPhase)
@@ -20255,7 +20281,7 @@ void PlayfieldView::StatusLine::TimerUpdate(PlayfieldView *pfv)
 			pfv->UpdateDrawingList();
 
 			// switch to display mode and reset the timer
-			startTime = GetTickCount();
+			startTime = GetTickCount64();
 			phase = FadeInPhase;
 		}
 	}
@@ -20697,7 +20723,7 @@ void PlayfieldView::StatusLine::JsShow(TSTRING txt)
 void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 {
 	// get the time since the last event
-	DWORD dt = GetTickCount() - t0;
+	INT64 dt = GetTickCount64() - t0;
 
 	// If a save is pending, and it's been long enough, do a save.
 	// This writes any uncommitted, in-memory changes to external
@@ -20741,7 +20767,7 @@ void PlayfieldView::AttractMode::OnTimer(PlayfieldView *pfv)
 			pfv->SwitchToGame(d, false, false, true);
 
 			// reset the timer
-			t0 = GetTickCount();
+			t0 = GetTickCount64();
 
 			// make sure the cursor stays hidden while in attract mode
 			Application::HideCursor();
@@ -20831,7 +20857,7 @@ void PlayfieldView::AttractMode::Reset(PlayfieldView *pfv)
 	}
 
 	// reset the attract mode event timer
-	t0 = GetTickCount();
+	t0 = GetTickCount64();
 
 	// check again for file-save work the next time we're idle
 	savePending = true;
@@ -20854,7 +20880,7 @@ void PlayfieldView::AttractMode::StartAttractMode(PlayfieldView *pfv)
 
 	// reset the timer, so that we the next elapsed time check
 	// measures from when we started attract mode
-	t0 = GetTickCount();
+	t0 = GetTickCount64();
 }
 
 void PlayfieldView::AttractMode::EndAttractMode(PlayfieldView *pfv)
@@ -20869,7 +20895,7 @@ void PlayfieldView::AttractMode::EndAttractMode(PlayfieldView *pfv)
 	pfv->OnEndAttractMode();
 
 	// reset the attract mode event timer
-	t0 = GetTickCount();
+	t0 = GetTickCount64();
 
 	// check again for file-save work the next time we're idle
 	savePending = true;

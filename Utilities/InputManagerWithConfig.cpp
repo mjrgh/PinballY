@@ -164,7 +164,7 @@ void InputManagerWithConfig::LoadConfig()
 				}
 
 				// Add the button
-				cmd.buttons.emplace_back(Button::TypeJS, unitNum, buttonNum);
+				cmd.buttons.emplace_back(Button::DevType::TypeJS, unitNum, buttonNum);
 
 				// Get the rest of the string
 				txt = m[3].first;
@@ -178,7 +178,7 @@ void InputManagerWithConfig::LoadConfig()
 				if (vk != -1)
 				{
 					// Add a key item for (type=keyboard, unit=0, value=VK_xxx);
-					cmd.buttons.emplace_back(Button::TypeKB, 0, vk);
+					cmd.buttons.emplace_back(Button::DevType::TypeKB, 0, vk);
 
 					// Claim the key assignment.  This prevents reassigning
 					// the key to its default command if the default command
@@ -193,7 +193,7 @@ void InputManagerWithConfig::LoadConfig()
 			else if (std::regex_match(txt, m, nonepat))
 			{
 				// no assignment - add a key item for (type=none, unit=0, value=0)
-				cmd.buttons.emplace_back(Button::TypeNone, 0, 0);
+				cmd.buttons.emplace_back(Button::DevType::TypeNone, 0, 0);
 
 				// get the rest of the string
 				txt = m[1].first;
@@ -216,7 +216,7 @@ void InputManagerWithConfig::LoadConfig()
 		if (cmd.buttons.size() == 0 && cmd.defaultKey != 0 && !keyAssigned[cmd.defaultKey])
 		{
 			// assign the key as (type=keyboard, unit=0, value=cmd.defaultKey)
-			cmd.buttons.emplace_back(Button::TypeKB, 0, cmd.defaultKey);
+			cmd.buttons.emplace_back(Button::DevType::TypeKB, 0, cmd.defaultKey);
 
 			// claim the key
 			keyAssigned[cmd.defaultKey] = true;
@@ -256,14 +256,14 @@ void InputManagerWithConfig::StoreConfig()
 				TSTRING curTxt;
 				switch (button.devType)
 				{
-				case Button::TypeNone:
+				case Button::DevType::TypeNone:
 					// A "none" entry is only used when there are no other
 					// entries.  Include it only if this is the single entry.
 					if (cmd.buttons.size() == 1)
 						curTxt = _T("none");
 					break;
 
-				case Button::TypeJS:
+				case Button::DevType::TypeJS:
 					// Joystick button.  If the unit number is -1, it means
 					// that the button will match any joystick device; otherwise,
 					// it's tied to a particular unit.
@@ -287,7 +287,7 @@ void InputManagerWithConfig::StoreConfig()
 					}
 					break;
 
-				case Button::TypeKB:
+				case Button::DevType::TypeKB:
 					// the text is the key name
 					if (button.code > 0 && button.code <= VKE_LAST
 						&& KeyInput::keyName[button.code].keyID != 0)

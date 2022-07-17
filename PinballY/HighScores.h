@@ -152,7 +152,7 @@ public:
 		NotifyContext *context;
 
 		// status
-		enum Status
+		enum class Status
 		{
 			Success,
 			ThreadLaunchFailed,

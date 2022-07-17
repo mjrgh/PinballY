@@ -40,7 +40,7 @@ public:
 	// Open a file path for playback.  This opens the video with a
 	// standard video display target.
 	virtual bool Open(const TCHAR *path, ErrorHandler &eh) override
-		{ return OpenWithTarget(path, eh, VideoTarget); }
+		{ return OpenWithTarget(path, eh, TargetDevice::VideoTarget); }
 
 	// DMD device interface
 	class DMD
@@ -70,7 +70,7 @@ public:
 	bool OpenDmdTarget(const TCHAR *path, ErrorHandler &eh, DMD *dmd)
 	{
 		this->dmd = dmd;
-		return OpenWithTarget(path, eh, DMDTarget);
+		return OpenWithTarget(path, eh, TargetDevice::DMDTarget);
 	}
 
 	// get the media path
@@ -124,7 +124,7 @@ protected:
 	static bool initFailed;
 
 	// Target display device types
-	enum TargetDevice
+	enum class TargetDevice
 	{
 		VideoTarget,      // normal video display
 		DMDTarget         // real DMD device target
@@ -212,8 +212,11 @@ protected:
 	{
 	public:
 		FrameBuffer() : 
-			status(Free),
-			pixBuf(nullptr, &_aligned_free)
+			status(FrameStatus::Free),
+			dims({ 0, 0 }),
+			pixBuf(nullptr, &_aligned_free),
+			shader(nullptr),
+			nPlanes(0)
 		{ 
 		}
 
@@ -222,7 +225,7 @@ protected:
 		}
 
 		// frame status
-		enum FrameStatus
+		enum class FrameStatus
 		{
 			// Free: this frame buffer is available for a new decoded frame.
 			Free,

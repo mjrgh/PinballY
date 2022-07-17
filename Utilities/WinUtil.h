@@ -372,7 +372,42 @@ public:
 
 	BYTE GetAuthority() const { return IdentifierAuthority.Value[5]; }
 	DWORD GetFirstSubAuthority() const { return SubAuthority[0]; }
-	DWORD GetSecondSubAuthority() const { return SubAuthority[1]; }
+	DWORD GetSecondSubAuthority() const { 
+		// NB: The SDK headers define the SubAuthority array using
+		// the type-unsafe C idiom of the "overallocated struct",
+		// where SubAuthority is declared as an array with one element,
+		// but it's the last thing in the struct, so the run-time
+		// size of the array can be expanded beyond one element by
+		// allocating extra space when malloc'ing the struct.
+		// There's no way to tell the compiler we're doing this,
+		// though, so the compiler (properly) generates a warning
+		// about out-of-bounds access if we reference SubAuthority[1].
+		// We can suppress the warning by obtaining a pointer to the
+		// base of the array before indexing it, by writing
+		// (&SubAuthority[0]).  While this might seem like we're just
+		// "shutting up the compiler", this is arguably also a more
+		// semantically correct way to express the access, given that
+		// SubAuthority[] isn't truly a one-element array at all;
+		// it's just declared that way because the language lacks
+		// syntax to express a struct containing an embedded array of
+		// varying size.  The SubAuthority member in the struct is
+		// more properly interpreted as the address of the zeroeth
+		// element of a dynamically allocated array.  Explicitly
+		// converting the address expression to a pointer before
+		// indexing it makes this interpretation explicit.  This 
+		// slight rewrite does also happen to "shut up the compiler",
+		// but it's not because it's a hack, rather because it
+		// expresses the meaning more accurately than the one-element
+		// array declaration from the SDK header does.  It's the
+		// one-element array declaration that's actually dishonest
+		// here.  Note also that this access isn't type-safe, in
+		// that the compiler can't statically check that the struct
+		// was actually allocated with enough space for a two-element
+		// version of the array, so the caller is responsible for
+		// verifying the size before access by checking the
+		// SubAuthorityCount member.
+		return (&SubAuthority[0])[1]; 
+	}
 
 	static WellKnownSid Everyone()
 	{

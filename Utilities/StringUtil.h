@@ -85,13 +85,13 @@ int vasprintf(T **result, const T *fmt, va_list ap)
 	if (size >= 0 && size < INT_MAX)
 	{
 		// allocate space for the formatted text plus trailing null
-		if ((*result = new (std::nothrow) T[size + 1]) != 0)
+		if ((*result = new (std::nothrow) T[static_cast<size_t>(size) + 1]) != 0)
 		{
 			// format the text
 			if constexpr (sizeof(T) == 1)
-				r = _vsnprintf_s(*result, size + 1, _TRUNCATE, fmt, ap);
+				r = _vsnprintf_s(*result, static_cast<size_t>(size) + 1, _TRUNCATE, fmt, ap);
 			else
-				r = _vsntprintf_s(*result, size + 1, _TRUNCATE, fmt, ap);
+				r = _vsntprintf_s(*result, static_cast<size_t>(size) + 1, _TRUNCATE, fmt, ap);
 
 			if (r < 0 || r > size)
 			{
@@ -279,6 +279,26 @@ StringEx<S>::StringEx(MsgFmt &m) : S(m.Get()) { }
 // other fractions, we use a floating point format instead.
 TSTRING FormatFraction(float value);
 
+
+// -------------------------------------------------------------------------
+//
+// Safe, buffer-length-limited versions of some stdlib string.h functions
+//
+
+template<size_t size> TCHAR* _tcschr_s(TCHAR (&buf)[size], int c)
+{
+	// scan for the target character, stopping at the end of the buffer
+	// or the first nul character
+	for (TCHAR *p = buf, *endp = buf + size; p < endp && *p != 0; ++p)
+	{
+		// check for a match to the target character
+		if (*p == c)
+			return p;
+	}
+
+	// not found - return null pointer
+	return nullptr;
+}
 
 // -------------------------------------------------------------------------
 //

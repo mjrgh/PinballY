@@ -410,7 +410,7 @@ protected:
 
 		virtual InputManager::Button IMButton() const override
 		{
-			return InputManager::Button(InputManager::Button::TypeJS, unitNo, button);
+			return InputManager::Button(InputManager::Button::DevType::TypeJS, unitNo, button);
 		}
 
 
@@ -448,7 +448,7 @@ protected:
 
 		virtual InputManager::Button IMButton() const override
 		{
-			return InputManager::Button(InputManager::Button::TypeKB, 0, vk);
+			return InputManager::Button(InputManager::Button::DevType::TypeKB, 0, vk);
 		}
 
 		// Virtual key code (a standard Windows VK_ code, or our

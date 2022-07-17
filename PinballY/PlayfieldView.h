@@ -635,7 +635,7 @@ protected:
 	// event times, even when we're in the background, via the raw
 	// input mechanism.  We use this to detect activity in a running
 	// game, for the purposes of the game timeout timer.
-	DWORD lastInputEventTime;
+	UINT64 lastInputEventTime;
 
 	// Last PlayGame() command and launch flags
 	int lastPlayGameCmd;
@@ -754,7 +754,7 @@ protected:
 	void UpdateAnimation();
 
 	// sync the playfield to the current selection in the game list
-	enum SyncPlayfieldMode
+	enum class SyncPlayfieldMode
 	{
 		SyncByTimer,
 		SyncEndGame,
@@ -893,7 +893,7 @@ protected:
 	int adjustedCaptureStartupDelay;
 
 	// Capture menu mode
-	enum CaptureMenuMode
+	enum class CaptureMenuMode
 	{
 		NA,              // invalid/not applicable
 		Single,          // single game capture
@@ -1349,7 +1349,7 @@ protected:
 		void JsShow(TSTRING txt);
 
 		// Start time for current item display
-		DWORD startTime;
+		UINT64 startTime;
 
 		// Display time for this status line.  This is the time in
 		// ticks between message changes.
@@ -1618,7 +1618,7 @@ protected:
 	LONG runningGameID;
 
 	// Running game mode.  
-	enum RunningGameMode
+	enum class RunningGameMode
 	{
 		None,		// no game running
 		Starting,	// waiting for startup
@@ -1632,7 +1632,7 @@ protected:
 
 	// Popup type.  This indicates which type of item is currently
 	// displayed in the modal popup box.
-	enum PopupType
+	enum class PopupType
 	{
 		PopupNone,			       // no popup
 		PopupFlyer,			       // game flyer
@@ -1654,13 +1654,13 @@ protected:
 	WSTRING popupName;
 
 	// popup animation mode and start time
-	enum
+	enum class PopupAnimMode
 	{
 		PopupAnimNone,		// no animation
 		PopupAnimOpen,		// opening a popup
 		PopupAnimClose		// closing a popup
 	} popupAnimMode;
-	DWORD popupAnimStartTime;
+	UINT64 popupAnimStartTime;
 
 	// Start a popup animation.  If replaceTypes is not null, it's an array of
 	// popup types that the new type can replace without any animation effects.
@@ -1729,7 +1729,7 @@ protected:
 	// separate popup for the credit count overlay, used when a
 	// coin is inserted
 	RefPtr<Sprite> creditsSprite;
-	DWORD creditsStartTime;
+	UINT64 creditsStartTime;
 
 	// update/remove the credits display
 	void OnCreditsDispTimer();
@@ -1939,7 +1939,7 @@ protected:
 	void MenuNext(int dir);
 
 	// menu animation mode
-	enum MenuAnimMode
+	enum class MenuAnimMode
 	{
 		MenuAnimNone,			// idle
 		MenuAnimOpen,			// opening a menu
@@ -1947,7 +1947,7 @@ protected:
 	} menuAnimMode;
 
 	// menu animation start time
-	DWORD menuAnimStartTime;
+	UINT64 menuAnimStartTime;
 
 	// start a menu animation
 	void StartMenuAnimation(bool fast);
@@ -1970,7 +1970,7 @@ protected:
 	void AccelerateCloseMenu();
 
 	// wheel animation mode
-	enum WheelAnimMode
+	enum class WheelAnimMode
 	{
 		WheelAnimNone,				// idle
 		WheelAnimNormal,			// normal speed wheel motion
@@ -1978,7 +1978,7 @@ protected:
 	} wheelAnimMode;
 
 	// Wheel animation start time
-	DWORD wheelAnimStartTime;
+	UINT64 wheelAnimStartTime;
 
 	// start an animation sequence
 	void StartWheelAnimation(bool fast);
@@ -1991,7 +1991,7 @@ protected:
 	// fill in startTime with the current time, as the reference time
 	// for the current animation.
 	void StartAnimTimer();
-	void StartAnimTimer(DWORD &startTime);
+	void StartAnimTimer(UINT64 &startTime);
 
 	// is the animation timer running?
 	bool isAnimTimerRunning;
@@ -2066,14 +2066,14 @@ protected:
 	void OnBeginMediaSync();
 
 	// Incoming playfield load time.  This is
-	DWORD incomingPlayfieldLoadTime;
+	UINT64 incomingPlayfieldLoadTime;
 
 	// Game info box fade start time
-	DWORD infoBoxStartTime;
+	UINT64 infoBoxStartTime;
 
 	// running game popup start time and animation mode
-	DWORD runningGamePopupStartTime;
-	enum
+	UINT64 runningGamePopupStartTime;
+	enum class RunningGamePopupMode
 	{
 		RunningGamePopupNone,
 		RunningGamePopupOpen,
@@ -2140,7 +2140,7 @@ protected:
 		// running normally, this is the time of the last user input
 		// event.  During attract mode, it's the time of the last
 		// game change.
-		DWORD t0;
+		UINT64 t0;
 
 		// Idle time before entering attract mode, in millseconds
 		DWORD idleTime;
@@ -2414,11 +2414,11 @@ protected:
 	// when we're in the foreground.
 	enum KeyPressType
 	{
-		KeyUp = 0x00,					// Key Up event
-		KeyDown = 0x01,					// first Key Down event
-		KeyRepeat = 0x02 | 0x01,		// auto-repeat event
-		KeyBgDown = 0x10,				// app-in-background Key Down event
-		KeyBgRepeat = 0x20 | 0x10		// app-in-background auto-repeat event
+		KeyUp = 0x00,				// Key Up event
+		KeyDown = 0x01,				// first Key Down event
+		KeyRepeat = 0x02 | 0x01,	// auto-repeat event
+		KeyBgDown = 0x10,			// app-in-background Key Down event
+		KeyBgRepeat = 0x20 | 0x10	// app-in-background auto-repeat event
 	};
 
 	// Raw Shift key state.  We track the state of the Shift keys in
@@ -2610,12 +2610,16 @@ protected:
 	// key event queue
 	struct QueuedKey
 	{
-		QueuedKey() : hWndSrc(NULL), mode(KeyUp), cmd(&NoCommand), scripted(false) { }
+		QueuedKey() : 
+			hWndSrc(NULL), physButton(InputManager::Button::DevType::TypeNone, 0, 0), 
+			mode(KeyPressType::KeyUp), cmd(&NoCommand), scripted(false) { }
 
-		QueuedKey(HWND hWndSrc, KeyPressType mode, int repeatCount, bool bg, bool scripted, const KeyCommand *cmd)
-			: hWndSrc(hWndSrc), mode(mode), repeatCount(repeatCount), bg(bg), cmd(cmd), scripted(scripted) { }
+		QueuedKey(HWND hWndSrc, InputManager::Button physButton, KeyPressType mode, int repeatCount, bool bg, bool scripted, const KeyCommand *cmd)
+			: hWndSrc(hWndSrc), physButton(physButton), mode(mode), repeatCount(repeatCount),
+			bg(bg), cmd(cmd), scripted(scripted) { }
 
 		HWND hWndSrc;           // source window
+		InputManager::Button physButton;	// physical button that initiated the event (keyboard or joystick; None for scripted events)
 		KeyPressType mode;      // key press mode
 		int repeatCount;        // repeat count - 0 for the initial key press, 1 for the first auto-repeat, etc
 		bool bg;                // background mode
@@ -2625,7 +2629,8 @@ protected:
 	std::list<QueuedKey> keyQueue;
 
 	// Add a key press to the queue and process it
-	void ProcessKeyPress(HWND hwndSrc, KeyPressType mode, int repeatCount,
+	void ProcessKeyPress(
+		HWND hwndSrc, InputManager::Button physicalButton, KeyPressType mode, int repeatCount,
 		bool bg, bool scripted, std::list<const KeyCommand*> cmds);
 
 	// Process the key queue.  On a keyboard event, we add the key
@@ -2891,7 +2896,7 @@ protected:
 	std::unique_ptr<RealDMD> realDMD;
 
 	// get/set the DMD enabling status
-	enum RealDMDStatus { RealDMDAuto, RealDMDEnable, RealDMDDisable };
+	enum class RealDMDStatus { RealDMDAuto, RealDMDEnable, RealDMDDisable };
 	RealDMDStatus GetRealDMDStatus() const;
 	void SetRealDMDStatus(RealDMDStatus stat);
 
@@ -3484,4 +3489,5 @@ protected:
 	void CmdGameInfo(const QueuedKey &key);         // Show game info box
 	void CmdInstCard(const QueuedKey &key);			// Show instruction card
 };
+
 

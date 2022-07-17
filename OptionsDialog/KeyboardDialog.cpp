@@ -1154,16 +1154,16 @@ void MainKeyboardDialog::BuildDatabase(bool bResetToFactory)
 			{
 				switch (button.devType)
 				{
-				case InputManager::Button::TypeNone:
+				case InputManager::Button::DevType::TypeNone:
 					// empty placeholder - skip it
 					break;
 
-				case InputManager::Button::TypeJS:
+				case InputManager::Button::DevType::TypeJS:
 					// joystick button
 					cmd.AddKey(JSKey(&cmd, button.unit, button.code));
 					break;
 
-				case InputManager::Button::TypeKB:
+				case InputManager::Button::DevType::TypeKB:
 					// keyboard key
 					cmd.AddKey(KBKey(&cmd, button.code));
 					break;

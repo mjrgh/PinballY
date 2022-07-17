@@ -424,12 +424,12 @@ bool VLCAudioVideoPlayer::OpenWithTarget(const TCHAR *path, ErrorHandler &eh, Ta
 		// target device type.
 		switch (target)
 		{
-		case VideoTarget:
+		case TargetDevice::VideoTarget:
 			libvlc_video_set_callbacks_(player, &OnVideoFrameLock, &OnVideoFrameUnlock, &OnVideoFramePresent, this);
 			libvlc_video_set_format_callbacks_(player, &OnVideoSetFormat, &OnVideoFormatCleanup);
 			break;
 
-		case DMDTarget:
+		case TargetDevice::DMDTarget:
 			libvlc_video_set_callbacks_(player, &OnVideoFrameLock, &OnDMDFrameUnlock, &OnDMDFramePresent, this);
 			libvlc_video_set_format_callbacks_(player, &OnDMDSetFormat, &OnVideoFormatCleanup);
 			break;
@@ -855,7 +855,7 @@ unsigned int VLCAudioVideoPlayer::OnVideoSetFormat(void **opaque, char *chroma,
 		planes[i].rowPitch = pitches[i];
 		planes[i].bufOfs = bufsize;
 
-		bufsize += pitches[i] * lines[i];
+		bufsize += static_cast<size_t>(pitches[i]) * static_cast<size_t>(lines[i]);
 	}
 
 	// send a format update to the event window
@@ -923,10 +923,10 @@ void *VLCAudioVideoPlayer::OnVideoFrameLock(void *opaque, void **planes)
 		for (auto &f : self->frame)
 		{
 			// use the buffer if it's free
-			if (f->status == FrameBuffer::Free)
+			if (f->status == FrameBuffer::FrameStatus::Free)
 			{
 				// lock this frame
-				f->status = FrameBuffer::Locked;
+				f->status = FrameBuffer::FrameStatus::Locked;
 
 				// Return the pixel buffer for each plane.  Recall that
 				// the three planes are packed into a single byte array,
@@ -979,7 +979,7 @@ void VLCAudioVideoPlayer::OnVideoFrameUnlock(void *opaque, void *pictureId, void
 	FrameBuffer *f = reinterpret_cast<FrameBuffer*>(pictureId);
 
 	// the buffer now has a valid decoded frame
-	f->status = FrameBuffer::Valid;
+	f->status = FrameBuffer::FrameStatus::Valid;
 }
 
 void VLCAudioVideoPlayer::OnVideoFramePresent(void *opaque, void *pictureId)
@@ -1010,13 +1010,13 @@ void VLCAudioVideoPlayer::OnVideoFramePresent(void *opaque, void *pictureId)
 		// contention by deferring that check until we actually need
 		// to write into a buffer.
 		if (self->presentedFrame != nullptr && self->presentedFrame != f)
-			self->presentedFrame->status = FrameBuffer::Free;
+			self->presentedFrame->status = FrameBuffer::FrameStatus::Free;
 
 		// this is now the presented frame
 		self->presentedFrame = f;
 
 		// advance its state to 'presented'
-		f->status = FrameBuffer::Presented;
+		f->status = FrameBuffer::FrameStatus::Presented;
 	}
 
 	// if this the first frame we've presented, notify the event window
@@ -1114,7 +1114,7 @@ bool VLCAudioVideoPlayer::Render(Camera *camera, Sprite *sprite)
 		}
 
 		// this frame can now be reused for a new decoded frame
-		newFrame->status = FrameBuffer::Free;
+		newFrame->status = FrameBuffer::FrameStatus::Free;
 	}
 
 	// if there's no shader yet, there's nothing to render
@@ -1242,7 +1242,7 @@ void VLCAudioVideoPlayer::OnDMDFrameUnlock(void *opaque, void *pictureId, void *
 	FrameBuffer *f = reinterpret_cast<FrameBuffer*>(pictureId);
 
 	// the buffer now has a valid decoded frame
-	f->status = FrameBuffer::Valid;
+	f->status = FrameBuffer::FrameStatus::Valid;
 }
 
 void VLCAudioVideoPlayer::OnDMDFramePresent(void *opaque, void *pictureId)
@@ -1263,7 +1263,7 @@ void VLCAudioVideoPlayer::OnDMDFramePresent(void *opaque, void *pictureId)
 		pix, pix + f->planes[1].bufOfs, pix + f->planes[2].bufOfs);
 
 	// this frame is now free
-	f->status = FrameBuffer::Free;
+	f->status = FrameBuffer::FrameStatus::Free;
 
 	// if this the first frame we've presented, notify the event window
 	CriticalSectionLocker locker(self->lock);

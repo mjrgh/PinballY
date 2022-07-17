@@ -220,7 +220,7 @@ bool HighScores::Init()
 		if (IsWindow(ctx->hwndPlayfieldView))
 		{
 			NotifyInfo ni(Initialized, nullptr, nullptr);
-			ni.status = NotifyInfo::Success;
+			ni.status = NotifyInfo::Status::Success;
 			::SendMessage(ctx->hwndPlayfieldView, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
 		}
 
@@ -810,7 +810,7 @@ void HighScores::LaunchNextThread(Thread *exitingThread)
 		// to the caller to let them know that the request is
 		// finished (unsuccessfully).
 		NotifyInfo ni(thread->queryType, thread->game, thread->notifyContext.get());
-		ni.status = NotifyInfo::ThreadLaunchFailed;
+		ni.status = NotifyInfo::Status::ThreadLaunchFailed;
 		::SendMessage(thread->hwndNotify, HSMsgHighScores, 0, reinterpret_cast<LPARAM>(&ni));
 
 		// failed - discard this thread and try the next one
@@ -950,7 +950,7 @@ void HighScores::NVRAMThread::Main()
 			LogFile::Get()->Write(LogFile::HiScoreLogging,
 				_T("+ error opening PinEMHi INI file for update: %s\n"),
 				FileErrorMessage(err).c_str());
-			SendResult(NotifyInfo::IniFileUpdateFailed);
+			SendResult(NotifyInfo::Status::IniFileUpdateFailed);
 			return;
 		}
 	}
@@ -964,7 +964,7 @@ void HighScores::NVRAMThread::Main()
 	HandleHolder hReadPipe, hWritePipe;
 	if (!CreatePipe(&hReadPipe, &hWritePipe, NULL, 0))
 	{
-		SendResult(NotifyInfo::CreatePipeFailed);
+		SendResult(NotifyInfo::Status::CreatePipeFailed);
 		return;
 	}
 
@@ -998,7 +998,7 @@ void HighScores::NVRAMThread::Main()
 		LogFile::Get()->Write(_T("PinEMHi process launch failed: %s"), errmsg.Get());
 
 		// notify the caller and abort
-		SendResult(NotifyInfo::ProcessLaunchFailed);
+		SendResult(NotifyInfo::Status::ProcessLaunchFailed);
 		return;
 	}
 
@@ -1047,7 +1047,7 @@ void HighScores::NVRAMThread::Main()
 			_T("PinEMHi completed successfully; results:\n>>>\n%s\n>>>\n"), ni.results.c_str());
 
 		// Notify the callback window of the result
-		SendResult(NotifyInfo::Success);
+		SendResult(NotifyInfo::Status::Success);
 	}
 	else
 	{
@@ -1059,7 +1059,7 @@ void HighScores::NVRAMThread::Main()
 		SaferTerminateProcess(pinfo.hProcess);
 
 		// Notify the callback of the failure
-		SendResult(NotifyInfo::NoReplyFromProcess);
+		SendResult(NotifyInfo::Status::NoReplyFromProcess);
 	}
 
 	// close the process handles
@@ -1109,7 +1109,7 @@ void HighScores::FileThread::Main()
 }
 
 HighScores::NotifyInfo::NotifyInfo(QueryType queryType, GameListItem *game, NotifyContext *notifyContext) :
-	status(Success),
+	status(Status::Success),
 	queryType(queryType),
 	gameID(game != nullptr ? game->internalID : 0),
 	context(notifyContext)

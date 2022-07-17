@@ -152,7 +152,7 @@ wchar_t *ReadFileAsWStr(
 class BinaryReader
 {
 public:
-	BinaryReader() { buf = 0; }
+	BinaryReader() : buf(nullptr), p(nullptr), buflen(0) { }
 	~BinaryReader() { delete[] buf; }
 
 	bool Load(const TCHAR *filename, ErrorHandler &handler)

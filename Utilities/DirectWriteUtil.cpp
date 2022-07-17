@@ -37,6 +37,9 @@ public:
 		// store the filename
 		this->filename.assign(filename, filenameLen);
 
+		// set an initial zero size for the native image
+		imageWidth = imageHeight = 0;
+
 		// proceed only if we have a WIC factory to work with
 		if (auto wic = DirectWriteUtils::Get()->GetWICFactory(); wic != nullptr)
 		{
@@ -67,7 +70,7 @@ public:
 
 			// if the layout size wasn't specified, or has a free dimension, figure
 			// the layout size from the natural size
-			if (layoutWidth < 0.0f && layoutWidth < 0.0f)
+			if (layoutHeight < 0.0f && layoutWidth < 0.0f)
 			{
 				// no layout dimensions specified - use the natural size
 				this->layoutWidth = static_cast<float>(imageWidth);
@@ -777,7 +780,7 @@ bool DirectWriteUtils::MeasureStyledText(Gdiplus::RectF &rcPositioning, Gdiplus:
 						auto &h = hit[i];
 
 						// measure the overhang
-						DWRITE_OVERHANG_METRICS om;
+						DWRITE_OVERHANG_METRICS om = { 0.0f, 0.0f, 0.0f, 0.0f };
 						if (span.format != nullptr)
 						{
 							// set up a layout for the text range

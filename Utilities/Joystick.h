@@ -449,6 +449,7 @@ public:
 			{
 				nButtons = 0;
 				lastOnIndex = 0;
+				buttonFirstIndex = buttonLastIndex = 0;
 			}
 
 			// USB report ID.  This button report group object

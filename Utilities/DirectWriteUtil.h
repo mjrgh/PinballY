@@ -64,7 +64,7 @@ public:
 	};
 
 	// Inline image object vertical alignment
-	enum ImageVAlign {
+	enum class ImageVAlign {
 		Top,
 		Center,
 		Bottom,
@@ -84,7 +84,7 @@ public:
 	};
 
 	// border styles
-	enum BorderStyle {
+	enum class BorderStyle {
 		None,
 		Hidden,
 		Dotted,
@@ -107,10 +107,10 @@ public:
 		float width = 0.0f;
 
 		// visible -> style is not None or Hidden AND non-zero width AND not completely transparent
-		bool IsVisible() const { return style != None && style != Hidden && (color & 0xFF000000) != 0 && width != 0.0f; }
+		bool IsVisible() const { return style != BorderStyle::None && style != BorderStyle::Hidden && (color & 0xFF000000) != 0 && width != 0.0f; }
 
 		// affects layout -> style is not None or Hidden AND non-zero width
-		bool AffectsLayout() const { return style != None && style != Hidden && width != 0.0f; }
+		bool AffectsLayout() const { return style != BorderStyle::None && style != BorderStyle::Hidden && width != 0.0f; }
 
 		// layout width
 		float LayoutWidth() const { return AffectsLayout() ? width : 0.0f; }
@@ -118,10 +118,10 @@ public:
 		// apply the parent style
 		void ApplyParentStyle(const BorderEle &parent) 
 		{ 
-			if (style == Inherit)
+			if (style == BorderStyle::Inherit)
 				*this = parent;
-			else if (style == Initial)
-				style = None;
+			else if (style == BorderStyle::Initial)
+				style = BorderStyle::None;
 		}
 
 		// clear the border

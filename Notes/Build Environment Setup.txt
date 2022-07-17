@@ -1,13 +1,18 @@
 Build Environment Setup
 
-1. Visual Studio 2017
+1. Visual Studio version
 
-I'm building using Visual Studio 2017.  As of this writing, I'm on
-15.6.1, but other nearby or later versions should work.  (Updating to
-a newer major version might require some edits to the C++ code, as
-Microsoft always updates to the latest C++ language standard on major
-versions, and the C++ language specs haven't been shy about making
-code-breaking changes lately.)
+As of this writing, I'm building with Visual Studio 2019, version
+16.11.2.  Other nearby VS2019 versions will probably also work.  Minor
+edits to the C++ code are sometimes required when migrating to a new
+Visual Studio version because of compiler changes, but this is more
+likely when moving to a new VS major version (e.g., migrating from
+VS2017 to VS2019) than between dot releases.  If you encounter any
+build errors (after following the instructions below to set up
+required tools and libraries), you might try the same VS version I'm
+using.  You shouldn't have to delete your current VS installation to
+do this; VS easily accommodates multiple major versions coexisting on
+the same system.
 
 
 2. DirectX SDK June 2010

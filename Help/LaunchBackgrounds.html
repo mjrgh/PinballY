@@ -20,6 +20,8 @@
    an image or video file into one of the Media subfolders, as outlined
    below.
 </p>
+
+<h2>Using transparent images</h2>
 <p>
    If you use a PNG image that's completely transparent as the custom
    background image, it'll have the effect of making PinballY continue
@@ -40,9 +42,48 @@
    images on top of the table background.
 </p>
 <p>
-   Using a custom background image or video is a simple way to achieve
+   <b>Double wheel image:</b>
+   If you use a transparent launch background image,
+   you'll probably notice that two copies of the wheel image are
+   displayed during the launch, one on top of the other.
+   One of these wheel images comes from
+   the normal game wheel, and the other one comes from the "launch
+   overlay" that PinballY displays in front of everything else.
+   The overlay includes the wheel image for the
+   game being launched along with a message giving the launch
+   status ("Loading", etc).  Normally, when you're using the default
+   opaque launch background, the regular game wheel gets covered
+   up entirely by the opaque background, so you don't see the
+   double image - you just see the one that's part of the overlay.
+   But when you replace the default opaque background
+   with complete transparency, the original wheel image shows through,
+   so you see what appears to be a doubled-up wheel image.  The
+   double image looks kind of ugly, so you'll almost certainly want to get rid of
+   it.  To do so, you just need a little Javascript - you can find
+   more details on this in the worked example <a href="SeamlessLoadingExample.html">"Seamless" Game Launch</a>,
+   but here's the Javascript you need - just copy this into a file
+   called <b>Main.js</b> in your PinballY <b>Scripts</b> folder:
+</p>
+<div class="code">
+mainWindow.on("launchoverlayshow", ev => {
+    mainWindow.showWheel(false);
+    mainWindow.setUnderlay("");
+    ev.preventDefault();
+});
+
+mainWindow.on("launchoverlayhide", ev => {
+    mainWindow.showWheel(true);
+});
+</div>
+
+<h2>More than just background images</h2>
+<p>
+   Using a custom background image or video is an easy way to achieve
    some simple effects, but you can do much more extensive customizations
-   to the launch screens using Javascript.  See <a href="SeamlessLoadingExample.html">Seamless
+   to the launch screens using Javascript.  For example, instead of hiding
+   the game wheel as suggested above, you could get rid of the launch
+   overlay screen entirely, or you could change the way it looks by displaying
+   your own custom text and/or graphics.  See <a href="SeamlessLoadingExample.html">Seamless
    Game Launch</a> in the <a href="WorkedExamples.html">Worked Examples</a>
    section for some examples.
 </p>

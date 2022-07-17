@@ -1,6 +1,16 @@
 PinballY Update History
 
 
+07-16-2022 (1.1.0 Beta 6)
+
+* This update is just to test an attempt at a fix for the sticky wheel
+auto-repeat problem some people have encountered (issue #203 on
+github).  The key handler now double-checks before each auto-repeat to
+see if the repeating key is actually still being pressed, and stops
+repeating if not.  I haven't been able to reproduce the problem, so
+this is only a wild guess at what might be going on.
+
+
 05-18-2021 (1.1.0 Beta 5)
 
 * PinballY now has its own built-in SWF renderer for Instruction Card

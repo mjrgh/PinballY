@@ -147,7 +147,7 @@ public:
 	struct Button
 	{
 		// Source device type
-		enum DevType
+		enum class DevType
 		{
 			TypeNone = 0,		// no device - placeholder button
 			TypeKB = 1,			// keyboard key

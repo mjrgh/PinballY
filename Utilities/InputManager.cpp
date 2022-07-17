@@ -117,7 +117,7 @@ InputManager::InputManager()
 
 		// add the default key mapping
 		if (c[i].defaultKey != 0)
-			commands.back().buttons.emplace_back(Button::TypeKB, 0, c[i].defaultKey);
+			commands.back().buttons.emplace_back(Button::DevType::TypeKB, 0, c[i].defaultKey);
 	}
 
 	// load the scancode map from the system registry
