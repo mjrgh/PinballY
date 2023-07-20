@@ -425,7 +425,7 @@ RunAtExit =
 # window showing basic information on the game.  These settings control
 # whether the box is shown at all, and if so, which items it displays.
 #
-# InfoBox.Show -> controls whehtehr or not the box is shown at all
+# InfoBox.Show -> controls whether or not the box is shown at all
 # .Title -> include the game's title in the box
 # .GameLogo -> use the game's logo graphics in place of the title, when available
 # .Manufacturer -> show the manufacturer name
@@ -1085,15 +1085,20 @@ Wheel.AutoRepeatRate =
 #  (-0.5,-0.5) ------ ( 0.0,-0.5) ------ ( 0.5,-0.5)
 #
 #
+# XCenter: Horizontal center of the wheel circle.
+#
 # YCenter: Vertical center of the wheel circle.
 #
 # Radius: The radius of the circle the wheel is laid out on.
 #
 # Angle: Angle between games on the wheel circle.
-#
+# 
+# OffsetAngle: Starting angle of the wheel in radians
+
 Wheel.YCenter = -0.803645833
 Wheel.Radius = 0.4760416667
 Wheel.Angle = 0.25
+Wheel.OffsetAngle = 0.0
 
 #
 # ImageWidth: Width of selected wheel image. The wheel images
@@ -1105,6 +1110,10 @@ Wheel.ImageWidth = 0.14
 # YSelected: Vertical location to place the currently selected
 # wheel image when idle (not animating).
 Wheel.YSelected = -0.07135
+
+# XSelected: Horizontal location to place the currently selected
+# wheel image when idle (not animating).
+Wheel.XSelected = 0
 
 # Enable the wheel underlay?  The underlay is an image that's 
 # displayed displayed near the bottom of the screen, in the area 
