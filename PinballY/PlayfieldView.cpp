@@ -5240,8 +5240,15 @@ void PlayfieldView::ProcessKeyPress(
 	// of the animation on any new key-down event.  This makes the
 	// UI more responsive by not forcing the user to wait through 
 	// each wheel animation step.
-	if (mode == KeyPressType::KeyDown && wheelAnimMode == WheelAnimMode::WheelAnimNormal)
-		wheelAnimStartTime = GetTickCount64() - wheelTime;
+	if (mode == KeyPressType::KeyDown) {
+		if (wheelAnimMode == WheelAnimMode::WheelAnimNormal)
+			wheelAnimStartTime = GetTickCount64() - wheelTime;
+
+		// also skip to the end of ongoing playfield crossfade
+		if (incomingPlayfield.sprite != 0 && !incomingPlayfield.sprite->IsFadeDone()) {
+			incomingPlayfield.sprite->EndFade();
+		}
+	}
 
 	// process the command queue
 	ProcessKeyQueue();

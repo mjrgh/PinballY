@@ -23,6 +23,8 @@ public:
 	// sync with the current selection in the global game list
 	void SyncCurrentGame();
 
+	void EndAnimation();
+
 	// update our menu
 	virtual void UpdateMenu(HMENU hMenu, BaseWin *fromWin) override;
 

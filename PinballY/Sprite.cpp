@@ -1867,6 +1867,14 @@ float Sprite::UpdateFade()
 	return alpha;
 }
 
+void Sprite::EndFade()
+{
+	if (fadeDir != 0)
+	{
+		fadeStartTime = GetTickCount() - fadeDuration;
+	}
+}
+
 bool Sprite::IsFadeDone(bool reset)
 {
 	// stash the result

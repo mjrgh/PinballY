@@ -271,7 +271,7 @@ void SecondaryView::SyncCurrentGame()
 		game = gl->GetNthGame(0);
 	}
 
-	// fill in the syncer watchdog with the seleted game
+	// fill in the syncer watchdog with the selected game
 	syncer.game = game;
 
 	// Fire the "begin media sync" event
@@ -296,6 +296,8 @@ void SecondaryView::SyncCurrentGame()
 
 	// reset paged/indexed images to the first item
 	currentImageIndex = 0;
+
+	EndAnimation();
 
 	// load the current game's media
 	syncer.loadStarted = LoadCurrentGameMedia(game, true);
@@ -469,6 +471,15 @@ void SecondaryView::StartBackgroundCrossfade()
 	DWORD crossFadeTime = pfv != nullptr ? pfv->GetCrossfadeTime() : 120;
 	SetTimer(hWnd, animTimerID, animTimerInterval, 0);
 	incomingBackground.sprite->StartFade(1, crossFadeTime);
+}
+
+void SecondaryView::EndAnimation()
+{
+	if (incomingBackground.sprite != nullptr && !incomingBackground.sprite->IsFadeDone()) {
+		incomingBackground.sprite->EndFade();
+		incomingBackground.sprite->UpdateFade();
+		UpdateAnimation();
+	}
 }
 
 void SecondaryView::OnEnableVideos(bool enable)

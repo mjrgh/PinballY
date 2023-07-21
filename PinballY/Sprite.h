@@ -111,6 +111,9 @@ public:
 	// has the last fade completed?
 	bool IsFadeDone(bool reset = FALSE);
 
+	// end the current fade early
+	void EndFade();
+
 	// update our world transform for a change in offset, rotation, or scale
 	void UpdateWorld();
 
