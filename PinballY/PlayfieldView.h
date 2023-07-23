@@ -1562,6 +1562,7 @@ protected:
 				&& this->yCenter == other.yCenter
 				&& this->radius == other.radius
 				&& this->angle == other.angle
+				&& this->offsetAngle == other.offsetAngle
 				&& this->imageWidth == other.imageWidth
 				&& this->xSelected == other.xSelected
 				&& this->ySelected == other.ySelected;
