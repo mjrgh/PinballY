@@ -9631,7 +9631,7 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 	// calculate the new position
 	image->offset.x = wheel.radius * sinf(theta);
 	image->offset.y = wheel.yCenter + wheel.radius * cosf(theta);
-	image->offset.z = 0.0f;
+	image->offset.z = 3.0f - fabs(n - progress);
 
 	// For images at the center or transitioning to/from the center spot,
 	// adjust the position and scale.  The center image is shown at (0,y0)
@@ -9648,14 +9648,12 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 		// Outgoing center image
 		image->scale.x = image->scale.y = 1.0f - (1.0f - ratio)*ramp;
 		image->offset.y = wheel.ySelected - (wheel.ySelected - image->offset.y)*ramp;
-		image->offset.z = 1.0f - abs(progress);
 	}
 	else if (n == animWheelDistance)
 	{
 		// Animation target - incoming center image
 		image->scale.x = image->scale.y = ratio + (1.0f - ratio)*ramp;
 		image->offset.y += (wheel.ySelected - image->offset.y)*ramp;
-		image->offset.z = abs(progress);
 	}
 
 	// update the world transform for the image
@@ -9773,6 +9771,7 @@ void PlayfieldView::SwitchToGame(int n, bool fast, bool byUserCommand, bool fire
 
 		// make sure it's off the screen initially
 		s->offset.y = -5.0f;
+		s->offset.z = 0.0f;
 		s->scale.x = s->scale.y = 0.0f;
 		s->UpdateWorld();
 
