@@ -201,6 +201,7 @@ namespace ConfigVars
 	static const TCHAR *WheelYCenter = _T("Wheel.YCenter");
 	static const TCHAR *WheelRadius = _T("Wheel.Radius");
 	static const TCHAR *WheelAngle = _T("Wheel.Angle");
+	static const TCHAR* WheelRotateImages = _T("Wheel.RotateImages");
 	static const TCHAR *WheelImageWidth = _T("Wheel.ImageWidth");
 	static const TCHAR *WheelXSelected = _T("Wheel.XSelected");
 	static const TCHAR *WheelYSelected = _T("Wheel.YSelected");
@@ -9633,6 +9634,9 @@ void PlayfieldView::SetWheelImagePos(Sprite *image, int n, float progress)
 	image->offset.y = wheel.yCenter + wheel.radius * cosf(theta);
 	image->offset.z = 0.0f;
 
+	if (wheel.rotateImages) {
+		image->rotation.z = -theta;
+	}
 	// For images at the center or transitioning to/from the center spot,
 	// adjust the position and scale.  The center image is shown at (0,y0)
 	// and at scale factor 1.0; the adjacent images are shown at their
@@ -13576,6 +13580,7 @@ void PlayfieldView::OnConfigChange()
 	wheel.yCenter = cfg->GetFloat(ConfigVars::WheelYCenter, -1543.0f / 1920.0f);
 	wheel.radius = cfg->GetFloat(ConfigVars::WheelRadius, 914.0f / 1920.0f);
 	wheel.angle = cfg->GetFloat(ConfigVars::WheelAngle, 0.25f);
+	wheel.rotateImages = cfg->GetBool(ConfigVars::WheelRotateImages, false);
 	wheel.imageWidth = cfg->GetFloat(ConfigVars::WheelImageWidth, 0.14f);
 	wheel.xSelected = cfg->GetFloat(ConfigVars::WheelXSelected, 0.0f);
 	wheel.ySelected = cfg->GetFloat(ConfigVars::WheelYSelected, -0.07135f);
