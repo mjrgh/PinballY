@@ -2033,6 +2033,10 @@ protected:
 		bool tableTypeAbbr;			// use the abbreviated table type
 		bool tableFile;				// include the table file name
 		bool rating;                // include the star rating
+		float xCenter;              // box horizontal position
+		float yCenter;              // box vertical position
+		int minWidth;               // box minimum width
+		int minHeight;              // box minimum height
 
 	} infoBoxOpts;
 

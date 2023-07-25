@@ -32,4 +32,8 @@ void InfoBoxDialog::InitVarMap()
 	varMap.emplace_back(new CkBoxMap(_T("InfoBox.TableTypeAbbr"), IDC_CK_INFOBOX_TABLETYPE_ABBR, false));
 	varMap.emplace_back(new CkBoxMap(_T("InfoBox.Rating"), IDC_CK_INFOBOX_RATING, true));
 	varMap.emplace_back(new CkBoxMap(_T("InfoBox.TableFile"), IDC_CK_INFOBOX_TABLEFILE, false));
+	varMap.emplace_back(new EditFloatMap(_T("InfoBox.XCenter"), IDC_EDIT_INFOBOX_XCENTER, 0.0f));
+	varMap.emplace_back(new EditFloatMap(_T("InfoBox.YCenter"), IDC_EDIT_INFOBOX_YCENTER, 0.25f));
+	varMap.emplace_back(new EditFloatMap(_T("InfoBox.MinWidth"), IDC_EDIT_INFOBOX_MINWIDTH, 712));
+	varMap.emplace_back(new EditFloatMap(_T("InfoBox.MinHeight"), IDC_EDIT_INFOBOX_MINHEIGHT, 343));
 }

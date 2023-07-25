@@ -138,6 +138,10 @@ namespace ConfigVars
 	static const TCHAR *InfoBoxTableTypeAbbr = _T("InfoBox.TableTypeAbbr");
 	static const TCHAR *InfoBoxRating = _T("InfoBox.Rating");
 	static const TCHAR *InfoBoxTableFile = _T("InfoBox.TableFile");
+	static const TCHAR *InfoBoxXCenter = _T("InfoBox.XCenter");
+	static const TCHAR *InfoBoxYCenter = _T("InfoBox.YCenter");
+	static const TCHAR* InfoBoxMinWidth = _T("InfoBox.MinWidth");
+	static const TCHAR* InfoBoxMinHeight = _T("InfoBox.MinHeight");
 
 	static const TCHAR *DefaultFontFamily = _T("DefaultFontFamily");
 	static const TCHAR *MenuFont = _T("MenuFont");
@@ -12000,7 +12004,8 @@ void PlayfieldView::SyncInfoBox()
 			RequestHighScores(game, true);
 
 			// set our initial proposed width and height
-			int width = 712, height = 343;
+			int width = infoBoxOpts.minWidth;
+			int height = infoBoxOpts.minHeight;
 
 			// draw the box contents
 			auto Draw = [this, game, &width, &height](HDC hdc, HBITMAP)
@@ -12164,8 +12169,10 @@ void PlayfieldView::SyncInfoBox()
 			infoBox.sprite.Attach(new Sprite());
 			infoBox.sprite->Load(width, height, Draw, eh, _T("Info Box"));
 
-			// move it up towards the top of the screen
-			infoBox.sprite->offset.y = 0.25f;
+			// move info box to selected position
+			infoBox.sprite->offset.y = infoBoxOpts.yCenter;
+			infoBox.sprite->offset.x = infoBoxOpts.xCenter * 0.5f;
+
 			infoBox.sprite->UpdateWorld();
 
 			// start the fade-in animation
@@ -13828,6 +13835,10 @@ void PlayfieldView::OnConfigChange()
 	infoBoxOpts.tableTypeAbbr = cfg->GetBool(ConfigVars::InfoBoxTableTypeAbbr, false);
 	infoBoxOpts.rating = cfg->GetBool(ConfigVars::InfoBoxRating, true);
 	infoBoxOpts.tableFile = cfg->GetBool(ConfigVars::InfoBoxTableFile, false);
+	infoBoxOpts.xCenter = cfg->GetFloat(ConfigVars::InfoBoxXCenter, 0.0f);
+	infoBoxOpts.yCenter = cfg->GetFloat(ConfigVars::InfoBoxYCenter, 0.25f);
+	infoBoxOpts.minWidth = cfg->GetInt(ConfigVars::InfoBoxMinWidth, 712);
+	infoBoxOpts.minHeight = cfg->GetInt(ConfigVars::InfoBoxMinHeight, 343);
 
 	// update real DMD gamma
 	if (realDMD != nullptr)

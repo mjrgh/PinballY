@@ -437,6 +437,11 @@ RunAtExit =
 # .TableTypeAbbr -> use the abbreviated table type (SS, EM, etc) instead of the full type name
 # .Rating -> show the star rating
 # .TableFile -> show the table file name (.vpt, .vpx, .fpt, etc)
+# .XCenter -> horizontal position of the center of the info box
+# .YCenter -> vertical position of the center of the info box
+# .MinWidth -> the starting width of the info box 
+# .MinHeight -> the starting height of the info box. Overflowing content will cause info box
+#               to become taller but never shorter
 #
 InfoBox.Show = 1
 InfoBox.Title = 1
@@ -450,6 +455,10 @@ InfoBox.TableType = 0
 InfoBox.TableTypeAbbr = 0
 InfoBox.Rating = 1
 InfoBox.TableFile = 0
+InfoBox.XCenter = 0
+InfoBox.YCenter = 0.25
+InfoBox.MinWidth = 712
+InfoBox.MinHeight = 343
 
 
 # Playfield background layout.  By default, the playfield background
