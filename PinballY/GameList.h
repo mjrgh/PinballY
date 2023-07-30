@@ -89,6 +89,9 @@ public:
 	// IPDB ID, if known
 	TSTRING ipdbId;
 
+	// VPS ID, if known
+	TSTRING vpsId;
+
 	// Game filename.  This is the name of the playable simulator
 	// file (.vpt, .vpx, .fpt, etc).  
 	//
@@ -287,12 +290,13 @@ class GameListItem: public GameBaseInfo
 public:
 	// Create a game list entry from an XML database file entry
 	GameListItem(
-		const TCHAR *mediaName,
-		const char *title, 
-		const char *filename, 
-		const GameManufacturer *manufacturer, 
-		int year,	
-		const TCHAR *ipdbId,
+		const TCHAR* mediaName,
+		const char* title,
+		const char* filename,
+		const GameManufacturer* manufacturer,
+		int year,
+		const TCHAR* ipdbId,
+		const TCHAR* vpsId,
 		const char *tableType,
 		const char *rom, GameSystem *system, bool enabled,
 		const char *gridpos);

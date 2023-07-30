@@ -2317,6 +2317,7 @@ bool GameList::LoadGameDatabaseFile(
 	//       <enabled>True</enabled>                     // boolean; default = true
 	//       <rating>0</rating>                          // star rating, 1-5; 0 if unrated
 	//       <ipdbid>1234</ipdbid>                       // PinballY extension: the IPDB ID for the game, if known
+	//       <vpsid>1234</vpsid>                         // PinballY extension: the VPS ID for the game, if known
 	//     </game>
 	//   </menu>
 	//
@@ -2353,8 +2354,11 @@ bool GameList::LoadGameDatabaseFile(
 			const char *rom = nullptr;
 			const char *tableType = nullptr;
 			const char *explicitTitle = nullptr;
+
 			int year = 0;
 			TSTRING ipdbId;
+			TSTRING vpsId;
+
 			bool enabled = true;
 			float rating = 0.0f;
 			for (node *n = game->first_node(); n != 0; n = n->next_sibling())
@@ -2381,6 +2385,8 @@ bool GameList::LoadGameDatabaseFile(
 					tableType = n->value();
 				else if (_stricmp(id, "ipdbid") == 0)
 					ipdbId = AnsiToTSTRING(n->value());
+				else if (_stricmp(id, "vpsid") == 0)
+					vpsId = AnsiToTSTRING(n->value());
 			}
 
 			// if the entry has a valid filename and title, add it
@@ -2510,7 +2516,7 @@ bool GameList::LoadGameDatabaseFile(
 
 				// add the entry
 				GameListItem &g = games.emplace_back(
-					mediaName.c_str(), title.c_str(), name, manuf, year, ipdbId.c_str(),
+					mediaName.c_str(), title.c_str(), name, manuf, year, ipdbId.c_str(), vpsId.c_str(),
 					tableType, rom, system, enabled, gridPos);
 
 				// log it
@@ -3586,6 +3592,7 @@ void GameList::DeleteXml(GameListItem *game)
 		game->tableType = _T("");
 		game->rom = _T("");
 		game->ipdbId = _T("");
+		game->vpsId = _T("");
 		game->year = 0;
 		game->gridPos.col = game->gridPos.row = 0;
 
@@ -3674,6 +3681,9 @@ void GameList::FlushToXml(GameListItem *game)
 
 	// store the IPDB ID, if known
 	UpdateChildT("ipdbid", game->ipdbId.c_str());
+	
+	// store the VPS ID, if known
+	UpdateChildT("vpsid", game->vpsId.c_str());
 
 	// store the description (what we call the media name)
 	UpdateChildT("description", game->mediaName.c_str());
@@ -3951,6 +3961,7 @@ GameListItem::GameListItem(
 	const GameManufacturer *manufacturer, 
 	int year, 
 	const TCHAR *ipdbId,
+	const TCHAR *vpsId,
 	const char *tableType,
 	const char *rom,
 	GameSystem *system,
@@ -3967,6 +3978,7 @@ GameListItem::GameListItem(
 	this->manufacturer = manufacturer;
 	this->year = year;
 	this->ipdbId = ipdbId;
+	this->vpsId = vpsId;
 	if (tableType != nullptr)
 		this->tableType = AnsiToTSTRING(tableType);
 	if (rom != nullptr)

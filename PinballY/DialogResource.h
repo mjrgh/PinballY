@@ -26,6 +26,7 @@
 #define IDC_ST_GRIDPOS                  3017
 #define IDC_TXT_MEDIA_NAME              3018
 #define IDC_BTN_PINBALLX                3019
+#define IDC_TXT_VPS_ID                  3019
 #define IDC_BTN_PINBALLY                3020
 #define IDC_TXT_PBX_PROMPT              3021
 #define IDC_TXT_PORT                    3022
@@ -36,6 +37,7 @@
 #define IDC_BTN_FILL_FROM_IPDBID        3027
 #define IDC_CK_SHOW_WHEN_RUNNING_DMD2   3028
 #define IDC_CK_SHOW_WHEN_RUNNING_REALDMD 3028
+#define IDC_CB_VPSID                    3029
 #define IDD_EDIT_CATEGORIES             4000
 #define IDD_RENAME_CATEGORY             4001
 #define IDD_NEW_CATEGORY                4003

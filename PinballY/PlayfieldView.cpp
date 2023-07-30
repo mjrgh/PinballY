@@ -1082,6 +1082,7 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameInfoGetter<TSTRING>("displayName", [](GameListItem *game) { return game->GetDisplayName(); }, eh)
 				|| !AddGameInfoGetter<TSTRING>("title", [](GameListItem *game) { return game->title; }, eh)
 				|| !AddGameInfoGetter<TSTRING>("ipdbId", [](GameListItem *game) { return game->ipdbId; }, eh)
+				|| !AddGameInfoGetter<TSTRING>("vpsId", [](GameListItem* game) { return game->vpsId; }, eh)
 				|| !AddGameInfoGetter<JsValueRef>("rom",
 					[](GameListItem *game) { return game->rom.length() != 0 ? JE::NativeToJs(game->rom) : JsUndef; }, eh)
 				|| !AddGameInfoGetter<TSTRING>("mediaName", [](GameListItem *game) { return game->mediaName; }, eh)
@@ -2907,6 +2908,7 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		Prop(int, playTime);
 		Prop(int, playCount);
 		Prop(TSTRING, ipdbId);
+		Prop(TSTRING, vpsId);
 		Prop(int, audioVolume);
 		Prop(JsValueRef, mediaName);
 
@@ -3081,6 +3083,11 @@ JsValueRef PlayfieldView::JsGameInfoUpdate(JsValueRef self, JsValueRef descval, 
 		{
 			game->ipdbId = ipdbId.value;
 			rebuildDb = true;
+		}
+
+		if (vpsId.isDefined)
+		{
+			game->vpsId = vpsId.value;
 		}
 		
 		// update the ROM, if present
@@ -15989,6 +15996,7 @@ void PlayfieldView::EditGameInfo()
 			GetText(IDC_CB_TITLE, game->title);
 			GetText(IDC_CB_ROM, game->rom);
 			GetText(IDC_TXT_IPDB_ID, game->ipdbId);
+			GetText(IDC_TXT_VPS_ID, game->vpsId);
 
 			// update the year
 			TSTRING year;
@@ -16441,6 +16449,7 @@ void PlayfieldView::EditGameInfo()
 			if (game->year != 0)
 				SetDlgItemText(hDlg, IDC_TXT_YEAR, MsgFmt(_T("%d"), game->year));
 			SetDlgItemText(hDlg, IDC_TXT_IPDB_ID, game->ipdbId.c_str());
+			SetDlgItemText(hDlg, IDC_TXT_VPS_ID, game->vpsId.c_str());
 			SetDlgItemText(hDlg, IDC_CB_ROM, game->rom.c_str());
 
 			// populate the "Show when running" checkboxes
