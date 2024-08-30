@@ -69,7 +69,7 @@ public:
 	// indexed by VK_xxx/VKE_xxx codes.
 	struct KeyLabel
 	{
-		// Key ID.  This is a unique and parseing-friendly string
+		// Key ID.  This is a unique and parsing-friendly string
 		// identifying the key.  This consists only of alphanumeric
 		// characters, so it's suitable parsed contexts like config
 		// files.

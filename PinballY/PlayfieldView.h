@@ -69,7 +69,7 @@ public:
 	// Update keyboard shortcut listings in a menu.  We call this when
 	// creating a menu and again whenever the keyboard preferences are
 	// updated.  The parent window can also call this to update Player
-	// commands in its menus, if it includes Player comands in its menu bar.
+	// commands in its menus, if it includes Player commands in its menu bar.
 	void UpdateMenuKeys(HMENU hMenu);
 
 	// Update menu command item checkmarks and enabled statue for current 
@@ -141,7 +141,7 @@ public:
 	// soon as the game starts up, or if the load fails or is canceled.
 	void RevertPreRunTopmost(HWND hwndGame);
 
-	// configurtion status for Topmost During Game Launch
+	// configuration status for Topmost During Game Launch
 	bool isTopmostDuringLaunch = false;
 
 	// flag: we applied the pre-run topmost status
@@ -309,7 +309,7 @@ public:
 	// startup video completion.
 	void OnEndExtStartupVideo();
 
-	// Are we in simultaenous sync mode?  True means that all windows
+	// Are we in simultaneous sync mode?  True means that all windows
 	// are synced at once; false means that we use a daisy-chain of
 	// events from one window to the next, so that we don't try to
 	// load multiple videos at once.
@@ -501,16 +501,16 @@ protected:
 		}
 
 		// logical joystick unit that the listener is monitoring
-		int unit;
+		int unit = 0;
 
 		// enabled axis
-		USAGE axis;
+		USAGE axis = 0;
 
 		// Is the event enabled while we're in the background?  (Note that
 		// if this is true, the event is enabled in the foreground AND
 		// background.  This isn't either/or - events that are enabled at
 		// all are always enabled in the foreground.)
-		bool background;
+		bool background = false;
 	};
 	std::unordered_map<int, JavascriptJoystickAxisEventEnabler> javascriptJoystickAxisEventEnablers;
 
@@ -998,7 +998,7 @@ protected:
 		//   The prefix part seems to be pretty random, judging by the
 		//   Media Pack files on vpforums.org.  I'd guess that HyperPin
 		//   and PinballX each have their own ad hoc list of patterns
-		//   they accept, but for simplicitly we just ignore the prefix,
+		//   they accept, but for simplicity, we just ignore the prefix,
 		//   as it doesn't contain any meaningful information anyway 
 		//   (apart, perhaps, from some weak heuristic validation that
 		//   this really is a Media Pack file).  Note that the prefix
@@ -1169,12 +1169,12 @@ protected:
 		// Batch canceled.
 		bool cancel;
 
-		// number of games planned, attemped, and succeeded during this batch
+		// number of games planned, attempted, and succeeded during this batch
 		int nGamesPlanned;
 		int nGamesAttempted;
 		int nGamesOk;
 
-		// number of media items planned, attemped, and succeeded
+		// number of media items planned, attempted, and succeeded
 		int nMediaItemsPlanned;
 		int nMediaItemsAttempted;
 		int nMediaItemsOk;
@@ -1810,10 +1810,10 @@ protected:
 		// Is the menu initially selected?
 		bool selected;
 
-		// Is the menu item checkmarked?
+		// Is the menu item check-marked?
 		bool checked;
 
-		// Is the menu item radio-button checkmarked?
+		// Is the menu item radio-button check-marked?
 		bool radioChecked;
 
 		// Does this menu open a submenu?
@@ -2028,7 +2028,7 @@ protected:
 		bool manufLogo;				// use the manufacturer logo in place of the name
 		bool year;					// include the release year
 		bool system;				// include the player system name
-		bool systemLogo;			// use the sysetm logo in place of the name
+		bool systemLogo;			// use the system logo in place of the name
 		bool tableType;				// show the table type
 		bool tableTypeAbbr;			// use the abbreviated table type
 		bool tableFile;				// include the table file name
@@ -2039,7 +2039,7 @@ protected:
 	// map of table type (SS, EM, ME) to full name; keyed by upper-case type abbreviation
 	std::unordered_map<TSTRING, TSTRING> tableTypeNameMap;
 
-	// get a maunfacturer/system logo file
+	// get a manufacturer/system logo file
 	bool GetManufacturerLogo(TSTRING &file, const GameManufacturer *manuf, int year);
 	bool GetSystemLogo(TSTRING &file, const GameSystem *system);
 
@@ -2142,7 +2142,7 @@ protected:
 		// game change.
 		UINT64 t0;
 
-		// Idle time before entering attract mode, in millseconds
+		// Idle time before entering attract mode, in milliseconds
 		DWORD idleTime;
 
 		// Game switch interval when attract mode is running, in milliseconds
@@ -2159,11 +2159,11 @@ protected:
 		// These can be used to trigger animated lighting effects on a
 		// 5-second loop.
 		//
-		// PBYttractB<N> works the same way, firing at 1-second intervals,
+		// PBYAttractB<N> works the same way, firing at 1-second intervals,
 		// but with a 60-second loop (so N runs from 1 to 60).  This can be 
 		// used to trigger occasional effects on a longer cycle.
 		//
-		// PBYttractR<N> is a series of 5 events (N from 1 to 5) that fire
+		// PBYAttractR<N> is a series of 5 events (N from 1 to 5) that fire
 		// at random intervals.  Once per second, we randomly decide whether
 		// to fire an event at all, and then randomly choose which of the 5
 		// "R" events to fire.
@@ -2292,7 +2292,7 @@ protected:
 
 	// DOF initialization status from the last initialization attempt.
 	// We suppress DOF initialization errors if the last attempt to
-	// intialize DOF also failed.  This avoids showing the same error
+	// initialize DOF also failed.  This avoids showing the same error
 	// messages over and over on a system where DOF isn't set up 
 	// properly and will thus fail on every attempt to initialize.
 	bool dofInitFailed = false;

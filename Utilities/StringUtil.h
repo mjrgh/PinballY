@@ -405,7 +405,7 @@ TSTRING FormatGuid(const GUID &guid);
 WSTRING HtmlEscape(const WSTRING &str);
 CSTRING HtmlEscape(const CSTRING &str);
 
-// Javascript escsapes.  Converts \, ", ', \n, \r, \b to \\ sequences.
+// Javascript escapes.  Converts \, ", ', \n, \r, \b to \\ sequences.
 TSTRING JavascriptEscape(const TSTRING &str);
 
 // URL parameter encoding.  Converts special characters to %xx sequences,
@@ -425,7 +425,7 @@ TSTRING UrlParamEncode(const TSTRING &str);
 // matching the source string type.
 //
 
-template<class BidirIt, class Traits, class CharT, class UnaryFunction>
+template<typename BidirIt, typename Traits, typename CharT, typename UnaryFunction>
 std::basic_string<CharT> regex_replace(BidirIt first, BidirIt last,
 	const std::basic_regex<CharT, Traits>& re, UnaryFunction f)
 {
@@ -454,7 +454,7 @@ std::basic_string<CharT> regex_replace(BidirIt first, BidirIt last,
 		std::advance(endOfLastMatch, lengthOfMatch);
 	};
 
-	std::regex_iterator<std::basic_string<CharT>::const_iterator> begin(first, last, re), end;
+	std::regex_iterator<typename std::basic_string<CharT>::const_iterator> begin(first, last, re), end;
 	std::for_each(begin, end, callback);
 
 	s.append(endOfLastMatch, last);

@@ -42,7 +42,7 @@ public:
 	inline double TicksToUs(int64_t ticks) const { return ticks * tickTime_us; }
 
 protected:
-	// Peformance counter clock period in seconds.  Multiply an
+	// Performance counter clock period in seconds.  Multiply an
 	// interval read from the performance counter by this factor to
 	// convert from ticks to seconds.
 	double tickTime_sec;

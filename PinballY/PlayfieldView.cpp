@@ -8379,7 +8379,7 @@ void PlayfieldView::OnHighScoresReady(LONG gameID, bool success, const WCHAR *so
 	for (auto it = highScoresReadyList.begin(); it != highScoresReadyList.end(); )
 	{
 		// get the next item, in case we delete this one
-		auto nxt = it;
+		decltype(it) nxt = it;
 		nxt++;
 
 		// if this item matches the game, invoke its callback
@@ -10937,7 +10937,7 @@ void PlayfieldView::ShowQueuedError()
 		Gdiplus::RectF layoutRect((float)margins + outline, 0, (float)(layoutWidth - 2*margins - 2*outline), (float)layoutHeight);
 		Gdiplus::SolidBrush br(Gdiplus::Color(255, 128, 0, 0));
 		int n = 0;
-		for (auto m : messages)
+		for (auto &m : messages)
 		{
 			// draw a separator below the first item if we have a group list
 			if (n == 1)
@@ -11186,7 +11186,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	bool hasPagedSection = false;
 	int nPagedItems = 0;
 	int pagedSelectedItem = -1;
-	for (auto i : items)
+	for (auto &i : items)
 	{
 		// Check the type:
 		//
@@ -11234,7 +11234,7 @@ void PlayfieldView::ShowMenu(const std::list<MenuItemDesc> &items, const WCHAR *
 	{
 		// measure the prompt text (the first item's text), with wrapping
 		// in the layout area
-		auto i = items.front();
+		auto &i = items.front();
 		Gdiplus::RectF bbox;
 		g.MeasureString(i.text.c_str(), -1, menuHeaderFont, rcLayout, &tformat, &bbox);
 
@@ -12537,7 +12537,7 @@ void PlayfieldView::UpdateAudioFadeout()
 	for (auto it = activeAudio.begin(); it != activeAudio.end(); )
 	{
 		// remember the next list entry, in case we delete this one
-		auto nxt = it;
+		decltype(it) nxt = it;
 		++nxt;
 
 		// check the clip type
@@ -13158,7 +13158,7 @@ void PlayfieldView::OnKbAutoRepeatTimer()
 	if (kbAutoRepeat.active)
 	{
 		// if the key isn't still pressed, cancel auto-repeat mode
-		if (GetAsyncKeyState(kbAutoRepeat.vkeyOrig) >= 0)
+		if ((GetAsyncKeyState(kbAutoRepeat.vkey) & 0x8000) == 0)
 		{
 			KillTimer(hWnd, kbRepeatTimerID);
 			return;
@@ -13270,8 +13270,24 @@ void PlayfieldView::WheelAutoRepeatStop()
 	}
 }
 
+// Enable some debugging for the wheel auto-repeat issue (#203,
+// wheel keeps spinning after key is released), to try to see
+// the key state that makes PBY think it should keep repeating.
+#define DEBUG_WHEEL_AUTO_REPEAT 0
+#if DEBUG_WHEEL_AUTO_REPEAT
+#define DebugLogAutoRepeat(msg, ...) LogFile::Get()->Write(msg, __VA_ARGS__)
+#else
+#define DebugLogAutoRepeat(msg, ...)
+#endif
+
+
 void PlayfieldView::OnWheelAutoRepeatTimer()
 {
+	// log the repeat key information
+	DebugLogAutoRepeat(_T("Wheel Auto-Repeat: repeat count=%d, cmd source device type=%d, key code=0x%02X, GAKS(key)=0x%04X\n"),
+		wheelAutoRepeat.repeatCount, static_cast<int>(wheelAutoRepeat.key.physButton.devType),
+		wheelAutoRepeat.key.physButton.code, static_cast<USHORT>(GetAsyncKeyState(wheelAutoRepeat.key.physButton.code)));
+
 	// Check to see if there's a queued Key Up for the command
 	// we're auto-repeating.  The key queue is only processed
 	// when a wheel animation isn't running, so if the wheel
@@ -13295,6 +13311,7 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 		if ((key.mode & KeyPressType::KeyDown) == 0
 			&& key.cmd->func == wheelAutoRepeat.key.cmd->func)
 		{
+			DebugLogAutoRepeat(_T("Wheel Auto-Repeat: Terminating by queued KeyUp event\n"));
 			WheelAutoRepeatStop();
 			return;
 		}
@@ -13304,9 +13321,10 @@ void PlayfieldView::OnWheelAutoRepeatTimer()
 	// check to make sure the button is actually still down,
 	// to be sure we didn't miss a WM_KEYUP.
 	if (wheelAutoRepeat.key.physButton.devType == InputManager::Button::DevType::TypeKB
-		&& !(GetAsyncKeyState(wheelAutoRepeat.key.physButton.code) & 0x8000))
+		&& (GetAsyncKeyState(wheelAutoRepeat.key.physButton.code) & 0x8000) == 0)
 	{
 		// the key is up - cancel the auto-repeat
+		DebugLogAutoRepeat(_T("Wheel Auto-Repeat: Terminating by async key state check\n"));
 		WheelAutoRepeatStop();
 		return;
 	}
@@ -15877,7 +15895,7 @@ void PlayfieldView::EditGameInfo()
 			{
 				isAutoComplete = true;
 				end = start;
-				txt[end < countof(txt) ? end : countof(txt)] = 0;
+				txt[end < countof(txt) ? end : countof(txt) - 1] = 0;
 			}
 
 			// if the combo isn't already open, open it
@@ -20302,12 +20320,12 @@ bool PlayfieldView::StatusItem::NeedsUpdate(PlayfieldView *pfv)
 std::list<PlayfieldView::StatusItem>::iterator PlayfieldView::StatusLine::NextItem()
 {
 	// get the current item, wrapping to the first if past the end
-	auto i = curItem;
+	auto &i = curItem;
 	if (i == items.end())
 		return items.begin();
 
 	// get the next item
-	auto next = i;
+	decltype(curItem) next = i;
 	++next;
 
 	// return the new item, wrapping to the first if past the end

@@ -20,11 +20,16 @@ volatile bool DOFClient::ready = false;
 HandleHolder DOFClient::hInitThread;
 CapturingErrorHandler DOFClient::initErrors;
 
+// DOF COM object GUIDs
+static IID IID_Dof = { 0x63dc1112, 0x571f, 0x4a49, { 0xb2, 0xfd, 0xcf, 0x98, 0xc0, 0x2b, 0xf5, 0xd4 } };
+static IID IID_Events = { 0xa5ff940d, 0x41d4, 0x4dad, { 0x80, 0xaf, 0x46, 0x88, 0xe3, 0xf7, 0x37, 0xc1 } };
+
 // 64-bit-only statics
 #ifdef _M_X64
 bool DOFClient::surrogateStarted;
 HandleHolder DOFClient::hSurrogateDoneEvent;
 CLSID DOFClient::clsidProxyClass;
+class __declspec(uuid("{D744EE13-4C70-474D-8FB1-8295C350FB07}")) DOFProxy64;
 #endif
 
 // initialize
@@ -57,100 +62,126 @@ void DOFClient::Init()
 			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF (DirectOutput): initializing DOF client\n"));
 
 			// initialize COM on this thread
-			CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+			(void)CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
-			// If we're in 64-bit mode, we need to create our surrogate
-			// process for loading the DOF DLL.
-#ifdef _M_X64
-			if (!surrogateStarted)
+			// create and initialize a new instance of the DOF COM object
+			auto newInst = std::make_unique<DOFClient>();
+			if (newInst->InitInst(initErrors, __uuidof(DirectOutputComObject), CLSCTX_INPROC_SERVER))
 			{
-				// flag that we've at least tried to start the surrogate
-				surrogateStarted = true;
-
-				// Generate a random GUID for the proxy class.  We use a random GUID
-				// to make the proxy private to this application instance, to avoid any 
-				// collisions with other running instances.
-				CoCreateGuid(&clsidProxyClass);
-
-				// Create the events to coordinate with the child process.  These are
-				// passed by name, with the name generated from our process ID.
-				DWORD pid = GetCurrentProcessId();
-				TCHAR readyEventName[128], doneEventName[128];
-				_stprintf_s(readyEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Ready"), pid);
-				_stprintf_s(doneEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Done"), pid);
-
-				HandleHolder hSurrogateReadyEvent = CreateEvent(NULL, FALSE, FALSE, readyEventName);
-				hSurrogateDoneEvent = CreateEvent(NULL, FALSE, FALSE, doneEventName);
-
-				// get the surrogate exe name
-				TCHAR surrogateExe[MAX_PATH];
-				GetDeployedFilePath(surrogateExe, _T("Dof3264Surrogate.exe"), _T("$(SolutionDir)$(Configuration)\\Dof3264Surrogate.exe"));
-
-				// build the command line
-				TSTRINGEx cmdline;
-				cmdline.Format(_T(" -parent_pid=%ld -clsid=%s"),
-					pid, FormatGuid(clsidProxyClass).c_str());
-
-				// set up the launch information
-				STARTUPINFO si;
-				ZeroMemory(&si, sizeof(si));
-				si.dwFlags = STARTF_USESHOWWINDOW;
-				si.wShowWindow = SW_HIDE;
-
-				// log the proxy setup
-				LogFile::Get()->Write(LogFile::DofLogging,
-					_T("+ Launching DOF surrogate process.  This is required because PinballY is running\n")
-					_T("  in 64-bit, and DOF is a 32-bit COM object.  Surrogate command line:\n")
-					_T("  >\"%s\" %s\n"), surrogateExe, cmdline.c_str());
-
-				// launch it
-				PROCESS_INFORMATION pi;
-				if (!CreateProcess(surrogateExe, cmdline.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+				// successfully initialized - store the global singleton
+				inst = newInst.release();
+			}
+#ifdef _M_X64
+			// If that failed, and we're in 64-bit mode, try creating our
+			// surrogate process to load the 32-bit COM object.  This is a
+			// relic of the past, when DOF was only available in a 32-bit
+			// version.  64-bit code can't call a 32-bit DLL in-process,
+			// so if DOF is only installed in 32-bit mode, we can't call
+			// it directly as an in-process server.  Instead, we have to
+			// create a 32-bit subprocess, which we call the "surrogate";
+			// that can load the 32-bit COM object since it's a 32-bit
+			// process.  We can then access it as an out-of-process
+			// server to route calls from the 64-bit parent process to 
+			// the COM object.
+			else
+			{
+				// if we haven't already launched the surrogate, do so now
+				if (!surrogateStarted)
 				{
-					WindowsErrorMessage err;
-					initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("Surrogate process (\"%s\" %s) launch failed: %s"),
-						surrogateExe, cmdline.c_str(), err.Get()));
+					// flag that we've at least tried to start the surrogate
+					surrogateStarted = true;
 
-					LogFile::Get()->Group();
-					LogFile::Get()->Write(_T("DOF surrogate launch failed:\n")
-						_T("  Command line: \"%s\" %s\n")
-						_T("  CreateProcess Error: %s\n"),
-						surrogateExe, cmdline.c_str(), err.Get());
-				}
-				else
-				{
-					// wait for the process to declare itself ready
-					if (WaitForSingleObject(hSurrogateReadyEvent, 5000) != WAIT_OBJECT_0)
+					// Generate a random GUID for the proxy class.  We use a random GUID
+					// to make the proxy private to this application instance, to avoid any 
+					// collisions with other running instances.
+					(void)CoCreateGuid(&clsidProxyClass);
+
+					// Create the events to coordinate with the child process.  These are
+					// passed by name, with the name generated from our process ID.
+					DWORD pid = GetCurrentProcessId();
+					TCHAR readyEventName[128], doneEventName[128];
+					_stprintf_s(readyEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Ready"), pid);
+					_stprintf_s(doneEventName, _T("PinballY.Dof6432Surrogate.%lx.Event.Done"), pid);
+
+					HandleHolder hSurrogateReadyEvent = CreateEvent(NULL, FALSE, FALSE, readyEventName);
+					hSurrogateDoneEvent = CreateEvent(NULL, FALSE, FALSE, doneEventName);
+
+					// get the surrogate exe name
+					TCHAR surrogateExe[MAX_PATH];
+					GetDeployedFilePath(surrogateExe, _T("Dof3264Surrogate.exe"), _T("$(SolutionDir)$(Configuration)\\Dof3264Surrogate.exe"));
+
+					// build the command line
+					TSTRINGEx cmdline;
+					cmdline.Format(_T(" -parent_pid=%ld -clsid=%s"),
+						pid, FormatGuid(clsidProxyClass).c_str());
+
+					// set up the launch information
+					STARTUPINFO si;
+					ZeroMemory(&si, sizeof(si));
+					si.dwFlags = STARTF_USESHOWWINDOW;
+					si.wShowWindow = SW_HIDE;
+
+					// log the proxy setup
+					LogFile::Get()->Write(LogFile::DofLogging,
+						_T("+ Launching DOF surrogate process.  This is required because PinballY is running\n")
+						_T("  in 64-bit, and DOF is a 32-bit COM object.  Surrogate command line:\n")
+						_T("  >\"%s\" %s\n"), surrogateExe, cmdline.c_str());
+
+					// launch it
+					PROCESS_INFORMATION pi;
+					if (!CreateProcess(surrogateExe, cmdline.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
 					{
-						initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), _T("Surrogate process isn't responding (ready wait timed out"));
+						WindowsErrorMessage err;
+						initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), MsgFmt(_T("Surrogate process (\"%s\" %s) launch failed: %s"),
+							surrogateExe, cmdline.c_str(), err.Get()));
+
 						LogFile::Get()->Group();
-						LogFile::Get()->Write(_T("DOF surrogate process isn't responding (ready wait timed out)\n")
-							_T("Command line: \"%s\" %s\n"),
-							surrogateExe, cmdline.c_str());
-
-						// set the 'done' event to try to make the surrogate shut down
-						SetEvent(hSurrogateDoneEvent);
-						hSurrogateDoneEvent = NULL;
-
-						// give it a moment to shut down on its own, then try to kill it
-						Sleep(250);
-						SaferTerminateProcess(pi.hProcess);
+						LogFile::Get()->Write(_T("DOF surrogate launch failed:\n")
+							_T("  Command line: \"%s\" %s\n")
+							_T("  CreateProcess Error: %s\n"),
+							surrogateExe, cmdline.c_str(), err.Get());
 					}
+					else
+					{
+						// wait for the process to declare itself ready
+						if (WaitForSingleObject(hSurrogateReadyEvent, 5000) != WAIT_OBJECT_0)
+						{
+							initErrors.SysError(LoadStringT(IDS_ERR_DOFLOAD), _T("Surrogate process isn't responding (ready wait timed out"));
+							LogFile::Get()->Group();
+							LogFile::Get()->Write(_T("DOF surrogate process isn't responding (ready wait timed out)\n")
+								_T("Command line: \"%s\" %s\n"),
+								surrogateExe, cmdline.c_str());
 
-					// close the process and thread handles
-					CloseHandle(pi.hProcess);
-					CloseHandle(pi.hThread);
+							// set the 'done' event to try to make the surrogate shut down
+							SetEvent(hSurrogateDoneEvent);
+							hSurrogateDoneEvent = NULL;
+
+							// give it a moment to shut down on its own, then try to kill it
+							Sleep(250);
+							SaferTerminateProcess(pi.hProcess);
+						}
+
+						// close the process and thread handles
+						CloseHandle(pi.hProcess);
+						CloseHandle(pi.hThread);
+					}
+				}
+
+				// dispose of the old instance and create a new one, in case it was
+				// partially initialized by the first attempt
+				newInst.reset(new DOFClient());
+
+				// Try again to load the COM object, but this time, do so through
+				// the surrogate.  This means loading the proxy object that the
+				// surrogate exposes under its proxy GUID.
+				if (newInst->InitInst(initErrors, clsidProxyClass, 
+					static_cast<CLSCTX>(CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER)))
+				{
+					// successfully initialized - store the global singleton
+					inst = newInst.release();
 				}
 			}
 #endif
-
-			// create and initialize a new instance
-			auto newInst = std::make_unique<DOFClient>();
-			if (newInst->InitInst(initErrors))
-			{
-				// successfully initialized - store the global singletone
-				inst = newInst.release();
-			}
 
 			// initialization is completed
 			ready = true;
@@ -205,7 +236,7 @@ void DOFClient::Shutdown(bool final)
 		inst = nullptr;
 	}
 
-	// check for application terminal ('final' mode)
+	// check for application termination ('final' mode)
 	if (final)
 	{
 #ifdef _M_X64
@@ -253,13 +284,8 @@ void DOFClient::SetNamedState(const WCHAR *name, int val)
 	}
 }
 
-// DOF COM object GUIDs
-static IID IID_Dof = { 0x63dc1112, 0x571f, 0x4a49, { 0xb2, 0xfd, 0xcf, 0x98, 0xc0, 0x2b, 0xf5, 0xd4 } };
-static IID IID_Events = { 0xa5ff940d, 0x41d4, 0x4dad, { 0x80, 0xaf, 0x46, 0x88, 0xe3, 0xf7, 0x37, 0xc1 } };
-class __declspec(uuid("{D744EE13-4C70-474D-8FB1-8295C350FB07}")) DOFProxy64;
-
 // Initialize
-bool DOFClient::InitInst(ErrorHandler &eh)
+bool DOFClient::InitInst(ErrorHandler &eh, const GUID &guid, CLSCTX clsCtx)
 {
 	LogFile::Get()->Group(LogFile::DofLogging);
 	LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: creating DOF COM object (%s)\n"),
@@ -273,13 +299,10 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 	// Do this by creating the proxy class provided by the surrogate
 	// COM factory process we launched at startup.
 	RefPtr<IUnknown> pUnknown;
-	HRESULT hr = CoCreateInstance(
-		IF_32_64(__uuidof(DirectOutputComObject), clsidProxyClass), nullptr,
-		IF_32_64(CLSCTX_INPROC_SERVER, CLSCTX_LOCAL_SERVER | CLSCTX_INPROC_SERVER),
-		IID_Dof, (void **)&pUnknown);
+	HRESULT hr = CoCreateInstance(guid, nullptr, clsCtx, IID_Dof, reinterpret_cast<void**>(&pUnknown));
 
 	// If the error is Class Not Registered, fail silently.  This error means
-	// that DOF isn't installed on this machine, which is prefectly fine: we
+	// that DOF isn't installed on this machine, which is perfectly fine: we
 	// just run without any DOF effects.
 	if (hr == REGDB_E_CLASSNOTREG)
 	{
@@ -348,7 +371,7 @@ bool DOFClient::InitInst(ErrorHandler &eh)
 		{ L"UpdateTableElement", &dispidUpdateTableElement },
 		{ L"UpdateNamedTableElement", &dispidUpdateNamedTableElement },
 		{ L"TableMappingFileName", &dispidTableMappingFileName },
-		{ L"GetConfiguredTableElmentDescriptors", &dispidGetConfiguredTableElmentDescriptors },
+		{ L"GetConfiguredTableElmentDescriptors", /* "Elment" [sic]*/ &dispidGetConfiguredTableElmentDescriptors },
 	};
 	for (int i = 0; i < countof(lookup); ++i)
 	{
@@ -443,17 +466,20 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 		}
 
 		// parse the XML
-		xml_document<char> doc;
+		std::unique_ptr<xml_document<char>> docp;
+		if (docp == nullptr)
+		{
+			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: out of memory for parsed XML tree for %s\n"), filename.c_str());
+			return;
+		}
+
 		try
 		{
-			doc.parse<0>(xml.get());
+			docp->parse<0>(xml.get());
 		}
 		catch (std::exception &exc)
 		{
-			return;
-			eh.SysError(
-				MsgFmt(IDS_ERR_LOADGAMELIST, filename.c_str()),
-				MsgFmt(_T("XML parsing error: %hs"), exc.what()));
+			eh.SysError(MsgFmt(IDS_ERR_LOADGAMELIST, filename.c_str()),	MsgFmt(_T("XML parsing error: %hs"), exc.what()));
 			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: unable to parse table mapping file %s as XML: %hs\n"), 
 				filename.c_str(), exc.what());
 			return;
@@ -470,7 +496,7 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 		//
 		typedef xml_node<char> node;
 		typedef xml_attribute<char> attr;
-		node *mappings = doc.first_node("TableNameMappings");
+		node *mappings = docp->first_node("TableNameMappings");
 		if (mappings != 0)
 		{
 			// visit the <Mapping> nodes
@@ -504,9 +530,9 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 	// Retrieve the pre-configured table element descriptors
 	if (pDispatch != 0)
 	{
-		// Invoke GetConfiguredTableElmentDescriptors() to get the predefined ROM name 
-		// list.  This contains a list of all of the defined table elements, which is 
-		// a mix of DOF's traditional numbered VPinMAME triggers (e.g., solenoids
+		// Invoke GetConfiguredTableElmentDescriptors() [sic] to get the predefined ROM
+		// name list.  This contains a list of all of the defined table elements, which
+		// is a mix of DOF's traditional numbered VPinMAME triggers (e.g., solenoids
 		// ["S7"], switches ["W19"], lamps (["L5"]), and abstract named elements. 
 		// Named elements use a "$" prefix, and comprise a mix of ROM names and 
 		// abstract UI events.  There's no formal way to distinguish the two, but by

@@ -15,7 +15,7 @@ if not exist .\ChakraCore\win32\debug mkdir ChakraCore\win32\debug
 if not exist .\ChakraCore\win32\release mkdir ChakraCore\win32\release
 if not exist .\ChakraCore\libboost mkdir ChakraCore\libboost
 
-for %%i in (ChakraCore.h ChakraCommon.h ChakraCommonWindows.h ChakraDebug.h) do (
+for %%i in (ChakraCore.h ChakraCommon.h ChakraCommonWindows.h ChakraDebug.h ChakraCoreWindows.h) do (
     copy /y "%~1\lib\jsrt\%%i" .\ChakraCore\include\*.*
 )
 

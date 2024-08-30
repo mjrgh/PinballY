@@ -143,7 +143,8 @@ bool ConfigManager::Load(const ConfigFileDesc &fileDesc)
 		if (err == 0)
 		{
 			// success - simply leave the empty file behind
-			fclose(fp);
+			if (fp != nullptr)
+				fclose(fp);
 
 			// populate the settings with a boilerplate comment header
 			contents.emplace_back(LoadStringT(IDS_CFG_COMMENT1).c_str());
@@ -249,9 +250,9 @@ bool ConfigManager::LoadFrom(const TCHAR *filename)
 			}
 
 			// take this as the start of the name and seek the end of the name
-			auto name = i;
+			decltype(i) name = i;
 			for (; i != s.end() && *i != '=' && !_istspace(*i); ++i);
-			auto nameEnd = i;
+			decltype(i) nameEnd = i;
 
 			// skip spaces
 			for (; i != s.end() && _istspace(*i); ++i);
@@ -267,7 +268,7 @@ bool ConfigManager::LoadFrom(const TCHAR *filename)
 			for (++i; i != s.end() && _istspace(*i); ++i);
 
 			// this is the value section
-			auto value = i;
+			decltype(i) value = i;
 
 			// trim trailing spaces
 			auto valueEnd = s.end();
@@ -583,7 +584,7 @@ RECT ConfigManager::GetRect(const TCHAR *name, RECT defval) const
 
 RECT ConfigManager::ToRect(const TCHAR *val)
 {
-	RECT rc;
+	RECT rc{ 0 };
 	if (_stscanf_s(val, _T("%ld,%ld,%ld,%ld"), &rc.left, &rc.top, &rc.right, &rc.bottom) == 4)
 		return rc;
 	else
@@ -787,7 +788,7 @@ void ConfigManager::SetWindowPlacement(const TCHAR *name, const RECT &rcNormalPo
 		nFlags, nShowCmd));
 }
 
-BOOL ConfigManager::GetWindowPlacement(const TCHAR *name, RECT &rcNormalPosition, int nFlags, int nShowCmd)
+BOOL ConfigManager::GetWindowPlacement(const TCHAR *name, RECT &rcNormalPosition, int nFlags, int nShowCmd) const
 {
 	// try looking up the name
 	const TCHAR *txt = Get(name);

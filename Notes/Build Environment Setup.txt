@@ -89,26 +89,47 @@ Visual Studio normally installs the current Windows Platform SDK
 automatically as part of the development environment setup.  However,
 each Project configuration calls for a SPECIFIC Platform SDK version,
 so the one that VS installs might not match what the PinballY project
-settings require.  If you get any errors about missing Platform SDK
-headers when you try to build, you can get the required versions here:
+settings require.  All past SDK releases can be found here:
 
   https://developer.microsoft.com/en-us/windows/downloads/sdk-archive/
+
+Find the version number you need, and download and run the
+corresponding SDK installer.
 
 It's okay to have several different SDK versions installed on your
 machine, so installing another version won't affect your existing SDK
 installs or other projects.
 
-To figure out which SDK version is needed for a given Visual Studio
-project, open the solution (.sln) file in Visual Studio, then
+How do you tell which version(s) to install?  Newer versions of the
+compiler generate helpful diagnostics telling you just what you need -
+look for messages in the Output window along the lines of "Windows SDK
+version <xxxxx> is required".  If you find any of those, just go to
+the SDK archive link above and download and install the exact versions
+mentioned.  Remember, there might be more than one version needed.
+
+If you don't see such specific error messages, but you think you're
+missing an SDK because of missing .h file errors, you can determine
+the SDK dependencies by looking at the project properties pages in
+Visual Studio.  Open the solution (.sln) file in Visual Studio, then
 right-click on the project in the Solution Explorer panel and select
 Properties.  On the "General" page, look for the line saying "Windows
 SDK Version".  That will tell you the specific version that project
-requires.  You can either install that version from the Microsoft site
-above, OR you can try changing the "Windows SDK Version" in the
-project properties to match a version you already have installed.  In
-most cases, PinballY should be perfectly happy to work with newer SDK
-versions, since Microsoft goes to pretty heroic lengths to keep their
-SDKs backwards-compatible.  But they sometimes do make incompatible
-changes, so if you get compiler errors after changing the SDK version
-setting in the project properties, try changing back it back in the
-properties, and install the old SDK from the link above.
+requires.
+
+As an alternative to installing old SDKs, you can try changing the
+project settings to a newer SDK version (presumably a version that's
+already installed on your machine).  That will usually work, because
+Microsoft tries pretty hard to make each SDK versions backwards
+compatible with existing code written against older SDKs.  But they
+don't always manage that, and it seems like they've gotten more
+cavalier about breaking changes as time goes on.  So switching to a
+newer SDK version will sometimes create new compiler errors - and in
+some cases, the program might build successfully but break at
+run-time, especially if you run it on an older Windows version.  The
+safest, least destabilizing thing to do is always to compile against
+the same SDK version listed in the project, since you can have some
+assurance that the program has been successfully built and tested
+against that version by someone else already.  If you do change any of
+the projects to newer SDK, you should do a little more testing than
+you might otherwise do to make sure that there aren't any hidden
+compatibility issues.

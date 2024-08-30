@@ -2,6 +2,20 @@ ChakraCore is Microsoft's open-source (MIT License) Javascript engine.
 It's incorporated into PinballY as a scripting engine for user
 customizations.
 
+Last Updates
+============
+
+ChackraCore:
+    origin:  https://github.com/Microsoft/ChakraCore.git 
+    commit:  e26c81f6eabf3b4c0f45c3963be807d3ea90c63e
+    date:    1 August 2024
+
+ChakraCore:
+    origin:  https://github.com/mjrgh/ChakraCore-Debugger
+    commit:  75cc0b073aad00cf18413bfdff260f191e226e46
+    date:    30 August 2024
+             (up to date with base https://github.com/microsoft/ChakraCore-Debugger.git commit d0178f83c6c49e2e5980e43be81a0e5c7e36ce6e)
+
 
 Build Instructions
 ==================
@@ -28,12 +42,20 @@ really easy to do this:
 
 3. Open <Path to ChakraCore>/build/Chakra.Core.sln in Visual Studio
 
-4. Build the x86 and x64 versions
+4. Build the x86 and x64 versions of the Core/Bin and Core/Lib projects:
 
    a. Select configuration Release/x64
-   b. Build -> Rebuild Solution
-   c. Select configuration Release/x86
-   d. Build -> Rebuild Solution
+   b. In the Solution Explorer list, right click Core > Bin, select Build
+   c. In the Solution Explorer list, right click Core > Lib, select Build
+
+   d. Select configuration Release/x86
+   e. In the Solution Explorer list, right click Core > Bin, select Build
+   f. In the Solution Explorer list, right click Core > Lib, select Build
+
+NOTE: As of 8/2024, with Visual Studio 2022, the full Solution rebuild
+doesn't complete; I haven't fully investigated why, because the components
+that PinballY requires DO build correctly.  The right-click > Build process
+above builds only those components.
 
 5. git clone https://github.com/mjrgh/ChakraCore-Debugger
 

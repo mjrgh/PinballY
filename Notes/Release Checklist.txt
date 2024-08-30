@@ -43,10 +43,13 @@ PinballY Release Checklist
     Builds\PinballY-Min-xxxxxx.zip  [do not upload]
     Builds\PinballY-64bit-Min-xxxxxx.zip  [do not upload]
 
-- git commit -a -m "checkin message"
+- git commit -a -m "check-in message"
 
 - git push
 
 - git tag X.Y.Z-LevelN
 
 - git push origin --tags
+
+- If desired, create a release on github/PinballY from the same binaries
+  uploaded to mjrnet.org

@@ -1,6 +1,26 @@
 PinballY Update History
 
 
+08-30-2024 (1.1.0 Beta 7)
+
+* The DirectOutput interface is now compatible with 64-bit DOF
+installs for the 64-bit PinballY build.  PinballY was originally
+written before anyone was using 64-bit DOF builds, so 64-bit PinballY
+used a special proxy process to connect to the 32-bit DOF.  This was
+meant to improve compatibility by letting you mix 64-bit PinballY with
+32-bit DOF, but of course, it doesn't work if you ONLY have 64-bit DOF
+installed.  Now, PinballY 64-bit will first try to connect directly to
+a 64-bit DOF.  If that fails, it'll fall back on the 32-bit proxy as
+in the past.  This should hopefully allow PinballY to work with any
+combination of DOF configurations.
+
+* Updated to the latest ChakraCore Javascript engine version.
+
+* Migrated the build to Visual Studio 2022 (build tools v143); fixed
+some issues related to the changes in the language rules in the latest
+build tools and cleaned up numerous warnings.
+
+
 07-16-2022 (1.1.0 Beta 6)
 
 * This update is just to test an attempt at a fix for the sticky wheel

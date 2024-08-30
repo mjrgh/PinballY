@@ -177,7 +177,7 @@ struct MediaType
 	// characters.  Note that a paged media type (such as Flyer
 	// Images) will have subfolders within this folder where the
 	// actual media are stored.  Returns true on success, false
-	// if we're unable to constuct the path.
+	// if we're unable to construct the path.
 	bool GetMediaPath(TCHAR/*[MAX_PATH]*/ *buf, const TCHAR *systemMediaDir) const;
 
 	// Menu order.  This is for sorting the items in a capture or
@@ -590,7 +590,7 @@ public:
 	// into the parse tree for the dbFile defining the game.
 	rapidxml::xml_node<char> *gameXmlNode;
 
-	// Is this game configured?  A configurd game has a database
+	// Is this game configured?  A configured game has a database
 	// record; an unconfigured game is one that we found in the file
 	// system with no corresponding database entry.  
 	//
@@ -999,16 +999,16 @@ public:
 	// Filter interval in days.  The filter selects games played or
 	// not played within this many days of the current day.  Days
 	// start at midnight local time.
-	int days;
+	int days = 0;
 
 	// Exclude games: if true, this is an exclusion filter for the
 	// interval, meaning that it selects games that HAVEN'T been 
 	// played with the last 'days' days.
-	bool exclude;
+	bool exclude = false;
 
 	// Most recent midnight.  We set this up in BeforeScan() to 
 	// cache the time reference point for the current scan.
-	DATE midnight;
+	DATE midnight = 0;
 };
 
 
@@ -1101,7 +1101,7 @@ public:
 	TSTRING process;			// process name to monitor
 	TSTRING startupKeys;        // startup key sequence
 	TSTRING envVars;			// environment variables to add when launching the program
-	WORD swShow;                // SW_SHOW flag for launching the table
+	WORD swShow = SW_SHOW;      // SW_SHOW flag for launching the table
 	TSTRING terminateBy;        // how to terminate running games (CloseWindow, KillProcess)
 	TSTRING keepOpen;           // windows to keep open - space-delimited list (bg dmd topper instcard)
 
@@ -1825,7 +1825,7 @@ protected:
 	// IDs to internal IDs for all loaded games in the outgoing list,
 	// and then store the map in the new game list.  This lets us reuse
 	// the same internal IDs for games that survive the reload, so that
-	// Javascript GmaeInfo objects continue to point to the same games.
+	// Javascript GameInfo objects continue to point to the same games.
 	std::unique_ptr<std::unordered_map<TSTRING, int>> reloadIDMap;
 
 	// Game stats database

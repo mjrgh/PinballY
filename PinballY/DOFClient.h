@@ -134,7 +134,7 @@ protected:
 	TSTRING version = _T("N/A");
 
 	// initialize - load the DOF COM object interface
-	bool InitInst(ErrorHandler &eh);
+	bool InitInst(ErrorHandler &eh, const GUID &guid, CLSCTX clsCtx);
 
 	// load the table mapping file
 	void LoadTableMap(ErrorHandler &eh);
@@ -206,7 +206,7 @@ protected:
 	std::unordered_map<const GameListItem*, TSTRING> resolvedRoms;
 
 	// ROM names in the loaded DOF configuration.  This lets us determine
-	// if a ROM name from the table database is known in the congiguration,
+	// if a ROM name from the table database is known in the configuration,
 	// meaning that it will properly trigger table-specific effects if
 	// set as the current table.  When a table database entry specifies
 	// a ROM, but that ROM isn't in the loaded config, it's better to try
@@ -230,24 +230,24 @@ protected:
 	//
 
 	// void Init(string hostAppName, string tableFileName = "", string gameName = "")
-	DISPID dispidInit;
+	DISPID dispidInit = DISPID_UNKNOWN;
 
 	// void Finish()
-	DISPID dispidFinish;
+	DISPID dispidFinish = DISPID_UNKNOWN;
 
 	// string GetVersion()
-	DISPID dispidGetVersion;
+	DISPID dispidGetVersion = DISPID_UNKNOWN;
 
 	// void UpdateTableElement(string elementType, int eleNumber, int value)
-	DISPID dispidUpdateTableElement;
+	DISPID dispidUpdateTableElement = DISPID_UNKNOWN;
 
 	// void UpdateNamedTableElement(string name, int value)
-	DISPID dispidUpdateNamedTableElement;
+	DISPID dispidUpdateNamedTableElement = DISPID_UNKNOWN;
 
 	// String TableMappingFileName()
-	DISPID dispidTableMappingFileName;
+	DISPID dispidTableMappingFileName = DISPID_UNKNOWN;
 
 	// String[] GetConfiguredTableElmentDescriptors() [sic - "Elment" not "Element"]
-	DISPID dispidGetConfiguredTableElmentDescriptors;
+	DISPID dispidGetConfiguredTableElmentDescriptors = DISPID_UNKNOWN;
 };
 

@@ -100,7 +100,7 @@ protected:
 //    // Assign a new reference.  This automatically adds a reference
 //    // to the new object and releases the reference to the previous
 //    // object, if any.
-//    p = myClassOtherInstace;
+//    p = myClassOtherInstance;
 //
 //    // Assign to null.  This automatically releases any existing
 //    // reference in 'p'.

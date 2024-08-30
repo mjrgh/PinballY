@@ -213,7 +213,7 @@ public:
 	void Set(const TCHAR *name, ConfigLine::FormatString format, ...);
 
 	// Get/set a window placement value.
-	BOOL GetWindowPlacement(const TCHAR *name, RECT &rcNormalPosition, int nFlags, int nShowCmd);
+	BOOL GetWindowPlacement(const TCHAR *name, RECT &rcNormalPosition, int nFlags, int nShowCmd) const;
 	void SetWindowPlacement(const TCHAR *name, const RECT &rcNormalPosition, int nFlags, int nShowCmd);
 
 	// Set an array variable

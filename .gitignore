@@ -42,6 +42,10 @@ Settings backup *.txt
 GameStats.csv
 zlib/contrib/vstudio/vc14/x86/**
 PinballY/shaders/*.h
+litehtml/Debug-UTF8/**
+litehtml/Release-UTF8/**
+zlib/contrib/vstudio/vc14/ia64/**
+zlib/contrib/vstudio/vc14/x64/**
 Builds/**
 WixSetup/Generated/*
 **/ZlibStatRelease/**

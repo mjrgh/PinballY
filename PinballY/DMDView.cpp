@@ -238,7 +238,7 @@ const DMDFont *DMDView::PickHighScoreFont(const std::list<const TSTRING*> &group
 //                  -------
 //      left upper  |\   /|  right upper
 //                  | \ / |
-// middle right ->  |-- --|  <- middle left
+//  middle left ->  |-- --|  <- middle right
 //                  | / \ |
 //      left lower  |/   \|  right lower
 //                  -------
@@ -623,7 +623,6 @@ struct HighScoreGraphicsGenThread
 	// launch the thread
 	void Launch()
 	{
-
 		// create the thread
 		DWORD tid;
 		HandleHolder hThread = CreateThread(NULL, 0, &HighScoreGraphicsGenThread::SMain, this, 0, &tid);

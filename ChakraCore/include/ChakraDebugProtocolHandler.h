@@ -101,3 +101,11 @@ CHAKRA_API JsDebugProtocolHandlerSetCommandQueueCallback(
     _In_ JsDebugProtocolHandler protocolHandler,
     _In_ JsDebugProtocolHandlerCommandQueueCallback callback,
     _In_opt_ void* callbackState);
+
+/// <summary>Creeats and returns the objects which has console APIs popluated</summary>
+/// <param name="protocolHandler">The instance to create object on.</param>
+/// <param name="consoleObject">The populated console object</param>
+CHAKRA_API JsDebugProtocolHandlerCreateConsoleObject(
+    _In_ JsDebugProtocolHandler protocolHandler,
+    _Out_ JsValueRef *consoleObject
+);

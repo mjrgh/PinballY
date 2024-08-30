@@ -113,16 +113,25 @@
     <OutputPath>bin\$(Platform)-$(Configuration)\</OutputPath>
     <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
   </PropertyGroup>
+
+  <!--
+  Workaround for VS2022 crash bug: WiX tools are 32bit EXEs, so run
+  them  out-of-proc when MSBuild is not 32bit. 
+  -->
+  <PropertyGroup>
+     <RunWixToolsOutOfProc Condition=" '$(PROCESSOR_ARCHITECTURE)'!='x86' ">true</RunWixToolsOutOfProc>
+  </PropertyGroup>
+  
   <Target Name="BeforeBuild">
-    <!--
-       <HeatDirectory> runs the Wix "heat" tool to generate WiX scripts
-       for various purposes.  Here, we use it to generate a list of
-       files to include in the setup content.
+     <!--
+     <HeatDirectory> runs the Wix "heat" tool to generate WiX scripts
+     for various purposes.  Here, we use it to generate a list of
+     files to include in the setup content.
      -->
-    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Assets" PreprocessorVariable="var.AssetsPath" OutputFile="Generated\Assets.wxs" ComponentGroupName="HeatGeneratedAssets" DirectoryRefId="ASSETSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
-    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Help" PreprocessorVariable="var.HelpPath" OutputFile="Generated\Help.wxs" ComponentGroupName="HeatGeneratedHelp" DirectoryRefId="HELPDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
-    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC64\plugins" PreprocessorVariable="var.VLC64PluginsPath" OutputFile="Generated\VLC64Plugins.wxs" ComponentGroupName="HeatGeneratedVLC64Plugins" DirectoryRefId="VLC64PLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
-    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC\plugins" PreprocessorVariable="var.VLCPluginsPath" OutputFile="Generated\VLCPlugins.wxs" ComponentGroupName="HeatGeneratedVLCPlugins" DirectoryRefId="VLCPLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
-    <HeatDirectory ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Farsight" PreprocessorVariable="var.FarsightPath" OutputFile="Generated\Farsight.wxs" ComponentGroupName="HeatGeneratedFarsight" DirectoryRefId="FARSIGHTDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory RunAsSeparateProcess="$(RunWixToolsOutOfProc)" ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Assets" PreprocessorVariable="var.AssetsPath" OutputFile="Generated\Assets.wxs" ComponentGroupName="HeatGeneratedAssets" DirectoryRefId="ASSETSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory RunAsSeparateProcess="$(RunWixToolsOutOfProc)" ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Help" PreprocessorVariable="var.HelpPath" OutputFile="Generated\Help.wxs" ComponentGroupName="HeatGeneratedHelp" DirectoryRefId="HELPDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory RunAsSeparateProcess="$(RunWixToolsOutOfProc)" ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC64\plugins" PreprocessorVariable="var.VLC64PluginsPath" OutputFile="Generated\VLC64Plugins.wxs" ComponentGroupName="HeatGeneratedVLC64Plugins" DirectoryRefId="VLC64PLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory RunAsSeparateProcess="$(RunWixToolsOutOfProc)" ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)VLC\plugins" PreprocessorVariable="var.VLCPluginsPath" OutputFile="Generated\VLCPlugins.wxs" ComponentGroupName="HeatGeneratedVLCPlugins" DirectoryRefId="VLCPLUGINSDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
+    <HeatDirectory RunAsSeparateProcess="$(RunWixToolsOutOfProc)" ToolPath="$(WixToolPath)" NoLogo="true" Directory="$(SolutionDir)Farsight" PreprocessorVariable="var.FarsightPath" OutputFile="Generated\Farsight.wxs" ComponentGroupName="HeatGeneratedFarsight" DirectoryRefId="FARSIGHTDIR" AutogenerateGuids="false" GenerateGuidsNow="true" SuppressRootDirectory="true" SuppressFragments="true" SuppressRegistry="true" />
   </Target>
 </Project>
