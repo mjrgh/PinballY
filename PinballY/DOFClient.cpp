@@ -466,7 +466,7 @@ void DOFClient::LoadTableMap(ErrorHandler &eh)
 		}
 
 		// parse the XML
-		std::unique_ptr<xml_document<char>> docp;
+		std::unique_ptr<xml_document<char>> docp(new (std::nothrow) xml_document<char>());
 		if (docp == nullptr)
 		{
 			LogFile::Get()->Write(LogFile::DofLogging, _T("DOF: out of memory for parsed XML tree for %s\n"), filename.c_str());
