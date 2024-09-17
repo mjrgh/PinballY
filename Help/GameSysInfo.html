@@ -56,6 +56,56 @@
 <h2>Properties and methods</h2>
 
 <p>
+   <a name="closeWindowName"></a>
+   <b>closeWindowName:</b> A string giving the name or regular expression pattern
+   to match to the title of the game window or windows that will receive the
+   "close window" commands selected via the <a href="#terminateBy"><b>terminateBy</b></a> property, when the
+   user terminates a running game by pressing the Exit Game button.  If
+   this is left blank, the close commands are sent to <i>all</i> of the game's
+   open windows.  Otherwise, the close commands are only sent to the game's
+   windows whose names match the string given here.
+</p>
+<p>
+   The interpretation of this property depends upon <b>closeWindowNameIsRegex</b>.
+   If that property is <b>false</b>, the window name given here is just a literal string
+   to match to the window titles.  The window name has to match the property
+   string exactly, except that upper/lower-case differences are ignored.  If
+   <b>closeWindowNameIsRegex</b> is <b>true</b>, the string here is treated as
+   a regular expression pattern, using the normal Javascript-style regular
+   expression syntax.  The close command is then sent to windows that match
+   the pattern.
+</p>
+<p>
+   The regular expression option lets you deal with applications
+   where the window name is different every time, but follows some predictable
+   template pattern.  For example, if the game window is always named
+   "Super Deluxe Pinball Pro (The Addams Family)", with the name of the active table
+   inserted in the parenthesized part, you could match this with a regular
+   expression pattern like <b>"Super Deluxe Pinball Pro \\(.*\\)"</b>, since
+   the <b>.*</b> sequence will match whatever table name gets inserted between
+   the parentheses.
+</p>
+
+<p>
+   <a name="closeWindowNameIsRegex"></a>
+   <b>closeWindowNameIsRegex:</b> A boolean specifying whether <b>closeWindowName</b>
+   is treated as a literal string (closeWindowNameIsRegex is false) or as a regular
+   expression pattern (true).
+</p>
+
+<p>
+   <a name="closeWindowTimeout"></a>
+   <b>closeWindowTimeout:</b> A number giving the maximum time, in milliseconds,
+   that PinballY waits for the game program to close after sending the window-closing
+   commands specified by <a href="#terminateBy"><b>terminateBy</b></a>.  If the
+   game program doesn't exit by itself within this time limit, PinballY will try to
+   close the program by terminating its process.  This is meant to be a last resort
+   for programs that crash or freeze when their windows are closed, which would
+   make PinballY get stuck indefinitely if it just waited without a time limit
+   for the program to exit.
+</p>
+
+<p>
    <b>databaseDir:</b> A string giving the name of the folder
    containing the XML database files that list this system's configured
    games.  This is the name of the folder only, with no path; the
@@ -283,12 +333,38 @@
    of the following:
 </p>
 <ul>
-   <li>"CloseWindow" - PinballY closes the program's main window and waits
-   for the process to exit on its own
+   <li>"CloseWindow" - PinballY sends <b>both</b> the WM_CLOSE and SC_CLOSE
+   commands to the target windows.  This is a way of not having to choose between
+   the two command types, by letting PinballY simply try each one to see which
+   works.  Some applications will respond to one and ignore the other, some
+   will accept both, and some won't respond to either one; it's just a matter
+   of how the individual application is programmed, so the only way to find out
+   is by experimentation.  This option is the default because it's the most
+   automatic, but some applications might have an adverse response to one or
+   the other command; the "WM_CLOSE" and "SC_CLOSE" options let you choose more
+   specifically for such cases.
+
+   <li>"WM_CLOSE" - PinballY sends the WM_CLOSE command to the target windows.
+   This is equivalent to clicking on the window's "close box", which is the
+   "X" icon at the top right of the window's caption bar.  Windows that don't
+   have close boxes displayed might not respond to this command.
+
+   <li>"SC_CLOSE" - PinballY sends the SC_CLOSE system command to the target windows.
+   This is equivalent to pressing Alt+F4, or clicking on the window's "system icon"
+   at the top left of the window's caption bar and selecting Close from the menu that
+   drops down.  Most top-level windows will respond to this command by exiting the
+   application, but some programs might simply ignore it.
+
    <li>"KillProcess" - PinballY asks Windows to terminate the process
-   (without going through the program's user interface)
-   <li>"" - use the default (same as CloseWindow)
+   (without going through the program's user interface).
+   <li>"" - use the default (same as CloseWindow).
 </ul>
+<p>
+   The "target window" for the close commands is chosen by the <b>closeWindowName</b>
+   property.  When the property is left blank, PinballY sends the close commands
+   to <i>all</i> of the game's open windows.  When the property names a window,
+   PinballY only sends the close commands to matching windows.
+</p>
 
 <p>
    <b>workingPath:</b>  The working directory path to use when launching

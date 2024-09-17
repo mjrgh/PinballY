@@ -198,6 +198,8 @@
    <b>Window Mode:</b> Minimize<br>
    <b>Table folder:</b> Tables<br>
    <b>Table extension:</b> .vpt<br>
+   <b>Terminate by:</b> SC_CLOSE<br>
+   <b>Close Win name:</b> Visual Pinball - \[.*\] (and check the RegEx box)
 </p>
 <p>
    For the <b>Program EXE</b> box, if you leave it blank, PinballY will
@@ -210,19 +212,19 @@
    to the Program EXE box to browse for the file.
 </p>
 <p>
-   Many people keep multiple versions of VP 8-9 installed at the same
+   Many people keep multiple versions of VP 9 and 10 installed at the same
    time.  In this case, Windows only allows one of them to be associated
    with .vpt files, so the "leave it blank" advice will only work for
    that one version that's assigned in the registry.  For the other
    versions, you'll have to specify the version of VPinballXXX.exe
-   to use.  For example, if you have both VP 9.2 and VP 9.9 installed
-   (as many people do), follow this procedure:
+   to use.  For example, if you have both VP 9.9.5 and VP 10.7 installed,
+   follow this procedure:
 </p>
 <ul>
-   <li>Create two separate "system" pages, one for VP 9.2 and one for 9.9
-   <li>In the VP 9.2 page, set the Program EXE box to VPinball921.exe
+   <li>Create two separate "system" pages, one for VP 9.9.5 and one for 10.7
+   <li>In the VP 9.9.5 page, set the Program EXE box to VPinball995.exe
    (or whichever version is current)
-   <li>In the VP 9.9 page, set the Program EXE box to VPinball995.exe
+   <li>In the VP 10.7 page, set the Program EXE box to VPinballX.exe
    (or whichever version is current)
 </ul>
 <p>
@@ -247,6 +249,8 @@
    <b>Window Mode:</b> Minimize<br>
    <b>Table folder:</b> Tables<br>
    <b>Table extension:</b> .vpx<br>
+   <b>Terminate by:</b> SC_CLOSE<br>
+   <b>Close Win name:</b> Visual Pinball - \[.*\] (and check the RegEx box)
 </p>
 
 <a name="VP-with-PinUp"></a>
@@ -948,15 +952,29 @@ tr.keyHeading > td {
    with this system when you press the Exit Game button.
 </p>
 <ul>
-  <li><b>Close Window:</b>  This is the default.  This simply closes
-  all of the program's open windows, as though you manually closed
-  them with the mouse.  This is considered the best way to
-  terminate a program, since it's the way most programs expect to be
-  terminated under normal conditions, and because it allows the program
-  to perform an orderly shutdown, releasing system resources before it
-  exits.  This option should be used in most cases.  Consider other
-  options only if this one doesn't work reliably for a
-  particular game system.
+  <li><b>Close Window:</b>  This is the default.  This tries sending
+  <i>both</i> WM_CLOSE and SC_CLOSE commands to the game window(s).
+  This is usually the best default, because it essentially automatically
+  detects which option works for each window, simply by trying each one
+  successively and checking if the window responded.  Some applications
+  might respond in correctly to one or the other command, though, so you
+  can be more selective about which command is used by choosing WM_CLOSE
+  or SC_CLOSE instead.
+
+  <li><b>WM_CLOSE:</b> Sends <i>only</i> the WM_CLOSE command to the
+  game window(s).  This is the equivalent of clicking on the window's
+  "close box" (the "X" icon at the right side of the window's caption bar).
+  Most application windows respond to this command, but windows with custom
+  caption bars sometimes ignore it.
+
+  <li><b>SC_CLOSE:</b> Sends <i>only</i> the SC_CLOSE command to the
+  game window(s).  For most applications, this is equivalent to all of
+  these actions:
+  <ul>
+     <li>Pressing Alt+F4
+     <li>Double-clicking the "system icon" at the left end of the window's title bar
+     <li>Clicking the system icon, and selecting "Close" from the menu that pops up
+  </ul>
 
   <li><b>Kill Process:</b>  This asks Windows to terminate the process
   directly, rather than asking the program to exit on its own.
@@ -969,11 +987,104 @@ tr.keyHeading > td {
   this can leave files or devices locked so that other processes can't use
   them, which is why Task Manager always warns about it.  Despite the
   risks to system stability, this option is sometimes the only thing that'll work, because
-  some programs simply won't cooperate with the safer Close Window approach.
+  some programs simply won't cooperate with any of the other, safer approaches above.
   Use this as a last resort when the Close Window option doesn't work
   reliably.
 </ul>
+<p>
+  The reason that PinballY has all of these different options is that
+  different applications just work differently internally, requiring different
+  methods of trying to ask them politely to exit.  Game programs tend to be
+  particularly intransigent, because video games by their nature want to take
+  over the whole system and pretend that the Windows operating system doesn't
+  even exist while they're in charge.  As a result, it's impossible to predict
+  which termination strategy will work best with a given game; you just have to
+  try them to see which works best.  In most cases, starting with Close Window
+  is probably the best option, then trying the individual command options,
+  WM_CLOSE and SC_CLOSE.  Kill Process is a last resort if none of the "polite"
+  options work.
+</p>
 
+<h3>Timeout</h3>
+<p>
+   This sets the maximum wait time, in milliseconds, for the game to terminate
+   after one the Close Window commands selected by Terminate By (above) is sent.
+   If the game's system process is still running after this time limit expires,
+   PinballY will try terminating the process, as though you had selected Kill Process
+   in the Terminate By option.  The default is 2500 ms, or 2.5 seconds.
+</p>
+<p>
+   The point of this timeout is to guarantee that PinballY will be able to come
+   back to the foreground, even if the game stops responding to commands.   For
+   example, this might be necessary if the game or one of its internal scripts
+   crashes while the program is trying to exit, leaving the game stuck forever
+   until someone intervenes.
+</p>
+<p>
+   The default setting is intended to be long enough that most games will easily
+   be able to shut down within the time limit.  But if you find from inspecting
+   the PinballY log file that the time limit is routinely exceeded for some of
+   your games, you can try increasing the limit.  Longer limits meant that you
+   might have to wait longer before PinballY comes back to the foreground, but
+   if your games really need longer to exit, it's better to give them the time
+   they need.  Killing the game process can prevent the game from finishing
+   important final tasks, such as updating its non-volatile memory settings
+   (for example, saving new high score updates, or game settings changes).  The
+   timeout isn't there to make PinballY <i>seem</i> faster; it's there only to
+   prevent a game from wedging the system permanently by refusing to respond
+   when asked politely to exit.  So you should set this according to the time
+   your games really need to exit on their own, by making it comfortably longer
+   than the actual longest time required, so that it's only triggered if
+   something goes wrong.
+</p>
+
+<h3>Close Win name</h3>
+<p>
+   This is closely related to the Terminate By setting.  If Terminate By is set
+   to any of the "close window" options - Close Window, WM_CLOSE, SC_CLOSE - then
+   PinballY will look to the Close Win Name setting to determine <i>which</i>
+   window to try to close.  This lets you specify the name of a single game window
+   to close when PinballY wants to terminate the game.
+</p>
+<p>
+   There are three possible settings:
+</p>
+<ul>
+   <li>Leave it blank.  If Close Win Name is blank, PinballY will try to terminate
+   the program by closing <b>all</b> of the game's open windows, one by one.
+
+   <li>Enter the <b>literal name</b> of one of the program's windows.  When PinballY tries
+   to terminate the program, it will search the program's open windows for a window
+   whose name matches the exact name you enter here, ignoring upper/lower case
+   differences, but otherwise matching the text exactly.  If it finds a matching
+   window, PinballY will close <b>only</b> this window, by sending it the command
+   specified in the Terminate By command.  If no matching window exists, PinballY
+   will pretend that you left this blank, and will simply try closing all of the
+   game's windows.
+
+   <li>Enter a <b>regular expression pattern</b>, using the standard Javascript-style
+   regular expression syntax.  (If you're unfamiliar with the syntax, you can find
+   many tutorials on the Web explaining how it works.)  A regular expression is
+   a sort of wildcard pattern that lets you match a range of different strings
+   rather than having to match a single exact string.  This is useful if the game
+   program changes the title of the window you want to match on every run, such
+   as by including the name of the table in the window title.   To use a regular
+   expression here, you must simply check the <b>RegEx</b> box to the right of
+   the text box.  That will make PinballY interpret the text you enter using the
+   regular expression syntax rules, instead of treating it as a literal string
+   to match exactly.
+</ul>
+<p>
+   Many simulators show multiple windows when running.  With Visual Pinball,
+   you'll often have the main game window, the design view window, a DMD window,
+   and a backglass window all showing at the same time.  The Close Win Name
+   lets you identify the game's "main" window to PinballY, so that it can
+   more efficiently terminate the program by closing only that main window.
+</p>
+<p>
+   This setting is ignored when the Terminate By option is set to Kill Process,
+   because in that case the termination bypasses the game's UI.
+</p>
 
 <h3>Table folder</h3>
 

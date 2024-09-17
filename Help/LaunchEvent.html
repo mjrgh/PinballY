@@ -203,7 +203,25 @@
    settings in the options.  The following properties can be set:
 
    <ul>
-      <li><b>envVars:</b>  Windows environment variables to pass to the
+      <li><b>closeWindowName:</b> A string giving the window title to match
+      when trying to terminate the game by closing its windows; see
+      <a href="GameSysInfo.html#closeWindowName">closeWindowName</a>
+      in the GameSysInfo object.
+
+      <li><b>closeWindowNameIsRegex:</b> A boolean specifying whether
+      <b>closeWindowName</b> is a literal string to match (false) or a
+      regular expression pattern (true).  See
+      <a href="GameSysInfo.html#closeWindowNameIsRegex">closeWindowNameIsRegex</a>
+      in the GameSysInfo object.
+
+      <li><b>closeWindowTimeout:</b> A number specifying the maximum waiting
+      time, in milliseconds, after a "close window" command is sent to the game
+      program when the user exits the game.  If this time limit is exceeded,
+      and the game still hasn't exited, PinballY will try to terminate the game
+      by killing its process.  See <a href="GameSysInfo.html#closeWindowTimeout">closeWindowTimeout</a>
+      in the GameSysInfo object.
+
+      <li><b>envVars:</b> Windows environment variables to pass to the
       game process.  This is a string with one or more variables, separated
       by semicolons (";"), with each variable using the format NAME=VALUE.
       If specified, this completely replaces the environment variables

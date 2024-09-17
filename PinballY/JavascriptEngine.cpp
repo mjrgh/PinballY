@@ -666,7 +666,7 @@ JsErrorCode JavascriptEngine::VariantDateToJsDate(DATE date, JsValueRef &result)
 	// design choices Microsoft made when defining the type.  (That's
 	// not an opinion; see the Microsoft system blogs if you want an
 	// accounting of the design flaws.)  Fortunately, Windows provides
-	// an API that encpasulates all of the tricky handling and converts
+	// an API that encapsulates all of the tricky handling and converts
 	// to SYSTEMTIME, which is a perfectly sane date representation.
 	SYSTEMTIME st;
 	VariantTimeToSystemTime(date, &st);

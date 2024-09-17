@@ -1102,7 +1102,10 @@ public:
 	TSTRING startupKeys;        // startup key sequence
 	TSTRING envVars;			// environment variables to add when launching the program
 	WORD swShow = SW_SHOW;      // SW_SHOW flag for launching the table
-	TSTRING terminateBy;        // how to terminate running games (CloseWindow, KillProcess)
+	TSTRING terminateBy;        // how to terminate running games (CloseWindow, SC_CLOSE, WM_CLOSE, KillProcess)
+	TSTRING closeWindowName;    // target window for CloseWindow/SC_CLOSE/WM_CLOSE command
+	bool closeWindowIsRegex;    // 'closeWindowName' is a regular expression pattern
+	int closeWindowTimeout;     // timeout for close winodw commands, before resorting to Kill Process; in milliseconds
 	TSTRING keepOpen;           // windows to keep open - space-delimited list (bg dmd topper instcard)
 
 	// DOF config tool title prefix.  This is a prefix string that

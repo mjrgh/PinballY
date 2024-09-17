@@ -1,6 +1,122 @@
 PinballY Update History
 
 
+TBD (1.1.0 Beta 8)
+
+* The Game System settings have two new "Terminate By" settings:
+WM_CLOSE and SC_CLOSE.  These give you finer-grained control over the
+game program shutdown method.  These are used when PinballY is trying
+to get a game to terminate after you press the Exit Game button while
+a launched game is running.  Here's how the new options and the original
+options work:
+
+ * SC_CLOSE is equivalent to pressing Alt+F4, or double-clicking on the
+   game's "system icon" at the left side of the window's caption bar,
+   or clicking on the system icon and selecting Close from the menu
+   that drops down.  This is typically the best way of getting a program
+   to close, but not all programs pay any attention to it.
+
+ * WM_CLOSE is equivalent to clicking the window's "close box", which
+   is the "X" icon at the right end of the window's caption bar.  If
+   the window doesn't have a close box, which some windows don't, this
+   typically won't have any effect at all.
+
+ * Close Window, the original (and still) default setting, sends BOTH
+   the WM_CLOSE and SC_CLOSE commands to the game's window.
+
+ * Kill Process works as it always has, by trying to terminate the
+   process at the Windows system level rather than trying to ask
+   politely by closing its UI windows.
+
+The reason for adding these new options is that some programs don't
+know how to interpret one or the other of the close commands, so the
+option to send a precise command might improve the exit behavior for
+some games.  The original method, of trying both SC_CLOSE and
+WM_CLOSE, is *usually* the simplest and best, because most programs
+should respond to at least one of these, and ideally should treat both
+as equivalent, or at least ignore the one it doesn't accept.  So
+sending both is a simply way to automatically sense which one the
+program responds to, by trying both.  But it can create problems if
+the program does something different (other than terminate or ignore)
+when sent one of the commands.  So the new options let you be more
+selective about which commands PinballY tries with a given game.
+
+* A related new setting, Timeout, lets you specify the maximum time to
+wait for the game to exit on its own after one of the window closing
+methods was attempted.  If the game is still running after this time
+expires, PinballY proceeds to the nuclear option, of attempting to
+terminate the game's Windows process.  The timeout is specified in
+milliseconds (1000 milliseconds equals 1 second), and the default is
+2500 ms, or 2.5 seconds.  You might need to increase this if you find
+(from looking at the PinballY log file) that PinballY is resorting to
+Kill Process when you don't think it should need to, simply because
+some of your games take a long time to finish up before quitting.  The
+problem with resorting to Kill Process is that it might prevent the
+game from saving its non-volatile memory updates, such as new high
+score records, by abruptly killing the process before it has a chance
+to finish what it was doing.
+
+* Another related new setting, Close Win Name, lets you specify a
+SPECIFIC window (or a specific set of windows) to close when PinballY
+is trying to terminate the game.  In past versions, and still by
+default, PinballY sends the Terminate By command to ALL of the game's
+open windows when you try to exit the game.  This is the simplest
+approach, and works for most game systems, since a game program will
+usually exit automatically as soon as its "main" window is closed.
+But Visual Pinball and some other systems have many windows open while
+a game is running, and sometimes closing one of the secondary windows
+before closing the main window has unintended consequences.  Close Win
+Name lets you make PinballY more selective about which specific window
+it should close to get the game to exit.  You can put one of three
+things here:
+
+  * Leave it blank.  This is the default, and it selects the original
+    approach of telling PinballY to close ALL of the game's windows,
+    by sending each one the Terminate By command.
+
+  * Enter a window name literally.  PinballY will look through the
+    game's open windows for a window whose name exactly matches the text
+    you enter here, and if it finds one, it'll close ONLY that window,
+    by sending it the Terminate By command.  (If there are multiple
+    windows with the same name, PinballY will close each of them.)  If
+    there are no matching windows, PinballY will fall back on the
+    default approach of closing ALL of the game's windows.
+
+  * Enter a regular expression pattern.  To do this, enter the pattern
+    text, using standard Javascript-style syntax, and check the RegEx
+    box to the right of the text box.   This works like a literal window
+    name match, except that PinballY will close each window whose
+    name matches the regular expression pattern, instead of trying to
+    match the text literally.  This is useful if the game program
+    uses varying text for its main window, such as by including the
+    name of the active table in the window title.  As with the literal
+    text option, if no matching windows are found, PinballY falls back
+    on the default approach of closing all of the game's windows.
+
+For Visual Pinball, the main player window is called "Visual Pinball
+Player", so you can enter that literal text in the box for your
+various VP versions.
+
+* The 64-bit release has been updated to the latest version of ffmpeg,
+which PinballY uses for video and still screen captures for creating
+custom game media.  The new version of ffmpeg includes the "ddagrab"
+capture mode, which captures directly from the graphics card.  Direct
+GPU capture is more efficient than the older capture options, and more
+importantly, it allows capturing from video modes that were impossible
+to capture before, particularly exclusive-full-screen mode.  Since
+ddagrab is only available on Windows 8 and later, the default settings
+in PinballY are still set to use the more broadly compatible gdigrab
+mode, so you'll have to update the PinballY capture command line
+settings if you want to use the new options.
+
+ffmpeg has NOT been updated for the 32-bit release, because the ffmpeg
+official site no longer links to any approved 32-bit Windows builds.
+There are some independent 32-bit Windows builds available, but I
+don't want to include binaries from unverified sources in the PinballY
+distribution, so I leave it up to you to find a source you feel
+comfortable with if you want to get the latest.
+
+
 08-30-2024 (1.1.0 Beta 7)
 
 * The DirectOutput interface is now compatible with 64-bit DOF

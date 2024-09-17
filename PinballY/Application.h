@@ -785,6 +785,7 @@ protected:
 		// from the Javascript "prelaunch" event.
 		const TSTRING &GetLaunchParam(const CHAR *propname, const TSTRING &defaultVal);
 		int GetLaunchParamInt(const CHAR *propname, int defaultVal);
+		bool GetLaunchParamBool(const CHAR *propname, bool defaultVal);
 
 		// is this system approved for elevation to Administrator mode?
 		bool elevationApproved;

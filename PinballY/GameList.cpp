@@ -1657,6 +1657,9 @@ bool GameList::InitFromConfig(ErrorHandler &eh)
 			system->nvramPath = cfg->Get(MsgFmt(_T("%s.NVRAMPath"), sysvar.Get()), _T(""));
 			system->terminateBy = cfg->Get(MsgFmt(_T("%s.TerminateBy"), sysvar.Get()), _T(""));
 			system->keepOpen = cfg->Get(MsgFmt(_T("%s.ShowWindowsWhileRunning"), sysvar.Get()), _T(""));
+			system->closeWindowName = cfg->Get(MsgFmt(_T("%s.CloseWindowName"), sysvar.Get()), _T(""));
+			system->closeWindowIsRegex = cfg->GetBool(MsgFmt(_T("%s.CloseWindowNameIsRegex"), sysvar.Get(), false));
+			system->closeWindowTimeout = cfg->GetInt(MsgFmt(_T("%s.CloseWindowTimeout"), sysvar.Get(), 2500));
 
 			// If the system has a TrustedExe config item that matches the actual (fully expanded)
 			// executable path/filename, mark the system as pre-approved for elevation.

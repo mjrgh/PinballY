@@ -293,6 +293,9 @@ void SystemDialog::InitVarMap()
 	varMap.emplace_back(new EditStrMap(cv(".Parameters"), IDC_EDIT_PARAMS, _T("")));
 	varMap.emplace_back(swShowMap = new SwShowMap(cv(".ShowWindow"), IDC_CB_SHOW_WINDOW));
 	varMap.emplace_back(terminateByMap = new TerminateByMap(cv(".TerminateBy"), IDC_CB_TERMINATE_BY));
+	varMap.emplace_back(new EditStrMap(cv(".CloseWindowName"), IDC_EDIT_CLOSEWIN, _T("")));
+	varMap.emplace_back(new CkBoxMap(cv(".CloseWindowNameIsRegex"), IDC_CK_CLOSEWINISREGEX, false));
+	varMap.emplace_back(new EditIntMap(cv(".CloseWindowTimeout"), IDC_EDIT_CLOSE_TIMEOUT, 2500));
 	varMap.emplace_back(new EditStrMap(cv(".Environment"), IDC_EDIT_ENVIRONMENT, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".Process"), IDC_EDIT_PROC, _T("")));
 	varMap.emplace_back(new EditStrMap(cv(".StartupKeys"), IDC_EDIT_STARTUP_KEYS, _T("")));

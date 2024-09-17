@@ -1156,6 +1156,9 @@ void PlayfieldView::InitJavascript()
 				|| !AddGameSysInfoGetter<WSTRING>("startupKeys", [](GameSystem *sys) { return sys->startupKeys; }, eh)
 				|| !AddGameSysInfoGetter<WSTRING>("envVars", [](GameSystem *sys) { return sys->envVars; }, eh)
 				|| !AddGameSysInfoGetter<WSTRING>("terminateBy", [](GameSystem *sys) { return sys->terminateBy; }, eh)
+				|| !AddGameSysInfoGetter<WSTRING>("closeWindowName", [](GameSystem *sys) { return sys->closeWindowName; }, eh)
+				|| !AddGameSysInfoGetter<bool>("closeWindowNameIsRegex", [](GameSystem *sys) { return sys->closeWindowIsRegex; }, eh)
+				|| !AddGameSysInfoGetter<int>("closeWindowTimeout", [](GameSystem *sys) { return sys->closeWindowTimeout; }, eh)
 				|| !AddGameSysInfoGetter<int>("swShow", [](GameSystem *sys) { return static_cast<int>(sys->swShow); }, eh)
 				|| !AddGameSysInfoGetter<WSTRING>("dofTitlePrefix", [](GameSystem *sys) { return sys->dofTitlePrefix; }, eh)
 				|| !AddGameSysInfoGetter<WSTRING>("runBeforePre", [](GameSystem *sys) { return sys->runBeforePre; }, eh)
@@ -2057,6 +2060,9 @@ static const CHAR *const launchOverrideProps[] = {
 	"runBeforePre",
 	"terminateBy",
 	"workingPath",
+	"closeWindowName",
+	"closeWindowNameIsRegex",
+	"closeWindowTimeout",
 	"swShow"
 };
 
