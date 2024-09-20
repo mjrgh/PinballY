@@ -112,6 +112,13 @@ For Visual Pinball, the main player window is called "Visual Pinball
 Player", so you can enter that literal text in the box for your
 various VP versions.
 
+* Related to the new Terminate By settings above, the procedure that
+PinballY uses to close the game program has been tweaked a little to
+try to make it more reliable, especially for cases where the game
+shows one or more modal dialogs.  VPX has a tendency to show a series
+of dialog boxes if a scripting error occurs while loading the game,
+which the new procedure should be somewhat more robust at handling.
+
 * The 64-bit release has been updated to the latest version of ffmpeg,
 which PinballY uses for video and still screen captures for creating
 custom game media.  The new version of ffmpeg includes the "ddagrab"

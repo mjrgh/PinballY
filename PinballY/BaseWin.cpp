@@ -116,10 +116,9 @@ LRESULT BaseWin::SendMessage(UINT message, WPARAM wParam, LPARAM lParam)
 	return hWnd != 0 ? ::SendMessage(hWnd, message, wParam, lParam) : 0;
 }
 
-void BaseWin::PostMessage(UINT message, WPARAM wParam, LPARAM lParam)
+BOOL BaseWin::PostMessage(UINT message, WPARAM wParam, LPARAM lParam)
 {
-	if (hWnd != 0)
-		::PostMessage(hWnd, message, wParam, lParam);
+	return (hWnd != 0) ? ::PostMessage(hWnd, message, wParam, lParam) : FALSE;
 }
 
 LRESULT CALLBACK BaseWin::StaticWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)

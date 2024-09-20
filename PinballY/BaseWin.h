@@ -83,7 +83,7 @@ public:
 
 	// send/post a message to the window
 	LRESULT SendMessage(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
-	void PostMessage(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
+	BOOL PostMessage(UINT message, WPARAM wParam = 0, LPARAM lParam = 0);
 
 	// Update menu command item checkmarks and item-enabled status for 
 	// the current UI state.  'fromWin' indicates which window is

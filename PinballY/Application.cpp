@@ -2048,16 +2048,10 @@ void Application::GameMonitorThread::CloseGame()
 								return 0;
 
 							// send the message, timing out if the window doesn't respond promptly
-							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Sending message...\n"));
 							DWORD_PTR result;
 							UINT64 t0 = GetTickCount64();
 							if (SendMessageTimeout(hwnd, msg, wparam, lparam, SMTO_ABORTIFHUNG, 50, &result))
-							{
-								LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Okay, %lu ms, returning result %08lx\n"),
-									static_cast<unsigned long>(GetTickCount64() - t0), result);
 								return result;
-							}
-							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Timed out\n"));
 
 							// message not sent, or no reply
 							return 0;
@@ -2117,7 +2111,8 @@ void Application::GameMonitorThread::CloseGame()
 				int closeWindowTimeout = GetLaunchParamInt("closeWindowTimeout", gameSys.closeWindowTimeout);
 				closeWindowTimeout = closeWindowTimeout <= 0 ? 2500 : closeWindowTimeout;
 				UINT64 endTicks = GetTickCount64() + closeWindowTimeout;
-				for (int pass = 0 ; GetTickCount64() < endTicks ; ++pass)
+				bool closeAcknowledged = false;
+				for (int pass = 1 ; GetTickCount64() < endTicks ; ++pass)
 				{
 					// Before we close anything, try to make sure we're in the
 					// foreground.  During the initial stages of a process launch,
@@ -2156,15 +2151,28 @@ void Application::GameMonitorThread::CloseGame()
 
 							// try sending it the close command
 							if (w.SendCloseCommand(terminateBy))
-								LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Close command acknowledged\n"));
-
+							{
+								closeAcknowledged = true;
+								LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("++++ Close command acknowledged\n"));
+							}
 						}
 					}
 
-					// pause briefly between iterations to give the program a chance
-					// to update its windows; stop if the process exits
-					if (hGameProc == NULL || WaitForSingleObject(hGameProc, 250) != WAIT_TIMEOUT)
+					// Pause briefly between iterations to give the program a chance
+					// to update its windows.  Stop if the process exits.  If the close
+					// command was explicitly acknowledged (which is only the case for
+					// PinSim::FrontEndControls), the target program should be taking
+					// care of all remaining shutdown tasks, so we can just wait for
+					// the remaining timeout.  In other cases, wait a short time and
+					// then run through the loop again, since we might have to just
+					// iteratively close new windows or dialogs as they pop up in
+					// response to closing old ones.
+					DWORD waitTime = closeAcknowledged ? static_cast<DWORD>(max(static_cast<INT64>(endTicks - GetTickCount64()), 0)) : 250;
+					if (hGameProc == NULL || WaitForSingleObject(hGameProc, waitTime) != WAIT_TIMEOUT)
 						break;
+
+					// re-scan open windows
+					closeCtx.Scan();
 				}
 
 				// If the program is still running, closing its windows didn't
@@ -3733,8 +3741,14 @@ DWORD Application::GameMonitorThread::Main()
 	// switch the playfield view to Running mode (unless we've received a Close command already)
 	if (playfieldView != nullptr && !closeCommandIssued)
 	{
-		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex, hwndGame);
-		playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
+		// post the message
+		std::unique_ptr<PlayfieldView::LaunchReport> report(new PlayfieldView::LaunchReport(
+			cmd, launchFlags, gameId, gameSys.configIndex, hwndGame));
+		if (playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(report.get())))
+		{
+			// success - release ownership of the structure to the queued message
+			report.release();
+		}
 	}
 
 	// If the game system has a startup key sequence, send it
