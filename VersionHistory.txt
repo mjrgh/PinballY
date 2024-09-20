@@ -119,6 +119,12 @@ shows one or more modal dialogs.  VPX has a tendency to show a series
 of dialog boxes if a scripting error occurs while loading the game,
 which the new procedure should be somewhat more robust at handling.
 
+* Fixed an error that prevented the "gamestarted" event from firing in
+some cases, or caused it to fire, but with the wrong game
+identification in the event parameters.  This was due to an internal
+timing error that manifested somewhat randomly, possibly varying by
+the specifics of your hardware setup.  (Issue #242 on github.)
+
 * The 64-bit release has been updated to the latest version of ffmpeg,
 which PinballY uses for video and still screen captures for creating
 custom game media.  The new version of ffmpeg includes the "ddagrab"

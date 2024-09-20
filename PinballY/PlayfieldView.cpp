@@ -10366,7 +10366,8 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 
 	case PFVMsgGameLoaded:
 		{
-			// get the launch report
+			// Get the launch report.  (The launch report is an allocated heap object
+			// that we own upon receipt, so load it into a unique_ptr.)
 			std::unique_ptr<LaunchReport> report(reinterpret_cast<LaunchReport*>(lParam));
 
 			// if we were set to topmost, move our window behind the game window

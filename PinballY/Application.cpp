@@ -2001,7 +2001,7 @@ void Application::GameMonitorThread::CloseGame()
 						bool SendCloseCommand(const TCHAR *cmd)
 						{
 							DWORD_PTR result = 0;
-							if (_tcsicmp(cmd, _T("PinSim::FrontEndControls")))
+							if (_tcsicmp(cmd, _T("PinSim::FrontEndControls")) == 0)
 							{
 								// Send the PinSim::FrontEndControls message with sub-command code 2 (CLOSE_APP).
 								// If the application responds with 1, it acknowledges the command and indicates
@@ -2199,9 +2199,10 @@ void Application::GameMonitorThread::CloseGame()
 
 void Application::GameMonitorThread::BringToForeground()
 {
+	// only proceed if the game process is still running
 	if (IsGameProcessRunning())
 	{
-		// find the other app's windows
+		// find the target application's top-level windows
 		struct context {
 			context(DWORD pid, DWORD tid) : pid(pid), tid(tid) { }
 			DWORD pid, tid;
@@ -2211,10 +2212,7 @@ void Application::GameMonitorThread::BringToForeground()
 		{
 			// only consider visible, non-minimized windows with no owner
 			if (IsWindowVisible(hwnd) && !IsIconic(hwnd) && GetWindowOwner(hwnd) == NULL)
-			{
-				// remember this window
 				reinterpret_cast<context*>(lparam)->hwnd.push_front(hwnd);
-			}
 
 			// continue the enumeration
 			return TRUE;
@@ -2249,36 +2247,65 @@ void Application::GameMonitorThread::BringToForeground()
 			}, reinterpret_cast<LPARAM>(&ctx));
 		}
 
-		// bring each top-level window we found to the front
+		// bring all of the game's top-level windows to the top of the window stack
 		for (auto hwnd : ctx.hwnd)
 			BringWindowToTop(hwnd);
 
-		// If we noted the foreground window on pause, restore it as
-		// the foreground window.  Do this last to ensure that focus
-		// ends up here.
-		if (stolenFocusWindow != NULL)
+		// Presume that we'll restore foreground status to the window that had
+		// focus at the time we took control.
+		HWND hwndToRestore = stolenFocusWindow;
+
+		// If the Terminate By mode is PinSim::FrontEndControls, the target
+		// program must implement that protocol, so we can use it to ask the
+		// program itself to choose the correct window to bring to the front.
+		const TCHAR *terminateBy = GetLaunchParam("terminateBy", gameSys.terminateBy).c_str();
+		if (_tcsicmp(terminateBy, _T("PinSim::FrontEndControls")) == 0)
+		{
+			// send the QUERY_GAME_HWND command (WPARAM == 4) to each window until we 
+			// get a valid window back
+			EnumThreadWindows(tidMainGameThread, [](HWND hwnd, LPARAM lparam)
+			{
+				// try sending the query, and check for a valid window handle on return
+				DWORD_PTR result;
+				if (SendMessageTimeout(hwnd, Application::Get()->frontEndControlsMsgId, 4, 0, SMTO_ABORTIFHUNG, 100, &result)
+					&& result != 0 && IsWindow(reinterpret_cast<HWND>(result)))
+				{
+					// success - stash the returned window handle and stop the enumeration
+					*reinterpret_cast<HWND*>(lparam) = reinterpret_cast<HWND>(result);
+					return FALSE;
+				}
+
+				// not found yet - continue the enumeration
+				return TRUE;
+			}, reinterpret_cast<LPARAM>(&hwndToRestore));
+		}
+
+		// If we know the window to restore, either because the game told us which
+		// window is the main game window, or from our own memory of which window
+		// had focus at the time we took control, bring that window to the foreground.
+		if (hwndToRestore != NULL)
 		{
 			// If it's minimized, restore it.  Windows minimizes full-screen
 			// exclusive windows when they lose focus, and switching back to
 			// them doesn't automatically restore them - we have to do that
 			// explicitly.
-			if (IsIconic(stolenFocusWindow))
+			if (IsIconic(hwndToRestore))
 			{
 				DWORD_PTR result;
-				SendMessageTimeout(stolenFocusWindow, WM_SYSCOMMAND, SC_RESTORE, 0, SMTO_ABORTIFHUNG, 100, &result);
+				SendMessageTimeout(hwndToRestore, WM_SYSCOMMAND, SC_RESTORE, 0, SMTO_ABORTIFHUNG, 100, &result);
 			}
 
 			// bring it to the foreground
-			SetForegroundWindow(stolenFocusWindow);
+			SetForegroundWindow(hwndToRestore);
 		}
 
-		// If we found any game windows to bring to the front, explicitly
-		// send our own windows to the back.  This helps make sure that
-		// our secondary windows don't stay in front of the game's secondary
-		// windows.  Even though we've already moved the game process's
-		// top-level windows to the front, this doesn't always catch all
-		// of the game's secondary windows, since some of those might come 
-		// from different processes or might not be top-level.
+		// Explicitly send our own windows to the back.  This helps make sure 
+		// that our secondary windows don't stay in front of the game's secondary
+		// windows.  Even though we've already moved the game process's top-level
+		// windows to the front, this doesn't always catch all of the game's
+		// secondary windows, since some of those might come from different
+		// processes (as in VP's windows from PinMame, B2S, DMD extensions, etc)
+		// or might not be top-level. 
 		if (auto pfv = Application::Get()->GetPlayfieldView(); pfv != nullptr)
 			pfv->SendToBackForResumeGame();
 	}
@@ -3741,14 +3768,13 @@ DWORD Application::GameMonitorThread::Main()
 	// switch the playfield view to Running mode (unless we've received a Close command already)
 	if (playfieldView != nullptr && !closeCommandIssued)
 	{
-		// post the message
+		// Post the message.  Note that the LaunchReport parameter is a heap-allocated 
+		// object; we transfer ownership to the Windows message queue, thence to the
+		// message handler code on the main thread, upon a successful PostMessage.
 		std::unique_ptr<PlayfieldView::LaunchReport> report(new PlayfieldView::LaunchReport(
 			cmd, launchFlags, gameId, gameSys.configIndex, hwndGame));
 		if (playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(report.get())))
-		{
-			// success - release ownership of the structure to the queued message
 			report.release();
-		}
 	}
 
 	// If the game system has a startup key sequence, send it
@@ -5787,9 +5813,6 @@ DWORD WINAPI Application::NewFileScanThread::SMain(LPVOID lParam)
 	return th->Main();
 }
 
-// 'filesystem' access, for our directory scan
-#include "../Utilities/std_filesystem.h"
-namespace fs = std::filesystem;
 
 DWORD Application::NewFileScanThread::Main()
 {

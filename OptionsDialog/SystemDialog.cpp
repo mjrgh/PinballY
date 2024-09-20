@@ -209,7 +209,7 @@ void SystemDialog::TerminateByMap::LoadConfigVar()
 
 		// find the "(Value)" part and check for a match to the config value
 		std::match_results<const TCHAR*> m;
-		static const std::basic_regex<TCHAR> pat(_T(".+\\((\\w+)\\)"));
+		static const std::basic_regex<TCHAR> pat(_T(".+\\(([^)]+)\\)"));
 		if (std::regex_match(s.GetBuffer(), m, pat) && _tcsicmp(m[1].str().c_str(), cfgval.c_str()) == 0)
 		{
 			// matched it - use this as the value
@@ -229,7 +229,7 @@ void SystemDialog::TerminateByMap::SaveConfigVar()
 	// if there's a "(Value)" portion embedded in the string, save just that;
 	// otherwise save the exact text
 	std::match_results<const TCHAR*> m;
-	static const std::basic_regex<TCHAR> pat(_T(".*\\b(\\w+)\\b.*"));
+	static const std::basic_regex<TCHAR> pat(_T(".*\\(([^)]+)\\)\\s*"));
 	if (std::regex_match(s.GetBuffer(), m, pat))
 		s = m[1].str().c_str();
 
@@ -247,7 +247,7 @@ bool SystemDialog::TerminateByMap::IsModifiedFromConfig()
 	// if there's a "(Value)" portion embedded in the string, extract it;
 	// that's what we'd save, so it's what we want to compare to the config
 	std::match_results<const TCHAR*> m;
-	static const std::basic_regex<TCHAR> pat(_T(".*\\b(\\w+)\\b.*"));
+	static const std::basic_regex<TCHAR> pat(_T(".*\\(([^)]+)\\)\\s*"));
 	if (std::regex_match(s.GetBuffer(), m, pat))
 		s = m[1].str().c_str();
 
@@ -500,7 +500,7 @@ void SystemDialog::DeleteSystem()
 	class ConfirmDialog : public Dialog
 	{
 	public:
-		int result;
+		int result = 0;
 
 	protected:
 		virtual INT_PTR Proc(UINT message, WPARAM wParam, LPARAM lParam) override
@@ -954,7 +954,7 @@ void SystemDialog::BrowseExe()
 			// - If they selected the registered executable, offer to leave it
 			//   blank to use the default, or to use a relative path
 			//
-			// - If they selected an exectuable in the same folder as the program
+			// - If they selected an executable in the same folder as the program
 			//   associated with the file extension, but it's not the same exe,
 			//   offer to use the relative path
 			//
