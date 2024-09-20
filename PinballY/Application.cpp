@@ -594,7 +594,7 @@ bool Application::LaunchAdminHost(ErrorHandler &eh)
 	// is contained in the .exe we're launching via its manifest.  If
 	// we were trying to launch a program that didn't have the
 	// privilege request in its manifest, we could trigger elevation
-	// explicitly by using the undocumented lpVerb value "runas",
+	// explicitly by using the undocumented lpVerb value "RunAs",
 	// which has the same effect as right-clicking the file in the
 	// desktop window and selecting "Run as administrator".  But
 	// there's no need for that in this case, so we'll stick to the
@@ -656,7 +656,7 @@ void Application::RestartAsAdmin()
 	if (!PathFileExists(confirmFile))
 	{
 		FILE *fp;
-		if (_tfopen_s(&fp, confirmFile, _T("w")))
+		if (_tfopen_s(&fp, confirmFile, _T("w")) == 0 && fp != nullptr)
 		{
 			_ftprintf(fp, _T("Confirmed\n"));
 			fclose(fp);
@@ -684,6 +684,10 @@ Application::Application()
 	muteTableAudio = false;
 	muteAttractMode = true;
 	enableVideos = true;
+
+	// register the global PinSim::FrontEndControls message, for sending
+	// commands to cooperating simulators
+	frontEndControlsMsgId = RegisterWindowMessageA("PinSim::FrontEndControls");
 
 	// remember the global instance pointer
 	if (inst == 0)
@@ -1311,7 +1315,7 @@ void Application::OnActivateApp(BaseWin* /*win*/, bool activating, DWORD /*other
 		// remember the new status
 		isInForeground = activating;
 
-		// notify the UI windiows
+		// notify the UI windows
 		auto Visit = [activating](FrameWin *win)
 		{
 			if (win != nullptr)
@@ -1949,13 +1953,13 @@ void Application::GameMonitorThread::CloseGame()
 				// 
 				// - Enumerate the target process's open windows
 				// 
+				// - If it's a modal dialog, send it an IDCANCEL to try to
+				//   close it
+				// 
 				// - If the system parameters provide a target window name or
 				//   pattern to use for the close target, and we can find a
 				//   match among the process's open windows, close only that
 				//   window.  Otherwise, close all of the process's windows.
-				//
-				const TCHAR *closeWindowName = GetLaunchParam("closeWindowName", gameSys.closeWindowName).c_str();
-				const bool closeWindowIsRegex = GetLaunchParamBool("closeWindowIsRegex", gameSys.closeWindowIsRegex);
 
 				// get the initial list of open windows in the target process
 				struct CloseContext
@@ -1974,46 +1978,89 @@ void Application::GameMonitorThread::CloseGame()
 
 						bool MatchName(const TCHAR *pat, bool isRegex)
 						{
-							if (isRegex)
+							if (pat == nullptr || pat[0] == 0)
+							{
+								// null/empty name -> match all
+								return true;
+							}
+							else if (isRegex)
+							{
+								// match the regular expression, ignoring case
 								return std::regex_match(name, std::basic_regex<TCHAR>(pat, std::regex_constants::icase));
+							}
 							else
+							{
+								// match the literal text, ignoring case
 								return _tcsicmp(name.c_str(), pat) == 0;
+							}
 						}
 
-						void SendCloseCommand(const TCHAR *cmd)
+						// Send the configured close-game command.  Returns true if the
+						// command was positively acknowledged and we can stop iterating
+						// windows, false if not.  The
+						bool SendCloseCommand(const TCHAR *cmd)
 						{
 							DWORD_PTR result = 0;
-							if (_tcsicmp(cmd, _T("SC_CLOSE")) == 0)
+							if (_tcsicmp(cmd, _T("PinSim::FrontEndControls")))
+							{
+								// Send the PinSim::FrontEndControls message with sub-command code 2 (CLOSE_APP).
+								// If the application responds with 1, it acknowledges the command and indicates
+								// that the application will close as requested, so further commands to other
+								// windows aren't required.
+								return CloseBy(false, Application::Get()->frontEndControlsMsgId, 2) == 1;
+							}
+							else if (_tcsicmp(cmd, _T("SC_CLOSE")) == 0)
 							{
 								// send WM_SYSCOMMAND(SC_CLOSE)
-								CloseBy(WM_SYSCOMMAND, SC_CLOSE);
+								CloseBy(true, WM_SYSCOMMAND, SC_CLOSE);
 							}
 							else if (_tcsicmp(cmd, _T("WM_CLOSE")) == 0)
 							{
 								// send WM_CLOSE
-								CloseBy(WM_CLOSE);
+								CloseBy(true, WM_CLOSE);
 							}
 							else
 							{
 								// not specified; send both
-								CloseBy(WM_SYSCOMMAND, SC_CLOSE);
-								CloseBy(WM_CLOSE);
+								CloseBy(true, WM_SYSCOMMAND, SC_CLOSE);
+								CloseBy(true, WM_CLOSE);
 							}
+
+							// WM_CLOSE and SC_CLOSE aren't acknowledged, so we can't assume
+							// that the application has been closed.
+							return false;
 						}
 
-						void CloseBy(UINT msg, WPARAM wparam = 0, LPARAM lparam = 0)
+						LRESULT CloseBy(bool mustBeEnabled, UINT msg, WPARAM wparam = 0, LPARAM lparam = 0)
 						{
+							// skip handles that are no longer valid (they might have been closed
+							// since we enumerated the available windows)
+							if (!IsWindow(hwnd))
+								return 0;
+
 							// Only send close commands to valid, visible, and enabled windows.
 							// Many applications will crash in other cases.  For example, if a
 							// main window is disabled because it's showing a modal dialog, the
 							// application will often assume that the main window can't be closed
 							// until the dialog is dismissed, so it'll simply crash if this should
 							// happen.
-							if (IsWindow(hwnd) && IsWindowVisible(hwnd) && IsWindowEnabled(hwnd))
+							if (mustBeEnabled && !(IsWindowEnabled(hwnd) && IsWindowVisible(hwnd)))
+								return 0;
+
+							// send the message, timing out if the window doesn't respond promptly
+							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Sending message...\n"));
+							DWORD_PTR result;
+							UINT64 t0 = GetTickCount64();
+							if (SendMessageTimeout(hwnd, msg, wparam, lparam, SMTO_ABORTIFHUNG, 50, &result))
 							{
-								DWORD_PTR result;
-								SendMessageTimeout(hwnd, msg, wparam, lparam, SMTO_ABORTIFHUNG, 20, &result);
+								LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Okay, %lu ms, returning result %08lx\n"),
+									static_cast<unsigned long>(GetTickCount64() - t0), result);
+								return result;
 							}
+							LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Timed out\n"));
+
+							// message not sent, or no reply
+							return 0;
 						}
 
 						HWND hwnd;
@@ -2021,25 +2068,18 @@ void Application::GameMonitorThread::CloseGame()
 					};
 					std::list<WinInfo> windows;
 
-					// scan or re-scan the open window list
+					// build or re-build the open window list
 					void Scan()
 					{
 						windows.clear();
 						EnumThreadWindows(tid, [](HWND hWnd, LPARAM lParam)
 						{
-							// get the context
-							auto ctx = reinterpret_cast<CloseContext*>(lParam);
-
-							// Only include windows that are visible and enabled.  VP will
-							// crash if we try to close disabled windows while a dialog is
-							// showing.
-							if (IsWindowVisible(hWnd) && IsWindowEnabled(hWnd))
-								ctx->windows.push_back(hWnd);
+							// add the window to our list
+							reinterpret_cast<CloseContext*>(lParam)->windows.push_back(hWnd);
 
 							// continue the enumeration
 							return TRUE;
 						}, reinterpret_cast<LPARAM>(this));
-
 					}
 				} closeCtx(tidMainGameThread);
 
@@ -2056,115 +2096,94 @@ void Application::GameMonitorThread::CloseGame()
 				LogFile::Get()->Write(LogFile::TableLaunchLogging,
 					_T("++ Preparing to close game process; open process windows are: %s\n"), windowNameList.c_str());
 
-				// Before we close anything, try to make sure we're in the
-				// foreground.  During the initial stages of a process launch,
-				// the Windows desktop seems to become the incumbent foreground
-				// window, so focus and activation can go to the desktop upon
-				// closing the target program's windows.  This makes the 
-				// desktop come to the foreground, which looks clunky.  (And
-				// it seems like a bug/hack in the OS to me; the launch should
-				// have been between us and the child process, with no desktop
-				// involvement.)  Try to avoid this as much as possible by
-				// explicitly bring ourselves to the foreground first.
-				if (pfw != nullptr && pfv != nullptr && !IsForegroundProcess())
-					BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
+				// get the named window parameters
+				const TCHAR *closeWindowName = GetLaunchParam("closeWindowName", gameSys.closeWindowName).c_str();
+				const bool closeWindowIsRegex = GetLaunchParamBool("closeWindowIsRegex", gameSys.closeWindowIsRegex);
+				LogFile::Get()->Write(LogFile::TableLaunchLogging,
+					_T("++ Searching for process window(s) to close%s%s%s\n"),
+					closeWindowName[0] == 0 ? _T("") : closeWindowIsRegex ? _T(" by regular expression pattern: \"") : _T(" by name match: \""),
+					closeWindowName,
+					closeWindowName[0] == 0 ? _T("") : _T("\""));
 
-				// check for a named target window
-				bool closeAttempted = false;
-				if (closeWindowName[0] != 0)
+				// We might need to repeat the window closing commands, because
+				// the program might display a series of modal dialogs before it
+				// exits.  VP in particular can make you click through numerous
+				// dialogs when a scripting error occurs, since an error in a
+				// nested script can trigger errors at enclosing levels as the
+				// script engine unwinds the stack.  There can also be time
+				// delays between successive dialog boxes, such as when an
+				// error occurs while VP is still partway through loading a
+				// table.  So iterate until the time limit expires.
+				int closeWindowTimeout = GetLaunchParamInt("closeWindowTimeout", gameSys.closeWindowTimeout);
+				closeWindowTimeout = closeWindowTimeout <= 0 ? 2500 : closeWindowTimeout;
+				UINT64 endTicks = GetTickCount64() + closeWindowTimeout;
+				for (int pass = 0 ; GetTickCount64() < endTicks ; ++pass)
 				{
-					// there's a target window - log that we're looking for it
-					LogFile::Get()->Write(LogFile::TableLaunchLogging,
-						_T("++ Searching for process window to close by name: \"%s\" (matching by %s)\n"), closeWindowName,
-						closeWindowIsRegex ? _T("regular expression pattern") : _T("literal text"));
+					// Before we close anything, try to make sure we're in the
+					// foreground.  During the initial stages of a process launch,
+					// the Windows desktop seems to become the incumbent foreground
+					// window, so focus and activation can go to the desktop upon
+					// closing the target program's windows.  This makes the 
+					// desktop come to the foreground, which looks clunky.  (And
+					// it seems like a bug/hack in the OS to me; the launch should
+					// have been between us and the child process, with no desktop
+					// involvement.)  Try to avoid this as much as possible by
+					// explicitly bring ourselves to the foreground first.
+					if (pfw != nullptr && pfv != nullptr && !IsForegroundProcess())
+						BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
 
-					// close each matching window
+					// try closing windows
+					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Closing windows - pass %d\n"), pass);
 					for (auto &w : closeCtx.windows)
 					{
-						if (w.MatchName(closeWindowName, closeWindowIsRegex))
+						// If it's an enabled modal dialog window, try dismissing it by IDCANCEL.
+						// A dialog might prevent the main window we're looking for from closing
+						// as long as the dialog is up, so we try to get rid of any we find.
+						char cls[128];
+						if (::IsWindowVisible(w.hwnd) && ::IsWindowEnabled(w.hwnd)
+							&& ::RealGetWindowClassA(w.hwnd, cls, std::size(cls)) != 0
+							&& strcmp(cls, "#32770") == 0)
 						{
-							// send the appropriate Close command
-							LogFile::Get()->Write(LogFile::TableLaunchLogging,
-								_T("++ Found window \"%s\", sending close command (%s)\n"), w.name.c_str(), terminateBy);
-
-							w.SendCloseCommand(terminateBy);
-							closeAttempted = true;
-						}
-					}
-
-					// log it if no matches were found
-					if (!closeAttempted)
-					{
-						LogFile::Get()->Write(LogFile::TableLaunchLogging,
-							_T("++ Target window for close command not found; closing all process windows instead\n"));
-					}
-				}
-
-				// if no target was specified, or we didn't find a matching target, try
-				// closing ALL of the windows
-				if (!closeAttempted)
-				{
-					// note what we're doing
-					LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("++ Closing all process windows\n"));
-
-					// Repeat the close several times, since there are cases where
-					// we can't close one window until after another one has already
-					// been closed, such as when a dialog is showing.
-					for (int tries = 0; tries < 20; ++tries)
-					{
-						// repeat the window scan
-						closeCtx.Scan();
-
-						// if we didn't find any windows to close, stop trying to
-						// close windows
-						if (closeCtx.windows.size() == 0)
-							break;
-
-						// try closing each window we found
-						for (auto &w : closeCtx.windows)
-						{
-							// Try closing it with the selected close command
-							LogFile::Get()->Write(LogFile::TableLaunchLogging, 
-								_T("+++ Sending close command (%s) to \"%s\"\n"), terminateBy, w.name.c_str());
-							w.SendCloseCommand(terminateBy);
-
-							// If it's still there, try sending it an IDCANCEL command.
-							// This is usually the only way to dismiss a dialog box
-							// window.
+							// dialog try dismissing it
 							DWORD_PTR result;
-							if (IsWindow(w.hwnd) && IsWindowVisible(w.hwnd) && IsWindowEnabled(w.hwnd))
-								SendMessageTimeout(w.hwnd, WM_COMMAND, IDCANCEL, 0, SMTO_ABORTIFHUNG, 20, &result);
+							SendMessageTimeout(w.hwnd, WM_COMMAND, IDCANCEL, 0, SMTO_ABORTIFHUNG, 50, &result);
 						}
+						else if (w.MatchName(closeWindowName, closeWindowIsRegex))
+						{
+							// name match
+							LogFile::Get()->Write(LogFile::TableLaunchLogging,
+								_T("++++ Matched window \"%s\", sending close command (%s)\n"), w.name.c_str(), terminateBy);
 
-						// try to force our window into the foreground again, in case
-						// the desktop tries to intervene
-						if (pfw != nullptr && pfv != nullptr && !IsForegroundProcess())
-							BetterSetForegroundWindow(pfw->GetHWnd(), pfv->GetHWnd());
+							// try sending it the close command
+							if (w.SendCloseCommand(terminateBy))
+								LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+++ Close command acknowledged\n"));
 
-						// pause briefly between iterations to give the program a chance
-						// to update its windows; stop if the process exits
-						if (hGameProc == NULL || WaitForSingleObject(hGameProc, 100) != WAIT_TIMEOUT)
-							break;
+						}
 					}
+
+					// pause briefly between iterations to give the program a chance
+					// to update its windows; stop if the process exits
+					if (hGameProc == NULL || WaitForSingleObject(hGameProc, 250) != WAIT_TIMEOUT)
+						break;
 				}
-			}
-			
-			// Give the game a few seconds to close.  If it's still running
-			// after that, resort to stronger measures, by attempting to kill 
-			// it at the process level.  It's not unheard of for VP to crash, 
-			// which makes it futile to try to kill it by closing windows, 
-			// and The Pinball Arcade seems very prone to going into an 
-			// unresponsive state rather than terminating when we close its
-			// window.  (If the timeout is zero or negative, use a default
-			// of 2500 ms.)
-			int closeWindowTimeout = GetLaunchParamInt("closeWindowTimeout", gameSys.closeWindowTimeout);
-			closeWindowTimeout = closeWindowTimeout <= 0 ? 2500 : closeWindowTimeout;
-			if (hGameProc != NULL && WaitForSingleObject(hGameProc, closeWindowTimeout) == WAIT_TIMEOUT)
-			{
-				LogFile::Get()->Write(LogFile::TableLaunchLogging,
-					_T("++ The game took too long to respond to the close request (timeout=%u ms); terminating by Kill Process\n"),
-					closeWindowTimeout);
-				TerminateProcess(hGameProc, 0);
+
+				// If the program is still running, closing its windows didn't
+				// work, so resort to TerminateProcess().  Some programs ignore
+				// close-window commands, and some become unresponsive.  The
+				// only thing left to try is killing the process directly.
+				//
+				// Note that we don't have to wait for the entire configured
+				// timeout here, because the loop above already takes that into
+				// account, repeating until either the timeout expires or the
+				// process handle becomes signaled (indicating that the process
+				// has exited).
+				if (hGameProc != NULL && WaitForSingleObject(hGameProc, 150) == WAIT_TIMEOUT)
+				{
+					LogFile::Get()->Write(LogFile::TableLaunchLogging,
+						_T("++ The game took too long to respond to the close request (timeout=%u ms); terminating by Kill Process\n"),
+						closeWindowTimeout);
+					TerminateProcess(hGameProc, 0);
+				}
 			}
 		}
 	}
@@ -2602,7 +2621,7 @@ TSTRING Application::GameMonitorThread::SubstituteVars(const TSTRING &str)
 		}
 		else if (var == _T("PINBALLY"))
 		{
-			// the PinballY progrma folder
+			// the PinballY program folder
 			TCHAR exePath[MAX_PATH];
 			GetExeFilePath(exePath, countof(exePath));
 			return exePath;
@@ -2720,7 +2739,7 @@ DWORD Application::GameMonitorThread::Main()
 	GetGameFileWithPath(gameFileWithPath);
 	LogFile::Get()->Write(LogFile::TableLaunchLogging, _T("+ launch: full table path %s\n"), gameFileWithPath);
 
-	// Get the centerpoint of the various windows.  If we need to
+	// Get the center points of the various windows.  If we need to
 	// send a synthesized mouse click targeted to a specific window, 
 	// this will give us the location of the click.
 	auto WinPt = [](BaseWin *win, int x, int y)
@@ -3546,9 +3565,9 @@ DWORD Application::GameMonitorThread::Main()
 							hGameProc = newProc.Detach();
 
 							// wait for the program to enter its event loop
-							TCHAR exepath[MAX_PATH];
-							GetModuleFileNameEx(hGameProc, NULL, exepath, countof(exepath));
-							WaitForStartup(exepath, hGameProc);
+							TCHAR exePath[MAX_PATH];
+							GetModuleFileNameEx(hGameProc, NULL, exePath, countof(exePath));
+							WaitForStartup(exePath, hGameProc);
 
 							// Find the thread with the UI window(s) for the new process.
 							// As with waiting for startup, it might take a while for the
@@ -3664,13 +3683,13 @@ DWORD Application::GameMonitorThread::Main()
 		}
 
 		// check for an open window
-		struct enumctx
+		struct enumCtx
 		{
-			enumctx(DWORD pid) : pid(pid) { }
+			enumCtx(DWORD pid) : pid(pid) { }
 			DWORD pid;
 			HWND hwndFound = NULL;
 			bool found = false;
-		} wctx(pid);
+		} wCtx(pid);
 		EnumWindows([](HWND hwnd, LPARAM lparam)
 		{
 			// only consider visible, non-minimized, top-level windows
@@ -3681,7 +3700,7 @@ DWORD Application::GameMonitorThread::Main()
 				tid = GetWindowThreadProcessId(hwnd, &pid);
 
 				// check if it matches our process and/or thread ID
-				auto ctx = reinterpret_cast<enumctx*>(lparam);
+				auto ctx = reinterpret_cast<enumCtx*>(lparam);
 				if (pid == ctx->pid)
 				{
 					// flag it
@@ -3695,12 +3714,12 @@ DWORD Application::GameMonitorThread::Main()
 
 			// continue the enumeration
 			return TRUE;
-		}, reinterpret_cast<LPARAM>(&wctx));
+		}, reinterpret_cast<LPARAM>(&wCtx));
 
 		// stop if we found a window
-		if (wctx.found)
+		if (wCtx.found)
 		{
-			hwndGame = wctx.hwndFound;
+			hwndGame = wCtx.hwndFound;
 			break;
 		}
 	}
@@ -4349,7 +4368,7 @@ DWORD Application::GameMonitorThread::Main()
 			if (item.mediaType.IsVideo())
 			{
 				// presume both dimensions are free (i.e., no resolution limit by default)
-				int xscale = -2, yscale = -2;
+				int xScale = -2, yScale = -2;
 				
 				// figure the capture dimensions
 				int width = item.rc.right - item.rc.left;
@@ -4390,7 +4409,7 @@ DWORD Application::GameMonitorThread::Main()
 				if (width > maxWidth)
 				{
 					// figure the scaling transform width
-					xscale = maxWidth;
+					xScale = maxWidth;
 
 					// figure the new width height that results from applying the new width
 					// and maintaining the aspect ration
@@ -4407,13 +4426,13 @@ DWORD Application::GameMonitorThread::Main()
 				{
 					// the height limit is stricter than the width limit, so apply it
 					// instead of the width limit
-					yscale = maxHeight;
-					xscale = -2;
+					yScale = maxHeight;
+					xScale = -2;
 				}
 
 				// if we limited one of the dimensions, set the transform
-				if (xscale > 0 || yscale > 0)
-					AddTransform(MsgFmt(_T("scale=%d:%d"), xscale, yscale));
+				if (xScale > 0 || yScale > 0)
+					AddTransform(MsgFmt(_T("scale=%d:%d"), xScale, yScale));
 			}
 
 			// add the close quote to the transforms if applicable
@@ -5071,8 +5090,8 @@ bool Application::GameMonitorThread::WaitForStartup(const TCHAR *exepath, HANDLE
 {
 	// Determine the executable type
 	DWORD_PTR exeinfo;
-	SHFILEINFO shinfo;
-	if ((exeinfo = SHGetFileInfo(exepath, 0, &shinfo, sizeof(shinfo), SHGFI_EXETYPE)) != 0)
+	SHFILEINFO shInfo;
+	if ((exeinfo = SHGetFileInfo(exepath, 0, &shInfo, sizeof(shInfo), SHGFI_EXETYPE)) != 0)
 	{
 		// If it's a console-mode program, WaitForInputIdle will always
 		// fail, so there's no point in calling it.  There's no conceptual
@@ -5800,7 +5819,7 @@ DWORD Application::NewFileScanThread::Main()
 	// If we found any new files, load them into the UI.  Likewise, if
 	// any files from the old list are no longer present, and they're
 	// not configured with database records, remove them from the UI.
-	// Do thsi work on the main UI thread, to ensure that there are no
+	// Do this work on the main UI thread, to ensure that there are no
 	// conflicts with concurrent access to the global game list.
 	auto UpdateUI = [this]() -> LRESULT
 	{

@@ -976,6 +976,27 @@ tr.keyHeading > td {
      <li>Clicking the system icon, and selecting "Close" from the menu that pops up
   </ul>
 
+  <li><b>PinSim::FrontEndControls:</b>  Sends a terminate command via the
+  <a href="http://mjrnet.org/pinscape/PinSimFrontEndControls/PinSimFrontEndControls.htm">PinSim::FrontEndControls message interface</a>,
+  which is a published protocol that's designed to help front-end programs like
+  PinballY coordinate actions with the programs they launch.  This option only
+  works with programs that implement the special protocol, which is currently
+  limited to new versions of Visual Pinball released in September 2024 and later
+  (check release notes to make sure).
+  This is the recommended option for all programs that implement the protocol,
+  because the protocol lets PinballY explicitly ask the program to exit, allowing
+  the program itself to figure out what steps are necessary to make that happen
+  in an orderly fashion.  The various "close window" options are inferior because
+  they can only try to get the program to exit implicitly, as a side effect of closing
+  its last window.  That doesn't work at all for some programs, and even for those
+  where it works, it tends to be somewhat unreliable, because closing windows just
+  isn't an unambiguous "Quit" command for some programs.  The FrontEndControls
+  protocol should be much more reliable for programs that implement it,
+  because it doesn't just "hint" to the program that it should exit,
+  but tells it so explicitly through a well-defined messaging system.  The
+  reason not to use this option across the board is its limited availability,
+  since it's brand new as of September 2024.
+
   <li><b>Kill Process:</b>  This asks Windows to terminate the process
   directly, rather than asking the program to exit on its own.
   It's the same thing that Task Manager does when you

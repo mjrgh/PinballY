@@ -355,6 +355,19 @@
    drops down.  Most top-level windows will respond to this command by exiting the
    application, but some programs might simply ignore it.
 
+   <li>"PinSim::FrontEndControls" - PinballY sends a terminate command via the
+   <a href="http://mjrnet.org/pinscape/PinSimFrontEndControls/PinSimFrontEndControls.htm">PinSim::FrontEndControls message interface</a>,
+   which is a published protocol that's designed to help front-end programs like
+   PinballY coordinate actions with the programs they launch.  This option only
+   works with programs that implement the special protocol, which is currently
+   limited to new versions of Visual Pinball released in October 2024 and later.
+   This option should be the most reliable option for programs that implement it,
+   because the special protocol has a well-defined command that explicitly tells
+   the program to exit, which allows the target program to initiate the necessary
+   steps to terminate.  All of the other options can only try to get the program
+   to exit implicitly as a side effect of closing its last window, which doesn't
+   always work.
+
    <li>"KillProcess" - PinballY asks Windows to terminate the process
    (without going through the program's user interface).
    <li>"" - use the default (same as CloseWindow).

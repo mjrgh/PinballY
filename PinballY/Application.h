@@ -362,7 +362,7 @@ public:
 	int GetRunningGameSystem() const
 		{ return gameMonitor != nullptr && IsGameActive() ? gameMonitor->gameSys.configIndex : -1; }
 
-	// Try to steal focus from the runing game and set it to our window
+	// Try to steal focus from the running game and set it to our window
 	void StealFocusFromGame();
 
 	// Signal the user button press to end a manual start/stop wait.
@@ -538,7 +538,7 @@ protected:
 
 	// Option setting for hiding the mouse by repositioning it
 	bool hideCursorByMoving = false;
-	POINT hideCursorPos;
+	POINT hideCursorPos{ 0 };
 
 	// Load the configuration.  This loads the configuration file
 	// and updates global singletons that use the configuration
@@ -560,7 +560,7 @@ protected:
 	// Hide unconfigured games, except when the "Unconfigured Games"
 	// filter is in effect.  If this is false, unconfigured games are
 	// displayed alongside configured games.
-	bool hideUnconfiguredGames;
+	bool hideUnconfiguredGames = false;
 
 	// are videos enabled?
 	bool enableVideos;
@@ -678,6 +678,10 @@ protected:
 
 	// FFmpeg version, if available
 	CSTRING ffmpegVersion;
+
+	// Window message ID for PinSim::FrontEndControls.  See
+	// http://mjrnet.org/pinscape/FrontEndControls.htm.
+	UINT frontEndControlsMsgId = 0;
 
 	// Game monitor thread.  We launch a game by creating a monitor
 	// thread, which does the actual process launch and then monitors
@@ -827,7 +831,7 @@ protected:
 			TSTRING filename;
 
 			// screen area to capture, in screen coordinates
-			RECT rc;
+			RECT rc{ 0 };
 
 			// Current display rotation for this window, in degrees
 			// clockwise, relative to the nominal desktop layout.  In
@@ -869,7 +873,7 @@ protected:
 			DWORD startupDelay;
 
 			// estimated total capture time
-			DWORD totalTime;
+			DWORD totalTime = 0;
 
 			// two-pass encoding mode
 			bool twoPassEncoding;
@@ -1075,7 +1079,7 @@ protected:
 	// we're perfectly happy to run standalone, and in fact this
 	// is preferable if the user doesn't need to launch any games
 	// in Admin mode, as it's always best to minimize elevated
-	// processs in general.  When the Admin Host is used, it
+	// process in general.  When the Admin Host is used, it
 	// launched the regular PinballY.exe [the program that this
 	// class is a part of] as a non-elevated child process, and
 	// passes pipe handles down to the child that the child can
@@ -1121,7 +1125,7 @@ protected:
 
 		// Process ID (PID) of the Admin Host process.  The host sends
 		// us this information on the command line when launching us.
-		DWORD pid;
+		DWORD pid = 0;
 
 		// Input pipe (Host to UI).  The Admin Host sends us data on
 		// this pipe, usually as replies to request messages we send.
@@ -1132,7 +1136,7 @@ protected:
 		HandleHolder hPipeOut;
 
 		// OVERLAPPED struct for reading input from the Admin Host
-		OVERLAPPED ovRead;
+		OVERLAPPED ovRead{ 0 };
 		HandleHolder hReadEvent;
 
 		// shutdown event
@@ -1140,7 +1144,7 @@ protected:
 
 		// pipe manager thread handle and ID
 		HandleHolder hThread;
-		DWORD tid;
+		DWORD tid = 0;
 
 		// pipe manager thread main
 		static DWORD WINAPI SThreadMain(LPVOID lparam) { return static_cast<AdminHost*>(lparam)->ThreadMain(); }
@@ -1159,10 +1163,10 @@ protected:
 
 			// Reply.  This is filled in when the reply is received.
 			std::unique_ptr<TCHAR> reply;
-			size_t replyCharLen;
+			size_t replyCharLen = 0;
 
 			// Did the request successfully complete?
-			bool success;
+			bool success = false;
 
 			// Wait handle.  If the request is posted with no reply
 			// expected, this is null.  If the caller expects a reply,
@@ -1195,7 +1199,7 @@ protected:
 	// Continue playing videos at full speed in the background?  We keep two flags
 	// for this, and if either one is true, we continue to play videos.   The main
 	// flag is for the whole collection of windows, and the 'pf' flag is for the
-	// playfield window in particular.  The overall result of the propostion
+	// playfield window in particular.  The overall result of the proposition
 	// "continue playing videos" is true if either flag is true.
 	//
 	// It's extremely inelegant that these are global static flags, and that there

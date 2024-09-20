@@ -24,6 +24,21 @@ options work:
  * Close Window, the original (and still) default setting, sends BOTH
    the WM_CLOSE and SC_CLOSE commands to the game's window.
 
+ * PinSim::FrontEndControls is a new option that sends a special
+   "Front End Controls" command to the application to tell it to exit.
+   This only works with applications that implement the Front End
+   Controls protocol, which at the moment is limited to new versions
+   of Visual Pinball released in October 2024 or later.  The protocol
+   is published, so other programs are free to implement it in the
+   future if they wish.  This option should be the most reliable one
+   for programs that implement it, because it uses a well-defined
+   communication protocol that specifically notifies the program
+   that it should terminate normally - this makes the intention of
+   the request clear to the other program.  All of the other options
+   are prone to glitches because they can't explicitly TELL the other
+   program to exit; they just try to get it to exit implicitly by
+   closing its windows, which isn't always enough.
+
  * Kill Process works as it always has, by trying to terminate the
    process at the Windows system level rather than trying to ask
    politely by closing its UI windows.
