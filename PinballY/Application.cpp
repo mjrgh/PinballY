@@ -2167,7 +2167,7 @@ void Application::GameMonitorThread::CloseGame()
 					// then run through the loop again, since we might have to just
 					// iteratively close new windows or dialogs as they pop up in
 					// response to closing old ones.
-					DWORD waitTime = closeAcknowledged ? static_cast<DWORD>(max(static_cast<INT64>(endTicks - GetTickCount64()), 0)) : 250;
+					DWORD waitTime = closeAcknowledged ? static_cast<DWORD>(max(static_cast<INT64>(endTicks - GetTickCount64()), 0)) : 500;
 					if (hGameProc == NULL || WaitForSingleObject(hGameProc, waitTime) != WAIT_TIMEOUT)
 						break;
 
@@ -3768,13 +3768,9 @@ DWORD Application::GameMonitorThread::Main()
 	// switch the playfield view to Running mode (unless we've received a Close command already)
 	if (playfieldView != nullptr && !closeCommandIssued)
 	{
-		// Post the message.  Note that the LaunchReport parameter is a heap-allocated 
-		// object; we transfer ownership to the Windows message queue, thence to the
-		// message handler code on the main thread, upon a successful PostMessage.
-		std::unique_ptr<PlayfieldView::LaunchReport> report(new PlayfieldView::LaunchReport(
-			cmd, launchFlags, gameId, gameSys.configIndex, hwndGame));
-		if (playfieldView->PostMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(report.get())))
-			report.release();
+		// send the Game Loaded message
+		PlayfieldView::LaunchReport report(cmd, launchFlags, gameId, gameSys.configIndex, hwndGame);
+		playfieldView->SendMessage(PFVMsgGameLoaded, 0, reinterpret_cast<LPARAM>(&report));
 	}
 
 	// If the game system has a startup key sequence, send it

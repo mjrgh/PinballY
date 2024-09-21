@@ -125,6 +125,20 @@ identification in the event parameters.  This was due to an internal
 timing error that manifested somewhat randomly, possibly varying by
 the specifics of your hardware setup.  (Issue #242 on github.)
 
+* The sequencing of the "gamestarted" event relative to the other
+launch events is now more predicatble.  In the past, "gamestarted" was
+fired asynchronously relative to the other launch events, so, for
+example, it was possible for "gameover" to fire before "gamestarted"
+if the game exited quickly enough.  This was at the very least
+counter-intuitive, and might have made some types of scripting tasks
+more difficult.  The asynchronous ordering didn't serve any important
+purpose; it was just an artifact of the way this all worked before the
+Javascript events were implemented, when the underlying internal event
+processing didn't depend on any particular ordering.  To make the
+event sequencing more predictable, "gamestarted" is now fired
+sequentially with respect to the other launch events, so it should now
+consistently fire before the corresponding "gameover" event.
+
 * The 64-bit release has been updated to the latest version of ffmpeg,
 which PinballY uses for video and still screen captures for creating
 custom game media.  The new version of ffmpeg includes the "ddagrab"
@@ -1672,7 +1686,7 @@ logged to the log file; many were just silently ignored, making it
 harder to track down script errors.  Event errors are more reliably
 logged now.
 
-* Two new pre-defined IDs, command.UserFilterGroupFirst and
+*playfield Two new pre-defined IDs, command.UserFilterGroupFirst and
 command.UserFilterGroupLast, have been added to the list of
 built-in command IDs.  These identify the range of IDs assigned to
 custom filter groups created through Javascript code.  This doesn't
