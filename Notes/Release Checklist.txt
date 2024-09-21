@@ -4,25 +4,11 @@ PinballY Release Checklist
 
 - Edit VersionHistory.txt with the date, version, and notes on what's new
 
-- Open the solution in Visual Studio
-
-- Select the Release | x86 configuration
-  - Build > Clean Solution
-
-- Select the Release | x64 configuration
-  - Build > Clean Solution
-
-- Select the Release | x86 configuration
-  - Build > Build Solution
-
-- Select the Release | x64 configuration
-  - Build > Build Solution
-
 - Close Visual Studio
 
-- Open a CMD box, CD to the root folder of the PinballY source tree
-
-- Run RELEASE.BAT
+- From a Visual Studio CMD prompt, run BuildAndRelease.bat
+  (This step performs a full clean build of the solution in both x86 and x64
+  modes, and then constructs the release package files in the Builds/ folder)
 
 - Update PinballY.php on mjrnet.org if needed
 
@@ -53,3 +39,30 @@ PinballY Release Checklist
 
 - If desired, create a release on github/PinballY from the same binaries
   uploaded to mjrnet.org
+
+
+=========
+
+Note: The automatic build process in BuildAndRelease.bat can also be done
+manually through the Visual Studio GUI:
+
+- Open PinballY.sln in Visual Studio
+
+- In the main menu bar configuration boxes, select Release | x86
+  - Build > Clean Solution
+
+- Select the Release | x64 configuration
+  - Build > Clean Solution
+
+- Select the Release | x86 configuration
+  - Build > Build Solution
+
+- Select the Release | x64 configuration
+  - Build > Build Solution
+
+- Close Visual Studio
+
+- Open a CMD box, CD to the root folder of the PinballY source tree
+
+- Run RELEASE.BAT
+

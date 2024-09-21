@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-TBD (1.1.0 Beta 8)
+9/21/2024 (1.1.0 Beta 8)
 
 * The Game System settings have two new "Terminate By" settings:
 WM_CLOSE and SC_CLOSE.  These give you finer-grained control over the
