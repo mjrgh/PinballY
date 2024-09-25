@@ -210,8 +210,54 @@
    the games to be included don't line up with what you expected.
 </p>
 
-<h2>Troubleshooting tips</h2>
+<h2>Exclusive Full-Screen Mode</h2>
+<p>
+   Visual Pinball and many other video games let you run in a mode
+   where the game completely takes over one or more monitors.  This is
+   known as "exclusive full-screen" mode, because it gives the game
+   exclusive access to the whole monitor, preventing any windows
+   from other programs from overlapping the monitor area.  This is
+   often used by games because it can yield higher frame rates by
+   letting the game send video data directly to the GPU, bypassing
+   the normal Windows graphics layers that allow multiple windows
+   to share a screen area.
+</p>
+<p>
+   Exclusive mode makes it more difficult for FFMPEG to capture video
+   from the game, because FFMPEG would normally read the video data
+   out of the very Windows graphics buffers that exclusive mode
+   bypasses.  Fortunately, newer versions of FFMPEG support a capture
+   mode called "ddagrab" that reads directly from the GPU memory,
+   allowing exclusive-mode capture.  PinballY doesn't use ddagrab
+   mode by default, though, because it's not as widely compatible
+   as the default "gdigrab" mode.  
+</p>
+<p>
+   If you've configured Visual Pinball or other systems to use
+   exclusive full-screen mode, and you're getting blank videos when
+   capturing (or the capture fails with an error), there are two
+   solutions you can try:
+</p>
+<ul>
+   <li>You can disable exclusive mode in the pinball simulator
+   temporarily, just while capturing media files.  This is the
+   usually the easiest approach, just a matter of setting an
+   option in the pinball program's setup dialogs.  But it's
+   inconvenient to keep switching modes if you frequently add
+   new games to your system.
 
+   <li>Configure PinballY's FFMPEG capture settings to capture
+   in "ddagrab" mode.  ddagrab mode is capable of capturing exclusive
+   windows, as well as ordinary ones, so this mode lets you capture
+   just about anything.  But it's only available on Windows 8 and
+   later, and requires the 64-bit version of FFMPEG.  To set it up,
+   go to the Options &gt; Media Capture &gt; FFMPEG dialog, and
+   set the video source and codec command options as described in
+   <a href="CaptureFfmpegOptions.html#ddagrab-how-to">How to use ddagrab</a>.
+
+</ul>
+
+<h2>Troubleshooting tips</h2>
 <p>
    If you run a capture, and the resulting playfield video or image shows
    a gray or black background with the text "Capturing Media", or shows the
@@ -222,13 +268,10 @@
    in the Media Capture options.
 </p>
 <p>
-   Another possibility is that the game is running in "Exclusive Full-Screen"
-   mode. Visual Pinball and some other systems offer this option, which sends
-   graphics directly to the video card, bypassing Windows. FFMPEG captures from
-   the Windows display drivers, so it can't capture games running in Exclusive
-   mode. If possible, change the game options to use "Windowed Full-Screen"
-   mode. (That's an option you have to set in the game player program itself,
-   not PinballY.)
+   If you encounter FFMPEG errors when capturing, check the PinballY.log
+   file for messages that FFMPEG generated during the capture.  These
+   usually have more detail about what went wrong.
 </p>
+   
 </body>
 </html>
