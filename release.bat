@@ -57,7 +57,13 @@ move 7-zip\x86\7z.dll 7-zip
 zip %ReleaseZipFull% 7-zip\7z.dll
 move 7-zip\7z.dll 7-zip\x86
 
-rem  Build the "Min" ZIP
+rem  DO NOT Build the "Min" ZIP
+rem  The "Min" zip files are deprecated - they were intended to allow
+rem  for smaller downloads with a minimal set of changes needed for
+rem  people who had the immediately prior version installed, but
+rem  there was never any actual dependency tracking, so this whole
+rem  idea was never reliable.  And big downloads don't really bother
+rem  anyone any more.
 if exist %ReleaseZipMin% del %ReleaseZipMin%
 rem for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipMin% %%i
 rem for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin% %%i
@@ -84,7 +90,13 @@ rem  Put renamed 64-bit folders back as they were
 move ffmpeg ffmpeg64
 move ffmpeg32 ffmpeg
 
-rem  Build the "Min" 64-bit ZIP
+rem  DO NOT Build the "Min" 64-bit ZIP
+rem  The "Min" zip files are deprecated - they were intended to allow
+rem  for smaller downloads with a minimal set of changes needed for
+rem  people who had the immediately prior version installed, but
+rem  there was never any actual dependency tracking, so this whole
+rem  idea was never reliable.  And big downloads don't really bother
+rem  anyone any more.
 if exist %ReleaseZipMin64% del %ReleaseZipMin64%
 rem for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipMin64% %%i
 rem for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin64% %%i
