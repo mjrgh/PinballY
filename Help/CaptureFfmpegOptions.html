@@ -163,11 +163,60 @@
 <a name="CustomCommandLineOptions"></a>
 <h2>FFMPEG command-line options</h2>
 <p>
-   This section lets you set the specific options that PinballY
-   sends to ffmpeg to perform screen captures.  If you leave these
-   blank, PinballY uses its own default settings, which are designed
-   for compatibility with most systems.  You can set any combination
-   of these to control the capture process more precisely.
+   FFMPEG has a vast number of options - far too many for PinballY
+   to expose through checkboxes and drop lists.  There are entire
+   applications devoted to putting a friendly face on FFMPEG, and I
+   doubt most of those guys expose more than a fraction of what you
+   can do through the FFMPEG command line.  PinballY doesn't even
+   scratch the surface; it just has some canned options that it knows
+   how to generate for the several media types it can capture.
+   This one-size-fits-all approach makes things easy, but it's
+   not very satisfying if you want to take advantage of the
+   many other features in FFMPEG.
+</p>
+<p>
+   To give you access to more of FFMPEG's power without creating
+   a vast new set of dialogs, the Media Capture &gt; FFMPEG dialog
+   gives you the option of direct access to the FFMPEG command line,
+   so that you can hand-code the settings you want to use.  The section
+   at the bottom of the dialog lets you fill in options for the several
+   elements that go into the overall FFMPEG command line:
+</p>
+<ul>
+   <li>Global options: These go at the start of the command line, and
+   apply to the whole session (not just to an individual input or output).
+
+   <li>Video source options: Specifies the input source for the
+   video capture.  For screen capture, this is usually one of the
+   standard Windows screen capture devices, either <b>gdigrab</b>
+   or <b>ddagrab</b>.  Each one has its own syntax that you can look
+   up in the ffmpeg documentation.
+
+   <li>Video codec options: Specifies the encoding options for the
+   output video.  Used only when a video is being created.
+
+   <li>Image codec options: Specifies the encoding options for a
+   still image.  Used only when a still image is being created.
+
+   <li>Audio source options: Specifies the audio input source for
+   the recording.  This is usually the Windows <b>dshow</b>
+   (DirectShow) subsystem, using your sound card's loopback audio
+   device (often called "Stereo Mix" or something similar).
+
+   <li>Audio codec options: Specifies the encoding options for the
+   audio.  Used only when audio is being recorded, as part of a video
+   or as a standalone audio track.
+</ul>
+<p>
+   Any text you enter in these boxes is used to construct the
+   corresponding section of the FFMPEG command line.  This completely
+   replaces the default options that PinballY would use instead.
+   If you leave a box blank, PinballY uses its own default
+   settings for the blank box.  The default settings are designed
+   for compatibility with most systems.  This isn't an all-or-nothing
+   scenario, in that you can fill in any subset of the boxes, to
+   customize just a portion of the options, and leave the rest blank
+   to continue using defaults for those elements.
 </p>
 <p>
    The options you specify here are passed through directly to ffmpeg,
@@ -175,7 +224,7 @@
    to use these.  ffmpeg is extremely powerful and has an extremely
    complex command syntax, far beyond what we
    can cover here.  The official ffmpeg documentation is at
-   <a href="https://ffmpeg.org/ffmpeg.html">ffmpeg.org/ffmpeg.html</a>.
+   <a target="_blank" href="https://ffmpeg.org/ffmpeg.html">ffmpeg.org/ffmpeg.html</a>.
    Extensive user-to-user help can also be found on StackOverflow and
    many other sites; Web searches for "ffmpeg + <i>whatever topic</i>"
    typically turn up lots of results.
@@ -342,7 +391,7 @@
    can capture from full-screen-exclusive windows, which gdigrab can't.
    The second is that, because ddagrab reads directly from the GPU,
    FFMPEG can also <i>process</i> the frame directly on the GPU.  FFMPEG
-   can perform most of the video encoding process on the GPU if you have
+   can execute the video encoding process on the GPU if you have
    a compatible NVIDIA card, which greatly reduces the CPU load during
    the capture process.
 </p>
@@ -384,14 +433,15 @@
 
 <h4>ddagrab with GPU encoding</h4>
 <p>
-   This option minimizes CPU load by doing most of the video encoding
-   on the GPU, but it only works with newer NVIDIA cards with updated
+   This option minimizes CPU load by doing the video encoding work
+   on the GPU.  It only works with newer NVIDIA cards with recent
    drivers.  If you have an NVIDIA card and find that this doesn't
-   work, try checking on <a href="https://nvideo.com/">nvidia.com</a>
-   for an updated driver.  On-GPU encoding requires a fairly recent
-   version of the video driver, and Windows Update doesn't automatically
-   keep up with all of the latest manufacturer releases.  So don't
-   trust Windows Update even if it claims you have the latest.
+   work (especially if the error says something about the "API version"
+   being too old), try checking on <a target="_blank" href="https://nvideo.com/">nvidia.com</a>
+   for an updated driver.  I've found that Windows Update tends
+   to lag the manufacturer releases, so check the
+   NVIDIA site even if Windows Update assures you that you already
+   have the latest driver it knows about.
 </p>
 <ul>
    <li><b>Video source options:</b>

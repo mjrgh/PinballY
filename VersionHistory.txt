@@ -3,19 +3,23 @@ PinballY Update History
 
 TBD (1.1.0 Beta 9)
 
-* Added a new ffmpeg option to the media capture settings dialog,
-letting you select the DDAGRAB capture mode instead of the default
-GDIGRAB mode.  DDAGRAB captures directly from the GPU, which makes it
-faster and more efficient than other options, and makes it possible to
-capture from full-screen-exclusive windows.  Many games run in exclusive
-mode, which locks out normal CPU access to the display buffer, making it
-impossible to capture with the other modes; but DDAGRAB can access those
-windows thanks to its direct GPU access.  
+* The Media Capture FFMPEG options now let you fully customize the
+FFMPEG command line for each capture.  Refer to the Help section for
+details, including recipes for taking advantage of "ddagrab" mode (which
+captures video directly from the GPU, allowing capture in full-screen-
+exclusive windows) and on-GPU video encoding with newer NVIDIA cards.
 
-DDAGRAB is only available on Windows 8 and later, and only in newer
-versions of ffmpeg.  That means that it's NOT included in the ffmpeg
-included in the 32-bit PinballY package, since I haven't been able to
-find a trusted 32-bit ffmpeg distribution that's up to date.
+The new capture options required some rework of the way the FFMPEG
+command lines are generated, so it's possible that existing capture
+setups might encounter FFMPEG errors as a result of differences in the
+new command line construction procedure.  I tested numerous combinations
+of options to make sure things were still working as before, but there
+are so many possibilities that it's hard to catch them all.  If you
+encounter any problems with captures that worked before but get FFMPEG
+errors now, make sure that the "Media Capture" box is check-marked in
+the Log File options, and make a snapshot of your PinballY.log file
+showing the error message from FFMPEG.  That should help me track down
+the source of the problem.
 
 * Added a new Javascript event, "precapture", that fires when media
 capture is about to start.  The event receives the capture parameters,
