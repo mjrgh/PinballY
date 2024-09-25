@@ -1,7 +1,7 @@
 PinballY Update History
 
 
-TBD (1.1.0 Beta 9)
+09-25-2024 (1.1.0 Beta 9)
 
 * The Media Capture FFMPEG options now let you fully customize the
 FFMPEG command line for each capture.  Refer to the Help section for
@@ -11,21 +11,25 @@ allows capture from full-screen-exclusive windows.
 The new capture options required some rework of the way the FFMPEG
 command lines are generated, so it's possible that existing capture
 setups might encounter FFMPEG errors as a result of differences in the
-new command line construction procedure.  I tested numerous scenarios to
-make sure that all the defaults work like before, but there are enough
-combinations that it's hard to catch them all.  If you encounter any
-problems with captures that worked before but get FFMPEG errors now, the
-log file should help isolate the problem.  Make sure that the "Media
-Capture" box is check-marked in the Log File options, and make a
-snapshot of your PinballY.log file showing the error message from
-FFMPEG, along any non-default options in your capture setup.
+new command construction procedure.  I think the rework will actually
+improve the reliability of the command construction, but any change to
+working code can cause short-term disruption, especially with something
+as complex as capture, which has many possible combinations of options
+and cases.  If you encounter any problems with captures that worked
+before but get FFMPEG errors now, the log file should help isolate the
+problem.  Make sure that the "Media Capture" box is check-marked in the
+Log File options, and make a snapshot of your PinballY.log file showing
+the error message from FFMPEG, along any non-default options in your
+capture setup.
 
-* Added a new Javascript event, "precapture", that fires when media
-capture is about to start.  The event receives the capture parameters,
-including the ffmpeg command line that PinballY constructed, and has the
-ability to rewrite the command line as desired.  This makes it possible
-to customize the ffmpeg settings in more complex ways than are possible
-through the option settings.
+* A new Javascript event, "precapture", fires when media capture is
+about to start.  The event receives the capture parameters, including
+the ffmpeg command line that PinballY constructed, and has the ability
+to rewrite the command line as desired.  This makes it possible to
+customize the ffmpeg invocation in even more complex ways than are
+possible through the option settings.  Since the event can completely
+rewrite the command line, it has access to everything that FFMPEG can
+do.
 
 
 09-21-2024 (1.1.0 Beta 8)

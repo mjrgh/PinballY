@@ -35,7 +35,9 @@ set ReleaseZipMin64=Builds\PinballY-64bit-Min-%ReleaseDate%.zip
 
 rem  Make sure our custom FFMPEG manifests are in place
 release\FfmpegManifestUpdater ffmpeg\ffmpeg.exe
+if errorlevel 1 goto EOF
 release\FfmpegManifestUpdater ffmpeg64\ffmpeg.exe
+if errorlevel 1 goto EOF
 
 
 rem  Build the full ZIP.  Note that this includes BOTH the "Full"
@@ -57,8 +59,8 @@ move 7-zip\7z.dll 7-zip\x86
 
 rem  Build the "Min" ZIP
 if exist %ReleaseZipMin% del %ReleaseZipMin%
-for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipMin% %%i
-for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin% %%i
+rem for /f "delims=" %%i in (ReleaseManifestExe32.txt) do zip %ReleaseZipMin% %%i
+rem for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin% %%i
 
 
 rem  Rename the .\ffmpeg64 folder to plain .\ffmpeg for the ZIP build
@@ -84,8 +86,8 @@ move ffmpeg32 ffmpeg
 
 rem  Build the "Min" 64-bit ZIP
 if exist %ReleaseZipMin64% del %ReleaseZipMin64%
-for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipMin64% %%i
-for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin64% %%i
+rem for /f "delims=" %%i in (ReleaseManifestExe64.txt) do zip %ReleaseZipMin64% %%i
+rem for /f "delims=" %%i in (ReleaseManifestBase.txt) do zip %ReleaseZipMin64% %%i
 
 
 rem  Copy the MSI installers
@@ -98,3 +100,5 @@ copy /y VersionHistory.txt Builds\*.*
 
 rem  Remove the temporary release folder
 rmdir /q /s release_temp
+
+:EOF
