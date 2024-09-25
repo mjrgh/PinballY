@@ -846,7 +846,7 @@ this.MediaCaptureBeforeEvent = class MediaCaptureBeforeEvent extends MediaCaptur
         captureTime, mediaType, rotation, mirrorHorz, mirrorVert,
         rc, dxgiOutputIndex, rcMonitor)
     {
-        super("precapture", false, game);
+        super("precapture", true, game);
         this.commandLine = commandLine;
         this.filename = filename;
         this.enableAudio = enableAudio;
@@ -860,7 +860,6 @@ this.MediaCaptureBeforeEvent = class MediaCaptureBeforeEvent extends MediaCaptur
         this.dxgiOutputIndex = dxgiOutputIndex;
         this.rcMonitor = rcMonitor;
 
-        this.cancelItem = false;
         this.cancelBatch = false;
     }
 };

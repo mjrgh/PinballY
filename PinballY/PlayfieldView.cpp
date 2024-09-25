@@ -18375,7 +18375,7 @@ void PlayfieldView::OnPreCapture(PreCaptureReport *report)
 	{
 		// fire the MediaCaptureBeforeEvent
 		JsValueRef eventObj;
-		js->FireAndReturnEvent(eventObj, jsMainWindow, jsMediaCaptureBeforeEvent,
+		bool result = js->FireAndReturnEvent(eventObj, jsMainWindow, jsMediaCaptureBeforeEvent,
 			BuildJsGameInfo(gl->GetByInternalID(report->gameInternalID)),
 			report->ffmpegCommandLine,
 			report->captureItem.filename,
@@ -18388,14 +18388,17 @@ void PlayfieldView::OnPreCapture(PreCaptureReport *report)
 			report->captureItem.windowMirrorVert,
 			report->captureItem.rc, report->captureItem.dxgiOutputIndex, report->captureItem.rcMonitor);
 
-		// pass back the updated command line and cancel flags (cancelItem, cancelBatch)
+		// If the event result was false, it means that preventDefault() was
+		// called, which, for this event, means "cancel item"
+		if (!result)
+			report->cancelItem = true;
+
+		// pass back the updated command line and cancelBatch flag
 		JsValueRef v = js->GetUndefVal();
 		JsErrorCode err = JsNoError;
 		const TCHAR *where = nullptr;
 		if ((err = js->GetProp(v, eventObj, "commandLine", where)) != JsNoError
 			|| (err = js->ToString(report->ffmpegCommandLine, v)) != JsNoError
-			|| (err = js->GetPropW(v, eventObj, "cancelItem", where)) != JsNoError
-			|| (err = js->ToBool(report->cancelItem, v)) != JsNoError
 			|| (err = js->GetPropW(v, eventObj, "cancelBatch", where)) != JsNoError
 			|| (err = js->ToBool(report->cancelBatch, v)) != JsNoError)
 		{

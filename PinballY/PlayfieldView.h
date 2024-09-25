@@ -291,8 +291,11 @@ public:
 		// can just leave the original one unchanged).
 		TSTRING ffmpegCommandLine;
 
-		// Cancel flags.  The javascript event handler can set these to
-		// prevent the individual item capture, or abort the whole batch.
+		// Cancel flags.  If the Javascript event handler calls 
+		// event.preventDefault(), we'll set cancelItem to cancel the
+		// indidivual capture item.  If the event handler sets 
+		// event.cancelBatch to true, we'll set cancelBatch to true,
+		// to cancel the remainder of the batch capture.
 		bool cancelItem = false;
 		bool cancelBatch = false;
 	};

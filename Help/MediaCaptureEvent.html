@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2018 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>MediaCaptureEvent</h1>
+
+<p>
+   This event type is fired during media capture operations.  It notifies
+   Javascript that a media capture is in progress, and gives the script
+   a chance to modify the FFMPEG command line parameters.
+</p>
+<p>
+   The <a href="EventTarget.html">event target</a> for this event type is the
+   <a href="MainWindowObject.html">mainWindow</a> object.
+</p>
+<p>
+   The MediaCaptureEvent class has only one subtype:
+</p>
+<ul>
+   <li><b>precapture:</b> Fires just before an FFMPEG command is launched
+</ul>
+
+<p>
+   The <b>precapture</b> event has access to the FFMPEG command line that's
+   about to be executed, and can modify the command as needed.  The event can
+   also cancel the capture entirely for the current item by calling
+   preventDefault() on the event object, and it can cancel the entire
+   remainder of the current batch by setting the event object
+   property <b>cancelBatch</b> to true:
+</p>
+<div class="code">
+mainWindow.on("precapture", ev => {
+    ev.cancelBatch = true;
+});
+</div>
+
+
+<h2>Properties</h2>
+
+<ul>
+   <li><b>cancelBatch:</b> A boolean, initially set to false.  If the event
+   handler sets this to true before returning, PinballY will cancel the entire
+   batch capture operation, including the current item and any remaining items
+   in the batch.  (You can't go backwards in time and cancel prior items that
+   were already completed, however.)
+   
+   <li><b>captureTime:</b> A number giving the duration, in milliseconds,
+   of the capture.  This is the desired amount of time for the finished
+   video or audio track, so it's the amount of real time that the capture
+   must run.  The actual time of the operation might be longer due to
+   overhead or deferred work within FFMPEG.
+   
+   <li><b>commandLine:</b> A string containing the full FFMPEG command line
+   that's about to be executed, including the FFMPEG executable itself as
+   the first element.  If the event handler assigns a new string, the new
+   command will be executed instead of the original.  This allows the event
+   handler to customize the command as desired.
+
+   <li><b>dxgiOutputIndex:</b>  A number giving the DXGI index of the monitor
+   containing the upper left corner of the capture area.  This is an arbitrary
+   number that Windows assigns to each monitor internally, to identify the
+   monitor's screen buffer within DXGI (one of the strata of graphics processing
+   within Windows).  The DXGI index is needed when using the "ddagrab"
+   capture mode.
+
+   <li><b>enableAudio:</b> A boolean indicating whether or not audio is
+   enabled for this capture.  This is true when capturing a video with audio
+   or a standalone audio track.
+
+   <li><b>filename:</b> A string containing the output file for the capture,
+   with the full path.
+
+   <li><b>game:</b> A <a href="GameInfo.html">GameInfo</a> object describing
+   the game that's the subject of the current capture operation.
+
+   <li><b>isCapturePass:</b> A boolean indicating whether or not this is the
+   capture pass (true) or encoding pass (false) of a two-pass capture.  During
+   a one-pass capture (i.e., if two-pass capture isn't enabled in the options),
+   this is always set to true true, since the capture and encoding are both
+   done during the single pass.
+
+   <li><b>mediaType:</b> A string giving the <a href="MediaTypes.html">Media Type</a>
+   of the material being captured.  This is the ID string for the media type,
+   such as <tt>"table video"</tt> for a playfield video.
+
+   <li><b>mirrorHorz:</b> A boolean, true if the captured video is to be mirrored
+   horizontally.
+
+   <li><b>mirrorVert:</b> A boolean, true if the captured video is to be mirrored
+   vertically.
+
+   <li><b>rc:</b> A rectangle object, with properties {left, top, right, bottom},
+   all numbers, giving the "desktop coordinates" of the area to be captured.
+   Desktop coordinates are pixel locations relative to the imaginary rectangle
+   formed by the outside boundaries of all of your monitors across the whole
+   Windows desktop.  These coordinates are useful when using the "gdigrab"
+   capture mode in ffmpeg, since that mode takes its screen area specifications
+   in terms of desktop coordinates.
+
+   <li><b>rcMonitor:</b> A rectangle object, with properties {left, top, right, bottom},
+   all numbers, giving the coordinates of the area to be captured within the monitor
+   that contains its upper left corner.  These coordinates are needed when capturing
+   with "ddagrab" mode.  Note that the bottom right corner in this rectangle is
+   always constrained to be within the same monitor as the upper left corner, so
+   if the window actually spans two monitors, rcMonitor is clipped to stay within
+   the one monitor containing the upper left corner.  This is necessary for "ddagrab"
+   mode, since it can only capture from within a single monitor's video buffer,
+   and fails with an error if given a rectangle that goes outside of the monitor's
+   bounds.
+
+   <li><b>rotation:</b> A number giving the amount of rotation to be applied
+   to the video capture, in degrees; this is one of 0, 90, 180, or 270.
+
+
+</ul>
+
+</body>
+</html>

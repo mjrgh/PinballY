@@ -114,6 +114,7 @@ var contents = [
                 "+++KeyEvent.html KeyEvent [event:mainWindow]",
                 "+++LaunchEvent.html LaunchEvent [event:mainWindow]",
                 "+++LaunchOverlayEvent.html LaunchOverlayEvent [event:mainWindow]",
+                "+++MediaCaptureEvent.html MediaCaptureEvent [event:mainWindow]",
                 "+++MediaSyncEvent.html MediaSyncEvent [event:BaseWindow]",
                 "+++MenuEvent.html MenuEvent [event:mainWindow]",
                 "+++PopupEvent.html PopupEvent [event:mainWindow]",

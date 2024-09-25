@@ -4489,7 +4489,7 @@ DWORD Application::GameMonitorThread::Main()
 				globalOpts = _T("-y -loglevel warning -thread_queue_size 32 -probesize 30M")
 				IF_32_64(_T(""), _T(" -rtbufsize 2000M"));
 
-		// Set up the video input options, if we're capturing video or a still image
+			// Set up the video input options, if we're capturing video or a still image
 			const TCHAR *videoSourceOpts = _T("");
 			switch (item.mediaType.format)
 			{
@@ -4737,6 +4737,32 @@ DWORD Application::GameMonitorThread::Main()
 				// give Javascript a crack at customizing the command line
 				PlayfieldView::PreCaptureReport report(gameId, capture, item, isCapturePass, cmdline.c_str());
 				playfieldView->SendMessage(PFVMsgPreCapture, 0, reinterpret_cast<LPARAM>(&report));
+
+				// if Javascript canceled the item or batch, stop here
+				if (report.cancelBatch) 
+				{
+					// cancel the whole rest of the batch, including this item
+					LogFile::Get()->Write(LogFile::CaptureLogging,
+						_T("Media capture: %s: remainder of batch canceled by Javascript precapture event\n"),
+						curStatus.c_str());
+
+					// set the abort-all flag, and return false to cancel remaining work on the current item
+					abortCapture = true;
+					return false;
+				}
+				else if (report.cancelItem)
+				{
+					// cancel the current item only
+					LogFile::Get()->Write(LogFile::CaptureLogging,
+						_T("Media capture: %s: item canceled by Javascript precapture event\n"),
+						curStatus.c_str());
+
+					// return false to cancel remaining work on this item
+					return false;
+				}
+
+				// retrieve the updated command line from the javascript
+				cmdline = report.ffmpegCommandLine;
 
 				// log the command line information if logging is enabled
 				LogCommandLine(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging));
