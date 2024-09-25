@@ -1,7 +1,36 @@
 PinballY Update History
 
 
-9/21/2024 (1.1.0 Beta 8)
+TBD (1.1.0 Beta 9)
+
+* Added a new ffmpeg option to the media capture settings dialog,
+letting you select the DDAGRAB capture mode instead of the default
+GDIGRAB mode.  DDAGRAB captures directly from the GPU, which makes it
+faster and more efficient than other options, and makes it possible to
+capture from full-screen-exclusive windows.  Many games run in exclusive
+mode, which locks out normal CPU access to the display buffer, making it
+impossible to capture with the other modes; but DDAGRAB can access those
+windows thanks to its direct GPU access.  
+
+DDAGRAB is only available on Windows 8 and later, and only in newer
+versions of ffmpeg.  That means that it's NOT included in the ffmpeg
+included in the 32-bit PinballY package, since I haven't been able to
+find a trusted 32-bit ffmpeg distribution that's up to date.
+
+* Added a new Javascript event, "precapture", that fires when media
+capture is about to start.  The event receives the capture parameters,
+including the ffmpeg command line that PinballY constructed, and has the
+ability to rewrite the command line as desired.  This makes it possible
+to fully customize the ffmpeg settings beyond what you can select
+through the options settings.  Given ffmpeg's extreme versatility (and
+correspondingly extreme complexity), it's just not feasible for PinballY
+to expose more than a small subset of ffempg's power through dialog box
+options, so the ability to intervene through Javascript is meant to make
+up for that by giving you direct access to the command line.  That lets
+you apply any options you want.
+
+
+09-21-2024 (1.1.0 Beta 8)
 
 * The Game System settings have two new "Terminate By" settings:
 WM_CLOSE and SC_CLOSE.  These give you finer-grained control over the

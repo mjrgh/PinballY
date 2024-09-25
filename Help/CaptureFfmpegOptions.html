@@ -23,6 +23,26 @@
 <h2>Option details</h2>
 
 <p>
+   <b>Limit captured videos to HD resolution:</b>  Check this box
+   to limit the resolution of captured videos to HD (1920x1080 pixels).
+   By default, videos created using the media capture function have
+   the same pixel size as the screen area being captured, but you
+   can use this option to set an upper limit of HD resolution.
+   This won't affect videos captured from smaller screen areas;
+   it only sets an upper bound for the resolution.
+</p>
+<p>
+   In most cases, it's best to capture at the full original
+   resolution, since that gives you the most faithful reproduction
+   of the original graphics.  However, videos captured from 4K
+   monitors and other large formats might be too big to play back
+   smoothly on older or slower systems, or might not even play back
+   at all if memory is limited.  If you have a large monitor, and your
+   system can't smoothly play videos captured at full size,
+   you can use this option to limit the videos to HD resolution.
+</p>
+
+<p>
    <b>Use two-pass video encoding:</b>  Use this option if your
    captured videos look too choppy.  Normally, PinballY tries to
    capture and compress video frames at the same time, in
@@ -53,26 +73,6 @@
 </p>
 
 <p>
-   <b>Limit captured videos to HD resolution:</b>  Check this box
-   to limit the resolution of captured videos to HD (1920x1080 pixels).
-   By default, videos created using the media capture function have
-   the same pixel size as the screen area being captured, but you
-   can use this option to set an upper limit of HD resolution.
-   This won't affect videos captured from smaller screen areas;
-   it only sets an upper bound for the resolution.
-</p>
-<p>
-   In most cases, it's best to capture at the full original
-   resolution, since that gives you the most faithful reproduction
-   of the original graphics.  However, videos captured from 4K
-   monitors and other large formats might be too big to play back
-   smoothly on older or slower systems, or might not even play back
-   at all if memory is limited.  If you have a large monitor, and your
-   system can't smoothly play videos captured at full size,
-   you can use this option to limit the videos to HD resolution.
-</p>
-
-<p>
    <b>Temp file folder:</b>  This lets you specify the folder path
    for temporary files created during two-pass video encoding.
    By default, the temp files are created in the same folder as
@@ -83,31 +83,42 @@
    the temp files, because the uncompressed video files created
    during the first pass of a two-pass recording are very large.
    A fast disk is advantageous because FFMPEG has to transfer
-   the large, uncompressed video stream to the drive in
-   real time in order to keep up with the live video without
-   dropping frames.
+   the uncompressed video stream to the drive in real time in
+   order to keep up with the live video without dropping frames.
 </p>
 
 <p>
-   <b>1st pass codec opts:</b>  The video codec options for the
-   first pass of a two-pass recording.  If you leave this blank,
-   PinballY uses its default settings, which are currently:
+   <b>First pass video codec:</b>  This is only used during two-pass
+   encoding.  If not blank, this specifies custom video codec
+   settings to use during the <b>first</b> pass of the two-pass
+   process.  If you lave this blank, PinballY uses default options
+   that select an extremely fast codec with minimal compression.
 </p>
-<div class="indented">
-   <tt>-c:v libx264 -threads 8 -qp 0 -preset ultrafast</tt>
-</div>
 <p>
-   For details on what these options mean, refer to the FFMPEG
-   documentation.  This combination of options is meant to
-   minimize FFMPEG's CPU usage during the initial live capture
-   pass by doing little or no compression.  Uncompressed video
-   files are extremely large, though, so while this reduces
-   CPU usage, it increases the disk data transfer load.  On
-   some systems, it might actually be faster overall to use
-   a preset that does slightly more compression.  This option
-   lets you experiment to find the best setting for your system.
+   The point of two-pass encoding is to defer most of the CPU-heavy
+   compression work until the second pass.  The first pass captures
+   the screen video in real time, saving it in a temporary file,
+   which the second pass can then go back and compress more
+   aggressively.  Since the second pass runs after the real-time
+   capture finishes, it can use a lot of CPU without affecting
+   the game action.  So the goal of the first-pass codec settings
+   is to make the real-time video capture run as fast as possible.
 </p>
-
+<p>
+   Naively, it would seem like less compression is always faster,
+   which is why the default settings (used if you leave this blank)
+   apply minimal compression.  It's true that less compression
+   generally means less CPU load, but there's a tradeoff for
+   real-time capture, which is that uncompressed video is huge,
+   so the first pass will have to have to write a lot of data
+   to disk very quickly.  This creates another kind of load on
+   your system, and depending on how fast your CPU and disk are,
+   you might actually get better results if you slightly
+   <i>increase</i> the amount of compression during the first
+   pass, to reduce the disk transfer load.  That's what this
+   option is for: it lets you optimize the settings for your
+   system if the default settings don't produce smooth results.
+</p>
 
 <p>
    <a name="AudioCaptureDevice"></a>
@@ -123,9 +134,277 @@
    is often called "Stereo Mix" or something similar.
 </p>
 <p>
+   If you don't see "Stereo Mix" or some similar device in the
+   list, try this:
+</p>
+   <ul>
+      <li>Press <b>Windows+R</b> and type <b>mmsys.cpl</b> into
+      the Run box (this should open the Windows "Sound" control panel)
+      <li>Click the <b>Recording</b> tab
+      <li>Look through the list for a "Stereo Mix" device or something
+      similar for your sound card
+      <li>If you <i>don't</i> see it, try right-clicking in a blank
+      area in the list box, and make sure the menu item for <b>Show Disabled Devices</b>
+      is check-marked, and click it if not to check-mark it
+      <li>If you find "Stereo Mix" or similar, and it's marked "Disabled",
+      right-click it and select <b>Enable</b>
+      <li>If you successfully found and enabled the device, you might
+      now have to exit out of PinballY and restart the program so that
+      it refreshes its internal device list.  After that, you should
+      see the device listed in the audio capture options.
+   </ul>
+<p>
    See <a href="#audioDevice">About the Audio Capture Device</a>
    below for more details.
 </p>
+
+<hr style="margin-top: 4em;">
+
+<a name="CustomCommandLineOptions"></a>
+<h2>FFMPEG command-line options</h2>
+<p>
+   This section lets you set the specific options that PinballY
+   sends to ffmpeg to perform screen captures.  If you leave these
+   blank, PinballY uses its own default settings, which are designed
+   for compatibility with most systems.  You can set any combination
+   of these to control the capture process more precisely.
+</p>
+<p>
+   The options you specify here are passed through directly to ffmpeg,
+   so you'll need a working knowledge of the ffmpeg command syntax
+   to use these.  ffmpeg is extremely powerful and has an extremely
+   complex command syntax, far beyond what we
+   can cover here.  The official ffmpeg documentation is at
+   <a href="https://ffmpeg.org/ffmpeg.html">ffmpeg.org/ffmpeg.html</a>.
+   Extensive user-to-user help can also be found on StackOverflow and
+   many other sites; Web searches for "ffmpeg + <i>whatever topic</i>"
+   typically turn up lots of results.
+</p>
+<p>
+   The overall ffmpeg command line that PinballY generates is
+   constructed like this:
+</p>
+<p style="padding-left: 2em;">
+   <tt>ffmpeg</tt>
+     &lt;<i>global-options</i>&gt;
+     &lt;<i>video-source-options</i>&gt;
+     &lt;<i>audio-source-options</i>&gt;
+     &lt;<i>video-or-image-code-options</i>&gt;
+     &lt;<i>audio-codec-options</i>&gt;
+     &lt;<i>time-limit-options</i>&gt;
+     &lt;<i>output-filename</i>&gt;
+</p>
+<p>
+   All of those <i>xxx-options</i> elements correspond to the boxes in the
+   dialog, except for the <i>time-limit-options</i>, which is always
+   generated internally according to the capture time settings.  When PinballY
+   builds the command line, it simply strings together the text you put
+   in these boxes to build the overall command line, substituting the
+   built-in defaults for each box you leave empty.  Some of the <i>xxx-options</i>
+   elements only apply to certain media types; for example, the audio options
+   are omitted when you're capturing a still image or a silent video, and
+   the video and image options aren't used when capturing an audio track.
+</p>
+<p>
+   Since default options are used for any box you leave blank, you're
+   free to customize just the parts you need to, letting the system use
+   its defaults for everything else.
+</p>
+
+<h3>Substitution variables</h3>
+<p>
+   Within each element, you can use a number of substitution variables,
+   to fill in details that vary in each capture.  A substitution variable
+   is written with square brackets:
+</p>
+<pre>
+   -offset_x [left.desktop] -offset_y [top.desktop]
+</pre>
+<p>
+   If you need to use a literal square bracket in option text, write it
+   twice, as in <tt>[[</tt> or <tt>]]</tt>.
+</p>
+<p>
+   Here are the available substitution variables:
+</p>
+<style type="text/css">
+#subVarTab td, #subVarTab th {
+    border: 1px solid #E8E8E8;
+}
+#subVarTab td:nth-child(2) {
+    text-align: left;
+}
+.cmdline {
+    font: 10pt/14pt Courier New;
+    white-space: nowrap;
+}
+</style>
+<table class="dataTable" id="subVarTab">
+   <tr><th>Variable</th><th>Description</th></tr>
+   <tr>
+      <td>[left.desktop]</td>
+      <td>The left pixel coordinate of the capture area, in desktop coordinates (that is,
+      relative to the whole Windows virtual desktop, which might span multiple monitors)</td>
+   </tr>
+   <tr>
+      <td>[top.desktop]</td>
+      <td>The top pixel coordinate of the capture area, in desktop coordinates</td>
+   </tr>
+   <tr>
+      <td>[right.desktop]</td>
+      <td>The right pixel coordinate of the capture area, in desktop coordinates</td>
+   </tr>
+   <tr>
+      <td>[bottom.desktop]</td>
+      <td>The bottom pixel coordinate of the capture area, in desktop coordinates</td>
+   </tr>
+   <tr>
+      <td>[width]</td>
+      <td>The width of the capture area, in pixels</td>
+   </tr>
+   <tr>
+      <td>[height]</td>
+      <td>The height of the capture area, in pixels</td>
+   </tr>
+   <tr>
+      <td>[top.monitor]</td>
+      <td>The top pixel coordinate of the capture area, relative to the monitor containing the capture area</td>
+   </tr>
+   <tr>
+      <td>[left.monitor]</td>
+      <td>The top pixel coordinate of the capture area, relative to the monitor containing the capture area</td>
+   </tr>
+   <tr>
+      <td>[right.monitor]</td>
+      <td>The right pixel coordinate of the capture area, relative to the monitor containing the capture area,
+      and clipped to the bounds of the monitor containing the top left of the capture area</td>
+   </tr>
+   <tr>
+      <td>[bottom.monitor]</td>
+      <td>The bottom pixel coordinate of the capture area, relative to the monitor containing the capture area,
+      and clipped to the bounds of the monitor containing the top left of the capture area</td>
+   </tr>
+   <tr>
+      <td>[width.monitor]</td>
+      <td>The width of the capture area, clipped to the bounds of the monitor containing the upper left of the capture area</td>
+   </tr>
+   <tr>
+      <td>[height.monitor]</td>
+      <td>The height of the capture area, clipped to the bounds of the monitor containing the upper left of the capture area</td>
+   </tr>
+   <tr>
+      <td>[monitorIndex]</td>
+      <td>The DXGI output index of the monitor containing the upper left of the capture area.   This is
+      required for "ddagrab" video source mode.
+   </tr>
+   <tr>
+      <td>[audioDevice]</td>
+      <td>The name of the audio capture input device selected in the options</td>
+   </tr>
+   <tr>
+      <td>[videoTransforms]</td>
+      <td>The series of ffmpeg video transforms that PinballY computed based on the capture settings, to
+      rotate and scale the video as needed.  This is in a form that can be inserted directly into an ffmpeg
+      <tt>-vf</tt> or <tt>-filter_complex</tt> option.  If no transforms are needed, this contains the
+      text <tt>null</tt>, so that it can still be safely inserted into a filter option string.  ("null"
+      is a filter that passes through the input video unchanged, so it can be inserted into any filter
+      series without changing the effect of the series.)</td>
+   </tr>
+   <tr>
+      <td>[videoFilters]</td>
+      <td>The video transforms, the same as [videoTransforms], but already formatted as a <tt>-vf</tt> option.
+      This can be inserted anywhere the video filter options can go.  If no transforms are needed, this
+      is blank.</td>
+   </tr>
+</table>
+
+<p>
+   <b>Desktop vs. monitor coordinates:</b>  Variables are provided for
+   the capture area location and size in both desktop and monitor
+   coordinates, because the coordinate system varies by video source
+   mode:
+</p>
+<ul>
+   <li><b>gdigrab</b> uses desktop coordinates
+   <li><b>ddagrab</b> uses monitor coordinates
+</ul>
+
+<h3>How to use ddagrab</h3>
+<p>
+   Newer versions of FFMPEG support a capture mode called <b>ddagrab</b>.
+   This is only supported on Windows 8 and later, and only with the 64-bit
+   version of FFMPEG, so PinballY's default settings use the older <b>gdigrab</b>
+   mode, since it's more universally compatible.
+</p>
+<p>
+   ddagrab captures directly from the GPU video buffer, which gives it
+   two advantages over the older gdigrab mode.  The first is that it
+   can capture from full-screen-exclusive windows, which gdigrab can't.
+   The second is that, because ddagrab reads directly from the GPU,
+   FFMPEG can also <i>process</i> the frame directly on the GPU.  FFMPEG
+   can perform most of the video encoding process on the GPU if you have
+   a compatible NVIDIA card, which greatly reduces the CPU load during
+   the capture process.
+</p>
+<p>
+   ddagrab also has a slight disadvantage compared to gdigrab: ddagrab
+   can only capture from within the bounds of a single monitor, whereas
+   gdigrab can capture an area that spans two or more monitors.  This
+   probably isn't a problem for most PinballY users, since most people
+   set up their pin cabs with the whole playfield on one monitor, the
+   whole backglass on a second monitor, and the DMD on a third (if
+   there's a DMD window at all).  But if your setup has one of these
+   windows spread across two monitors, ddagrab will only be able to
+   capture the portion of that window that fits in its main monitor
+   (where its top left corner is located).
+</p>
+<p>
+   You'll have to refer to the FFMPEG documentation for full details
+   on how to set up ddagrab captures, but we'll provide two basic "recipes"
+   here, one with regular CPU-side encoding, and one with on-GPU encoding.
+   The on-GPU encoding is probably always preferable if you can use it,
+   but remember that it only works with newer NVIDIA cards.
+</p>
+
+<h4>ddagrab with CPU encoding</h4>
+<p>
+   This option is more broadly compatible than on-GPU encoding, since it
+   doesn't require any specific video card.  You just need Windows 8 or later.
+</p>
+<ul>
+   <li><b>Video source options:</b>
+   <span class="cmdline">-filter_complex ddagrab=output_idx=[monitorIndex]:offset_x=[left.monitor]:offset_y=[top.monitor]:video_size=[width.monitor]x[height.monitor],hwdownload,format=bgra,[videoTransforms]</span>
+
+   <li><b>Video codec options:</b>
+   <span class="cmdline">-c:v libx264 -crf 18</span>
+
+   <li><b>Image codec options:</b>
+   <span class="cmdline">-frames:v 1 -update 1</span>
+</ul>
+
+<h4>ddagrab with GPU encoding</h4>
+<p>
+   This option minimizes CPU load by doing most of the video encoding
+   on the GPU, but it only works with newer NVIDIA cards with updated
+   drivers.  If you have an NVIDIA card and find that this doesn't
+   work, try checking on <a href="https://nvideo.com/">nvidia.com</a>
+   for an updated driver.  On-GPU encoding requires a fairly recent
+   version of the video driver, and Windows Update doesn't automatically
+   keep up with all of the latest manufacturer releases.  So don't
+   trust Windows Update even if it claims you have the latest.
+</p>
+<ul>
+   <li><b>Video source options:</b>
+   <span class="cmdline">-filter_complex ddagrab=output_idx=[monitorIndex]:offset_x=[left.monitor]:offset_y=[top.monitor]:video_size=[width.monitor]x[height.monitor],hwdownload,format=bgra,[videoTransforms]</span>
+
+   <li><b>Video codec options:</b>
+   <span class="cmdline">-c:v h264_nvenc -cq 18</span>
+
+   <li><b>Image codec options:</b>
+   <span class="cmdline">-frames:v 1 -update 1</span>
+</ul>
+
+<hr style="margin-top: 4em;">
 
 
 <a name="audioDevice"></a>
@@ -206,8 +485,12 @@
    your sound card or your PC vendor to see if they have a
    Stereo Mix or "audio loopback" device driver you can use.
 </p>
-
-
+<p>
+   If your sound card simply doesn't have any options available,
+   there are some third-party software options available, such as
+   <a target="_blank" href="https://github.com/rdp/screen-capture-recorder-to-video-windows-free">
+      https://github.com/rdp/screen-capture-recorder-to-video-windows-free</a>.
+</p>
 
 </body>
 </html>

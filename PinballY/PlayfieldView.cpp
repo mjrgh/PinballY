@@ -77,7 +77,7 @@
 // sounds.  PinVol can only adjust the volume across the board, so if you
 // turn down the volume for a loud game with PinVol, you also turn down 
 // the button sounds.  So in the name of equalizing sound levels for the
-// media items, we inadvertantly also dis-equalize levels for the button
+// media items, we inadvertently also dis-equalize levels for the button
 // sounds.  The effect is not pleasing.
 //
 // So I disabled it, both in PinVol and here.  Note that it would be
@@ -592,7 +592,7 @@ bool PlayfieldView::InitWin()
 	// setup has been completed.
 	D3DView::SubscribeIdleEvents(this);
 
-	// Register for notifiactions from the Admin Host, if present
+	// Register for notifications from the Admin Host, if present
 	if (auto app = Application::Get(); app->IsAdminHostAvailable())
 	{
 		// Set up the Capture Manual Go notifier
@@ -827,6 +827,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsMediaSyncBeginEvent, "MediaSyncBeginEvent")
 				|| !GetObj(jsMediaSyncLoadEvent, "MediaSyncLoadEvent")
 				|| !GetObj(jsMediaSyncEndEvent, "MediaSyncEndEvent")
+				|| !GetObj(jsMediaCaptureBeforeEvent, "MediaCaptureBeforeEvent")
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
@@ -1371,9 +1372,9 @@ bool PlayfieldView::InitJsWinObj(FrameWin *frame, JsValueRef jswinobj, const CHA
 		return false;
 
 	// set up the SecondaryView methods, if this is a SecondaryView
-	if (view2 != nullptr &&
-		(!js->DefineGetterSetter(jswinobj, name, "backgroundScalingMode", &SecondaryView::JsGetBgScalingMode, &SecondaryView::JsSetBgScalingMode, view2, eh))
-		|| (!js->DefineGetterSetter(jswinobj, name, "pagedImageIndex", &SecondaryView::JsGetPagedImageIndex, &SecondaryView::JsSetPagedImageIndex, view2, eh)))
+	if (view2 != nullptr
+		&& (!js->DefineGetterSetter(jswinobj, name, "backgroundScalingMode", &SecondaryView::JsGetBgScalingMode, &SecondaryView::JsSetBgScalingMode, view2, eh)
+			|| !js->DefineGetterSetter(jswinobj, name, "pagedImageIndex", &SecondaryView::JsGetPagedImageIndex, &SecondaryView::JsSetPagedImageIndex, view2, eh)))
 		return false;
 
 	// Retrieve the window's DrawingLayer class prototype
@@ -1656,7 +1657,7 @@ bool PlayfieldView::FireKeyEvent(int vkey, bool down, int repeatCount, bool bg)
 			(down ? jsKeyBgDownEvent : jsKeyBgUpEvent) :
 			(down ? jsKeyDownEvent : jsKeyUpEvent);
 
-		// dispatch the javsacript event
+		// dispatch the javascript event
 		ret = js->FireEvent(jsMainWindow, eventType, vkey,
 			TSTRING(jsKey, jsKeyLen).c_str(), label.jsEventCode, label.jsEventLocation, 
 			repeatCount, bg);
@@ -2213,7 +2214,7 @@ bool PlayfieldView::AddGameInfoStatsGetter(const CHAR *propName, T (*func)(GameL
 
 JsValueRef PlayfieldView::BuildJsGameInfo(const GameListItem *game)
 {
-	// if the game is null or invalid, reutrn a null javascript object
+	// if the game is null or invalid, return a null javascript object
 	if (!IsGameValid(game))
 		return JavascriptEngine::Get()->GetNullVal();
 
@@ -2825,7 +2826,7 @@ JsValueRef PlayfieldView::JsResolveROM(JsValueRef self)
 			}
 		}
 
-		// set the DOF ROM name, if availalbe
+		// set the DOF ROM name, if available
 		if (dofRom != nullptr && dofRom[0] != 0)
 			obj.Set("dofRom", dofRom);
 
@@ -10494,6 +10495,11 @@ bool PlayfieldView::OnUserMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 
 		// handled
+		return true;
+
+	case PFVMsgPreCapture:
+		// pre-capture event
+		OnPreCapture(reinterpret_cast<PreCaptureReport*>(lParam));
 		return true;
 
 	case PFVMsgCaptureDone:
@@ -18358,6 +18364,45 @@ void PlayfieldView::CaptureMediaGo()
 
 	// Run the game in media capture mode
 	PlayGame(ID_CAPTURE_GO, Application::LaunchFlags::StdCaptureFlags);
+}
+
+void PlayfieldView::OnPreCapture(PreCaptureReport *report)
+{
+	// make sure we have a javascript engine and game list
+	auto *gl = GameList::Get();
+	auto *js = JavascriptEngine::Get();
+	if (js != nullptr && gl != nullptr)
+	{
+		// fire the MediaCaptureBeforeEvent
+		JsValueRef eventObj;
+		js->FireAndReturnEvent(eventObj, jsMainWindow, jsMediaCaptureBeforeEvent,
+			BuildJsGameInfo(gl->GetByInternalID(report->gameInternalID)),
+			report->ffmpegCommandLine,
+			report->captureItem.filename,
+			report->captureItem.enableAudio,
+			report->isCapturePass,
+			static_cast<int>(report->captureItem.captureTime),
+			report->captureItem.mediaType.javascriptId,
+			report->captureItem.mediaRotation,
+			report->captureItem.windowMirrorHorz,
+			report->captureItem.windowMirrorVert,
+			report->captureItem.rc, report->captureItem.dxgiOutputIndex, report->captureItem.rcMonitor);
+
+		// pass back the updated command line and cancel flags (cancelItem, cancelBatch)
+		JsValueRef v = js->GetUndefVal();
+		JsErrorCode err = JsNoError;
+		const TCHAR *where = nullptr;
+		if ((err = js->GetProp(v, eventObj, "commandLine", where)) != JsNoError
+			|| (err = js->ToString(report->ffmpegCommandLine, v)) != JsNoError
+			|| (err = js->GetPropW(v, eventObj, "cancelItem", where)) != JsNoError
+			|| (err = js->ToBool(report->cancelItem, v)) != JsNoError
+			|| (err = js->GetPropW(v, eventObj, "cancelBatch", where)) != JsNoError
+			|| (err = js->ToBool(report->cancelBatch, v)) != JsNoError)
+		{
+			LogFile::Get()->Write(LogFile::JSLogging,
+				_T("precapture event: error retrieving properties from event object on return: %s\n"), where);
+		}
+	}
 }
 
 void PlayfieldView::OnCaptureDone(const CaptureDoneReport *report)

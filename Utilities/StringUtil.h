@@ -470,3 +470,12 @@ std::basic_string<CharT> regex_replace(
 {
 	return regex_replace(s.cbegin(), s.cend(), re, f);
 }
+
+template<class Traits, class CharT, class UnaryFunction>
+std::basic_string<CharT> regex_replace(
+	const CharT *s,
+	const std::basic_regex<CharT, Traits>& re,
+	UnaryFunction f)
+{
+	return regex_replace(std::basic_string<CharT>(s), re, f);
+}

@@ -678,21 +678,54 @@ This file is located in the main
    if you just want to reset the options, since all of the changeable
    settings are in that single Settings.txt file.
 </p>
+<p>
+   <b>Backup copies:</b> PinballY rewrites the settings file at various
+   times, such as when you modify settings via the Options dialog, and
+   when you exit the program.  The first time PinballY changes the settings
+   file during a session, it saves the current version of the file,
+   by renaming the existing copy of Settings.txt to a new name of the form
+   <b>Settings backup <i>YYYY-MM-DD</i>.txt</b>, where YYYY-MM-DD is
+   replaced by today's date.  Only one backup copy is made per day, to
+   avoid filling up your disk with bazillions of extra copies, so this
+   step is skipped if there's already a file for the current date.
+</p>
+<p>
+   The backup copy serves two purposes.  The first is to give you a
+   way to reverse any changes that you made during a session that you
+   ended up not liking.  This is especially helpful if you were experimenting
+   with different settings and you're not sure exactly which settings you
+   changed, since it lets you go back to yesterday's settings en masse
+   without any need to remember the specific settings you modified.
+   The second is to recover your settings in case PinballY crashes while
+   it's in the middle of writing out new settings, or if a disk error
+   occurs, or if anything else goes wrong that leaves the Settings.txt
+   file corrupted or empty or missing.  In any of these cases, you should
+   have at least one backup copy to restore.
+</p>
+<p>
+   To restore a backup, simply delete the current Settings.txt file,
+   and rename the latest backup copy (or any older copy, as desired)
+   as Settings.txt.
+</p>
 
 <h2>Windows Registry</h2>
 
 <p>
    PinballY stores nothing of its own in the Windows Registry.  The
    registry is such a source of misery for other software that I try
-   to avoid it entirely.
+   to avoid it whenever possible.  I consider register entries especially
+   unsuitable for anything that you might want to edit as a user, such
+   as option settings.
 </p>
 <p>
-   However, if you install via the Windows SETUP installer using the
-   .msi download, the installer places two keys in the registry.
-   These keys are purely for SETUP's use, and aren't used by PinballY
-   itself, so deleting or changing them won't have any effect on
-   normal program operation.  They're also unique to PinballY, so
-   they won't affect any other programs.
+   There is one situation where PinballY adds registry keys, however:
+   .msi installation.  The Windows SETUP program, which performs the
+   install, writes two keys in the registry.  These keys are purely
+   for SETUP's use, and they aren't used by PinballY itself, so deleting
+   or changing them won't have any effect on PinballY's normal operation.
+</p>
+<p>
+   The specific keys are:
 </p>
 <ul>
    <li><b>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{XXXXX}:</b>

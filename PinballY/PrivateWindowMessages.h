@@ -56,6 +56,7 @@ const UINT PFVMsgPlayElevReqd = WM_USER + 211;      // WPARAM = TCHAR *systemNam
 const UINT PFVMsgJsDebugMessage = WM_USER + 212;    // Javascript debug request received from debugger UI
 const UINT PFVMsgTakeFocusPostLaunch = WM_USER + 213; // take focus after game launch exits
 const UINT PFVMsgAdminExitGame = WM_USER + 214;     // Exit Game event from Admin Host
+const UINT PFVMsgPreCapture = WM_USER + 215;        // LPARAM = LONG_PTR(&PlayfieldView::PreCaptureReport)
 
 
 // PFVShowMessage parameters struct

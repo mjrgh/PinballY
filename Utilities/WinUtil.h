@@ -83,6 +83,11 @@ void BetterSetForegroundWindow(HWND hwndActive, HWND hwndFocus);
 // window belongs to the current process.
 bool IsForegroundProcess();
 
+// Get the DXGI output index for a given desktop screen location.
+// Returns the index in the DXGI monitor list of the monitor containing
+// the point, or -1 if no matching monitor is found.  Populates 'rcDesktop',
+// if provided, with the desktop coordinates of the matching monitor.
+int GetDXGIOutputIndex(POINT pt, RECT *rcDesktop = nullptr);
 
 // -----------------------------------------------------------------------
 //
@@ -293,7 +298,7 @@ protected:
 // to include a critical section in a multi-object wait (which would
 // be needed if you wanted to allow canceling a wait via a separate
 // signal, say).  These also aren't great for objects with a lot of
-// contention among threads; Windows has better syncrhonization
+// contention among threads; Windows has better synchronization
 // objects for situations requiring queued waits or priorities or
 // the like.
 //

@@ -40,7 +40,14 @@ namespace ConfigVars
 	static const TCHAR *CaptureTPVideoTime = _T("Capture.TopperVideo.Time");
 
 	static const TCHAR *CaptureTwoPassEncoding = _T("Capture.TwoPassEncoding");
-	static const TCHAR *CaptureVidoCodecPass1 = _T("Capture.VideoCodecPass1");
+	static const TCHAR *CaptureVideoCodecPass1 = _T("Capture.VideoCodecPass1");
 	static const TCHAR *CaptureTempFolder = _T("Capture.TempFolder");
 	static const TCHAR *CaptureVideoResLimit = _T("Capture.VideoResolutionLimit");
+	static const TCHAR *CaptureUseCustomCommandOptions = _T("Capture.UseCustomCommandOptions");
+	static const TCHAR *CaptureCustomVideoSource = _T("Capture.CustomVideoSource");
+	static const TCHAR *CaptureCustomVideoCodec = _T("Capture.CustomVideoCodec");
+	static const TCHAR *CaptureCustomImageCodec = _T("Capture.CustomImageCodec");
+	static const TCHAR *CaptureCustomAudioSource = _T("Capture.CustomAudioSource");
+	static const TCHAR *CaptureCustomAudioCodec = _T("Capture.CustomAudioCodec");
+	static const TCHAR *CaptureCustomGlobalOptions = _T("Capture.CustomGlobalOptions");
 }

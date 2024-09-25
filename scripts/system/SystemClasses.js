@@ -34,7 +34,7 @@ function trySprintf(...args)
     if (args.length == 0)
         return { ok: false, fields: 0, expansion: "" };
 
-    var pat = /%%|%([\-+ #0]*)(\d+)?(\.\d+)?([oOdisfxX])/g;
+    var pat = /%%|%([\-+ #0]*)(\d+)?(\.\d+)?([a-zA-Z])/g;
     if (args.length > 1 && pat.test(args[0]))
     {
         let ok = true;
@@ -56,7 +56,7 @@ function trySprintf(...args)
 
             let doInt = (radix, prefix) =>
             {
-                let s = Math.trunc(a).toString(radix);
+                let s = Math.trunc(Number(a)).toString(radix);
 
                 if (flags.indexOf("+") >= 0)
                     s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
@@ -90,7 +90,7 @@ function trySprintf(...args)
 
             let doFloat = () =>
             {
-                let s = a.toFixed(prec && prec != "" ? +prec.substr(1) : 6);
+                let s = Number(a).toFixed(prec && prec != "" ? +prec.substr(1) : 6);
 
                 if (flags.indexOf("+") >= 0)
                     s = (a > 0 ? "+" : a == 0 ? " " : "") + s;
@@ -111,10 +111,8 @@ function trySprintf(...args)
                 return s;
             };
 
-            let doString = () =>
+            let doString = (s) =>
             {
-                let s = (a || "").toString();
-
                 if (width && width != "" && +width > s.length)
                 {
                     let extra = +width - s.length;
@@ -130,13 +128,50 @@ function trySprintf(...args)
                 return s;
             };
 
-            switch (spec)
+            let doLiteralString = (a, depth) =>
             {
-            case 'o':
-            case 'O':
+                let doArray = (arr, depth) =>
+                {
+                    if (depth > 5) return "[array]";
+                    let l = [];
+                    for (let i = 0 ; i < arr.length ; ++i)
+                        l.push(doLiteralString(arr[i], depth + 1));
+                    return "[" + l.join(", ") + "]";
+                };
+                let doObject = (obj, depth) =>
+                {
+                    if (depth > 5) return s.toString();
+                    let l = [];
+                    for (let p of Object.getOwnPropertyNames(obj))
+                        l.push(p + ": " + doLiteralString(obj[p], depth + 1));
+                    return "{" + l.join(", ") + "}";
+                };
+                
+                let s = a === false ? "false" :
+                        a === null ? "null" :
+                        a === undefined ? "undefined" :
+                        Array.isArray(a) ? doArray(a, depth) :
+                        typeof a === "object" ? doObject(a, depth) :
+                        (typeof a === "number" || typeof a === "bigint") ? a.toString() :
+                        (a || "").toString();
+
+                return doString(s);
+            };
+
+            let doObject = (a) =>
+            {
                 return (a === null ? "null" :
                         a === undefined ? "undefined" :
                         a.toString());
+            };
+
+            switch (spec)
+            {
+            case 'o':
+                return typeof a == "object" ? doObject(a) : doInt(8, "0");
+                
+            case 'O':
+                return doObject(a);
 
             case 'd':
             case 'i':
@@ -148,11 +183,17 @@ function trySprintf(...args)
             case 'X':
                 return doInt(16, "0x").toUpperCase();
 
+            case 'b':
+                return doInt(2, "0b");
+
             case 'f':
                 return doFloat();
 
             case 's':
-                return doString(a);
+                return doString(a.toString());
+
+            case 'S':
+                return doLiteralString(a, 0);
 
             default:
                 ok = false;
@@ -786,6 +827,41 @@ this.LaunchErrorEvent = class LaunchErrorEvent extends LaunchEvent
     {
         super("launcherror", true, game, command);
         this.error = error;
+    }
+};
+
+// Media capture events
+this.MediaCaptureEvent = class MediaCaptureEvent extends Event
+{
+    constructor(type, cancelable, game)
+    {
+        super(type, { cancelable: cancelable });
+        this.game = game;
+    }
+};
+this.MediaCaptureBeforeEvent = class MediaCaptureBeforeEvent extends MediaCaptureEvent
+{
+    constructor(
+        game, commandLine, filename, enableAudio, isCapturePass,
+        captureTime, mediaType, rotation, mirrorHorz, mirrorVert,
+        rc, dxgiOutputIndex, rcMonitor)
+    {
+        super("precapture", false, game);
+        this.commandLine = commandLine;
+        this.filename = filename;
+        this.enableAudio = enableAudio;
+        this.isCapturePass = isCapturePass;
+        this.captureTime = captureTime;
+        this.mediaType = mediaType;
+        this.rotation = rotation;
+        this.mirrorHorz = mirrorHorz;
+        this.mirrorVert = mirrorVert;
+        this.rc = rc;
+        this.dxgiOutputIndex = dxgiOutputIndex;
+        this.rcMonitor = rcMonitor;
+
+        this.cancelItem = false;
+        this.cancelBatch = false;
     }
 };
 

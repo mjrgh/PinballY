@@ -30,33 +30,36 @@
    A VARIANT is tagged with the specific type of value it's currently
    holding, so a caller can always determine how to properly
    interpret the value.  Only one type of value is stored in a given
-   VARIANT at any one time.  Setting it to a new value replaces the
-   old value and can change it to a new type.
+   VARIANT at any one time.  Setting a VARIANT to a new value replaces the
+   old value it was storing; the new value need not have the same type
+   as the old one.
 </p>
 <p>
-   VARIANTs are widely used in Windows
-   COM interfaces, especially in scripting-oriented interfaces designed to
-   interoperate with Visual Basic and ActiveX control hosts.
-   VARIANT is implemented in C/C++ code as a struct type, so in principle,
-   you could define the struct yourself in terms of the general-purpose
+   VARIANTs are widely used in Windows COM interfaces, especially in
+   scripting-oriented interfaces designed to interoperate with Visual Basic
+   and ActiveX control hosts.  The Microsoft C/C++ APIs define VARIANT
+   as a struct type, so in principle, you could define the corresponding
+   Javascript class yourself in terms of the general-purpose
    native type mechanisms provided by the DLL Importer.  But you
    wouldn't want to, because the raw VARIANT C struct is complex, tedious
-   to work with, and demands careful handling to manage its memory properly.
-   Microsoft really didn't design it to be human-programmer-friendly;
-   it was designed only for internal use by computer language processors.
-   As such, PinballY's Javascript provides the built-in "Variant" type that makes it much
-   easier to work with VARIANTs when you need them for COM calls or
-   other purposes.  The Javascript Variant object provides properties
-   for convenient conversion between Javascript and native types,
-   and it handles the required memory management details automatically.
+   to work with, and requires exceedingly careful handling to manage its memory
+   properly.   Microsoft didn't design it to be the least bit human-programmer-friendly;
+   it was designed entirely for internal use by computer language processors.
+   As such, PinballY's Javascript provides the built-in "Variant" type as
+   part of the language processor, to make it easy to work with VARIANTs
+   in Javascript code when you need them for COM calls or other purposes.
+   The Javascript Variant object provides properties for convenient conversion
+   between Javascript and native types, and it handles the required memory
+   management details automatically.
 </p>
 <p>
    The Variant type is really only intended for use with COM and other
-   native-code APIs that are written in terms of VARIANTs.  You probably
-   won't want to use Variants in purely Javascript code, as Variant does
-   essentially the same thing as Javascript's own built-in type system,
-   but less efficiently and less conveniently, since it's an external
-   object type.
+   native-code APIs that are take VARIANTs as arguments or return them as
+   results.  You probably won't want to use Variants anywhere else in
+   Javascript code, as Variant does essentially the same thing as Javascript's own
+   built-in type system, but less efficiently and less conveniently, since
+   it's an external object type that requires conversions to and from Javascript's
+   native types every time you use it.
 </p>
 
 <h2>Creation</h2>

@@ -609,21 +609,14 @@ void MainOptionsDialog::RefillPageTree()
 	// do the base class rebuild
 	__super::RefillPageTree();
 
-	// find the "System" parent item, and make sure it's expanded
+	// expand parent items
 	auto treeCtrl = GetPageTreeControl();
 	int nPages = GetTabControl()->GetItemCount();
 	for (int i = 0; i < nPages; ++i)
 	{
-		// is this a system page?
-		if (auto sysPage = dynamic_cast<SystemDialog*>(GetPage(i)); sysPage != nullptr)
-		{
-			// it's a system page - expand its parent item
-			treeCtrl->Expand(treeCtrl->GetParentItem(GetPageTreeItem(i)), TVE_EXPAND);
-
-			// we only need to do this for one system, since all of the systems
-			// share a common parent; so we can stop looking now
-			break;
-		}
+		// is this a parent page?
+		if (auto h = GetPageTreeItem(i); treeCtrl->ItemHasChildren(h))
+			treeCtrl->Expand(h, TVE_EXPAND);
 	}
 }
 

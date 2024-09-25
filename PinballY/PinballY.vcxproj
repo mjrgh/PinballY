@@ -307,6 +307,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     <ClInclude Include="BackglassWin.h" />
     <ClInclude Include="BaseWin.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Capture.h" />
     <ClInclude Include="CaptureConfigVars.h" />
     <ClInclude Include="CaptureStatusWin.h" />
     <ClInclude Include="CommonVertex.h" />

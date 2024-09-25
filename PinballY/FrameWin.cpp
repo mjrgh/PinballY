@@ -326,12 +326,12 @@ bool FrameWin::GetFullScreenRestorePosition(RECT *fullScreenPos, const RECT *pre
 		logrc.left, logrc.top, logrc.right, logrc.bottom);
 
 	// find the monitor containing the rectangle or window, as applicable
-	MONITORINFO mi = { sizeof(mi) };
 	HMONITOR hMonitor = preFullScreenPos != nullptr ?
 		MonitorFromRect(preFullScreenPos, MONITOR_DEFAULTTONEAREST) :
 		MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
 
 	// get the monitor descriptor
+	MONITORINFO mi = { sizeof(mi) };
 	if (GetMonitorInfo(hMonitor, &mi))
 	{
 		// got it 

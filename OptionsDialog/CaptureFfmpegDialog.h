@@ -57,6 +57,7 @@ public:
 protected:
 	DECLARE_MESSAGE_MAP()
 	afx_msg void OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnClickOptsHelp(NMHDR *pNMHDR, LRESULT *pResult);
 
 	// command handler
 	virtual BOOL OnCommand(WPARAM wParam, LPARAM lParam) override;

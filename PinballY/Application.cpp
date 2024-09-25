@@ -52,6 +52,7 @@
 #include "HighScores.h"
 #include "VLCAudioVideoPlayer.h"
 #include "RefTableList.h"
+#include "Capture.h"
 #include "CaptureStatusWin.h"
 #include "LogFile.h"
 #include "RealDMD.h"
@@ -2374,11 +2375,19 @@ void Application::GameMonitorThread::Prepare(
 		capture.startupDelay = captureStartupDelay * 1000;
 		capture.totalTime += capture.startupDelay;
 
+		// remember the custom command-line builder options
+		capture.customVideoSource = cfg->Get(ConfigVars::CaptureCustomVideoSource, _T(""));
+		capture.customVideoCodec = cfg->Get(ConfigVars::CaptureCustomVideoCodec, _T(""));
+		capture.customImageCodec = cfg->Get(ConfigVars::CaptureCustomImageCodec, _T(""));
+		capture.customAudioSource = cfg->Get(ConfigVars::CaptureCustomAudioSource, _T(""));
+		capture.customAudioCodec = cfg->Get(ConfigVars::CaptureCustomAudioCodec, _T(""));
+		capture.customGlobalOptions = cfg->Get(ConfigVars::CaptureCustomGlobalOptions, _T(""));
+
 		// remember the two-pass encoding option
 		capture.twoPassEncoding = cfg->GetBool(ConfigVars::CaptureTwoPassEncoding, false);
 
 		// remember the video codec for pass 1 of a two-pass recording
-		capture.vcodecPass1 = cfg->Get(ConfigVars::CaptureVidoCodecPass1, _T(""));
+		capture.vcodecPass1 = cfg->Get(ConfigVars::CaptureVideoCodecPass1, _T(""));
 		if (capture.vcodecPass1.length() == 0)
 			capture.vcodecPass1 = _T("-c:v libx264 -threads 8 -qp 0 -preset ultrafast");
 
@@ -2403,14 +2412,14 @@ void Application::GameMonitorThread::Prepare(
 			game->GetMediaItem(item.filename, item.mediaType, true);
 
 			// set the capture time, if specified, converting to milliseconds
-			if (auto cfgvar = item.mediaType.captureTimeConfigVar; cfgvar != nullptr)
-				item.captureTime = cfg->GetInt(cfgvar, 30) * 1000;
+			if (auto cfgVar = item.mediaType.captureTimeConfigVar; cfgVar != nullptr)
+				item.captureTime = cfg->GetInt(cfgVar, 30) * 1000;
 
 			// set the manual start/stop modes
-			if (auto cfgvar = item.mediaType.captureStartConfigVar; cfgvar != nullptr)
-				item.manualStart = _tcsicmp(cfg->Get(cfgvar, _T("auto")), _T("manual")) == 0;
-			if (auto cfgvar = item.mediaType.captureStopConfigVar; cfgvar != nullptr)
-				item.manualStop = _tcsicmp(cfg->Get(cfgvar, _T("auto")), _T("manual")) == 0;
+			if (auto cfgVar = item.mediaType.captureStartConfigVar; cfgVar != nullptr)
+				item.manualStart = _tcsicmp(cfg->Get(cfgVar, _T("auto")), _T("manual")) == 0;
+			if (auto cvgVar = item.mediaType.captureStopConfigVar; cvgVar != nullptr)
+				item.manualStop = _tcsicmp(cfg->Get(cvgVar, _T("auto")), _T("manual")) == 0;
 
 			// Add it to the total time, plus a couple of seconds of overhead 
 			// for launching ffmpeg.  Note that there's no way to guess how long
@@ -2453,6 +2462,10 @@ void Application::GameMonitorThread::Prepare(
 			POINT pt = { 0, 0 };
 			ClientToScreen(hwndView, &pt);
 			OffsetRect(&item.rc, pt.x, pt.y);
+
+			// Get the corresponding DXGI output index and monitor area, using
+			// the upper left of the window as the starting point.
+			item.dxgiOutputIndex = GetDXGIOutputIndex(pt, &item.rcMonitor);
 
 			// note if audio is required
 			if ((item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio)
@@ -4172,7 +4185,7 @@ DWORD Application::GameMonitorThread::Main()
 		// individual capture succeeded; it just means that we
 		// didn't run into a condition that ends the whole
 		// process, such as the game exiting prematurely.
-		for (auto &item: capture.items)
+		for (auto &item : capture.items)
 		{
 			// count the item attempted
 			nMediaItemsAttempted += 1;
@@ -4260,8 +4273,8 @@ DWORD Application::GameMonitorThread::Main()
 
 				// Wait for the start/stop event
 				HANDLE h[] = { startStopEvent, hGameProc, shutdownEvent, closeEvent };
-				static const TCHAR *hDesc[] = { 
-					_T("Started"), _T("game exited"), _T("PinballY shutting down"), _T("user pressed Exit Game button") 
+				static const TCHAR *hDesc[] = {
+					_T("Started"), _T("game exited"), _T("PinballY shutting down"), _T("user pressed Exit Game button")
 				};
 				switch (DWORD result = WaitForMultipleObjects(countof(h), h, FALSE, INFINITE))
 				{
@@ -4275,11 +4288,11 @@ DWORD Application::GameMonitorThread::Main()
 					// The game process exited, or the user canceled, or the program is exiting
 					captureOkay = false;
 					abortCapture = true;
-					LogFile::Get()->Write(LogFile::CaptureLogging, 
+					LogFile::Get()->Write(LogFile::CaptureLogging,
 						MsgFmt(_T("+ Capture aborted: %s while waiting for manual start\n"), hDesc[result - WAIT_OBJECT_0]));
 					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), LoadStringT(IDS_ERR_CAP_ITEM_INTERRUPTED).c_str()));
 					break;
-					
+
 				default:
 					// error waiting
 					captureOkay = false;
@@ -4357,16 +4370,13 @@ DWORD Application::GameMonitorThread::Main()
 			// transforms are mutually commutative, so it doesn't matter
 			// which one goes first.)
 			TSTRING transforms;
-			auto AddTransform = [&transforms, &item](const TCHAR *t) 
+			auto AddTransform = [&transforms, &item](const TCHAR *t)
 			{
 				// add visual transforms for visual media only
 				if (item.mediaType.format != MediaType::Audio)
 				{
-					// add the -vf switch before the first item; add commas
-					// before subsequent items
-					if (transforms.length() == 0)
-						transforms = _T("-vf \"");
-					else
+					// add commas between items items
+					if (transforms.length() != 0)
 						transforms += _T(",");
 
 					// add the new transform
@@ -4405,7 +4415,7 @@ DWORD Application::GameMonitorThread::Main()
 			{
 				// presume both dimensions are free (i.e., no resolution limit by default)
 				int xScale = -2, yScale = -2;
-				
+
 				// figure the capture dimensions
 				int width = item.rc.right - item.rc.left;
 				int height = item.rc.bottom - item.rc.top;
@@ -4471,71 +4481,154 @@ DWORD Application::GameMonitorThread::Main()
 					AddTransform(MsgFmt(_T("scale=%d:%d"), xScale, yScale));
 			}
 
-			// add the close quote to the transforms if applicable
-			if (transforms.length() != 0)
-				transforms += _T("\"");
+			// Set up the global options
+			const TCHAR *globalOpts = _T("");
+			if (capture.customGlobalOptions.size() != 0)
+				globalOpts = capture.customGlobalOptions.c_str();
+			else
+				globalOpts = _T("-y -loglevel warning -thread_queue_size 32 -probesize 30M")
+				IF_32_64(_T(""), _T(" -rtbufsize 2000M"));
 
-			// set up the image format options, if we're capturing a still
-			// image or a video
-			TSTRINGEx imageOpts;
+		// Set up the video input options, if we're capturing video or a still image
+			const TCHAR *videoSourceOpts = _T("");
 			switch (item.mediaType.format)
 			{
 			case MediaType::Image:
 			case MediaType::SilentVideo:
 			case MediaType::VideoWithAudio:
-				imageOpts.Format(
-					_T(" -f gdigrab")
-					_T(" -framerate 30")
-					_T(" -offset_x %d -offset_y %d -video_size %dx%d -i desktop"),
-					item.rc.left, item.rc.top, item.rc.right - item.rc.left, item.rc.bottom - item.rc.top);
+				// use the custom video input, or build the default if not provided
+				if (capture.customVideoSource.size() != 0)
+					videoSourceOpts = capture.customVideoSource.c_str();
+				else
+					videoSourceOpts = _T(" -f gdigrab -framerate 30")
+					_T(" -offset_x [left.desktop] -offset_y [top.desktop]")
+					_T(" -video_size [width]x[height] -i desktop");
 				break;
 			}
 
-			// if we're on a 64-bit build, use a very large realtime input 
-			// buffer to reduce the chance dropped frames
-			TSTRINGEx rtbufsizeOpts(IF_32_64(_T(""), _T("-rtbufsize 2000M")));
-
-			// set up format-dependent options
-			TSTRINGEx audioOpts;
-			TSTRINGEx timeLimitOpt;
-			TSTRINGEx acodecOpts;
+			// Set up the video or image codec options
+			const TCHAR *videoCodecOpts = _T("");
+			const TCHAR *videoCodecFirstPassOpts = _T("");
 			bool isVideo = false;
 			switch (item.mediaType.format)
 			{
-			case MediaType::Image:
-				// image capture - capture one frame only (-vframes 1)
-				timeLimitOpt = _T("-vframes 1");
-				break;
-
 			case MediaType::SilentVideo:
-				// video capture, no audio
-				isVideo = true;
-				if (!item.manualStop)
-					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
-				audioOpts = _T("-c:a none");
-				break;
-
 			case MediaType::VideoWithAudio:
-				// video capture with optional audio
-				isVideo = true;
-				if (!item.manualStop)
-					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
-				if (item.enableAudio)
-				{
-					acodecOpts.Format(_T("-c:a aac -b:a 128k"));
-					audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
-				}
+				// use the custom video codec options, or build the default if not provided
+				if (capture.customVideoCodec.size() != 0)
+					videoCodecOpts = capture.customVideoCodec.c_str();
 				else
-					audioOpts = _T("-c:a none");
+					videoCodecOpts = _T("[videoFilters]");
+
+				// use the custom first-pass video codec, or build the default if not provided
+				if (capture.vcodecPass1.size() != 0)
+					videoCodecFirstPassOpts = capture.vcodecPass1.c_str();
+				else
+					videoCodecFirstPassOpts = _T("-c:v libx264 -threads 8 -qp 0 -preset ultrafast");
+
+				// this is a video
+				isVideo = true;
 				break;
 
-			case MediaType::Audio:
-				// audio only
-				if (!item.manualStop)
-					timeLimitOpt.Format(_T("-t %d"), item.captureTime / 1000);
-				audioOpts.Format(_T("-f dshow -i audio=\"%s\""), audioCaptureDevice.c_str());
+			case MediaType::Image:
+				// use the custom image codec options, or build the default if not provided
+				if (capture.customImageCodec.size() != 0)
+					videoCodecOpts = capture.customImageCodec.c_str();
+				else
+					videoCodecOpts = _T("-frames:v 1 -update 1 [videoFilters]");
 				break;
 			}
+
+			// Set up the audio options, if we're capturing audio or video with audio
+			const TCHAR *audioSourceOpts = _T("");
+			const TCHAR *audioCodecOpts = _T("");
+			switch (item.mediaType.format)
+			{
+			case MediaType::VideoWithAudio:
+			case MediaType::Audio:
+				// set up the audio source
+				if (capture.customAudioSource.size() != 0)
+					audioSourceOpts = capture.customAudioSource.c_str();
+				else
+					audioSourceOpts = _T("-f dshow -i audio=\"[audioDevice]\"");
+
+				// set up the audio codec
+				if (capture.customAudioCodec.size() != 0)
+					audioCodecOpts = capture.customAudioCodec.c_str();
+				else
+					audioCodecOpts = _T("-c:a aac -b:a 128k -ac 2");
+
+				break;
+			}
+
+			// set up the time limit options for timed media (video, audio), if there's
+			// a fixed time limit instead of manual stop timing
+			TSTRINGEx timeLimitOpt;
+			if (!item.manualStop)
+			{
+				switch (item.mediaType.format)
+				{
+				case MediaType::SilentVideo:
+				case MediaType::VideoWithAudio:
+				case MediaType::Audio:
+					timeLimitOpt.Format(_T("-t %.2lf"), static_cast<double>(item.captureTime)/1000.0f);
+					break;
+				}
+			}
+
+			// form the -vf argument, if any transforms are selected
+			TSTRINGEx videoFilters;
+			if (transforms.size() != 0)
+				videoFilters.Format(_T("-vf \"%s\""), transforms.c_str());
+
+			// Get the DXGI monitor index containing the top left of the item window
+			RECT rcMonitor;
+			int dxgiOutputIndex = GetDXGIOutputIndex({ item.rc.left , item.rc.top }, &rcMonitor);
+
+			// Build the substitution variable map
+			static auto const IntVar = [](int i) { TSTRINGEx s; s.Format(_T("%d"), i); return s; };
+			std::unordered_map<TSTRING, TSTRING> varMap{
+				{ _T("top.desktop"), IntVar(item.rc.top) },
+				{ _T("left.desktop"), IntVar(item.rc.left) },
+				{ _T("right.desktop"), IntVar(item.rc.right) },
+				{ _T("bottom.desktop"), IntVar(item.rc.bottom) },
+				{ _T("width.desktop"), IntVar(item.rc.right - item.rc.left) },
+				{ _T("height.desktop"), IntVar(item.rc.bottom - item.rc.top) },
+				{ _T("width"), IntVar(item.rc.right - item.rc.left) },     // alias for width.desktop
+				{ _T("height"), IntVar(item.rc.bottom - item.rc.top) }, // alias for height.desktop
+				{ _T("left.monitor"), IntVar(item.rc.left - rcMonitor.left) },
+				{ _T("top.monitor"), IntVar(item.rc.top - rcMonitor.top) },
+				{ _T("right.monitor"), IntVar(min(item.rc.right, rcMonitor.right) - rcMonitor.left) },
+				{ _T("bottom.monitor"), IntVar(min(item.rc.bottom, rcMonitor.bottom) - rcMonitor.top) },
+				{ _T("width.monitor"), IntVar(min(item.rc.right, rcMonitor.right) - item.rc.left) },
+				{ _T("height.monitor"), IntVar(min(item.rc.bottom, rcMonitor.bottom) - item.rc.top) },
+				{ _T("monitorIndex"), IntVar(dxgiOutputIndex) },
+				{ _T("audioDevice"), audioCaptureDevice },
+				{ _T("videoTransforms"), transforms.size() == 0 ? _T("null") : transforms },
+				{ _T("videoFilters"), videoFilters },
+			};
+
+			// Apply variable substitutions for custom command options
+			auto SubVars = [&transforms, &varMap, this](const TCHAR *str) -> TSTRING
+			{
+				return regex_replace(str, std::basic_regex<TCHAR>(_T("\\[\\[|\\]\\]|\\[([a-z0-9_.]+)\\]"), std::regex_constants::icase),
+					[&varMap](const std::match_results<TSTRING::const_iterator> &m) -> TSTRING
+				{
+					// check for [[ and ]] (literal square bracket) sequences
+					if (m[0].str() == _T("[["))
+						return _T("[");
+					else if (m[0].str() == _T("]]"))
+						return _T("]");
+
+					// Look up the variable.  If found, return the corresponding substitution
+					// text; otherwise just return the original variable string unchanged,
+					// including the brackets.
+					if (auto it = varMap.find(m[1].str()); it != varMap.end())
+						return it->second;
+					else
+						return m[0].str();
+				});
+			};
 
 			// Build the FFMPEG command line for either normal one-pass mode or 
 			// two-pass video mode.
@@ -4566,38 +4659,51 @@ DWORD Application::GameMonitorThread::Main()
 					tmpfile = buf;
 				}
 
-				// Build the first-pass command line
-				cmdline1.Format(_T("\"%s\" -y -loglevel warning -thread_queue_size 32")
-					_T(" %s %s %s")
-					_T(" -probesize 30M")
-					_T(" %s %s %s")
-					_T(" \"%s\""),
+				// First pass.  This captures video and encodes it using a
+				// minimal compression codec, saving the result to a temporary file.
+				cmdline1.Format(
+					_T("\"%s\"")		// ffmpeg
+					_T(" %s")			// global options
+					_T(" %s %s")		// video + audio source
+					_T(" %s %s")		// pass 1 video codec, audio codec
+					_T(" %s")			// time limit options
+					_T(" \"%s\""),		// output to temp file
 					ffmpeg,
-					imageOpts.c_str(), audioOpts.c_str(), timeLimitOpt.c_str(),
-					rtbufsizeOpts.c_str(), acodecOpts.c_str(), capture.vcodecPass1.c_str(),
+					SubVars(globalOpts).c_str(),
+					SubVars(videoSourceOpts).c_str(), SubVars(audioSourceOpts).c_str(),
+					SubVars(videoCodecFirstPassOpts).c_str(), SubVars(audioCodecOpts).c_str(),
+					timeLimitOpt.c_str(),
 					tmpfile.c_str());
 
-				// Format the command line for the second pass while we're here
-				cmdline2.Format(_T("\"%s\" -y -loglevel warning")
-					_T(" -i \"%s\"")
-					_T(" %s -c:a copy -max_muxing_queue_size 1024")
-					_T(" \"%s\""),
+				// Second pass.  Read from the temp file and compress using the
+				// actual video codec.
+				cmdline1.Format(
+					_T("\"%s\"")		// ffmpeg
+					_T(" %s")			// global options
+					_T(" -i \"%s\"")	// input from temp file
+					_T(" %s -c:a copy -max_muxing_queue_size 1024")	// video codec, copy audio codec
+					_T(" \"%s\""),		// final output file
 					ffmpeg,
+					SubVars(globalOpts).c_str(),
 					tmpfile.c_str(),
-					transforms.c_str(), 
+					SubVars(videoCodecOpts).c_str(),
 					item.filename.c_str());
 			}
 			else
 			{
-				// normal one-pass encoding - include all options and encode
-				// directly to the desired output file
-				cmdline1.Format(_T("\"%s\" -y -loglevel warning -probesize 30M -thread_queue_size 32")
-					_T(" %s %s")
-					_T(" %s %s %s %s")
-					_T(" \"%s\""),
-					ffmpeg, 
-					imageOpts.c_str(), audioOpts.c_str(), acodecOpts.c_str(),
-					transforms.c_str(), timeLimitOpt.c_str(), rtbufsizeOpts.c_str(),
+				// build from the custom options
+				cmdline1.Format(
+					_T("\"%s\"")			// ffmpeg
+					_T(" %s")				// global options
+					_T(" %s %s")			// video source, audio source
+					_T(" %s %s")			// video codec, audio codec
+					_T(" %s")				// time limit options
+					_T(" \"%s\""),			// output file
+					ffmpeg,
+					SubVars(globalOpts).c_str(),
+					SubVars(videoSourceOpts).c_str(), SubVars(audioSourceOpts).c_str(),
+					SubVars(videoCodecOpts).c_str(), SubVars(audioCodecOpts).c_str(),
+					timeLimitOpt.c_str(),
 					item.filename.c_str());
 			}
 
@@ -4610,7 +4716,7 @@ DWORD Application::GameMonitorThread::Main()
 			// attention to Manual Stop mode on the actual capture pass, not on
 			// subsequent encoding passes.
 			auto RunFFMPEG = [this, &statusList, &curStatus, &item, &itemDesc, &captureOkay, &abortCapture, &nMediaItemsOk]
-				(TSTRINGEx &cmdline, bool logSuccess, bool isCapturePass)
+			(TSTRINGEx &cmdline, bool logSuccess, bool isCapturePass)
 			{
 				// presume failure
 				bool result = false;
@@ -4623,10 +4729,14 @@ DWORD Application::GameMonitorThread::Main()
 					if (log)
 					{
 						LogFile::Get()->Group();
-						LogFile::Get()->Write(_T("Media capture: %s: launching FFMPEG\n> %s\n"),
+						LogFile::Get()->Write(_T("Media capture: %s: launching ffmpeg with command line:\n> %s\n"),
 							curStatus.c_str(), cmdline.c_str());
 					}
 				};
+
+				// give Javascript a crack at customizing the command line
+				PlayfieldView::PreCaptureReport report(gameId, capture, item, isCapturePass, cmdline.c_str());
+				playfieldView->SendMessage(PFVMsgPreCapture, 0, reinterpret_cast<LPARAM>(&report));
 
 				// log the command line information if logging is enabled
 				LogCommandLine(LogFile::Get()->IsFeatureEnabled(LogFile::CaptureLogging));
@@ -4715,7 +4825,7 @@ DWORD Application::GameMonitorThread::Main()
 
 				// launch the process
 				PROCESS_INFORMATION procInfo;
-				if (CreateProcess(NULL, cmdline.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW, 
+				if (CreateProcess(NULL, cmdline.data(), NULL, NULL, TRUE, CREATE_NO_WINDOW,
 					NULL, NULL, &startupInfo, &procInfo))
 				{
 					// ffmpeg launched successfully.  Put the handles in holders
@@ -4918,7 +5028,7 @@ DWORD Application::GameMonitorThread::Main()
 					// by setting the 'abort' flag.
 					WindowsErrorMessage err;
 					LogFile::Get()->Write(LogFile::CaptureLogging, _T("+ FFMPEG launch failed: Win32 error %d, %s\n"), err.GetCode(), err.Get());
-					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(),	MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_LAUNCH, err.Get()).Get()));
+					statusList.Error(MsgFmt(_T("%s: %s"), itemDesc.c_str(), MsgFmt(IDS_ERR_CAP_ITEM_FFMPEG_LAUNCH, err.Get()).Get()));
 					captureOkay = false;
 					abortCapture = true;
 				}

@@ -5,6 +5,7 @@
 #include <winsafer.h>
 #include <Shlwapi.h>
 #include <ShlObj.h>
+#include <dxgi.h>
 #include <commdlg.h>
 #include <Dlgs.h>
 #include <math.h>
@@ -15,6 +16,7 @@
 #include "Pointers.h"
 
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "dxgi.lib")
 
 
 void ForceRectIntoWorkArea(RECT &rc, bool clip)
@@ -133,6 +135,52 @@ bool ValidateFullScreenLayout(const RECT &rc)
 	// return the results
 	return ctx.ok;
 }
+
+// -----------------------------------------------------------------------
+//
+// DXGI output index search.  This identifies the monitor that contains
+// a given desktop coordinate, within DXGI's numbered output list.
+//
+int GetDXGIOutputIndex(POINT pt, RECT *rcDesktop)
+{
+	// create a factory
+	RefPtr<IDXGIFactory> factory;
+	if (!SUCCEEDED(CreateDXGIFactory(__uuidof(IDXGIFactory), reinterpret_cast<void**>(&factory))))
+		return -1;
+
+	// scan adapters
+	int globalOutputNum = 0;
+	for (UINT adapterNum = 0 ; ; ++adapterNum)
+	{
+		// get the next adapter; if we've reached the end of the list, return failure,
+		// since we didn't find the requested point anywhere
+		RefPtr<IDXGIAdapter> adapter;
+		if (!SUCCEEDED(factory->EnumAdapters(adapterNum, &adapter)))
+			return -1;
+
+		// scan this adapter's outputs (these are the physical monitors)
+		for (UINT localOutputNum = 0 ; ; ++localOutputNum, ++globalOutputNum)
+		{
+			// get the next output; stop the adapter scan at end of list
+			RefPtr<IDXGIOutput> output;
+			if (!SUCCEEDED(adapter->EnumOutputs(localOutputNum, &output)))
+				break;
+
+			// get this monitor's info
+			DXGI_OUTPUT_DESC desc{ 0 };
+			if (SUCCEEDED(output->GetDesc(&desc)) && PtInRect(&desc.DesktopCoordinates, pt))
+			{
+				// fill in the caller's desktop coordinates struct, if provided
+				if (rcDesktop != nullptr)
+					*rcDesktop = desc.DesktopCoordinates;
+
+				// return the output index
+				return globalOutputNum;
+			}
+		}
+	}
+}
+
 
 // -----------------------------------------------------------------------
 //

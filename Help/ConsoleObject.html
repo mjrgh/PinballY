@@ -114,9 +114,14 @@ console.log("This is a log messages!");
       format the corresponding argument.  The main format codes are:
    </p>
    <ul>
-      <li><b>%o</b> or <b>%O</b>: object format.  The corresponding
+      <li><b>%O</b>: object format.  The corresponding
       argument is treated as an object and converted to a string with
-      toString, then substituted for the %o or %O.
+      toString(), and the result is substituted for the %O.  null and
+      undefined and rendered as "null" and "undefined", respectively.
+
+      <li><b>%o</b>: octal <i>or</i> object format.  If the argument is
+      an object, this acts like %O, with the object converted to string
+      via toString().  Otherwise, this 
 
       <li><b>%d</b> or <b>%i</b>: decimal integer format.  The corresponding
       argument is formatted as an integer (any fractional part is
@@ -128,11 +133,28 @@ console.log("This is a log messages!");
       hex digits A-F in lower-case, while %X renders them in
       upper-case.
 
+      <li><b>%b</b>: binary integer format.  The argument is formatted
+      as any integer (truncating any fractional part) in base 2.
+
       <li><b>%f</b>: floating point format.  The argument is formatted
       as a floating point number value.
 
-      <li><b>%s</b>: string.  The string value of the argument is
-      substituted.
+      <li><b>%s</b>: string.  If the argument isn't a string, it's converted
+      to string via toString().
+
+      <li><b>%S</b>: string, but with more explicit conversions for arguments
+      that aren't already strings.  Non-string arguments are converted to a
+      format that's designed to help with troubleshooting, by listing the
+      properties of objects, and showing the exact types of the Javascript
+      "falsy" values:
+      <ul class="compact">
+         <li>numbers are converted using the normal Javascript toString() default formatting
+         <li>booleans are converted to "true" or "false"
+         <li>null is converted to "null"
+         <li>undefined is converted to "undefined"
+         <li>arrays are formatted as a list of values enclosed in square brackets
+         <li>objects are formatted as a list of "property: value" pairs enclosed in curly braces
+      </ul>
 
       <li><b>%%</b>: a single "%" sign is substituted.  Use this to
       insert a literal "%" in the result string.
@@ -164,10 +186,15 @@ console.log("This is a log messages!");
          negative values use the same overall width).  E.g., "%&nbsp;d"
          formats 100 as "&nbsp;100" (note the leading space).
 
-      <li><b>#</b>: for %x or %X format, add "0x" or "0X" (respectively)
-         as a prefix to the displayed value, to match the way a hex number
-         would appear in Javascript source code.  E.g., "%#x" formats
-         100 as "0x64".
+      <li><b>#</b>: for the non-decimal numeric format codes, adds a C++/Javascript-style
+      prefix to indicate the radix:
+      <table class="veryCompact dataTable" style="margin: 1ex;">
+         <tr><th>Format</th><th>Prefix</th><th>Example</th></tr>
+         <tr><td>%#b</td><td>0b</td><td>0b1011011</td></tr>
+         <tr><td>%#o</td><td>0</td><td>01777</td></tr>
+         <tr><td>%#x</td><td>0x</td><td>0x9f07</td></tr>
+         <tr><td>%#X</td><td>0X</td><td>0X9F0A</td></tr>
+      </table>
 
       <li><b>0</b>: for numeric types, if padding is required by the width
          specifier, use leading zeroes instead of spaces.  For example,

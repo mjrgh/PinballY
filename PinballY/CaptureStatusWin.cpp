@@ -156,44 +156,51 @@ RECT CaptureStatusWin::GetCreateWindowPos(int &nCmdShow)
 
 void CaptureStatusWin::PositionOver(FrameWin *win)
 {
-	CriticalSectionLocker locker(lock);
+	int x = 0, y = 0;
+	int width = 0, height = 0;
 
-	// if the desired window isn't visible, hide the status box entirely
-	if (!IsWindowVisible(win->GetHWnd()))
+	// hold the critical section lock while accessing internals
 	{
-		ShowWindow(hWnd, SW_HIDE);
-		return;
+		CriticalSectionLocker locker(lock);
+
+		// if the desired window isn't visible, hide the status box entirely
+		if (!IsWindowVisible(win->GetHWnd()))
+		{
+			ShowWindow(hWnd, SW_HIDE);
+			return;
+		}
+
+		// get the window rect
+		RECT overrc;
+		GetWindowRect(win->GetHWnd(), &overrc);
+
+		// set our rotation to match the window we're over
+		bool inval = false;
+		auto view = dynamic_cast<D3DView*>(win->GetView());
+		float newRot = (float)view->GetRotation();
+		if (newRot != rotation)
+			rotation = newRot, inval = true;
+
+		// set our mirroring to match the window we're over
+		if (auto mv = view->IsMirrorVert(); mv != mirrorVert)
+			mirrorVert = mv, inval = true;
+		if (auto mh = view->IsMirrorHorz(); mh != mirrorHorz)
+			mirrorHorz = mh, inval = true;
+
+		// invalidate the drawing area if we changed anything
+		if (inval)
+			InvalidateRect(hWnd, NULL, FALSE);
+
+		// figure the window width and height for the rotation
+		width = winWidth;
+		height = winHeight;
+		if (newRot == 90 || newRot == 270)
+			width = winHeight, height = winWidth;
+
+		// center it over the new window
+		x = (overrc.right + overrc.left - width) / 2;
+		y = (overrc.bottom + overrc.top - height) / 2;
 	}
-
-	// get the window rect
-	RECT overrc;
-	GetWindowRect(win->GetHWnd(), &overrc);
-
-	// set our rotation to match the window we're over
-	bool inval = false;
-	auto view = dynamic_cast<D3DView*>(win->GetView());
-	float newRot = (float)view->GetRotation();
-	if (newRot != rotation)
-		rotation = newRot, inval = true;
-
-	// set our mirroring to match the window we're over
-	if (auto mv = view->IsMirrorVert(); mv != mirrorVert)
-		mirrorVert = mv, inval = true;
-	if (auto mh = view->IsMirrorHorz(); mh != mirrorHorz)
-		mirrorHorz = mh, inval = true;
-
-	// invalidate the drawing area if we changed anything
-	if (inval)
-		InvalidateRect(hWnd, NULL, FALSE);
-
-	// figure the window width and height for the rotation
-	int width = winWidth, height = winHeight;
-	if (newRot == 90 || newRot == 270)
-		width = winHeight, height = winWidth;
-
-	// center it over the new window
-	int x = (overrc.right + overrc.left - width) / 2;
-	int y = (overrc.bottom + overrc.top - height) / 2;
 
 	// reposition it
 	SetWindowPos(hWnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);

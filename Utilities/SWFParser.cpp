@@ -505,7 +505,7 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			break;
 
 		case 65:  // ScriptLimits
-			// scripting is not imlemented - ignore
+			// scripting is not implemented - ignore
 			break;
 
 		case 66:  // SetTabIndex
@@ -579,6 +579,14 @@ bool SWFParser::ParseFrame(ErrorHandler &eh)
 			// Skip the record data
 			reader.SkipBytes(tagHdr.len);
 			break;
+
+		// For documentation, some cases we definitely don't want to handle.
+		// (Leave these COMMENTED OUT so that they actually go to the default
+		// case, to generate "unhandled" logging.  These are listed purely to
+		// mention the names of the associated type codes.)
+		// 
+		// case 12:  // DoAction - explicitly not handled;
+		//     GO TO DEFAULT CASE;
 		}
 
 		// Figure how many bytes we consumed, and skip any remaining

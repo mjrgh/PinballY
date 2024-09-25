@@ -27,6 +27,7 @@
 #include "GameList.h"
 #include "JavascriptEngine.h"
 #include "FontPref.h"
+#include "Capture.h"
 
 class Sprite;
 class TextureShader;
@@ -263,6 +264,37 @@ public:
 		{}
 
 		INT64 runTime_ms;
+	};
+
+	// Pre-capture report, for PFVMsgPreCapture
+	struct PreCaptureReport
+	{
+		PreCaptureReport(LONG gameInternalID, 
+			const CaptureInfo &captureInfo, const CaptureItemDesc &captureItem,
+			bool isCapturePass, const TCHAR *ffmpegCommandLine) :
+			gameInternalID(gameInternalID), 
+			captureInfo(captureInfo),
+			captureItem(captureItem),
+			ffmpegCommandLine(ffmpegCommandLine) 
+		{}
+
+		LONG gameInternalID;					// game config ID
+		const CaptureInfo &captureInfo;			// settings for the current capture job
+		bool isCapturePass;						// running the capture pass (true for single pass, or first pass of two-pass capture/encode process)
+		const CaptureItemDesc &captureItem;		// capture settings for the current media item
+
+		// ffmpeg command line.  The sender (the launcher thread, which is
+		// carrying out the capture operation) initializes this with the 
+		// proposed command line that it builds based on the configured
+		// capture options and the current item type.  The javascript event
+		// handler can update this with a new string to use instead (or it
+		// can just leave the original one unchanged).
+		TSTRING ffmpegCommandLine;
+
+		// Cancel flags.  The javascript event handler can set these to
+		// prevent the individual item capture, or abort the whole batch.
+		bool cancelItem = false;
+		bool cancelBatch = false;
 	};
 
 	// Capture Done report, for PFVMsgCaptureDone
@@ -823,6 +855,9 @@ protected:
 
 	// begin media capture using the menu selections
 	void CaptureMediaGo();
+
+	// process a pre-capture event report from the launch thread
+	void OnPreCapture(PreCaptureReport *report);
 
 	// process a capture done report from the launch thread
 	void OnCaptureDone(const CaptureDoneReport *report);
@@ -2989,6 +3024,7 @@ protected:
 	JsValueRef jsMediaSyncBeginEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsMediaSyncLoadEvent = JS_INVALID_REFERENCE;
 	JsValueRef jsMediaSyncEndEvent = JS_INVALID_REFERENCE;
+	JsValueRef jsMediaCaptureBeforeEvent = JS_INVALID_REFERENCE;
 
 	// Fire javascript events.  These return true if the caller should
 	// proceed with the event, false if the script wanted to block the

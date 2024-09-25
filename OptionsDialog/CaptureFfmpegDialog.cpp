@@ -5,6 +5,7 @@
 #include "resource.h"
 #include "OptionsDialog.h"
 #include "CaptureFfmpegDialog.h"
+#include "../PinballY/CaptureConfigVars.h"
 #include "../Utilities/Config.h"
 #include "../Utilities/AudioCapture.h"
 
@@ -12,6 +13,7 @@ IMPLEMENT_DYNAMIC(CaptureFfmpegDialog, OptionsPage)
 
 BEGIN_MESSAGE_MAP(CaptureFfmpegDialog, OptionsPage)
 	ON_NOTIFY(NM_CLICK, IDC_LINK_AUDIO_HELP, OnClickAudioHelp)
+	ON_NOTIFY(NM_CLICK, IDC_LINK_FFMPEG_OPTS_HELP, OnClickOptsHelp)
 END_MESSAGE_MAP()
 
 CaptureFfmpegDialog::CaptureFfmpegDialog(int dialogId) :
@@ -39,11 +41,17 @@ BOOL CaptureFfmpegDialog::OnInitDialog()
 
 void CaptureFfmpegDialog::InitVarMap()
 {
-	varMap.emplace_back(new CkBoxMap(_T("Capture.TwoPassEncoding"), IDC_CK_TWO_PASS_CAPTURE, false));
-	varMap.emplace_back(new EditStrMap(_T("Capture.TempFolder"), IDC_EDIT_TEMPFOLDER, _T("")));
-	varMap.emplace_back(new AudioDeviceMap(_T("Capture.AudioDevice"), IDC_CB_AUDIO_CAPTURE));
-	varMap.emplace_back(new CkBoxEnumMap(_T("Capture.VideoResolutionLimit"), IDC_CK_LIMIT_TO_HD, _T("none"), _T("hd"), false));
-	varMap.emplace_back(new EditStrMap(_T("Capture.VideoCodecPass1"), IDC_EDIT_VCODECPASS1, _T("")));
+	varMap.emplace_back(new CkBoxMap(ConfigVars::CaptureTwoPassEncoding, IDC_CK_TWO_PASS_CAPTURE, false));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureTempFolder, IDC_EDIT_TEMPFOLDER, _T("")));
+	varMap.emplace_back(new AudioDeviceMap(ConfigVars::CaptureAudioDevice, IDC_CB_AUDIO_CAPTURE));
+	varMap.emplace_back(new CkBoxEnumMap(ConfigVars::CaptureVideoResLimit, IDC_CK_LIMIT_TO_HD, _T("none"), _T("hd"), false));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureVideoCodecPass1, IDC_EDIT_VCODECPASS1, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomVideoSource, IDC_EDIT_VIDEO_SOURCE_OPTS, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomVideoCodec, IDC_EDIT_VIDEO_CODEC_OPTS, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomImageCodec, IDC_EDIT_IMAGE_CODEC_OPTS, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomAudioSource, IDC_EDIT_AUDIO_SOURCE_OPTS, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomAudioCodec, IDC_EDIT_AUDIO_CODEC_OPTS, _T("")));
+	varMap.emplace_back(new EditStrMap(ConfigVars::CaptureCustomGlobalOptions, IDC_EDIT_GLOBAL_OPTS, _T("")));
 }
 
 BOOL CaptureFfmpegDialog::OnCommand(WPARAM wParam, LPARAM lParam)
@@ -64,6 +72,14 @@ afx_msg void CaptureFfmpegDialog::OnClickAudioHelp(NMHDR *pNMHDR, LRESULT *pResu
 {
 	if (auto par = dynamic_cast<OptionsDialog*>(GetParent()); par != nullptr)
 		par->ShowHelpPage(_T("CaptureOptions_AudioDevice.html"));
+
+	*pResult = 0;
+}
+
+afx_msg void CaptureFfmpegDialog::OnClickOptsHelp(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	if (auto par = dynamic_cast<OptionsDialog*>(GetParent()); par != nullptr)
+		par->ShowHelpPage(_T("CaptureOptions_CommandLine.html"));
 
 	*pResult = 0;
 }
