@@ -51,15 +51,28 @@
    them from the resulting video) when it can't keep up with the
    live video rate.  Dropped frames are visible as momentary
    freezes when you play back the video, which can make the
-   video look choppy or jerky.  If this happens on your machine,
+   video look choppy or jerky.  What's more, the game itself might
+   not be able to run at full speed when the CPU is bogged down
+   with video encoding work, making the game play look choppy
+   even before capture, which will also pass through to the
+   captured video.
+</p>
+<p>
+   If you have any of these sorts of problems with captured video,
    you can try two-pass encoding instead.  Two-pass encoding
-   initially captures the video frames without any compression,
-   which can usually be done without any dropped frames even on
-   slower machines.  It then goes back and re-encodes the video
-   to a compressed format after the full capture has finished.
-   This takes longer overall because of the separate second pass,
-   but should eliminate (or at least greatly reduce) dropped
-   frames in the resulting video.
+   initially captures the video frames with minimal compression,
+   which reduces the CPU load required to the point that a slower
+   machine can keep up with the work.  After this initial
+   minimal-compression pass is completed, PinballY goes back and
+   re-encodes the captured video at a more normal compression rate.
+   Since this second pass works from the temporary file saved during
+   the first pass, it doesn't have to keep up with the game in real
+   time; it's just reading from a file, so it can take as long as it
+   needs.  And the CPU load during the second pass doesn't affect the
+   game, since it only occurs after the game session has ended, so it
+   doesn't matter if the compression job hogs most of the CPU power.
+   This whole process obviously can take a lot longer overall, but if
+   you don't mind the added time, you can get better video results.
 </p>
 <p>
    Optimization tip:

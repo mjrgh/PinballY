@@ -1,5 +1,13 @@
 PinballY Update History
 
+TBD (1.1.0 Beta 10)
+
+* Fixed a couple of problems with media capture (introduced in the
+recent reworking of the capture options in 1.1.0 beta 9), one causing
+errors in two-pass video capture, and the other causing audio source
+options to be incorrectly included in the ffmpeg command line when
+capturing silent video.  (Issue #244 on github.)
+
 
 09-25-2024 (1.1.0 Beta 9)
 

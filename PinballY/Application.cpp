@@ -4542,10 +4542,9 @@ DWORD Application::GameMonitorThread::Main()
 			// Set up the audio options, if we're capturing audio or video with audio
 			const TCHAR *audioSourceOpts = _T("");
 			const TCHAR *audioCodecOpts = _T("");
-			switch (item.mediaType.format)
+			if ((item.mediaType.format == MediaType::VideoWithAudio && item.enableAudio)
+				|| item.mediaType.format == MediaType::Audio)
 			{
-			case MediaType::VideoWithAudio:
-			case MediaType::Audio:
 				// set up the audio source
 				if (capture.customAudioSource.size() != 0)
 					audioSourceOpts = capture.customAudioSource.c_str();
@@ -4557,8 +4556,6 @@ DWORD Application::GameMonitorThread::Main()
 					audioCodecOpts = capture.customAudioCodec.c_str();
 				else
 					audioCodecOpts = _T("-c:a aac -b:a 128k -ac 2");
-
-				break;
 			}
 
 			// set up the time limit options for timed media (video, audio), if there's
@@ -4677,7 +4674,7 @@ DWORD Application::GameMonitorThread::Main()
 
 				// Second pass.  Read from the temp file and compress using the
 				// actual video codec.
-				cmdline1.Format(
+				cmdline2.Format(
 					_T("\"%s\"")		// ffmpeg
 					_T(" %s")			// global options
 					_T(" -i \"%s\"")	// input from temp file

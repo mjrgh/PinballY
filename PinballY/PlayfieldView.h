@@ -293,7 +293,7 @@ public:
 
 		// Cancel flags.  If the Javascript event handler calls 
 		// event.preventDefault(), we'll set cancelItem to cancel the
-		// indidivual capture item.  If the event handler sets 
+		// individual capture item.  If the event handler sets 
 		// event.cancelBatch to true, we'll set cancelBatch to true,
 		// to cancel the remainder of the batch capture.
 		bool cancelItem = false;
@@ -3380,7 +3380,7 @@ protected:
 	// set an underlay
 	bool JsSetUnderlay(WSTRING filename, JavascriptEngine::JsObj options);
 
-	// Javacript configuration access
+	// Javascript configuration access
 	template<typename T, T (*conv)(const TCHAR*)>
 	JsValueRef JsSettingsGet(WSTRING varname, JsValueRef jsdefval);
 
