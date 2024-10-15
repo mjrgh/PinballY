@@ -17,7 +17,7 @@
 //
 #define PINBALLY_VERSION            "1.1.0"
 #define PINBALLY_RELEASE_STATUS     STATUS_BETA
-#define PINBALLY_PRERELEASE_SEQNO   9
+#define PINBALLY_PRERELEASE_SEQNO   10
 #define PINBALLY_COPYRIGHT_OWNERS   "Michael J Roberts"
 #define PINBALLY_FORK_ID            ""
 

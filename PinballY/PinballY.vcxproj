@@ -113,7 +113,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;ManifestCompatibility.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
@@ -146,7 +146,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;ManifestCompatibility.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
@@ -184,7 +184,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;ManifestCompatibility.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
@@ -221,7 +221,7 @@ echo $(SolutionDir)&gt; "$(OutDir).DevEnvironment
     </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>false</EnableDpiAwareness>
-      <AdditionalManifestFiles>ManifestDPIAwareness.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
+      <AdditionalManifestFiles>ManifestDPIAwareness.xml;ManifestCompatibility.xml;..\VersionInfoUpdater\Generated\ManifestVersionInfo.xml</AdditionalManifestFiles>
     </Manifest>
     <PostBuildEvent>
       <Command>xcopy /y /d "..\ChakraCore\$(PlatformTarget)\lib\ChakraCore.dll" "$(OutDir)"
