@@ -6,6 +6,7 @@ rem
 
 rem Clean old builds
 echo ^>^>^> Removing old builds
+del VersionInfoUpdater\Generated\VersionInfo.cpp
 msbuild PinballY.sln -t:Clean -p:Configuration=Release;Platform=x86 -v:q -nologo
 if errorlevel 1 goto abort
 msbuild PinballY.sln -t:Clean -p:Configuration=Release;Platform=x64 -v:q -nologo
