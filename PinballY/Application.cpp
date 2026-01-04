@@ -5954,7 +5954,7 @@ DWORD Application::NewFileScanThread::Main()
 	{
 		// Scan this folder for files matching the extension for this set
 		const TCHAR *ext = d.ext.c_str();
-		TableFileSet::ScanFolder(d.path.c_str(), d.ext.c_str(), [&d](const TCHAR *filename)
+		TableFileSet::ScanFolder(d.path.c_str(), d.path.c_str(), d.ext.c_str(), [&d](const TCHAR *filename)
 		{
 			// make the key by converting the name to lower-case
 			TSTRING key(filename);
