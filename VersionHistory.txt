@@ -1,5 +1,36 @@
 PinballY Update History
 
+TBD (1.1.0 Beta 11)
+
+* Added a new Javascript "pinscape" global object, providing a software
+interface to Pinscape controller units.  Currently, the object has just
+one property, nightMode, which lets you query and change the Night Mode
+status on attached controllers.  See Javascript Scripting > System
+Objects > pinscape in the help for details.
+
+* In the Startup options, the "Run command at startup/exit" now accepts
+a Windows shortcut (.lnk) file.  This is useful if you want to launch
+the program with its main UI window minimized or maximized.
+
+* Tweaked the auto-complete behavior in the Title field in the Edit
+Game Details dialog slightly, to make it more consistent with other
+Windows auto-complete text boxes, and especially to mitigate some
+annoying behavior that manifested when the game title happens to be a
+leading substring of some *other* game's name.  First, auto-complete
+is no longer triggered the instant that the Title field gains focus;
+it now waits for you to start editing the text in the box.  This
+avoids unwanted popups and text change proposals when you're just
+viewing the dialog or tabbing through its fields.  Second, the
+backspace key now cancels auto-complete, providing a quick way to say
+"just keep what I've type so far".  The Delete key does the same
+thing, and did in past versions as well, but it's more natural for the
+backspace key to work the same way.  (Addresses issue #248 on github.)
+
+* Changed the default audio capture command line to leave the output
+codec as the default for the format, rather than always specifying
+'aac' (which doesn't work with .mp3 output).  (ISsue #259 on github.)
+
+
 11-03-2024 (1.1.0 Beta 10)
 
 * Fixed a couple of problems with media capture (introduced in the
@@ -38,6 +69,8 @@ customize the ffmpeg invocation in even more complex ways than are
 possible through the option settings.  Since the event can completely
 rewrite the command line, it has access to everything that FFMPEG can
 do.
+
+* Updated libvlc (video playback library) to 3.0.21.
 
 
 09-21-2024 (1.1.0 Beta 8)

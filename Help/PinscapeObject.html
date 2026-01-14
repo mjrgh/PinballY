@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!-- This file is part of PinballY
+ Copyright 2024 Michael J Roberts | GPL v3 or later | NO WARRANTY -->
+<html>
+<head>
+   <title>PinballY Help</title>
+   <link rel="stylesheet" type="text/css" href="main.css">
+</head>
+<body>
+<script src="jquery-1.12.1.js" type="text/javascript"></script>
+<script src="PinballYHelp.js" type="text/javascript"></script>
+
+<h1>pinscape Object</h1>
+
+<p>
+   <b>pinscape</b> is a pre-defined PinballY object that provides access
+   to Pinscape Controller functions.  The object represents the overall
+   Pinscape software interface, covering any number of controller units
+   installed on the system, rather than being tied to a particular unit.
+</p>
+
+<h2>Event target</h2>
+
+<p>
+   <b>pinscape</b> is an event target,  so you can use the standard
+   event methods (on(), off(), addEventListener(), etc) to add and remove
+   event listeners.  See <a href="EventTarget.html">EventTarget</a>.
+</p>
+<p>
+   The object doesn't currently define any events, but it might in the future.
+</p>
+
+<div class="eventTargetTOC" data-eventtarget="pinscape"></div>
+
+<h2>Methods and properties</h2>
+
+<p>
+   The <b>pinscape</b> defines the following methods and properties.
+</p>
+
+<p>
+   <a name="nightMode"></a>
+   <b>pinscape.nightMode:</b>  This property lets you determine the
+   current Night Mode status on the Pinscape Controller device(s), and
+   lets you change the status.
+</p>
+<p>
+   When read, the property returns <tt>true</tt>
+   if any Pinscape units are currently in Night Mode, false if there are
+   no controllers attached, or if none of them are in night mode.  Note
+   that the property reads as <tt>true</tt> if <i>any</i> controllers are
+   in Night Mode, even if there are multiple controller present and they're
+   not <i>all</i> in Night Mode.  In most cases, the mode is turned on or
+   off across all controllers, so it's unusual for the status to be mixed
+   in practice, but if it is, the result is always <tt>true</tt> if even
+   one unit has Night Mode enabled.
+</p>
+<p>
+   When written, the property sets Night Mode status on all attached
+   controllers to the new value.  Set the property to <tt>true</tt> to
+   activate Night Mode on all controllers, and set it to <tt>false</tt>
+   to return all controllers to normal "day mode" status.
+</p>
+
+</body>
+</html>

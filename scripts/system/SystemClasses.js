@@ -1624,6 +1624,14 @@ this.gameList = new EventTarget();
 
 // ------------------------------------------------------------------------
 //
+// Pinscape object.  This provides access to Pinscape Controller units
+// attached to the system.
+//
+this.pinscape = new EventTarget();
+
+
+// ------------------------------------------------------------------------
+//
 // Native DLL interface
 //
 

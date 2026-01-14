@@ -101,10 +101,10 @@
 </p>
 <p>
    You wouldn't want to do this for most commands, but it's useful in
-   some limited cases.  In particular, the "Exit" and "Exit Game" commands
+   some limited cases.  In particular, the "Cancel/Escape" and "Exit Game" commands
    are usually mapped to the same key (usually the Escape key).  In this
    case, using the same key for both commands won't create any confusion,
-   because "Exit" and "Exit Game" operate in different contexts.
+   because "Cancel/Escape" and "Exit Game" operate in different contexts.
 </p>
 <p>
    The program will warn you any time you try to assign a new command
@@ -186,24 +186,30 @@
    <b>Cancel/Escape:</b>  This is the main "cancel" or "return" command
    throughout the user interface.  When a menu is visible, pressing
    Exit dismisses the menu (without activating any commands).
-   When a popup window is showing, Exit closes it.  When nothing
-   else is going on, Exit brings up the "Exit" menu, which shows
+   When a popup window is showing, this key closes it.  When nothing
+   else is going on, this key brings up the "Exit" menu, which shows
    options for exiting out of PinballY and a few other system
-   functions.  This command is normally assigned to the
-   Exit button on a pin cab, which is typically mapped to the Escape
-   key on the keyboard.
+   functions.
+</p>
+<p>
+   Virtual pin cabs usually feature a dedicated button for this function,
+   usually labeled "Exit".  At the hardware level, this is usually
+   mapped to the keyboard <b>Esc</b> (Escape) key.
 </p>
 <p>
    <div class="ButtonImage" style="background-position: -48px 0px;"></div>
    <b>Exit Game:</b>  When there's a game running, pressing
    this button terminates the game and returns to the PinballY
-   game list.  On pin cabs, this is usually assigned to the
-   "Exit" button, which is usually mapped to the Escape key
-   on the keyboard.  This is usually the same key or button
-   mapped for the Cancel/Escape command above, but the two
-   functions are separated into different commands in
-   case you want to map them as different buttons for
-   some reason.
+   game list.
+</p>
+<p>
+   This is usually assigned to the same physical button or key as the
+   Cancel/Escape command above.  The Cancel/Escape function only applies
+   when the PinballY user interface is active, and the Exit Game function only
+   applies when a game is running, so it's usually no problem to share the
+   same physical button between the two functions.  However, the two
+   functions are separated just in case you do need to use separate
+   physical buttons for some reason.
 </p>
 <p>
    <div class="ButtonImage" style="background-position: -72px 0px;"></div>

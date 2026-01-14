@@ -991,13 +991,6 @@ bool Application::RunCommand(const TCHAR *cmd,
 	if (phProcess != nullptr)
 		*phProcess = NULL;
 
-	// set up the startup info
-	STARTUPINFO startupInfo;
-	ZeroMemory(&startupInfo, sizeof(startupInfo));
-	startupInfo.cb = sizeof(startupInfo);
-	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-	startupInfo.wShowWindow = nShowCmd;
-
 	// CreateProcess requires a writable buffer for the command line, so
 	// copy it into a local string
 	TSTRING cmdStr = cmd;
@@ -1013,29 +1006,73 @@ bool Application::RunCommand(const TCHAR *cmd,
 		workingDir = appName.c_str();
 	}
 	
-	// launch the process
-	PROCESS_INFORMATION procInfo;
-	if (!CreateProcess(NULL, cmdStr.data(), NULL, NULL, false, 0, NULL,
-		workingDir, &startupInfo, &procInfo))
+	// Launch the process.  If it's a .lnk file, launch via the shell;
+	// otherwise launch it as a CreateProcess() command line.
+	HANDLE hProcess = NULL;
+	static const std::basic_regex<TCHAR> lnkPat(_T(".*\\.lnk\"?"), std::regex_constants::icase);
+	if (std::regex_match(cmdStr, lnkPat))
 	{
-		// failed to launch - show an error and abort
-		WindowsErrorMessage sysErr;
-		eh.SysError(LoadStringT(friendlyErrorStringId),
-			MsgFmt(_T("CreateProcess(%s) failed; system error %d: %s"), cmd, sysErr.GetCode(), sysErr.Get()));		
-		return false;
-	}
+		// .lnk - launch via ShellExecuteEx.  Note that the "verb" to
+		// open a .lnk is NULL.  ("open" doesn't work.  ShellExecuteEx
+		// seems to treat .lnk files as a special case, but only when
+		// the verb is NULL.  When you specify a verb, SEI skips the
+		// special case and looks up what .lnk -> "open" means in the
+		// registry list of file type associations, and fails with an
+		// error when it doesn't find one.)
+		SHELLEXECUTEINFO sei{ sizeof(sei) };
+		sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI ;
+		sei.lpVerb = NULL;
+		sei.lpFile = cmdStr.c_str();
+		sei.lpDirectory = workingDir;
+		sei.nShow = nShowCmd;
+		if (!ShellExecuteEx(&sei))
+		{
+			// failed - show an error and abort
+			WindowsErrorMessage sysErr;
+			eh.SysError(LoadStringT(friendlyErrorStringId),
+				MsgFmt(_T("ShellExecuteEx(%s) failed; system error %d: %s"), cmd, sysErr.GetCode(), sysErr.Get()));
+			return false;
+		}
 
-	// we don't need the thread handle for anything - close it immediately
-	CloseHandle(procInfo.hThread);
+		// get the process handle
+		hProcess = sei.hProcess;
+	}
+	else
+	{
+		// set up the startup info
+		STARTUPINFO startupInfo;
+		ZeroMemory(&startupInfo, sizeof(startupInfo));
+		startupInfo.cb = sizeof(startupInfo);
+		startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+		startupInfo.wShowWindow = nShowCmd;
+
+			// launch via CreateProcess, treating the string as a command line
+		PROCESS_INFORMATION procInfo;
+		if (!CreateProcess(NULL, cmdStr.data(), NULL, NULL, false, 0, NULL,
+			workingDir, &startupInfo, &procInfo))
+		{
+			// failed to launch - show an error and abort
+			WindowsErrorMessage sysErr;
+			eh.SysError(LoadStringT(friendlyErrorStringId),
+				MsgFmt(_T("CreateProcess(%s) failed; system error %d: %s"), cmd, sysErr.GetCode(), sysErr.Get()));
+			return false;
+		}
+
+		// we don't need the thread handle for anything - close it immediately
+		CloseHandle(procInfo.hThread);
+
+		// get the process handle
+		hProcess = procInfo.hProcess;
+	}
 
 	// If we're waiting, wait for the process to exit
 	if (wait)
 	{
 		// wait for the process to finish
-		if (WaitForSingleObject(procInfo.hProcess, INFINITE) == WAIT_OBJECT_0)
+		if (WaitForSingleObject(hProcess, INFINITE) == WAIT_OBJECT_0)
 		{
 			// success - close the handle and return success
-			CloseHandle(procInfo.hProcess);
+			CloseHandle(hProcess);
 			return true;
 		}
 		else
@@ -1052,13 +1089,13 @@ bool Application::RunCommand(const TCHAR *cmd,
 		// They don't want to wait for the process to finish.  If they want
 		// the handle returned, return it, otherwise close it.
 		if (phProcess != nullptr)
-			*phProcess = procInfo.hProcess;
+			*phProcess = hProcess;
 		else
-			CloseHandle(procInfo.hProcess);
+			CloseHandle(hProcess);
 
 		// pass back the PID if desired
 		if (pPid != nullptr)
-			*pPid = procInfo.dwProcessId;
+			*pPid = GetProcessId(hProcess);
 
 		// the process was successfully launched
 		return true;
@@ -4551,9 +4588,13 @@ DWORD Application::GameMonitorThread::Main()
 				else
 					audioSourceOpts = _T("-f dshow -i audio=\"[audioDevice]\"");
 
-				// set up the audio codec
+				// Set up the audio codec.  IF there's a custom codec setting,
+				// use that.  For audio output, use the default codec for the
+				// output format.  For video output, specify 'aac'.
 				if (capture.customAudioCodec.size() != 0)
 					audioCodecOpts = capture.customAudioCodec.c_str();
+				else if (item.mediaType.format == MediaType::Audio)
+					audioCodecOpts = _T("-b:a 128k -ac 2");
 				else
 					audioCodecOpts = _T("-c:a aac -b:a 128k -ac 2");
 			}

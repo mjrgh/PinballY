@@ -2862,6 +2862,10 @@ protected:
 	JsValueRef JsJoystickInfoWheel(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iWheel); }
 	JsValueRef JsJoystickInfoHat(JsValueRef self) { return JsJoystickInfoAxis(self, JoystickManager::Joystick::iHat); }
 
+	// Javascript 'pinscape' object methods
+	bool JsPinscapeIsNightMode(JsValueRef self) const;
+	void JsPinscapeSetNightMode(JsValueRef self, bool enable);
+
 	// Carry out the Select command
 	void DoSelect(bool usingExitKey);
 
@@ -2953,6 +2957,9 @@ protected:
 
 	// Javascript object representing the game list
 	JsValueRef jsGameList = JS_INVALID_REFERENCE;
+
+	// Javascript object representing the Pinscape Controller interface
+	JsValueRef jsPinscape = JS_INVALID_REFERENCE;
 
 	// console object
 	JsValueRef jsConsole = JS_INVALID_REFERENCE;

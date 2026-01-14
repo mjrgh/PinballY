@@ -383,7 +383,36 @@
 </p>
 
 
+<h3>Pinball FX in Cabinet Mode (as of 2023)</h3>
+<p>
+   Source: <a href="https://vpuniverse.com/forums/topic/8806-pinball-fx-settings-for-pinbally-and-pinballx-front-ends/">vpuniverse.com/forums/topic/8806-pinball-fx-settings-for-pinbally-and-pinballx-front-ends/</a>
+</p>
+<p>
+   <b>System class:</b> STEAM<br>
+   <b>Program EXE:</b> [STEAM]<br>
+   <b>Parameters:</b> -applaunch 2328760 -Table "[TABLEFILEBASE]" -GameMode Classic<br>
+   <b>Window Mode:</b> Minimize<br>
+   <b>Process name:</b> PinballFX-Win64-Shipping.exe<br>
+   <b>Table extension:</b> .pxp<br>
+   <b>Terminate by:</b> Close Windows<br>
+</p>
+<p>
+   The Program EXE text should be entered literally as <b>[STEAM]</b>, including
+   the brackets.  Don't substitute a file path or anything else; just write it
+   literally like that.
+</p>
+<p>
+   Note that Pinball FX has been known to change this entire launch setup with
+   each new release, so this advice might be out of date by the time you're
+   reading this.  Please check the thread linked above, or search on vpuniverse.com
+   and/or vpforums.com for updated settings.
+</p>
+
 <h3>Pinball FX2</h3>
+<p>
+   Note: these are older settings that might not apply to more recent
+   versions of the program.  See "Pinball FX in cabinet mode" above.
+</p>
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
@@ -401,6 +430,10 @@
 </p>
 
 <h3>Pinball FX3</h3>
+<p>
+   Note: these are older settings that might not apply to more recent
+   versions of the program.  See "Pinball FX in cabinet mode" above.
+</p>
 <p>
    <b>System class:</b> STEAM<br>
    <b>Program EXE:</b> [STEAM]<br>
@@ -1276,7 +1309,7 @@ tr.keyHeading > td {
    is that it doesn't force the game to wait for the task to finish.
 
    <li><b>TERMINATE:</b>  PinballY will explicitly terminate the running process
-   as soon as the game exits.  Use this in combination with WAIT (that is,
+   as soon as the game exits.  Use this in combination with NOWAIT (that is,
    specify [NOWAIT TERMINATE]) for a program that you want to leave running to
    carry out some background task throughout the game session, but that you want to shut down as soon as the game finishes.
    This is often a better option than the plain NOWAIT, since it ensures that

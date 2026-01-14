@@ -440,6 +440,8 @@
    <li><b>Video codec options:</b>
    <span class="cmdline">-c:v libx264 -crf 18</span>
 
+   <li><b>Image source options:</b>  Same as the video source options above
+
    <li><b>Image codec options:</b>
    <span class="cmdline">-frames:v 1 -update 1</span>
 </ul>
@@ -451,10 +453,9 @@
    drivers.  If you have an NVIDIA card and find that this doesn't
    work (especially if the error says something about the "API version"
    being too old), try checking on <a target="_blank" href="https://nvideo.com/">nvidia.com</a>
-   for an updated driver.  I've found that Windows Update tends
-   to lag the manufacturer releases, so check the
-   NVIDIA site even if Windows Update assures you that you already
-   have the latest driver it knows about.
+   for an updated driver.  NVIDIA releases new versions directly on
+   their own site first, so you might not truly have the latest even
+   if Windows Update claims you do.
 </p>
 <ul>
    <li><b>Video source options:</b>
@@ -462,6 +463,8 @@
 
    <li><b>Video codec options:</b>
    <span class="cmdline">-c:v h264_nvenc -cq 18</span>
+
+   <li><b>Image source options:</b>  Same as the video source options above
 
    <li><b>Image codec options:</b>
    <span class="cmdline">-frames:v 1 -update 1</span>

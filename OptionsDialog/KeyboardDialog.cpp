@@ -107,7 +107,7 @@ BOOL KeyboardDialog::OnInitDialog()
 	// build our internal database
 	BuildDatabase();
 
-	// popuplate the visible command list
+	// populate the visible command list
 	BuildCommandList();
 
 	// set up a timer for removing hot tracking when the mouse leaves

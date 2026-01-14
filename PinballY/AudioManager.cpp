@@ -48,15 +48,15 @@ AudioManager::~AudioManager()
 	}
 
 	// Anything left in the cache can now be deleted, as we 
-	// transfered all active items over to 'pending'.  We don't
+	// transferred all active items over to 'pending'.  We don't
 	// actually have to clear the cache manually, as the map
 	// destructor would do that anyway, but we might as well
 	// do that work while we're waiting for sounds to finish.
 	cache.clear();
 
 	// Now wait for the remaining sounds to finish, within reason
-	DWORD t0 = GetTickCount();
-	while (pending.size() != 0 && GetTickCount() - t0 < 30000)
+	UINT64 t0 = GetTickCount64();
+	while (pending.size() != 0 && GetTickCount64() - t0 < 30000)
 	{
 		// pause briefly
 		Sleep(15);

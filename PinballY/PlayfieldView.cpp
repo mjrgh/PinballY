@@ -417,7 +417,7 @@ JsValueRef PlayfieldView::JsCreateMediaWindow(JavascriptEngine::JsObj options)
 			// initialize common secondary window properties and methods
 			InitJsWinObj(frame, jsWinObj, "CustomWindow", eh);
 
-			// intialize CustomView properties and methods
+			// initialize CustomView properties and methods
 			if (!js->DefineGetterSetter(jsWinObj, "CustomView", "showMediaWhenRunningFlag",
 				&CustomView::JsGetShowMediaWhenRunningFlag, &CustomView::JsSetShowMediaWhenRunningFlag, view, eh))
 				return js->GetUndefVal();
@@ -831,6 +831,7 @@ void PlayfieldView::InitJavascript()
 				|| !GetObj(jsConsole, "console")
 				|| !GetObj(jsLogfile, "logfile")
 				|| !GetObj(jsGameList, "gameList")
+				|| !GetObj(jsPinscape, "pinscape")
 				|| !GetProto(jsGameInfo, "GameInfo")
 				|| !GetProto(jsGameSysInfo, "GameSysInfo")
 				|| !GetProto(jsFilterInfo, "FilterInfo")
@@ -1191,6 +1192,11 @@ void PlayfieldView::InitJavascript()
 				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Dial", &PlayfieldView::JsJoystickInfoDial, this, eh)
 				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Wheel", &PlayfieldView::JsJoystickInfoWheel, this, eh)
 				|| !js->DefineObjMethod(jsJoystickInfo, "JoystickInfo", "Hat", &PlayfieldView::JsJoystickInfoHat, this, eh))
+				return;
+
+			// pinscape methods
+			if (!js->DefineGetterSetter(jsPinscape, "pinscape", "nightMode", 
+				&PlayfieldView::JsPinscapeIsNightMode, &PlayfieldView::JsPinscapeSetNightMode, this, eh))
 				return;
 
 			// set up command IDs in the Command object
@@ -9418,6 +9424,17 @@ JsValueRef PlayfieldView::JsJoystickInfoAxis(JsValueRef selfVal, USAGE axis)
 	}
 }
 
+bool PlayfieldView::JsPinscapeIsNightMode(JsValueRef self) const
+{
+	// return true if there are any Pinscape units, and any are in night mode
+	bool nightMode;
+	return Application::Get()->GetPinscapeNightMode(nightMode) && nightMode;
+}
+
+void PlayfieldView::JsPinscapeSetNightMode(JsValueRef self, bool enable)
+{
+	Application::Get()->SetPinscapeNightMode(enable);
+}
 
 void PlayfieldView::AnimateWheelFade()
 {
@@ -14131,7 +14148,7 @@ void PlayfieldView::DoSelect(bool usingExitKey)
 		}
 		else if (popupType == PopupType::PopupMediaList)
 		{
-			// Media list dialog - exeucte the current command
+			// Media list dialog - execute the current command
 			DoMediaListCommand(close);
 		}
 		else if (popupType == PopupType::PopupBatchCapturePreview)
@@ -15536,12 +15553,20 @@ void PlayfieldView::EditGameInfo()
 						return 0;
 
 					case CBN_SETFOCUS:
-						// show the drop list
-						if (IsWindowVisible(GetDlgItem(IDC_CB_TITLE)))
-						{
-							ComboBox_ShowDropdown(GetDlgItem(IDC_CB_TITLE), TRUE);
-							SetCursor(LoadCursor(NULL, IDC_ARROW));
-						}
+						// DON'T show the drop list on focus.  The drop list shows
+						// as soon as we start typing, or upon asking for it with
+						// a down-arrow key press or drop-arrow-icon click, so it's
+						// easy enough to get to.  It's just irritating to have it
+						// open immediately on gaining focus, especially if the full
+						// game title is a leading substring of some *other* game
+						// title.
+						 
+						//(Old: show the drop list)
+						//if (IsWindowVisible(GetDlgItem(IDC_CB_TITLE)))
+						//{
+						//	ComboBox_ShowDropdown(GetDlgItem(IDC_CB_TITLE), TRUE);
+						//	SetCursor(LoadCursor(NULL, IDC_ARROW));
+						//}
 						return 0;
 
 					case CBN_KILLFOCUS:
@@ -15728,7 +15753,7 @@ void PlayfieldView::EditGameInfo()
 			// get the ref table list
 			auto rtl = Application::Get()->refTableList.get();
 
-			// Populate the droplist with close matches to the current string.
+			// Populate the drop list with close matches to the current string.
 			// If the string is short, do a simple leading substring match.  
 			// Otherwise do a similarity match.  We don't attempt a similarity
 			// match on a short string since we can't get decent results until
@@ -15795,6 +15820,24 @@ void PlayfieldView::EditGameInfo()
 			return false;
 		}
 
+		// Close the drop list while retaining the current text and selection range
+		void CloseDropListAndKeepText()
+		{
+			// retrieve the current text and selection
+			TCHAR txt[256];
+			HWND combo = GetDlgItem(IDC_CB_TITLE);
+			GetWindowText(combo, txt, countof(txt));
+			DWORD sel = ComboBox_GetEditSel(combo);
+			DWORD start = LOWORD(sel), end = HIWORD(sel);
+
+			// close the combo
+			ComboBox_ShowDropdown(combo, FALSE);
+
+			// restore the text and selection
+			SetWindowText(combo, txt);
+			ComboBox_SetEditSel(combo, start, end);
+		}
+
 		// Handle character events in the title combo box.  Returns true if we
 		// handle the event, false if not (in which case control should be passed 
 		// to the default window proc).
@@ -15823,18 +15866,8 @@ void PlayfieldView::EditGameInfo()
 				// close the list and keep the current text
 				if (dropped && ComboBox_GetCurSel(combo) < 0)
 				{
-					// retrieve the current text and selection
-					TCHAR txt[256];
-					GetWindowText(combo, txt, countof(txt));
-					DWORD sel = ComboBox_GetEditSel(combo);
-					DWORD start = LOWORD(sel), end = HIWORD(sel);
-
-					// close the combo
-					ComboBox_ShowDropdown(combo, FALSE);
-
-					// restore the text and selection
-					SetWindowText(combo, txt);
-					ComboBox_SetEditSel(combo, start, end);
+					// close the drop list, keep the current selection
+					CloseDropListAndKeepText();
 
 					// bypass the normal behavior
 					lResult = 0;
@@ -15845,30 +15878,22 @@ void PlayfieldView::EditGameInfo()
 				return false;
 			}
 
-			// ignore control characters except backspace
-			if (iswcntrl(ch) && ch != 8)
-				return true;
-
-			// Backspace is a bit of a special case for auto-complete.  If
-			// the current selection range extends to the end of the string,
-			// take it to be an auto-complete range.  In this case, we want
-			// backspace to delete the prior character, as though the auto-
-			// complete selection weren't even there.
-			if (ch == 8 && dropped)
+			// Backspace closes the drop-list and cancels auto-complete,
+			// at least for now.  Auto-complete can still resume on typing
+			// another printable character.
+			if (ch == 8)
 			{
-				// get the current text and selection range
-				TCHAR txt[256];
-				GetWindowText(combo, txt, countof(txt));
-				DWORD sel = ComboBox_GetEditSel(combo);
-				DWORD start = LOWORD(sel), end = HIWORD(sel);
+				// if the drop list is open, close it, keeping the current selection
+				if (dropped)
+					CloseDropListAndKeepText();
 
-				// does the selection extend to the end of the text?
-				if (end >= _tcslen(txt) && start > 0)
-				{
-					// extend the selection range to the previous character
-					ComboBox_SetEditSel(combo, start - 1, end);
-				}
+				// proceed to the normal backspace processing
+				return false;
 			}
+
+			// ignore any other control characters
+			if (iswcntrl(ch))
+				return true;
 
 			// invoke the normal handling first to update the text
 			lResult = CallWindowProc(reinterpret_cast<WNDPROC>(GetProp(edit, _T("WNDPROC"))), edit, msg, wParam, lParam);

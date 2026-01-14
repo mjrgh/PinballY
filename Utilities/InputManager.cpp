@@ -219,7 +219,7 @@ bool InputManager::InitRawInput(HWND hwnd)
 		| RIDEV_INPUTSINK;				// get input whether in foreground or background
 	rd[1].hwndTarget = hwnd;
 
-	// Keyboard.
+	// keyboard
 	rd[2].usUsagePage = 1;				// "Generic Desktop"
 	rd[2].usUsage = 6;					// keyboards
 	rd[2].dwFlags = RIDEV_INPUTSINK;	// get input whether in foreground or background

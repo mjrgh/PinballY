@@ -134,6 +134,7 @@ var contents = [
             "++GameList.html gameList",
             "++LogfileObject.html logfile",
             "++OptionSettingsObject.html optionSettings",
+            "++PinscapeObject.html pinscape",
             "++SystemInfoObject.html systemInfo",
             "++WindowObjects.html Window Objects",
                 "+++BackglassWindow.html backglassWindow",

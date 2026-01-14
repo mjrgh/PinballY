@@ -262,7 +262,7 @@ JoystickManager::PhysicalJoystick::PhysicalJoystick(
 	// 
 	// 2. The list of report IDs that contain button states.  We
 	// need to set up one ButtonReportGroup object per report ID.
-	// (Most joystick devices are relatvely simple and only issue
+	// (Most joystick devices are relatively simple and only issue
 	// one report ID, so it's probably a bit of overkill to worry
 	// about different IDs, but for sake of generality we do.)
 	// For each HID_BUTTON_CAPS item, we'll add a new 
