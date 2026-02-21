@@ -416,7 +416,7 @@ bool ConfigManager::Save(bool silent)
 		{
 			LogSysError(ErrorIconType::EIT_Warning, 
 				MsgFmt(IDS_ERR_CONFIGWRITE,	filename.c_str()),
-				MsgFmt(_T("%hs failed, error code %d"), errSrc, err));
+				MsgFmt(_T("%s failed, error code %d"), errSrc.c_str(), err));
 		}
 
 		// return failure

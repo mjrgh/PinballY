@@ -385,6 +385,7 @@
 #define IDS_ERR_AUDIOPLAYERSYSERR       717
 #define IDS_ERR_INVAL_IPDB_ID           718
 #define IDS_ERR_INVAL_MEDIA_NAME        719
+#define IDS_ERR_CVSWRITE                720
 
 #define IDS_PLAYED_WITHIN               800
 #define IDS_NOT_PLAYED_WITHIN           801

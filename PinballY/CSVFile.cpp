@@ -293,9 +293,43 @@ bool CSVFile::Write(ErrorHandler &eh)
 
 	// the temp file is now closed
 	fp = nullptr;
+	
+	// If the active file already exists, create a daily backup snapshot
+	if (FileExists(filename.c_str()))
+	{
+		// generate the name of the daily snapshot
+		TCHAR snapDate[20];
+		GetDateFormatEx(LOCALE_NAME_INVARIANT, 0, 0, _T("yyyy-MM-dd"), snapDate, _countof(snapDate), 0);
+		static const std::basic_regex<TCHAR> snapPat(_T("(\\.[^.]+)$"));
+		TSTRING snapshot = std::regex_replace(filename, snapPat, TSTRING(_T(" backup ")) + snapDate + _T("$1"));
 
-	// delete the original file and rename the temp file to the original name
-	_tunlink(filename.c_str());
+		// If there's not already a snapshot for this day, rename the
+		// current file to use the snapshot name, effectively making the
+		// current file into the backup.  Skip this if there's already a
+		// snapshot for this date; we only want to make one snapshot per
+		// day, using the first version of the file we discover that day.
+		int err = 0;
+		TSTRING errSrc;
+		if (FileExists(snapshot.c_str()))
+		{
+			// Snapshot already exists.  Don't save another copy; just
+			// delete the active file to make way for the new copy.
+			if ((err = _tremove(filename.c_str())) != 0)
+				errSrc = MsgFmt(_T("removing the old settings file (%s)"), filename.c_str());
+		}
+		else
+		{
+			// no snapshot yet - create it by renaming the active file
+			if ((err = _trename(filename.c_str(), snapshot.c_str())) != 0)
+				errSrc = MsgFmt(_T("renaming %s to %s"), filename.c_str(), snapshot.c_str());
+		}
+
+		if (err != 0)
+			eh.Error(MsgFmt(IDS_ERR_CVSWRITE, filename.c_str(), errSrc.c_str(), err));
+	}
+
+	// We can now make the temp file the active file, by renaming it
+	// to the active file name.
 	if (_trename(tempfile.c_str(), filename.c_str()))
 	{
 		eh.Error(MsgFmt(IDS_ERR_MOVEFILE, tempfile.c_str(), filename.c_str(), FileErrorMessage(errno).c_str()));
