@@ -350,6 +350,22 @@
       working directory, you can use a .lnk (Windows Shortcut)
       file.
 
+   <li>PinballY waits for the commands you launch to finish before
+      proceeding.  The startup and exit commands are intended to perform
+      discrete tasks that you want to perform <b>and complete</b> before
+      PinballY carries on with its next step.  So PinballY dutifully
+      waits for the launched process to terminate before it proceeds.
+      This means that if you launch a program that you intend to keep
+      running forever in the background, PinballY will wait forever,
+      or as long as you keep the background program running.  This will
+      make PinballY appear to be "stuck".  It's not really stuck; it's
+      just doing what it thinks you wanted, by waiting for your prerequisite
+      task to safely finish before PinballY moves on to its next action.
+      If you truly want to launch a program that stays open indefinitely,
+      you must launch the program asynchronously, by using the DOS box
+      START command: <tt>cmd.exe /c start <i>background-task.exe</i></tt>.
+      START is CMD.EXE's way of saying "launch this program, and don't
+      wait for it to finish".
 </ul>
 
    
