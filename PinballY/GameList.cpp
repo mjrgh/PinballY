@@ -4036,8 +4036,17 @@ void GameListItem::SetTitleFromFilename()
 	if (tableFileSet != nullptr && tstriEndsWith(filename.c_str(), tableFileSet->defExt.c_str()))
 		lenSansExt -= tableFileSet->defExt.length();
 
-	this->mediaName.assign(filename.c_str(), lenSansExt);
-	this->title.assign(filename.c_str(), lenSansExt);
+	size_t sepPos = filename.rfind('\\');
+	if (sepPos == std::string::npos)
+	{
+		this->mediaName.assign(filename.c_str(), lenSansExt);
+		this->title.assign(filename.c_str(), lenSansExt);
+	}
+	else
+	{
+		this->mediaName.assign(filename.substr(sepPos + 1).c_str(), lenSansExt - sepPos - 1);
+		this->title.assign(filename.substr(sepPos + 1).c_str(), lenSansExt - sepPos - 1);
+	}
 }
 
 void GameListItem::CommonInit()
@@ -5314,14 +5323,14 @@ TableFileSet::TableFileSet(const TCHAR *tablePath, const TCHAR *defExt) :
 	tablePath(tablePath), defExt(defExt)
 {
 	// build our initial file set from a directory scan
-	ScanFolder(tablePath, defExt, [this](const TCHAR *filename) 
+	ScanFolder(tablePath, tablePath, defExt, [this](const TCHAR *filename)
 	{
 		GameList::Log(_T("++ found file:  %s\n"), filename);
 		AddFile(filename);
 	});
 }
 
-void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
+void TableFileSet::ScanFolder(const TCHAR* basepath, const TCHAR *path, const TCHAR *ext,
 	std::function<void(const TCHAR *filename)> func)
 {
 	// If the default extension is non-empty, build the list of files
@@ -5344,13 +5353,19 @@ void TableFileSet::ScanFolder(const TCHAR *path, const TCHAR *ext,
 		{
 			// skip directories
 			if (file.status().type() == fs::file_type::directory)
+			{
+				ScanFolder(basepath, file.path().c_str(), ext, func);
 				continue;
+			}
 
 			// Match this file to the default extension.  It matches
 			// if either this is the special ".*" wildcard, or the
 			// filename ends with the extension, ignoring case.
 			if (dotStar || tstriEndsWith(file.path().c_str(), ext))
-				func(WSTRINGToTSTRING(file.path().filename().wstring()).c_str());
+			{
+				fs::path relPath = fs::relative(file.path(), basepath, ec);
+				func(WSTRINGToTSTRING(relPath.wstring()).c_str());
+			}
 		}
 	}
 	else
