@@ -1201,8 +1201,17 @@ public:
 	static TSTRING GetKey(const TCHAR *tablePath, const TCHAR *defExt);
 
 	// Enumerate files in a folder matching an extension.  If the
-	// extension is null or empty, no files match.
-	static void ScanFolder(const TCHAR* basepath, const TCHAR *path, const TCHAR *ext,
+    // extension is null or empty, no files match.
+    //
+    // Scans recursively, to allow for organizing the table folder
+    // into per-game subfolder trees.  Game subfolders are useful
+    // for systems where each game is represented by several files.
+    // 'basepath' is the root folder of the scan; 'path' is the
+    // current subfolder we're scanning.  'basepath' and 'path'
+    // are normally the same on the top-level call for the base
+    // folder, and the function makes recursive calls to scan
+    // subfolder as it encounters them.
+	static void ScanFolder(const TCHAR *basepath, const TCHAR *path, const TCHAR *ext,
 		std::function<void(const TCHAR *filename)> func);
 
 	TSTRING tablePath;		// full path to the system's table folder

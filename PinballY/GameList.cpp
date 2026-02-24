@@ -5330,7 +5330,7 @@ TableFileSet::TableFileSet(const TCHAR *tablePath, const TCHAR *defExt) :
 	});
 }
 
-void TableFileSet::ScanFolder(const TCHAR* basepath, const TCHAR *path, const TCHAR *ext,
+void TableFileSet::ScanFolder(const TCHAR *basepath, const TCHAR *path, const TCHAR *ext,
 	std::function<void(const TCHAR *filename)> func)
 {
 	// If the default extension is non-empty, build the list of files
@@ -5351,21 +5351,26 @@ void TableFileSet::ScanFolder(const TCHAR* basepath, const TCHAR *path, const TC
 		std::error_code ec;
 		for (auto &file : fs::directory_iterator(path, ec))
 		{
-			// skip directories
+            // check the object type
 			if (file.status().type() == fs::file_type::directory)
-			{
+            {
+                // directory - recursively scan the subfolder
 				ScanFolder(basepath, file.path().c_str(), ext, func);
-				continue;
-			}
-
-			// Match this file to the default extension.  It matches
-			// if either this is the special ".*" wildcard, or the
-			// filename ends with the extension, ignoring case.
-			if (dotStar || tstriEndsWith(file.path().c_str(), ext))
-			{
-				fs::path relPath = fs::relative(file.path(), basepath, ec);
-				func(WSTRINGToTSTRING(relPath.wstring()).c_str());
-			}
+            }
+            else
+            {
+                // Ordinary file.  Match this file to the default extension
+                // we're seeking, 'ext'.  The file matches if 'ext' is the
+                // wildcard pattern ".*", or the filename ends with the
+                // literal text in 'ext', ignoring case.
+                if (dotStar || tstriEndsWith(file.path().c_str(), ext))
+                {
+                    // process it through the callback, using the filename
+                    // path relative to the base folder path
+                    fs::path relPath = fs::relative(file.path(), basepath, ec);
+                    func(WSTRINGToTSTRING(relPath.wstring()).c_str());
+                }
+            }
 		}
 	}
 	else
