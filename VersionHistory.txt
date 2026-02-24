@@ -28,7 +28,61 @@ backspace key to work the same way.  (Addresses issue #248 on github.)
 
 * Changed the default audio capture command line to leave the output
 codec as the default for the format, rather than always specifying
-'aac' (which doesn't work with .mp3 output).  (ISsue #259 on github.)
+'aac' (which doesn't work with .mp3 output).  (Issue #259 on github.)
+
+* Subfolders are now scanned within table folders when searching for
+games.  This lets you better organize folders containing playable
+games.  Previously, the table scan was based on the traditional flat
+table folder structure used in Visual Pinball and Future Pinball,
+where all of the playable game files for a given system were stored in
+one giant "Tables" folder.  With this change, you can now arrange your
+tables into as many subfolders of the main Tables folder as you like.
+The table scanner will automatically scan not only the main Tables
+folder, but also its subfolders, and their subfolders, and so on to
+any depth.  This was motivated by changes to Visual Pinball that will
+allow you to organize your VP table collection into individual
+per-game folders under the main VP Tables folder, but it doesn't
+require using any particular folder layout, since it just scans all
+subfolders of the main Tables folder you specify in the system
+settings.  And you're not required to use subfolders, since the
+scanner will still find files located directly in the main Tables
+folder as it always did.
+
+* The GameStats.csv file is now automatically backed up daily.
+PinballY uses this file to store some of the per-game metadata for
+your table collection, such as your star rating and total playing
+time.  To help mitigate data loss in the event of a program crash,
+disk failure, or other mishap, PinballY now automatically saves a
+backup copy of the file, once on each day that you run PinballY.
+(Nothing happens on days when you don't run PinballY; there isn't any
+hidden background task involved.  It's just something that PinballY
+does the first time that it attempts to update the file on any given
+calendar day.)  PinballY saves a separate copy every day, so that
+there's a history of recent updates, in case one of the backup copies
+is itself lost or corrupted.  The backup files have names of the form
+"GameStats backup XX-XX-XXXX.csv", where the X's are replaced by the
+calendar date the backup was made.  Each backup represents the version
+of the file as it existed before the first PinballY run of that day.
+
+This is exactly the same procedure that PinballY has long used for its
+main configuration file, Settings.txt.  The idea is that if you ever
+experience data loss with one of these files - either outright
+deletion of the file, or corruption or truncation of its contents -
+you can easily restore a recent "good" copy by going back to the most
+recent backup copy saved.  The point of saving a separate copy every
+day is that it's always possible that something was lost before you
+first noticed the problem, so the last backup copy (or even the last
+few backup copies) could conceivably have been made from originals
+that were already corrupted, rendering them as useless as the
+corrupted current version.  Having a daily history of changes makes it
+more likely that an actually good copy is still around, made before
+the mishap occurred.  The trade-off, of course, is that you'll
+eventually accumulate a lot of backup copies, so you'll probably want
+to go through them from time to time and delete the really old ones.
+But these files are relatively small, so they shouldn't be a huge
+burden on your available disk space, even if you don't clean them up
+regularly.
+
 
 
 11-03-2024 (1.1.0 Beta 10)
