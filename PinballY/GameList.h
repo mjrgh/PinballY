@@ -1202,7 +1202,7 @@ public:
 
 	// Enumerate files in a folder matching an extension.  If the
 	// extension is null or empty, no files match.
-	static void ScanFolder(const TCHAR *path, const TCHAR *ext, 
+	static void ScanFolder(const TCHAR* basepath, const TCHAR *path, const TCHAR *ext,
 		std::function<void(const TCHAR *filename)> func);
 
 	TSTRING tablePath;		// full path to the system's table folder
