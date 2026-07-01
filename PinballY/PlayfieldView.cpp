@@ -102,6 +102,7 @@ namespace ConfigVars
 	static const TCHAR *AttractModeHideWheelImages = _T("AttractMode.HideWheelImages");
 	static const TCHAR *AttractModeHideInfoBox = _T("AttractMode.HideInfoBox");
 	static const TCHAR *PlayfieldWinPrefix = _T("PlayfieldWindow");
+	static const TCHAR *PlayfieldMediaRotation = _T("PlayfieldWindow.MediaRotation");
 	static const TCHAR *GameTimeout = _T("GameTimeout");
 	static const TCHAR *ExitKeyMode = _T("ExitMenu.ExitKeyMode");
 	static const TCHAR *ExitMenuEnabled = _T("ExitMenu.Enabled");
@@ -8759,10 +8760,14 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 		if (!FireMediaSyncLoadEvent(this, game, &video, &image, &defaultVideo, &defaultImage))
 			return;
 
+		// media rotation setting, in degrees clockwise; the default of 270
+		// matches the standard HyperPin/PBX media orientation
+		int mediaRotation = ConfigManager::GetInstance()->GetInt(ConfigVars::PlayfieldMediaRotation, 270);
+
 		// Asynchronous loader function
 		HWND hWnd = this->hWnd;
 		SIZE szLayout = this->szLayout;
-		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct](BaseView*, VideoSprite *sprite)
+		auto load = [hWnd, video, image, szLayout, videosEnabled, volumePct, mediaRotation](BaseView*, VideoSprite *sprite)
 		{
 			// nothing loaded yet
 			bool ok = false;
@@ -8810,13 +8815,10 @@ void PlayfieldView::LoadIncomingPlayfieldMedia(GameListItem *game)
 			if (!ok && GameList::Get()->FindGlobalImageFile(defaultImage, _T("Images"), _T("Default Playfield")))
 				ok = LoadImage(defaultImage);
 
-			// HyperPin/PBX playfield images are oriented sideways, with the bottom at
-			// the left.  Rotate 90 degrees counter-clockwise to orient it vertically.
-			// The actual display will of course orient it according to the camera
-			// view, but it makes things easier to think about if we orient all
-			// graphics the "normal" way internally.  (Note that CCW is positive on
-			// the Z axis, since D3D coordinates are left-handed.)
-			sprite->rotation.z = XM_PI / 2.0f;
+			// Playfield media are stored sideways, so rotate per the MediaRotation
+			// setting.  It's in degrees clockwise, so negate it (CCW is positive
+			// on the Z axis in D3D's left-handed coordinates).
+			sprite->rotation.z = float((360 - mediaRotation) % 360) * XM_PI / 180.0f;
 			sprite->UpdateWorld();
 
 			// return the result
