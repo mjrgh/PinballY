@@ -46,7 +46,9 @@ public:
 	// size is used to determine the rasterization size for vector 
 	// graphic media (e.g., Flash objects).  It's ignored for raster
 	// images (e.g., JPEG, PNG), which are loaded at the native size
-	// for the media.
+	// for the media, with one exception: animated PNG frames larger
+	// than the pixel size are downscaled to fit it, to limit the
+	// memory needed to keep all of the frame textures resident.
 	//
 	// msgHwnd is a window that will receive AVPxxx messages related
 	// to animation playback, if desired.  This can be null if these
@@ -469,6 +471,8 @@ protected:
 	// frame at a time on demand.
 	struct APNGLoaderState : Animation
 	{
+		APNGLoaderState(SIZE targetPixSize) : targetPixSize(targetPixSize) { }
+
 		// Animation interface implementation
 		virtual ~APNGLoaderState() { EndProcessing(); }
 		virtual void DecodeNext(LoadContext *ctx) override;
@@ -675,8 +679,21 @@ protected:
 		// do we have the IDAT frame yet?
 		bool hasIDAT = false;
 
-		// have we reached EOF?
+		// have we reached EOF?  (This is also set to end decoding early,
+		// on a frame decoding error or on reaching the animation's
+		// texture memory budget.)
 		bool eof = false;
+
+		// Target on-screen size of the sprite, in pixels.  Frames larger
+		// than this are downscaled to this size when creating the frame
+		// textures, since there's no point in keeping more pixels resident
+		// than the display can show.
+		SIZE targetPixSize;
+
+		// Running total of the memory used for the animation frame textures,
+		// in bytes.  We stop decoding new frames when this reaches a fixed
+		// budget, to keep a long animation from exhausting memory.
+		size_t loadedTexBytes = 0;
 
 		// number of fcTL records we've encountered so far
 		int fcTLCount = 0;
