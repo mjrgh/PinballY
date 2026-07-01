@@ -4175,11 +4175,12 @@ void JavascriptEngine::MarshallToNative::DoPointer()
 			JavascriptCallbackWrapper *wrapper = nullptr;
 			if (hasThunk)
 			{
-				// retrieve and validate the external data
+				// Retrieve and validate the external data, capturing the recovered
+				// wrapper - it's the source of the thunk we pass to the caller below
 				const TCHAR *where = nullptr;
-				if (!JavascriptCallbackWrapper::Recover<JavascriptCallbackWrapper>(thunk, where))
+				if ((wrapper = JavascriptCallbackWrapper::Recover<JavascriptCallbackWrapper>(thunk, where)) == nullptr)
 				{
-					Error(err, MsgFmt(_T("dllImport: recovering callback function thunk data: %s"), where));
+					Error(MsgFmt(_T("dllImport: recovering callback function thunk data: %s"), where));
 					return;
 				}
 			}
